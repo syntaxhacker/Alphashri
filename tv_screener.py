@@ -1,3 +1,4 @@
+import rookiepy
 from tradingview_screener import Query
 from rich.console import Console
 from rich.table import Table
@@ -7,43 +8,30 @@ import argparse
 
 console = Console()
 
-# TradingView headers from your browser
-HEADERS = {
-    'authority': 'scanner.tradingview.com',
-    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'accept-encoding': 'gzip, deflate, br, zstd',
-    'accept-language': 'en-US,en;q=0.9,te;q=0.8',
-    'cache-control': 'no-cache',
-    'dnt': '1',
-    'pragma': 'no-cache',
-    'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"macOS"',
-    'sec-fetch-dest': 'document',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-site': 'none',
-    'sec-fetch-user': '?1',
-    'upgrade-insecure-requests': '1',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
-}
-
-# TradingView cookies from your browser
-COOKIES = {
-    'cookiePrivacyPreferenceBannerProduction': 'notApplicable',
-    'cookiesSettings': '{"analytics":true,"advertising":true}',
-    'device_t': 'NnVGSkFROjA.RWMlOQqXeLpM4RrG0aIqJKgDFjOS_MKHhzau4s7XDdg',
-    'sessionid': '98trlrspuzm3rs8bck9jf5fnlikb391p',
-    'sessionid_sign': 'v3:Zu/xnZDuILf9B5cwMZtx4QIa1fPqSlZLNT9fFHcVr6o=',
-    'tv_ecuid': 'ad96aa2f-9741-4c1c-adfc-e3441279ba4c',
-    'ext_name': 'ojplmecpdpgccookcobabopnaifgidhf',
-    '_sp_ses.cf1a': '*',
-    '_sp_id.cf1a': '370ff04e-e2ac-4777-86bd-7197e5666124.1731561180.38.1735034367.1735024955.e053ab11-b7bd-41c0-87e4-2155705be7fd.77df16ff-d68a-4a78-b411-2d8642328a88.2f9f1c3e-8c9f-4e14-af49-306c5667233c.1735034330497.9'
-}
+def get_tradingview_cookies():
+    """Get TradingView cookies from browser"""
+    try:
+        # Try Chrome first
+        cookies = rookiepy.to_cookiejar(rookiepy.chrome(['.tradingview.com']))
+        console.print("[green]Successfully loaded cookies from Chrome[/green]")
+        return cookies
+    except Exception as chrome_error:
+        console.print("[yellow]Could not load cookies from Chrome, trying Firefox...[/yellow]")
+        try:
+            # Try Firefox if Chrome fails
+            cookies = rookiepy.to_cookiejar(rookiepy.firefox(['.tradingview.com']))
+            console.print("[green]Successfully loaded cookies from Firefox[/green]")
+            return cookies
+        except Exception as firefox_error:
+            console.print("[red]Could not load cookies from any browser. Using delayed data.[/red]")
+            console.print("[yellow]Please make sure you're logged into TradingView in your browser.[/yellow]")
+            return None
 
 class TVScreener:
     def __init__(self):
         self.query = Query()
         self.decimals = 2  # Default decimal places
+        self.cookies = get_tradingview_cookies()  # Get cookies from browser
         
     def test_connection(self):
         """Simple test to verify API connection"""
@@ -55,15 +43,26 @@ class TVScreener:
                     'name',
                     'close',
                     'volume',
-                    'market_cap_basic'
+                    'market_cap_basic',
+                    'update_mode'  # Add update_mode to check data type
                 )
                 .set_markets('india')
                 .limit(5)
-                .get_scanner_data(headers=HEADERS, cookies=COOKIES)
+                .get_scanner_data(cookies=self.cookies)  # Use cookies for real-time data
             )
             
             console.print("[green]API connection successful![/green]")
             console.print(f"Total rows available: {total_rows}")
+            
+            # Check update mode
+            if 'update_mode' in df.columns:
+                update_modes = df['update_mode'].unique()
+                for mode in update_modes:
+                    if 'streaming' in str(mode):
+                        console.print("[green]Real-time data streaming enabled![/green]")
+                    else:
+                        console.print(f"[yellow]Data mode: {mode}[/yellow]")
+            
             self.display_results(df, "Test Results")
             return True
             
@@ -88,7 +87,8 @@ class TVScreener:
                     'return_on_equity',            # ROE
                     'debt_to_equity',              # D/E ratio
                     'current_ratio',               # Liquidity
-                    'net_margin'                   # Net profit margin
+                    'net_margin',                  # Net profit margin
+                    'update_mode'                  # Add update mode
                 )
                 .where(
                     {'left': 'market_cap_basic', 'operation': 'in_range', 'right': [5e9, 5e11]},     # Market cap between ₹500 Cr to ₹50,000 Cr
@@ -100,7 +100,7 @@ class TVScreener:
                 .order_by('market_cap_basic', ascending=False)
                 .set_markets('india')
                 .limit(50)
-                .get_scanner_data(headers=HEADERS, cookies=COOKIES)
+                .get_scanner_data(cookies=self.cookies)  # Use cookies for real-time data
             )
             
             console.print("[green]Successfully fetched undervalued stocks[/green]")
@@ -138,7 +138,7 @@ class TVScreener:
                 .order_by('total_revenue_yoy_growth_ttm', ascending=False)
                 .set_markets('india')
                 .limit(50)
-                .get_scanner_data(headers=HEADERS, cookies=COOKIES)
+                .get_scanner_data(cookies=self.cookies)
             )
             
             console.print("[green]Successfully fetched multibagger stocks[/green]")
