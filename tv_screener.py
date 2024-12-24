@@ -43,6 +43,7 @@ COOKIES = {
 class TVScreener:
     def __init__(self):
         self.query = Query()
+        self.decimals = 2  # Default decimal places
         
     def test_connection(self):
         """Simple test to verify API connection"""
@@ -213,13 +214,13 @@ class TVScreener:
             if 'score' in row:
                 score_val = row['score']
                 if score_val >= 80:
-                    formatted_row.append(f"[bold green]{score_val:.1f}[/bold green]")
+                    formatted_row.append(f"[bold green]{score_val:.{self.decimals}f}[/bold green]")
                 elif score_val >= 60:
-                    formatted_row.append(f"[green]{score_val:.1f}[/green]")
+                    formatted_row.append(f"[green]{score_val:.{self.decimals}f}[/green]")
                 elif score_val >= 40:
-                    formatted_row.append(f"[yellow]{score_val:.1f}[/yellow]")
+                    formatted_row.append(f"[yellow]{score_val:.{self.decimals}f}[/yellow]")
                 else:
-                    formatted_row.append(f"[red]{score_val:.1f}[/red]")
+                    formatted_row.append(f"[red]{score_val:.{self.decimals}f}[/red]")
             
             # Format other columns
             for col, val in row.items():
@@ -227,8 +228,8 @@ class TVScreener:
                     continue
                     
                 if isinstance(val, float):
-                    # Format numbers with commas and 2 decimal places
-                    formatted_val = f"{val:,.2f}"
+                    # Format numbers with commas and specified decimal places
+                    formatted_val = f"{val:,.{self.decimals}f}"
                     
                     # Color based on column type
                     if 'change' in col.lower():
@@ -250,12 +251,12 @@ class TVScreener:
                         elif val > 30:
                             formatted_val = f"[red]{formatted_val}[/red]"
                     elif 'market_cap' in col.lower():
-                        # Format market cap in billions/crores
+                        # Format market cap in billions/crores with specified decimals
                         val_cr = val / 10000000  # Convert to crores
                         if val_cr >= 1000:
-                            formatted_val = f"₹{val_cr/100:,.2f}B"  # Convert to billions
+                            formatted_val = f"₹{val_cr/100:,.{self.decimals}f}B"  # Convert to billions
                         else:
-                            formatted_val = f"₹{val_cr:,.2f}Cr"
+                            formatted_val = f"₹{val_cr:,.{self.decimals}f}Cr"
                 else:
                     formatted_val = str(val)
                     # Color ticker symbols
@@ -270,10 +271,10 @@ class TVScreener:
         
         console.print(table)
         
-        # Save to CSV
+        # Save to CSV with specified decimal precision
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{title.lower().replace(' ', '_')}_{timestamp}.csv"
-        df.to_csv(filename, index=False)
+        df.to_csv(filename, index=False, float_format=f'%.{self.decimals}f')
         console.print(f"\n[green]Results saved to: {filename}[/green]")
 
 def parse_args():
@@ -287,6 +288,7 @@ def parse_args():
     parser.add_argument('--export-format', choices=['csv', 'excel'], default='csv', help='Export format')
     parser.add_argument('--sort-by', default='market_cap_basic', help='Column to sort results by')
     parser.add_argument('--ascending', action='store_true', help='Sort in ascending order')
+    parser.add_argument('--decimals', type=int, default=2, help='Number of decimal places to display')
     return parser.parse_args()
 
 def export_results(df: pd.DataFrame, title: str, format: str = 'csv'):
@@ -312,6 +314,7 @@ def main():
         args = parse_args()
         
         screener = TVScreener()
+        screener.decimals = args.decimals  # Set decimal precision
         
         # First test the connection
         if not screener.test_connection():
