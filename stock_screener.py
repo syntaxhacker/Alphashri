@@ -11,6 +11,68 @@ import os
 import traceback
 from urllib.parse import urlparse
 import io
+from colorama import init, Fore, Back, Style
+
+# Initialize colorama
+init(autoreset=True)
+
+class ColorFormatter(logging.Formatter):
+    """Custom formatter for colored log output"""
+    
+    COLORS = {
+        'WARNING': Fore.YELLOW,
+        'ERROR': Fore.RED,
+        'DEBUG': Fore.BLUE,
+        'INFO': Fore.GREEN,
+        'CRITICAL': Fore.RED + Back.WHITE
+    }
+
+    def format(self, record):
+        # Save original format
+        format_orig = self._style._fmt
+
+        # Add colors if it's a level we want to colorize
+        if record.levelname in self.COLORS:
+            record.levelname = f"{self.COLORS[record.levelname]}{record.levelname}{Style.RESET_ALL}"
+            record.msg = f"{self.COLORS.get(record.levelname, '')}{record.msg}{Style.RESET_ALL}"
+            
+        # Call the original formatter class to do the grunt work
+        result = logging.Formatter.format(self, record)
+
+        # Restore original format
+        self._style._fmt = format_orig
+
+        return result
+
+def setup_logging():
+    """Setup logging with single log file that clears on startup"""
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    
+    log_filename = 'logs/stock_screening.log'
+    
+    # Clear existing log file
+    with open(log_filename, 'w') as f:
+        f.write('')
+    
+    # Create formatters
+    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s')
+    console_formatter = ColorFormatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    # Create handlers
+    file_handler = logging.FileHandler(log_filename)
+    file_handler.setFormatter(file_formatter)
+    
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(console_formatter)
+    
+    # Setup root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    return log_filename
 
 class EndpointLogger:
     def __init__(self):
@@ -32,27 +94,6 @@ class EndpointLogger:
                 
     def get_summary(self):
         return self.endpoints
-
-def setup_logging():
-    """Setup logging with single log file that clears on startup"""
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-    
-    log_filename = 'logs/stock_screening.log'
-    
-    # Clear existing log file
-    with open(log_filename, 'w') as f:
-        f.write('')
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-        handlers=[
-            logging.FileHandler(log_filename),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-    return log_filename
 
 class IndianStockScreener:
     def __init__(self):
@@ -219,8 +260,12 @@ class IndianStockScreener:
         
         for symbol in symbols:
             try:
+                # Append .NS suffix for Indian stocks if not already present
+                yahoo_symbol = f"{symbol}.NS" if not symbol.endswith('.NS') else symbol
+                logging.info(f"Fetching data for symbol: {Fore.CYAN}{yahoo_symbol}{Style.RESET_ALL}")
+                
                 # Get stock data using yfinance
-                stock = yf.Ticker(symbol)
+                stock = yf.Ticker(yahoo_symbol)
                 info = stock.info
                 
                 # Get key metrics
@@ -241,34 +286,33 @@ class IndianStockScreener:
                 price_to_target = (target_price - current_price) / current_price * 100 if target_price and current_price else float('nan')
                 distance_from_high = (fifty_two_week_high - current_price) / fifty_two_week_high * 100
                 
-                # Determine recommendation
-                recommendation = "HOLD"
+                # Determine recommendation with colors
+                if price_to_target > 20:
+                    recommendation = f"{Fore.GREEN}BUY{Style.RESET_ALL}"
+                elif price_to_target < -10:
+                    recommendation = f"{Fore.RED}SELL{Style.RESET_ALL}"
+                else:
+                    recommendation = f"{Fore.YELLOW}HOLD{Style.RESET_ALL}"
+                
                 reasons = []
                 
                 if not np.isnan(pe_ratio):
                     if pe_ratio < 15:
-                        reasons.append("Low P/E ratio")
+                        reasons.append(f"{Fore.GREEN}Low P/E ratio{Style.RESET_ALL}")
                     elif pe_ratio > 30:
-                        reasons.append("High P/E ratio")
+                        reasons.append(f"{Fore.RED}High P/E ratio{Style.RESET_ALL}")
                 
                 if not np.isnan(pb_ratio):
                     if pb_ratio < 1.5:
-                        reasons.append("Low P/B ratio")
+                        reasons.append(f"{Fore.GREEN}Low P/B ratio{Style.RESET_ALL}")
                     elif pb_ratio > 4:
-                        reasons.append("High P/B ratio")
+                        reasons.append(f"{Fore.RED}High P/B ratio{Style.RESET_ALL}")
                 
                 if not np.isnan(price_to_target):
                     if price_to_target > 20:
-                        recommendation = "BUY"
-                        reasons.append(f"Price {price_to_target:.1f}% below target")
+                        reasons.append(f"{Fore.GREEN}Price {price_to_target:.1f}% below target{Style.RESET_ALL}")
                     elif price_to_target < -10:
-                        recommendation = "SELL"
-                        reasons.append(f"Price {abs(price_to_target):.1f}% above target")
-                
-                if distance_from_high < 10:
-                    reasons.append("Near 52-week high")
-                elif distance_from_high > 40:
-                    reasons.append("Significantly below 52-week high")
+                        reasons.append(f"{Fore.RED}Price {abs(price_to_target):.1f}% above target{Style.RESET_ALL}")
                 
                 analysis_results[symbol] = {
                     'current_price': current_price,
@@ -361,7 +405,7 @@ def main():
     try:
         # Setup logging
         setup_logging()
-        logging.info("Stock Screener Starting...")
+        logging.info(f"{Fore.CYAN}Stock Screener Starting...{Style.RESET_ALL}")
         logging.info(f"Python Version: {sys.version}")
         logging.info(f"Operating System: {sys.platform}")
         
@@ -378,16 +422,16 @@ def main():
         if args.mode == 'screen':
             results = screener.screen_stocks()
             if not results.empty:
-                logging.info("\nUndervalued Stocks Summary:")
+                logging.info(f"\n{Fore.CYAN}Undervalued Stocks Summary:{Style.RESET_ALL}")
                 logging.info(results.to_string())
                 
                 # Save results to CSV
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 csv_file = f"undervalued_stocks_{timestamp}.csv"
                 results.to_csv(csv_file, index=False)
-                logging.info(f"\nResults saved to {csv_file}")
+                logging.info(f"\n{Fore.GREEN}Results saved to {csv_file}{Style.RESET_ALL}")
             else:
-                logging.info("No stocks met the screening criteria.")
+                logging.info(f"{Fore.YELLOW}No stocks met the screening criteria.{Style.RESET_ALL}")
                 
         elif args.mode == 'analyze':
             if not args.symbols:
@@ -395,22 +439,44 @@ def main():
                 sys.exit(1)
             
             results = screener.analyze_stocks(args.symbols)
-            logging.info("\nStock Analysis Results:")
+            logging.info(f"\n{Fore.CYAN}Stock Analysis Results:{Style.RESET_ALL}")
             for symbol, analysis in results.items():
                 if 'error' in analysis:
                     logging.error(f"\n{symbol}: Error - {analysis['error']}")
                     continue
                     
-                logging.info(f"\n{symbol}:")
-                logging.info(f"Current Price: ₹{analysis['current_price']:.2f}")
-                logging.info(f"Target Price: ₹{analysis['target_price']:.2f}")
-                logging.info(f"Price to Target: {analysis['price_to_target_pct']:.1f}%")
-                logging.info(f"P/E Ratio: {analysis['pe_ratio']:.2f}")
-                logging.info(f"P/B Ratio: {analysis['pb_ratio']:.2f}")
-                logging.info(f"Dividend Yield: {analysis['dividend_yield']:.2f}%")
+                logging.info(f"\n{Fore.CYAN}{symbol}:{Style.RESET_ALL}")
+                logging.info(f"Current Price: {Fore.GREEN}₹{analysis['current_price']:.2f}{Style.RESET_ALL}")
+                logging.info(f"Target Price: {Fore.YELLOW}₹{analysis['target_price']:.2f}{Style.RESET_ALL}")
+                
+                # Color the price to target percentage
+                price_to_target = analysis['price_to_target_pct']
+                price_color = Fore.GREEN if price_to_target > 0 else Fore.RED
+                logging.info(f"Price to Target: {price_color}{price_to_target:.1f}%{Style.RESET_ALL}")
+                
+                # Color the P/E ratio
+                pe_ratio = analysis['pe_ratio']
+                pe_color = Fore.GREEN if pe_ratio < 15 else (Fore.RED if pe_ratio > 30 else Fore.YELLOW)
+                logging.info(f"P/E Ratio: {pe_color}{pe_ratio:.2f}{Style.RESET_ALL}")
+                
+                # Color the P/B ratio
+                pb_ratio = analysis['pb_ratio']
+                pb_color = Fore.GREEN if pb_ratio < 1.5 else (Fore.RED if pb_ratio > 4 else Fore.YELLOW)
+                logging.info(f"P/B Ratio: {pb_color}{pb_ratio:.2f}{Style.RESET_ALL}")
+                
+                # Color the dividend yield
+                div_yield = analysis['dividend_yield']
+                div_color = Fore.GREEN if div_yield > 3 else (Fore.YELLOW if div_yield > 1 else Fore.WHITE)
+                logging.info(f"Dividend Yield: {div_color}{div_yield:.2f}%{Style.RESET_ALL}")
+                
                 logging.info(f"52W High: ₹{analysis['52w_high']:.2f}")
                 logging.info(f"52W Low: ₹{analysis['52w_low']:.2f}")
-                logging.info(f"Distance from High: {analysis['distance_from_high_pct']:.1f}%")
+                
+                # Color the distance from high
+                distance = analysis['distance_from_high_pct']
+                distance_color = Fore.RED if distance > 30 else (Fore.YELLOW if distance > 15 else Fore.GREEN)
+                logging.info(f"Distance from High: {distance_color}{distance:.1f}%{Style.RESET_ALL}")
+                
                 logging.info(f"Recommendation: {analysis['recommendation']}")
                 if analysis['reasons']:
                     logging.info("Reasons:")
