@@ -9,11 +9,20 @@ import rookiepy
 
 console = Console()
 
-class CryptoStreamer:
-    def __init__(self):
+class MarketStreamer:
+    def __init__(self, refresh_interval=1):
         self.query = Query()
         self.cookies = self.get_tradingview_cookies()
-        self.previous_price = None
+        self.previous_prices = {}
+        self.refresh_interval = refresh_interval  # Time between data fetches in seconds
+        
+        # Define assets to track with their markets
+        self.assets = {
+            "BINANCE:BTCUSDT": "crypto",
+            "NASDAQ:TSLA": "america",
+            "BINANCE:DOGEUSDT": "crypto",
+            "NSE:TATAMOTORS": "india"
+        }
         
     def get_tradingview_cookies(self):
         """Get TradingView cookies from browser"""
@@ -30,8 +39,8 @@ class CryptoStreamer:
                 console.print("[red]Could not load cookies. Using delayed data.[/red]")
                 return None
         
-    def get_crypto_data(self, symbol="BINANCE:BTCUSDT"):
-        """Get real-time crypto data"""
+    def get_market_data(self, symbol, market):
+        """Get real-time market data for any asset"""
         try:
             _, df = (
                 self.query
@@ -40,13 +49,13 @@ class CryptoStreamer:
                     'close',                    # Current price
                     'change',                   # 24h change %
                     'volume',                   # 24h volume
-                    'total_value_traded',       # 24h traded value
                     'RSI',                      # RSI(14)
                     'Volatility.D',             # Daily volatility
-                    'update_mode'               # Data mode
+                    'description',              # Full name
+                    'currency'                  # Currency
                 )
-                .set_markets('crypto')          # Set market to crypto
-                .set_tickers(symbol)            # Set specific crypto pair
+                .set_markets(market)            # Set market
+                .set_tickers(symbol)            # Set symbol
                 .get_scanner_data(cookies=self.cookies)
             )
             
@@ -57,52 +66,89 @@ class CryptoStreamer:
             return df.iloc[0]
             
         except Exception as e:
-            console.print(f"[red]Error fetching data: {str(e)}[/red]")
+            console.print(f"[red]Error fetching data for {symbol}: {str(e)}[/red]")
             return None
 
-    def create_table(self, data):
-        """Create a rich table with crypto data"""
-        table = Table(title=f"Bitcoin Price ({datetime.now().strftime('%H:%M:%S')})")
+    def create_table(self, data_dict):
+        """Create a rich table with market data"""
+        table = Table(title=f"Market Prices ({datetime.now().strftime('%H:%M:%S')})")
         
-        table.add_column("Metric", style="cyan")
-        table.add_column("Value", justify="right")
+        table.add_column("Asset", style="cyan")
+        table.add_column("Price", justify="right")
+        table.add_column("24h Change", justify="right")
+        table.add_column("Volume", justify="right")
+        table.add_column("RSI", justify="right")
+        table.add_column("Volatility", justify="right")
         
-        if data is not None:
-            price = float(data['close'])
-            price_color = "green" if self.previous_price and price > self.previous_price else "red" if self.previous_price else "white"
-            self.previous_price = price
-            
-            change = float(data['change'])
-            change_color = "green" if change >= 0 else "red"
-            
-            table.add_row("Price", f"[{price_color}]${price:,.2f}[/{price_color}]")
-            table.add_row("24h Change", f"[{change_color}]{change:.2f}%[/{change_color}]")
-            table.add_row("24h Volume", f"{float(data['volume']):,.2f} BTC")
-            table.add_row("RSI(14)", f"{float(data['RSI']):.2f}")
-            table.add_row("Daily Volatility", f"{float(data['Volatility.D']):.2f}%")
+        for symbol, data in data_dict.items():
+            if data is not None:
+                # Get asset name
+                name = data.get('description', symbol.split(':')[1])
+                
+                # Get price and determine color
+                price = float(data['close'])
+                currency = data.get('currency', 'USD')
+                price_color = "white"
+                if symbol in self.previous_prices:
+                    if price > self.previous_prices[symbol]:
+                        price_color = "green"
+                    elif price < self.previous_prices[symbol]:
+                        price_color = "red"
+                self.previous_prices[symbol] = price
+                
+                # Get change and color
+                change = float(data['change'])
+                change_color = "green" if change >= 0 else "red"
+                
+                # Format volume based on market
+                volume = float(data['volume'])
+                if "USDT" in symbol:
+                    volume_str = f"{volume:,.0f} USDT"
+                else:
+                    volume_str = f"{volume:,.0f}"
+                
+                # Get RSI and volatility
+                rsi = float(data['RSI'])
+                volatility = float(data['Volatility.D'])
+                
+                table.add_row(
+                    name,
+                    f"[{price_color}]{currency} {price:,.2f}[/{price_color}]",
+                    f"[{change_color}]{change:+.2f}%[/{change_color}]",
+                    volume_str,
+                    f"{rsi:.2f}",
+                    f"{volatility:.2f}%"
+                )
             
         return table
 
-    def stream(self, symbol="BINANCE:BTCUSDT", interval=1):
-        """Stream crypto data with live updates"""
-        console.print(f"Starting BTC Price Streamer...")
+    def stream(self):
+        """Stream market data with live updates"""
+        console.print(f"Starting Market Data Streamer (Refresh: {self.refresh_interval}s)...")
         
         try:
-            with Live(self.create_table(None), refresh_per_second=4) as live:
+            # Display refresh rate is 2x the data fetch rate for smooth updates
+            with Live(self.create_table({}), refresh_per_second=2/self.refresh_interval) as live:
                 while True:
-                    data = self.get_crypto_data(symbol)
-                    if data is not None:
-                        live.update(self.create_table(data))
-                    time.sleep(interval)
+                    # Fetch data for all assets
+                    data_dict = {}
+                    for symbol, market in self.assets.items():
+                        data = self.get_market_data(symbol, market)
+                        data_dict[symbol] = data
+                    
+                    # Update display
+                    live.update(self.create_table(data_dict))
+                    time.sleep(self.refresh_interval)
                     
         except KeyboardInterrupt:
             console.print("\nStreaming stopped by user")
-            end_time = time.time()
             
 def main():
     start_time = time.time()
     try:
-        streamer = CryptoStreamer()
+        # Create streamer with custom refresh interval (in seconds)
+        refresh_rate = 2  # Refresh every 2 seconds
+        streamer = MarketStreamer(refresh_interval=refresh_rate)
         streamer.stream()
     except KeyboardInterrupt:
         elapsed = time.time() - start_time
