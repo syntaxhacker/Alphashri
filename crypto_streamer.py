@@ -21,7 +21,9 @@ class MarketStreamer:
             "BINANCE:BTCUSDT": "crypto",
             "NASDAQ:TSLA": "america",
             "BINANCE:DOGEUSDT": "crypto",
-            "NSE:TATAMOTORS": "india"
+            "NSE:TATAMOTORS": "india",
+            "MCX:GOLD1!": "india",     # Gold Futures (MCX)
+            "MCX:SILVER1!": "india"    # Silver Futures (MCX)
         }
         
     def get_tradingview_cookies(self):
@@ -73,17 +75,26 @@ class MarketStreamer:
         """Create a rich table with market data"""
         table = Table(title=f"Market Prices ({datetime.now().strftime('%H:%M:%S')})")
         
-        table.add_column("Asset", style="cyan")
-        table.add_column("Price", justify="right")
-        table.add_column("24h Change", justify="right")
-        table.add_column("Volume", justify="right")
-        table.add_column("RSI", justify="right")
-        table.add_column("Volatility", justify="right")
+        table.add_column("Asset", style="cyan", width=15)
+        table.add_column("Price", justify="right", width=15)
+        table.add_column("24h Change", justify="right", width=12)
+        table.add_column("Volume", justify="right", width=15)
+        table.add_column("RSI", justify="right", width=8)
+        table.add_column("Volatility", justify="right", width=12)
         
-        for symbol, data in data_dict.items():
+        # Sort assets by type: Commodities, Crypto, Stocks
+        sorted_items = sorted(data_dict.items(), key=lambda x: (
+            "1" if "MCX:" in x[0] else      # Commodities first
+            "2" if "BINANCE:" in x[0] else  # Crypto second
+            "3"                             # Stocks last
+        ))
+        
+        for symbol, data in sorted_items:
             if data is not None:
                 # Get asset name
                 name = data.get('description', symbol.split(':')[1])
+                if "MCX:" in symbol:  # Clean up MCX symbol names
+                    name = name.replace("1!", "")
                 
                 # Get price and determine color
                 price = float(data['close'])
@@ -104,6 +115,8 @@ class MarketStreamer:
                 volume = float(data['volume'])
                 if "USDT" in symbol:
                     volume_str = f"{volume:,.0f} USDT"
+                elif "MCX:" in symbol:
+                    volume_str = f"{volume:,.0f} lots"
                 else:
                     volume_str = f"{volume:,.0f}"
                 
@@ -111,9 +124,17 @@ class MarketStreamer:
                 rsi = float(data['RSI'])
                 volatility = float(data['Volatility.D'])
                 
+                # Format price with appropriate currency
+                if currency == "INR":
+                    price_str = f"₹{price:,.2f}"
+                elif currency == "USD":
+                    price_str = f"${price:,.2f}"
+                else:
+                    price_str = f"{currency} {price:,.2f}"
+                
                 table.add_row(
                     name,
-                    f"[{price_color}]{currency} {price:,.2f}[/{price_color}]",
+                    f"[{price_color}]{price_str}[/{price_color}]",
                     f"[{change_color}]{change:+.2f}%[/{change_color}]",
                     volume_str,
                     f"{rsi:.2f}",
