@@ -32,6 +32,8 @@ from functools import partial
 import threading
 import torch
 from pathlib import Path
+from visualizations.trading_charts import TradingCharts
+import plotly.io as pio
 
 # Initialize Rich console
 console = Console()
@@ -506,6 +508,9 @@ class BinancePaperTrader:
         else:
             console.print("[green]Found cached data[/green]")
         
+        # Store the data for visualization
+        self.data = df.copy()
+        
         # Define parameter ranges for optimization
         stop_losses = [0.02, 0.03, 0.04]
         take_profits = [0.04, 0.06, 0.08]
@@ -702,6 +707,49 @@ class BinancePaperTrader:
             console.print("[yellow]Showing last 20 trades...[/yellow]")
         console.print(table)
 
+    def plot_backtest_results(self, trades_df: pd.DataFrame, symbol: str):
+        """Create and save visualizations for backtest results"""
+        try:
+            # Ensure timestamp is datetime and set as index
+            if 'timestamp' in trades_df.columns:
+                trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'])
+                trades_df.set_index('timestamp', inplace=True)
+            
+            # Create TradingCharts instance
+            charts = TradingCharts()
+            
+            # Get historical price data for the same period
+            start_date = trades_df.index.min()
+            end_date = trades_df.index.max()
+            
+            # Get price data from cache
+            price_data = self.data
+            if price_data is None:
+                console.print("[yellow]Warning: Could not retrieve price data for visualization[/yellow]")
+                return
+                
+            # Filter price data to match trade period
+            price_data = price_data.loc[start_date:end_date]
+            
+            # Create trading dashboard
+            dashboard = charts.create_trading_dashboard(trades_df, price_data)
+            metrics = charts.create_trade_metrics(trades_df)
+            
+            # Save plots to HTML files
+            pio.write_html(dashboard, 'trading_dashboard.html')
+            pio.write_html(metrics, 'trading_metrics.html')
+            
+            console.print("\n[green]Trading visualizations have been saved to:[/green]")
+            console.print("- trading_dashboard.html")
+            console.print("- trading_metrics.html")
+            
+        except Exception as e:
+            console.print(f"[red]Error creating visualizations: {str(e)}[/red]")
+            logging.error(f"Error creating visualizations: {str(e)}")
+            # Log the full traceback for debugging
+            import traceback
+            logging.error(traceback.format_exc())
+
     def optimize_all_strategies(self, symbol: str, start_date: Optional[datetime] = None,
                               end_date: Optional[datetime] = None) -> Tuple[BaseStrategy, pd.DataFrame]:
         """Run optimization for all available strategies and pick the best one"""
@@ -713,8 +761,8 @@ class BinancePaperTrader:
         
         console.print("\n[bold cyan]Running optimization for all strategies...[/bold cyan]")
         
-        # Clear cache once at the start
-        self.data_cache.clear_cache()
+        # Store the data for visualization
+        self.data = None
         
         for strategy_name in strategies:
             console.print(f"\n[bold yellow]Testing {strategy_name} strategy[/bold yellow]")
@@ -741,17 +789,39 @@ class BinancePaperTrader:
         
         return best_overall_strategy, best_overall_results
 
+    def run_backtest(self, strategy_name: str, params: dict = None) -> Tuple[pd.DataFrame, float]:
+        """Run backtest with the specified strategy and parameters"""
+        total_return, params, trades_df = run_backtest(self.data, strategy_name, 
+            params['stop_loss'], params['take_profit'], params['position_size'], 10000)
+        
+        if trades_df is not None:
+            # Create visualizations
+            charts = TradingCharts()
+            dashboard = charts.create_trading_dashboard(trades_df, self.data)
+            metrics = charts.create_trade_metrics(trades_df)
+            
+            # Save plots to HTML files
+            pio.write_html(dashboard, 'trading_dashboard.html')
+            pio.write_html(metrics, 'trading_metrics.html')
+            
+            console.print("\n[green]Trading visualizations have been saved to:[/green]")
+            console.print("- trading_dashboard.html")
+            console.print("- trading_metrics.html")
+        
+        return trades_df, total_return
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Binance Paper Trading Backtester and Live Trader')
     parser.add_argument('--symbol', type=str, default='BTCUSDT', help='Trading pair symbol')
+    parser.add_argument('--days', type=int, default=7, help='Number of days to backtest (default: 7)')
     parser.add_argument('--interval', type=str, default='1h', help='Timeframe (1m, 5m, 15m, 1h, 4h, 1d)')
-    parser.add_argument('--start', type=str, default='1 month ago UTC', help='Start time for backtest')
     parser.add_argument('--balance', type=float, default=10000, help='Initial balance in USDT')
     parser.add_argument('--plot', action='store_true', help='Generate interactive plot')
     parser.add_argument('--live', action='store_true', help='Run in live trading mode')
     parser.add_argument('--strategy', type=str, default='trend_following',
                        choices=['trend_following', 'mean_reversion'],
                        help='Trading strategy to use')
+    parser.add_argument('--clear-cache', action='store_true', help='Clear cached data before running')
     return parser.parse_args()
 
 def main():
@@ -777,11 +847,16 @@ def main():
             # Run backtest mode
             console.print("[bold cyan]Starting backtest mode...[/bold cyan]")
             
-            # Set end date to start of current day
-            end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            # Calculate start date as exactly 6 months before end date
-            start_date = end_date - relativedelta(months=6)
-            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            # Set end date to current time
+            end_date = datetime.now()
+            # Calculate start date based on days argument
+            start_date = end_date - timedelta(days=args.days)
+            
+            # Clear cache if requested
+            if args.clear_cache:
+                console.print("[yellow]Clearing cached data...[/yellow]")
+                trader.data_cache.clear()
+                logging.info("Cache cleared")
             
             logging.info(f"Main: Using date range {start_date} to {end_date}")
                 
@@ -793,7 +868,7 @@ def main():
             )
             
             if results is not None and args.plot:
-                    trader.plot_backtest_results(results, args.symbol)
+                trader.plot_backtest_results(results, args.symbol)
                 
     except KeyboardInterrupt:
         console.print("\n[yellow]Shutting down...[/yellow]")

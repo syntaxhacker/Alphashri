@@ -1,112 +1,112 @@
 import os
-import json
 import pandas as pd
 from datetime import datetime, timedelta
-from pathlib import Path
+import json
 import logging
-import torch
-from typing import Dict, Any, Optional, Tuple
 
 class DataCache:
-    """Cache for historical market data"""
-    
-    def __init__(self, cache_dir: str = "cache", expiry_days: int = 1):
-        """Initialize the cache with directory and expiry time"""
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(exist_ok=True)
-        self.expiry_days = expiry_days
-        self.use_gpu = torch.backends.mps.is_available()
-        
-    def _get_cache_path(self, symbol: str) -> Tuple[Path, Path]:
-        """Get paths for data and metadata files"""
-        data_path = self.cache_dir / f"{symbol}_data.csv"
-        meta_path = self.cache_dir / f"{symbol}_metadata.json"
-        return data_path, meta_path
-        
-    def save_data(self, symbol: str, data: pd.DataFrame) -> None:
-        """Save market data and metadata to cache"""
-        data_path, meta_path = self._get_cache_path(symbol)
-        
-        # Save data as CSV
-        data.to_csv(data_path)
-        
-        # Save metadata
+    def __init__(self, cache_dir: str = 'cache'):
+        """Initialize the data cache"""
+        self.cache_dir = cache_dir
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+
+    def _get_cache_filename(self, symbol: str, start_date: datetime, end_date: datetime) -> str:
+        """Generate a unique cache filename based on symbol and date range"""
+        start_str = start_date.strftime('%Y%m%d')
+        end_str = end_date.strftime('%Y%m%d')
+        return os.path.join(self.cache_dir, f"{symbol}_{start_str}_{end_str}.csv")
+
+    def _get_metadata_filename(self, symbol: str, start_date: datetime, end_date: datetime) -> str:
+        """Generate metadata filename for cache entry"""
+        start_str = start_date.strftime('%Y%m%d')
+        end_str = end_date.strftime('%Y%m%d')
+        return os.path.join(self.cache_dir, f"{symbol}_{start_str}_{end_str}_metadata.json")
+
+    def _save_metadata(self, filename: str, rows: int):
+        """Save metadata for cache entry"""
         metadata = {
-            'symbol': symbol,
-            'cached_at': datetime.now().isoformat(),
-            'rows': len(data),
-            'start_date': data.index[0].isoformat(),
-            'end_date': data.index[-1].isoformat()
+            'created_at': datetime.now().isoformat(),
+            'rows': rows
         }
-        
-        with open(meta_path, 'w') as f:
+        with open(filename, 'w') as f:
             json.dump(metadata, f)
+
+    def _is_cache_valid(self, metadata_file: str) -> bool:
+        """Check if cache entry is still valid (not older than 24 hours)"""
+        if not os.path.exists(metadata_file):
+            return False
             
-        logging.info(f"Cached {len(data)} rows of {symbol} data")
-        
-    def get_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
-        """Retrieve market data from cache if available and not expired"""
-        data_path, meta_path = self._get_cache_path(symbol)
-        
-        if not data_path.exists() or not meta_path.exists():
-            return None
-            
-        # Check metadata and expiry
         try:
-            with open(meta_path, 'r') as f:
+            with open(metadata_file, 'r') as f:
                 metadata = json.load(f)
-                
-            cached_at = datetime.fromisoformat(metadata['cached_at'])
-            if datetime.now() - cached_at > timedelta(days=self.expiry_days):
-                logging.info(f"Cache expired for {symbol}")
-                return None
-                
-            # Load data
-            df = pd.read_csv(data_path)
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            df.set_index('timestamp', inplace=True)
-            
-            # Filter data for requested date range
-            df = df[(df.index >= start_date) & (df.index <= end_date)]
-            
-            if len(df) > 0:
+            created_at = datetime.fromisoformat(metadata['created_at'])
+            return (datetime.now() - created_at) < timedelta(hours=24)
+        except Exception as e:
+            logging.warning(f"Error reading cache metadata: {str(e)}")
+            return False
+
+    def get_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        """Get data from cache if available and valid"""
+        cache_file = self._get_cache_filename(symbol, start_date, end_date)
+        metadata_file = self._get_metadata_filename(symbol, start_date, end_date)
+        
+        if os.path.exists(cache_file) and self._is_cache_valid(metadata_file):
+            try:
+                df = pd.read_csv(cache_file)
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df.set_index('timestamp', inplace=True)
                 logging.info(f"Retrieved {len(df)} rows of {symbol} data from cache")
                 return df
-                
-        except Exception as e:
-            logging.error(f"Error reading cache: {str(e)}")
-            return None
-            
+            except Exception as e:
+                logging.error(f"Error reading cache file: {str(e)}")
+                return None
         return None
-        
-    def clear_cache(self) -> None:
-        """Clear all cached data"""
-        for file in self.cache_dir.glob("*"):
-            file.unlink()
-        logging.info("Cache cleared")
-        
-    def get_cache_info(self) -> Dict[str, Any]:
-        """Get information about cached data"""
-        cache_info = {
-            'total_size': 0,
-            'num_files': 0,
-            'symbols': []
-        }
-        
-        for file in self.cache_dir.glob("*"):
-            cache_info['total_size'] += file.stat().st_size
-            cache_info['num_files'] += 1
+
+    def save_data(self, symbol: str, df: pd.DataFrame):
+        """Save data to cache with metadata"""
+        if df is None or df.empty:
+            return
             
-            if file.suffix == '.json':
-                try:
-                    with open(file, 'r') as f:
-                        metadata = json.load(f)
-                        cache_info['symbols'].append({
-                            'symbol': metadata['symbol'],
-                            'cached_at': metadata['cached_at'],
-                            'rows': metadata['rows']
-                        })
-                except:
-                    continue
-                    
-        return cache_info 
+        start_date = df.index.min()
+        end_date = df.index.max()
+        
+        cache_file = self._get_cache_filename(symbol, start_date, end_date)
+        metadata_file = self._get_metadata_filename(symbol, start_date, end_date)
+        
+        try:
+            # Save the data
+            df.to_csv(cache_file)
+            # Save metadata
+            self._save_metadata(metadata_file, len(df))
+            logging.info(f"Cached {len(df)} rows of {symbol} data")
+        except Exception as e:
+            logging.error(f"Error saving to cache: {str(e)}")
+
+    def clear(self):
+        """Clear all cached data"""
+        try:
+            for file in os.listdir(self.cache_dir):
+                file_path = os.path.join(self.cache_dir, file)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            logging.info("Cache cleared successfully")
+        except Exception as e:
+            logging.error(f"Error clearing cache: {str(e)}")
+
+    def clear_expired(self):
+        """Clear only expired cache entries"""
+        try:
+            for file in os.listdir(self.cache_dir):
+                if file.endswith('_metadata.json'):
+                    metadata_file = os.path.join(self.cache_dir, file)
+                    if not self._is_cache_valid(metadata_file):
+                        # Remove metadata file
+                        os.remove(metadata_file)
+                        # Remove corresponding data file
+                        data_file = metadata_file.replace('_metadata.json', '.csv')
+                        if os.path.exists(data_file):
+                            os.remove(data_file)
+            logging.info("Expired cache entries cleared")
+        except Exception as e:
+            logging.error(f"Error clearing expired cache: {str(e)}") 
