@@ -53,29 +53,29 @@ class TrendFollowingStrategy(BaseStrategy):
         for col in ['high', 'low', 'close', 'volume']:
             df[col] = df[col].astype(float)
             
-        # Trend indicators
-        df['ema_fast'] = ta.ema(df['close'], length=8)
-        df['ema_slow'] = ta.ema(df['close'], length=21)
+        # Trend indicators - Adjusted for 15min timeframe
+        df['ema_fast'] = ta.ema(df['close'], length=12)  # Was 8
+        df['ema_slow'] = ta.ema(df['close'], length=26)  # Was 21
         df['sma_50'] = ta.sma(df['close'], length=50)
         df['sma_200'] = ta.sma(df['close'], length=200)
         df['adx'] = ta.adx(df['high'], df['low'], df['close'])['ADX_14']
         
         # Momentum indicators
         df['rsi'] = ta.rsi(df['close'], length=14)
-        stoch = ta.stoch(df['high'], df['low'], df['close'])
+        stoch = ta.stoch(df['high'], df['low'], df['close'], k=14, d=3, smooth_k=3)
         df['stoch_k'] = stoch['STOCHk_14_3_3']
         df['stoch_d'] = stoch['STOCHd_14_3_3']
-        macd = ta.macd(df['close'])
+        macd = ta.macd(df['close'], fast=12, slow=26, signal=9)
         df['macd'] = macd['MACD_12_26_9']
         df['macd_signal'] = macd['MACDs_12_26_9']
         df['macd_hist'] = macd['MACDh_12_26_9']
         
         # Market regime
         df['regime'] = np.where(
-            (df['sma_50'] > df['sma_200']) & (df['adx'] > 25),
+            (df['sma_50'] > df['sma_200']) & (df['adx'] > 20),
             'UPTREND',
             np.where(
-                (df['sma_50'] < df['sma_200']) & (df['adx'] > 25),
+                (df['sma_50'] < df['sma_200']) & (df['adx'] > 20),
                 'DOWNTREND',
                 'SIDEWAYS'
             )
@@ -95,8 +95,8 @@ class TrendFollowingStrategy(BaseStrategy):
         volume = gpu_data['volume'].to(torch.float32)
         
         # Calculate EMAs using GPU
-        alpha_fast = 2.0 / (8 + 1)
-        alpha_slow = 2.0 / (21 + 1)
+        alpha_fast = 2.0 / (12 + 1)
+        alpha_slow = 2.0 / (26 + 1)
         
         ema_fast = torch.zeros_like(close, dtype=torch.float32)
         ema_slow = torch.zeros_like(close, dtype=torch.float32)
@@ -126,32 +126,42 @@ class TrendFollowingStrategy(BaseStrategy):
             if i < 200:  # Skip until we have enough data
                 continue
                 
-            # Check market regime
-            if df['regime'].iloc[i] == 'DOWNTREND' and df['adx'].iloc[i] > 30:
+            # Check market regime and trend strength
+            if df['regime'].iloc[i] == 'DOWNTREND' or df['adx'].iloc[i] < 20:
                 signals.iloc[i] = 'HOLD'
                 continue
             
-            # Entry conditions
+            # Entry conditions - More balanced approach
             trend_condition = (
-                df['ema_fast'].iloc[i] > df['ema_slow'].iloc[i] or
-                df['close'].iloc[i] > df['sma_50'].iloc[i]
+                df['ema_fast'].iloc[i] > df['ema_slow'].iloc[i] and
+                (df['close'].iloc[i] > df['sma_50'].iloc[i] or df['sma_50'].iloc[i] > df['sma_200'].iloc[i])
             )
             
+            # Momentum conditions adjusted for 15min
             momentum_condition = (
-                df['rsi'].iloc[i] < 45 or
-                df['stoch_k'].iloc[i] < df['stoch_d'].iloc[i] or
-                df['macd_hist'].iloc[i] > df['macd_hist'].iloc[i-1]
+                df['rsi'].iloc[i] > 40 and df['rsi'].iloc[i] < 75 and
+                (
+                    (df['stoch_k'].iloc[i] > df['stoch_d'].iloc[i] and df['stoch_k'].iloc[i] < 80) or
+                    (df['macd'].iloc[i] > df['macd_signal'].iloc[i] and df['macd_hist'].iloc[i] > 0)
+                )
             )
             
-            # Exit conditions
+            # Volume confirmation - Using 20-period for 15min
+            volume_condition = df['volume'].iloc[i] > df['volume'].iloc[i-20:i].mean()
+            
+            # Exit conditions adjusted for 15min
             exit_condition = (
-                df['rsi'].iloc[i] > 75 or
-                (df['stoch_k'].iloc[i] > 85 and df['stoch_k'].iloc[i] < df['stoch_k'].iloc[i-1]) or
-                (df['macd'].iloc[i] < df['macd_signal'].iloc[i] and df['macd_hist'].iloc[i] < 0) or
-                df['ema_fast'].iloc[i] < df['ema_slow'].iloc[i]
+                df['rsi'].iloc[i] > 80 or
+                (df['stoch_k'].iloc[i] > 90 and df['stoch_k'].iloc[i] < df['stoch_k'].iloc[i-1]) or
+                (
+                    df['macd'].iloc[i] < df['macd_signal'].iloc[i] and 
+                    df['macd_hist'].iloc[i] < 0 and 
+                    df['macd_hist'].iloc[i] < df['macd_hist'].iloc[i-1]
+                ) or
+                (df['ema_fast'].iloc[i] < df['ema_slow'].iloc[i] and df['close'].iloc[i] < df['sma_50'].iloc[i])
             )
             
-            if trend_condition and momentum_condition:
+            if trend_condition and momentum_condition and volume_condition:
                 signals.iloc[i] = 'BUY'
             elif exit_condition:
                 signals.iloc[i] = 'SELL'

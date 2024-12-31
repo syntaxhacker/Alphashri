@@ -140,7 +140,7 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps:
                 position = True
                 entry_price = current_price
                 position_value = balance * ps
-                position_size_units = position_value / current_price
+                position_size_units = position_value / current_price  # Calculate position size based on current balance
                 
                 trades.append({
                     'timestamp': df.index[i],
@@ -265,7 +265,7 @@ def run_backtest_benchmark(df: pd.DataFrame, strategy_name: str, sl: float, tp: 
                 position = True
                 entry_price = current_price
                 position_value = balance * ps
-                position_size_units = position_value / current_price
+                position_size_units = position_value / current_price  # Calculate position size based on current balance
                 
                 trades.append({
                     'timestamp': df.index[i],
@@ -334,7 +334,7 @@ def run_backtest_benchmark(df: pd.DataFrame, strategy_name: str, sl: float, tp: 
         return -float('inf'), None, None, time.time() - start_time
 
 class BinancePaperTrader:
-    def __init__(self, api_key: str, api_secret: str, use_testnet: bool = True):
+    def __init__(self, api_key: str, api_secret: str, use_testnet: bool = True, initial_balance: float = 10000):
         """Initialize the paper trader with Binance API credentials"""
         # Setup logging
         self.setup_logging()
@@ -342,6 +342,7 @@ class BinancePaperTrader:
         self.api_key = api_key
         self.api_secret = api_secret
         self.use_testnet = use_testnet
+        self.initial_balance = initial_balance
         
         # Initialize Binance client with proper Testnet settings for live trading
         self.client = Client(api_key, api_secret, testnet=use_testnet)
@@ -460,7 +461,7 @@ class BinancePaperTrader:
                         # Use data_client instead of client for historical data
                         chunk_klines = self.data_client.get_historical_klines(
                             symbol=symbol,
-                            interval=Client.KLINE_INTERVAL_1MINUTE,
+                            interval=Client.KLINE_INTERVAL_15MINUTE,
                             start_str=str(start_ts),
                             end_str=str(end_ts),
                             limit=1000  # Maximum limit per request
@@ -504,7 +505,7 @@ class BinancePaperTrader:
                 df[col] = df[col].astype(float)
             
             console.print("Caching the fetched data...")
-            self.data_cache.save_data(symbol, df)
+            self.data_cache.save_data(symbol, df, start_date, end_date)
         else:
             console.print("[green]Found cached data[/green]")
         
@@ -537,7 +538,7 @@ class BinancePaperTrader:
             for params in param_combinations:
                 sl, tp, ps = params
                 total_return, strategy_params, trades_df, exec_time = run_backtest_benchmark(
-                    df.copy(), strategy_name, sl, tp, ps, 10000, use_gpu=False
+                    df.copy(), strategy_name, sl, tp, ps, self.initial_balance, use_gpu=False
                 )
                 results.append((total_return, strategy_params, trades_df, exec_time))
                 progress.update(task, advance=1)
@@ -804,7 +805,7 @@ class BinancePaperTrader:
     def run_backtest(self, strategy_name: str, params: dict = None) -> Tuple[pd.DataFrame, float]:
         """Run backtest with the specified strategy and parameters"""
         total_return, params, trades_df = run_backtest(self.data, strategy_name, 
-            params['stop_loss'], params['take_profit'], params['position_size'], 10000)
+            params['stop_loss'], params['take_profit'], params['position_size'], self.initial_balance)
         
         if trades_df is not None:
             # Create visualizations
@@ -821,6 +822,67 @@ class BinancePaperTrader:
             console.print("- trading_metrics.html")
         
         return trades_df, total_return
+
+    def save_data(self, symbol: str, df: pd.DataFrame, start_date: datetime, end_date: datetime):
+        """Save data to cache"""
+        try:
+            cache_dir = 'cache'
+            if not os.path.exists(cache_dir):
+                os.makedirs(cache_dir)
+            
+            cache_file = os.path.join(cache_dir, f"{symbol}.csv")
+            metadata_file = os.path.join(cache_dir, f"{symbol}_metadata.json")
+            
+            # Save the data
+            df.to_csv(cache_file)
+            logging.info(f"Saved {len(df)} rows of {symbol} data to {cache_file}")
+            
+            # Save metadata with start and end dates
+            self._save_metadata(metadata_file, len(df), start_date, end_date)
+            
+            # Verify the save was successful
+            if os.path.exists(cache_file) and os.path.exists(metadata_file):
+                logging.info(f"Successfully cached {symbol} data from {start_date} to {end_date}")
+            else:
+                logging.error(f"Failed to verify cache files for {symbol}")
+                
+        except Exception as e:
+            logging.error(f"Error saving {symbol} data to cache: {str(e)}")
+            # Try to clean up any partial files
+            for file in [cache_file, metadata_file]:
+                if os.path.exists(file):
+                    try:
+                        os.remove(file)
+                        logging.info(f"Cleaned up partial cache file: {file}")
+                    except:
+                        pass
+
+    def clear_expired(self):
+        """Clear cache entries that are no longer valid"""
+        try:
+            if not os.path.exists(self.cache_dir):
+                logging.info("Cache directory does not exist, nothing to clear")
+                return
+                
+            cleared_count = 0
+            now = datetime.now()
+            
+            for file in os.listdir(self.cache_dir):
+                if file.endswith('_metadata.json'):
+                    metadata_file = os.path.join(self.cache_dir, file)
+                    if not self._is_cache_valid(metadata_file, now):
+                        # Remove metadata file
+                        os.remove(metadata_file)
+                        # Remove corresponding data file
+                        data_file = metadata_file.replace('_metadata.json', '.csv')
+                        if os.path.exists(data_file):
+                            os.remove(data_file)
+                        cleared_count += 1
+                        logging.info(f"Cleared expired cache entry: {file}")
+                        
+            logging.info(f"Cleared {cleared_count} expired cache entries")
+        except Exception as e:
+            logging.error(f"Error clearing expired cache: {str(e)}")
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Binance Paper Trading Backtester and Live Trader')
@@ -845,7 +907,7 @@ def main():
     API_KEY = "d3e6652041c1445af2617b399e6d8191907e3a7794b573e0de4337cf4de16ce3"
     API_SECRET = "7870a2b11cc89f8de478dd66c76057a50565e6ac85d89c127631fca033380c1c"
     
-    trader = BinancePaperTrader(API_KEY, API_SECRET, use_testnet=True)
+    trader = BinancePaperTrader(API_KEY, API_SECRET, use_testnet=True, initial_balance=args.balance)
     
     try:
         if args.live:

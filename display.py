@@ -35,9 +35,10 @@ class TradingDisplay:
         avg_loss = trades_df[trades_df['pnl'] < 0]['pnl'].mean() if (total_trades - profitable_trades) > 0 else 0
         profit_factor = abs(trades_df[trades_df['pnl'] > 0]['pnl'].sum() / trades_df[trades_df['pnl'] < 0]['pnl'].sum()) if trades_df[trades_df['pnl'] < 0]['pnl'].sum() != 0 else float('inf')
         
-        summary.add_row("Initial Balance", f"${10000:.2f}")
+        initial_balance = trades_df['balance'].iloc[0]
+        summary.add_row("Initial Balance", f"${initial_balance:.2f}")
         summary.add_row("Final Balance", f"${trades_df['balance'].iloc[-1]:.2f}")
-        summary.add_row("Total Return", f"{((trades_df['balance'].iloc[-1] - 10000) / 10000 * 100):.2f}%")
+        summary.add_row("Total Return", f"{((trades_df['balance'].iloc[-1] - initial_balance) / initial_balance * 100):.2f}%")
         summary.add_row("Total Trades", str(total_trades))
         summary.add_row("Profitable Trades", str(profitable_trades))
         summary.add_row("Win Rate", f"{win_rate:.2f}%")
