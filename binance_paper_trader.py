@@ -707,7 +707,7 @@ class BinancePaperTrader:
             console.print("[yellow]Showing last 20 trades...[/yellow]")
         console.print(table)
 
-    def plot_backtest_results(self, trades_df: pd.DataFrame, symbol: str):
+    def plot_backtest_results(self, trades_df: pd.DataFrame, symbol: str, strategy_name: str = None):
         """Create and save visualizations for backtest results"""
         try:
             # Ensure timestamp is datetime and set as index
@@ -731,17 +731,16 @@ class BinancePaperTrader:
             # Filter price data to match trade period
             price_data = price_data.loc[start_date:end_date]
             
-            # Create trading dashboard
-            dashboard = charts.create_trading_dashboard(trades_df, price_data)
-            metrics = charts.create_trade_metrics(trades_df)
+            # Create combined dashboard with all strategies
+            all_results = {
+                strategy_name if strategy_name else 'default': (trades_df, price_data)
+            }
             
-            # Save plots to HTML files
-            pio.write_html(dashboard, 'trading_dashboard.html')
-            pio.write_html(metrics, 'trading_metrics.html')
+            # Save combined dashboard
+            dashboard_file = charts.create_combined_dashboard(all_results)
             
-            console.print("\n[green]Trading visualizations have been saved to:[/green]")
-            console.print("- trading_dashboard.html")
-            console.print("- trading_metrics.html")
+            console.print("\n[green]Trading visualization has been saved to:[/green]")
+            console.print(f"- {dashboard_file}")
             
         except Exception as e:
             console.print(f"[red]Error creating visualizations: {str(e)}[/red]")
@@ -759,6 +758,9 @@ class BinancePaperTrader:
         best_overall_results = None
         best_overall_name = None
         
+        # Store results for all strategies
+        all_results = {}
+        
         console.print("\n[bold cyan]Running optimization for all strategies...[/bold cyan]")
         
         # Store the data for visualization
@@ -773,6 +775,9 @@ class BinancePaperTrader:
                 console.print(f"\n[bold]Strategy Results for {strategy_name}:[/bold]")
                 self.display.display_backtest_results(results, symbol)
                 
+                # Store results for visualization
+                all_results[strategy_name] = (results, self.data)
+                
                 if total_return > best_overall_return:
                     best_overall_return = total_return
                     best_overall_strategy = strategy
@@ -784,6 +789,13 @@ class BinancePaperTrader:
             console.print(f"Total Return: {best_overall_return:.2f}%")
             console.print("\n[bold]Best Strategy Results:[/bold]")
             self.display.display_backtest_results(best_overall_results, symbol)
+            
+            # Create visualizations with all strategy results
+            if all_results:
+                charts = TradingCharts()
+                dashboard_file = charts.create_combined_dashboard(all_results)
+                console.print("\n[green]Trading visualization has been saved to:[/green]")
+                console.print(f"- {dashboard_file}")
         else:
             console.print("\n[bold red]No successful strategy found[/bold red]")
         

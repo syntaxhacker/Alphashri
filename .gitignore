@@ -43,3 +43,6 @@ ENV/
 .env 
 
 cache/
+
+
+visualizations/html/
