@@ -341,11 +341,15 @@ class BinancePaperTrader:
         self.api_secret = api_secret
         self.use_testnet = use_testnet
         
-        # Initialize Binance client with proper Testnet settings
+        # Initialize Binance client with proper Testnet settings for live trading
         self.client = Client(api_key, api_secret, testnet=use_testnet)
         if use_testnet:
             self.client.API_URL = 'https://testnet.binance.vision/api'
             console.print("[cyan]Connected to Binance Testnet[/cyan]")
+            
+        # Initialize a separate client for historical data from main network
+        self.data_client = Client("", "")  # No API keys needed for public data
+        console.print("[cyan]Connected to Binance Main network for historical data[/cyan]")
             
         # Initialize WebSocket manager
         self.twm = ThreadedWebsocketManager(
@@ -408,16 +412,15 @@ class BinancePaperTrader:
         
         # Set default dates if not provided
         if not end_date:
-            end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            logging.info(f"Set end_date to: {end_date}")
-            
+            end_date = datetime.now()
         if not start_date:
             # Calculate exactly 6 months ago using relativedelta
             start_date = end_date - relativedelta(months=6)
-            # Set to start of day
-            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-            logging.info(f"Set start_date to: {start_date}")
             
+        # Set to start of day for consistency
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        
         # Log the actual date range being used
         logging.info(f"Date range: {start_date} to {end_date}")
         logging.info(f"Total days: {(end_date - start_date).days}")
@@ -427,7 +430,7 @@ class BinancePaperTrader:
         df = self.data_cache.get_data(symbol, start_date, end_date)
         
         if df is None:
-            console.print("[yellow]No cached data found, fetching from Binance...[/yellow]")
+            console.print("[yellow]No cached data found, fetching from Binance Main network...[/yellow]")
             # Get historical klines/candlestick data in chunks
             all_klines = []
             chunk_size = timedelta(days=30)  # Fetch 30 days at a time
@@ -452,7 +455,8 @@ class BinancePaperTrader:
                         start_ts = int(current_start.timestamp() * 1000)
                         end_ts = int(current_end.timestamp() * 1000)
                         
-                        chunk_klines = self.client.get_historical_klines(
+                        # Use data_client instead of client for historical data
+                        chunk_klines = self.data_client.get_historical_klines(
                             symbol=symbol,
                             interval=Client.KLINE_INTERVAL_1MINUTE,
                             start_str=str(start_ts),
