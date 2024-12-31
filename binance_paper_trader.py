@@ -2,6 +2,7 @@ import os
 import time
 import sys
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from typing import List, Dict, Optional, Tuple
 import pandas as pd
 import numpy as np
@@ -407,9 +408,19 @@ class BinancePaperTrader:
         
         # Set default dates if not provided
         if not end_date:
-            end_date = datetime.now()
+            end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            logging.info(f"Set end_date to: {end_date}")
+            
         if not start_date:
-            start_date = end_date - timedelta(days=30)
+            # Calculate exactly 6 months ago using relativedelta
+            start_date = end_date - relativedelta(months=6)
+            # Set to start of day
+            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            logging.info(f"Set start_date to: {start_date}")
+            
+        # Log the actual date range being used
+        logging.info(f"Date range: {start_date} to {end_date}")
+        logging.info(f"Total days: {(end_date - start_date).days}")
             
         # Try to get data from cache first
         console.print("Checking cache for historical data...")
@@ -417,16 +428,62 @@ class BinancePaperTrader:
         
         if df is None:
             console.print("[yellow]No cached data found, fetching from Binance...[/yellow]")
-            # Get historical klines/candlestick data
-            klines = self.client.get_historical_klines(
-                symbol, Client.KLINE_INTERVAL_1MINUTE,
-                start_date.strftime("%d %b %Y %H:%M:%S"),
-                end_date.strftime("%d %b %Y %H:%M:%S")
-            )
+            # Get historical klines/candlestick data in chunks
+            all_klines = []
+            chunk_size = timedelta(days=30)  # Fetch 30 days at a time
+            current_start = start_date
             
-            console.print(f"Converting {len(klines)} klines to DataFrame...")
+            # Calculate total chunks needed
+            total_days = (end_date - start_date).days
+            total_chunks = math.ceil(total_days / 30)
+            
+            console.print(f"[cyan]Fetching {total_days} days of data from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}[/cyan]")
+            
+            with Progress() as progress:
+                task = progress.add_task("[cyan]Fetching historical data...", total=total_chunks)
+                
+                while current_start < end_date:
+                    current_end = min(current_start + chunk_size, end_date)
+                    try:
+                        # Log each chunk's date range
+                        logging.info(f"Fetching chunk: {current_start} to {current_end}")
+                        
+                        # Convert timestamps to milliseconds for Binance API
+                        start_ts = int(current_start.timestamp() * 1000)
+                        end_ts = int(current_end.timestamp() * 1000)
+                        
+                        chunk_klines = self.client.get_historical_klines(
+                            symbol=symbol,
+                            interval=Client.KLINE_INTERVAL_1MINUTE,
+                            start_str=str(start_ts),
+                            end_str=str(end_ts),
+                            limit=1000  # Maximum limit per request
+                        )
+                        
+                        if chunk_klines:
+                            all_klines.extend(chunk_klines)
+                            console.print(f"[green]✓ {current_start.strftime('%B %d, %Y')} to {current_end.strftime('%B %d, %Y')} ({len(chunk_klines):,} klines)[/green]")
+                            logging.info(f"Got {len(chunk_klines)} klines for chunk")
+                        else:
+                            console.print(f"[yellow]No data for {current_start.strftime('%B %d, %Y')} to {current_end.strftime('%B %d, %Y')}[/yellow]")
+                            logging.warning(f"No data received for chunk")
+                            
+                    except Exception as e:
+                        error_msg = f"Error fetching data: {str(e)}"
+                        console.print(f"[red]{error_msg}[/red]")
+                        logging.error(error_msg)
+                        break
+                        
+                    current_start = current_end + timedelta(minutes=1)  # Avoid overlap
+                    progress.update(task, advance=1)
+            
+            if not all_klines:
+                console.print("[red]Failed to fetch historical data[/red]")
+                return None, None
+                
+            console.print(f"[green]Converting {len(all_klines):,} klines to DataFrame...[/green]")
             # Convert to DataFrame
-            df = pd.DataFrame(klines, columns=[
+            df = pd.DataFrame(all_klines, columns=[
                 'timestamp', 'open', 'high', 'low', 'close', 'volume',
                 'close_time', 'quote_asset_volume', 'number_of_trades',
                 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
@@ -652,6 +709,9 @@ class BinancePaperTrader:
         
         console.print("\n[bold cyan]Running optimization for all strategies...[/bold cyan]")
         
+        # Clear cache once at the start
+        self.data_cache.clear_cache()
+        
         for strategy_name in strategies:
             console.print(f"\n[bold yellow]Testing {strategy_name} strategy[/bold yellow]")
             strategy, results = self.optimize_strategy(symbol, strategy_name, start_date, end_date)
@@ -713,16 +773,19 @@ def main():
             # Run backtest mode
             console.print("[bold cyan]Starting backtest mode...[/bold cyan]")
             
-            # Convert start string to datetime
-            if args.start == '1 month ago UTC':
-                start_date = datetime.now() - timedelta(days=30)
-            else:
-                start_date = pd.to_datetime(args.start)
+            # Set end date to start of current day
+            end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            # Calculate start date as exactly 6 months before end date
+            start_date = end_date - relativedelta(months=6)
+            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            logging.info(f"Main: Using date range {start_date} to {end_date}")
                 
             # Run optimization for all strategies
             strategy, results = trader.optimize_all_strategies(
                 symbol=args.symbol,
-                start_date=start_date
+                start_date=start_date,
+                end_date=end_date
             )
             
             if results is not None and args.plot:
