@@ -4,6 +4,14 @@ import pandas as pd
 import pandas_ta as ta
 import numpy as np
 from datetime import datetime
+import torch
+
+# Import GPU helper functions
+def to_cpu(tensor: torch.Tensor) -> np.ndarray:
+    """Convert GPU tensor to numpy array"""
+    if torch.is_tensor(tensor):
+        return tensor.cpu().numpy()
+    return tensor
 
 class BaseStrategy(ABC):
     """Base class for all trading strategies"""
@@ -12,22 +20,39 @@ class BaseStrategy(ABC):
         self.stop_loss = stop_loss
         self.take_profit = take_profit
         self.position_size = position_size
+        self.use_gpu = False
+        
+    def calculate_indicators(self, df: pd.DataFrame, gpu_data: Dict = None) -> pd.DataFrame:
+        """Calculate technical indicators with optional GPU acceleration"""
+        if gpu_data is not None:
+            self.use_gpu = True
+            return self._calculate_indicators_gpu(df, gpu_data)
+        return self._calculate_indicators_cpu(df)
+    
+    @abstractmethod
+    def _calculate_indicators_cpu(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate indicators using CPU"""
+        pass
+        
+    @abstractmethod
+    def _calculate_indicators_gpu(self, df: pd.DataFrame, gpu_data: Dict) -> pd.DataFrame:
+        """Calculate indicators using GPU"""
+        pass
         
     @abstractmethod
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         """Generate trading signals from data"""
         pass
-        
-    @abstractmethod
-    def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate technical indicators needed for the strategy"""
-        pass
 
 class TrendFollowingStrategy(BaseStrategy):
     """Trend following strategy using moving averages and momentum"""
     
-    def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate technical indicators for trend following"""
+    def _calculate_indicators_cpu(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate indicators using CPU"""
+        # Ensure numeric columns are float
+        for col in ['high', 'low', 'close', 'volume']:
+            df[col] = df[col].astype(float)
+            
         # Trend indicators
         df['ema_fast'] = ta.ema(df['close'], length=8)
         df['ema_slow'] = ta.ema(df['close'], length=21)
@@ -58,6 +83,41 @@ class TrendFollowingStrategy(BaseStrategy):
         
         return df
     
+    def _calculate_indicators_gpu(self, df: pd.DataFrame, gpu_data: Dict) -> pd.DataFrame:
+        """Calculate indicators using GPU"""
+        import torch
+        import torch.nn.functional as F
+        
+        # Get data from GPU dict and ensure float32
+        high = gpu_data['high'].to(torch.float32)
+        low = gpu_data['low'].to(torch.float32)
+        close = gpu_data['close'].to(torch.float32)
+        volume = gpu_data['volume'].to(torch.float32)
+        
+        # Calculate EMAs using GPU
+        alpha_fast = 2.0 / (8 + 1)
+        alpha_slow = 2.0 / (21 + 1)
+        
+        ema_fast = torch.zeros_like(close, dtype=torch.float32)
+        ema_slow = torch.zeros_like(close, dtype=torch.float32)
+        
+        ema_fast[0] = close[0]
+        ema_slow[0] = close[0]
+        
+        for i in range(1, len(close)):
+            ema_fast[i] = alpha_fast * close[i] + (1 - alpha_fast) * ema_fast[i-1]
+            ema_slow[i] = alpha_slow * close[i] + (1 - alpha_slow) * ema_slow[i-1]
+        
+        # Move results back to DataFrame
+        df['ema_fast'] = to_cpu(ema_fast).astype(np.float32)
+        df['ema_slow'] = to_cpu(ema_slow).astype(np.float32)
+        
+        # Calculate other indicators on CPU for now
+        # (We'll gradually move more calculations to GPU as needed)
+        df = self._calculate_indicators_cpu(df)
+        
+        return df
+        
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         """Generate trading signals based on trend following rules"""
         signals = pd.Series(index=df.index, data='HOLD')
@@ -101,19 +161,11 @@ class TrendFollowingStrategy(BaseStrategy):
 class MeanReversionStrategy(BaseStrategy):
     """Mean reversion strategy using Bollinger Bands and RSI"""
     
-    def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate technical indicators for mean reversion"""
-        # Debug logging
-        print(f"\nDataFrame info before type conversion:")
-        print(df.dtypes)
-        print("\nSample of data:")
-        print(df.head())
-        
+    def _calculate_indicators_cpu(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate indicators using CPU"""
         # Ensure numeric columns are float
         for col in ['high', 'low', 'close', 'volume']:
             df[col] = df[col].astype(float)
-            print(f"\n{col} dtype after conversion: {df[col].dtype}")
-            print(f"{col} sample values: {df[col].head()}")
             
         # Volatility indicators
         df['atr'] = ta.atr(df['high'], df['low'], df['close'])
@@ -127,66 +179,66 @@ class MeanReversionStrategy(BaseStrategy):
         df['rsi'] = ta.rsi(df['close'], length=14)
         df['obv'] = ta.obv(df['close'], df['volume'])
         
-        print("\nBefore MFI calculation:")
-        print("High dtype:", df['high'].dtype)
-        print("Low dtype:", df['low'].dtype)
-        print("Close dtype:", df['close'].dtype)
-        print("Volume dtype:", df['volume'].dtype)
+        # Calculate MFI
+        typical_price = (df['high'] + df['low'] + df['close']) / 3
+        money_flow = typical_price * df['volume']
         
-        # Fix MFI calculation by ensuring float type and handling NaN values
-        df['high'] = df['high'].astype(float)
-        df['low'] = df['low'].astype(float)
-        df['close'] = df['close'].astype(float)
-        df['volume'] = df['volume'].astype(float)
+        # Calculate positive and negative money flow
+        positive_flow = money_flow.where(typical_price > typical_price.shift(1), 0.0)
+        negative_flow = money_flow.where(typical_price < typical_price.shift(1), 0.0)
         
-        # Check for NaN values
-        print("\nNaN values in data:")
-        print(df[['high', 'low', 'close', 'volume']].isna().sum())
+        # Calculate money flow ratio
+        period = 14  # Standard MFI period
+        positive_mf = positive_flow.rolling(window=period).sum()
+        negative_mf = negative_flow.rolling(window=period).sum()
         
-        # Calculate MFI with proper type handling
-        try:
-            # Create money flow
-            typical_price = (df['high'] + df['low'] + df['close']) / 3
-            money_flow = typical_price * df['volume']
-            
-            # Calculate positive and negative money flow
-            positive_flow = money_flow.where(typical_price > typical_price.shift(1), 0.0)
-            negative_flow = money_flow.where(typical_price < typical_price.shift(1), 0.0)
-            
-            # Calculate money flow ratio
-            period = 14  # Standard MFI period
-            positive_mf = positive_flow.rolling(window=period).sum()
-            negative_mf = negative_flow.rolling(window=period).sum()
-            
-            # Avoid division by zero
-            money_ratio = positive_mf / negative_mf.replace(0, float('nan'))
-            
-            # Calculate MFI
-            mfi = 100 - (100 / (1 + money_ratio))
-            
-            # Handle NaN values
-            mfi = mfi.fillna(50)  # Fill NaN with neutral value
-            df['mfi'] = mfi
-            
-            print("\nCustom MFI calculation successful")
-            print("MFI sample values:", df['mfi'].head())
-            
-        except Exception as e:
-            print(f"\nError in MFI calculation: {str(e)}")
-            print("Data causing error:")
-            print(df[['high', 'low', 'close', 'volume']].head())
-            # Set neutral MFI value in case of error
-            df['mfi'] = 50
+        # Avoid division by zero
+        money_ratio = positive_mf / negative_mf.replace(0, float('nan'))
         
-        # VWAP
-        df['typical_price'] = (df['high'] + df['low'] + df['close']) / 3
-        df['price_volume'] = df['typical_price'] * df['volume']
-        df['cumulative_volume'] = df['volume'].rolling(window=20).sum()
-        df['cumulative_pv'] = df['price_volume'].rolling(window=20).sum()
-        df['vwap'] = df['cumulative_pv'] / df['cumulative_volume']
+        # Calculate MFI
+        df['mfi'] = 100 - (100 / (1 + money_ratio))
+        df['mfi'] = df['mfi'].fillna(50)
         
         return df
     
+    def _calculate_indicators_gpu(self, df: pd.DataFrame, gpu_data: Dict) -> pd.DataFrame:
+        """Calculate indicators using GPU"""
+        import torch
+        import torch.nn.functional as F
+        
+        # Get data from GPU dict
+        high = gpu_data['high']
+        low = gpu_data['low']
+        close = gpu_data['close']
+        volume = gpu_data['volume']
+        
+        # Calculate Bollinger Bands on GPU
+        window = 20
+        std_dev = 2
+        
+        # Calculate rolling mean and std using GPU
+        rolling_mean = torch.zeros_like(close)
+        rolling_std = torch.zeros_like(close)
+        
+        for i in range(window-1, len(close)):
+            window_data = close[i-window+1:i+1]
+            rolling_mean[i] = torch.mean(window_data)
+            rolling_std[i] = torch.std(window_data)
+        
+        upper_band = rolling_mean + (rolling_std * std_dev)
+        lower_band = rolling_mean - (rolling_std * std_dev)
+        
+        # Move results back to DataFrame
+        df['bbands_upper'] = to_cpu(upper_band)
+        df['bbands_middle'] = to_cpu(rolling_mean)
+        df['bbands_lower'] = to_cpu(lower_band)
+        df['bbands_width'] = (df['bbands_upper'] - df['bbands_lower']) / df['bbands_middle']
+        
+        # Calculate other indicators on CPU for now
+        df = self._calculate_indicators_cpu(df)
+        
+        return df
+        
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         """Generate trading signals based on mean reversion rules"""
         signals = pd.Series(index=df.index, data='HOLD')

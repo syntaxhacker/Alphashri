@@ -1,5 +1,6 @@
 import os
 import time
+import sys
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
 import pandas as pd
@@ -24,14 +25,310 @@ import websockets
 import asyncio
 import math
 import logging
-
-# Import our new modules
-from data_cache import DataCache
-from strategies import StrategyFactory
-from display import TradingDisplay
+import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+import threading
+import torch
+from pathlib import Path
 
 # Initialize Rich console
 console = Console()
+
+# Configure system settings
+sys.setrecursionlimit(3000)  # More reasonable recursion limit
+
+# Configure thread settings
+try:
+    # Try to set a reasonable thread stack size (8MB)
+    threading.stack_size(8 * 1024 * 1024)
+except (ValueError, threading.ThreadError) as e:
+    console.print(f"[yellow]Warning: Could not set thread stack size: {str(e)}[/yellow]")
+    console.print("[yellow]Continuing with default thread stack size[/yellow]")
+
+# Setup GPU acceleration
+IS_APPLE_SILICON = os.uname().machine == 'arm64'
+USE_GPU = False
+
+if IS_APPLE_SILICON:
+    try:
+        # Enable Metal backend for numpy operations
+        os.environ['ACCELERATE_ENABLE_MPS'] = '1'
+        
+        # Try to import torch with MPS support
+        import torch
+        if torch.backends.mps.is_available():
+            USE_GPU = True
+            device = torch.device("mps")
+            console.print("[green]Using Apple M1 GPU for acceleration[/green]")
+            
+            # Helper function to move numpy arrays to GPU
+            def to_gpu(arr):
+                if isinstance(arr, np.ndarray):
+                    return torch.from_numpy(arr).to(device)
+                return arr
+                
+            # Helper function to move tensors back to CPU as numpy arrays
+            def to_cpu(tensor):
+                if torch.is_tensor(tensor):
+                    return tensor.cpu().numpy()
+                return tensor
+        else:
+            console.print("[yellow]MPS (GPU) acceleration not available, using CPU[/yellow]")
+    except Exception as e:
+        console.print(f"[yellow]Could not enable GPU acceleration: {str(e)}[/yellow]")
+        console.print("[yellow]Falling back to CPU calculations[/yellow]")
+
+# Import our new modules
+from data_cache import DataCache
+from strategies import BaseStrategy, StrategyFactory
+from display import TradingDisplay
+
+def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps: float, 
+                initial_balance: float) -> Tuple[float, Dict, Optional[pd.DataFrame]]:
+    """Run a single backtest with given parameters"""
+    try:
+        # Create strategy instance
+        strategy = StrategyFactory.create_strategy(
+            strategy_name,
+            stop_loss=sl,
+            take_profit=tp,
+            position_size=ps
+        )
+        
+        # Calculate indicators (with GPU acceleration if available)
+        df_indicators = df.copy()
+        if USE_GPU:
+            # Move price data to GPU for calculations
+            gpu_data = {
+                'high': to_gpu(df_indicators['high'].values),
+                'low': to_gpu(df_indicators['low'].values),
+                'close': to_gpu(df_indicators['close'].values),
+                'volume': to_gpu(df_indicators['volume'].values)
+            }
+            
+            # Calculate indicators on GPU
+            strategy.calculate_indicators(df_indicators, gpu_data=gpu_data)
+            
+            # Move results back to CPU
+            for col in df_indicators.columns:
+                if torch.is_tensor(df_indicators[col].values):
+                    df_indicators[col] = pd.Series(to_cpu(df_indicators[col].values), index=df_indicators.index)
+        else:
+            strategy.calculate_indicators(df_indicators)
+        
+        # Generate signals
+        signals = strategy.generate_signals(df_indicators)
+        del df_indicators  # Free memory
+        
+        # Initialize tracking variables
+        trades = []
+        balance = initial_balance
+        position = False
+        entry_price = 0
+        position_size_units = 0
+        
+        # Run backtest with optimized loop
+        for i in range(len(df)):
+            current_price = float(df['close'].iloc[i])
+            signal = signals.iloc[i]
+            
+            if not position and signal == 'BUY':
+                position = True
+                entry_price = current_price
+                position_value = balance * ps
+                position_size_units = position_value / current_price
+                
+                trades.append({
+                    'timestamp': df.index[i],
+                    'action': 'BUY',
+                    'price': current_price,
+                    'size': position_size_units,
+                    'balance': balance
+                })
+                
+            elif position:
+                # Check exit conditions
+                exit_price = None
+                exit_reason = None
+                
+                # Check stop loss
+                if current_price <= entry_price * (1 - sl):
+                    exit_price = current_price
+                    exit_reason = 'Stop Loss'
+                # Check take profit
+                elif current_price >= entry_price * (1 + tp):
+                    exit_price = current_price
+                    exit_reason = 'Take Profit'
+                # Check signal exit
+                elif signal == 'SELL':
+                    exit_price = current_price
+                    exit_reason = 'Signal'
+                
+                if exit_price is not None:
+                    pnl = (exit_price - entry_price) * position_size_units
+                    balance += pnl
+                    
+                    trades.append({
+                        'timestamp': df.index[i],
+                        'action': 'SELL',
+                        'price': exit_price,
+                        'size': position_size_units,
+                        'balance': balance,
+                        'pnl': pnl,
+                        'return': (pnl / initial_balance) * 100,
+                        'reason': exit_reason
+                    })
+                    
+                    position = False
+                    entry_price = 0
+                    position_size_units = 0
+        
+        if trades:
+            # Convert trades to DataFrame efficiently
+            trades_df = pd.DataFrame(trades)
+            trades_df['cumulative_return'] = trades_df['return'].fillna(0).cumsum()
+            total_return = trades_df['cumulative_return'].iloc[-1]
+            
+            params = {
+                'strategy': strategy_name,
+                'stop_loss': sl,
+                'take_profit': tp,
+                'position_size': ps
+            }
+            
+            return total_return, params, trades_df
+            
+        return -float('inf'), None, None
+        
+    except Exception as e:
+        logging.error(f"Error in backtest: {str(e)}")
+        return -float('inf'), None, None
+
+def to_gpu(data: np.ndarray) -> torch.Tensor:
+    """Convert numpy array to GPU tensor"""
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    return torch.from_numpy(data.astype(np.float32)).to(device)
+
+def to_cpu(tensor: torch.Tensor) -> np.ndarray:
+    """Convert GPU tensor to numpy array"""
+    return tensor.cpu().numpy()
+
+def run_backtest_benchmark(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps: float, 
+                initial_balance: float, use_gpu: bool = False) -> Tuple[float, Dict, Optional[pd.DataFrame], float]:
+    """Run a single backtest with given parameters and return execution time"""
+    start_time = time.time()
+    try:
+        # Create strategy instance
+        strategy = StrategyFactory.create_strategy(
+            strategy_name,
+            stop_loss=sl,
+            take_profit=tp,
+            position_size=ps
+        )
+        
+        # Calculate indicators
+        df_indicators = df.copy()
+        if use_gpu:
+            # Move price data to GPU for calculations
+            gpu_data = {
+                'high': to_gpu(df_indicators['high'].values),
+                'low': to_gpu(df_indicators['low'].values),
+                'close': to_gpu(df_indicators['close'].values),
+                'volume': to_gpu(df_indicators['volume'].values)
+            }
+            strategy.calculate_indicators(df_indicators, gpu_data=gpu_data)
+        else:
+            strategy.calculate_indicators(df_indicators)
+            
+        # Generate signals
+        signals = strategy.generate_signals(df_indicators)
+        
+        # Run backtest
+        trades = []
+        balance = initial_balance
+        position = False
+        entry_price = 0
+        position_size_units = 0
+        
+        for i in range(len(df)):
+            current_price = float(df['close'].iloc[i])
+            signal = signals.iloc[i]
+            
+            if not position and signal == 'BUY':
+                position = True
+                entry_price = current_price
+                position_value = balance * ps
+                position_size_units = position_value / current_price
+                
+                trades.append({
+                    'timestamp': df.index[i],
+                    'action': 'BUY',
+                    'price': current_price,
+                    'size': position_size_units,
+                    'balance': balance
+                })
+                
+            elif position:
+                # Check exit conditions
+                exit_price = None
+                exit_reason = None
+                
+                # Check stop loss
+                if current_price <= entry_price * (1 - sl):
+                    exit_price = current_price
+                    exit_reason = 'Stop Loss'
+                # Check take profit
+                elif current_price >= entry_price * (1 + tp):
+                    exit_price = current_price
+                    exit_reason = 'Take Profit'
+                # Check signal exit
+                elif signal == 'SELL':
+                    exit_price = current_price
+                    exit_reason = 'Signal'
+                
+                if exit_price is not None:
+                    pnl = (exit_price - entry_price) * position_size_units
+                    balance += pnl
+                    
+                    trades.append({
+                        'timestamp': df.index[i],
+                        'action': 'SELL',
+                        'price': exit_price,
+                        'size': position_size_units,
+                        'balance': balance,
+                        'pnl': pnl,
+                        'return': (pnl / initial_balance) * 100,
+                        'reason': exit_reason
+                    })
+                    
+                    position = False
+                    entry_price = 0
+                    position_size_units = 0
+        
+        execution_time = time.time() - start_time
+        
+        if trades:
+            trades_df = pd.DataFrame(trades)
+            trades_df['cumulative_return'] = trades_df['return'].fillna(0).cumsum()
+            total_return = trades_df['cumulative_return'].iloc[-1]
+            
+            params = {
+                'stop_loss': sl,
+                'take_profit': tp,
+                'position_size': ps
+            }
+            
+            return total_return, params, trades_df, execution_time
+            
+        return -float('inf'), None, None, execution_time
+        
+    except Exception as e:
+        logging.error(f"Error in backtest: {str(e)}")
+        return -float('inf'), None, None, time.time() - start_time
 
 class BinancePaperTrader:
     def __init__(self, api_key: str, api_secret: str, use_testnet: bool = True):
@@ -92,225 +389,119 @@ class BinancePaperTrader:
             ]
         )
 
-    def optimize_strategy(self, symbol: str, start_str: str = "1 month ago UTC", initial_balance: float = 10000) -> Optional[pd.DataFrame]:
-        """Optimize trading strategy parameters using historical data"""
-        try:
-            console.print("\nFetching historical data...")
+    def _prepare_gpu_data(self, df: pd.DataFrame) -> Dict[str, torch.Tensor]:
+        """Prepare data for GPU calculations"""
+        if not USE_GPU:
+            return None
             
-            # Try to get data from cache first
-            logging.info(f"Checking cache for {symbol} data...")
-            df = self.data_cache.get_data(symbol, "1m")
+        gpu_data = {}
+        for col in ['high', 'low', 'close', 'volume']:
+            gpu_data[col] = to_gpu(df[col].values.astype(np.float32))
+        return gpu_data
+    
+    def optimize_strategy(self, symbol: str, strategy_name: str = 'trend_following', 
+                        start_date: Optional[datetime] = None,
+                        end_date: Optional[datetime] = None) -> Tuple[BaseStrategy, pd.DataFrame]:
+        """Optimize strategy parameters using historical data"""
+        console.print("[bold cyan]Starting strategy optimization...[/bold cyan]")
+        
+        # Set default dates if not provided
+        if not end_date:
+            end_date = datetime.now()
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
             
-            if df is not None:
-                logging.info(f"Found cached data for {symbol}")
-                console.print("[green]Using cached data[/green]")
-            else:
-                logging.info(f"No cached data found for {symbol}, fetching from Binance...")
-                # Get historical klines if not in cache
-                klines = self.client.get_historical_klines(
-                    symbol=symbol,
-                    interval=Client.KLINE_INTERVAL_1MINUTE,
-                    start_str=start_str
-                )
-                
-                if not klines:
-                    console.print("[red]No historical data available[/red]")
-                    return None
-                
-                logging.info(f"Converting {len(klines)} klines to DataFrame...")
-                # Convert to DataFrame
-                df = pd.DataFrame(klines, columns=[
-                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                    'close_time', 'quote_volume', 'trades', 'taker_buy_base',
-                    'taker_buy_quote', 'ignored'
-                ])
-                
-                # Convert timestamp to datetime and set as index
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                df.set_index('timestamp', inplace=True)
-                
-                # Convert price columns to float
-                for col in ['open', 'high', 'low', 'close', 'volume']:
-                    df[col] = df[col].astype(float)
-                
-                logging.info("Caching the fetched data...")
-                # Cache the data
-                self.data_cache.save_data(symbol, "1m", df)
-                
-                # Display cache info
-                cache_info = self.data_cache.get_cache_info()
-                self.display.display_cache_info(cache_info)
-            
-            # Initialize results storage
-            best_return = -float('inf')
-            best_params = None
-            best_trades = None
-            
-            # Parameter combinations to test
-            stop_losses = [0.002, 0.003, 0.004]  # 0.2% to 0.4%
-            take_profits = [0.004, 0.006, 0.008]  # 0.4% to 0.8%
-            position_sizes = [0.2, 0.3, 0.4]  # 20% to 40%
-            strategies = ['trend_following', 'mean_reversion']
-            
-            total_combinations = len(stop_losses) * len(take_profits) * len(position_sizes) * len(strategies)
-            current_combination = 0
-            
-            console.print(f"\nTesting {total_combinations} parameter combinations...")
-            
-            # Test each parameter combination
-            for strategy_name in strategies:
-                for sl in stop_losses:
-                    for tp in take_profits:
-                        for ps in position_sizes:
-                            current_combination += 1
-                            
-                            # Create strategy instance
-                            strategy = StrategyFactory.create_strategy(
-                                strategy_name,
-                                stop_loss=sl,
-                                take_profit=tp,
-                                position_size=ps
-                            )
-                            
-                            # Calculate indicators
-                            df_indicators = strategy.calculate_indicators(df.copy())
-                            
-                            # Generate signals
-                            signals = strategy.generate_signals(df_indicators)
-                            
-                            # Run backtest with current parameters
-                            trades = self.backtest_strategy(
-                                df=df_indicators,
-                                signals=signals,
-                                stop_loss=sl,
-                                take_profit=tp,
-                                position_size=ps,
-                                initial_balance=initial_balance
-                            )
-                            
-                            if trades is not None and not trades.empty:
-                                total_return = trades['cumulative_return'].iloc[-1]
-                                if total_return > best_return:
-                                    best_return = total_return
-                                    best_params = {
-                                        'strategy': strategy_name,
-                                        'stop_loss': sl,
-                                        'take_profit': tp,
-                                        'position_size': ps
-                                    }
-                                    best_trades = trades
-                            
-                            # Display progress
-                            self.display.display_optimization_progress(
-                                current_combination,
-                                total_combinations,
-                                best_params
-                            )
-            
-            if best_params is None:
-                console.print("[yellow]No strategy found meeting the minimum criteria.[/yellow]")
-                return None
-            
-            # Set the best parameters
-            self.strategy = StrategyFactory.create_strategy(
-                best_params['strategy'],
-                stop_loss=best_params['stop_loss'],
-                take_profit=best_params['take_profit'],
-                position_size=best_params['position_size']
+        # Try to get data from cache first
+        console.print("Checking cache for historical data...")
+        df = self.data_cache.get_data(symbol, start_date, end_date)
+        
+        if df is None:
+            console.print("[yellow]No cached data found, fetching from Binance...[/yellow]")
+            # Get historical klines/candlestick data
+            klines = self.client.get_historical_klines(
+                symbol, Client.KLINE_INTERVAL_1MINUTE,
+                start_date.strftime("%d %b %Y %H:%M:%S"),
+                end_date.strftime("%d %b %Y %H:%M:%S")
             )
             
-            console.print("\n[green]Optimization complete![/green]")
+            console.print(f"Converting {len(klines)} klines to DataFrame...")
+            # Convert to DataFrame
+            df = pd.DataFrame(klines, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                'close_time', 'quote_asset_volume', 'number_of_trades',
+                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+            ])
             
-            # Display results
-            self.display.display_backtest_results(best_trades)
+            # Convert timestamp to datetime
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
             
-            return best_trades
+            # Convert string values to float
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = df[col].astype(float)
             
-        except Exception as e:
-            console.print(f"[red]Error in strategy optimization: {str(e)}[/red]")
-            return None
-
-    def backtest_strategy(self, df: pd.DataFrame, signals: pd.Series,
-                         stop_loss: float, take_profit: float,
-                         position_size: float, initial_balance: float) -> Optional[pd.DataFrame]:
-        """Backtest the trading strategy with given parameters"""
-        try:
-            trades = []
-            balance = initial_balance
-            position = False
-            entry_price = 0
-            position_size_units = 0
+            console.print("Caching the fetched data...")
+            self.data_cache.save_data(symbol, df)
+        else:
+            console.print("[green]Found cached data[/green]")
+        
+        # Define parameter ranges for optimization
+        stop_losses = [0.02, 0.03, 0.04]
+        take_profits = [0.04, 0.06, 0.08]
+        position_sizes = [0.2, 0.3, 0.4]
+        
+        total_combinations = len(stop_losses) * len(take_profits) * len(position_sizes)
+        console.print(f"\nTesting {total_combinations} parameter combinations...")
+        
+        # Run benchmarks with CPU only
+        param_combinations = [
+            (sl, tp, ps) 
+            for sl in stop_losses 
+            for tp in take_profits 
+            for ps in position_sizes
+        ]
+        
+        console.print("\n[bold]Running optimization...[/bold]")
+        start_time = time.time()
+        results = []
+        
+        with Progress() as progress:
+            task = progress.add_task("[cyan]Testing combinations...", total=len(param_combinations))
             
-            for i in range(len(df)):
-                current_price = df['close'].iloc[i]
-                signal = signals.iloc[i]
-                
-                if not position and signal == 'BUY':
-                    # Enter position
-                    position = True
-                    entry_price = current_price
-                    position_value = balance * position_size
-                    position_size_units = position_value / current_price
-                    
-                    trades.append({
-                        'timestamp': df.index[i],
-                        'action': 'BUY',
-                        'price': current_price,
-                        'size': position_size_units,
-                        'balance': balance
-                    })
-                    
-                elif position:
-                    # Check exit conditions
-                    exit_price = None
-                    exit_reason = None
-                    
-                    # Check stop loss
-                    if current_price <= entry_price * (1 - stop_loss):
-                        exit_price = current_price
-                        exit_reason = 'Stop Loss'
-                    
-                    # Check take profit
-                    elif current_price >= entry_price * (1 + take_profit):
-                        exit_price = current_price
-                        exit_reason = 'Take Profit'
-                    
-                    # Check signal exit
-                    elif signal == 'SELL':
-                        exit_price = current_price
-                        exit_reason = 'Signal'
-                    
-                    if exit_price is not None:
-                        # Calculate profit/loss
-                        pnl = (exit_price - entry_price) * position_size_units
-                        balance += pnl
-                        
-                        trades.append({
-                            'timestamp': df.index[i],
-                            'action': 'SELL',
-                            'price': exit_price,
-                            'size': position_size_units,
-                            'balance': balance,
-                            'pnl': pnl,
-                            'return': (pnl / initial_balance) * 100,
-                            'reason': exit_reason
-                        })
-                        
-                        position = False
-                        entry_price = 0
-                        position_size_units = 0
-            
-            if trades:
-                # Convert trades to DataFrame
-                trades_df = pd.DataFrame(trades)
-                trades_df['cumulative_return'] = trades_df['return'].cumsum()
-                return trades_df
-            
-            return pd.DataFrame()
-            
-        except Exception as e:
-            console.print(f"[red]Error in strategy backtest: {str(e)}[/red]")
-            return pd.DataFrame()
+            for params in param_combinations:
+                sl, tp, ps = params
+                total_return, strategy_params, trades_df, exec_time = run_backtest_benchmark(
+                    df.copy(), strategy_name, sl, tp, ps, 10000, use_gpu=False
+                )
+                results.append((total_return, strategy_params, trades_df, exec_time))
+                progress.update(task, advance=1)
+        
+        total_time = time.time() - start_time
+        console.print(f"\n[bold]Optimization completed in {total_time:.2f} seconds[/bold]")
+        
+        # Find best strategy
+        best_return = -float('inf')
+        best_strategy = None
+        best_backtest_results = None
+        
+        for total_return, params, trades_df, _ in results:
+            if total_return > best_return:
+                best_return = total_return
+                best_strategy = StrategyFactory.create_strategy(strategy_name, **params)
+                best_backtest_results = trades_df
+        
+        console.print(f"\n[bold green]Best strategy found![/bold green]")
+        console.print(f"Return: {best_return:.2f}%")
+        
+        if best_backtest_results is not None:
+            console.print("\n[bold]Trade Statistics:[/bold]")
+            console.print(f"Total Trades: {len(best_backtest_results)}")
+            profitable_trades = len(best_backtest_results[best_backtest_results['pnl'] > 0])
+            console.print(f"Profitable Trades: {profitable_trades}")
+            win_rate = (profitable_trades / len(best_backtest_results)) * 100
+            console.print(f"Win Rate: {win_rate:.1f}%")
+        
+        return best_strategy, best_backtest_results
 
     def process_socket_message(self, msg):
         """Process incoming WebSocket messages"""
@@ -381,13 +572,110 @@ class BinancePaperTrader:
                 )
                 
                 if can_trade:
-                    self.execute_buy_order()
+                            self.execute_buy_order()
                     
             elif self.position and signal == 'SELL':
-                self.execute_sell_order()
+                            self.execute_sell_order()
                 
         except Exception as e:
             console.print(f"[red]Error checking trading opportunity: {str(e)}[/red]")
+
+    def display_trade_history(self, trades_df: pd.DataFrame):
+        """Display detailed trade history in a table"""
+        if trades_df is None or len(trades_df) == 0:
+            console.print("[yellow]No trades to display[/yellow]")
+            return
+        
+        # Create a summary table
+        summary = Table(title="Trade Summary", show_header=True, header_style="bold blue")
+        summary.add_column("Metric", style="cyan")
+        summary.add_column("Value", style="green")
+        
+        total_trades = len(trades_df)
+        profitable_trades = len(trades_df[trades_df['pnl'] > 0])
+        win_rate = (profitable_trades / total_trades) * 100 if total_trades > 0 else 0
+        total_profit = trades_df['pnl'].sum() if 'pnl' in trades_df else 0
+        max_profit = trades_df['pnl'].max() if 'pnl' in trades_df else 0
+        max_loss = trades_df['pnl'].min() if 'pnl' in trades_df else 0
+        
+        summary.add_row("Total Trades", str(total_trades))
+        summary.add_row("Profitable Trades", str(profitable_trades))
+        summary.add_row("Win Rate", f"{win_rate:.2f}%")
+        summary.add_row("Total Profit/Loss", f"${total_profit:.2f}")
+        summary.add_row("Max Profit", f"${max_profit:.2f}")
+        summary.add_row("Max Loss", f"${max_loss:.2f}")
+        
+        console.print(summary)
+        console.print()
+        
+        # Create trade history table
+        table = Table(title="Trade History", show_header=True, header_style="bold magenta")
+        table.add_column("Time", style="cyan")
+        table.add_column("Action", style="green")
+        table.add_column("Price", style="yellow")
+        table.add_column("Size", style="blue")
+        table.add_column("P&L", style="red")
+        table.add_column("Balance", style="green")
+        table.add_column("Return %", style="yellow")
+        table.add_column("Exit Reason", style="cyan")
+        
+        # Show last 20 trades if there are more than 20
+        display_trades = trades_df.tail(20) if len(trades_df) > 20 else trades_df
+        
+        for _, trade in display_trades.iterrows():
+            pnl_str = f"${trade['pnl']:.2f}" if 'pnl' in trade else ""
+            return_str = f"{trade['return']:.2f}%" if 'return' in trade else ""
+            
+            table.add_row(
+                trade['timestamp'].strftime('%Y-%m-%d %H:%M'),
+                trade['action'],
+                f"${float(trade['price']):.2f}",
+                f"{float(trade['size']):.4f}",
+                pnl_str,
+                f"${float(trade['balance']):.2f}",
+                return_str,
+                str(trade.get('reason', ''))
+            )
+        
+        if len(trades_df) > 20:
+            console.print("[yellow]Showing last 20 trades...[/yellow]")
+        console.print(table)
+
+    def optimize_all_strategies(self, symbol: str, start_date: Optional[datetime] = None,
+                              end_date: Optional[datetime] = None) -> Tuple[BaseStrategy, pd.DataFrame]:
+        """Run optimization for all available strategies and pick the best one"""
+        strategies = ['trend_following', 'mean_reversion']
+        best_overall_return = -float('inf')
+        best_overall_strategy = None
+        best_overall_results = None
+        best_overall_name = None
+        
+        console.print("\n[bold cyan]Running optimization for all strategies...[/bold cyan]")
+        
+        for strategy_name in strategies:
+            console.print(f"\n[bold yellow]Testing {strategy_name} strategy[/bold yellow]")
+            strategy, results = self.optimize_strategy(symbol, strategy_name, start_date, end_date)
+            
+            if results is not None:
+                total_return = results['return'].sum() if 'return' in results else -float('inf')
+                console.print(f"\n[bold]Strategy Results for {strategy_name}:[/bold]")
+                self.display.display_backtest_results(results, symbol)
+                
+                if total_return > best_overall_return:
+                    best_overall_return = total_return
+                    best_overall_strategy = strategy
+                    best_overall_results = results
+                    best_overall_name = strategy_name
+        
+        if best_overall_strategy:
+            console.print(f"\n[bold green]Best Overall Strategy: {best_overall_name}[/bold green]")
+            console.print(f"Total Return: {best_overall_return:.2f}%")
+            console.print("\n[bold]Best Strategy Results:[/bold]")
+            self.display.display_backtest_results(best_overall_results, symbol)
+        else:
+            console.print("\n[bold red]No successful strategy found[/bold red]")
+        
+        return best_overall_strategy, best_overall_results
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Binance Paper Trading Backtester and Live Trader')
@@ -424,14 +712,21 @@ def main():
         else:
             # Run backtest mode
             console.print("[bold cyan]Starting backtest mode...[/bold cyan]")
-            results = trader.optimize_strategy(
+            
+            # Convert start string to datetime
+            if args.start == '1 month ago UTC':
+                start_date = datetime.now() - timedelta(days=30)
+            else:
+                start_date = pd.to_datetime(args.start)
+                
+            # Run optimization for all strategies
+            strategy, results = trader.optimize_all_strategies(
                 symbol=args.symbol,
-                start_str=args.start,
-                initial_balance=args.balance
+                start_date=start_date
             )
             
             if results is not None and args.plot:
-                trader.plot_backtest_results(results, args.symbol)
+                    trader.plot_backtest_results(results, args.symbol)
                 
     except KeyboardInterrupt:
         console.print("\n[yellow]Shutting down...[/yellow]")
