@@ -67,19 +67,17 @@ class TradingDisplay:
         display_trades = trades_df.tail(20) if len(trades_df) > 20 else trades_df
         
         for _, trade in display_trades.iterrows():
-            # Skip rows with NaN values
-            if pd.isna(trade.get('pnl', None)) or pd.isna(trade.get('return', None)):
-                continue
+            action_color = "green" if trade['action'] == 'BUY' else "red"
             
             table.add_row(
                 trade['timestamp'].strftime('%Y-%m-%d %H:%M'),
-                trade['action'],
+                f"[{action_color}]{trade['action']}[/{action_color}]",
                 f"${float(trade['price']):.2f}",
                 f"{float(trade['size']):.4f}",
-                f"${float(trade['pnl']):.2f}" if 'pnl' in trade else "",
+                f"${float(trade['pnl']):.2f}" if 'pnl' in trade and not pd.isna(trade['pnl']) else "-",
                 f"${float(trade['balance']):.2f}",
-                f"{float(trade['return']):.2f}%" if 'return' in trade else "",
-                str(trade.get('reason', ''))
+                f"{float(trade['return']):.2f}%" if 'return' in trade and not pd.isna(trade['return']) else "-",
+                str(trade.get('reason', '')) if trade.get('reason') else "-"
             )
         
         if len(trades_df) > 20:
