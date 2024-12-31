@@ -7,8 +7,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.layout import Layout
 from rich.text import Text
+from rich.prompt import Prompt, Confirm
 from tradingview_screener import Query
 import rookiepy
+import threading
+import queue
 
 console = Console()
 
@@ -19,16 +22,18 @@ class MarketStreamer:
         self.start_time = datetime.now()
         self.previous_prices = {}
         self.alerts = {}  # Store price alerts
+        self.search_mode = False
+        self.search_results = []
+        self.running = True
+        self.live_display = None
+        self.command_queue = queue.Queue()
+        self.command_result = ""  # Store command input status/result
         
         # Define assets to track with their markets and alert thresholds
         self.assets = {
             "BINANCE:BTCUSDT": {
                 "market": "crypto",
                 "alerts": {"above": 95000, "below": 90000}
-            },
-            "NASDAQ:TSLA": {
-                "market": "america",
-                "alerts": {"above": 200, "below": 150}
             },
             "BINANCE:DOGEUSDT": {
                 "market": "crypto",
@@ -184,7 +189,7 @@ class MarketStreamer:
         if not data_dict:
             table.add_row("[yellow]Waiting for data...[/yellow]")
         else:
-            # Sort and add rows (existing code remains the same)
+            # Add rows (existing code remains the same)
             sorted_items = sorted(data_dict.items(), key=lambda x: (
                 "1" if "MCX:" in x[0] else
                 "2" if "BINANCE:" in x[0] else
@@ -194,12 +199,11 @@ class MarketStreamer:
             for symbol, data in sorted_items:
                 if data is not None:
                     try:
-                        # Get asset name and clean it
+                        # Existing row adding code...
                         name = data.get('description', symbol.split(':')[1])
                         if "MCX:" in symbol:
                             name = name.replace("1!", "")
                         
-                        # Price formatting and coloring
                         price = float(data['close'])
                         currency = data.get('currency', 'USD')
                         price_color = "white"
@@ -210,13 +214,11 @@ class MarketStreamer:
                                 price_color = "red"
                         self.previous_prices[symbol] = price
                         
-                        # Check for price alerts
                         alerts = self.check_alerts(symbol, price, "₹" if currency == "INR" else "$")
                         if alerts:
                             for alert in alerts:
                                 self.log(alert, "warning")
                         
-                        # Format price with currency
                         if currency == "INR":
                             price_str = f"₹{price:,.2f}"
                         elif currency == "USD":
@@ -224,7 +226,6 @@ class MarketStreamer:
                         else:
                             price_str = f"{currency} {price:,.2f}"
                         
-                        # Other data formatting
                         change = float(data['change'])
                         change_color = "green" if change >= 0 else "red"
                         
@@ -233,13 +234,11 @@ class MarketStreamer:
                                     f"{volume:,.0f} lots" if "MCX:" in symbol else
                                     f"{volume:,.0f}")
                         
-                        # Get market status and color
                         status = data.get('market_status', 'unknown')
                         status_color = ("green" if status == "open" else
                                       "yellow" if status in ["pre", "post"] else
                                       "red")
                         
-                        # Get technical signals
                         signals = self.get_technical_signals(data)
                         
                         table.add_row(
@@ -272,25 +271,153 @@ class MarketStreamer:
         seconds = int(session_time.total_seconds() % 60)
         time_text = Text(f"Session Time: {hours:02d}:{minutes:02d}:{seconds:02d}", style="dim")
         
+        # Create command panel
+        command_text = "[bold cyan]Commands:[/bold cyan] [green]s[/green]=search [red]q[/red]=quit"
+        if self.command_result:
+            command_text += f"\n{self.command_result}"
+        command_panel = Panel(
+            command_text,
+            title="Command Input",
+            border_style="green",
+            padding=(1, 2)
+        )
+        
         # Combine everything in the layout
         layout.split_column(
             Layout(table, size=15),
-            Layout(log_panel, size=8),
+            Layout(log_panel, size=6),
+            Layout(command_panel, size=3),
             Layout(time_text, size=1)
         )
         
         return layout
 
+    def search_symbols(self, query):
+        """Search for TradingView symbols"""
+        try:
+            total_rows, df = (
+                self.query
+                .select('name', 'description', 'type', 'exchange')
+                .set_markets('crypto,india')  # Search in both crypto and India markets
+                .search(query)
+                .limit(10)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            if not df.empty:
+                self.search_results = []
+                for _, row in df.iterrows():
+                    symbol = f"{row['exchange']}:{row['name']}"
+                    description = row['description']
+                    self.search_results.append({
+                        'symbol': symbol,
+                        'description': description,
+                        'type': row['type']
+                    })
+                return True
+            return False
+            
+        except Exception as e:
+            self.log(f"Search error: {str(e)}", "error")
+            return False
+
+    def handle_search(self):
+        """Handle symbol search and addition"""
+        try:
+            # Suspend live display temporarily
+            if self.live_display:
+                self.live_display.suspend()
+            
+            # Clear the terminal
+            console.clear()
+            console.print("[bold cyan]Search TradingView Symbols[/bold cyan]")
+            console.print("Press Ctrl+C to cancel search\n")
+            
+            # Get search query
+            query = Prompt.ask("Enter symbol to search")
+            if query:
+                console.print(f"\nSearching for: [cyan]{query}[/cyan]...")
+                if self.search_symbols(query):
+                    # Display results
+                    console.print("\n[bold green]Search Results:[/bold green]")
+                    for i, result in enumerate(self.search_results, 1):
+                        console.print(f"{i}. [cyan]{result['symbol']}[/cyan] - {result['description']}")
+                    
+                    # Get selection
+                    choice = Prompt.ask(
+                        "\nSelect symbol number to add (or press Enter to cancel)",
+                        default=""
+                    )
+                    
+                    if choice.isdigit() and 1 <= int(choice) <= len(self.search_results):
+                        result = self.search_results[int(choice) - 1]
+                        symbol = result['symbol']
+                        market_type = result['type'].lower()
+                        
+                        # Confirm addition
+                        if Confirm.ask(f"\nAdd {symbol} to tracking list?"):
+                            self.assets[symbol] = {
+                                "market": market_type,
+                                "alerts": {"above": 0, "below": 0}
+                            }
+                            self.log(f"Added {symbol} to tracking list", "success")
+                else:
+                    console.print("[yellow]No results found[/yellow]")
+                    time.sleep(2)
+            
+        except KeyboardInterrupt:
+            self.log("Search cancelled", "warning")
+        except Exception as e:
+            self.log(f"Search error: {str(e)}", "error")
+        finally:
+            # Resume live display
+            if self.live_display:
+                self.live_display.resume()
+
+    def handle_command_input(self):
+        """Handle command input in a separate thread"""
+        while self.running:
+            try:
+                command = input().strip().lower()
+                self.command_queue.put(command)
+            except EOFError:
+                continue
+            except Exception as e:
+                self.log(f"Input error: {str(e)}", "error")
+
     def stream(self):
         """Stream market data with live updates"""
         self.log("Starting Market Data Streamer...", "info")
         self.log(f"Refresh interval: {self.refresh_interval}s", "info")
-        self.log("Press Ctrl+C to stop", "info")
+        self.log("Type 's' to search and add symbols", "info")
+        self.log("Type 'q' to quit", "info")
+        
+        # Start command input thread
+        input_thread = threading.Thread(target=self.handle_command_input)
+        input_thread.daemon = True
+        input_thread.start()
         
         try:
             with Live(self.create_display({}), refresh_per_second=2/self.refresh_interval, auto_refresh=False) as live:
-                while True:
+                self.live_display = live
+                while self.running:
                     try:
+                        # Check for commands
+                        try:
+                            while True:  # Process all pending commands
+                                command = self.command_queue.get_nowait()
+                                if command == 's' and not self.search_mode:
+                                    self.search_mode = True
+                                    self.handle_search()
+                                    self.search_mode = False
+                                elif command == 'q':
+                                    self.log("Quitting...", "warning")
+                                    self.running = False
+                                    break
+                        except queue.Empty:
+                            pass
+                        
+                        # Update market data
                         data_dict = {}
                         for symbol, info in self.assets.items():
                             data = self.get_market_data(symbol, info["market"])
@@ -306,6 +433,7 @@ class MarketStreamer:
                     
         except KeyboardInterrupt:
             self.log("Streaming stopped by user", "warning")
+            self.running = False
 
 def main():
     start_time = time.time()
