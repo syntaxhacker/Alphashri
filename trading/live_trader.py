@@ -2,14 +2,18 @@ import os
 import time
 import json
 import logging
-from datetime import datetime
-from threading import Thread, Timer
+from datetime import datetime, timedelta
+from threading import Thread, Lock
+from collections import deque
+from statistics import mean
 
 import pandas as pd
-import websocket
 from binance.client import Client
 from binance.um_futures import UMFutures
+from binance.websocket.um_futures.websocket_client import UMFuturesWebsocketClient
 from config import BINANCE_API_CONFIG, WEBSOCKET_CONFIG
+from display import TradingDisplay, console
+from rich.panel import Panel
 
 class BinancePaperTrader:
     def __init__(self, api_key, api_secret, use_testnet=True):
@@ -27,231 +31,236 @@ class BinancePaperTrader:
             base_url=self.api_config['futures_api']
         )
         
-        # Initialize WebSocket
-        self.ws = None
-        self.ws_thread = None
-        self.running = False
-        self.ping_timer = None
-        self.last_pong = time.time()
-        self.reconnect_attempts = 0
+        # Initialize display
+        self.display = TradingDisplay()
         
-        self.trading_symbol = None
-        self.strategy = None
+        # Initialize WebSocket client
+        self.ws_client = None
+        self.running = False
         self.current_position = 0
-        self.current_price = None
+        self.current_bid = None
+        self.current_ask = None
+        self.last_price = None
         self.balance = 0
         self.trades = []
+        self.trading_symbol = None
+        self.strategy = None
+        self.position_entry_price = None
+        self.unrealized_pnl = 0
+        self.last_trade_time = None
+        self.position_entry_time = None
+        self.prev_price = None
         
-    def test_trade(self):
-        """Test market buy and sell to verify API connectivity"""
-        try:
-            # Get symbol info for minimum quantity and step size
-            print("Getting symbol info...")
-            symbol_info = self.client.exchange_info()
-            symbol_filters = next(s for s in symbol_info['symbols'] if s['symbol'] == self.trading_symbol)
+        # Price update handling
+        self.price_lock = Lock()
+        self.last_update_time = None
+        self.last_print_time = 0
+        self.update_counter = 0
+        self.messages_received = 0
+        
+    def get_display_data(self):
+        """Get data for display"""
+        current_price = self.current_bid if self.current_position > 0 else self.current_ask
+        
+        # Calculate position status
+        position_status = "NONE"
+        if self.current_position > 0:
+            position_status = "LONG"
+        elif self.current_position < 0:
+            position_status = "SHORT"
             
-            # Get LOT_SIZE filter
-            lot_size_filter = next(f for f in symbol_filters['filters'] if f['filterType'] == 'LOT_SIZE')
-            min_qty = float(lot_size_filter['minQty'])
-            step_size = float(lot_size_filter['stepSize'])
-            print(f"Min quantity: {min_qty}, Step size: {step_size}")
-            
-            # Get current price
-            print("Getting current price...")
-            ticker = self.client.mark_price(symbol=self.trading_symbol)
-            current_price = float(ticker['markPrice'])
-            print(f"Current price: {current_price}")
-            
-            # Calculate position size to meet minimum notional value (100 USDT)
-            min_notional = 100  # Minimum notional value in USDT
-            position_size = min_notional / current_price
-            print(f"Initial position size: {position_size}")
-            
-            # Ensure position size meets minimum quantity
-            position_size = max(position_size, min_qty)
-            
-            # Round position size to valid step size
-            position_size = round(position_size / step_size) * step_size
-            print(f"Adjusted position size: {position_size}")
-            
-            # Verify final notional value
-            notional_value = position_size * current_price
-            print(f"Notional value: {notional_value} USDT")
-            
-            if notional_value < min_notional:
-                print(f"Notional value {notional_value} is less than minimum {min_notional}")
-                position_size = (min_notional / current_price)
-                position_size = round(position_size / step_size) * step_size + step_size
-                notional_value = position_size * current_price
-                print(f"Updated position size: {position_size}, New notional value: {notional_value} USDT")
-            
-            print(f"\nTesting market buy order for {position_size} {self.trading_symbol}")
-            order = self.client.new_order(
-                symbol=self.trading_symbol,
-                side="BUY",
-                type="MARKET",
-                quantity=position_size
-            )
-            print(f"Market buy order placed: {order}")
-            
-            time.sleep(2)  # Wait for order to fill
-            
-            print(f"\nTesting market sell order for {position_size} {self.trading_symbol}")
-            order = self.client.new_order(
-                symbol=self.trading_symbol,
-                side="SELL",
-                type="MARKET", 
-                quantity=position_size
-            )
-            print(f"Market sell order placed: {order}")
-            
-            return True
-            
-        except Exception as e:
-            print(f"Error executing test trade: {str(e)}")
+        # Calculate P&L
+        if self.current_position != 0 and self.position_entry_price:
+            if self.current_position > 0:  # Long position
+                self.unrealized_pnl = self.current_position * (self.current_bid - self.position_entry_price)
+            else:  # Short position
+                self.unrealized_pnl = abs(self.current_position) * (self.position_entry_price - self.current_ask)
+        
+        # Format hold time
+        hold_time = "N/A"
+        if self.position_entry_time and self.current_position != 0:
+            hold_time = str(datetime.now() - self.position_entry_time).split('.')[0]
+        
+        return {
+            self.trading_symbol: {
+                'price': current_price,
+                'prev_price': self.prev_price if self.prev_price else current_price,
+                'position': position_status,
+                'pnl': self.unrealized_pnl,
+                'signal': 'NONE',  # Will be updated when signals are generated
+                'indicators': {
+                    'Bid': self.current_bid,
+                    'Ask': self.current_ask,
+                    'Spread': self.current_ask - self.current_bid if self.current_ask and self.current_bid else 0,
+                    'Hold Time': hold_time
+                }
+            }
+        }
+        
+    def should_trade(self):
+        """Check if we should trade based on timing rules"""
+        current_time = datetime.now()
+        
+        # Don't trade if we haven't waited 10 seconds since last trade
+        if self.last_trade_time and (current_time - self.last_trade_time).total_seconds() < 10:
             return False
             
-    def on_message(self, ws, message):
+        # Don't exit position if we haven't held for 15 seconds
+        if self.position_entry_time and self.current_position != 0:
+            if (current_time - self.position_entry_time).total_seconds() < 15:
+                return False
+                
+        return True
+        
+    def message_handler(self, _, message):
         """Handle incoming WebSocket messages"""
         try:
-            data = json.loads(message)
-            
+            if isinstance(message, str):
+                data = json.loads(message)
+            else:
+                data = message
+                
             if 'e' in data:
-                if data['e'] == 'aggTrade':
-                    self.current_price = float(data['p'])
-                    # Use carriage return for smoother updates
-                    print(f"\r{datetime.now().strftime('%H:%M:%S.%f')[:-3]} | {self.trading_symbol}: ${self.current_price:,.2f} | Pos: {self.current_position:.3f} | P&L: ${self.current_position * self.current_price:,.2f} | Trades: {len(self.trades)}", end="", flush=True)
-                elif data['e'] == 'kline' and data['k']['x']:  # Only process completed candles
-                    kline = data['k']
-                    # Create DataFrame with single row of latest data
-                    df = pd.DataFrame([{
-                        'open': float(kline['o']),
-                        'high': float(kline['h']), 
-                        'low': float(kline['l']),
-                        'close': float(kline['c']),
-                        'volume': float(kline['v']),
-                        'close_time': pd.to_datetime(kline['T'], unit='ms')
-                    }])
-                    
-                    # Generate trading signals
-                    signal = self.strategy.generate_signals(df)
-                    
-                    # Execute trades based on signal
-                    if signal == 1 and self.current_position <= 0:
-                        print(f"\n\n{'='*50}")
-                        print(f"BUY SIGNAL DETECTED @ ${float(kline['c']):,.2f}")
-                        print(f"Time: {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
-                        print(f"{'='*50}\n")
-                        self.execute_trade("BUY")
-                    elif signal == -1 and self.current_position >= 0:
-                        print(f"\n\n{'='*50}")
-                        print(f"SELL SIGNAL DETECTED @ ${float(kline['c']):,.2f}")
-                        print(f"Time: {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
-                        print(f"{'='*50}\n")
-                        self.execute_trade("SELL")
+                if data['e'] == 'bookTicker':
+                    with self.price_lock:
+                        self.messages_received += 1
+                        self.prev_price = self.current_bid
+                        self.current_bid = float(data['b'])
+                        self.current_ask = float(data['a'])
+                        current_time = time.time()
+                        
+                        # Calculate unrealized PnL if position exists
+                        if self.current_position != 0:
+                            current_price = self.current_bid if self.current_position > 0 else self.current_ask
+                            self.unrealized_pnl = self.current_position * (current_price - self.position_entry_price)
+                        
+                        # Generate signals from real-time prices
+                        if not self.should_trade():
+                            return
+                            
+                        # Create minimal DataFrame for strategy
+                        df = pd.DataFrame([{
+                            'open': self.current_bid,
+                            'high': self.current_ask,
+                            'low': self.current_bid,
+                            'close': self.current_ask,
+                            'volume': 0,
+                            'close_time': pd.Timestamp.now()
+                        }])
+                        
+                        signal = self.strategy.generate_signals(df, self.current_bid, self.current_ask)
+                        trade_size = 0.005
+                        
+                        if signal == 1 and self.current_position <= 0:
+                            try:
+                                self.execute_trade("BUY", trade_size)
+                                console.print(Panel.fit(
+                                    f"BUY SIGNAL EXECUTED\nPrice: ${self.current_ask:,.2f}\nSize: {trade_size}",
+                                    title="Trade Signal",
+                                    border_style="green"
+                                ))
+                            except Exception as e:
+                                self.log(f"Error executing buy trade: {str(e)}", "error")
+                                
+                        elif signal == -1 and self.current_position >= 0:
+                            try:
+                                self.execute_trade("SELL", trade_size)
+                                console.print(Panel.fit(
+                                    f"SELL SIGNAL EXECUTED\nPrice: ${self.current_bid:,.2f}\nSize: {trade_size}",
+                                    title="Trade Signal",
+                                    border_style="red"
+                                ))
+                            except Exception as e:
+                                self.log(f"Error executing sell trade: {str(e)}", "error")
+                        
+                        # Update display every second
+                        if current_time - self.last_print_time >= 1.0:
+                            self.update_counter += 1
+                            display_data = self.get_display_data()
+                            panel = self.display.display_live_status(display_data)
+                            console.print(panel)
+                            self.last_print_time = current_time
+                            
+                elif data['e'] == 'kline' and data['k']['x']:
+                    # Skip kline processing since we're using real-time prices
+                    pass
                         
         except Exception as e:
-            print(f"\nError processing message: {str(e)}")
-            print(f"Message: {message}")
+            self.log(f"Error processing message: {str(e)}", "error")
             
-    def on_error(self, ws, error):
-        """Handle WebSocket errors"""
-        print(f"WebSocket error: {error}")
-        self.reconnect()
-        
-    def on_close(self, ws, close_status_code, close_msg):
-        """Handle WebSocket connection close"""
-        print(f"WebSocket connection closed: {close_status_code} - {close_msg}")
-        if self.running:
-            self.reconnect()
-        
-    def on_open(self, ws):
-        """Handle WebSocket connection open"""
-        print("\nWebSocket connection opened")
-        # Subscribe to streams
-        subscribe_message = {
-            "method": "SUBSCRIBE",
-            "params": [
-                f"{self.trading_symbol.lower()}@aggTrade",
-                f"{self.trading_symbol.lower()}@kline_1m"
-            ],
-            "id": 1
-        }
-        ws.send(json.dumps(subscribe_message))
-        print("Subscribed to real-time data streams")
-        print("\nMonitoring market data...")
-        print("\nPress Ctrl+C to stop trading\n")
-        
-        # Start ping timer
-        self.start_ping_timer()
-        
-    def on_ping(self, ws, message):
-        """Handle ping from server"""
-        ws.send(message)  # Echo back the ping payload
-        self.last_pong = time.time()
-        
-    def on_pong(self, ws, message):
-        """Handle pong from server"""
-        self.last_pong = time.time()
-        
-    def start_ping_timer(self):
-        """Start timer to send periodic pings"""
-        if self.ping_timer:
-            self.ping_timer.cancel()
+    def execute_trade(self, side, quantity):
+        """Execute a real futures trade"""
+        try:
+            params = {
+                'symbol': self.trading_symbol,
+                'side': side,
+                'type': 'MARKET',
+                'quantity': quantity,
+                'newOrderRespType': 'RESULT',
+                'timestamp': int(time.time() * 1000)
+            }
             
-        def send_ping():
-            if self.ws and self.ws.sock and self.ws.sock.connected:
-                self.ws.send(json.dumps({"ping": int(time.time() * 1000)}))
+            order = self.client.new_order(**params)
+            
+            filled_qty = float(order['executedQty'])
+            filled_price = float(order['avgPrice'])
+            
+            if side == "BUY":
+                self.current_position = filled_qty
+            else:  # SELL
+                self.current_position = -filled_qty
                 
-                # Check if we've received a pong within timeout
-                if time.time() - self.last_pong > WEBSOCKET_CONFIG['pong_timeout']:
-                    print("WebSocket ping timeout - reconnecting...")
-                    self.reconnect()
-                else:
-                    # Schedule next ping
-                    self.ping_timer = Timer(WEBSOCKET_CONFIG['ping_interval'], send_ping)
-                    self.ping_timer.daemon = True
-                    self.ping_timer.start()
-                    
-        # Start first ping timer
-        self.ping_timer = Timer(WEBSOCKET_CONFIG['ping_interval'], send_ping)
-        self.ping_timer.daemon = True
-        self.ping_timer.start()
-        
-    def reconnect(self):
-        """Attempt to reconnect WebSocket"""
-        if self.reconnect_attempts < WEBSOCKET_CONFIG['max_reconnect_attempts']:
-            print(f"Attempting to reconnect... (Attempt {self.reconnect_attempts + 1})")
-            time.sleep(WEBSOCKET_CONFIG['reconnect_delay'])
-            self.reconnect_attempts += 1
-            
-            # Close existing connection if any
-            if self.ws:
-                self.ws.close()
+            self.position_entry_price = filled_price
                 
-            # Initialize new connection
-            self.initialize_websocket()
-        else:
-            print("Max reconnection attempts reached. Please restart the trader.")
-            self.running = False
+            # Update timing trackers
+            self.last_trade_time = datetime.now()
+            if self.current_position != 0:
+                self.position_entry_time = datetime.now()
+                
+            self.log(f"Order executed: {order}", "success")
+            console.print(Panel.fit(
+                f"Side: {side}\nQuantity: {filled_qty}\nPrice: ${filled_price:,.2f}\nOrder ID: {order['orderId']}",
+                title="Order Filled",
+                border_style="green"
+            ))
+            
+            # Record trade with actual fill data
+            self.trades.append({
+                'timestamp': datetime.now(),
+                'side': side,
+                'price': filled_price,
+                'quantity': filled_qty,
+                'notional': filled_qty * filled_price,
+                'order_id': order['orderId']
+            })
+            
+        except Exception as e:
+            self.log(f"Error executing trade: {str(e)}", "error")
+            console.print(f"[red]Trade Error: {str(e)}[/red]")
             
     def initialize_websocket(self):
         """Initialize WebSocket connection"""
-        websocket.enableTrace(False)
-        self.ws = websocket.WebSocketApp(
-            self.api_config['websocket_stream'],
-            on_message=self.on_message,
-            on_error=self.on_error,
-            on_close=self.on_close,
-            on_open=self.on_open,
-            on_ping=self.on_ping,
-            on_pong=self.on_pong
-        )
-        
-        # Start WebSocket connection in a separate thread
-        self.ws_thread = Thread(target=self.ws.run_forever)
-        self.ws_thread.daemon = True
-        self.ws_thread.start()
+        try:
+            # Initialize WebSocket client with minimal latency settings
+            self.ws_client = UMFuturesWebsocketClient(
+                stream_url=self.api_config['websocket_stream'],
+                on_message=self.message_handler,
+                is_combined=True
+            )
+            
+            # Subscribe to bookTicker for fastest price updates
+            self.ws_client.book_ticker(symbol=self.trading_symbol.lower())
+            self.ws_client.kline(symbol=self.trading_symbol.lower(), interval='1m')
+            
+            # Initialize timing variables
+            self.last_print_time = time.time()
+            self.messages_received = 0
+            
+            self.log("WebSocket connection initialized", "info")
+            
+        except Exception as e:
+            self.log(f"Error initializing WebSocket: {str(e)}", "error")
+            raise
             
     def run(self, symbol, strategy, balance=1000):
         """Run live trading"""
@@ -266,147 +275,27 @@ class BinancePaperTrader:
         print(f"{'='*50}\n")
         print("Connecting to Binance Futures...")
         
-        # Initialize WebSocket
-        self.running = True
-        self.initialize_websocket()
-        
         try:
+            self.running = True
+            self.initialize_websocket()
+            
             while self.running:
-                time.sleep(0.1)  # Small sleep to prevent CPU overuse
+                time.sleep(0.001)  # Minimal sleep to prevent CPU overuse
+                
         except KeyboardInterrupt:
             print("\nStopping live trading...")
             self.running = False
-            if self.ping_timer:
-                self.ping_timer.cancel()
-            if self.ws:
-                self.ws.close()
-            if self.ws_thread:
-                self.ws_thread.join()
+            if self.ws_client:
+                self.ws_client.stop()
             print("Trading stopped")
             
-    def process_trade(self, message):
-        """Process incoming trade message"""
-        try:
-            if message['e'] == 'aggTrade':
-                self.current_price = float(message['p'])
-                print(f"\r{datetime.now().strftime('%H:%M:%S')} | {self.trading_symbol}: ${self.current_price:,.2f} | Pos: {self.current_position:.3f} | P&L: ${self.current_position * self.current_price:,.2f} | Trades: {len(self.trades)}", end="", flush=True)
-        except Exception as e:
-            print(f"\nError processing trade: {str(e)}")
-            print(f"Message: {message}")
-        
-    def process_kline(self, message):
-        """Process incoming kline message"""
-        try:
-            if message['e'] != 'kline':
-                return
-                
-            kline = message['k']
-            if not kline['x']:  # Only process completed candles
-                return
-                
-            # Create DataFrame with single row of latest data
-            df = pd.DataFrame([{
-                'open': float(kline['o']),
-                'high': float(kline['h']), 
-                'low': float(kline['l']),
-                'close': float(kline['c']),
-                'volume': float(kline['v']),
-                'close_time': pd.to_datetime(kline['T'], unit='ms')
-            }])
-            
-            # Generate trading signals
-            signal = self.strategy.generate_signals(df)
-            
-            # Execute trades based on signal
-            if signal == 1 and self.current_position <= 0:
-                print(f"\n\n{'='*50}")
-                print(f"BUY SIGNAL DETECTED @ ${float(kline['c']):,.2f}")
-                print(f"Time: {datetime.now().strftime('%H:%M:%S')}")
-                print(f"{'='*50}\n")
-                self.execute_trade("BUY")
-            elif signal == -1 and self.current_position >= 0:
-                print(f"\n\n{'='*50}")
-                print(f"SELL SIGNAL DETECTED @ ${float(kline['c']):,.2f}")
-                print(f"Time: {datetime.now().strftime('%H:%M:%S')}")
-                print(f"{'='*50}\n")
-                self.execute_trade("SELL")
-                
-        except Exception as e:
-            print(f"\nError processing kline: {str(e)}")
-            print(f"Message: {message}")
-            
-    def execute_trade(self, side):
-        """Execute trade based on signal"""
-        try:
-            # Get symbol info
-            symbol_info = self.client.exchange_info()
-            symbol_filters = next(s for s in symbol_info['symbols'] if s['symbol'] == self.trading_symbol)
-            
-            # Get LOT_SIZE filter
-            lot_size_filter = next(f for f in symbol_filters['filters'] if f['filterType'] == 'LOT_SIZE')
-            min_qty = float(lot_size_filter['minQty'])
-            step_size = float(lot_size_filter['stepSize'])
-            
-            # Calculate position size based on current price and balance
-            position_size = (self.balance * self.strategy.position_size) / self.current_price
-            
-            # Ensure minimum notional value is met
-            min_position_size = self.strategy.min_notional / self.current_price
-            position_size = max(position_size, min_position_size)
-            
-            # Round position size to valid step size
-            position_size = round(position_size / step_size) * step_size
-            position_size = max(position_size, min_qty)
-            
-            # Calculate notional value
-            notional_value = position_size * self.current_price
-            
-            # Verify final notional value
-            if notional_value < self.strategy.min_notional:
-                position_size = (self.strategy.min_notional / self.current_price)
-                position_size = round(position_size / step_size) * step_size + step_size
-                notional_value = position_size * self.current_price
-            
-            print(f"\n{'='*50}")
-            print(f"EXECUTING {side} ORDER")
-            print(f"Time: {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
-            print(f"Price: ${self.current_price:,.2f}")
-            print(f"Size: {position_size:.8f} {self.trading_symbol}")
-            print(f"Notional: ${notional_value:,.2f}")
-            print(f"{'='*50}\n")
-            
-            order = self.client.new_order(
-                symbol=self.trading_symbol,
-                side=side,
-                type="MARKET",
-                quantity=position_size
-            )
-            
-            # Update position
-            self.current_position = position_size if side == "BUY" else -position_size
-            
-            # Record trade
-            self.trades.append({
-                'timestamp': datetime.now(),
-                'side': side,
-                'price': self.current_price,
-                'quantity': position_size,
-                'notional': notional_value
-            })
-            
-            # Update balance
-            if side == "SELL":
-                self.balance += notional_value
-            else:
-                self.balance -= notional_value
-            
-            # Print updated position
-            print(f"New position: {self.current_position:.8f} {self.trading_symbol}")
-            print(f"Updated balance: ${self.balance:,.2f}")
-            print(f"Total trades: {len(self.trades)}")
-            print(f"{'='*50}\n")
-            
-        except Exception as e:
-            print(f"\nError executing trade: {str(e)}")
-            if hasattr(e, 'response'):
-                print(f"Response: {e.response.text}") 
+    def log(self, message, level="info"):
+        """Simple logging method"""
+        levels = {
+            "info": logging.INFO,
+            "warning": logging.WARNING,
+            "error": logging.ERROR,
+            "success": logging.INFO,
+            "debug": logging.DEBUG
+        }
+        logging.log(levels.get(level, logging.INFO), message) 

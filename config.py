@@ -28,21 +28,22 @@ TRADING_CONFIG = {
 BINANCE_API_CONFIG = {
     'testnet': {
         'futures_api': 'https://testnet.binancefuture.com',
-        'websocket_api': 'wss://testnet.binance.vision/ws',
+        'websocket_base': 'wss://stream.binancefuture.com',
         'websocket_stream': 'wss://stream.binancefuture.com/ws'
     },
     'mainnet': {
         'futures_api': 'https://fapi.binance.com',
-        'websocket_api': 'wss://stream.binance.com:9443/ws',
+        'websocket_base': 'wss://fstream.binance.com',
         'websocket_stream': 'wss://fstream.binance.com/ws'
     }
 }
 
 # WebSocket Configuration
 WEBSOCKET_CONFIG = {
-    'ping_interval': 3 * 60,  # 3 minutes in seconds
-    'pong_timeout': 10 * 60,  # 10 minutes in seconds
-    'display_update_ms': 100,  # Display update frequency in milliseconds
-    'reconnect_delay': 5,  # Delay between reconnection attempts in seconds
-    'max_reconnect_attempts': 5
+    'ping_interval': 60,  # Reduced to 1 minute for more stable connection
+    'pong_timeout': 30,  # Reduced timeout for faster reconnection
+    'display_update_ms': 10,  # Increased display frequency to 10ms
+    'reconnect_delay': 1,  # Reduced reconnect delay to 1 second
+    'max_reconnect_attempts': 5,
+    'update_interval': 1  # New setting: Update interval in seconds
 } 
