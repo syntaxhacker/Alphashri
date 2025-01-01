@@ -16,10 +16,12 @@ from display import TradingDisplay, console
 from rich.panel import Panel
 
 class BinancePaperTrader:
-    def __init__(self, api_key, api_secret, use_testnet=True):
+    def __init__(self, api_key, api_secret, use_testnet=True, leverage=1):
         self.api_key = api_key
         self.api_secret = api_secret
         self.use_testnet = use_testnet
+        self.leverage = leverage  # Store requested leverage
+        self.trading_symbol = None  # Initialize symbol as None
         
         # Get API config based on testnet/mainnet
         self.api_config = BINANCE_API_CONFIG['testnet' if use_testnet else 'mainnet']
@@ -43,7 +45,6 @@ class BinancePaperTrader:
         self.last_price = None
         self.balance = 0
         self.trades = []
-        self.trading_symbol = None
         self.strategy = None
         self.position_entry_price = None
         self.unrealized_pnl = 0
@@ -58,6 +59,25 @@ class BinancePaperTrader:
         self.update_counter = 0
         self.messages_received = 0
         
+    def set_leverage(self, leverage: int):
+        """Set leverage for trading"""
+        if not self.trading_symbol:
+            self.log("Cannot set leverage: trading symbol not initialized", "error")
+            return None
+            
+        try:
+            response = self.client.change_leverage(
+                symbol=self.trading_symbol,
+                leverage=leverage,
+                timestamp=int(time.time() * 1000)
+            )
+            self.leverage = leverage
+            self.log(f"Leverage set to {leverage}x for {self.trading_symbol}", "success")
+            return response
+        except Exception as e:
+            self.log(f"Error setting leverage for {self.trading_symbol}: {str(e)}", "error")
+            return None
+            
     def get_display_data(self):
         """Get data for display"""
         current_price = self.current_bid if self.current_position > 0 else self.current_ask
@@ -86,7 +106,11 @@ class BinancePaperTrader:
                 'price': current_price,
                 'prev_price': self.prev_price if self.prev_price else current_price,
                 'position': position_status,
+                'position_size': abs(self.current_position),
+                'position_entry_price': self.position_entry_price,
                 'pnl': self.unrealized_pnl,
+                'balance': self.balance,
+                'leverage': self.leverage,
                 'signal': 'NONE',  # Will be updated when signals are generated
                 'indicators': {
                     'Bid': self.current_bid,
@@ -217,22 +241,34 @@ class BinancePaperTrader:
             if self.current_position != 0:
                 self.position_entry_time = datetime.now()
                 
+            # Calculate P&L for this trade
+            trade_pnl = 0
+            if len(self.trades) > 0:
+                last_trade = self.trades[-1]
+                if last_trade['side'] != side:  # Only calculate P&L for closing trades
+                    price_diff = filled_price - last_trade['price']
+                    trade_pnl = -price_diff * filled_qty if side == "BUY" else price_diff * filled_qty
+                
+            # Record trade
+            trade_info = {
+                'timestamp': datetime.now(),
+                'side': side,
+                'price': filled_price,
+                'quantity': filled_qty,
+                'notional': filled_qty * filled_price,
+                'order_id': order['orderId'],
+                'pnl': trade_pnl
+            }
+            
+            self.trades.append(trade_info)
+            self.display.add_trade(trade_info)  # Add to display history
+                
             self.log(f"Order executed: {order}", "success")
             console.print(Panel.fit(
                 f"Side: {side}\nQuantity: {filled_qty}\nPrice: ${filled_price:,.2f}\nOrder ID: {order['orderId']}",
                 title="Order Filled",
                 border_style="green"
             ))
-            
-            # Record trade with actual fill data
-            self.trades.append({
-                'timestamp': datetime.now(),
-                'side': side,
-                'price': filled_price,
-                'quantity': filled_qty,
-                'notional': filled_qty * filled_price,
-                'order_id': order['orderId']
-            })
             
         except Exception as e:
             self.log(f"Error executing trade: {str(e)}", "error")
@@ -264,18 +300,31 @@ class BinancePaperTrader:
             
     def run(self, symbol, strategy, balance=1000):
         """Run live trading"""
-        self.trading_symbol = symbol.upper()
-        self.strategy = strategy
-        self.balance = balance
-        
-        print(f"\n{'='*50}")
-        print(f"Starting live trading for {self.trading_symbol}")
-        print(f"Strategy: {strategy.__class__.__name__}")
-        print(f"Initial balance: ${balance:,.2f}")
-        print(f"{'='*50}\n")
-        print("Connecting to Binance Futures...")
-        
         try:
+            # Initialize basic parameters first
+            self.trading_symbol = symbol.upper()  # Set symbol first
+            self.strategy = strategy
+            self.balance = balance
+            
+            print(f"\n{'='*50}")
+            print(f"Starting live trading for {self.trading_symbol}")
+            print(f"Strategy: {strategy.__class__.__name__}")
+            print(f"Initial balance: ${balance:,.2f}")
+            
+            # Set leverage after symbol is initialized
+            if self.leverage > 1:
+                print(f"Setting leverage to {self.leverage}x...")
+                response = self.set_leverage(self.leverage)
+                if response:
+                    print(f"Leverage set successfully to {self.leverage}x")
+                else:
+                    print("Failed to set leverage, continuing with 1x")
+                    self.leverage = 1
+                    
+            print(f"{'='*50}\n")
+            print("Connecting to Binance Futures...")
+            
+            # Initialize WebSocket after all parameters are set
             self.running = True
             self.initialize_websocket()
             
@@ -288,6 +337,9 @@ class BinancePaperTrader:
             if self.ws_client:
                 self.ws_client.stop()
             print("Trading stopped")
+        except Exception as e:
+            self.log(f"Error in run: {str(e)}", "error")
+            raise
             
     def log(self, message, level="info"):
         """Simple logging method"""
