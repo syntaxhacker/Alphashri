@@ -40,10 +40,10 @@ BINANCE_API_CONFIG = {
 
 # WebSocket Configuration
 WEBSOCKET_CONFIG = {
-    'ping_interval': 60,  # Reduced to 1 minute for more stable connection
-    'pong_timeout': 30,  # Reduced timeout for faster reconnection
-    'display_update_ms': 10,  # Increased display frequency to 10ms
+    'ping_interval': 20,  # Reduced for more stable connection
+    'pong_timeout': 10,  # Reduced timeout for faster reconnection
+    'display_update_ms': 100,  # More reasonable display frequency
     'reconnect_delay': 1,  # Reduced reconnect delay to 1 second
     'max_reconnect_attempts': 5,
-    'update_interval': 1  # New setting: Update interval in seconds
+    'update_interval': 1  # Update interval in seconds
 } 
