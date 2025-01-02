@@ -13,7 +13,7 @@ from utils.gpu_utils import to_gpu, to_cpu
 USE_GPU = torch.cuda.is_available()
 
 def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps: float, 
-                initial_balance: float) -> Tuple[float, Dict, Optional[pd.DataFrame]]:
+                initial_balance: float, interval: str = '1m') -> Tuple[float, Dict, Optional[pd.DataFrame]]:
     """Run a single backtest with given parameters"""
     try:
         # Create strategy instance
@@ -44,7 +44,7 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps:
                     df_indicators[col] = pd.Series(to_cpu(df_indicators[col].values), index=df_indicators.index)
         else:
             strategy.calculate_indicators(df_indicators)
-        
+            
         # Generate signals
         signals = strategy.generate_signals(df_indicators)
         del df_indicators  # Free memory
@@ -113,16 +113,15 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps:
                     position_size_units = 0
         
         if trades:
-            # Convert trades to DataFrame efficiently
             trades_df = pd.DataFrame(trades)
             trades_df['cumulative_return'] = trades_df['return'].fillna(0).cumsum()
             total_return = trades_df['cumulative_return'].iloc[-1]
             
             params = {
-                'strategy': strategy_name,
                 'stop_loss': sl,
                 'take_profit': tp,
-                'position_size': ps
+                'position_size': ps,
+                'interval': interval
             }
             
             return total_return, params, trades_df
@@ -132,9 +131,9 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps:
     except Exception as e:
         logging.error(f"Error in backtest: {str(e)}")
         return -float('inf'), None, None
-
+        
 def run_backtest_benchmark(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps: float, 
-                initial_balance: float, use_gpu: bool = False) -> Tuple[float, Dict, Optional[pd.DataFrame], float]:
+                initial_balance: float, interval: str = '1m', use_gpu: bool = False) -> Tuple[float, Dict, Optional[pd.DataFrame], float]:
     """Run a single backtest with given parameters and return execution time"""
     start_time = time.time()
     try:
@@ -224,7 +223,7 @@ def run_backtest_benchmark(df: pd.DataFrame, strategy_name: str, sl: float, tp: 
                     position = False
                     entry_price = 0
                     position_size_units = 0
-        
+                    
         execution_time = time.time() - start_time
         
         if trades:
@@ -235,7 +234,8 @@ def run_backtest_benchmark(df: pd.DataFrame, strategy_name: str, sl: float, tp: 
             params = {
                 'stop_loss': sl,
                 'take_profit': tp,
-                'position_size': ps
+                'position_size': ps,
+                'interval': interval
             }
             
             return total_return, params, trades_df, execution_time
