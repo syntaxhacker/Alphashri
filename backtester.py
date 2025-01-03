@@ -108,10 +108,22 @@ def fetch_historical_data(symbol: str, start_date: datetime, end_date: datetime,
 class BaseStrategy(ABC):
     """Base class for all trading strategies"""
     
-    def __init__(self, stop_loss: float = 0.02, take_profit: float = 0.04, position_size: float = 0.2):
+    def __init__(self, stop_loss: float = 0.02, take_profit: float = 0.04, position_size: float = 0.2,
+                 ema_fast: int = 12, ema_slow: int = 26, sma_period: int = 50, 
+                 rsi_period: int = 14, stoch_period: int = 14, macd_fast: int = 12,
+                 macd_slow: int = 26, macd_signal: int = 9):
         self.stop_loss = stop_loss
         self.take_profit = take_profit
         self.position_size = position_size
+        # Timeframe parameters
+        self.ema_fast = ema_fast
+        self.ema_slow = ema_slow
+        self.sma_period = sma_period
+        self.rsi_period = rsi_period
+        self.stoch_period = stoch_period
+        self.macd_fast = macd_fast
+        self.macd_slow = macd_slow
+        self.macd_signal = macd_signal
         
     @abstractmethod
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -132,22 +144,23 @@ class TrendFollowingStrategy(BaseStrategy):
         for col in ['high', 'low', 'close', 'volume']:
             df[col] = df[col].astype(float)
             
-        # Trend indicators
-        df['ema_fast'] = ta.ema(df['close'], length=12)
-        df['ema_slow'] = ta.ema(df['close'], length=26)
-        df['sma_50'] = ta.sma(df['close'], length=50)
-        df['sma_200'] = ta.sma(df['close'], length=200)
+        # Trend indicators with configurable periods
+        df['ema_fast'] = ta.ema(df['close'], length=self.ema_fast)
+        df['ema_slow'] = ta.ema(df['close'], length=self.ema_slow)
+        df['sma_50'] = ta.sma(df['close'], length=self.sma_period)
+        df['sma_200'] = ta.sma(df['close'], length=self.sma_period * 4)  # 4x the base SMA period
         df['adx'] = ta.adx(df['high'], df['low'], df['close'])['ADX_14']
         
-        # Momentum indicators
-        df['rsi'] = ta.rsi(df['close'], length=14)
-        stoch = ta.stoch(df['high'], df['low'], df['close'], k=14, d=3, smooth_k=3)
-        df['stoch_k'] = stoch['STOCHk_14_3_3']
-        df['stoch_d'] = stoch['STOCHd_14_3_3']
-        macd = ta.macd(df['close'], fast=12, slow=26, signal=9)
-        df['macd'] = macd['MACD_12_26_9']
-        df['macd_signal'] = macd['MACDs_12_26_9']
-        df['macd_hist'] = macd['MACDh_12_26_9']
+        # Momentum indicators with configurable periods
+        df['rsi'] = ta.rsi(df['close'], length=self.rsi_period)
+        stoch = ta.stoch(df['high'], df['low'], df['close'], k=self.stoch_period, d=3, smooth_k=3)
+        df['stoch_k'] = stoch[f'STOCHk_{self.stoch_period}_3_3']
+        df['stoch_d'] = stoch[f'STOCHd_{self.stoch_period}_3_3']
+        
+        macd = ta.macd(df['close'], fast=self.macd_fast, slow=self.macd_slow, signal=self.macd_signal)
+        df['macd'] = macd[f'MACD_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
+        df['macd_signal'] = macd[f'MACDs_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
+        df['macd_hist'] = macd[f'MACDh_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
         
         # Market regime
         df['regime'] = np.where(
@@ -281,17 +294,14 @@ class StrategyFactory:
         kwargs.pop('strategy', None)
         return strategies[strategy_name](**kwargs)
 
-def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps: float, 
-                initial_balance: float) -> Tuple[float, Dict, Optional[pd.DataFrame]]:
+def run_backtest(df: pd.DataFrame, strategy_name: str, **params) -> Tuple[float, Dict, Optional[pd.DataFrame]]:
     """Run a single backtest with given parameters"""
     try:
-        # Create strategy instance
-        strategy = StrategyFactory.create_strategy(
-            strategy_name,
-            stop_loss=sl,
-            take_profit=tp,
-            position_size=ps
-        )
+        # Get initial balance from params and remove it before creating strategy
+        initial_balance = params.pop('initial_balance', 10000)
+        
+        # Create strategy instance with remaining parameters
+        strategy = StrategyFactory.create_strategy(strategy_name, **params)
         
         # Calculate indicators
         df_indicators = df.copy()
@@ -316,7 +326,7 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps:
             if not position and signal == 'BUY':
                 position = True
                 entry_price = current_price
-                position_value = balance * ps
+                position_value = balance * params['position_size']
                 position_size_units = position_value / current_price
                 
                 trades.append({
@@ -333,11 +343,11 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps:
                 exit_reason = None
                 
                 # Check stop loss
-                if current_price <= entry_price * (1 - sl):
+                if current_price <= entry_price * (1 - params['stop_loss']):
                     exit_price = current_price
                     exit_reason = 'Stop Loss'
                 # Check take profit
-                elif current_price >= entry_price * (1 + tp):
+                elif current_price >= entry_price * (1 + params['take_profit']):
                     exit_price = current_price
                     exit_reason = 'Take Profit'
                 # Check signal exit
@@ -370,12 +380,8 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps:
             trades_df['cumulative_return'] = trades_df['return'].fillna(0).cumsum()
             total_return = trades_df['cumulative_return'].iloc[-1]
             
-            params = {
-                'stop_loss': sl,
-                'take_profit': tp,
-                'position_size': ps
-            }
-            
+            # Add initial_balance back to params for reporting
+            params['initial_balance'] = initial_balance
             return total_return, params, trades_df
             
         return -float('inf'), None, None
@@ -385,34 +391,146 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps:
         return -float('inf'), None, None
 
 def optimize_strategy(df: pd.DataFrame, strategy_name: str, initial_balance: float = 10000) -> Tuple[Dict, pd.DataFrame]:
-    """Optimize strategy parameters using grid search"""
+    """Optimize strategy parameters using grid search with early stopping"""
     console.print("[bold cyan]Starting strategy optimization...[/bold cyan]")
     
-    # Define parameter ranges for optimization
+    # Phase 1: Initial optimization with core parameters
     stop_losses = [0.02, 0.03, 0.04]
     take_profits = [0.04, 0.06, 0.08]
     position_sizes = [0.2, 0.3, 0.4]
     
-    total_combinations = len(stop_losses) * len(take_profits) * len(position_sizes)
-    console.print(f"\nTesting {total_combinations} parameter combinations...")
+    # Start with basic timeframe parameters
+    ema_fast_periods = [12]  # Start with middle values
+    ema_slow_periods = [26]
+    sma_periods = [50]
+    rsi_periods = [14]
+    stoch_periods = [14]
+    macd_fast_periods = [12]
+    macd_slow_periods = [26]
+    macd_signal_periods = [9]
     
     best_return = -float('inf')
     best_params = None
     best_trades = None
+    no_improvement_count = 0
+    max_no_improvement = 50  # Early stopping threshold
     
-    for sl in stop_losses:
-        for tp in take_profits:
-            for ps in position_sizes:
-                total_return, params, trades_df = run_backtest(
-                    df, strategy_name, sl, tp, ps, initial_balance
-                )
-                
-                if total_return > best_return:
-                    best_return = total_return
-                    best_params = params
-                    best_trades = trades_df
+    # Phase 1: Find best core parameters
+    console.print("\n[cyan]Phase 1: Optimizing core parameters...[/cyan]")
+    
+    with Progress() as progress:
+        task = progress.add_task("[cyan]Testing combinations...", total=len(stop_losses) * len(take_profits) * len(position_sizes))
+        
+        for sl in stop_losses:
+            for tp in take_profits:
+                for ps in position_sizes:
+                    params = {
+                        'stop_loss': sl,
+                        'take_profit': tp,
+                        'position_size': ps,
+                        'ema_fast': ema_fast_periods[0],
+                        'ema_slow': ema_slow_periods[0],
+                        'sma_period': sma_periods[0],
+                        'rsi_period': rsi_periods[0],
+                        'stoch_period': stoch_periods[0],
+                        'macd_fast': macd_fast_periods[0],
+                        'macd_slow': macd_slow_periods[0],
+                        'macd_signal': macd_signal_periods[0],
+                        'initial_balance': initial_balance
+                    }
                     
-                console.print(f"SL: {sl:.3f}, TP: {tp:.3f}, PS: {ps:.3f} -> Return: {total_return:.2f}%")
+                    total_return, _, trades_df = run_backtest(df, strategy_name, **params)
+                    
+                    if total_return > best_return:
+                        best_return = total_return
+                        best_params = params.copy()
+                        best_trades = trades_df
+                        no_improvement_count = 0
+                        console.print(f"\n[green]New best parameters found![/green]")
+                        console.print(f"Return: {total_return:.2f}%")
+                        console.print(f"Parameters: {params}")
+                    else:
+                        no_improvement_count += 1
+                    
+                    progress.update(task, advance=1)
+                    
+                    # Early stopping
+                    if no_improvement_count >= max_no_improvement:
+                        console.print("\n[yellow]Early stopping: No improvement in recent iterations[/yellow]")
+                        break
+    
+    # Phase 2: Fine-tune timeframe parameters around best core parameters
+    if best_params:
+        console.print("\n[cyan]Phase 2: Fine-tuning timeframe parameters...[/cyan]")
+        
+        # Define ranges around best values
+        def get_param_range(base_value, variations=[-4, -2, 0, 2, 4]):
+            return [max(4, base_value + v) for v in variations]
+        
+        ema_fast_periods = get_param_range(best_params['ema_fast'])
+        ema_slow_periods = get_param_range(best_params['ema_slow'])
+        rsi_periods = get_param_range(best_params['rsi_period'])
+        stoch_periods = get_param_range(best_params['stoch_period'])
+        macd_fast_periods = get_param_range(best_params['macd_fast'])
+        macd_slow_periods = get_param_range(best_params['macd_slow'])
+        macd_signal_periods = get_param_range(best_params['macd_signal'])
+        
+        no_improvement_count = 0
+        total_combinations = (
+            len(ema_fast_periods) * len(ema_slow_periods) * 
+            len(rsi_periods) * len(stoch_periods) * 
+            len(macd_fast_periods) * len(macd_slow_periods) * 
+            len(macd_signal_periods)
+        )
+        
+        with Progress() as progress:
+            task = progress.add_task("[cyan]Fine-tuning parameters...", total=total_combinations)
+            
+            for ema_fast in ema_fast_periods:
+                for ema_slow in ema_slow_periods:
+                    if ema_fast >= ema_slow:
+                        progress.update(task, advance=len(rsi_periods) * len(stoch_periods) * len(macd_fast_periods) * len(macd_slow_periods) * len(macd_signal_periods))
+                        continue
+                        
+                    for rsi in rsi_periods:
+                        for stoch in stoch_periods:
+                            for macd_fast in macd_fast_periods:
+                                for macd_slow in macd_slow_periods:
+                                    if macd_fast >= macd_slow:
+                                        progress.update(task, advance=len(macd_signal_periods))
+                                        continue
+                                        
+                                    for macd_signal in macd_signal_periods:
+                                        params = best_params.copy()
+                                        params.update({
+                                            'ema_fast': ema_fast,
+                                            'ema_slow': ema_slow,
+                                            'rsi_period': rsi,
+                                            'stoch_period': stoch,
+                                            'macd_fast': macd_fast,
+                                            'macd_slow': macd_slow,
+                                            'macd_signal': macd_signal
+                                        })
+                                        
+                                        total_return, _, trades_df = run_backtest(df, strategy_name, **params)
+                                        
+                                        if total_return > best_return:
+                                            best_return = total_return
+                                            best_params = params.copy()
+                                            best_trades = trades_df
+                                            no_improvement_count = 0
+                                            console.print(f"\n[green]New best parameters found![/green]")
+                                            console.print(f"Return: {total_return:.2f}%")
+                                            console.print(f"Parameters: {params}")
+                                        else:
+                                            no_improvement_count += 1
+                                        
+                                        progress.update(task, advance=1)
+                                        
+                                        # Early stopping
+                                        if no_improvement_count >= max_no_improvement:
+                                            console.print("\n[yellow]Early stopping: No improvement in recent iterations[/yellow]")
+                                            break
     
     if best_params:
         console.print(f"\n[bold green]Best strategy found![/bold green]")
