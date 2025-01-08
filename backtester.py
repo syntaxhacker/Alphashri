@@ -620,21 +620,35 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
     
     # Calculate indicators first
     strategy = TrendFollowingStrategy(**params)
-    df = strategy.calculate_indicators(df.copy())  # Use copy to avoid modifying original df
+    df = strategy.calculate_indicators(df.copy())
     
     # Create figure with secondary y-axis
     fig = make_subplots(
-        rows=4, cols=1,
+        rows=5, cols=1,  # Added one more row for balance timeline
         shared_xaxes=True,
         vertical_spacing=0.05,
-        row_heights=[0.5, 0.2, 0.15, 0.15],
-        subplot_titles=('Price & Trades', 'Volume & Balance', 'RSI', 'MACD'),
-        specs=[[{"secondary_y": True}],  # Price chart with secondary y-axis
-               [{"secondary_y": True}],  # Volume with balance
-               [{"secondary_y": False}],  # RSI
-               [{"secondary_y": False}]]  # MACD
+        row_heights=[0.4, 0.15, 0.15, 0.15, 0.15],  # Adjusted heights
+        subplot_titles=('Price & Trades', 'Volume', 'Account Balance', 'RSI', 'MACD'),
+        specs=[[{"secondary_y": True}],
+               [{"secondary_y": False}],
+               [{"secondary_y": False}],
+               [{"secondary_y": False}],
+               [{"secondary_y": False}]]
     )
 
+    # Enhanced dark theme colors
+    bg_color = '#000000'  # Pure black background
+    grid_color = '#1f1f1f'  # Darker grid
+    text_color = '#ffffff'  # Pure white text
+    
+    # Brighter colors for better contrast
+    buy_color = '#00FF7F'   # Spring green
+    sell_color = '#FF3131'  # Bright red
+    volume_color = 'rgba(160, 160, 160, 0.5)'  # Brighter semi-transparent gray
+    balance_color = '#00FFFF'  # Cyan
+    ema_fast_color = '#FF69B4'  # Hot pink
+    ema_slow_color = '#FFD700'  # Gold
+    
     # Add candlestick
     fig.add_trace(
         go.Candlestick(
@@ -643,7 +657,9 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
             high=df['high'],
             low=df['low'],
             close=df['close'],
-            name='OHLC'
+            name='OHLC',
+            increasing_line_color='#26A69A',    # Green
+            decreasing_line_color='#EF5350'     # Red
         ),
         row=1, col=1, secondary_y=False
     )
@@ -654,7 +670,7 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
             x=df.index,
             y=df['ema_fast'],
             name=f'EMA {params["ema_fast"]}',
-            line=dict(color='blue', width=1)
+            line=dict(color=ema_fast_color, width=1.5)
         ),
         row=1, col=1, secondary_y=False
     )
@@ -664,13 +680,85 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
             x=df.index,
             y=df['ema_slow'],
             name=f'EMA {params["ema_slow"]}',
-            line=dict(color='orange', width=1)
+            line=dict(color=ema_slow_color, width=1.5)
         ),
         row=1, col=1, secondary_y=False
     )
 
-    # Add buy signals
+    # Add volume
+    fig.add_trace(
+        go.Bar(
+            x=df.index,
+            y=df['volume'],
+            name='Volume',
+            marker_color=volume_color
+        ),
+        row=2, col=1, secondary_y=False
+    )
+
+    # Add balance chart
+    balance_trace = go.Scatter(
+        x=trades_df['timestamp'],
+        y=trades_df['balance'],
+        name='Balance',
+        line=dict(color=balance_color, width=2),
+        fill='tozeroy',
+        fillcolor=f'rgba(0, 255, 255, 0.1)'
+    )
+    fig.add_trace(balance_trace, row=3, col=1)
+
+    # Add RSI
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['rsi'],
+            name='RSI',
+            line=dict(color='#B388FF', width=1.5)
+        ),
+        row=4, col=1
+    )
+
+    # Add RSI levels
+    fig.add_hline(y=70, line_dash="dash", line_color="#FF5252", row=4, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="#69F0AE", row=4, col=1)
+
+    # Add MACD
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['macd'],
+            name='MACD',
+            line=dict(color='#448AFF', width=1.5)
+        ),
+        row=5, col=1
+    )
+    
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['macd_signal'],
+            name='Signal',
+            line=dict(color='#FFD740', width=1.5)
+        ),
+        row=5, col=1
+    )
+
+    # Add MACD histogram
+    fig.add_trace(
+        go.Bar(
+            x=df.index,
+            y=df['macd_hist'],
+            name='MACD Hist',
+            marker_color=['#FF5252' if val < 0 else '#69F0AE' for val in df['macd_hist']]
+        ),
+        row=5, col=1
+    )
+
+    # Add buy/sell markers
     buy_trades = trades_df[trades_df['action'] == 'BUY']
+    sell_trades = trades_df[trades_df['action'] == 'SELL']
+
+    # Add buy markers
     fig.add_trace(
         go.Scatter(
             x=buy_trades['timestamp'],
@@ -680,8 +768,8 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
             marker=dict(
                 symbol='triangle-up',
                 size=12,
-                color='green',
-                line=dict(width=1, color='darkgreen')
+                color=buy_color,
+                line=dict(width=1, color='white')
             ),
             text=[
                 f'Buy Price: ${price:,.2f}<br>'
@@ -693,8 +781,7 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
         row=1, col=1, secondary_y=False
     )
 
-    # Add sell signals
-    sell_trades = trades_df[trades_df['action'] == 'SELL']
+    # Add sell markers
     fig.add_trace(
         go.Scatter(
             x=sell_trades['timestamp'],
@@ -704,8 +791,8 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
             marker=dict(
                 symbol='triangle-down',
                 size=12,
-                color='red',
-                line=dict(width=1, color='darkred')
+                color=sell_color,
+                line=dict(width=1, color='white')
             ),
             text=[
                 f'Sell Price: ${price:,.2f}<br>'
@@ -723,103 +810,122 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
         row=1, col=1, secondary_y=False
     )
 
-    # Add volume
-    fig.add_trace(
-        go.Bar(
-            x=df.index,
-            y=df['volume'],
-            name='Volume',
-            marker_color='lightgray'
-        ),
-        row=2, col=1, secondary_y=False
-    )
-
-    # Add equity curve
-    trades_df['cumulative_balance'] = trades_df['balance']
-    fig.add_trace(
-        go.Scatter(
-            x=trades_df['timestamp'],
-            y=trades_df['cumulative_balance'],
-            name='Account Balance',
-            line=dict(color='blue', width=1)
-        ),
-        row=2, col=1, secondary_y=True
-    )
-
-    # Add RSI
-    fig.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df['rsi'],
-            name='RSI',
-            line=dict(color='purple', width=1)
-        ),
-        row=3, col=1
-    )
-    
-    # Add RSI levels
-    fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
-    fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
-
-    # Add MACD
-    fig.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df['macd'],
-            name='MACD',
-            line=dict(color='blue', width=1)
-        ),
-        row=4, col=1
-    )
-    
-    fig.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df['macd_signal'],
-            name='Signal',
-            line=dict(color='orange', width=1)
-        ),
-        row=4, col=1
-    )
-    
-    # Add MACD histogram
-    colors = ['red' if val < 0 else 'green' for val in df['macd_hist']]
-    fig.add_trace(
-        go.Bar(
-            x=df.index,
-            y=df['macd_hist'],
-            name='MACD Hist',
-            marker_color=colors
-        ),
-        row=4, col=1
-    )
-
     # Update layout
     fig.update_layout(
-        title=f'Backtest Results - {params["stop_loss"]*100}% SL, {params["take_profit"]*100}% TP',
+        template="plotly_dark",
+        paper_bgcolor=bg_color,
+        plot_bgcolor=bg_color,
         xaxis_rangeslider_visible=False,
-        height=1200,
+        height=1500,
         showlegend=True,
         legend=dict(
             yanchor="top",
             y=0.99,
             xanchor="left",
-            x=0.01
-        )
+            x=0.01,
+            font=dict(color=text_color, size=12),
+            bgcolor='rgba(0,0,0,0.8)',
+            bordercolor=text_color,
+            borderwidth=1
+        ),
+        title=dict(
+            text=f'Backtest Results - {params["stop_loss"]*100}% SL, {params["take_profit"]*100}% TP',
+            font=dict(color=text_color, size=16)
+        ),
+        margin=dict(t=30, l=50, r=50, b=30)
     )
 
-    # Update y-axes titles
-    fig.update_yaxes(title_text="Price", row=1, col=1, secondary_y=False)
-    fig.update_yaxes(title_text="Volume", row=2, col=1, secondary_y=False)
-    fig.update_yaxes(title_text="Balance", row=2, col=1, secondary_y=True)
-    fig.update_yaxes(title_text="RSI", row=3, col=1)
-    fig.update_yaxes(title_text="MACD", row=4, col=1)
+    # Update axes for each subplot
+    for i in range(1, 6):
+        fig.update_xaxes(
+            row=i, col=1,
+            gridcolor=grid_color,
+            zerolinecolor=grid_color,
+            showgrid=True,
+            gridwidth=1,
+            tickfont=dict(color=text_color),
+            title_font=dict(color=text_color)
+        )
+        
+        fig.update_yaxes(
+            row=i, col=1,
+            gridcolor=grid_color,
+            zerolinecolor=grid_color,
+            showgrid=True,
+            gridwidth=1,
+            tickfont=dict(color=text_color),
+            title_font=dict(color=text_color)
+        )
 
-    # Save the plot
+    # Add range selector for time scale
+    fig.update_xaxes(
+        rangeslider_visible=False,
+        rangeselector=dict(
+            buttons=list([
+                dict(count=1, label="1h", step="hour", stepmode="backward"),
+                dict(count=6, label="6h", step="hour", stepmode="backward"),
+                dict(count=1, label="1d", step="day", stepmode="backward"),
+                dict(count=3, label="3d", step="day", stepmode="backward"),
+                dict(step="all")
+            ]),
+            font=dict(color=text_color),
+            bgcolor='rgba(0,0,0,0.8)',
+            activecolor=grid_color
+        ),
+        row=5, col=1  # Add to bottom subplot
+    )
+
+    # Add custom CSS for dark scrollbars and background
+    dark_template = """
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <style>
+                body {{
+                    background-color: #000000;
+                    margin: 0;
+                    padding: 0;
+                }}
+                ::-webkit-scrollbar {{
+                    width: 12px;
+                    height: 12px;
+                }}
+                ::-webkit-scrollbar-track {{
+                    background: #000000;
+                }}
+                ::-webkit-scrollbar-thumb {{
+                    background: #333333;
+                    border-radius: 6px;
+                }}
+                ::-webkit-scrollbar-thumb:hover {{
+                    background: #555555;
+                }}
+            </style>
+        </head>
+        <body>
+            {plot_html}
+        </body>
+    </html>
+    """
+
+    # Save the plot with the fixed template
+    plot_html = fig.to_html(
+        include_plotlyjs=True,
+        full_html=True,
+        config={'displayModeBar': True, 'scrollZoom': True}
+    )
+    
+    # Format the template with the plot HTML
+    final_html = dark_template.format(plot_html=plot_html)
+
+    # Save to file
     results_dir = Path('backtest_results')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     plot_file = results_dir / f'backtest_plot_{timestamp}.html'
-    fig.write_html(str(plot_file))
+    
+    with open(plot_file, 'w') as f:
+        f.write(final_html)
+    
     console.print(f"\n[green]Interactive plot saved to: {plot_file}[/green]")
 
 def main():
