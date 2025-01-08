@@ -11,8 +11,10 @@ import logging
 from pathlib import Path
 import argparse
 from binance.client import Client
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn, BarColumn
 import math
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
 
 # Initialize Rich console
 console = Console()
@@ -27,13 +29,16 @@ def fetch_historical_data(symbol: str, start_date: datetime, end_date: datetime,
     """Fetch historical klines/candlestick data from Binance"""
     console.print(f"[cyan]Fetching historical data for {symbol}...[/cyan]")
     
+    # Increase chunk size
+    chunk_size = timedelta(days=30)  # Fetch 30 days at a time instead of 7
+    
+    # Use numpy arrays for better performance
     all_klines = []
-    chunk_size = timedelta(days=7)  # Fetch 7 days at a time to avoid rate limits
     current_start = start_date
     
     # Calculate total chunks needed
     total_days = (end_date - start_date).days
-    total_chunks = math.ceil(total_days / 7)
+    total_chunks = math.ceil(total_days / 30)
     
     console.print(f"[cyan]Fetching {total_days} days of data from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}[/cyan]")
     
@@ -82,20 +87,21 @@ def fetch_historical_data(symbol: str, start_date: datetime, end_date: datetime,
     if not all_klines:
         raise ValueError("Failed to fetch historical data")
         
-    # Convert to DataFrame
-    df = pd.DataFrame(all_klines, columns=[
+    # Convert to numpy array first, then DataFrame
+    data = np.array(all_klines)
+    df = pd.DataFrame(data, columns=[
         'timestamp', 'open', 'high', 'low', 'close', 'volume',
         'close_time', 'quote_asset_volume', 'number_of_trades',
         'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
     ])
     
-    # Convert timestamp to datetime
-    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    # Convert timestamp to datetime (fix warning)
+    df['timestamp'] = pd.to_datetime(df['timestamp'].astype(float), unit='ms')
     df.set_index('timestamp', inplace=True)
     
     # Convert string values to float
     for col in ['open', 'high', 'low', 'close', 'volume']:
-        df[col] = df[col].astype(float)
+        df[col] = pd.to_numeric(df[col], errors='coerce')
     
     # Sort index to ensure chronological order
     df.sort_index(inplace=True)
@@ -115,7 +121,6 @@ class BaseStrategy(ABC):
         self.stop_loss = stop_loss
         self.take_profit = take_profit
         self.position_size = position_size
-        # Timeframe parameters
         self.ema_fast = ema_fast
         self.ema_slow = ema_slow
         self.sma_period = sma_period
@@ -177,6 +182,9 @@ class TrendFollowingStrategy(BaseStrategy):
         
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         """Generate trading signals based on trend following rules"""
+        # Calculate indicators first
+        df = self.calculate_indicators(df)
+        
         signals = pd.Series(index=df.index, data='HOLD')
         
         for i in range(len(df)):
@@ -297,19 +305,15 @@ class StrategyFactory:
 def run_backtest(df: pd.DataFrame, strategy_name: str, **params) -> Tuple[float, Dict, Optional[pd.DataFrame]]:
     """Run a single backtest with given parameters"""
     try:
-        # Get initial balance from params and remove it before creating strategy
-        initial_balance = params.pop('initial_balance', 10000)
+        # Get and remove initial_balance from params
+        initial_balance = params.pop('initial_balance')
+        position_size = params['position_size']
         
-        # Create strategy instance with remaining parameters
+        # Create strategy instance
         strategy = StrategyFactory.create_strategy(strategy_name, **params)
         
-        # Calculate indicators
-        df_indicators = df.copy()
-        strategy.calculate_indicators(df_indicators)
-        
-        # Generate signals
-        signals = strategy.generate_signals(df_indicators)
-        del df_indicators  # Free memory
+        # Generate signals (this will calculate indicators internally)
+        signals = strategy.generate_signals(df)
         
         # Initialize tracking variables
         trades = []
@@ -326,7 +330,7 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, **params) -> Tuple[float,
             if not position and signal == 'BUY':
                 position = True
                 entry_price = current_price
-                position_value = balance * params['position_size']
+                position_value = balance * position_size  # Use stored position_size
                 position_size_units = position_value / current_price
                 
                 trades.append({
@@ -390,37 +394,28 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, **params) -> Tuple[float,
         logging.error(f"Error in backtest: {str(e)}")
         return -float('inf'), None, None
 
+# Move test_params outside optimize_strategy
+def test_params(args):
+    df, strategy_name, params = args
+    return run_backtest(df, strategy_name, **params)
+
 def optimize_strategy(df: pd.DataFrame, strategy_name: str, initial_balance: float = 10000) -> Tuple[Dict, pd.DataFrame]:
-    """Optimize strategy parameters using grid search with early stopping"""
+    start_time = time.time()
     console.print("[bold cyan]Starting strategy optimization...[/bold cyan]")
     
-    # Phase 1: Initial optimization with core parameters
-    stop_losses = [0.02, 0.03, 0.04]
-    take_profits = [0.04, 0.06, 0.08]
-    position_sizes = [0.2, 0.3, 0.4]
-    
-    # Start with basic timeframe parameters
-    ema_fast_periods = [12]  # Start with middle values
-    ema_slow_periods = [26]
-    sma_periods = [50]
-    rsi_periods = [14]
-    stoch_periods = [14]
-    macd_fast_periods = [12]
-    macd_slow_periods = [26]
-    macd_signal_periods = [9]
-    
-    best_return = -float('inf')
-    best_params = None
-    best_trades = None
-    no_improvement_count = 0
-    max_no_improvement = 50  # Early stopping threshold
-    
-    # Phase 1: Find best core parameters
-    console.print("\n[cyan]Phase 1: Optimizing core parameters...[/cyan]")
-    
-    with Progress() as progress:
-        task = progress.add_task("[cyan]Testing combinations...", total=len(stop_losses) * len(take_profits) * len(position_sizes))
+    try:
+        # Reduce parameter combinations
+        stop_losses = [0.02, 0.03]          # Reduced to 2 values
+        take_profits = [0.04, 0.06]         # Reduced to 2 values
+        position_sizes = [0.2, 0.3]         # Reduced to 2 values
         
+        # Initialize tracking variables
+        best_return = -float('inf')
+        best_params = None
+        best_trades = None
+        
+        # Generate parameter combinations
+        param_combinations = []
         for sl in stop_losses:
             for tp in take_profits:
                 for ps in position_sizes:
@@ -428,123 +423,61 @@ def optimize_strategy(df: pd.DataFrame, strategy_name: str, initial_balance: flo
                         'stop_loss': sl,
                         'take_profit': tp,
                         'position_size': ps,
-                        'ema_fast': ema_fast_periods[0],
-                        'ema_slow': ema_slow_periods[0],
-                        'sma_period': sma_periods[0],
-                        'rsi_period': rsi_periods[0],
-                        'stoch_period': stoch_periods[0],
-                        'macd_fast': macd_fast_periods[0],
-                        'macd_slow': macd_slow_periods[0],
-                        'macd_signal': macd_signal_periods[0],
-                        'initial_balance': initial_balance
+                        'initial_balance': initial_balance,
+                        'ema_fast': 12,
+                        'ema_slow': 26,
+                        'sma_period': 50,
+                        'rsi_period': 14,
+                        'stoch_period': 14,
+                        'macd_fast': 12,
+                        'macd_slow': 26,
+                        'macd_signal': 9
                     }
-                    
-                    total_return, _, trades_df = run_backtest(df, strategy_name, **params)
-                    
-                    if total_return > best_return:
-                        best_return = total_return
-                        best_params = params.copy()
-                        best_trades = trades_df
-                        no_improvement_count = 0
-                        console.print(f"\n[green]New best parameters found![/green]")
-                        console.print(f"Return: {total_return:.2f}%")
-                        console.print(f"Parameters: {params}")
-                    else:
-                        no_improvement_count += 1
-                    
+                    param_combinations.append((df, strategy_name, params))
+
+        # Use number of CPU cores for parallel processing
+        num_cores = multiprocessing.cpu_count()
+        
+        # Run parallel backtests with progress bar
+        with Progress(
+            TimeElapsedColumn(),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("Testing combinations...")
+        ) as progress:
+            task = progress.add_task("Optimizing...", total=len(param_combinations))
+            
+            with ProcessPoolExecutor(max_workers=num_cores) as executor:
+                for total_return, params, trades_df in executor.map(test_params, param_combinations):
                     progress.update(task, advance=1)
                     
-                    # Early stopping
-                    if no_improvement_count >= max_no_improvement:
-                        console.print("\n[yellow]Early stopping: No improvement in recent iterations[/yellow]")
-                        break
-    
-    # Phase 2: Fine-tune timeframe parameters around best core parameters
-    if best_params:
-        console.print("\n[cyan]Phase 2: Fine-tuning timeframe parameters...[/cyan]")
-        
-        # Define ranges around best values
-        def get_param_range(base_value, variations=[-4, -2, 0, 2, 4]):
-            return [max(4, base_value + v) for v in variations]
-        
-        ema_fast_periods = get_param_range(best_params['ema_fast'])
-        ema_slow_periods = get_param_range(best_params['ema_slow'])
-        rsi_periods = get_param_range(best_params['rsi_period'])
-        stoch_periods = get_param_range(best_params['stoch_period'])
-        macd_fast_periods = get_param_range(best_params['macd_fast'])
-        macd_slow_periods = get_param_range(best_params['macd_slow'])
-        macd_signal_periods = get_param_range(best_params['macd_signal'])
-        
-        no_improvement_count = 0
-        total_combinations = (
-            len(ema_fast_periods) * len(ema_slow_periods) * 
-            len(rsi_periods) * len(stoch_periods) * 
-            len(macd_fast_periods) * len(macd_slow_periods) * 
-            len(macd_signal_periods)
-        )
-        
-        with Progress() as progress:
-            task = progress.add_task("[cyan]Fine-tuning parameters...", total=total_combinations)
+                    if total_return != -float('inf'):  # Only consider valid results
+                        if total_return > best_return + 0.5:  # 0.5% minimum improvement
+                            best_return = total_return
+                            best_params = params
+                            best_trades = trades_df
+                            console.print(f"\n[green]New best return: {best_return:.2f}%[/green]")
+
+        if best_params:
+            elapsed_time = time.time() - start_time
+            console.print(f"\n[bold green]Best strategy found in {elapsed_time:.1f} seconds![/bold green]")
+            console.print(f"Return: {best_return:.2f}%")
+            console.print(f"Parameters: {best_params}")
             
-            for ema_fast in ema_fast_periods:
-                for ema_slow in ema_slow_periods:
-                    if ema_fast >= ema_slow:
-                        progress.update(task, advance=len(rsi_periods) * len(stoch_periods) * len(macd_fast_periods) * len(macd_slow_periods) * len(macd_signal_periods))
-                        continue
-                        
-                    for rsi in rsi_periods:
-                        for stoch in stoch_periods:
-                            for macd_fast in macd_fast_periods:
-                                for macd_slow in macd_slow_periods:
-                                    if macd_fast >= macd_slow:
-                                        progress.update(task, advance=len(macd_signal_periods))
-                                        continue
-                                        
-                                    for macd_signal in macd_signal_periods:
-                                        params = best_params.copy()
-                                        params.update({
-                                            'ema_fast': ema_fast,
-                                            'ema_slow': ema_slow,
-                                            'rsi_period': rsi,
-                                            'stoch_period': stoch,
-                                            'macd_fast': macd_fast,
-                                            'macd_slow': macd_slow,
-                                            'macd_signal': macd_signal
-                                        })
-                                        
-                                        total_return, _, trades_df = run_backtest(df, strategy_name, **params)
-                                        
-                                        if total_return > best_return:
-                                            best_return = total_return
-                                            best_params = params.copy()
-                                            best_trades = trades_df
-                                            no_improvement_count = 0
-                                            console.print(f"\n[green]New best parameters found![/green]")
-                                            console.print(f"Return: {total_return:.2f}%")
-                                            console.print(f"Parameters: {params}")
-                                        else:
-                                            no_improvement_count += 1
-                                        
-                                        progress.update(task, advance=1)
-                                        
-                                        # Early stopping
-                                        if no_improvement_count >= max_no_improvement:
-                                            console.print("\n[yellow]Early stopping: No improvement in recent iterations[/yellow]")
-                                            break
-    
-    if best_params:
-        console.print(f"\n[bold green]Best strategy found![/bold green]")
-        console.print(f"Return: {best_return:.2f}%")
-        console.print(f"Parameters: {best_params}")
+            if best_trades is not None:
+                profitable_trades = len(best_trades[best_trades['pnl'] > 0])
+                win_rate = (profitable_trades / len(best_trades)) * 100
+                console.print(f"\nTotal Trades: {len(best_trades)}")
+                console.print(f"Profitable Trades: {profitable_trades}")
+                console.print(f"Win Rate: {win_rate:.1f}%")
+        else:
+            console.print("\n[yellow]No valid strategy found![/yellow]")
         
-        if best_trades is not None:
-            profitable_trades = len(best_trades[best_trades['pnl'] > 0])
-            win_rate = (profitable_trades / len(best_trades)) * 100
-            console.print(f"\nTotal Trades: {len(best_trades)}")
-            console.print(f"Profitable Trades: {profitable_trades}")
-            console.print(f"Win Rate: {win_rate:.1f}%")
-    
-    return best_params, best_trades
+        return best_params, best_trades
+        
+    except Exception as e:
+        console.print(f"[red]Error in optimization: {str(e)}[/red]")
+        return None, None
 
 def verify_data_continuity(df: pd.DataFrame, interval_minutes: int = 15) -> None:
     """Verify data continuity and print any gaps"""
@@ -593,48 +526,332 @@ def verify_data_continuity(df: pd.DataFrame, interval_minutes: int = 15) -> None
         else:
             console.print(f"[green]{date}: {count} points[/green]")
 
-def main():
-    parser = argparse.ArgumentParser(description='Cryptocurrency Trading Strategy Backtester')
-    parser.add_argument('--symbol', type=str, default='BTCUSDT', help='Trading pair symbol')
-    parser.add_argument('--days', type=int, default=60, help='Number of days to backtest')
-    parser.add_argument('--strategy', type=str, default='trend_following',
-                       choices=['trend_following', 'mean_reversion'],
-                       help='Trading strategy to use')
-    parser.add_argument('--initial-balance', type=float, default=10000,
-                       help='Initial balance for backtesting')
-    parser.add_argument('--plot', action='store_true', help='Generate interactive plot')
-    args = parser.parse_args()
+def display_trades_analysis(trades_file: str):
+    """Display and analyze trades from the CSV file"""
+    df = pd.read_csv(trades_file)
     
+    # Convert timestamp to datetime
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    
+    # Format the trades table
+    console.print("\n[bold cyan]Trade History:[/bold cyan]")
+    
+    trades_table = []
+    for idx, row in df.iterrows():
+        if row['action'] == 'BUY':
+            trades_table.append({
+                'Entry Time': row['timestamp'].strftime('%Y-%m-%d %H:%M'),
+                'Entry Price': f"${row['price']:.2f}",
+                'Position Size': f"${row['size'] * row['price']:.2f}",
+                'Action': '[green]BUY[/green]'
+            })
+        else:  # SELL
+            trades_table.append({
+                'Exit Time': row['timestamp'].strftime('%Y-%m-%d %H:%M'),
+                'Exit Price': f"${row['price']:.2f}",
+                'PnL': f"${row['pnl']:.2f}",
+                'Return': f"{row['return']:.2f}%",
+                'Action': '[red]SELL[/red]',
+                'Reason': row['reason']
+            })
+    
+    # Create summary statistics
+    total_trades = len(df[df['action'] == 'SELL'])
+    profitable_trades = len(df[(df['action'] == 'SELL') & (df['pnl'] > 0)])
+    losing_trades = len(df[(df['action'] == 'SELL') & (df['pnl'] <= 0)])
+    win_rate = (profitable_trades / total_trades * 100) if total_trades > 0 else 0
+    
+    total_profit = df[df['pnl'] > 0]['pnl'].sum()
+    total_loss = df[df['pnl'] < 0]['pnl'].sum()
+    net_profit = total_profit + total_loss
+    
+    profit_factor = abs(total_profit / total_loss) if total_loss != 0 else float('inf')
+    
+    # Group trades by reason
+    exit_reasons = df[df['action'] == 'SELL']['reason'].value_counts()
+    
+    from rich.table import Table
+    
+    # Create and display trades table
+    table = Table(title="Trade History")
+    table.add_column("Date/Time", justify="left")
+    table.add_column("Action", justify="center")
+    table.add_column("Price", justify="right")
+    table.add_column("P/L", justify="right")
+    table.add_column("Return", justify="right")
+    table.add_column("Exit Reason", justify="left")
+    
+    for _, row in df.iterrows():
+        color = "green" if row['action'] == 'BUY' else "red"
+        pnl = f"${row['pnl']:.2f}" if 'pnl' in row and not pd.isna(row['pnl']) else ""
+        ret = f"{row['return']:.2f}%" if 'return' in row and not pd.isna(row['return']) else ""
+        reason = row['reason'] if 'reason' in row and not pd.isna(row['reason']) else ""
+        
+        table.add_row(
+            row['timestamp'].strftime('%Y-%m-%d %H:%M'),
+            f"[{color}]{row['action']}[/{color}]",
+            f"${row['price']:.2f}",
+            pnl,
+            ret,
+            reason
+        )
+    
+    console.print(table)
+    
+    # Display summary statistics
+    console.print("\n[bold cyan]Trading Summary:[/bold cyan]")
+    console.print(f"Total Trades: {total_trades}")
+    console.print(f"Profitable Trades: {profitable_trades}")
+    console.print(f"Losing Trades: {losing_trades}")
+    console.print(f"Win Rate: {win_rate:.2f}%")
+    console.print(f"Total Profit: ${total_profit:.2f}")
+    console.print(f"Total Loss: ${total_loss:.2f}")
+    console.print(f"Net Profit: ${net_profit:.2f}")
+    console.print(f"Profit Factor: {profit_factor:.2f}")
+    
+    console.print("\n[bold cyan]Exit Reasons:[/bold cyan]")
+    for reason, count in exit_reasons.items():
+        console.print(f"{reason}: {count} trades")
+
+def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict):
+    """Create an interactive plot with candlesticks, indicators, and trades"""
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    
+    # Calculate indicators first
+    strategy = TrendFollowingStrategy(**params)
+    df = strategy.calculate_indicators(df.copy())  # Use copy to avoid modifying original df
+    
+    # Create figure with secondary y-axis
+    fig = make_subplots(
+        rows=4, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.05,
+        row_heights=[0.5, 0.2, 0.15, 0.15],
+        subplot_titles=('Price & Trades', 'Volume & Balance', 'RSI', 'MACD'),
+        specs=[[{"secondary_y": True}],  # Price chart with secondary y-axis
+               [{"secondary_y": True}],  # Volume with balance
+               [{"secondary_y": False}],  # RSI
+               [{"secondary_y": False}]]  # MACD
+    )
+
+    # Add candlestick
+    fig.add_trace(
+        go.Candlestick(
+            x=df.index,
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            name='OHLC'
+        ),
+        row=1, col=1, secondary_y=False
+    )
+
+    # Add EMAs
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['ema_fast'],
+            name=f'EMA {params["ema_fast"]}',
+            line=dict(color='blue', width=1)
+        ),
+        row=1, col=1, secondary_y=False
+    )
+    
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['ema_slow'],
+            name=f'EMA {params["ema_slow"]}',
+            line=dict(color='orange', width=1)
+        ),
+        row=1, col=1, secondary_y=False
+    )
+
+    # Add buy signals
+    buy_trades = trades_df[trades_df['action'] == 'BUY']
+    fig.add_trace(
+        go.Scatter(
+            x=buy_trades['timestamp'],
+            y=buy_trades['price'],
+            mode='markers',
+            name='Buy',
+            marker=dict(
+                symbol='triangle-up',
+                size=12,
+                color='green',
+                line=dict(width=1, color='darkgreen')
+            ),
+            text=[
+                f'Buy Price: ${price:,.2f}<br>'
+                f'Position Size: ${size * price:,.2f}'
+                for price, size in zip(buy_trades['price'], buy_trades['size'])
+            ],
+            hovertemplate='%{text}<extra></extra>'
+        ),
+        row=1, col=1, secondary_y=False
+    )
+
+    # Add sell signals
+    sell_trades = trades_df[trades_df['action'] == 'SELL']
+    fig.add_trace(
+        go.Scatter(
+            x=sell_trades['timestamp'],
+            y=sell_trades['price'],
+            mode='markers',
+            name='Sell',
+            marker=dict(
+                symbol='triangle-down',
+                size=12,
+                color='red',
+                line=dict(width=1, color='darkred')
+            ),
+            text=[
+                f'Sell Price: ${price:,.2f}<br>'
+                f'P/L: ${pnl:,.2f} ({ret:.2f}%)<br>'
+                f'Reason: {reason}'
+                for price, pnl, ret, reason in zip(
+                    sell_trades['price'],
+                    sell_trades['pnl'],
+                    sell_trades['return'],
+                    sell_trades['reason']
+                )
+            ],
+            hovertemplate='%{text}<extra></extra>'
+        ),
+        row=1, col=1, secondary_y=False
+    )
+
+    # Add volume
+    fig.add_trace(
+        go.Bar(
+            x=df.index,
+            y=df['volume'],
+            name='Volume',
+            marker_color='lightgray'
+        ),
+        row=2, col=1, secondary_y=False
+    )
+
+    # Add equity curve
+    trades_df['cumulative_balance'] = trades_df['balance']
+    fig.add_trace(
+        go.Scatter(
+            x=trades_df['timestamp'],
+            y=trades_df['cumulative_balance'],
+            name='Account Balance',
+            line=dict(color='blue', width=1)
+        ),
+        row=2, col=1, secondary_y=True
+    )
+
+    # Add RSI
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['rsi'],
+            name='RSI',
+            line=dict(color='purple', width=1)
+        ),
+        row=3, col=1
+    )
+    
+    # Add RSI levels
+    fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
+
+    # Add MACD
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['macd'],
+            name='MACD',
+            line=dict(color='blue', width=1)
+        ),
+        row=4, col=1
+    )
+    
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['macd_signal'],
+            name='Signal',
+            line=dict(color='orange', width=1)
+        ),
+        row=4, col=1
+    )
+    
+    # Add MACD histogram
+    colors = ['red' if val < 0 else 'green' for val in df['macd_hist']]
+    fig.add_trace(
+        go.Bar(
+            x=df.index,
+            y=df['macd_hist'],
+            name='MACD Hist',
+            marker_color=colors
+        ),
+        row=4, col=1
+    )
+
+    # Update layout
+    fig.update_layout(
+        title=f'Backtest Results - {params["stop_loss"]*100}% SL, {params["take_profit"]*100}% TP',
+        xaxis_rangeslider_visible=False,
+        height=1200,
+        showlegend=True,
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01
+        )
+    )
+
+    # Update y-axes titles
+    fig.update_yaxes(title_text="Price", row=1, col=1, secondary_y=False)
+    fig.update_yaxes(title_text="Volume", row=2, col=1, secondary_y=False)
+    fig.update_yaxes(title_text="Balance", row=2, col=1, secondary_y=True)
+    fig.update_yaxes(title_text="RSI", row=3, col=1)
+    fig.update_yaxes(title_text="MACD", row=4, col=1)
+
+    # Save the plot
+    results_dir = Path('backtest_results')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    plot_file = results_dir / f'backtest_plot_{timestamp}.html'
+    fig.write_html(str(plot_file))
+    console.print(f"\n[green]Interactive plot saved to: {plot_file}[/green]")
+
+def main():
     try:
-        # Initialize Binance client (using empty strings since we only need public data)
+        parser = argparse.ArgumentParser(description='Cryptocurrency Trading Strategy Backtester')
+        parser.add_argument('--symbol', type=str, default='BTCUSDT', help='Trading pair symbol')
+        parser.add_argument('--days', type=int, default=60, help='Number of days to backtest')
+        parser.add_argument('--strategy', type=str, default='trend_following',
+                           choices=['trend_following', 'mean_reversion'],
+                           help='Trading strategy to use')
+        parser.add_argument('--initial-balance', type=float, default=10000,
+                           help='Initial balance for backtesting')
+        parser.add_argument('--plot', action='store_true', help='Generate interactive plot')
+        args = parser.parse_args()
+        
+        start_time = time.time()
+        
+        # Initialize Binance client
         client = Client("", "")
         
-        # Calculate date range for past data
+        # Calculate date range
         end_date = datetime.now()
         start_date = end_date - timedelta(days=args.days)
         
-        # Round dates to start of day to avoid partial data
-        end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        # Ensure we're using past dates
-        if end_date > datetime.now():
-            end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            start_date = end_date - timedelta(days=args.days)
-        
-        # Log actual date range
-        console.print(f"[cyan]Backtesting from {start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}[/cyan]")
-        
-        # Fetch historical data
+        # Fetch and process data
         df = fetch_historical_data(args.symbol, start_date, end_date, client)
-        
-        # Verify data continuity
         verify_data_continuity(df)
         
-        # Run optimization to find best parameters
+        # Run optimization
         best_params, trades = optimize_strategy(df, args.strategy, args.initial_balance)
         
-        if trades is not None:
+        if best_params and trades is not None:
             # Save results
             results_dir = Path('backtest_results')
             results_dir.mkdir(exist_ok=True)
@@ -644,71 +861,28 @@ def main():
             trades.to_csv(results_file)
             console.print(f"\nResults saved to: {results_file}")
             
+            # Display detailed trade analysis
+            display_trades_analysis(results_file)
+            
+            # Create plot with best parameters
             if args.plot:
-                try:
-                    import plotly.graph_objects as go
-                    from plotly.subplots import make_subplots
-                    
-                    # Create figure with secondary y-axis
-                    fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                                      vertical_spacing=0.03, 
-                                      row_heights=[0.7, 0.3])
-                    
-                    # Add candlestick
-                    fig.add_trace(go.Candlestick(x=df.index,
-                                               open=df['open'],
-                                               high=df['high'],
-                                               low=df['low'],
-                                               close=df['close'],
-                                               name='OHLC'),
-                                row=1, col=1)
-                    
-                    # Add trades
-                    buy_trades = trades[trades['action'] == 'BUY']
-                    sell_trades = trades[trades['action'] == 'SELL']
-                    
-                    # Add buy markers
-                    if not buy_trades.empty:
-                        fig.add_trace(go.Scatter(x=buy_trades['timestamp'], y=buy_trades['price'],
-                                               mode='markers',
-                                               marker=dict(symbol='triangle-up', size=10, color='green'),
-                                               name='Buy'),
-                                    row=1, col=1)
-                    
-                    # Add sell markers
-                    if not sell_trades.empty:
-                        fig.add_trace(go.Scatter(x=sell_trades['timestamp'], y=sell_trades['price'],
-                                               mode='markers',
-                                               marker=dict(symbol='triangle-down', size=10, color='red'),
-                                               name='Sell'),
-                                    row=1, col=1)
-                    
-                    # Add equity curve
-                    fig.add_trace(go.Scatter(x=trades['timestamp'], y=trades['balance'],
-                                           mode='lines',
-                                           name='Account Balance'),
-                                row=2, col=1)
-                    
-                    # Update layout
-                    fig.update_layout(
-                        title=f'{args.symbol} Backtest Results',
-                        yaxis_title='Price',
-                        yaxis2_title='Balance',
-                        xaxis_rangeslider_visible=False,
-                        height=800  # Make the plot taller
-                    )
-                    
-                    # Save plot
-                    plot_file = results_dir / f'backtest_plot_{args.symbol}_{timestamp}.html'
-                    fig.write_html(str(plot_file))
-                    console.print(f"Plot saved to: {plot_file}")
-                    
-                except ImportError:
-                    console.print("[yellow]Plotly not installed. Install with: pip install plotly[/yellow]")
-    
+                # Remove initial_balance from params for strategy creation
+                plot_params = best_params.copy()
+                plot_params.pop('initial_balance')
+                create_interactive_plot(df, trades, plot_params)
+        
+        elapsed_time = time.time() - start_time
+        hours = int(elapsed_time // 3600)
+        minutes = int((elapsed_time % 3600) // 60)
+        seconds = int(elapsed_time % 60)
+        console.print(f"\nExecution time: {hours}h:{minutes:02d}m:{seconds:02d}s")
+        
     except Exception as e:
-        console.print(f"[red]Error: {str(e)}[/red]")
-        return
+        console.print(f"[red]Error in main: {str(e)}[/red]")
+        logging.error(f"Error in main: {str(e)}")
+        return 1
+    
+    return 0
 
 if __name__ == "__main__":
-    main() 
+    exit(main()) 
