@@ -232,55 +232,96 @@ class TrendFollowingStrategy(BaseStrategy):
         return signals
 
 class MeanReversionStrategy(BaseStrategy):
-    """Mean reversion strategy using Bollinger Bands and RSI"""
+    """Mean reversion strategy using RSI, Bollinger Bands, and other indicators"""
     
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate indicators"""
+        """Calculate indicators for mean reversion"""
         # Ensure numeric columns are float
         for col in ['high', 'low', 'close', 'volume']:
             df[col] = df[col].astype(float)
             
-        # Volatility indicators
-        df['atr'] = ta.atr(df['high'], df['low'], df['close'])
-        bbands = ta.bbands(df['close'], length=20, std=2)
-        df['bbands_upper'] = bbands['BBU_20_2.0']
-        df['bbands_middle'] = bbands['BBM_20_2.0']
-        df['bbands_lower'] = bbands['BBL_20_2.0']
-        df['bbands_width'] = (df['bbands_upper'] - df['bbands_lower']) / df['bbands_middle']
+        # RSI
+        df['rsi'] = ta.rsi(df['close'], length=self.rsi_period)
         
-        # Momentum and volume
-        df['rsi'] = ta.rsi(df['close'], length=14)
-        df['obv'] = ta.obv(df['close'], df['volume'])
-        df['mfi'] = ta.mfi(df['high'], df['low'], df['close'], df['volume'])
+        # Bollinger Bands
+        bb = ta.bbands(df['close'], length=20)
+        df['bb_upper'] = bb[f'BBU_20_2.0']
+        df['bb_middle'] = bb[f'BBM_20_2.0']
+        df['bb_lower'] = bb[f'BBL_20_2.0']
+        
+        # Stochastic
+        stoch = ta.stoch(df['high'], df['low'], df['close'], k=self.stoch_period, d=3)
+        df['stoch_k'] = stoch[f'STOCHk_{self.stoch_period}_3_3']
+        df['stoch_d'] = stoch[f'STOCHd_{self.stoch_period}_3_3']
+        
+        # ATR for volatility
+        df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
+        
+        # Price distance from moving average
+        df['sma_20'] = ta.sma(df['close'], length=20)
+        df['price_to_sma'] = (df['close'] - df['sma_20']) / df['sma_20']
+        
+        # Add MACD for plotting
+        macd = ta.macd(df['close'], fast=self.macd_fast, slow=self.macd_slow, signal=self.macd_signal)
+        df['macd'] = macd[f'MACD_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
+        df['macd_signal'] = macd[f'MACDs_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
+        df['macd_hist'] = macd[f'MACDh_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
+        
+        # Add EMAs for plotting comparison (but not used in strategy)
+        df['ema_fast'] = ta.ema(df['close'], length=self.ema_fast)
+        df['ema_slow'] = ta.ema(df['close'], length=self.ema_slow)
         
         return df
         
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         """Generate trading signals based on mean reversion rules"""
+        # Calculate indicators first
+        df = self.calculate_indicators(df)
+        
         signals = pd.Series(index=df.index, data='HOLD')
         
         for i in range(len(df)):
             if i < 20:  # Skip until we have enough data
                 continue
             
-            # Entry conditions for mean reversion
+            # Entry conditions for oversold
             oversold_condition = (
-                df['rsi'].iloc[i] < 30 and
-                df['close'].iloc[i] <= df['bbands_lower'].iloc[i] and
-                df['mfi'].iloc[i] < 20
+                df['rsi'].iloc[i] < 30 and  # RSI oversold
+                df['close'].iloc[i] <= df['bb_lower'].iloc[i] and  # Price below lower BB
+                df['stoch_k'].iloc[i] < 20 and  # Stochastic oversold
+                df['price_to_sma'].iloc[i] < -0.02  # Price significantly below MA
             )
+            
+            # Entry conditions for overbought
+            overbought_condition = (
+                df['rsi'].iloc[i] > 70 and  # RSI overbought
+                df['close'].iloc[i] >= df['bb_upper'].iloc[i] and  # Price above upper BB
+                df['stoch_k'].iloc[i] > 80 and  # Stochastic overbought
+                df['price_to_sma'].iloc[i] > 0.02  # Price significantly above MA
+            )
+            
+            # Volatility filter
+            volatility_ok = df['atr'].iloc[i] > df['atr'].iloc[i-20:i].mean() * 0.8
             
             # Exit conditions
-            overbought_condition = (
-                df['rsi'].iloc[i] > 70 or
-                df['close'].iloc[i] >= df['bbands_upper'].iloc[i] or
-                df['mfi'].iloc[i] > 80
+            exit_oversold = (
+                df['rsi'].iloc[i] > 50 or
+                df['close'].iloc[i] > df['bb_middle'].iloc[i] or
+                df['stoch_k'].iloc[i] > df['stoch_k'].iloc[i-1]
             )
             
-            if oversold_condition:
+            exit_overbought = (
+                df['rsi'].iloc[i] < 50 or
+                df['close'].iloc[i] < df['bb_middle'].iloc[i] or
+                df['stoch_k'].iloc[i] < df['stoch_k'].iloc[i-1]
+            )
+            
+            if oversold_condition and volatility_ok:
                 signals.iloc[i] = 'BUY'
-            elif overbought_condition:
+            elif overbought_condition and volatility_ok:
                 signals.iloc[i] = 'SELL'
+            elif exit_oversold or exit_overbought:
+                signals.iloc[i] = 'EXIT'
                 
         return signals
 
@@ -457,23 +498,23 @@ def optimize_strategy(df: pd.DataFrame, strategy_name: str, initial_balance: flo
                             best_params = params
                             best_trades = trades_df
                             console.print(f"\n[green]New best return: {best_return:.2f}%[/green]")
-
+    
         if best_params:
             elapsed_time = time.time() - start_time
             console.print(f"\n[bold green]Best strategy found in {elapsed_time:.1f} seconds![/bold green]")
             console.print(f"Return: {best_return:.2f}%")
             console.print(f"Parameters: {best_params}")
-            
+        
             if best_trades is not None:
                 profitable_trades = len(best_trades[best_trades['pnl'] > 0])
                 win_rate = (profitable_trades / len(best_trades)) * 100
                 console.print(f"\nTotal Trades: {len(best_trades)}")
                 console.print(f"Profitable Trades: {profitable_trades}")
                 console.print(f"Win Rate: {win_rate:.1f}%")
-        else:
-            console.print("\n[yellow]No valid strategy found![/yellow]")
-        
-        return best_params, best_trades
+            else:
+                console.print("\n[yellow]No valid strategy found![/yellow]")
+    
+            return best_params, best_trades
         
     except Exception as e:
         console.print(f"[red]Error in optimization: {str(e)}[/red]")
@@ -613,21 +654,26 @@ def display_trades_analysis(trades_file: str):
     for reason, count in exit_reasons.items():
         console.print(f"{reason}: {count} trades")
 
-def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict):
-    """Create an interactive plot with candlesticks, indicators, and trades"""
+def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict, strategy_name: str = None):
+    """Create an interactive plot for a single strategy"""
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
     
-    # Calculate indicators first
-    strategy = TrendFollowingStrategy(**params)
+    # Calculate indicators based on strategy type
+    if strategy_name == 'trend_following':
+        strategy = TrendFollowingStrategy(**params)
+    else:  # mean_reversion
+        strategy = MeanReversionStrategy(**params)
+    
     df = strategy.calculate_indicators(df.copy())
+    show_trend_indicators = strategy_name == 'trend_following'
     
     # Create figure with secondary y-axis
     fig = make_subplots(
-        rows=5, cols=1,  # Added one more row for balance timeline
+        rows=5, cols=1,
         shared_xaxes=True,
         vertical_spacing=0.05,
-        row_heights=[0.4, 0.15, 0.15, 0.15, 0.15],  # Adjusted heights
+        row_heights=[0.4, 0.15, 0.15, 0.15, 0.15],
         subplot_titles=('Price & Trades', 'Volume', 'Account Balance', 'RSI', 'MACD'),
         specs=[[{"secondary_y": True}],
                [{"secondary_y": False}],
@@ -648,15 +694,15 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
     balance_color = '#00FFFF'  # Cyan
     ema_fast_color = '#FF69B4'  # Hot pink
     ema_slow_color = '#FFD700'  # Gold
-    
-    # Add candlestick
+                    
+                    # Add candlestick
     fig.add_trace(
         go.Candlestick(
             x=df.index,
-            open=df['open'],
-            high=df['high'],
-            low=df['low'],
-            close=df['close'],
+                                               open=df['open'],
+                                               high=df['high'],
+                                               low=df['low'],
+                                               close=df['close'],
             name='OHLC',
             increasing_line_color='#26A69A',    # Green
             decreasing_line_color='#EF5350'     # Red
@@ -664,26 +710,59 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
         row=1, col=1, secondary_y=False
     )
 
-    # Add EMAs
-    fig.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df['ema_fast'],
-            name=f'EMA {params["ema_fast"]}',
-            line=dict(color=ema_fast_color, width=1.5)
-        ),
-        row=1, col=1, secondary_y=False
-    )
-    
-    fig.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df['ema_slow'],
-            name=f'EMA {params["ema_slow"]}',
-            line=dict(color=ema_slow_color, width=1.5)
-        ),
-        row=1, col=1, secondary_y=False
-    )
+    # Add indicators based on strategy type
+    if show_trend_indicators:
+        # Add EMAs for trend following
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df['ema_fast'],
+                name=f'EMA {params["ema_fast"]}',
+                line=dict(color='#00B4D8', width=1.5)
+            ),
+            row=1, col=1, secondary_y=False
+        )
+        
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df['ema_slow'],
+                name=f'EMA {params["ema_slow"]}',
+                line=dict(color='#FFB74D', width=1.5)
+            ),
+            row=1, col=1, secondary_y=False
+        )
+    else:
+        # Add Bollinger Bands for mean reversion
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df['bb_upper'],
+                name='BB Upper',
+                line=dict(color='#FFB74D', width=1, dash='dash')
+            ),
+            row=1, col=1, secondary_y=False
+        )
+        
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df['bb_middle'],
+                name='BB Middle',
+                line=dict(color='#00B4D8', width=1)
+            ),
+            row=1, col=1, secondary_y=False
+        )
+        
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df['bb_lower'],
+                name='BB Lower',
+                line=dict(color='#FFB74D', width=1, dash='dash')
+            ),
+            row=1, col=1, secondary_y=False
+        )
 
     # Add volume
     fig.add_trace(
@@ -696,16 +775,64 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
         row=2, col=1, secondary_y=False
     )
 
-    # Add balance chart
-    balance_trace = go.Scatter(
-        x=trades_df['timestamp'],
-        y=trades_df['balance'],
-        name='Balance',
-        line=dict(color=balance_color, width=2),
-        fill='tozeroy',
-        fillcolor=f'rgba(0, 255, 255, 0.1)'
+    # Add balance chart (line chart with markers)
+    fig.add_trace(
+        go.Scatter(
+            x=trades_df['timestamp'],
+            y=trades_df['balance'],
+            name='Balance',
+            mode='lines+markers',  # Add both lines and markers
+            line=dict(
+                color=balance_color,
+                width=2,
+                shape='hv'  # Use step-like lines to show exact changes
+            ),
+            marker=dict(
+                size=6,
+                color=balance_color,
+                symbol='circle',
+                line=dict(
+                    color='white',
+                    width=1
+                )
+            ),
+            hovertemplate="<br>".join([
+                "Time: %{x}",
+                "Balance: $%{y:,.2f}",
+                "<extra></extra>"
+            ])
+        ),
+        row=3, col=1
     )
-    fig.add_trace(balance_trace, row=3, col=1)
+
+    # Add colored markers for buy/sell points on balance chart
+    for _, trade in trades_df.iterrows():
+        color = buy_color if trade['action'] == 'BUY' else sell_color
+        hover_text = (f"{trade['action']}<br>"
+                     f"Price: ${trade['price']:,.2f}<br>"
+                     f"Balance: ${trade['balance']:,.2f}")
+        
+        if trade['action'] == 'SELL' and 'pnl' in trade:
+            hover_text += f"<br>PnL: ${trade['pnl']:,.2f}"
+            if 'return' in trade:
+                hover_text += f" ({trade['return']:.2f}%)"
+        
+        fig.add_trace(
+            go.Scatter(
+                x=[trade['timestamp']],
+                y=[trade['balance']],
+                mode='markers',
+                marker=dict(
+                    symbol='circle',
+                    size=8,
+                    color=color,
+                    line=dict(color='white', width=1)
+                ),
+                hovertemplate=hover_text + "<extra></extra>",
+                showlegend=False
+            ),
+            row=3, col=1
+        )
 
     # Add RSI
     fig.add_trace(
@@ -757,13 +884,13 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
     # Add buy/sell markers
     buy_trades = trades_df[trades_df['action'] == 'BUY']
     sell_trades = trades_df[trades_df['action'] == 'SELL']
-
-    # Add buy markers
+                    
+                    # Add buy markers
     fig.add_trace(
         go.Scatter(
             x=buy_trades['timestamp'],
             y=buy_trades['price'],
-            mode='markers',
+                                               mode='markers',
             name='Buy',
             marker=dict(
                 symbol='triangle-up',
@@ -780,13 +907,13 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
         ),
         row=1, col=1, secondary_y=False
     )
-
-    # Add sell markers
+                    
+                    # Add sell markers
     fig.add_trace(
         go.Scatter(
             x=sell_trades['timestamp'],
             y=sell_trades['price'],
-            mode='markers',
+                                               mode='markers',
             name='Sell',
             marker=dict(
                 symbol='triangle-down',
@@ -809,8 +936,8 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
         ),
         row=1, col=1, secondary_y=False
     )
-
-    # Update layout
+                    
+                    # Update layout
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor=bg_color,
@@ -829,7 +956,7 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
             borderwidth=1
         ),
         title=dict(
-            text=f'Backtest Results - {params["stop_loss"]*100}% SL, {params["take_profit"]*100}% TP',
+            text=f'{strategy_name.replace('_', ' ').title()} Strategy - {params["stop_loss"]*100}% SL, {params["take_profit"]*100}% TP',
             font=dict(color=text_color, size=16)
         ),
         margin=dict(t=30, l=50, r=50, b=30)
@@ -908,17 +1035,19 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
     </html>
     """
 
-    # Save the plot with the fixed template
+    # When called from comparison plot, return the figure
+    if strategy_name:
+        return fig
+        
+    # Otherwise save individual plot
     plot_html = fig.to_html(
         include_plotlyjs=True,
         full_html=True,
         config={'displayModeBar': True, 'scrollZoom': True}
     )
     
-    # Format the template with the plot HTML
     final_html = dark_template.format(plot_html=plot_html)
-
-    # Save to file
+    
     results_dir = Path('backtest_results')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     plot_file = results_dir / f'backtest_plot_{timestamp}.html'
@@ -928,14 +1057,178 @@ def create_interactive_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: d
     
     console.print(f"\n[green]Interactive plot saved to: {plot_file}[/green]")
 
+def create_comparison_plot(df: pd.DataFrame, results: List[Dict], bg_color='#000000', text_color='#ffffff'):
+    """Create a combined plot with strategy tabs"""
+    
+    # Create the plots for each strategy
+    figures = {}
+    for result in results:
+        strategy_name = result['strategy']
+        plot_params = result['params'].copy()
+        plot_params.pop('initial_balance')
+        figures[strategy_name] = create_strategy_plot(df, result['trades'], plot_params, strategy_name)
+
+    # Generate tab buttons and content first
+    tab_buttons = []
+    tab_content = []
+    
+    for strategy_name, fig in figures.items():
+        display_name = strategy_name.replace('_', ' ').title()
+        tab_buttons.append(
+            f'<button class="tablinks" onclick="openStrategy(event, \'{strategy_name}\')">{display_name}</button>'
+        )
+        tab_content.append(
+            f'<div id="{strategy_name}" class="tabcontent">{fig.to_html(full_html=False, include_plotlyjs=False)}</div>'
+        )
+
+    # Join the buttons and content
+    tab_buttons_html = '\n'.join(tab_buttons)
+    tab_content_html = '\n'.join(tab_content)
+
+    # Create HTML template with tabs
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta charset="utf-8">
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            <style>
+                body {{
+                    background-color: {bg_color};
+                    margin: 0;
+                    padding: 20px;
+                    font-family: Arial, sans-serif;
+                }}
+                .tab {{
+                    overflow: hidden;
+                    background-color: #333;
+                    position: fixed;
+                    top: 20px;
+                    left: 20px;
+                    z-index: 1000;
+                    border-radius: 4px;
+                }}
+                .tab button {{
+                    background-color: inherit;
+                    float: left;
+                    border: none;
+                    outline: none;
+                    cursor: pointer;
+                    padding: 14px 16px;
+                    transition: 0.3s;
+                    color: {text_color};
+                    font-size: 16px;
+                }}
+                .tab button:hover {{
+                    background-color: #555;
+                }}
+                .tab button.active {{
+                    background-color: #4CAF50;
+                }}
+                .tabcontent {{
+                    display: none;
+                    padding-top: 60px;
+                    height: calc(100vh - 80px);
+                }}
+                .tabcontent.active {{
+                    display: block;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="tab">
+                {tab_buttons_html}
+            </div>
+            {tab_content_html}
+            <script>
+                function openStrategy(evt, strategyName) {{
+                    var i, tabcontent, tablinks;
+                    
+                    tabcontent = document.getElementsByClassName("tabcontent");
+                    for (i = 0; i < tabcontent.length; i++) {{
+                        tabcontent[i].style.display = "none";
+                    }}
+                    
+                    tablinks = document.getElementsByClassName("tablinks");
+                    for (i = 0; i < tablinks.length; i++) {{
+                        tablinks[i].className = tablinks[i].className.replace(" active", "");
+                    }}
+                    
+                    document.getElementById(strategyName).style.display = "block";
+                    evt.currentTarget.className += " active";
+                    
+                    // Trigger resize for Plotly
+                    window.dispatchEvent(new Event('resize'));
+                }}
+                
+                // Show first tab by default
+                document.addEventListener('DOMContentLoaded', function() {{
+                    document.querySelector('.tablinks').click();
+                }});
+            </script>
+        </body>
+    </html>
+    """
+
+    # Save to file
+    results_dir = Path('backtest_results')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    plot_file = results_dir / f'backtest_plot_comparison_{timestamp}.html'
+    
+    with open(plot_file, 'w') as f:
+        f.write(html_content)
+    
+    console.print(f"\n[green]Interactive comparison plot saved to: {plot_file}[/green]")
+
+# Modify the compare_strategies function to use the new comparison plot
+def compare_strategies(df: pd.DataFrame, initial_balance: float = 10000) -> None:
+    """Compare different trading strategies on the same data"""
+    console.print("\n[bold cyan]Comparing Trading Strategies[/bold cyan]")
+    
+    strategies = ['trend_following', 'mean_reversion']
+    results = []
+    
+    for strategy_name in strategies:
+        console.print(f"\n[bold]Testing {strategy_name.replace('_', ' ').title()} Strategy[/bold]")
+        best_params, trades = optimize_strategy(df, strategy_name, initial_balance)
+        
+        if best_params and trades is not None:
+            results.append({
+                'strategy': strategy_name,
+                'params': best_params,
+                'trades': trades,
+                'return': trades['pnl'].sum() / initial_balance * 100,
+                'win_rate': len(trades[trades['pnl'] > 0]) / len(trades) * 100
+            })
+    
+    # Compare results
+    if results:
+        console.print("\n[bold cyan]Strategy Comparison:[/bold cyan]")
+        for result in results:
+            console.print(f"\n[bold]{result['strategy'].replace('_', ' ').title()}[/bold]")
+            console.print(f"Total Return: {result['return']:.2f}%")
+            console.print(f"Win Rate: {result['win_rate']:.2f}%")
+            console.print(f"Total Trades: {len(result['trades'])}")
+            
+            # Save individual results
+            results_dir = Path('backtest_results')
+            results_dir.mkdir(exist_ok=True)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            results_file = results_dir / f'trades_{result["strategy"]}_{timestamp}.csv'
+            result['trades'].to_csv(results_file)
+            console.print(f"Results saved to: {results_file}")
+        
+        # Create comparison plot
+        create_comparison_plot(df, results)
+
 def main():
     try:
         parser = argparse.ArgumentParser(description='Cryptocurrency Trading Strategy Backtester')
         parser.add_argument('--symbol', type=str, default='BTCUSDT', help='Trading pair symbol')
         parser.add_argument('--days', type=int, default=60, help='Number of days to backtest')
-        parser.add_argument('--strategy', type=str, default='trend_following',
-                           choices=['trend_following', 'mean_reversion'],
-                           help='Trading strategy to use')
+        parser.add_argument('--strategy', type=str, default='compare',
+                           choices=['trend_following', 'mean_reversion', 'compare'],
+                           help='Trading strategy to use or compare all')
         parser.add_argument('--initial-balance', type=float, default=10000,
                            help='Initial balance for backtesting')
         parser.add_argument('--plot', action='store_true', help='Generate interactive plot')
@@ -954,35 +1247,37 @@ def main():
         df = fetch_historical_data(args.symbol, start_date, end_date, client)
         verify_data_continuity(df)
         
-        # Run optimization
-        best_params, trades = optimize_strategy(df, args.strategy, args.initial_balance)
-        
-        if best_params and trades is not None:
-            # Save results
-            results_dir = Path('backtest_results')
-            results_dir.mkdir(exist_ok=True)
+        if args.strategy == 'compare':
+            compare_strategies(df, args.initial_balance)
+        else:
+            # Run single strategy
+            best_params, trades = optimize_strategy(df, args.strategy, args.initial_balance)
             
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            results_file = results_dir / f'trades_{args.symbol}_{timestamp}.csv'
-            trades.to_csv(results_file)
-            console.print(f"\nResults saved to: {results_file}")
-            
-            # Display detailed trade analysis
-            display_trades_analysis(results_file)
-            
-            # Create plot with best parameters
-            if args.plot:
-                # Remove initial_balance from params for strategy creation
-                plot_params = best_params.copy()
-                plot_params.pop('initial_balance')
-                create_interactive_plot(df, trades, plot_params)
+            if best_params and trades is not None:
+                # Save results
+                results_dir = Path('backtest_results')
+                results_dir.mkdir(exist_ok=True)
+                
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                results_file = results_dir / f'trades_{args.symbol}_{timestamp}.csv'
+                trades.to_csv(results_file)
+                console.print(f"\nResults saved to: {results_file}")
+                
+                # Display detailed trade analysis
+                display_trades_analysis(results_file)
+                
+                # Create plot with best parameters
+                if args.plot:
+                    plot_params = best_params.copy()
+                    plot_params.pop('initial_balance')
+                    create_strategy_plot(df, trades, plot_params, args.strategy)
         
         elapsed_time = time.time() - start_time
         hours = int(elapsed_time // 3600)
         minutes = int((elapsed_time % 3600) // 60)
         seconds = int(elapsed_time % 60)
         console.print(f"\nExecution time: {hours}h:{minutes:02d}m:{seconds:02d}s")
-        
+    
     except Exception as e:
         console.print(f"[red]Error in main: {str(e)}[/red]")
         logging.error(f"Error in main: {str(e)}")
