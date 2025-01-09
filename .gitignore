@@ -46,3 +46,5 @@ cache/
 
 
 visualizations/html/
+backtest_results/
+models/

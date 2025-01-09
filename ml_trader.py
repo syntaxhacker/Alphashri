@@ -172,15 +172,89 @@ class MLTrader:
             logging.error(f"Error training model: {str(e)}")
             raise
     
-    def backtest(self, df, stop_loss=0.02, take_profit=0.04):
-        """Backtest the ML model"""
+    def detect_market_regime(self, df, window=20):
+        """Detect market regime (trend/range) using ADX and volatility"""
+        try:
+            # Calculate ADX
+            adx = ta.adx(df['high'], df['low'], df['close'], length=14)
+            df['adx'] = adx['ADX_14']
+            
+            # Calculate volatility
+            df['volatility'] = df['close'].pct_change().rolling(window=window).std()
+            
+            # Calculate trend strength
+            df['trend_strength'] = pd.Series(index=df.index, dtype=float)
+            
+            # Determine market regime
+            df['regime'] = pd.Series(index=df.index, dtype=str)
+            
+            for i in range(len(df)):
+                adx_value = df['adx'].iloc[i]
+                vol = df['volatility'].iloc[i]
+                
+                if adx_value > 25:  # Strong trend
+                    if vol > vol.mean():
+                        df.loc[df.index[i], 'regime'] = 'STRONG_TREND'
+                        df.loc[df.index[i], 'trend_strength'] = 1.0
+                    else:
+                        df.loc[df.index[i], 'regime'] = 'WEAK_TREND'
+                        df.loc[df.index[i], 'trend_strength'] = 0.7
+                else:  # Range/Choppy
+                    if vol > vol.mean():
+                        df.loc[df.index[i], 'regime'] = 'VOLATILE_RANGE'
+                        df.loc[df.index[i], 'trend_strength'] = 0.3
+                    else:
+                        df.loc[df.index[i], 'regime'] = 'QUIET_RANGE'
+                        df.loc[df.index[i], 'trend_strength'] = 0.5
+            
+            return df
+            
+        except Exception as e:
+            console.print(f"[red]Error detecting market regime: {str(e)}[/red]")
+            logging.error(f"Error detecting market regime: {str(e)}")
+            raise
+
+    def get_adaptive_thresholds(self, regime):
+        """Get adaptive thresholds based on market regime"""
+        thresholds = {
+            'STRONG_TREND': {
+                'confidence': 0.65,
+                'stop_loss': 0.03,
+                'take_profit': 0.06,
+                'position_size': 0.95
+            },
+            'WEAK_TREND': {
+                'confidence': 0.70,
+                'stop_loss': 0.025,
+                'take_profit': 0.05,
+                'position_size': 0.80
+            },
+            'VOLATILE_RANGE': {
+                'confidence': 0.80,
+                'stop_loss': 0.02,
+                'take_profit': 0.04,
+                'position_size': 0.60
+            },
+            'QUIET_RANGE': {
+                'confidence': 0.75,
+                'stop_loss': 0.015,
+                'take_profit': 0.03,
+                'position_size': 0.70
+            }
+        }
+        return thresholds.get(regime, thresholds['WEAK_TREND'])
+
+    def backtest(self, df, base_stop_loss=0.02, base_take_profit=0.04, min_confidence=0.7, 
+                cooldown_periods=12, max_trades_per_day=3):
+        """Backtest the ML model with adaptive parameters"""
         try:
             if self.model is None:
                 console.print("[red]Model not trained! Please train the model first.[/red]")
                 return None
             
-            # Prepare features
+            # Prepare features and detect market regime
             df = self.prepare_features(df.copy())
+            df = self.detect_market_regime(df)
             X, _ = self.create_features(df)
             
             # Get predictions
@@ -192,18 +266,40 @@ class MLTrader:
             position = False
             entry_price = 0
             trades = []
+            last_trade_time = None
+            trades_today = 0
+            current_day = None
             
             # Run backtest
             for i in range(len(df)-1):
                 current_price = df['close'].iloc[i]
-                next_price = df['close'].iloc[i+1]
+                current_time = df.index[i]
+                
+                # Reset daily trade counter
+                if current_day != current_time.date():
+                    current_day = current_time.date()
+                    trades_today = 0
+                
+                # Get adaptive thresholds based on market regime
+                thresholds = self.get_adaptive_thresholds(df['regime'].iloc[i])
                 
                 if not position:
-                    # Check for buy signal (high probability of price increase)
-                    if predictions[i] == 1 and probabilities[i][1] > 0.7:
+                    # Check cooldown period
+                    if last_trade_time is not None:
+                        time_since_last_trade = (current_time - last_trade_time).total_seconds() / 3600
+                        if time_since_last_trade < cooldown_periods:
+                            continue
+                    
+                    # Check daily trade limit
+                    if trades_today >= max_trades_per_day:
+                        continue
+                    
+                    # Check for buy signal with adaptive confidence
+                    required_confidence = max(min_confidence, thresholds['confidence'])
+                    if predictions[i] == 1 and probabilities[i][1] > required_confidence:
                         position = True
                         entry_price = current_price
-                        position_size = balance * 0.95  # Use 95% of balance
+                        position_size = balance * thresholds['position_size']
                         units = position_size / current_price
                         
                         trades.append({
@@ -212,12 +308,19 @@ class MLTrader:
                             'price': current_price,
                             'units': units,
                             'balance': balance,
-                            'confidence': float(probabilities[i][1])
+                            'confidence': float(probabilities[i][1]),
+                            'regime': df['regime'].iloc[i]
                         })
+                        
+                        trades_today += 1
                 
                 elif position:
                     # Calculate returns
                     returns = (current_price - entry_price) / entry_price
+                    
+                    # Get adaptive stop loss and take profit
+                    stop_loss = base_stop_loss * (1 / thresholds['confidence'])
+                    take_profit = base_take_profit * thresholds['confidence']
                     
                     # Check exit conditions
                     exit_signal = False
@@ -234,7 +337,7 @@ class MLTrader:
                         exit_reason = 'Take Profit'
                     
                     # Model predicts price decrease with high probability
-                    elif predictions[i] == 0 and probabilities[i][0] > 0.7:
+                    elif predictions[i] == 0 and probabilities[i][0] > thresholds['confidence']:
                         exit_signal = True
                         exit_reason = 'ML Signal'
                     
@@ -251,15 +354,27 @@ class MLTrader:
                             'pnl': pnl,
                             'return': (pnl / self.initial_balance) * 100,
                             'reason': exit_reason,
-                            'confidence': float(probabilities[i][0])
+                            'confidence': float(probabilities[i][0]),
+                            'regime': df['regime'].iloc[i]
                         })
                         
                         position = False
                         entry_price = 0
+                        last_trade_time = current_time
             
             # Create trades DataFrame
             if trades:
                 trades_df = pd.DataFrame(trades)
+                
+                # Calculate trade statistics by regime
+                regime_stats = trades_df[trades_df['action'] == 'SELL'].groupby('regime').agg({
+                    'pnl': ['count', 'mean', 'sum'],
+                    'return': 'mean'
+                }).round(2)
+                
+                console.print("\n[bold cyan]Trade Statistics by Market Regime:[/bold cyan]")
+                console.print(regime_stats)
+                
                 self.plot_results(df, trades_df)
                 return trades_df
             
@@ -275,6 +390,22 @@ class MLTrader:
             # Read template
             with open('templates/ml_trader_template.html', 'r') as f:
                 template = Template(f.read())
+            
+            # Calculate trade statistics by regime first
+            regime_stats = trades_df[trades_df['action'] == 'SELL'].groupby('regime').agg({
+                'pnl': ['count', 'mean', 'sum'],
+                'return': 'mean'
+            }).round(2)
+            
+            # Convert MultiIndex DataFrame to regular dict
+            regime_stats_flat = {}
+            for regime in regime_stats.index:
+                regime_stats_flat[regime] = {
+                    'trade_count': int(regime_stats.loc[regime, ('pnl', 'count')]),
+                    'avg_pnl': float(regime_stats.loc[regime, ('pnl', 'mean')]),
+                    'total_pnl': float(regime_stats.loc[regime, ('pnl', 'sum')]),
+                    'avg_return': float(regime_stats.loc[regime, ('return', 'mean')])
+                }
             
             # Prepare chart data
             chart_data = {
@@ -317,41 +448,12 @@ class MLTrader:
                     'title': 'Trading Activity',
                     'xaxis': {'title': 'Date'},
                     'yaxis': {'title': 'Price'},
-                    'height': 600
+                    'height': 600,
+                    'plot_bgcolor': '#1f2937',
+                    'paper_bgcolor': '#1f2937',
+                    'font': {'color': '#f3f4f6'}
                 }
             }
-            
-            # Prepare feature importance data
-            feature_importance = pd.DataFrame({
-                'feature': self.feature_columns,
-                'importance': self.model.feature_importances_
-            }).sort_values('importance', ascending=True)
-            
-            feature_importance_data = {
-                'data': [{
-                    'type': 'bar',
-                    'x': feature_importance['importance'].tolist(),
-                    'y': feature_importance['feature'].tolist(),
-                    'orientation': 'h',
-                    'marker': {
-                        'color': '#2563eb'
-                    }
-                }],
-                'layout': {
-                    'title': 'Feature Importance',
-                    'xaxis': {'title': 'Importance'},
-                    'yaxis': {'title': 'Feature'},
-                    'height': 400,
-                    'margin': {'l': 200}
-                }
-            }
-            
-            # Calculate template variables
-            total_trades = len(trades_df[trades_df['action'] == 'SELL'])
-            profitable_trades = len(trades_df[trades_df['pnl'] > 0])
-            win_rate = profitable_trades / total_trades * 100 if total_trades > 0 else 0
-            final_balance = float(trades_df['balance'].iloc[-1]) if not trades_df.empty else float(self.initial_balance)
-            total_return = (final_balance - float(self.initial_balance)) / float(self.initial_balance) * 100
             
             # Format trades data
             trades_list = []
@@ -362,7 +464,8 @@ class MLTrader:
                     'price': float(trade['price']),
                     'units': float(trade['units']),
                     'balance': float(trade['balance']),
-                    'confidence': float(trade['confidence'])
+                    'confidence': float(trade['confidence']),
+                    'regime': trade['regime']
                 }
                 if 'pnl' in trade:
                     trade_dict['pnl'] = float(trade['pnl'])
@@ -371,6 +474,82 @@ class MLTrader:
                 if 'reason' in trade:
                     trade_dict['reason'] = trade['reason']
                 trades_list.append(trade_dict)
+
+            # Create feature importance visualization
+            console.print("\n[cyan]Creating feature importance visualization...[/cyan]")
+            
+            # Sort features by importance
+            feature_importance = pd.DataFrame({
+                'feature': self.feature_columns,
+                'importance': self.model.feature_importances_
+            })
+            feature_importance = feature_importance.sort_values('importance', ascending=True)
+            
+            # Create the feature importance plot data
+            feature_importance_data = {
+                'data': [{
+                    'type': 'bar',
+                    'x': feature_importance['importance'].round(4).tolist(),
+                    'y': feature_importance['feature'].tolist(),
+                    'orientation': 'h',
+                    'name': 'Feature Importance',
+                    'marker': {
+                        'color': '#3b82f6',
+                        'line': {
+                            'color': '#2563eb',
+                            'width': 1
+                        }
+                    },
+                    'hovertemplate': '<b>%{y}</b><br>Importance: %{x:.4f}<extra></extra>'
+                }],
+                'layout': {
+                    'title': {
+                        'text': '<b>Feature Importance Ranking</b>',
+                        'x': 0.5,
+                        'xanchor': 'center',
+                        'font': {'size': 20, 'color': '#f3f4f6'}
+                    },
+                    'width': 800,
+                    'height': 600,
+                    'margin': {
+                        'l': 200,
+                        'r': 30,
+                        't': 50,
+                        'b': 50
+                    },
+                    'xaxis': {
+                        'title': 'Importance Score',
+                        'titlefont': {'size': 14, 'color': '#f3f4f6'},
+                        'tickfont': {'size': 12, 'color': '#f3f4f6'},
+                        'showgrid': True,
+                        'gridcolor': '#374151',
+                        'gridwidth': 1
+                    },
+                    'yaxis': {
+                        'title': '',
+                        'tickfont': {'size': 12, 'color': '#f3f4f6'},
+                        'showgrid': True,
+                        'gridcolor': '#374151',
+                        'gridwidth': 1
+                    },
+                    'plot_bgcolor': '#1f2937',
+                    'paper_bgcolor': '#1f2937',
+                    'showlegend': False,
+                    'bargap': 0.15
+                }
+            }
+            
+            # Log feature importance data for debugging
+            console.print(f"\nFeature importance values:")
+            for feat, imp in zip(feature_importance['feature'], feature_importance['importance']):
+                console.print(f"{feat}: {imp:.4f}")
+            
+            # Calculate template variables
+            total_trades = len(trades_df[trades_df['action'] == 'SELL'])
+            profitable_trades = len(trades_df[trades_df['pnl'] > 0])
+            win_rate = profitable_trades / total_trades * 100 if total_trades > 0 else 0
+            final_balance = float(trades_df['balance'].iloc[-1]) if not trades_df.empty else float(self.initial_balance)
+            total_return = (final_balance - float(self.initial_balance)) / float(self.initial_balance) * 100
             
             # Prepare template variables
             template_vars = {
@@ -387,7 +566,8 @@ class MLTrader:
                 'features': self.feature_columns,
                 'trades': trades_list,
                 'chart_data': chart_data,
-                'feature_importance_data': feature_importance_data
+                'feature_importance_data': feature_importance_data,
+                'regime_stats': regime_stats_flat
             }
             
             # Render template

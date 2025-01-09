@@ -8,14 +8,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #2563eb;
-            --secondary-color: #1e40af;
+            --primary-color: #3b82f6;
+            --secondary-color: #1d4ed8;
             --success-color: #22c55e;
             --danger-color: #ef4444;
             --warning-color: #f59e0b;
-            --background-color: #f8fafc;
-            --text-color: #1e293b;
-            --border-color: #e2e8f0;
+            --background-color: #111827;
+            --card-background: #1f2937;
+            --text-color: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border-color: #374151;
         }
 
         * {
@@ -35,9 +37,9 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            background-color: white;
+            background-color: var(--card-background);
             border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
             padding: 2rem;
         }
 
@@ -55,8 +57,7 @@
         }
 
         .header p {
-            color: var(--text-color);
-            opacity: 0.8;
+            color: var(--text-muted);
         }
 
         .stats-grid {
@@ -67,17 +68,17 @@
         }
 
         .stat-card {
-            background-color: white;
+            background-color: var(--card-background);
             border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 1.5rem;
             text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .stat-card h3 {
             font-size: 0.875rem;
-            color: var(--text-color);
-            opacity: 0.8;
+            color: var(--text-muted);
             margin-bottom: 0.5rem;
         }
 
@@ -100,13 +101,14 @@
             border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 1rem;
-            background-color: white;
+            background-color: var(--card-background);
         }
 
         .trades-table {
             width: 100%;
             margin-top: 2rem;
             border-collapse: collapse;
+            background-color: var(--card-background);
         }
 
         .trades-table th,
@@ -119,6 +121,7 @@
         .trades-table th {
             background-color: var(--background-color);
             font-weight: 600;
+            color: var(--text-muted);
         }
 
         .trades-table tr:hover {
@@ -144,14 +147,16 @@
 
         .model-info {
             margin-top: 2rem;
-            padding: 1rem;
-            background-color: var(--background-color);
+            padding: 1.5rem;
+            background-color: var(--card-background);
             border-radius: 8px;
+            border: 1px solid var(--border-color);
         }
 
         .model-info h2 {
             font-size: 1.25rem;
             margin-bottom: 1rem;
+            color: var(--primary-color);
         }
 
         .model-info ul {
@@ -159,11 +164,30 @@
         }
 
         .model-info li {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .model-info li strong {
+            color: var(--text-color);
+            margin-right: 0.5rem;
         }
 
         .feature-importance {
             margin-top: 2rem;
+        }
+
+        .feature-importance h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .positive {
+            color: var(--success-color);
+        }
+
+        .negative {
+            color: var(--danger-color);
         }
 
         @media (max-width: 768px) {
@@ -174,6 +198,70 @@
             .container {
                 padding: 1rem;
             }
+        }
+
+        /* Add regime badge styles */
+        .badge.regime {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.4rem;
+        }
+        .badge.strong_trend {
+            background-color: #2563eb;
+            color: white;
+        }
+        .badge.weak_trend {
+            background-color: #60a5fa;
+            color: white;
+        }
+        .badge.volatile_range {
+            background-color: #f59e0b;
+            color: white;
+        }
+        .badge.quiet_range {
+            background-color: #6b7280;
+            color: white;
+        }
+        
+        /* Add regime statistics section */
+        .regime-stats {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background-color: var(--card-background);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .regime-stats h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .regime-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .regime-card {
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--background-color);
+        }
+        
+        .regime-card h3 {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        
+        .regime-card .stats {
+            font-size: 0.875rem;
+            color: var(--text-color);
+        }
+        
+        .regime-card .stats div {
+            margin-bottom: 0.25rem;
         }
     </style>
 </head>
@@ -219,13 +307,30 @@
             </ul>
         </div>
 
+        <div class="regime-stats">
+            <h2>Market Regime Statistics</h2>
+            <div class="regime-grid">
+                {% for regime, stats in regime_stats.items() %}
+                <div class="regime-card">
+                    <h3>{{ regime|replace('_', ' ')|title }}</h3>
+                    <div class="stats">
+                        <div>Trades: {{ stats.trade_count }}</div>
+                        <div>Avg PnL: ${{ "%.2f"|format(stats.avg_pnl) }}</div>
+                        <div>Total PnL: ${{ "%.2f"|format(stats.total_pnl) }}</div>
+                        <div>Avg Return: {{ "%.2f"|format(stats.avg_return) }}%</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
         <div class="chart-container">
             <div id="trading-chart"></div>
         </div>
 
         <div class="feature-importance">
             <h2>Feature Importance</h2>
-            <div id="feature-importance-chart"></div>
+            <div id="feature-importance-chart" style="width: 100%; height: 600px;"></div>
         </div>
 
         <table class="trades-table">
@@ -238,6 +343,7 @@
                     <th>PnL</th>
                     <th>Confidence</th>
                     <th>Balance</th>
+                    <th>Regime</th>
                 </tr>
             </thead>
             <tbody>
@@ -256,19 +362,113 @@
                     </td>
                     <td>{{ "%.1f"|format(trade.confidence|float * 100) }}%</td>
                     <td>${{ "%.2f"|format(trade.balance|float) }}</td>
+                    <td><span class="badge regime {{ trade.regime|lower }}">{{ trade.regime }}</span></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
+    <style>
+        /* Add regime badge styles */
+        .badge.regime {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.4rem;
+        }
+        .badge.strong_trend {
+            background-color: #2563eb;
+            color: white;
+        }
+        .badge.weak_trend {
+            background-color: #60a5fa;
+            color: white;
+        }
+        .badge.volatile_range {
+            background-color: #f59e0b;
+            color: white;
+        }
+        .badge.quiet_range {
+            background-color: #6b7280;
+            color: white;
+        }
+        
+        /* Add regime statistics section */
+        .regime-stats {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background-color: var(--card-background);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .regime-stats h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .regime-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .regime-card {
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--background-color);
+        }
+        
+        .regime-card h3 {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        
+        .regime-card .stats {
+            font-size: 0.875rem;
+            color: var(--text-color);
+        }
+        
+        .regime-card .stats div {
+            margin-bottom: 0.25rem;
+        }
+    </style>
+
     <script>
-        // Plotly chart configurations
+        // Dark theme for Plotly charts
+        const darkTheme = {
+            paper_bgcolor: '#1f2937',
+            plot_bgcolor: '#1f2937',
+            font: {
+                color: '#f3f4f6',
+                size: 12
+            },
+            xaxis: {
+                gridcolor: '#374151',
+                zerolinecolor: '#374151',
+                tickfont: {color: '#f3f4f6'}
+            },
+            yaxis: {
+                gridcolor: '#374151',
+                zerolinecolor: '#374151',
+                tickfont: {color: '#f3f4f6'}
+            }
+        };
+
+        // Trading chart
         const chartData = {{ chart_data|tojson|safe }};
+        chartData.layout = {...chartData.layout, ...darkTheme};
         Plotly.newPlot('trading-chart', chartData.data, chartData.layout);
 
+        // Feature importance chart
         const featureImportanceData = {{ feature_importance_data|tojson|safe }};
-        Plotly.newPlot('feature-importance-chart', featureImportanceData.data, featureImportanceData.layout);
+        Plotly.newPlot('feature-importance-chart', featureImportanceData.data, featureImportanceData.layout, {
+            responsive: true,
+            displayModeBar: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d']
+        });
     </script>
 </body>
 </html> 
