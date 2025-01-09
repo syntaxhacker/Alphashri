@@ -669,18 +669,20 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
     df = strategy.calculate_indicators(df.copy())
     show_trend_indicators = strategy_name == 'trend_following'
     
-    # Create figure with secondary y-axis
+    # Create figure with secondary y-axis for all subplots that need it
     fig = make_subplots(
         rows=5, cols=1,
         shared_xaxes=True,
         vertical_spacing=0.05,
         row_heights=[0.4, 0.15, 0.15, 0.15, 0.15],
-        subplot_titles=('Price & Trades', 'Volume', 'Account Balance', 'RSI', 'MACD'),
-        specs=[[{"secondary_y": True}],
-               [{"secondary_y": False}],
-               [{"secondary_y": False}],
-               [{"secondary_y": False}],
-               [{"secondary_y": False}]]
+        subplot_titles=('Price & Trades', 'Volume', 'Returns & Balance', 'RSI', 'MACD'),
+        specs=[
+            [{"secondary_y": True}],  # Price chart
+            [{"secondary_y": False}],  # Volume
+            [{"secondary_y": True}],   # Returns & Balance
+            [{"secondary_y": False}],  # RSI
+            [{"secondary_y": False}]   # MACD
+        ]
     )
 
     # Enhanced dark theme colors
@@ -776,44 +778,63 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
         row=2, col=1, secondary_y=False
     )
 
-    # Add account balance chart with annotations
+    # Calculate account metrics
     initial_balance = trades_df['balance'].iloc[0]
-    final_balance = trades_df['balance'].iloc[-1]
-    total_return = ((final_balance - initial_balance) / initial_balance) * 100
-    win_rate = len(trades_df[trades_df['pnl'] > 0]) / len(trades_df) * 100 if len(trades_df) > 0 else 0
+    trades_df['returns'] = ((trades_df['balance'] - initial_balance) / initial_balance) * 100
+    trades_df['drawdown'] = trades_df['balance'].expanding().max() - trades_df['balance']
+    trades_df['drawdown_pct'] = (trades_df['drawdown'] / trades_df['balance'].expanding().max()) * 100
+    max_drawdown = trades_df['drawdown_pct'].max()
     
-    # Add balance line with performance stats
+    # Add returns line (primary y-axis)
+    fig.add_trace(
+        go.Scatter(
+            x=trades_df['timestamp'],
+            y=trades_df['returns'],
+            name='Return %',
+            line=dict(color='#69F0AE', width=2),
+            fill='tozeroy',
+            fillcolor='rgba(105, 240, 174, 0.1)',
+            hovertemplate="<br>".join([
+                "Time: %{x}",
+                "Return: %{y:.2f}%",
+                "<extra></extra>"
+            ])
+        ),
+        row=3, col=1, secondary_y=False
+    )
+
+    # Add balance line (secondary y-axis)
     fig.add_trace(
         go.Scatter(
             x=trades_df['timestamp'],
             y=trades_df['balance'],
-            name='Balance',
-            mode='lines',
-            line=dict(
-                color='#00BCD4',
-                width=2,
-                shape='hv'  # Step-like line for exact changes
-            ),
+            name='Balance $',
+            line=dict(color='#00BCD4', width=2),
             hovertemplate="<br>".join([
                 "Time: %{x}",
                 "Balance: $%{y:,.2f}",
                 "<extra></extra>"
             ])
         ),
-        row=3, col=1
+        row=3, col=1, secondary_y=True
     )
+
+    # Update y-axes titles
+    fig.update_yaxes(title_text="Return %", row=3, col=1, secondary_y=False)
+    fig.update_yaxes(title_text="Balance $", row=3, col=1, secondary_y=True)
 
     # Add performance stats annotation
     stats_text = (
         f"Initial Balance: ${initial_balance:,.2f}<br>"
-        f"Final Balance: ${final_balance:,.2f}<br>"
-        f"Total Return: {total_return:.2f}%<br>"
-        f"Win Rate: {win_rate:.1f}%<br>"
+        f"Current Balance: ${trades_df['balance'].iloc[-1]:,.2f}<br>"
+        f"Total Return: {trades_df['returns'].iloc[-1]:.2f}%<br>"
+        f"Max Drawdown: {max_drawdown:.2f}%<br>"
+        f"Win Rate: {len(trades_df[trades_df['pnl'] > 0]) / len(trades_df) * 100:.1f}%<br>"
         f"Total Trades: {len(trades_df)}<br>"
         f"Stop Loss: {params['stop_loss']*100:.1f}%<br>"
         f"Take Profit: {params['take_profit']*100:.1f}%"
     )
-    
+
     fig.add_annotation(
         xref="paper",
         yref="paper",
@@ -829,35 +850,16 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
         borderpad=4
     )
 
-    # Add colored markers for trades on balance chart
-    for _, trade in trades_df.iterrows():
-        marker_color = buy_color if trade['action'] == 'BUY' else sell_color
-        hover_text = (
-            f"{trade['action']}<br>"
-            f"Price: ${trade['price']:,.2f}<br>"
-            f"Balance: ${trade['balance']:,.2f}"
-        )
-        if trade['action'] == 'SELL':
-            hover_text += f"<br>PnL: ${trade['pnl']:,.2f} ({trade['return']:.2f}%)"
-            if 'reason' in trade:
-                hover_text += f"<br>Reason: {trade['reason']}"
-        
-        fig.add_trace(
-            go.Scatter(
-                x=[trade['timestamp']],
-                y=[trade['balance']],
-                mode='markers',
-                marker=dict(
-                    symbol='circle',
-                    size=8,
-                    color=marker_color,
-                    line=dict(color='white', width=1)
-                ),
-                hovertemplate=hover_text + "<extra></extra>",
-                showlegend=False
-            ),
-            row=3, col=1
-        )
+    # Update subplot titles and labels
+    fig.update_annotations(
+        dict(text="Returns & Drawdown %"),
+        row=3, col=1
+    )
+
+    fig.update_yaxes(
+        title_text="Return %",
+        row=3, col=1
+    )
 
     # Add RSI
     fig.add_trace(
