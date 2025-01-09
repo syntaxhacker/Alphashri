@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Trading Results - {{ symbol }}</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --success-color: #22c55e;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --background-color: #f8fafc;
+            --text-color: #1e293b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .header h1 {
+            color: var(--primary-color);
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-color);
+            opacity: 0.8;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background-color: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 0.875rem;
+            color: var(--text-color);
+            opacity: 0.8;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .stat-card .value.positive {
+            color: var(--success-color);
+        }
+
+        .stat-card .value.negative {
+            color: var(--danger-color);
+        }
+
+        .chart-container {
+            margin-top: 2rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            background-color: white;
+        }
+
+        .trades-table {
+            width: 100%;
+            margin-top: 2rem;
+            border-collapse: collapse;
+        }
+
+        .trades-table th,
+        .trades-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .trades-table th {
+            background-color: var(--background-color);
+            font-weight: 600;
+        }
+
+        .trades-table tr:hover {
+            background-color: var(--background-color);
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .badge.buy {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .badge.sell {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .model-info {
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: var(--background-color);
+            border-radius: 8px;
+        }
+
+        .model-info h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .model-info ul {
+            list-style: none;
+        }
+
+        .model-info li {
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-importance {
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .container {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ML Trading Results - {{ symbol }}</h1>
+            <p>Period: {{ start_date }} to {{ end_date }}</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Trades</h3>
+                <div class="value">{{ total_trades }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Win Rate</h3>
+                <div class="value {% if win_rate|float > 50 %}positive{% else %}negative{% endif %}">
+                    {{ win_rate }}%
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Return</h3>
+                <div class="value {% if total_return|float > 0 %}positive{% else %}negative{% endif %}">
+                    {{ total_return }}%
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Final Balance</h3>
+                <div class="value {% if final_balance|float > initial_balance %}positive{% else %}negative{% endif %}">
+                    ${{ final_balance }}
+                </div>
+            </div>
+        </div>
+
+        <div class="model-info">
+            <h2>Model Information</h2>
+            <ul>
+                <li><strong>Model Type:</strong> Random Forest Classifier</li>
+                <li><strong>Training Accuracy:</strong> {{ train_accuracy }}%</li>
+                <li><strong>Testing Accuracy:</strong> {{ test_accuracy }}%</li>
+                <li><strong>Features Used:</strong> {{ features|join(', ') }}</li>
+            </ul>
+        </div>
+
+        <div class="chart-container">
+            <div id="trading-chart"></div>
+        </div>
+
+        <div class="feature-importance">
+            <h2>Feature Importance</h2>
+            <div id="feature-importance-chart"></div>
+        </div>
+
+        <table class="trades-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Price</th>
+                    <th>Units</th>
+                    <th>PnL</th>
+                    <th>Confidence</th>
+                    <th>Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trade in trades %}
+                <tr>
+                    <td>{{ trade.timestamp }}</td>
+                    <td>
+                        <span class="badge {{ trade.action|lower }}">
+                            {{ trade.action }}
+                        </span>
+                    </td>
+                    <td>${{ "%.2f"|format(trade.price|float) }}</td>
+                    <td>{{ "%.4f"|format(trade.units|float) }}</td>
+                    <td class="{% if trade.pnl|float > 0 %}positive{% else %}negative{% endif %}">
+                        {{ "%.2f"|format(trade.pnl|float) }}
+                    </td>
+                    <td>{{ "%.1f"|format(trade.confidence|float * 100) }}%</td>
+                    <td>${{ "%.2f"|format(trade.balance|float) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Plotly chart configurations
+        const chartData = {{ chart_data|tojson|safe }};
+        Plotly.newPlot('trading-chart', chartData.data, chartData.layout);
+
+        const featureImportanceData = {{ feature_importance_data|tojson|safe }};
+        Plotly.newPlot('feature-importance-chart', featureImportanceData.data, featureImportanceData.layout);
+    </script>
+</body>
+</html> 
