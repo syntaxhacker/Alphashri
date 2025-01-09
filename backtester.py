@@ -15,6 +15,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 import math
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
+from templates import get_comparison_template, get_single_strategy_template
 
 # Initialize Rich console
 console = Console()
@@ -775,26 +776,23 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
         row=2, col=1, secondary_y=False
     )
 
-    # Add balance chart (line chart with markers)
+    # Add account balance chart with annotations
+    initial_balance = trades_df['balance'].iloc[0]
+    final_balance = trades_df['balance'].iloc[-1]
+    total_return = ((final_balance - initial_balance) / initial_balance) * 100
+    win_rate = len(trades_df[trades_df['pnl'] > 0]) / len(trades_df) * 100 if len(trades_df) > 0 else 0
+    
+    # Add balance line with performance stats
     fig.add_trace(
         go.Scatter(
             x=trades_df['timestamp'],
             y=trades_df['balance'],
             name='Balance',
-            mode='lines+markers',  # Add both lines and markers
+            mode='lines',
             line=dict(
-                color=balance_color,
+                color='#00BCD4',
                 width=2,
-                shape='hv'  # Use step-like lines to show exact changes
-            ),
-            marker=dict(
-                size=6,
-                color=balance_color,
-                symbol='circle',
-                line=dict(
-                    color='white',
-                    width=1
-                )
+                shape='hv'  # Step-like line for exact changes
             ),
             hovertemplate="<br>".join([
                 "Time: %{x}",
@@ -805,17 +803,44 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
         row=3, col=1
     )
 
-    # Add colored markers for buy/sell points on balance chart
+    # Add performance stats annotation
+    stats_text = (
+        f"Initial Balance: ${initial_balance:,.2f}<br>"
+        f"Final Balance: ${final_balance:,.2f}<br>"
+        f"Total Return: {total_return:.2f}%<br>"
+        f"Win Rate: {win_rate:.1f}%<br>"
+        f"Total Trades: {len(trades_df)}<br>"
+        f"Stop Loss: {params['stop_loss']*100:.1f}%<br>"
+        f"Take Profit: {params['take_profit']*100:.1f}%"
+    )
+    
+    fig.add_annotation(
+        xref="paper",
+        yref="paper",
+        x=1.02,
+        y=0.98,
+        text=stats_text,
+        showarrow=False,
+        font=dict(size=12, color=text_color),
+        align="left",
+        bgcolor='rgba(0,0,0,0.8)',
+        bordercolor=text_color,
+        borderwidth=1,
+        borderpad=4
+    )
+
+    # Add colored markers for trades on balance chart
     for _, trade in trades_df.iterrows():
-        color = buy_color if trade['action'] == 'BUY' else sell_color
-        hover_text = (f"{trade['action']}<br>"
-                     f"Price: ${trade['price']:,.2f}<br>"
-                     f"Balance: ${trade['balance']:,.2f}")
-        
-        if trade['action'] == 'SELL' and 'pnl' in trade:
-            hover_text += f"<br>PnL: ${trade['pnl']:,.2f}"
-            if 'return' in trade:
-                hover_text += f" ({trade['return']:.2f}%)"
+        marker_color = buy_color if trade['action'] == 'BUY' else sell_color
+        hover_text = (
+            f"{trade['action']}<br>"
+            f"Price: ${trade['price']:,.2f}<br>"
+            f"Balance: ${trade['balance']:,.2f}"
+        )
+        if trade['action'] == 'SELL':
+            hover_text += f"<br>PnL: ${trade['pnl']:,.2f} ({trade['return']:.2f}%)"
+            if 'reason' in trade:
+                hover_text += f"<br>Reason: {trade['reason']}"
         
         fig.add_trace(
             go.Scatter(
@@ -825,7 +850,7 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
                 marker=dict(
                     symbol='circle',
                     size=8,
-                    color=color,
+                    color=marker_color,
                     line=dict(color='white', width=1)
                 ),
                 hovertemplate=hover_text + "<extra></extra>",
@@ -959,7 +984,7 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
             text=f'{strategy_name.replace('_', ' ').title()} Strategy - {params["stop_loss"]*100}% SL, {params["take_profit"]*100}% TP',
             font=dict(color=text_color, size=16)
         ),
-        margin=dict(t=30, l=50, r=50, b=30)
+        margin=dict(t=30, l=50, r=150, b=30)  # Increased right margin for stats
     )
 
     # Update axes for each subplot
@@ -1002,39 +1027,6 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
         row=5, col=1  # Add to bottom subplot
     )
 
-    # Add custom CSS for dark scrollbars and background
-    dark_template = """
-    <!DOCTYPE html>
-    <html>
-        <head>
-            <style>
-                body {{
-                    background-color: #000000;
-                    margin: 0;
-                    padding: 0;
-                }}
-                ::-webkit-scrollbar {{
-                    width: 12px;
-                    height: 12px;
-                }}
-                ::-webkit-scrollbar-track {{
-                    background: #000000;
-                }}
-                ::-webkit-scrollbar-thumb {{
-                    background: #333333;
-                    border-radius: 6px;
-                }}
-                ::-webkit-scrollbar-thumb:hover {{
-                    background: #555555;
-                }}
-            </style>
-        </head>
-        <body>
-            {plot_html}
-        </body>
-    </html>
-    """
-
     # When called from comparison plot, return the figure
     if strategy_name:
         return fig
@@ -1046,7 +1038,7 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
         config={'displayModeBar': True, 'scrollZoom': True}
     )
     
-    final_html = dark_template.format(plot_html=plot_html)
+    final_html = get_single_strategy_template().format(plot_html=plot_html)
     
     results_dir = Path('backtest_results')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -1068,7 +1060,7 @@ def create_comparison_plot(df: pd.DataFrame, results: List[Dict], bg_color='#000
         plot_params.pop('initial_balance')
         figures[strategy_name] = create_strategy_plot(df, result['trades'], plot_params, strategy_name)
 
-    # Generate tab buttons and content first
+    # Generate tab buttons and content
     tab_buttons = []
     tab_content = []
     
@@ -1081,94 +1073,13 @@ def create_comparison_plot(df: pd.DataFrame, results: List[Dict], bg_color='#000
             f'<div id="{strategy_name}" class="tabcontent">{fig.to_html(full_html=False, include_plotlyjs=False)}</div>'
         )
 
-    # Join the buttons and content
-    tab_buttons_html = '\n'.join(tab_buttons)
-    tab_content_html = '\n'.join(tab_content)
-
-    # Create HTML template with tabs
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-        <head>
-            <meta charset="utf-8">
-            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-            <style>
-                body {{
-                    background-color: {bg_color};
-                    margin: 0;
-                    padding: 20px;
-                    font-family: Arial, sans-serif;
-                }}
-                .tab {{
-                    overflow: hidden;
-                    background-color: #333;
-                    position: fixed;
-                    top: 20px;
-                    left: 20px;
-                    z-index: 1000;
-                    border-radius: 4px;
-                }}
-                .tab button {{
-                    background-color: inherit;
-                    float: left;
-                    border: none;
-                    outline: none;
-                    cursor: pointer;
-                    padding: 14px 16px;
-                    transition: 0.3s;
-                    color: {text_color};
-                    font-size: 16px;
-                }}
-                .tab button:hover {{
-                    background-color: #555;
-                }}
-                .tab button.active {{
-                    background-color: #4CAF50;
-                }}
-                .tabcontent {{
-                    display: none;
-                    padding-top: 60px;
-                    height: calc(100vh - 80px);
-                }}
-                .tabcontent.active {{
-                    display: block;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="tab">
-                {tab_buttons_html}
-            </div>
-            {tab_content_html}
-            <script>
-                function openStrategy(evt, strategyName) {{
-                    var i, tabcontent, tablinks;
-                    
-                    tabcontent = document.getElementsByClassName("tabcontent");
-                    for (i = 0; i < tabcontent.length; i++) {{
-                        tabcontent[i].style.display = "none";
-                    }}
-                    
-                    tablinks = document.getElementsByClassName("tablinks");
-                    for (i = 0; i < tablinks.length; i++) {{
-                        tablinks[i].className = tablinks[i].className.replace(" active", "");
-                    }}
-                    
-                    document.getElementById(strategyName).style.display = "block";
-                    evt.currentTarget.className += " active";
-                    
-                    // Trigger resize for Plotly
-                    window.dispatchEvent(new Event('resize'));
-                }}
-                
-                // Show first tab by default
-                document.addEventListener('DOMContentLoaded', function() {{
-                    document.querySelector('.tablinks').click();
-                }});
-            </script>
-        </body>
-    </html>
-    """
+    # Get HTML content from template
+    html_content = get_comparison_template(
+        bg_color=bg_color,
+        text_color=text_color,
+        tab_buttons_html='\n'.join(tab_buttons),
+        tab_content_html='\n'.join(tab_content)
+    )
 
     # Save to file
     results_dir = Path('backtest_results')
