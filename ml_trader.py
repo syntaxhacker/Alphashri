@@ -64,6 +64,18 @@ class MLTrader:
         self.data = None
         self.scaler = StandardScaler()
         
+        # Initialize feature columns (removed the new features from here)
+        self.feature_columns = [
+            'sma_20', 'sma_50', 'ema_12', 'ema_26',
+            'macd', 'macd_signal', 'macd_hist',
+            'rsi', 'mom', 'roc',
+            'bb_upper', 'bb_middle', 'bb_lower',
+            'volume_ma', 'volume_std', 'volume_change',
+            'price_change', 'price_change_2', 'price_change_5',
+            'atr', 'volatility',
+            'high_low_ratio', 'close_open_ratio', 'volume_price_ratio'
+        ]
+        
         # Check for GPU
         if torch.backends.mps.is_available():
             console.print("[green]MPS (Metal) device is available for GPU acceleration![/green]")
@@ -137,11 +149,8 @@ class MLTrader:
             df['close_open_ratio'] = df['close'] / df['open']
             df['volume_price_ratio'] = df['volume'] / df['close']
             
-            # Target variable (1 for price increase, 0 for decrease)
-            df['target'] = (df['close'].shift(-1) > df['close']).astype(int)
-            
             # Drop NaN values
-            df.dropna(inplace=True)
+            df = df.dropna()
             
             return df
             
@@ -246,50 +255,55 @@ class MLTrader:
             logging.error(f"Error creating model: {str(e)}")
             raise
 
-    def train_model(self, df, epochs=150, batch_size=64, learning_rate=0.001):
+    def train_model(self, df, epochs=150, batch_size=32, learning_rate=0.001):
         """Train the neural network model with improved training process"""
         try:
             # Store the data
             self.data = df.copy()
             
             console.print("[cyan]Preparing features...[/cyan]")
-            # Prepare features without future data leakage
             df = self.prepare_features(df)
             
-            # Create target variable without look-ahead bias
-            # Instead of using next price, use future returns over multiple timeframes
-            df['target_1h'] = df['close'].pct_change(4).shift(-4)  # 1-hour future return (4 * 15min)
-            df['target_4h'] = df['close'].pct_change(16).shift(-16)  # 4-hour future return
-            df['target_24h'] = df['close'].pct_change(96).shift(-96)  # 24-hour future return
+            # Create more sophisticated target based on multiple timeframe returns
+            df.loc[:, 'returns_1h'] = df['close'].pct_change(4).shift(-4)
+            df.loc[:, 'returns_4h'] = df['close'].pct_change(16).shift(-16)
+            df.loc[:, 'returns_24h'] = df['close'].pct_change(96).shift(-96)
             
-            # Create binary targets based on future returns
-            df['target_1h'] = (df['target_1h'] > 0).astype(np.int64)
-            df['target_4h'] = (df['target_4h'] > 0).astype(np.int64)
-            df['target_24h'] = (df['target_24h'] > 0).astype(np.int64)
+            # Create target with stronger signals
+            df.loc[:, 'target'] = 0
             
-            # Combine targets (majority vote)
-            df['target'] = ((df['target_1h'] + df['target_4h'] + df['target_24h']) >= 2).astype(np.int64)
+            # Strong buy signals (1) with increased thresholds
+            buy_signal = (
+                (df['returns_1h'] > 0.001) &   # 0.1% threshold for 1h
+                ((df['returns_4h'] > 0.002) |   # 0.2% threshold for 4h
+                 (df['returns_24h'] > 0.004))   # 0.4% threshold for 24h
+            )
             
-            # Drop rows with NaN values from target calculation
-            df.dropna(inplace=True)
+            # Strong sell signals (0)
+            sell_signal = (
+                (df['returns_1h'] < -0.001) &
+                ((df['returns_4h'] < -0.002) |
+                 (df['returns_24h'] < -0.004))
+            )
             
-            console.print("[cyan]Creating feature matrix...[/cyan]")
+            # Create a copy for signal filtering
+            signal_df = df.copy()
+            signal_df.loc[buy_signal, 'target'] = 1
+            signal_df.loc[sell_signal, 'target'] = 0
+            
+            # Keep only strong signals
+            df = signal_df[buy_signal | sell_signal].copy()
+            
+            # Drop NaN values
+            df = df.dropna()
+            
+            console.print(f"[cyan]Training samples: {len(df)}[/cyan]")
+            console.print(f"[cyan]Positive samples: {df['target'].sum()} ({df['target'].mean()*100:.1f}%)[/cyan]")
+            
+            # Create features with new indicators
             X, y = self.create_features(df)
             
-            # Store feature columns for later use
-            self.feature_columns = [
-                'sma_20', 'sma_50', 'ema_12', 'ema_26',
-                'macd', 'macd_signal', 'macd_hist',
-                'rsi', 'mom', 'roc',
-                'bb_upper', 'bb_middle', 'bb_lower',
-                'volume_ma', 'volume_std', 'volume_change',
-                'price_change', 'price_change_2', 'price_change_5',
-                'atr', 'volatility',
-                'high_low_ratio', 'close_open_ratio', 'volume_price_ratio'
-            ]
-            
-            # Split data chronologically, ensuring no future data leakage
-            # Use the last 20% for testing
+            # Split data chronologically
             split_idx = int(len(X) * 0.8)
             X_train, X_test = X[:split_idx], X[split_idx:]
             y_train, y_test = y[:split_idx], y[split_idx:]
@@ -300,37 +314,41 @@ class MLTrader:
             self.y_train = y_train
             self.y_test = y_test
             
-            # Scale features using only training data
+            # Scale features
             self.scaler = StandardScaler()
             X_train = self.scaler.fit_transform(X_train)
             X_test = self.scaler.transform(X_test)
             
-            # Convert to PyTorch tensors with explicit float32 dtype
+            # Convert to PyTorch tensors
             X_train = torch.FloatTensor(X_train).to(dtype=torch.float32).to(DEVICE)
             y_train = torch.FloatTensor(y_train).to(dtype=torch.float32).to(DEVICE)
             X_test = torch.FloatTensor(X_test).to(dtype=torch.float32).to(DEVICE)
             y_test = torch.FloatTensor(y_test).to(dtype=torch.float32).to(DEVICE)
             
-            # Calculate class weights for imbalanced data
+            # Enhanced class weights for imbalanced data
             y_train_cpu = y_train.cpu().numpy()
-            y_train_cpu = y_train_cpu.astype(np.int64)
-            class_counts = np.bincount(y_train_cpu)
+            class_counts = np.bincount(y_train_cpu.astype(np.int64))
             total_samples = len(y_train_cpu)
             class_weights = total_samples / (len(class_counts) * class_counts)
-            weights = torch.FloatTensor([class_weights[int(label)] for label in y_train_cpu]).to(dtype=torch.float32).to(DEVICE)
+            class_weights = torch.FloatTensor(class_weights).to(DEVICE)
             
-            # Create data loaders with weighted sampling
-            sampler = torch.utils.data.WeightedRandomSampler(weights.cpu(), len(weights), replacement=True)
+            # Create weighted sampler
+            weights = torch.FloatTensor([class_weights[int(label)] for label in y_train_cpu])
+            sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights), replacement=True)
+            
+            # Create data loaders
             train_dataset = TensorDataset(X_train, y_train)
             train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler)
             
-            # Initialize model and optimizer
+            # Initialize model with dropout
             self.model = self.create_model(X.shape[1])
+            
+            # Use AdamW with weight decay
             optimizer = optim.AdamW(self.model.parameters(), lr=learning_rate, weight_decay=0.01)
             
-            # Cosine annealing scheduler with warm restarts
+            # Learning rate scheduler with warm restarts
             scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer, T_0=20, T_mult=2, eta_min=1e-6
+                optimizer, T_0=10, T_mult=2, eta_min=1e-6
             )
             
             # Use focal loss for imbalanced classification
@@ -429,7 +447,7 @@ class MLTrader:
                     learning_rate *= 0.7  # Less aggressive learning rate reduction
                     optimizer = optim.AdamW(self.model.parameters(), lr=learning_rate, weight_decay=0.01)
                     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                        optimizer, T_0=20, T_mult=2, eta_min=1e-6
+                        optimizer, T_0=10, T_mult=2, eta_min=1e-6
                     )
                     patience_counter = 0
                     
@@ -464,23 +482,25 @@ class MLTrader:
     def detect_market_regime(self, df):
         """Detect market regime based on volatility and trend"""
         try:
+            df = df.copy()  # Create a copy to avoid warnings
+            
             # Calculate volatility
-            df['volatility'] = df['close'].pct_change().rolling(window=20).std()
+            df.loc[:, 'volatility'] = df['close'].pct_change().rolling(window=20).std()
             
             # Calculate trend strength using ADX
-            df['plus_dm'] = df['high'].diff()
-            df['minus_dm'] = df['low'].diff()
-            df['plus_dm'] = df['plus_dm'].where(
+            df.loc[:, 'plus_dm'] = df['high'].diff()
+            df.loc[:, 'minus_dm'] = df['low'].diff()
+            df.loc[:, 'plus_dm'] = df['plus_dm'].where(
                 (df['plus_dm'] > 0) & (df['plus_dm'] > df['minus_dm'].abs()),
                 0.0
             )
-            df['minus_dm'] = df['minus_dm'].abs().where(
+            df.loc[:, 'minus_dm'] = df['minus_dm'].abs().where(
                 (df['minus_dm'] < 0) & (df['minus_dm'].abs() > df['plus_dm']),
                 0.0
             )
             
             # Calculate True Range
-            df['tr'] = pd.DataFrame({
+            df.loc[:, 'tr'] = pd.DataFrame({
                 'hl': df['high'] - df['low'],
                 'hc': (df['high'] - df['close'].shift()).abs(),
                 'lc': (df['low'] - df['close'].shift()).abs()
@@ -488,17 +508,17 @@ class MLTrader:
             
             # Smooth the indicators
             smoothing_period = 14
-            df['smoothed_plus_dm'] = df['plus_dm'].rolling(window=smoothing_period).mean()
-            df['smoothed_minus_dm'] = df['minus_dm'].rolling(window=smoothing_period).mean()
-            df['smoothed_tr'] = df['tr'].rolling(window=smoothing_period).mean()
+            df.loc[:, 'smoothed_plus_dm'] = df['plus_dm'].rolling(window=smoothing_period).mean()
+            df.loc[:, 'smoothed_minus_dm'] = df['minus_dm'].rolling(window=smoothing_period).mean()
+            df.loc[:, 'smoothed_tr'] = df['tr'].rolling(window=smoothing_period).mean()
             
             # Calculate DI+ and DI-
-            df['plus_di'] = 100 * df['smoothed_plus_dm'] / df['smoothed_tr']
-            df['minus_di'] = 100 * df['smoothed_minus_dm'] / df['smoothed_tr']
+            df.loc[:, 'plus_di'] = 100 * df['smoothed_plus_dm'] / df['smoothed_tr']
+            df.loc[:, 'minus_di'] = 100 * df['smoothed_minus_dm'] / df['smoothed_tr']
             
             # Calculate ADX
-            df['dx'] = 100 * (df['plus_di'] - df['minus_di']).abs() / (df['plus_di'] + df['minus_di'])
-            df['adx'] = df['dx'].rolling(window=smoothing_period).mean()
+            df.loc[:, 'dx'] = 100 * (df['plus_di'] - df['minus_di']).abs() / (df['plus_di'] + df['minus_di'])
+            df.loc[:, 'adx'] = df['dx'].rolling(window=smoothing_period).mean()
             
             # Define regime thresholds
             volatility_threshold = df['volatility'].quantile(0.7)
@@ -512,7 +532,7 @@ class MLTrader:
                 (df['adx'] < trend_threshold) & (df['volatility'] < volatility_threshold)
             ]
             choices = ['STRONG_TREND', 'WEAK_TREND', 'VOLATILE_RANGE', 'QUIET_RANGE']
-            df['regime'] = np.select(conditions, choices, default='WEAK_TREND')
+            df.loc[:, 'regime'] = np.select(conditions, choices, default='WEAK_TREND')
             
             # Clean up intermediate columns
             columns_to_drop = [
@@ -520,7 +540,7 @@ class MLTrader:
                 'smoothed_minus_dm', 'smoothed_tr', 'plus_di',
                 'minus_di', 'dx', 'adx'
             ]
-            df.drop(columns=columns_to_drop, inplace=True)
+            df = df.drop(columns=columns_to_drop)
             
             return df
             
@@ -576,31 +596,33 @@ class MLTrader:
             
             # Create feature matrix
             X = df[self.feature_columns].values
-            
-            # Scale features
             X = self.scaler.transform(X)
-            
-            # Convert to PyTorch tensor
             X_tensor = torch.FloatTensor(X).to(dtype=torch.float32).to(DEVICE)
             
-            # Get predictions
+            # Get predictions with model in eval mode
             self.model.eval()
             with torch.no_grad():
                 probabilities = self.model(X_tensor).cpu().numpy().squeeze()
+                
+                # Apply softmax to get better spread of probabilities
+                probabilities = 1 / (1 + np.exp(-5 * (probabilities - 0.5)))
             
-            # Store predictions in DataFrame
+            # Store predictions and initialize signals
             df['prediction'] = probabilities
-            df['signal'] = 0  # Initialize signal column
+            df['signal'] = 0
+            df['confidence'] = probabilities * 100  # Store confidence as percentage
             
-            # Generate trading signals with minimum holding period
-            min_holding_period = 4  # Minimum 1 hour (4 * 15min)
-            last_trade_idx = -min_holding_period  # Initialize last trade index
-            
+            # Generate signals with dynamic confidence threshold
             for i in range(len(df)):
-                if i - last_trade_idx >= min_holding_period:
-                    if probabilities[i] >= min_confidence:
-                        df.iloc[i, df.columns.get_loc('signal')] = 1
-                        last_trade_idx = i
+                current_regime = df['regime'].iloc[i]
+                prediction = probabilities[i]
+                
+                # Adjust confidence threshold based on regime
+                regime_thresholds = self.get_adaptive_thresholds(current_regime)
+                adjusted_confidence = min_confidence * regime_thresholds['confidence']
+                
+                if prediction >= adjusted_confidence:
+                    df.iloc[i, df.columns.get_loc('signal')] = 1
             
             # Initialize tracking variables
             balance = self.initial_balance
@@ -608,6 +630,7 @@ class MLTrader:
             entry_price = 0
             trades = []
             last_trade_time = None
+            cooldown_periods = 4  # 1-hour cooldown (4 * 15min)
             
             # Run backtest
             for i in range(len(df)-1):
@@ -617,11 +640,20 @@ class MLTrader:
                 prediction = df['prediction'].iloc[i]
                 signal = df['signal'].iloc[i]
                 
+                # Check if we're in cooldown
+                if last_trade_time is not None:
+                    periods_since_last_trade = (current_time - last_trade_time).total_seconds() / (15 * 60)
+                    if periods_since_last_trade < cooldown_periods:
+                        continue
+                
                 if not position and signal == 1:
-                    # Enter position
+                    # Get regime-specific parameters
+                    regime_thresholds = self.get_adaptive_thresholds(current_regime)
+                    
+                    # Enter position with regime-adjusted position size
                     position = True
                     entry_price = current_price
-                    position_size = balance * 0.95  # Use 95% of balance
+                    position_size = balance * regime_thresholds['position_size']
                     units = position_size / current_price
                     
                     trades.append({
@@ -639,13 +671,13 @@ class MLTrader:
                     # Calculate returns
                     returns = (current_price - entry_price) / entry_price
                     
-                    # Dynamic exit conditions based on market regime
+                    # Get regime-specific thresholds
                     regime_thresholds = self.get_adaptive_thresholds(current_regime)
                     
-                    # Adjust stop loss and take profit based on confidence
+                    # Adjust stop loss and take profit based on regime and confidence
                     confidence_factor = min(prediction / min_confidence, 1.5)
-                    adjusted_stop_loss = base_stop_loss * (1 / confidence_factor)
-                    adjusted_take_profit = base_take_profit * confidence_factor
+                    adjusted_stop_loss = base_stop_loss * regime_thresholds['stop_loss']
+                    adjusted_take_profit = base_take_profit * regime_thresholds['take_profit']
                     
                     # Exit conditions
                     stop_loss_hit = returns <= -adjusted_stop_loss
@@ -936,11 +968,11 @@ class MLTrader:
             best_score = -np.inf
             best_trades = None
             
-            # Grid search parameters
+            # Grid search parameters with more granular confidence thresholds
             param_grid = {
-                'min_confidence': [0.5, 0.55, 0.6, 0.65, 0.7],
-                'stop_loss': [0.01, 0.015, 0.02, 0.025, 0.03],
-                'take_profit': [0.02, 0.03, 0.04, 0.05, 0.06]
+                'min_confidence': [0.55, 0.60, 0.65, 0.70, 0.75],  # Lower minimum confidence
+                'stop_loss': [0.005, 0.01, 0.015, 0.02, 0.025],    # Tighter stop losses
+                'take_profit': [0.01, 0.015, 0.02, 0.025, 0.03]    # More realistic take profits
             }
             
             total_combinations = (
@@ -1077,63 +1109,43 @@ class MLTrader:
             raise
 
     def get_feature_importance(self):
-        """Calculate feature importance using cross-validated SHAP-like values"""
+        """Calculate feature importance using gradient-based approach"""
         try:
             if self.model is None:
                 return None
 
-            # Use both training and test data for more robust importance calculation
+            # Use both training and test data
             X = np.vstack([self.X_train, self.X_test])
             y = np.hstack([self.y_train, self.y_test])
             
             # Scale features
             X_scaled = self.scaler.transform(X)
             X_tensor = torch.FloatTensor(X_scaled).to(dtype=torch.float32).to(DEVICE)
+            y_tensor = torch.FloatTensor(y).to(dtype=torch.float32).to(DEVICE)
             
-            # Initialize importance scores
-            n_features = X.shape[1]
-            importance_scores = np.zeros(n_features)
-            n_iterations = 5  # Number of cross-validation iterations
+            importance_scores = np.zeros(X.shape[1])
+            self.model.train()  # Set to train mode to enable gradient computation
             
-            self.model.eval()
-            with torch.no_grad():
-                # Get base predictions
-                base_preds = self.model(X_tensor).cpu().numpy().squeeze()
+            # Calculate importance for each feature using gradients
+            for i in range(X.shape[1]):
+                X_temp = X_tensor.clone()
+                X_temp.requires_grad = True
                 
-                # Calculate feature importance through multiple iterations
-                for iteration in range(n_iterations):
-                    # Random permutation of samples
-                    perm_idx = np.random.permutation(len(X))
-                    X_perm = X_scaled[perm_idx]
-                    base_preds_perm = base_preds[perm_idx]
-                    
-                    # For each feature
-                    for feat_idx in range(n_features):
-                        # Create copy and shuffle single feature
-                        X_shuffled = X_perm.copy()
-                        np.random.shuffle(X_shuffled[:, feat_idx])
-                        
-                        # Get predictions with shuffled feature
-                        X_shuffled_tensor = torch.FloatTensor(X_shuffled).to(dtype=torch.float32).to(DEVICE)
-                        shuffled_preds = self.model(X_shuffled_tensor).cpu().numpy().squeeze()
-                        
-                        # Calculate importance as prediction difference
-                        feature_importance = np.mean(np.abs(base_preds_perm - shuffled_preds))
-                        importance_scores[feat_idx] += feature_importance
-            
-            # Average importance scores across iterations
-            importance_scores /= n_iterations
+                # Forward pass
+                output = self.model(X_temp)
+                loss = nn.BCELoss()(output.squeeze(), y_tensor)
+                
+                # Backward pass
+                loss.backward()
+                
+                # Use gradients as importance
+                importance_scores[i] = torch.abs(X_temp.grad[:, i]).mean().item()
             
             # Normalize importance scores
-            importance_scores = np.maximum(importance_scores, 0)  # Ensure non-negative
-            total_importance = importance_scores.sum()
-            if total_importance > 0:
-                importance_scores = importance_scores / total_importance
-            else:
-                # If all importances are zero, use uniform distribution
-                importance_scores = np.ones_like(importance_scores) / len(importance_scores)
+            importance_scores = np.abs(importance_scores)
+            importance_scores = importance_scores / importance_scores.sum()
             
-            # Create and sort feature importance dictionary
+            # Create feature importance dictionary
             feature_importance = {
                 feat: float(imp)
                 for feat, imp in zip(self.feature_columns, importance_scores)
@@ -1144,41 +1156,12 @@ class MLTrader:
                 sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)
             )
             
-            # Verify we have non-zero importance values
-            if all(v == 0 for v in feature_importance.values()):
-                console.print("[yellow]Warning: All feature importance values are zero. Using fallback calculation...[/yellow]")
-                # Fallback to simpler calculation
-                with torch.no_grad():
-                    for feat_idx, feat_name in enumerate(self.feature_columns):
-                        X_feat = X_scaled.copy()
-                        X_feat[:, feat_idx] = 0  # Zero out the feature
-                        X_feat_tensor = torch.FloatTensor(X_feat).to(dtype=torch.float32).to(DEVICE)
-                        zero_preds = self.model(X_feat_tensor).cpu().numpy().squeeze()
-                        importance = np.mean(np.abs(base_preds - zero_preds))
-                        feature_importance[feat_name] = float(importance)
-                
-                # Normalize again
-                total_importance = sum(feature_importance.values())
-                if total_importance > 0:
-                    feature_importance = {
-                        k: v / total_importance 
-                        for k, v in feature_importance.items()
-                    }
-                
-                # Sort again
-                feature_importance = dict(
-                    sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)
-                )
-            
             return feature_importance
             
         except Exception as e:
             console.print(f"[red]Error calculating feature importance: {str(e)}[/red]")
             logging.error(f"Error calculating feature importance: {str(e)}")
-            # Return uniform importance as last resort
-            n_features = len(self.feature_columns)
-            uniform_importance = 1.0 / n_features
-            return {feat: uniform_importance for feat in self.feature_columns}
+            raise
 
     def fetch_data(self, days=100):
         """Fetch historical data from Binance"""
@@ -1222,6 +1205,47 @@ class MLTrader:
             logging.error(f"Error fetching data: {str(e)}")
             raise
 
+    def get_cached_data_path(self, symbol, start_date, end_date):
+        """Get path for cached data file"""
+        data_dir = Path('historical_data')
+        data_dir.mkdir(exist_ok=True)
+        return data_dir / f'{symbol}_data_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.csv'
+
+    def load_or_fetch_data(self, days=100):
+        """Load data from cache or fetch from Binance if not available"""
+        try:
+            # Calculate date range
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            
+            # Get cached data path
+            cache_path = self.get_cached_data_path(self.symbol, start_date, end_date)
+            
+            # Check if cached data exists and is from today
+            if cache_path.exists():
+                df = pd.read_csv(cache_path, index_col='timestamp', parse_dates=True)
+                cache_end_date = df.index[-1]
+                
+                # If cache is from today and has enough data, use it
+                if cache_end_date.date() == end_date.date() and len(df) >= days * 96:  # 96 15-min intervals per day
+                    console.print(f"[green]Using cached data from: {cache_path}[/green]")
+                    return df
+            
+            # Fetch new data if cache doesn't exist or is outdated
+            console.print("[cyan]Fetching new historical data...[/cyan]")
+            df = self.fetch_data(days=days)
+            
+            # Save to cache
+            df.to_csv(cache_path)
+            console.print(f"[green]Data cached to: {cache_path}[/green]")
+            
+            return df
+            
+        except Exception as e:
+            console.print(f"[red]Error loading/fetching data: {str(e)}[/red]")
+            logging.error(f"Error loading/fetching data: {str(e)}")
+            raise
+
 def main():
     try:
         # Parse command line arguments
@@ -1235,8 +1259,8 @@ def main():
         # Initialize ML trader
         ml_trader = MLTrader(args.symbol, args.balance)
         
-        # Fetch historical data
-        df = ml_trader.fetch_data(days=args.days)
+        # Load or fetch historical data
+        df = ml_trader.load_or_fetch_data(days=args.days)
         
         # Train model
         if ml_trader.train_model(df):
