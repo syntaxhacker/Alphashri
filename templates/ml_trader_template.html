@@ -426,22 +426,82 @@
     <script>
         // Dark theme for Plotly charts
         const darkTheme = {
-            paper_bgcolor: '#1f2937',
             plot_bgcolor: '#1f2937',
+            paper_bgcolor: '#1f2937',
             font: {
-                color: '#f3f4f6',
-                size: 12
-            },
+                color: '#f3f4f6'
+            }
+        };
+
+        const baseLayout = {
+            ...darkTheme,
             xaxis: {
-                gridcolor: '#374151',
-                zerolinecolor: '#374151',
-                tickfont: {color: '#f3f4f6'}
+                title: 'Epoch',
+                tickmode: 'linear',
+                dtick: 5,
+                type: 'linear',
+                tickformat: 'd',
+                gridcolor: '#374151'
             },
             yaxis: {
-                gridcolor: '#374151',
-                zerolinecolor: '#374151',
-                tickfont: {color: '#f3f4f6'}
-            }
+                gridcolor: '#374151'
+            },
+            showlegend: true,
+            legend: {
+                x: 0,
+                y: 1.1,
+                orientation: 'h',
+                bgcolor: 'transparent',
+                font: {color: '#f3f4f6'}
+            },
+            margin: {
+                t: 60,
+                r: 30,
+                l: 60,
+                b: 50
+            },
+            height: 350,
+            hovermode: 'x unified'
+        };
+
+        const createMetricsChart = (elementId, title, xData, yData1, yData2, name1, name2) => {
+            const data = [
+                {
+                    x: xData,
+                    y: yData1,
+                    name: name1,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: {color: '#3b82f6'},
+                    hovertemplate: `${name1}: %{y:.4f}<br>Epoch: %{x}<extra></extra>`
+                },
+                {
+                    x: xData,
+                    y: yData2,
+                    name: name2,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: {color: '#22c55e'},
+                    hovertemplate: `${name2}: %{y:.4f}<br>Epoch: %{x}<extra></extra>`
+                }
+            ];
+
+            const layout = {
+                ...baseLayout,
+                title: {
+                    text: title,
+                    font: {size: 16}
+                },
+                yaxis: {
+                    ...baseLayout.yaxis,
+                    title: title
+                }
+            };
+
+            Plotly.newPlot(elementId, data, layout, {
+                responsive: true,
+                displayModeBar: false
+            });
         };
 
         // Trading chart
@@ -457,57 +517,6 @@
             displaylogo: false,
             modeBarButtonsToRemove: ['lasso2d', 'select2d']
         });
-
-        // Create training metrics charts
-        const createMetricsChart = (elementId, title, xData, yData1, yData2, name1, name2) => {
-            const data = [
-                {
-                    x: xData,
-                    y: yData1,
-                    name: name1,
-                    type: 'scatter',
-                    mode: 'lines',
-                    line: {color: '#3b82f6'}
-                },
-                {
-                    x: xData,
-                    y: yData2,
-                    name: name2,
-                    type: 'scatter',
-                    mode: 'lines',
-                    line: {color: '#22c55e'}
-                }
-            ];
-
-            const layout = {
-                ...darkTheme,
-                title: {
-                    text: title,
-                    font: {size: 16}
-                },
-                showlegend: true,
-                legend: {
-                    x: 0,
-                    y: 1.1,
-                    orientation: 'h',
-                    bgcolor: 'transparent',
-                    font: {color: '#f3f4f6'}
-                },
-                margin: {
-                    t: 60,
-                    r: 30,
-                    l: 60,
-                    b: 50
-                },
-                hovermode: 'x unified',
-                height: 350
-            };
-
-            Plotly.newPlot(elementId, data, layout, {
-                responsive: true,
-                displayModeBar: false
-            });
-        };
 
         // Training metrics data
         const trainingMetrics = {{ training_metrics|tojson|safe }};
@@ -545,6 +554,24 @@
         );
 
         // Learning rate chart
+        const lrLayout = {
+            ...darkTheme,
+            title: {
+                text: 'Learning Rate',
+                font: {size: 16}
+            },
+            xaxis: {
+                title: 'Epoch',
+                tickmode: 'linear',
+                dtick: 5,
+                type: 'linear',
+                tickformat: 'd'
+            },
+            showlegend: false,
+            margin: {t: 40, r: 10, l: 60, b: 40},
+            hovermode: 'x unified'
+        };
+
         Plotly.newPlot('lr-chart',
             [{
                 x: epochs,
@@ -554,16 +581,7 @@
                 name: 'Learning Rate',
                 line: {color: '#f59e0b'}
             }],
-            {
-                ...darkTheme,
-                title: {
-                    text: 'Learning Rate',
-                    font: {size: 16}
-                },
-                showlegend: false,
-                margin: {t: 40, r: 10, l: 60, b: 40},
-                hovermode: 'x unified'
-            },
+            lrLayout,
             {
                 responsive: true,
                 displayModeBar: false
