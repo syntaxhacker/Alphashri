@@ -41,15 +41,17 @@ class TradingModel(nn.Module):
         super().__init__()
         self.network = nn.Sequential(
             nn.Linear(input_dim, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.3),
             nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.3),
             nn.Linear(64, 32),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Linear(32, 1),
-            nn.Sigmoid()
+            nn.Linear(32, 1)
         )
     
     def forward(self, x):
@@ -237,8 +239,7 @@ class MLTrader:
                         nn.Linear(64, 32),
                         nn.BatchNorm1d(32),
                         nn.ReLU(),
-                        nn.Linear(32, 1),
-                        nn.Sigmoid()
+                        nn.Linear(32, 1)
                     )
                 
                 def forward(self, x):
@@ -261,6 +262,17 @@ class MLTrader:
             # Store the data
             self.data = df.copy()
             
+            # Initialize lists to store training metrics
+            self.training_metrics = {
+                'train_loss': [],
+                'test_loss': [],
+                'train_f1': [],
+                'test_f1': [],
+                'train_acc': [],
+                'test_acc': [],
+                'learning_rates': []
+            }
+            
             console.print("[cyan]Preparing features...[/cyan]")
             df = self.prepare_features(df)
             
@@ -272,18 +284,18 @@ class MLTrader:
             # Create target with stronger signals
             df.loc[:, 'target'] = 0
             
-            # Strong buy signals (1) with increased thresholds
+            # Strong buy signals (1) with more balanced thresholds
             buy_signal = (
-                (df['returns_1h'] > 0.001) &   # 0.1% threshold for 1h
-                ((df['returns_4h'] > 0.002) |   # 0.2% threshold for 4h
-                 (df['returns_24h'] > 0.004))   # 0.4% threshold for 24h
+                (df['returns_1h'] > 0.0008) &   # 0.08% threshold for 1h
+                ((df['returns_4h'] > 0.0015) |   # 0.15% threshold for 4h
+                 (df['returns_24h'] > 0.003))    # 0.3% threshold for 24h
             )
             
             # Strong sell signals (0)
             sell_signal = (
-                (df['returns_1h'] < -0.001) &
-                ((df['returns_4h'] < -0.002) |
-                 (df['returns_24h'] < -0.004))
+                (df['returns_1h'] < -0.0008) &
+                ((df['returns_4h'] < -0.0015) |
+                 (df['returns_24h'] < -0.003))
             )
             
             # Create a copy for signal filtering
@@ -300,7 +312,7 @@ class MLTrader:
             console.print(f"[cyan]Training samples: {len(df)}[/cyan]")
             console.print(f"[cyan]Positive samples: {df['target'].sum()} ({df['target'].mean()*100:.1f}%)[/cyan]")
             
-            # Create features with new indicators
+            # Create features
             X, y = self.create_features(df)
             
             # Split data chronologically
@@ -325,52 +337,36 @@ class MLTrader:
             X_test = torch.FloatTensor(X_test).to(dtype=torch.float32).to(DEVICE)
             y_test = torch.FloatTensor(y_test).to(dtype=torch.float32).to(DEVICE)
             
-            # Enhanced class weights for imbalanced data
-            y_train_cpu = y_train.cpu().numpy()
-            class_counts = np.bincount(y_train_cpu.astype(np.int64))
-            total_samples = len(y_train_cpu)
-            class_weights = total_samples / (len(class_counts) * class_counts)
-            class_weights = torch.FloatTensor(class_weights).to(DEVICE)
-            
-            # Create weighted sampler
-            weights = torch.FloatTensor([class_weights[int(label)] for label in y_train_cpu])
-            sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights), replacement=True)
-            
-            # Create data loaders
+            # Create data loaders with balanced sampling
             train_dataset = TensorDataset(X_train, y_train)
-            train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler)
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
             
-            # Initialize model with dropout
+            # Initialize model
             self.model = self.create_model(X.shape[1])
             
-            # Use AdamW with weight decay
-            optimizer = optim.AdamW(self.model.parameters(), lr=learning_rate, weight_decay=0.01)
+            # Use AdamW with reduced weight decay
+            optimizer = optim.AdamW(self.model.parameters(), lr=learning_rate, weight_decay=0.001)
             
-            # Learning rate scheduler with warm restarts
-            scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer, T_0=10, T_mult=2, eta_min=1e-6
+            # Use OneCycleLR scheduler for better convergence
+            steps_per_epoch = len(train_loader)
+            scheduler = optim.lr_scheduler.OneCycleLR(
+                optimizer,
+                max_lr=learning_rate,
+                epochs=epochs,
+                steps_per_epoch=steps_per_epoch,
+                pct_start=0.3,  # Warm-up for 30% of training
+                div_factor=10,  # Initial lr = max_lr/10
+                final_div_factor=100  # Min lr = initial_lr/100
             )
             
-            # Use focal loss for imbalanced classification
-            class FocalLoss(nn.Module):
-                def __init__(self, alpha=1, gamma=2):
-                    super().__init__()
-                    self.alpha = alpha
-                    self.gamma = gamma
-                    
-                def forward(self, inputs, targets):
-                    bce_loss = nn.BCELoss(reduction='none')(inputs, targets)
-                    pt = torch.exp(-bce_loss)
-                    focal_loss = self.alpha * (1-pt)**self.gamma * bce_loss
-                    return focal_loss.mean()
+            # Use BCEWithLogitsLoss for better numerical stability
+            criterion = nn.BCEWithLogitsLoss()
             
-            criterion = FocalLoss(gamma=2)
-            
-            # Early stopping setup with more patience
+            # Early stopping setup
             best_val_f1 = 0
-            patience = 30  # Increased patience
+            patience = 20
             patience_counter = 0
-            min_delta = 0.0005  # Reduced min_delta
+            min_delta = 0.001
             best_model_state = None
             
             console.print("[cyan]Training neural network model...[/cyan]")
@@ -386,32 +382,24 @@ class MLTrader:
                     optimizer.zero_grad()
                     outputs = self.model(batch_X).squeeze()
                     loss = criterion(outputs, batch_y)
-                    
-                    # Add L1 regularization
-                    l1_lambda = 0.005  # Reduced L1 regularization
-                    l1_norm = sum(p.abs().sum() for p in self.model.parameters())
-                    loss += l1_lambda * l1_norm
-                    
                     loss.backward()
                     
                     # Gradient clipping
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     
                     optimizer.step()
+                    scheduler.step()
                     
                     total_loss += loss.item()
-                    train_preds.extend((outputs >= 0.5).float().cpu().numpy())
+                    train_preds.extend((torch.sigmoid(outputs) >= 0.5).float().cpu().numpy())
                     train_targets.extend(batch_y.cpu().numpy())
-                
-                # Step the scheduler
-                scheduler.step()
                 
                 # Validation
                 self.model.eval()
                 with torch.no_grad():
                     test_outputs = self.model(X_test).squeeze()
                     test_loss = criterion(test_outputs, y_test)
-                    test_preds = (test_outputs >= 0.5).float().cpu().numpy()
+                    test_preds = (torch.sigmoid(test_outputs) >= 0.5).float().cpu().numpy()
                     test_targets = y_test.cpu().numpy()
                 
                 # Calculate metrics
@@ -422,6 +410,15 @@ class MLTrader:
                 
                 avg_loss = total_loss / len(train_loader)
                 
+                # Store metrics for plotting
+                self.training_metrics['train_loss'].append(avg_loss)
+                self.training_metrics['test_loss'].append(float(test_loss))
+                self.training_metrics['train_f1'].append(train_f1)
+                self.training_metrics['test_f1'].append(test_f1)
+                self.training_metrics['train_acc'].append(train_acc)
+                self.training_metrics['test_acc'].append(test_acc)
+                self.training_metrics['learning_rates'].append(float(scheduler.get_last_lr()[0]))
+                
                 # Print progress every 10 epochs
                 if (epoch + 1) % 10 == 0:
                     console.print(f"Epoch {epoch + 1}/{epochs}")
@@ -430,7 +427,7 @@ class MLTrader:
                     console.print(f"Train Accuracy: {train_acc:.2f}%, Test Accuracy: {test_acc:.2f}%")
                     console.print(f"Learning Rate: {scheduler.get_last_lr()[0]:.6f}")
                 
-                # Early stopping check using F1 score
+                # Early stopping check
                 if test_f1 > best_val_f1 + min_delta:
                     best_val_f1 = test_f1
                     patience_counter = 0
@@ -442,18 +439,10 @@ class MLTrader:
                     console.print(f"[yellow]Early stopping triggered! Best validation F1: {best_val_f1:.4f}[/yellow]")
                     break
                 
-                # Adjust learning rate if performance is poor
-                if epoch >= 50 and test_f1 < 0.52:
-                    learning_rate *= 0.7  # Less aggressive learning rate reduction
-                    optimizer = optim.AdamW(self.model.parameters(), lr=learning_rate, weight_decay=0.01)
-                    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                        optimizer, T_0=10, T_mult=2, eta_min=1e-6
-                    )
-                    patience_counter = 0
-                    
-                    if learning_rate < 1e-7:
-                        console.print("[red]Unable to improve model performance. Consider gathering more data or adjusting features.[/red]")
-                        return False
+                # Stop if performance is too poor
+                if epoch >= 30 and test_f1 < 0.52:
+                    console.print("[red]Model performance is not improving. Consider adjusting hyperparameters or feature engineering.[/red]")
+                    return False
             
             # Load best model state
             if best_model_state is not None:
@@ -602,15 +591,12 @@ class MLTrader:
             # Get predictions with model in eval mode
             self.model.eval()
             with torch.no_grad():
-                probabilities = self.model(X_tensor).cpu().numpy().squeeze()
+                logits = self.model(X_tensor)
+                probabilities = torch.sigmoid(logits).cpu().numpy().squeeze()
                 
-                # Apply softmax to get better spread of probabilities
-                probabilities = 1 / (1 + np.exp(-5 * (probabilities - 0.5)))
-            
-            # Store predictions and initialize signals
-            df['prediction'] = probabilities
-            df['signal'] = 0
-            df['confidence'] = probabilities * 100  # Store confidence as percentage
+                # Store raw probabilities (0-1 range)
+                df['prediction'] = probabilities
+                df['signal'] = 0
             
             # Generate signals with dynamic confidence threshold
             for i in range(len(df)):
@@ -621,6 +607,7 @@ class MLTrader:
                 regime_thresholds = self.get_adaptive_thresholds(current_regime)
                 adjusted_confidence = min_confidence * regime_thresholds['confidence']
                 
+                # Only generate signals for high-confidence predictions
                 if prediction >= adjusted_confidence:
                     df.iloc[i, df.columns.get_loc('signal')] = 1
             
@@ -662,7 +649,7 @@ class MLTrader:
                         'price': current_price,
                         'units': units,
                         'balance': balance,
-                        'confidence': float(prediction),
+                        'confidence': float(f"{prediction * 100:.1f}"),  # Convert to percentage with 1 decimal
                         'regime': current_regime
                     })
                     last_trade_time = current_time
@@ -698,7 +685,7 @@ class MLTrader:
                             'pnl': pnl,
                             'return': returns * 100,
                             'reason': exit_reason,
-                            'confidence': float(prediction),
+                            'confidence': float(f"{prediction * 100:.1f}"),  # Convert to percentage with 1 decimal
                             'regime': current_regime
                         })
                         
@@ -721,7 +708,7 @@ class MLTrader:
                     'pnl': pnl,
                     'return': (pnl / (entry_price * units)) * 100,
                     'reason': 'End of Period',
-                    'confidence': float(df['prediction'].iloc[-1]),
+                    'confidence': float(f"{prediction * 100:.1f}"),  # Convert to percentage with 1 decimal
                     'regime': df['regime'].iloc[-1]
                 })
             
@@ -826,7 +813,7 @@ class MLTrader:
                     'price': float(trade['price']),
                     'units': float(trade['units']),
                     'balance': float(trade['balance']),
-                    'confidence': float(trade['confidence']),
+                    'confidence': float(trade['confidence']),  # Already in percentage
                     'regime': trade['regime']
                 }
                 if 'pnl' in trade:
@@ -932,7 +919,8 @@ class MLTrader:
                 'trades': trades_list,
                 'chart_data': chart_data,
                 'feature_importance_data': feature_importance_data,
-                'regime_stats': regime_stats_flat
+                'regime_stats': regime_stats_flat,
+                'training_metrics': self.training_metrics  # Add training metrics
             }
             
             # Render template

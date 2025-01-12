@@ -263,6 +263,42 @@
         .regime-card .stats div {
             margin-bottom: 0.25rem;
         }
+
+        /* Add training metrics styles */
+        .training-metrics {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background-color: var(--card-background);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .training-metrics h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+        
+        .metric-chart {
+            background-color: var(--background-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            height: 400px;
+            width: 100%;
+        }
+        
+        @media (max-width: 768px) {
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -300,11 +336,29 @@
         <div class="model-info">
             <h2>Model Information</h2>
             <ul>
-                <li><strong>Model Type:</strong> Random Forest Classifier</li>
+                <li><strong>Model Type:</strong> Neural Network with Residual Connections</li>
                 <li><strong>Training Accuracy:</strong> {{ train_accuracy }}%</li>
                 <li><strong>Testing Accuracy:</strong> {{ test_accuracy }}%</li>
                 <li><strong>Features Used:</strong> {{ features|join(', ') }}</li>
             </ul>
+        </div>
+
+        <div class="training-metrics">
+            <h2>Training Metrics</h2>
+            <div class="metrics-grid">
+                <div class="metric-chart">
+                    <div id="loss-chart"></div>
+                </div>
+                <div class="metric-chart">
+                    <div id="f1-chart"></div>
+                </div>
+                <div class="metric-chart">
+                    <div id="accuracy-chart"></div>
+                </div>
+                <div class="metric-chart">
+                    <div id="lr-chart"></div>
+                </div>
+            </div>
         </div>
 
         <div class="regime-stats">
@@ -360,7 +414,7 @@
                     <td class="{% if trade.pnl|float > 0 %}positive{% else %}negative{% endif %}">
                         {{ "%.2f"|format(trade.pnl|float) }}
                     </td>
-                    <td>{{ "%.1f"|format(trade.confidence|float * 100) }}%</td>
+                    <td>{{ "%.1f"|format(trade.confidence|float) }}%</td>
                     <td>${{ "%.2f"|format(trade.balance|float) }}</td>
                     <td><span class="badge regime {{ trade.regime|lower }}">{{ trade.regime }}</span></td>
                 </tr>
@@ -368,72 +422,6 @@
             </tbody>
         </table>
     </div>
-
-    <style>
-        /* Add regime badge styles */
-        .badge.regime {
-            font-size: 0.75rem;
-            padding: 0.2rem 0.4rem;
-        }
-        .badge.strong_trend {
-            background-color: #2563eb;
-            color: white;
-        }
-        .badge.weak_trend {
-            background-color: #60a5fa;
-            color: white;
-        }
-        .badge.volatile_range {
-            background-color: #f59e0b;
-            color: white;
-        }
-        .badge.quiet_range {
-            background-color: #6b7280;
-            color: white;
-        }
-        
-        /* Add regime statistics section */
-        .regime-stats {
-            margin-top: 2rem;
-            padding: 1.5rem;
-            background-color: var(--card-background);
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-        }
-        
-        .regime-stats h2 {
-            color: var(--primary-color);
-            margin-bottom: 1rem;
-        }
-        
-        .regime-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-        
-        .regime-card {
-            padding: 1rem;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background-color: var(--background-color);
-        }
-        
-        .regime-card h3 {
-            font-size: 0.875rem;
-            color: var(--text-muted);
-            margin-bottom: 0.5rem;
-        }
-        
-        .regime-card .stats {
-            font-size: 0.875rem;
-            color: var(--text-color);
-        }
-        
-        .regime-card .stats div {
-            margin-bottom: 0.25rem;
-        }
-    </style>
 
     <script>
         // Dark theme for Plotly charts
@@ -469,6 +457,118 @@
             displaylogo: false,
             modeBarButtonsToRemove: ['lasso2d', 'select2d']
         });
+
+        // Create training metrics charts
+        const createMetricsChart = (elementId, title, xData, yData1, yData2, name1, name2) => {
+            const data = [
+                {
+                    x: xData,
+                    y: yData1,
+                    name: name1,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: {color: '#3b82f6'}
+                },
+                {
+                    x: xData,
+                    y: yData2,
+                    name: name2,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: {color: '#22c55e'}
+                }
+            ];
+
+            const layout = {
+                ...darkTheme,
+                title: {
+                    text: title,
+                    font: {size: 16}
+                },
+                showlegend: true,
+                legend: {
+                    x: 0,
+                    y: 1.1,
+                    orientation: 'h',
+                    bgcolor: 'transparent',
+                    font: {color: '#f3f4f6'}
+                },
+                margin: {
+                    t: 60,
+                    r: 30,
+                    l: 60,
+                    b: 50
+                },
+                hovermode: 'x unified',
+                height: 350
+            };
+
+            Plotly.newPlot(elementId, data, layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+        };
+
+        // Training metrics data
+        const trainingMetrics = {{ training_metrics|tojson|safe }};
+        const epochs = Array.from({length: trainingMetrics.train_loss.length}, (_, i) => i + 1);
+
+        // Create training metrics charts
+        createMetricsChart(
+            'loss-chart',
+            'Loss Curves',
+            epochs,
+            trainingMetrics.train_loss,
+            trainingMetrics.test_loss,
+            'Training Loss',
+            'Validation Loss'
+        );
+
+        createMetricsChart(
+            'f1-chart',
+            'F1 Score',
+            epochs,
+            trainingMetrics.train_f1,
+            trainingMetrics.test_f1,
+            'Training F1',
+            'Validation F1'
+        );
+
+        createMetricsChart(
+            'accuracy-chart',
+            'Accuracy',
+            epochs,
+            trainingMetrics.train_acc,
+            trainingMetrics.test_acc,
+            'Training Accuracy',
+            'Validation Accuracy'
+        );
+
+        // Learning rate chart
+        Plotly.newPlot('lr-chart',
+            [{
+                x: epochs,
+                y: trainingMetrics.learning_rates,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Learning Rate',
+                line: {color: '#f59e0b'}
+            }],
+            {
+                ...darkTheme,
+                title: {
+                    text: 'Learning Rate',
+                    font: {size: 16}
+                },
+                showlegend: false,
+                margin: {t: 40, r: 10, l: 60, b: 40},
+                hovermode: 'x unified'
+            },
+            {
+                responsive: true,
+                displayModeBar: false
+            }
+        );
     </script>
 </body>
 </html> 
