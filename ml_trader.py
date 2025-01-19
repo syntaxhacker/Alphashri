@@ -24,6 +24,8 @@ import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 import argparse
 from sklearn.metrics import f1_score, accuracy_score
+import torch.nn.functional as F
+from torchviz import make_dot
 
 # Initialize Rich console
 console = Console()
@@ -106,6 +108,9 @@ class MLTrader:
     def prepare_features(self, df):
         """Prepare feature set for ML model"""
         try:
+            # Create a copy at the start
+            df = df.copy()
+            
             # Calculate indicators one by one
             # RSI
             df['rsi'] = df.ta.rsi(length=14)
@@ -154,7 +159,7 @@ class MLTrader:
             # Drop NaN values
             df = df.dropna()
             
-            return df
+            return df.copy()  # Return a copy to ensure we don't have a view
             
         except Exception as e:
             console.print(f"[red]Error preparing features: {str(e)}[/red]")
@@ -191,70 +196,89 @@ class MLTrader:
             logging.error(f"Error creating features: {str(e)}")
             raise
     
-    def create_model(self, input_size):
-        """Create and return the PyTorch model with residual connections"""
+    def create_model(self):
+        """Create an improved neural network model"""
         try:
-            class ResidualBlock(nn.Module):
-                def __init__(self, in_features):
+            input_dim = len(self.feature_columns)
+            
+            class ImprovedModel(nn.Module):
+                def __init__(self, input_dim):
                     super().__init__()
-                    self.block = nn.Sequential(
-                        nn.Linear(in_features, in_features),
-                        nn.BatchNorm1d(in_features),
-                        nn.ReLU(),
-                        nn.Dropout(0.2),
-                        nn.Linear(in_features, in_features),
-                        nn.BatchNorm1d(in_features)
-                    )
-                    self.relu = nn.ReLU()
+                    # First layer with batch normalization
+                    self.layer1 = nn.Linear(input_dim, 128)
+                    self.bn1 = nn.BatchNorm1d(128)
+                    self.dropout1 = nn.Dropout(0.3)
+                    
+                    # Second layer with batch normalization
+                    self.layer2 = nn.Linear(128, 64)
+                    self.bn2 = nn.BatchNorm1d(64)
+                    self.dropout2 = nn.Dropout(0.3)
+                    
+                    # Third layer with batch normalization
+                    self.layer3 = nn.Linear(64, 32)
+                    self.bn3 = nn.BatchNorm1d(32)
+                    self.dropout3 = nn.Dropout(0.3)
+                    
+                    # Output layer
+                    self.output = nn.Linear(32, 1)
                 
                 def forward(self, x):
-                    residual = x
-                    out = self.block(x)
-                    out += residual
-                    return self.relu(out)
+                    # Layer 1
+                    x = self.layer1(x)
+                    x = self.bn1(x)
+                    x = F.leaky_relu(x, negative_slope=0.1)
+                    x = self.dropout1(x)
+                    
+                    # Layer 2
+                    x = self.layer2(x)
+                    x = self.bn2(x)
+                    x = F.leaky_relu(x, negative_slope=0.1)
+                    x = self.dropout2(x)
+                    
+                    # Layer 3
+                    x = self.layer3(x)
+                    x = self.bn3(x)
+                    x = F.leaky_relu(x, negative_slope=0.1)
+                    x = self.dropout3(x)
+                    
+                    # Output
+                    return self.output(x)
             
-            class TradingNetwork(nn.Module):
-                def __init__(self, input_size):
-                    super().__init__()
-                    
-                    # Initial feature extraction
-                    self.feature_extraction = nn.Sequential(
-                        nn.Linear(input_size, 128),
-                        nn.BatchNorm1d(128),
-                        nn.ReLU(),
-                        nn.Dropout(0.2)
-                    )
-                    
-                    # Residual blocks
-                    self.residual_blocks = nn.ModuleList([
-                        ResidualBlock(128) for _ in range(3)
-                    ])
-                    
-                    # Final layers
-                    self.final_layers = nn.Sequential(
-                        nn.Linear(128, 64),
-                        nn.BatchNorm1d(64),
-                        nn.ReLU(),
-                        nn.Dropout(0.2),
-                        nn.Linear(64, 32),
-                        nn.BatchNorm1d(32),
-                        nn.ReLU(),
-                        nn.Linear(32, 1)
-                    )
-                
-                def forward(self, x):
-                    x = self.feature_extraction(x)
-                    for block in self.residual_blocks:
-                        x = block(x)
-                    return self.final_layers(x)
+            # Initialize model
+            model = ImprovedModel(input_dim)
             
-            model = TradingNetwork(input_size)
-            return model.to(DEVICE)
+            # Move model to GPU if available
+            if torch.backends.mps.is_available():
+                model = model.to('mps')
+            
+            return model
             
         except Exception as e:
             console.print(f"[red]Error creating model: {str(e)}[/red]")
             logging.error(f"Error creating model: {str(e)}")
             raise
+
+    def visualize_model(self):
+        """Visualize the neural network architecture"""
+        try:
+            # Create a sample input
+            x = torch.randn(1, len(self.feature_columns)).to(DEVICE)
+            
+            # Get the output
+            y = self.model(x)
+            
+            # Create the dot graph
+            dot = make_dot(y, params=dict(self.model.named_parameters()))
+            
+            # Save the graph
+            dot.render("model_architecture", format="png", cleanup=True)
+            console.print("[green]Model architecture saved as 'model_architecture.png'[/green]")
+            
+        except Exception as e:
+            console.print(f"[red]Error visualizing model: {str(e)}[/red]")
+            console.print("[yellow]To visualize the model, please install graphviz and torchviz:[/yellow]")
+            console.print("pip install torchviz")
+            console.print("brew install graphviz  # For MacOS")
 
     def train_model(self, df, epochs=150, batch_size=32, learning_rate=0.001):
         """Train the neural network model with improved training process"""
@@ -274,39 +298,38 @@ class MLTrader:
             }
             
             console.print("[cyan]Preparing features...[/cyan]")
-            df = self.prepare_features(df)
+            # Get a fresh copy with features
+            df = self.prepare_features(df).copy()  # Ensure we have a copy
             
-            # Create more sophisticated target based on multiple timeframe returns
-            df.loc[:, 'returns_1h'] = df['close'].pct_change(4).shift(-4)
-            df.loc[:, 'returns_4h'] = df['close'].pct_change(16).shift(-16)
-            df.loc[:, 'returns_24h'] = df['close'].pct_change(96).shift(-96)
+            # Calculate returns for different timeframes
+            df = df.assign(
+                returns_1h=df['close'].pct_change(4).shift(-4),  # 4 periods of 15min = 1h
+                returns_4h=df['close'].pct_change(16).shift(-16),  # 16 periods = 4h
+                returns_24h=df['close'].pct_change(96).shift(-96),  # 96 periods = 24h
+                target=0  # Initialize target column
+            )
             
-            # Create target with stronger signals
-            df.loc[:, 'target'] = 0
-            
-            # Strong buy signals (1) with more balanced thresholds
+            # Strong buy signals (1) with more selective thresholds
             buy_signal = (
-                (df['returns_1h'] > 0.0008) &   # 0.08% threshold for 1h
-                ((df['returns_4h'] > 0.0015) |   # 0.15% threshold for 4h
-                 (df['returns_24h'] > 0.003))    # 0.3% threshold for 24h
+                (df['returns_1h'] > 0.001) &    # Increased from 0.0008 to 0.1%
+                ((df['returns_4h'] > 0.002) |    # Increased from 0.0015 to 0.2%
+                 (df['returns_24h'] > 0.004))    # Increased from 0.003 to 0.4%
             )
             
-            # Strong sell signals (0)
+            # Strong sell signals (0) with more selective thresholds
             sell_signal = (
-                (df['returns_1h'] < -0.0008) &
-                ((df['returns_4h'] < -0.0015) |
-                 (df['returns_24h'] < -0.003))
+                (df['returns_1h'] < -0.001) &
+                ((df['returns_4h'] < -0.002) |
+                 (df['returns_24h'] < -0.004))
             )
             
-            # Create a copy for signal filtering
-            signal_df = df.copy()
-            signal_df.loc[buy_signal, 'target'] = 1
-            signal_df.loc[sell_signal, 'target'] = 0
+            # Apply signals
+            df = df.copy()  # Get a fresh copy
+            df.loc[buy_signal, 'target'] = 1
+            df.loc[sell_signal, 'target'] = 0
             
-            # Keep only strong signals
-            df = signal_df[buy_signal | sell_signal].copy()
-            
-            # Drop NaN values
+            # Keep only strong signals and drop NaN values
+            df = df[buy_signal | sell_signal].copy()
             df = df.dropna()
             
             console.print(f"[cyan]Training samples: {len(df)}[/cyan]")
@@ -342,31 +365,35 @@ class MLTrader:
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
             
             # Initialize model
-            self.model = self.create_model(X.shape[1])
+            self.model = self.create_model()
             
-            # Use AdamW with reduced weight decay
-            optimizer = optim.AdamW(self.model.parameters(), lr=learning_rate, weight_decay=0.001)
+            # Visualize the model architecture
+            self.visualize_model()
+            
+            # Use AdamW optimizer with weight decay
+            optimizer = torch.optim.AdamW(self.model.parameters(), lr=learning_rate, weight_decay=0.01)
             
             # Use OneCycleLR scheduler for better convergence
-            steps_per_epoch = len(train_loader)
-            scheduler = optim.lr_scheduler.OneCycleLR(
+            scheduler = torch.optim.lr_scheduler.OneCycleLR(
                 optimizer,
                 max_lr=learning_rate,
                 epochs=epochs,
-                steps_per_epoch=steps_per_epoch,
-                pct_start=0.3,  # Warm-up for 30% of training
-                div_factor=10,  # Initial lr = max_lr/10
-                final_div_factor=100  # Min lr = initial_lr/100
+                steps_per_epoch=len(train_loader),
+                pct_start=0.3,
+                anneal_strategy='cos'
             )
             
-            # Use BCEWithLogitsLoss for better numerical stability
-            criterion = nn.BCEWithLogitsLoss()
+            # Use BCEWithLogitsLoss with class weights
+            pos_weight = torch.tensor([1.0 if y_train.mean() > 0.5 else 1.5])
+            if torch.backends.mps.is_available():
+                pos_weight = pos_weight.to('mps')
+            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
             
-            # Early stopping setup
-            best_val_f1 = 0
-            patience = 20
+            # Early stopping parameters
+            patience = 25  # Increased from 20
+            min_delta = 0.001  # Minimum improvement required
             patience_counter = 0
-            min_delta = 0.001
+            best_val_f1 = 0
             best_model_state = None
             
             console.print("[cyan]Training neural network model...[/cyan]")
@@ -382,10 +409,11 @@ class MLTrader:
                     optimizer.zero_grad()
                     outputs = self.model(batch_X).squeeze()
                     loss = criterion(outputs, batch_y)
+                    
                     loss.backward()
                     
-                    # Gradient clipping
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    # Gradient clipping with lower threshold
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
                     
                     optimizer.step()
                     scheduler.step()
@@ -427,7 +455,7 @@ class MLTrader:
                     console.print(f"Train Accuracy: {train_acc:.2f}%, Test Accuracy: {test_acc:.2f}%")
                     console.print(f"Learning Rate: {scheduler.get_last_lr()[0]:.6f}")
                 
-                # Early stopping check
+                # Early stopping check with min_delta threshold
                 if test_f1 > best_val_f1 + min_delta:
                     best_val_f1 = test_f1
                     patience_counter = 0
@@ -466,7 +494,7 @@ class MLTrader:
         except Exception as e:
             console.print(f"[red]Error training model: {str(e)}[/red]")
             logging.error(f"Error training model: {str(e)}")
-            raise
+            return False
     
     def detect_market_regime(self, df):
         """Detect market regime based on volatility and trend"""
@@ -963,11 +991,7 @@ class MLTrader:
                 'take_profit': [0.01, 0.015, 0.02, 0.025, 0.03]    # More realistic take profits
             }
             
-            total_combinations = (
-                len(param_grid['min_confidence']) *
-                len(param_grid['stop_loss']) *
-                len(param_grid['take_profit'])
-            )
+            total_combinations = len(param_grid['min_confidence']) * len(param_grid['stop_loss']) * len(param_grid['take_profit'])
             
             # Create results table
             results_table = Table(
