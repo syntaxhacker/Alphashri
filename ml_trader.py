@@ -26,6 +26,7 @@ import argparse
 from sklearn.metrics import f1_score, accuracy_score
 import torch.nn.functional as F
 from torchviz import make_dot
+import wandb
 
 # Initialize Rich console
 console = Console()
@@ -261,14 +262,17 @@ class MLTrader:
     def visualize_model(self):
         """Visualize the neural network architecture"""
         try:
-            # Create a sample input
-            x = torch.randn(1, len(self.feature_columns)).to(DEVICE)
+            # Create a sample batch input (using 2 samples to satisfy BatchNorm)
+            x = torch.randn(32, len(self.feature_columns)).to(DEVICE)
+            
+            # Set model to eval mode to avoid BatchNorm issues
+            self.model.eval()
             
             # Get the output
             y = self.model(x)
             
             # Create the dot graph
-            dot = make_dot(y, params=dict(self.model.named_parameters()))
+            dot = make_dot(y.mean(), params=dict(self.model.named_parameters()))
             
             # Save the graph
             dot.render("model_architecture", format="png", cleanup=True)
@@ -283,6 +287,19 @@ class MLTrader:
     def train_model(self, df, epochs=150, batch_size=32, learning_rate=0.001):
         """Train the neural network model with improved training process"""
         try:
+            # Initialize wandb
+            wandb.init(
+                project="crypto-trader",
+                config={
+                    "learning_rate": learning_rate,
+                    "epochs": epochs,
+                    "batch_size": batch_size,
+                    "model_architecture": "ImprovedModel",
+                    "optimizer": "AdamW",
+                    "scheduler": "OneCycleLR"
+                }
+            )
+            
             # Store the data
             self.data = df.copy()
             
@@ -422,30 +439,47 @@ class MLTrader:
                     train_preds.extend((torch.sigmoid(outputs) >= 0.5).float().cpu().numpy())
                     train_targets.extend(batch_y.cpu().numpy())
                 
+                # Calculate metrics
+                avg_loss = total_loss / len(train_loader)
+                train_preds = np.array(train_preds)
+                train_targets = np.array(train_targets)
+                train_f1 = f1_score(train_targets, train_preds)
+                train_acc = accuracy_score(train_targets, train_preds) * 100
+                
                 # Validation
                 self.model.eval()
+                test_preds = []
+                test_targets = []
+                test_loss = 0
+                
                 with torch.no_grad():
-                    test_outputs = self.model(X_test).squeeze()
-                    test_loss = criterion(test_outputs, y_test)
-                    test_preds = (torch.sigmoid(test_outputs) >= 0.5).float().cpu().numpy()
+                    outputs = self.model(X_test).squeeze()
+                    test_loss = criterion(outputs, y_test).item()
+                    test_preds = (torch.sigmoid(outputs) >= 0.5).float().cpu().numpy()
                     test_targets = y_test.cpu().numpy()
                 
-                # Calculate metrics
-                train_f1 = f1_score(train_targets, train_preds)
                 test_f1 = f1_score(test_targets, test_preds)
-                train_acc = accuracy_score(train_targets, train_preds) * 100
                 test_acc = accuracy_score(test_targets, test_preds) * 100
                 
-                avg_loss = total_loss / len(train_loader)
-                
-                # Store metrics for plotting
+                # Store metrics
                 self.training_metrics['train_loss'].append(avg_loss)
-                self.training_metrics['test_loss'].append(float(test_loss))
+                self.training_metrics['test_loss'].append(test_loss)
                 self.training_metrics['train_f1'].append(train_f1)
                 self.training_metrics['test_f1'].append(test_f1)
                 self.training_metrics['train_acc'].append(train_acc)
                 self.training_metrics['test_acc'].append(test_acc)
                 self.training_metrics['learning_rates'].append(float(scheduler.get_last_lr()[0]))
+                
+                # Log metrics to wandb
+                wandb.log({
+                    "train_loss": avg_loss,
+                    "test_loss": test_loss,
+                    "train_f1": train_f1,
+                    "test_f1": test_f1,
+                    "train_accuracy": train_acc,
+                    "test_accuracy": test_acc,
+                    "learning_rate": scheduler.get_last_lr()[0]
+                })
                 
                 # Print progress every 10 epochs
                 if (epoch + 1) % 10 == 0:
@@ -455,7 +489,7 @@ class MLTrader:
                     console.print(f"Train Accuracy: {train_acc:.2f}%, Test Accuracy: {test_acc:.2f}%")
                     console.print(f"Learning Rate: {scheduler.get_last_lr()[0]:.6f}")
                 
-                # Early stopping check with min_delta threshold
+                # Early stopping check
                 if test_f1 > best_val_f1 + min_delta:
                     best_val_f1 = test_f1
                     patience_counter = 0
@@ -470,6 +504,7 @@ class MLTrader:
                 # Stop if performance is too poor
                 if epoch >= 30 and test_f1 < 0.52:
                     console.print("[red]Model performance is not improving. Consider adjusting hyperparameters or feature engineering.[/red]")
+                    wandb.finish()
                     return False
             
             # Load best model state
@@ -489,11 +524,14 @@ class MLTrader:
             }, model_path)
             console.print(f"[green]Model saved to: {model_path}[/green]")
             
+            # Finish wandb run
+            wandb.finish()
             return True
             
         except Exception as e:
             console.print(f"[red]Error training model: {str(e)}[/red]")
             logging.error(f"Error training model: {str(e)}")
+            wandb.finish()
             return False
     
     def detect_market_regime(self, df):
