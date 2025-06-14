@@ -19,7 +19,7 @@ def main():
     
     # Configuration
     symbols = ["ETHUSDT"]
-    days_back = 14  # Smaller dataset for faster testing and debugging
+    days_back = 140  # Smaller dataset for faster testing and debugging
     
     console.print(f"[cyan]Configuration:[/cyan]")
     console.print(f"Symbols: {', '.join(symbols)}")
