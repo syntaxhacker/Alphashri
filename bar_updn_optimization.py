@@ -229,12 +229,106 @@ def display_optimization_results(optimization_results: Dict):
     
     console.print(table)
 
+def calculate_technical_indicators(df):
+    """Calculate technical indicators for the BarUpDn strategy"""
+    try:
+        import talib
+    except ImportError:
+        console.print("[yellow]⚠️ TA-Lib not installed. Installing basic indicators...[/yellow]")
+        # Fallback to basic calculations
+        return calculate_basic_indicators(df)
+    
+    indicators = {}
+    
+    # MACD (Moving Average Convergence Divergence)
+    macd, macd_signal, macd_hist = talib.MACD(df['close'].values)
+    indicators['macd'] = {
+        'macd': macd.tolist(),
+        'signal': macd_signal.tolist(),
+        'histogram': macd_hist.tolist()
+    }
+    
+    # RSI (Relative Strength Index)
+    rsi = talib.RSI(df['close'].values, timeperiod=14)
+    indicators['rsi'] = rsi.tolist()
+    
+    # Bollinger Bands
+    bb_upper, bb_middle, bb_lower = talib.BBANDS(df['close'].values, timeperiod=20)
+    indicators['bollinger'] = {
+        'upper': bb_upper.tolist(),
+        'middle': bb_middle.tolist(),
+        'lower': bb_lower.tolist()
+    }
+    
+    # EMAs (Exponential Moving Averages) - key for BarUpDn strategy
+    ema_9 = talib.EMA(df['close'].values, timeperiod=9)
+    ema_21 = talib.EMA(df['close'].values, timeperiod=21)
+    ema_50 = talib.EMA(df['close'].values, timeperiod=50)
+    indicators['ema'] = {
+        'ema9': ema_9.tolist(),
+        'ema21': ema_21.tolist(),
+        'ema50': ema_50.tolist()
+    }
+    
+    # Volume indicators
+    if 'volume' in df.columns:
+        volume_sma = talib.SMA(df['volume'].values, timeperiod=20)
+        indicators['volume_sma'] = volume_sma.tolist()
+        indicators['volume'] = df['volume'].tolist()
+    
+    # Stochastic Oscillator
+    stoch_k, stoch_d = talib.STOCH(df['high'].values, df['low'].values, df['close'].values)
+    indicators['stochastic'] = {
+        'k': stoch_k.tolist(),
+        'd': stoch_d.tolist()
+    }
+    
+    return indicators
+
+def calculate_basic_indicators(df):
+    """Basic indicator calculations without TA-Lib"""
+    indicators = {}
+    
+    # Simple Moving Averages
+    df['sma_20'] = df['close'].rolling(window=20).mean()
+    df['sma_50'] = df['close'].rolling(window=50).mean()
+    
+    # Basic RSI calculation
+    delta = df['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    
+    # Basic MACD
+    ema_12 = df['close'].ewm(span=12).mean()
+    ema_26 = df['close'].ewm(span=26).mean()
+    macd = ema_12 - ema_26
+    macd_signal = macd.ewm(span=9).mean()
+    macd_hist = macd - macd_signal
+    
+    indicators = {
+        'macd': {
+            'macd': macd.fillna(0).tolist(),
+            'signal': macd_signal.fillna(0).tolist(),
+            'histogram': macd_hist.fillna(0).tolist()
+        },
+        'rsi': rsi.fillna(50).tolist(),
+        'ema': {
+            'ema9': df['close'].ewm(span=9).mean().fillna(df['close']).tolist(),
+            'ema21': df['close'].ewm(span=21).mean().fillna(df['close']).tolist(),
+            'ema50': df['close'].ewm(span=50).mean().fillna(df['close']).tolist()
+        }
+    }
+    
+    return indicators
+
 def generate_comprehensive_html_chart(optimization_results: Dict, output_file: str = "bar_updn_analysis.html"):
     """
     Generate a comprehensive HTML chart with Apache ECharts and ag-Grid for maximum performance
     """
     
-    console.print("[cyan]Generating ultra-high-performance HTML visualization with Apache ECharts...[/cyan]")
+    console.print("[cyan]Generating ultra-high-performance HTML visualization with Apache ECharts + Technical Indicators...[/cyan]")
     
     # Get best results for visualization
     best_params = optimization_results['best_parameters']
@@ -246,6 +340,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         'equity_curves': {},
         'candlestick_data': {},
         'trades': {},
+        'indicators': {},
         'parameters': best_params['parameters'],
         'summary': best_params['metrics']
     }
@@ -315,10 +410,20 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                     'open': float(row['open']),
                     'high': float(row['high']),
                     'low': float(row['low']),
-                    'close': float(row['close'])
+                    'close': float(row['close']),
+                    'volume': float(row.get('volume', 0))
                 })
             
             chart_data['candlestick_data'][symbol] = candlestick_data
+            
+            # Calculate technical indicators
+            try:
+                indicators = calculate_technical_indicators(ohlcv)
+                chart_data['indicators'][symbol] = indicators
+                console.print(f"[green]✓ Technical indicators calculated for {symbol}[/green]")
+            except Exception as e:
+                console.print(f"[yellow]⚠️ Could not calculate indicators for {symbol}: {str(e)}[/yellow]")
+                chart_data['indicators'][symbol] = {}
         
         # Trades data (individual)
         trades_data = []
@@ -361,7 +466,15 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #333;
+            transition: all 0.3s ease;
         }}
+        
+        /* Dark mode styles */
+        body.dark-mode {{
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+        }}
+        
         .container {{
             max-width: 1600px;
             margin: 0 auto;
@@ -369,7 +482,14 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             border-radius: 15px;
             padding: 30px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
         }}
+        
+        .dark-mode .container {{
+            background: #1e1e2e;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }}
+        
         .header {{
             text-align: center;
             margin-bottom: 30px;
@@ -377,20 +497,56 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border-radius: 10px;
+            position: relative;
         }}
+        
+        .dark-mode .header {{
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+        }}
+        
+        .dark-mode-toggle {{
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }}
+        
+        .dark-mode-toggle:hover {{
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }}
+        
         .chart-container {{
             margin: 30px 0;
             background: #fafafa;
             padding: 20px;
             border-radius: 10px;
             position: relative;
+            transition: all 0.3s ease;
         }}
+        
+        .dark-mode .chart-container {{
+            background: #2d3748;
+        }}
+        
         .chart-header {{
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
         }}
+        
+        .dark-mode .chart-header h2 {{
+            color: #e0e0e0;
+        }}
+        
         .fullscreen-btn {{
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -405,10 +561,132 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             align-items: center;
             gap: 5px;
         }}
+        
+        .dark-mode .fullscreen-btn {{
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+        }}
+        
         .fullscreen-btn:hover {{
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }}
+        
+        .symbol-tabs {{
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #eee;
+            transition: all 0.3s ease;
+        }}
+        
+        .dark-mode .symbol-tabs {{
+            border-bottom-color: #4a5568;
+        }}
+        
+        .tab {{
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }}
+        
+        .dark-mode .tab {{
+            color: #a0aec0;
+        }}
+        
+        .tab.active {{
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: bold;
+        }}
+        
+        .dark-mode .tab.active {{
+            color: #81c784;
+            border-bottom-color: #81c784;
+        }}
+        
+        .tab:hover {{
+            color: #667eea;
+            background: #f0f0f0;
+        }}
+        
+        .dark-mode .tab:hover {{
+            color: #81c784;
+            background: #4a5568;
+        }}
+        
+        .ag-theme-alpine {{
+            height: 500px;
+            width: 100%;
+            transition: all 0.3s ease;
+        }}
+        
+        /* Dark mode ag-Grid */
+        .dark-mode .ag-theme-alpine {{
+            --ag-background-color: #2d3748;
+            --ag-header-background-color: #4a5568;
+            --ag-odd-row-background-color: #374151;
+            --ag-row-hover-color: #4a5568;
+            --ag-selected-row-background-color: #667eea;
+            --ag-foreground-color: #e0e0e0;
+            --ag-header-foreground-color: #f7fafc;
+            --ag-border-color: #4a5568;
+        }}
+        
+        /* Indicator controls */
+        .indicator-controls {{
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }}
+        
+        .indicator-btn {{
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            color: #495057;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }}
+        
+        .indicator-btn.active {{
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }}
+        
+        .dark-mode .indicator-btn {{
+            background: #4a5568;
+            border-color: #2d3748;
+            color: #e0e0e0;
+        }}
+        
+        .dark-mode .indicator-btn.active {{
+            background: #81c784;
+            border-color: #81c784;
+            color: #1a202c;
+        }}
+        
+        .trade-info {{
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            display: none;
+        }}
+        
+        .dark-mode .trade-info {{
+            background: #4a5568;
+            color: #e0e0e0;
+        }}
+        
         .fullscreen-overlay {{
             display: none;
             position: fixed;
@@ -450,92 +728,15 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             flex: 1;
             min-height: 0;
         }}
-        .symbol-tabs {{
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #eee;
-        }}
-        .tab {{
-            padding: 10px 20px;
-            cursor: pointer;
-            border: none;
-            background: none;
-            font-size: 16px;
-            color: #666;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s;
-        }}
-        .tab.active {{
-            color: #667eea;
-            border-bottom-color: #667eea;
-            font-weight: bold;
-        }}
-        .tab:hover {{
-            color: #667eea;
-            background: #f0f0f0;
-        }}
-        .ag-theme-alpine {{
-            height: 500px;
-            width: 100%;
-        }}
-        
-        /* Full-width table expansion fixes */
-        .ag-theme-alpine .ag-header-container,
-        .ag-theme-alpine .ag-body-container {{
-            width: 100% !important;
-        }}
-        
-        .ag-theme-alpine .ag-header-viewport,
-        .ag-theme-alpine .ag-body-viewport {{
-            width: 100% !important;
-        }}
-        
-        .ag-theme-alpine .ag-grid-container {{
-            width: 100% !important;
-        }}
-        
-        /* Auto-resize columns to fit content */
-        .ag-theme-alpine .ag-header-cell {{
-            white-space: nowrap;
-        }}
-        
-        .ag-theme-alpine .ag-cell {{
-            white-space: nowrap;
-            overflow: visible;
-        }}
-        
-        .positive {{ color: #28a745; font-weight: bold; }}
-        .negative {{ color: #dc3545; font-weight: bold; }}
-        .long {{ color: #28a745; }}
-        .short {{ color: #dc3545; }}
-
-        .trade-details {{
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }}
-        
-        /* ECharts container styling */
-        .chart-wrapper {{
-            width: 100%;
-            height: 700px;
-            background: #fafafa;
-            border-radius: 10px;
-            overflow: hidden;
-        }}
-        
-        .candlestick-chart {{
-            width: 100%;
-            height: 600px;
-        }}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
+            <button class="dark-mode-toggle" onclick="toggleDarkMode()">🌙 Dark Mode</button>
             <h1>⚡ BarUpDn Strategy - Apache ECharts Analysis</h1>
-            <p>Apache ECharts™ | Professional Trading Visualization | Advanced Markers</p>
-            <p><small>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Powered by ECharts 5.4.3</small></p>
+            <p>Apache ECharts™ | Professional Trading Visualization | Advanced Technical Indicators</p>
+            <p><small>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Powered by ECharts 5.4.3 + TA-Lib</small></p>
         </div>
 
         <!-- Compact Stats Table -->
@@ -562,13 +763,28 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
 
         <div class="chart-container">
             <div class="chart-header">
-                <h2>📊 Trading Analysis & Signals - Apache ECharts</h2>
+                <h2>📊 Trading Analysis & Technical Indicators - Apache ECharts</h2>
                 <button class="fullscreen-btn" onclick="openFullscreen('symbol-content', 'Trading Analysis')">
                     <span>⛶</span> Fullscreen
                 </button>
             </div>
+            
             <div class="symbol-tabs">
                 {' '.join([f'<button class="tab" onclick="showSymbol(\'{symbol}\', this)">{symbol}</button>' for symbol in chart_data['symbols']])}
+            </div>
+            
+            <div class="indicator-controls">
+                <button class="indicator-btn active" onclick="toggleIndicator('candlestick', this)">📊 Candlesticks</button>
+                <button class="indicator-btn" onclick="toggleIndicator('ema', this)">📈 EMA (9,21,50)</button>
+                <button class="indicator-btn" onclick="toggleIndicator('bollinger', this)">📉 Bollinger Bands</button>
+                <button class="indicator-btn" onclick="toggleIndicator('macd', this)">🔄 MACD</button>
+                <button class="indicator-btn" onclick="toggleIndicator('rsi', this)">⚡ RSI</button>
+                <button class="indicator-btn" onclick="toggleIndicator('stochastic', this)">🎯 Stochastic</button>
+                <button class="indicator-btn" onclick="toggleIndicator('volume', this)">📊 Volume</button>
+            </div>
+            
+            <div class="trade-info" id="trade-info">
+                <strong>Selected Trade:</strong> <span id="trade-details">Click on a trade row to see details and auto-fit chart</span>
             </div>
             
             <div id="symbol-content">
@@ -591,6 +807,8 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         let currentSymbol = '';
         let echartsInstances = {{}};
         let selectedTradeIndex = -1;
+        let activeIndicators = {{'candlestick': true}};
+        let isDarkMode = false;
         
         // ag-Grid column definitions with auto-sizing and full-width expansion
         const tradeColumns = [
@@ -631,39 +849,90 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         
         let tradesGrid = null;
         
-        // Function to highlight selected trade on chart
+        // Dark mode toggle
+        function toggleDarkMode() {{
+            isDarkMode = !isDarkMode;
+            document.body.classList.toggle('dark-mode', isDarkMode);
+            
+            const toggleBtn = document.querySelector('.dark-mode-toggle');
+            toggleBtn.textContent = isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
+            
+            // Update all charts with new theme
+            Object.values(echartsInstances).forEach(chart => {{
+                if (chart && !chart.isDisposed()) {{
+                    chart.dispose();
+                }}
+            }});
+            echartsInstances = {{}};
+            
+            // Re-render current symbol
+            if (currentSymbol) {{
+                setTimeout(() => showSymbol(currentSymbol), 100);
+            }}
+        }}
+        
+        // Indicator toggle
+        function toggleIndicator(indicator, button) {{
+            activeIndicators[indicator] = !activeIndicators[indicator];
+            button.classList.toggle('active', activeIndicators[indicator]);
+            
+            // Update chart
+            if (currentSymbol && echartsInstances[currentSymbol]) {{
+                updateChartWithHighlight(echartsInstances[currentSymbol], currentSymbol, selectedTradeIndex);
+            }}
+        }}
+        
+        // Function to highlight selected trade on chart with auto-fit
         function highlightTradeOnChart(trade, tradeIndex) {{
             if (!echartsInstances[currentSymbol]) return;
             
             const chart = echartsInstances[currentSymbol];
             selectedTradeIndex = tradeIndex;
             
-            // Update chart with highlighted trade
-            updateChartWithHighlight(chart, currentSymbol, tradeIndex);
+            // Show trade info
+            const tradeInfo = document.getElementById('trade-info');
+            const tradeDetails = document.getElementById('trade-details');
+            const duration = new Date(trade.exit_timestamp * 1000) - new Date(trade.entry_timestamp * 1000);
+            const durationStr = Math.floor(duration / 60000) + 'm ' + Math.floor((duration % 60000) / 1000) + 's';
+            
+            tradeDetails.innerHTML = `
+                Trade #${{trade.trade_number}} | ${{trade.side}} | 
+                Entry: $${{trade.entry_price.toFixed(4)}} | Exit: $${{trade.exit_price.toFixed(4)}} | 
+                P&L: <span style="color: ${{trade.pnl >= 0 ? '#28a745' : '#dc3545'}}">$${{trade.pnl.toFixed(2)}}</span> | 
+                Duration: ${{durationStr}}
+            `;
+            tradeInfo.style.display = 'block';
+            
+            // Update chart with highlighted trade and auto-fit
+            updateChartWithHighlight(chart, currentSymbol, tradeIndex, true);
             
             console.log(`✓ Highlighted trade ${{tradeIndex + 1}} on chart: ${{trade.side}} at ${{new Date(trade.entry_timestamp * 1000).toLocaleString()}}`);
         }}
         
-        // Function to update chart with trade highlight
-        function updateChartWithHighlight(chart, symbol, highlightIndex) {{
+        // Function to update chart with trade highlight and indicators
+        function updateChartWithHighlight(chart, symbol, highlightIndex, autoFit = false) {{
             const candlestickData = chartData.candlestick_data[symbol] || [];
             const tradesData = chartData.trades[symbol] || [];
+            const indicators = chartData.indicators[symbol] || {{}};
             
             if (candlestickData.length === 0) return;
             
             // Prepare candlestick data for ECharts
             const dates = [];
             const ohlcData = [];
+            const volumeData = [];
             
             candlestickData.forEach(bar => {{
                 const date = new Date(bar.time * 1000);
                 dates.push(date.toISOString().split('T')[0] + ' ' + date.toTimeString().split(' ')[0]);
                 ohlcData.push([bar.open, bar.close, bar.low, bar.high]);
+                volumeData.push(bar.volume || 0);
             }});
             
             // Prepare trade markers
             const entryMarkers = [];
             const exitMarkers = [];
+            let autoFitRange = null;
             
             tradesData.forEach((trade, index) => {{
                 const entryDate = new Date(trade.entry_timestamp * 1000);
@@ -674,6 +943,17 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                 // Find the closest date index
                 const entryIndex = dates.findIndex(d => d >= entryDateStr);
                 const exitIndex = dates.findIndex(d => d >= exitDateStr);
+                
+                // Calculate auto-fit range for highlighted trade
+                if (index === highlightIndex && autoFit && entryIndex >= 0 && exitIndex >= 0) {{
+                    const padding = Math.max(10, Math.floor((exitIndex - entryIndex) * 0.2));
+                    const startIndex = Math.max(0, entryIndex - padding);
+                    const endIndex = Math.min(dates.length - 1, exitIndex + padding);
+                    autoFitRange = {{
+                        start: (startIndex / dates.length) * 100,
+                        end: (endIndex / dates.length) * 100
+                    }};
+                }}
                 
                 if (entryIndex >= 0) {{
                     const isHighlighted = index === highlightIndex;
@@ -692,9 +972,9 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                             show: isHighlighted,
                             formatter: `${{trade.side}} Entry\\n$${{trade.entry_price.toFixed(4)}}`,
                             position: trade.side === 'LONG' ? 'bottom' : 'top',
-                            color: '#333',
-                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                            borderColor: '#ccc',
+                            color: isDarkMode ? '#e0e0e0' : '#333',
+                            backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                            borderColor: isDarkMode ? '#4a5568' : '#ccc',
                             borderWidth: 1,
                             borderRadius: 4,
                             padding: [4, 8]
@@ -719,9 +999,9 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                             show: isHighlighted,
                             formatter: `Exit\\n${{trade.pnl >= 0 ? '+' : ''}}$${{trade.pnl.toFixed(2)}}`,
                             position: trade.pnl >= 0 ? 'top' : 'bottom',
-                            color: '#333',
-                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                            borderColor: '#ccc',
+                            color: isDarkMode ? '#e0e0e0' : '#333',
+                            backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                            borderColor: isDarkMode ? '#4a5568' : '#ccc',
                             borderWidth: 1,
                             borderRadius: 4,
                             padding: [4, 8]
@@ -730,95 +1010,407 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                 }}
             }});
             
-            // Update chart options
+            // Build series array based on active indicators
+            const series = [];
+            const grids = [];
+            const yAxes = [];
+            const xAxes = [];
+            
+            let gridIndex = 0;
+            let yAxisIndex = 0;
+            
+            // Main price chart grid
+            grids.push({{
+                left: '8%',
+                right: '8%',
+                top: '8%',
+                height: activeIndicators.volume ? '45%' : (activeIndicators.macd || activeIndicators.rsi || activeIndicators.stochastic ? '60%' : '75%')
+            }});
+            
+            xAxes.push({{
+                type: 'category',
+                data: dates,
+                gridIndex: gridIndex,
+                boundaryGap: false,
+                axisLine: {{ onZero: false }},
+                splitLine: {{ show: false }},
+                axisLabel: {{
+                    show: false,
+                    color: isDarkMode ? '#e0e0e0' : '#333'
+                }}
+            }});
+            
+            yAxes.push({{
+                scale: true,
+                gridIndex: gridIndex,
+                splitArea: {{ show: true }},
+                axisLabel: {{
+                    formatter: '${{value}}',
+                    color: isDarkMode ? '#e0e0e0' : '#333'
+                }},
+                axisLine: {{ lineStyle: {{ color: isDarkMode ? '#4a5568' : '#ccc' }} }},
+                splitLine: {{ lineStyle: {{ color: isDarkMode ? '#4a5568' : '#eee' }} }}
+            }});
+            
+            // Candlestick series
+            if (activeIndicators.candlestick) {{
+                series.push({{
+                    name: 'Candlestick',
+                    type: 'candlestick',
+                    data: ohlcData,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    itemStyle: {{
+                        color: '#00da3c',
+                        color0: '#ec0000',
+                        borderColor: '#008F28',
+                        borderColor0: '#8A0000'
+                    }},
+                    markPoint: {{
+                        data: [...entryMarkers, ...exitMarkers],
+                        silent: false
+                    }}
+                }});
+            }}
+            
+            // EMA indicators
+            if (activeIndicators.ema && indicators.ema) {{
+                if (indicators.ema.ema9) {{
+                    series.push({{
+                        name: 'EMA 9',
+                        type: 'line',
+                        data: indicators.ema.ema9,
+                        xAxisIndex: gridIndex,
+                        yAxisIndex: yAxisIndex,
+                        smooth: true,
+                        lineStyle: {{ width: 1, color: '#ff6b6b' }},
+                        showSymbol: false
+                    }});
+                }}
+                if (indicators.ema.ema21) {{
+                    series.push({{
+                        name: 'EMA 21',
+                        type: 'line',
+                        data: indicators.ema.ema21,
+                        xAxisIndex: gridIndex,
+                        yAxisIndex: yAxisIndex,
+                        smooth: true,
+                        lineStyle: {{ width: 1, color: '#4ecdc4' }},
+                        showSymbol: false
+                    }});
+                }}
+                if (indicators.ema.ema50) {{
+                    series.push({{
+                        name: 'EMA 50',
+                        type: 'line',
+                        data: indicators.ema.ema50,
+                        xAxisIndex: gridIndex,
+                        yAxisIndex: yAxisIndex,
+                        smooth: true,
+                        lineStyle: {{ width: 2, color: '#45b7d1' }},
+                        showSymbol: false
+                    }});
+                }}
+            }}
+            
+            // Bollinger Bands
+            if (activeIndicators.bollinger && indicators.bollinger) {{
+                series.push({{
+                    name: 'BB Upper',
+                    type: 'line',
+                    data: indicators.bollinger.upper,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    lineStyle: {{ width: 1, color: '#ffa726', type: 'dashed' }},
+                    showSymbol: false
+                }});
+                series.push({{
+                    name: 'BB Middle',
+                    type: 'line',
+                    data: indicators.bollinger.middle,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    lineStyle: {{ width: 1, color: '#66bb6a' }},
+                    showSymbol: false
+                }});
+                series.push({{
+                    name: 'BB Lower',
+                    type: 'line',
+                    data: indicators.bollinger.lower,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    lineStyle: {{ width: 1, color: '#ffa726', type: 'dashed' }},
+                    showSymbol: false
+                }});
+            }}
+            
+            gridIndex++;
+            yAxisIndex++;
+            
+            // Volume chart
+            if (activeIndicators.volume && volumeData.some(v => v > 0)) {{
+                grids.push({{
+                    left: '8%',
+                    right: '8%',
+                    top: '55%',
+                    height: '15%'
+                }});
+                
+                xAxes.push({{
+                    type: 'category',
+                    data: dates,
+                    gridIndex: gridIndex,
+                    boundaryGap: false,
+                    axisLabel: {{ show: false }}
+                }});
+                
+                yAxes.push({{
+                    gridIndex: gridIndex,
+                    axisLabel: {{
+                        color: isDarkMode ? '#e0e0e0' : '#333',
+                        formatter: function(value) {{
+                            return value > 1000000 ? (value/1000000).toFixed(1) + 'M' : 
+                                   value > 1000 ? (value/1000).toFixed(1) + 'K' : value;
+                        }}
+                    }},
+                    axisLine: {{ lineStyle: {{ color: isDarkMode ? '#4a5568' : '#ccc' }} }}
+                }});
+                
+                series.push({{
+                    name: 'Volume',
+                    type: 'bar',
+                    data: volumeData,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    itemStyle: {{ color: '#42a5f5', opacity: 0.7 }}
+                }});
+                
+                gridIndex++;
+                yAxisIndex++;
+            }}
+            
+            // MACD chart
+            if (activeIndicators.macd && indicators.macd) {{
+                const macdTop = activeIndicators.volume ? '72%' : '62%';
+                grids.push({{
+                    left: '8%',
+                    right: '8%',
+                    top: macdTop,
+                    height: '15%'
+                }});
+                
+                xAxes.push({{
+                    type: 'category',
+                    data: dates,
+                    gridIndex: gridIndex,
+                    boundaryGap: false,
+                    axisLabel: {{ show: false }}
+                }});
+                
+                yAxes.push({{
+                    gridIndex: gridIndex,
+                    axisLabel: {{ color: isDarkMode ? '#e0e0e0' : '#333' }},
+                    axisLine: {{ lineStyle: {{ color: isDarkMode ? '#4a5568' : '#ccc' }} }}
+                }});
+                
+                series.push({{
+                    name: 'MACD',
+                    type: 'line',
+                    data: indicators.macd.macd,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    lineStyle: {{ color: '#2196F3' }},
+                    showSymbol: false
+                }});
+                
+                series.push({{
+                    name: 'MACD Signal',
+                    type: 'line',
+                    data: indicators.macd.signal,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    lineStyle: {{ color: '#FF9800' }},
+                    showSymbol: false
+                }});
+                
+                series.push({{
+                    name: 'MACD Histogram',
+                    type: 'bar',
+                    data: indicators.macd.histogram,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    itemStyle: {{ 
+                        color: function(params) {{
+                            return params.data >= 0 ? '#4CAF50' : '#F44336';
+                        }}
+                    }}
+                }});
+                
+                gridIndex++;
+                yAxisIndex++;
+            }}
+            
+            // RSI chart
+            if (activeIndicators.rsi && indicators.rsi) {{
+                const rsiTop = (activeIndicators.volume ? '72%' : '62%') + (activeIndicators.macd ? '17%' : '0%');
+                grids.push({{
+                    left: '8%',
+                    right: '8%',
+                    top: activeIndicators.macd ? '89%' : (activeIndicators.volume ? '72%' : '62%'),
+                    height: '15%'
+                }});
+                
+                xAxes.push({{
+                    type: 'category',
+                    data: dates,
+                    gridIndex: gridIndex,
+                    boundaryGap: false,
+                    axisLabel: {{ 
+                        show: true,
+                        color: isDarkMode ? '#e0e0e0' : '#333',
+                        formatter: function(value) {{
+                            return value.split(' ')[1];
+                        }}
+                    }}
+                }});
+                
+                yAxes.push({{
+                    gridIndex: gridIndex,
+                    min: 0,
+                    max: 100,
+                    axisLabel: {{ color: isDarkMode ? '#e0e0e0' : '#333' }},
+                    axisLine: {{ lineStyle: {{ color: isDarkMode ? '#4a5568' : '#ccc' }} }},
+                    splitLine: {{
+                        show: true,
+                        lineStyle: {{ 
+                            color: isDarkMode ? '#4a5568' : '#eee',
+                            type: 'dashed'
+                        }}
+                    }}
+                }});
+                
+                series.push({{
+                    name: 'RSI',
+                    type: 'line',
+                    data: indicators.rsi,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    lineStyle: {{ color: '#9C27B0' }},
+                    showSymbol: false,
+                    markLine: {{
+                        data: [
+                            {{ yAxis: 70, lineStyle: {{ color: '#F44336', type: 'dashed' }} }},
+                            {{ yAxis: 30, lineStyle: {{ color: '#4CAF50', type: 'dashed' }} }}
+                        ],
+                        silent: true
+                    }}
+                }});
+                
+                gridIndex++;
+                yAxisIndex++;
+            }}
+            
+            // Stochastic chart
+            if (activeIndicators.stochastic && indicators.stochastic) {{
+                const stochTop = '89%';
+                grids.push({{
+                    left: '8%',
+                    right: '8%',
+                    top: stochTop,
+                    height: '15%'
+                }});
+                
+                xAxes.push({{
+                    type: 'category',
+                    data: dates,
+                    gridIndex: gridIndex,
+                    boundaryGap: false,
+                    axisLabel: {{ 
+                        show: true,
+                        color: isDarkMode ? '#e0e0e0' : '#333',
+                        formatter: function(value) {{
+                            return value.split(' ')[1];
+                        }}
+                    }}
+                }});
+                
+                yAxes.push({{
+                    gridIndex: gridIndex,
+                    min: 0,
+                    max: 100,
+                    axisLabel: {{ color: isDarkMode ? '#e0e0e0' : '#333' }},
+                    axisLine: {{ lineStyle: {{ color: isDarkMode ? '#4a5568' : '#ccc' }} }}
+                }});
+                
+                series.push({{
+                    name: 'Stoch %K',
+                    type: 'line',
+                    data: indicators.stochastic.k,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    lineStyle: {{ color: '#FF5722' }},
+                    showSymbol: false
+                }});
+                
+                series.push({{
+                    name: 'Stoch %D',
+                    type: 'line',
+                    data: indicators.stochastic.d,
+                    xAxisIndex: gridIndex,
+                    yAxisIndex: yAxisIndex,
+                    lineStyle: {{ color: '#795548' }},
+                    showSymbol: false
+                }});
+            }}
+            
+            // Chart options
             const option = {{
                 title: {{
-                    text: `${{symbol}} - Candlestick Chart with Trade Signals`,
+                    text: `${{symbol}} - Advanced Technical Analysis`,
                     left: 'center',
                     textStyle: {{
                         fontSize: 16,
-                        fontWeight: 'bold'
+                        fontWeight: 'bold',
+                        color: isDarkMode ? '#e0e0e0' : '#333'
                     }}
                 }},
+                backgroundColor: isDarkMode ? '#1e1e2e' : '#ffffff',
                 tooltip: {{
                     trigger: 'axis',
-                    axisPointer: {{
-                        type: 'cross'
-                    }},
-                    formatter: function(params) {{
-                        let result = params[0].name + '<br/>';
-                        params.forEach(param => {{
-                            if (param.seriesName === 'Candlestick') {{
-                                const data = param.data;
-                                result += `Open: $${{data[0].toFixed(4)}}<br/>`;
-                                result += `Close: $${{data[1].toFixed(4)}}<br/>`;
-                                result += `Low: $${{data[2].toFixed(4)}}<br/>`;
-                                result += `High: $${{data[3].toFixed(4)}}<br/>`;
-                            }}
-                        }});
-                        return result;
-                    }}
+                    axisPointer: {{ type: 'cross' }},
+                    backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                    borderColor: isDarkMode ? '#4a5568' : '#ccc',
+                    textStyle: {{ color: isDarkMode ? '#e0e0e0' : '#333' }}
                 }},
-                grid: {{
-                    left: '8%',
-                    right: '8%',
-                    bottom: '15%',
-                    top: '10%'
+                legend: {{
+                    data: series.map(s => s.name),
+                    textStyle: {{ color: isDarkMode ? '#e0e0e0' : '#333' }}
                 }},
-                xAxis: {{
-                    type: 'category',
-                    data: dates,
-                    boundaryGap: false,
-                    axisLine: {{ onZero: false }},
-                    splitLine: {{ show: false }},
-                    min: 'dataMin',
-                    max: 'dataMax',
-                    axisLabel: {{
-                        formatter: function(value) {{
-                            return value.split(' ')[1]; // Show only time
-                        }}
-                    }}
-                }},
-                yAxis: {{
-                    scale: true,
-                    splitArea: {{
-                        show: true
-                    }},
-                    axisLabel: {{
-                        formatter: '${{value}}'
-                    }}
-                }},
+                grid: grids,
+                xAxis: xAxes,
+                yAxis: yAxes,
                 dataZoom: [
                     {{
                         type: 'inside',
-                        start: 0,
-                        end: 100
+                        start: autoFitRange ? autoFitRange.start : 0,
+                        end: autoFitRange ? autoFitRange.end : 100,
+                        xAxisIndex: Array.from({{ length: xAxes.length }}, (_, i) => i)
                     }},
                     {{
                         show: true,
                         type: 'slider',
-                        top: '90%',
-                        start: 0,
-                        end: 100
+                        bottom: '2%',
+                        start: autoFitRange ? autoFitRange.start : 0,
+                        end: autoFitRange ? autoFitRange.end : 100,
+                        xAxisIndex: Array.from({{ length: xAxes.length }}, (_, i) => i),
+                        backgroundColor: isDarkMode ? '#2d3748' : '#f8f9fa',
+                        fillerColor: isDarkMode ? '#4a5568' : '#667eea',
+                        borderColor: isDarkMode ? '#4a5568' : '#ccc',
+                        handleStyle: {{ color: isDarkMode ? '#81c784' : '#667eea' }},
+                        textStyle: {{ color: isDarkMode ? '#e0e0e0' : '#333' }}
                     }}
                 ],
-                series: [
-                    {{
-                        name: 'Candlestick',
-                        type: 'candlestick',
-                        data: ohlcData,
-                        itemStyle: {{
-                            color: '#00da3c',
-                            color0: '#ec0000',
-                            borderColor: '#008F28',
-                            borderColor0: '#8A0000'
-                        }},
-                        markPoint: {{
-                            data: [...entryMarkers, ...exitMarkers],
-                            silent: false
-                        }}
-                    }}
-                ]
+                series: series
             }};
             
             chart.setOption(option, true);
