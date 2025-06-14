@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ML Trading Results - {{ symbol }}</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -424,169 +425,447 @@
     </div>
 
     <script>
-        // Dark theme for Plotly charts
-        const darkTheme = {
-            plot_bgcolor: '#1f2937',
-            paper_bgcolor: '#1f2937',
-            font: {
-                color: '#f3f4f6'
-            }
-        };
+        (function() {
+            // Trading Chart
+            const tradingChartData = {{ chart_data|tojson|safe }};
+            const tradingChartLayout = tradingChartData.layout || {};
+            const tradingChartConfig = { responsive: true };
+            
+            Plotly.newPlot(
+                'trading-chart',
+                tradingChartData.data || [],
+                tradingChartLayout,
+                tradingChartConfig
+            );
 
-        const baseLayout = {
-            ...darkTheme,
-            xaxis: {
-                title: 'Epoch',
-                tickmode: 'linear',
-                dtick: 5,
-                type: 'linear',
-                tickformat: 'd',
-                gridcolor: '#374151'
-            },
-            yaxis: {
-                gridcolor: '#374151'
-            },
-            showlegend: true,
-            legend: {
-                x: 0,
-                y: 1.1,
-                orientation: 'h',
-                bgcolor: 'transparent',
-                font: {color: '#f3f4f6'}
-            },
-            margin: {
-                t: 60,
-                r: 30,
-                l: 60,
-                b: 50
-            },
-            height: 350,
-            hovermode: 'x unified'
-        };
-
-        const createMetricsChart = (elementId, title, xData, yData1, yData2, name1, name2) => {
-            const data = [
-                {
-                    x: xData,
-                    y: yData1,
-                    name: name1,
-                    type: 'scatter',
-                    mode: 'lines',
-                    line: {color: '#3b82f6'},
-                    hovertemplate: `${name1}: %{y:.4f}<br>Epoch: %{x}<extra></extra>`
-                },
-                {
-                    x: xData,
-                    y: yData2,
-                    name: name2,
-                    type: 'scatter',
-                    mode: 'lines',
-                    line: {color: '#22c55e'},
-                    hovertemplate: `${name2}: %{y:.4f}<br>Epoch: %{x}<extra></extra>`
-                }
-            ];
-
-            const layout = {
-                ...baseLayout,
-                title: {
-                    text: title,
-                    font: {size: 16}
-                },
-                yaxis: {
-                    ...baseLayout.yaxis,
-                    title: title
-                }
-            };
-
-            Plotly.newPlot(elementId, data, layout, {
-                responsive: true,
-                displayModeBar: false
-            });
-        };
-
-        // Trading chart
-        const chartData = {{ chart_data|tojson|safe }};
-        chartData.layout = {...chartData.layout, ...darkTheme};
-        Plotly.newPlot('trading-chart', chartData.data, chartData.layout);
-
-        // Feature importance chart
-        const featureImportanceData = {{ feature_importance_data|tojson|safe }};
-        Plotly.newPlot('feature-importance-chart', featureImportanceData.data, featureImportanceData.layout, {
-            responsive: true,
-            displayModeBar: true,
-            displaylogo: false,
-            modeBarButtonsToRemove: ['lasso2d', 'select2d']
-        });
-
-        // Training metrics data
-        const trainingMetrics = {{ training_metrics|tojson|safe }};
-        const epochs = Array.from({length: trainingMetrics.train_loss.length}, (_, i) => i + 1);
-
-        // Create training metrics charts
-        createMetricsChart(
-            'loss-chart',
-            'Loss Curves',
-            epochs,
-            trainingMetrics.train_loss,
-            trainingMetrics.test_loss,
-            'Training Loss',
-            'Validation Loss'
-        );
-
-        createMetricsChart(
-            'f1-chart',
-            'F1 Score',
-            epochs,
-            trainingMetrics.train_f1,
-            trainingMetrics.test_f1,
-            'Training F1',
-            'Validation F1'
-        );
-
-        createMetricsChart(
-            'accuracy-chart',
-            'Accuracy',
-            epochs,
-            trainingMetrics.train_acc,
-            trainingMetrics.test_acc,
-            'Training Accuracy',
-            'Validation Accuracy'
-        );
-
-        // Learning rate chart
-        const lrLayout = {
-            ...darkTheme,
-            title: {
-                text: 'Learning Rate',
-                font: {size: 16}
-            },
-            xaxis: {
-                title: 'Epoch',
-                tickmode: 'linear',
-                dtick: 5,
-                type: 'linear',
-                tickformat: 'd'
-            },
-            showlegend: false,
-            margin: {t: 40, r: 10, l: 60, b: 40},
-            hovermode: 'x unified'
-        };
-
-        Plotly.newPlot('lr-chart',
-            [{
-                x: epochs,
-                y: trainingMetrics.learning_rates,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Learning Rate',
-                line: {color: '#f59e0b'}
-            }],
-            lrLayout,
-            {
-                responsive: true,
-                displayModeBar: false
-            }
-        );
+            // Feature Importance Chart
+            const featureData = {{ feature_importance_data|tojson|safe }};
+            const featureLayout = featureData.layout || {};
+            const featureConfig = { responsive: true };
+            
+            Plotly.newPlot(
+                'feature-importance-chart',
+                featureData.data || [],
+                featureLayout,
+                featureConfig
+            );
+        })();
     </script>
 </body>
-</html> 
+</html>  -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Trading Dashboard</title>
+    
+    <!-- Load D3.js and TailwindCSS -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        .tooltip {
+            position: absolute;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+        
+        .candlestick {
+            stroke: #000;
+        }
+        
+        .candlestick.up {
+            fill: #22c55e;
+        }
+        
+        .candlestick.down {
+            fill: #ef4444;
+        }
+        
+        .trade-marker {
+            stroke-width: 2;
+        }
+        
+        .trade-marker.buy {
+            stroke: #22c55e;
+            fill: #22c55e;
+        }
+        
+        .trade-marker.sell {
+            stroke: #ef4444;
+            fill: #ef4444;
+        }
+        
+        .axis-label {
+            font-size: 12px;
+            fill: #6b7280;
+        }
+        
+        .grid line {
+            stroke: #374151;
+            stroke-opacity: 0.1;
+        }
+        
+        .volume-bar {
+            opacity: 0.5;
+        }
+        
+        .regime-band {
+            opacity: 0.1;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold mb-2">ML Trading Results: {{ symbol }}</h1>
+            <p class="text-gray-400">{{ start_date }} to {{ end_date }}</p>
+        </div>
+        
+        <!-- Key Metrics Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-gray-800 p-4 rounded-lg">
+                <h3 class="text-gray-400 text-sm">Total Return</h3>
+                <p class="text-2xl font-bold {% if total_return > 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                    {{ total_return }}%
+                </p>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-lg">
+                <h3 class="text-gray-400 text-sm">Win Rate</h3>
+                <p class="text-2xl font-bold">{{ win_rate }}%</p>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-lg">
+                <h3 class="text-gray-400 text-sm">Total Trades</h3>
+                <p class="text-2xl font-bold">{{ total_trades }}</p>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-lg">
+                <h3 class="text-gray-400 text-sm">Final Balance</h3>
+                <p class="text-2xl font-bold">${{ final_balance }}</p>
+            </div>
+        </div>
+        
+        <!-- Main Chart -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-8">
+            <h2 class="text-xl font-bold mb-4">Price Action & Trades</h2>
+            <div id="priceChart" class="w-full h-[500px]"></div>
+        </div>
+        
+        <!-- Model Performance -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <!-- Training Metrics -->
+            <div class="bg-gray-800 p-4 rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Model Performance</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="text-gray-400 text-sm">Training Accuracy</h3>
+                        <p class="text-xl font-bold">{{ train_accuracy }}%</p>
+                    </div>
+                    <div>
+                        <h3 class="text-gray-400 text-sm">Test Accuracy</h3>
+                        <p class="text-xl font-bold">{{ test_accuracy }}%</p>
+                    </div>
+                </div>
+                <div id="trainingMetricsChart" class="w-full h-[200px] mt-4"></div>
+            </div>
+            
+            <!-- Feature Importance -->
+            <div class="bg-gray-800 p-4 rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Feature Importance</h2>
+                <div id="featureImportanceChart" class="w-full h-[300px]"></div>
+            </div>
+        </div>
+        
+        <!-- Trade Analysis -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-8">
+            <h2 class="text-xl font-bold mb-4">Trade Analysis</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead>
+                        <tr class="text-left text-gray-400">
+                            <th class="p-2">Timestamp</th>
+                            <th class="p-2">Action</th>
+                            <th class="p-2">Price</th>
+                            <th class="p-2">PnL</th>
+                            <th class="p-2">Return</th>
+                            <th class="p-2">Confidence</th>
+                            <th class="p-2">Regime</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for trade in trades %}
+                        <tr class="border-t border-gray-700">
+                            <td class="p-2">{{ trade.timestamp }}</td>
+                            <td class="p-2 {% if trade.action == 'BUY' %}text-green-500{% else %}text-red-500{% endif %}">
+                                {{ trade.action }}
+                            </td>
+                            <td class="p-2">${{ "%.2f"|format(trade.price) }}</td>
+                            <td class="p-2 {% if trade.pnl > 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                                ${{ "%.2f"|format(trade.pnl) if trade.pnl else "" }}
+                            </td>
+                            <td class="p-2 {% if trade.return > 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                                {{ "%.2f"|format(trade.return) if trade.return else "" }}%
+                            </td>
+                            <td class="p-2">{{ "%.1f"|format(trade.confidence) }}%</td>
+                            <td class="p-2">{{ trade.regime }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Parse data from Jinja template
+        const chartData = {{ chart_data|tojson }};
+        const trades = {{ trades|tojson }};
+        const featureImportance = {{ feature_importance_data|tojson }};
+        const trainingMetrics = {{ training_metrics|tojson }};
+        
+        // Initialize charts when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Create price chart
+            createPriceChart();
+            
+            // Create feature importance chart
+            createFeatureImportanceChart();
+            
+            // Create training metrics chart
+            createTrainingMetricsChart();
+        });
+        
+        function createPriceChart() {
+            const margin = {top: 20, right: 30, bottom: 30, left: 60};
+            const width = document.getElementById('priceChart').clientWidth - margin.left - margin.right;
+            const height = document.getElementById('priceChart').clientHeight - margin.top - margin.bottom;
+            
+            // Parse dates
+            const parseDate = d3.timeParse("%Y-%m-%d %H:%M");
+            chartData.forEach(d => {
+                d.timestamp = parseDate(d.timestamp);
+            });
+            
+            // Create SVG
+            const svg = d3.select('#priceChart')
+                .append('svg')
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom)
+                .append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+            
+            // Create scales
+            const x = d3.scaleTime()
+                .domain(d3.extent(chartData, d => d.timestamp))
+                .range([0, width]);
+            
+            const y = d3.scaleLinear()
+                .domain([
+                    d3.min(chartData, d => d.low) * 0.999,
+                    d3.max(chartData, d => d.high) * 1.001
+                ])
+                .range([height, 0]);
+            
+            // Add candlesticks
+            svg.selectAll('rect.candlestick')
+                .data(chartData)
+                .enter()
+                .append('rect')
+                .attr('class', d => `candlestick ${d.close > d.open ? 'up' : 'down'}`)
+                .attr('x', d => x(d.timestamp) - 3)
+                .attr('y', d => y(Math.max(d.open, d.close)))
+                .attr('width', 6)
+                .attr('height', d => Math.abs(y(d.open) - y(d.close)));
+            
+            // Add wicks
+            svg.selectAll('line.wick')
+                .data(chartData)
+                .enter()
+                .append('line')
+                .attr('class', 'wick')
+                .attr('x1', d => x(d.timestamp))
+                .attr('x2', d => x(d.timestamp))
+                .attr('y1', d => y(d.high))
+                .attr('y2', d => y(d.low))
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 1);
+            
+            // Add trade markers
+            trades.forEach(trade => {
+                trade.timestamp = parseDate(trade.timestamp);
+                
+                svg.append('circle')
+                    .attr('class', `trade-marker ${trade.action.toLowerCase()}`)
+                    .attr('cx', x(trade.timestamp))
+                    .attr('cy', y(trade.price))
+                    .attr('r', 4)
+                    .on('mouseover', function(event) {
+                        const tooltip = d3.select('.tooltip');
+                        tooltip.style('opacity', 1)
+                            .html(`
+                                ${trade.action}<br>
+                                Price: $${trade.price.toFixed(2)}<br>
+                                ${trade.pnl ? `PnL: $${trade.pnl.toFixed(2)}<br>` : ''}
+                                Confidence: ${trade.confidence.toFixed(1)}%
+                            `)
+                            .style('left', (event.pageX + 10) + 'px')
+                            .style('top', (event.pageY - 10) + 'px');
+                    })
+                    .on('mouseout', function() {
+                        d3.select('.tooltip').style('opacity', 0);
+                    });
+            });
+            
+            // Add axes
+            svg.append('g')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x));
+            
+            svg.append('g')
+                .call(d3.axisLeft(y));
+            
+            // Add grid
+            svg.append('g')
+                .attr('class', 'grid')
+                .call(d3.axisLeft(y)
+                    .tickSize(-width)
+                    .tickFormat('')
+                );
+        }
+        
+        function createFeatureImportanceChart() {
+            const margin = {top: 20, right: 30, bottom: 40, left: 150};
+            const width = document.getElementById('featureImportanceChart').clientWidth - margin.left - margin.right;
+            const height = document.getElementById('featureImportanceChart').clientHeight - margin.top - margin.bottom;
+            
+            // Sort features by importance
+            featureImportance.sort((a, b) => b.importance - a.importance);
+            
+            // Create SVG
+            const svg = d3.select('#featureImportanceChart')
+                .append('svg')
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom)
+                .append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+            
+            // Create scales
+            const x = d3.scaleLinear()
+                .domain([0, d3.max(featureImportance, d => d.importance)])
+                .range([0, width]);
+            
+            const y = d3.scaleBand()
+                .domain(featureImportance.map(d => d.feature))
+                .range([0, height])
+                .padding(0.1);
+            
+            // Add bars
+            svg.selectAll('rect')
+                .data(featureImportance)
+                .enter()
+                .append('rect')
+                .attr('x', 0)
+                .attr('y', d => y(d.feature))
+                .attr('width', d => x(d.importance))
+                .attr('height', y.bandwidth())
+                .attr('fill', '#3b82f6');
+            
+            // Add axes
+            svg.append('g')
+                .call(d3.axisLeft(y));
+            
+            svg.append('g')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x));
+        }
+        
+        function createTrainingMetricsChart() {
+            const margin = {top: 20, right: 30, bottom: 30, left: 50};
+            const width = document.getElementById('trainingMetricsChart').clientWidth - margin.left - margin.right;
+            const height = document.getElementById('trainingMetricsChart').clientHeight - margin.top - margin.bottom;
+            
+            // Create SVG
+            const svg = d3.select('#trainingMetricsChart')
+                .append('svg')
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom)
+                .append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+            
+            // Create scales
+            const x = d3.scaleLinear()
+                .domain([0, trainingMetrics.train_loss.length - 1])
+                .range([0, width]);
+            
+            const y = d3.scaleLinear()
+                .domain([
+                    0,
+                    Math.max(
+                        d3.max(trainingMetrics.train_loss),
+                        d3.max(trainingMetrics.test_loss)
+                    )
+                ])
+                .range([height, 0]);
+            
+            // Add lines
+            const line = d3.line()
+                .x((d, i) => x(i))
+                .y(d => y(d));
+            
+            // Training loss
+            svg.append('path')
+                .datum(trainingMetrics.train_loss)
+                .attr('fill', 'none')
+                .attr('stroke', '#3b82f6')
+                .attr('stroke-width', 1.5)
+                .attr('d', line);
+            
+            // Test loss
+            svg.append('path')
+                .datum(trainingMetrics.test_loss)
+                .attr('fill', 'none')
+                .attr('stroke', '#ef4444')
+                .attr('stroke-width', 1.5)
+                .attr('d', line);
+            
+            // Add axes
+            svg.append('g')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x).ticks(5));
+            
+            svg.append('g')
+                .call(d3.axisLeft(y));
+            
+            // Add legend
+            const legend = svg.append('g')
+                .attr('font-family', 'sans-serif')
+                .attr('font-size', 10)
+                .attr('text-anchor', 'start')
+                .selectAll('g')
+                .data(['Training Loss', 'Test Loss'])
+                .enter().append('g')
+                .attr('transform', (d, i) => `translate(${width - 100},${i * 20})`);
+            
+            legend.append('rect')
+                .attr('x', 0)
+                .attr('width', 19)
+                .attr('height', 19)
+                .attr('fill', (d, i) => i === 0 ? '#3b82f6' : '#ef4444');
+            
+            legend.append('text')
+                .attr('x', 24)
+                .attr('y', 9.5)
+                .attr('dy', '0.32em')
+                .text(d => d);
+        }
+    </script>
+</body>
+</html>

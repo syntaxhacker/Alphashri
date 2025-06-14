@@ -115,7 +115,7 @@ def fetch_historical_data(symbol: str, start_date: datetime, end_date: datetime,
 class BaseStrategy(ABC):
     """Base class for all trading strategies"""
     
-    def __init__(self, stop_loss: float = 0.02, take_profit: float = 0.04, position_size: float = 0.2,
+    def __init__(self, stop_loss: float = 0.02, take_profit: float = 0.04, position_size: float = 0.5,
                  ema_fast: int = 12, ema_slow: int = 26, sma_period: int = 50, 
                  rsi_period: int = 14, stoch_period: int = 14, macd_fast: int = 12,
                  macd_slow: int = 26, macd_signal: int = 9):
@@ -142,7 +142,7 @@ class BaseStrategy(ABC):
         pass
 
 class TrendFollowingStrategy(BaseStrategy):
-    """Trend following strategy using moving averages and momentum"""
+    """Trend following strategy using moving averages, momentum, and patterns"""
     
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculate indicators"""
@@ -154,12 +154,15 @@ class TrendFollowingStrategy(BaseStrategy):
         df['ema_fast'] = ta.ema(df['close'], length=self.ema_fast)
         df['ema_slow'] = ta.ema(df['close'], length=self.ema_slow)
         df['sma_50'] = ta.sma(df['close'], length=self.sma_period)
-        df['sma_200'] = ta.sma(df['close'], length=self.sma_period * 4)  # 4x the base SMA period
-        df['adx'] = ta.adx(df['high'], df['low'], df['close'])['ADX_14']
+        df['sma_200'] = ta.sma(df['close'], length=self.sma_period * 4)
         
-        # Momentum indicators with configurable periods
+        # Calculate ADX
+        adx = ta.adx(df['high'], df['low'], df['close'])
+        df['adx'] = adx['ADX_14']
+        
+        # Momentum indicators
         df['rsi'] = ta.rsi(df['close'], length=self.rsi_period)
-        stoch = ta.stoch(df['high'], df['low'], df['close'], k=self.stoch_period, d=3, smooth_k=3)
+        stoch = ta.stoch(df['high'], df['low'], df['close'], k=self.stoch_period, d=3)
         df['stoch_k'] = stoch[f'STOCHk_{self.stoch_period}_3_3']
         df['stoch_d'] = stoch[f'STOCHd_{self.stoch_period}_3_3']
         
@@ -168,34 +171,29 @@ class TrendFollowingStrategy(BaseStrategy):
         df['macd_signal'] = macd[f'MACDs_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
         df['macd_hist'] = macd[f'MACDh_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
         
-        # Market regime
-        df['regime'] = np.where(
-            (df['sma_50'] > df['sma_200']) & (df['adx'] > 20),
-            'UPTREND',
-            np.where(
-                (df['sma_50'] < df['sma_200']) & (df['adx'] > 20),
-                'DOWNTREND',
-                'SIDEWAYS'
-            )
-        )
+        # Market regime with proper handling of NaN values
+        df['regime'] = 'SIDEWAYS'  # Default value
+        mask = df['adx'].notna()  # Only calculate where ADX is not NaN
+        
+        df.loc[mask & (df['sma_50'] > df['sma_200']) & (df['adx'] > 20), 'regime'] = 'UPTREND'
+        df.loc[mask & (df['sma_50'] < df['sma_200']) & (df['adx'] > 20), 'regime'] = 'DOWNTREND'
+        
+        # Add pattern recognition
+        df = detect_patterns(df)
         
         return df
         
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
-        """Generate trading signals based on trend following rules"""
-        # Calculate indicators first
-        df = self.calculate_indicators(df)
-        
+        """Generate trading signals based on trend following rules and patterns"""
         signals = pd.Series(index=df.index, data='HOLD')
         
         for i in range(len(df)):
             if i < 200:  # Skip until we have enough data
                 continue
-                
-            # Check market regime and trend strength
-            if df['regime'].iloc[i] == 'DOWNTREND' or df['adx'].iloc[i] < 20:
-                signals.iloc[i] = 'HOLD'
-                continue
+            
+            # Pattern-based conditions
+            pattern = df['pattern'].iloc[i]
+            pattern_strength = df['pattern_strength'].iloc[i]
             
             # Entry conditions
             trend_condition = (
@@ -213,6 +211,12 @@ class TrendFollowingStrategy(BaseStrategy):
             
             volume_condition = df['volume'].iloc[i] > df['volume'].iloc[i-20:i].mean()
             
+            # Pattern-enhanced entry conditions
+            pattern_buy_signal = (
+                pattern in ['Double Bottom', 'Bullish Flag'] or
+                (pattern == 'Head & Shoulders' and df['regime'].iloc[i] == 'UPTREND')
+            )
+            
             # Exit conditions
             exit_condition = (
                 df['rsi'].iloc[i] > 80 or
@@ -225,15 +229,26 @@ class TrendFollowingStrategy(BaseStrategy):
                 (df['ema_fast'].iloc[i] < df['ema_slow'].iloc[i] and df['close'].iloc[i] < df['sma_50'].iloc[i])
             )
             
-            if trend_condition and momentum_condition and volume_condition:
+            # Pattern-enhanced exit conditions
+            pattern_sell_signal = (
+                pattern in ['Double Top', 'Bearish Flag', 'Head & Shoulders']
+            )
+            
+            # Check if in downtrend or low trend strength
+            if df['regime'].iloc[i] == 'DOWNTREND' or (df['adx'].iloc[i] < 20 and df['adx'].iloc[i] == df['adx'].iloc[i]):
+                signals.iloc[i] = 'HOLD'
+                continue
+            
+            # Combined signals with pattern recognition
+            if (trend_condition and momentum_condition and volume_condition) or pattern_buy_signal:
                 signals.iloc[i] = 'BUY'
-            elif exit_condition:
+            elif exit_condition or pattern_sell_signal:
                 signals.iloc[i] = 'SELL'
                 
         return signals
 
 class MeanReversionStrategy(BaseStrategy):
-    """Mean reversion strategy using RSI, Bollinger Bands, and other indicators"""
+    """Mean reversion strategy using RSI, Bollinger Bands, and patterns"""
     
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculate indicators for mean reversion"""
@@ -262,28 +277,32 @@ class MeanReversionStrategy(BaseStrategy):
         df['sma_20'] = ta.sma(df['close'], length=20)
         df['price_to_sma'] = (df['close'] - df['sma_20']) / df['sma_20']
         
-        # Add MACD for plotting
+        # Add MACD for trend confirmation
         macd = ta.macd(df['close'], fast=self.macd_fast, slow=self.macd_slow, signal=self.macd_signal)
         df['macd'] = macd[f'MACD_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
         df['macd_signal'] = macd[f'MACDs_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
         df['macd_hist'] = macd[f'MACDh_{self.macd_fast}_{self.macd_slow}_{self.macd_signal}']
         
-        # Add EMAs for plotting comparison (but not used in strategy)
+        # Add EMAs for plotting comparison
         df['ema_fast'] = ta.ema(df['close'], length=self.ema_fast)
         df['ema_slow'] = ta.ema(df['close'], length=self.ema_slow)
+        
+        # Add pattern recognition
+        df = detect_patterns(df)
         
         return df
         
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
-        """Generate trading signals based on mean reversion rules"""
-        # Calculate indicators first
-        df = self.calculate_indicators(df)
-        
+        """Generate trading signals based on mean reversion rules and patterns"""
         signals = pd.Series(index=df.index, data='HOLD')
         
         for i in range(len(df)):
             if i < 20:  # Skip until we have enough data
                 continue
+            
+            # Pattern-based conditions
+            pattern = df['pattern'].iloc[i]
+            pattern_strength = df['pattern_strength'].iloc[i]
             
             # Entry conditions for oversold
             oversold_condition = (
@@ -299,6 +318,17 @@ class MeanReversionStrategy(BaseStrategy):
                 df['close'].iloc[i] >= df['bb_upper'].iloc[i] and  # Price above upper BB
                 df['stoch_k'].iloc[i] > 80 and  # Stochastic overbought
                 df['price_to_sma'].iloc[i] > 0.02  # Price significantly above MA
+            )
+            
+            # Pattern-enhanced conditions
+            pattern_buy_signal = (
+                pattern in ['Double Bottom'] and
+                df['close'].iloc[i] <= df['bb_lower'].iloc[i]
+            )
+            
+            pattern_sell_signal = (
+                pattern in ['Double Top'] and
+                df['close'].iloc[i] >= df['bb_upper'].iloc[i]
             )
             
             # Volatility filter
@@ -317,9 +347,10 @@ class MeanReversionStrategy(BaseStrategy):
                 df['stoch_k'].iloc[i] < df['stoch_k'].iloc[i-1]
             )
             
-            if oversold_condition and volatility_ok:
+            # Combined signals with pattern recognition
+            if (oversold_condition or pattern_buy_signal) and volatility_ok:
                 signals.iloc[i] = 'BUY'
-            elif overbought_condition and volatility_ok:
+            elif (overbought_condition or pattern_sell_signal) and volatility_ok:
                 signals.iloc[i] = 'SELL'
             elif exit_oversold or exit_overbought:
                 signals.iloc[i] = 'EXIT'
@@ -344,18 +375,32 @@ class StrategyFactory:
         kwargs.pop('strategy', None)
         return strategies[strategy_name](**kwargs)
 
-def run_backtest(df: pd.DataFrame, strategy_name: str, **params) -> Tuple[float, Dict, Optional[pd.DataFrame]]:
+def run_backtest(df: pd.DataFrame, strategy_name: str, sl: float, tp: float, ps: float, 
+                initial_balance: float) -> Tuple[float, Dict, Optional[pd.DataFrame]]:
     """Run a single backtest with given parameters"""
     try:
-        # Get and remove initial_balance from params
-        initial_balance = params.pop('initial_balance')
-        position_size = params['position_size']
+        # Create strategy instance with parameters
+        strategy_params = {
+            'stop_loss': sl,
+            'take_profit': tp,
+            'position_size': ps,
+            'ema_fast': 12,
+            'ema_slow': 26,
+            'sma_period': 50,
+            'rsi_period': 14,
+            'stoch_period': 14,
+            'macd_fast': 12,
+            'macd_slow': 26,
+            'macd_signal': 9
+        }
         
-        # Create strategy instance
-        strategy = StrategyFactory.create_strategy(strategy_name, **params)
+        strategy = StrategyFactory.create_strategy(strategy_name, **strategy_params)
         
-        # Generate signals (this will calculate indicators internally)
-        signals = strategy.generate_signals(df)
+        # Calculate indicators (this will also set the regime)
+        df_indicators = strategy.calculate_indicators(df.copy())
+        
+        # Generate signals
+        signals = strategy.generate_signals(df_indicators)
         
         # Initialize tracking variables
         trades = []
@@ -372,7 +417,7 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, **params) -> Tuple[float,
             if not position and signal == 'BUY':
                 position = True
                 entry_price = current_price
-                position_value = balance * position_size  # Use stored position_size
+                position_value = balance * ps
                 position_size_units = position_value / current_price
                 
                 trades.append({
@@ -389,11 +434,11 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, **params) -> Tuple[float,
                 exit_reason = None
                 
                 # Check stop loss
-                if current_price <= entry_price * (1 - params['stop_loss']):
+                if current_price <= entry_price * (1 - sl):
                     exit_price = current_price
                     exit_reason = 'Stop Loss'
                 # Check take profit
-                elif current_price >= entry_price * (1 + params['take_profit']):
+                elif current_price >= entry_price * (1 + tp):
                     exit_price = current_price
                     exit_reason = 'Take Profit'
                 # Check signal exit
@@ -421,25 +466,24 @@ def run_backtest(df: pd.DataFrame, strategy_name: str, **params) -> Tuple[float,
                     position_size_units = 0
         
         if trades:
-            # Convert trades to DataFrame efficiently
             trades_df = pd.DataFrame(trades)
             trades_df['cumulative_return'] = trades_df['return'].fillna(0).cumsum()
-            total_return = trades_df['cumulative_return'].iloc[-1]
+            total_return = trades_df['cumulative_return'].iloc[-1] if len(trades_df) > 0 else 0
             
-            # Add initial_balance back to params for reporting
-            params['initial_balance'] = initial_balance
-            return total_return, params, trades_df
+            # Add initial_balance to params for reporting
+            strategy_params['initial_balance'] = initial_balance
+            return total_return, strategy_params, trades_df
             
-        return -float('inf'), None, None
+        return 0, None, None
         
     except Exception as e:
         logging.error(f"Error in backtest: {str(e)}")
-        return -float('inf'), None, None
+        return 0, None, None
 
-# Move test_params outside optimize_strategy
 def test_params(args):
-    df, strategy_name, params = args
-    return run_backtest(df, strategy_name, **params)
+    """Helper function to run backtest with parameters"""
+    df, strategy_name, sl, tp, ps, initial_balance = args
+    return run_backtest(df, strategy_name, sl, tp, ps, initial_balance)
 
 def optimize_strategy(df: pd.DataFrame, strategy_name: str, initial_balance: float = 10000) -> Tuple[Dict, pd.DataFrame]:
     start_time = time.time()
@@ -461,21 +505,14 @@ def optimize_strategy(df: pd.DataFrame, strategy_name: str, initial_balance: flo
         for sl in stop_losses:
             for tp in take_profits:
                 for ps in position_sizes:
-                    params = {
-                        'stop_loss': sl,
-                        'take_profit': tp,
-                        'position_size': ps,
-                        'initial_balance': initial_balance,
-                        'ema_fast': 12,
-                        'ema_slow': 26,
-                        'sma_period': 50,
-                        'rsi_period': 14,
-                        'stoch_period': 14,
-                        'macd_fast': 12,
-                        'macd_slow': 26,
-                        'macd_signal': 9
-                    }
-                    param_combinations.append((df, strategy_name, params))
+                    param_combinations.append((
+                        df,
+                        strategy_name,
+                        sl,    # stop_loss
+                        tp,    # take_profit
+                        ps,    # position_size
+                        initial_balance
+                    ))
 
         # Use number of CPU cores for parallel processing
         num_cores = multiprocessing.cpu_count()
@@ -493,12 +530,11 @@ def optimize_strategy(df: pd.DataFrame, strategy_name: str, initial_balance: flo
                 for total_return, params, trades_df in executor.map(test_params, param_combinations):
                     progress.update(task, advance=1)
                     
-                    if total_return != -float('inf'):  # Only consider valid results
-                        if total_return > best_return + 0.5:  # 0.5% minimum improvement
-                            best_return = total_return
-                            best_params = params
-                            best_trades = trades_df
-                            console.print(f"\n[green]New best return: {best_return:.2f}%[/green]")
+                    if total_return > best_return:  # Changed condition
+                        best_return = total_return
+                        best_params = params
+                        best_trades = trades_df
+                        console.print(f"\n[green]New best return: {best_return:.2f}%[/green]")
     
         if best_params:
             elapsed_time = time.time() - start_time
@@ -655,6 +691,149 @@ def display_trades_analysis(trades_file: str):
     for reason, count in exit_reasons.items():
         console.print(f"{reason}: {count} trades")
 
+def detect_patterns(df: pd.DataFrame) -> pd.DataFrame:
+    """Detect common chart patterns"""
+    # Initialize pattern columns
+    df['pattern'] = None
+    df['pattern_strength'] = 0
+
+    # Calculate required indicators
+    df['sma_20'] = ta.sma(df['close'], length=20)
+    df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
+    
+    # Look for patterns in windows
+    window = 20  # Look back period for patterns
+    
+    for i in range(window, len(df)):
+        window_data = df.iloc[i-window:i+1]
+        
+        # Double Top Pattern
+        if is_double_top(window_data):
+            df.loc[df.index[i], 'pattern'] = 'Double Top'
+            df.loc[df.index[i], 'pattern_strength'] = 2
+            
+        # Double Bottom Pattern
+        elif is_double_bottom(window_data):
+            df.loc[df.index[i], 'pattern'] = 'Double Bottom'
+            df.loc[df.index[i], 'pattern_strength'] = 2
+            
+        # Head and Shoulders Pattern
+        elif is_head_and_shoulders(window_data):
+            df.loc[df.index[i], 'pattern'] = 'Head & Shoulders'
+            df.loc[df.index[i], 'pattern_strength'] = 3
+            
+        # Bullish Flag Pattern
+        elif is_bullish_flag(window_data):
+            df.loc[df.index[i], 'pattern'] = 'Bullish Flag'
+            df.loc[df.index[i], 'pattern_strength'] = 1
+            
+        # Bearish Flag Pattern
+        elif is_bearish_flag(window_data):
+            df.loc[df.index[i], 'pattern'] = 'Bearish Flag'
+            df.loc[df.index[i], 'pattern_strength'] = 1
+    
+    return df
+
+def is_double_top(data: pd.DataFrame) -> bool:
+    """Detect double top pattern"""
+    highs = data['high'].values
+    threshold = data['atr'].mean() * 0.5
+    
+    # Find local maxima
+    peaks = []
+    for i in range(1, len(highs)-1):
+        if highs[i] > highs[i-1] and highs[i] > highs[i+1]:
+            peaks.append((i, highs[i]))
+    
+    if len(peaks) >= 2:
+        # Check if the two highest peaks are within threshold
+        peaks.sort(key=lambda x: x[1], reverse=True)
+        peak1, peak2 = peaks[0], peaks[1]
+        
+        if abs(peak1[1] - peak2[1]) < threshold and abs(peak1[0] - peak2[0]) > 5:
+            return True
+    
+    return False
+
+def is_double_bottom(data: pd.DataFrame) -> bool:
+    """Detect double bottom pattern"""
+    lows = data['low'].values
+    threshold = data['atr'].mean() * 0.5
+    
+    # Find local minima
+    troughs = []
+    for i in range(1, len(lows)-1):
+        if lows[i] < lows[i-1] and lows[i] < lows[i+1]:
+            troughs.append((i, lows[i]))
+    
+    if len(troughs) >= 2:
+        # Check if the two lowest troughs are within threshold
+        troughs.sort(key=lambda x: x[1])
+        trough1, trough2 = troughs[0], troughs[1]
+        
+        if abs(trough1[1] - trough2[1]) < threshold and abs(trough1[0] - trough2[0]) > 5:
+            return True
+    
+    return False
+
+def is_head_and_shoulders(data: pd.DataFrame) -> bool:
+    """Detect head and shoulders pattern"""
+    highs = data['high'].values
+    threshold = data['atr'].mean() * 0.5
+    
+    # Find local maxima
+    peaks = []
+    for i in range(1, len(highs)-1):
+        if highs[i] > highs[i-1] and highs[i] > highs[i+1]:
+            peaks.append((i, highs[i]))
+    
+    if len(peaks) >= 3:
+        # Need three peaks with middle one highest
+        peaks.sort(key=lambda x: x[0])  # Sort by position
+        for i in range(len(peaks)-2):
+            p1, p2, p3 = peaks[i:i+3]
+            if (p2[1] > p1[1] and p2[1] > p3[1] and  # Middle peak is highest
+                abs(p1[1] - p3[1]) < threshold):      # Shoulders at similar levels
+                return True
+    
+    return False
+
+def is_bullish_flag(data: pd.DataFrame) -> bool:
+    """Detect bullish flag pattern"""
+    # Check for strong uptrend followed by consolidation
+    returns = data['close'].pct_change()
+    
+    # Split data into two parts
+    half = len(data) // 2
+    first_half = returns[:half]
+    second_half = returns[half:]
+    
+    # Check if first half shows strong uptrend
+    if first_half.mean() > 0 and abs(first_half.mean()) > 2 * first_half.std():
+        # Check if second half shows consolidation
+        if abs(second_half.mean()) < second_half.std():
+            return True
+    
+    return False
+
+def is_bearish_flag(data: pd.DataFrame) -> bool:
+    """Detect bearish flag pattern"""
+    # Check for strong downtrend followed by consolidation
+    returns = data['close'].pct_change()
+    
+    # Split data into two parts
+    half = len(data) // 2
+    first_half = returns[:half]
+    second_half = returns[half:]
+    
+    # Check if first half shows strong downtrend
+    if first_half.mean() < 0 and abs(first_half.mean()) > 2 * first_half.std():
+        # Check if second half shows consolidation
+        if abs(second_half.mean()) < second_half.std():
+            return True
+    
+    return False
+
 def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict, strategy_name: str = None):
     """Create an interactive plot for a single strategy"""
     import plotly.graph_objects as go
@@ -667,22 +846,24 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
         strategy = MeanReversionStrategy(**params)
     
     df = strategy.calculate_indicators(df.copy())
+    
+    # Detect patterns
+    df = detect_patterns(df)
     show_trend_indicators = strategy_name == 'trend_following'
     
     # Create figure with secondary y-axis for all subplots that need it
     fig = make_subplots(
-        rows=5, cols=1,
+        rows=6, cols=1,
         shared_xaxes=True,
         vertical_spacing=0.05,
-        row_heights=[0.4, 0.15, 0.15, 0.15, 0.15],
-        subplot_titles=('Price & Trades', 'Volume', 'Returns & Balance', 'RSI', 'MACD'),
-        specs=[
-            [{"secondary_y": True}],  # Price chart
-            [{"secondary_y": False}],  # Volume
-            [{"secondary_y": True}],   # Returns & Balance
-            [{"secondary_y": False}],  # RSI
-            [{"secondary_y": False}]   # MACD
-        ]
+        row_heights=[0.4, 0.15, 0.15, 0.15, 0.15, 0.15],
+        subplot_titles=('Price & Trades', 'Volume', 'Returns & Balance', 'RSI', 'MACD', 'Patterns'),
+        specs=[[{"secondary_y": True}],      # Price chart
+               [{"secondary_y": False}],      # Volume
+               [{"secondary_y": True}],       # Returns & Balance
+               [{"secondary_y": False}],      # RSI
+               [{"secondary_y": False}],      # MACD
+               [{"secondary_y": False}]]      # Patterns
     )
 
     # Enhanced dark theme colors
@@ -1028,6 +1209,45 @@ def create_strategy_plot(df: pd.DataFrame, trades_df: pd.DataFrame, params: dict
         ),
         row=5, col=1  # Add to bottom subplot
     )
+
+    # Add pattern annotations
+    pattern_y = []
+    pattern_text = []
+    pattern_x = []
+    
+    for idx, row in df.iterrows():
+        if row['pattern'] is not None:
+            pattern_x.append(idx)
+            pattern_y.append(row['pattern_strength'])
+            pattern_text.append(row['pattern'])
+    
+    if pattern_x:
+        fig.add_trace(
+            go.Scatter(
+                x=pattern_x,
+                y=pattern_y,
+                mode='markers+text',
+                name='Patterns',
+                text=pattern_text,
+                textposition='top center',
+                marker=dict(
+                    size=12,
+                    symbol='triangle-up',
+                    color='yellow'
+                ),
+                hovertemplate="<br>".join([
+                    "Time: %{x}",
+                    "Pattern: %{text}",
+                    "Strength: %{y}",
+                    "<extra></extra>"
+                ])
+            ),
+            row=6, col=1
+        )
+
+    # Update layout for pattern subplot
+    fig.update_yaxes(title_text="Pattern Strength", row=6, col=1)
+    fig.update_xaxes(title_text="Date", row=6, col=1)
 
     # When called from comparison plot, return the figure
     if strategy_name:
