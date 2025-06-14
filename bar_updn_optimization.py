@@ -231,10 +231,10 @@ def display_optimization_results(optimization_results: Dict):
 
 def generate_comprehensive_html_chart(optimization_results: Dict, output_file: str = "bar_updn_analysis.html"):
     """
-    Generate a comprehensive HTML chart with TradingView Lightweight Charts and ag-Grid for maximum performance
+    Generate a comprehensive HTML chart with Apache ECharts and ag-Grid for maximum performance
     """
     
-    console.print("[cyan]Generating ultra-high-performance HTML visualization with TradingView Lightweight Charts...[/cyan]")
+    console.print("[cyan]Generating ultra-high-performance HTML visualization with Apache ECharts...[/cyan]")
     
     # Get best results for visualization
     best_params = optimization_results['best_parameters']
@@ -251,7 +251,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
     }
     
     def format_trades_for_table(trades_list):
-        """Format trades for TradingView-style table"""
+        """Format trades for Apache ECharts-style table"""
         if not trades_list:
             return []
         
@@ -342,15 +342,15 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         
         chart_data['trades'][symbol] = format_trades_for_table(trades_data)
     
-    # Generate HTML with TradingView Lightweight Charts + ag-Grid
+    # Generate HTML with Apache ECharts + ag-Grid
     html_content = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BarUpDn Strategy Analysis - Ultra Performance 2025</title>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <title>BarUpDn Strategy Analysis - Apache ECharts 2025</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/dist/ag-grid-community.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-theme-alpine.css">
@@ -377,29 +377,6 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border-radius: 10px;
-        }}
-        .metrics-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }}
-        .metric-card {{
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            border-left: 4px solid #667eea;
-        }}
-        .metric-value {{
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-        }}
-        .metric-label {{
-            font-size: 14px;
-            color: #666;
-            margin-top: 5px;
         }}
         .chart-container {{
             margin: 30px 0;
@@ -538,7 +515,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             margin-top: 5px;
         }}
         
-        /* Trading chart container styling */
+        /* ECharts container styling */
         .chart-wrapper {{
             width: 100%;
             height: 700px;
@@ -549,21 +526,16 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         
         .candlestick-chart {{
             width: 100%;
-            height: 400px;
-        }}
-        
-        .equity-chart {{
-            width: 100%;
-            height: 300px;
+            height: 600px;
         }}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>⚡ BarUpDn Strategy - Focused Trading Analysis</h1>
-            <p>TradingView Lightweight Charts™ | Trade Signals & Performance</p>
-            <p><small>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Powered by HTML5 Canvas</small></p>
+            <h1>⚡ BarUpDn Strategy - Apache ECharts Analysis</h1>
+            <p>Apache ECharts™ | Professional Trading Visualization | Advanced Markers</p>
+            <p><small>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Powered by ECharts 5.4.3</small></p>
         </div>
 
         <!-- Compact Stats Table -->
@@ -590,7 +562,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
 
         <div class="chart-container">
             <div class="chart-header">
-                <h2>📊 Trading Analysis & Signals</h2>
+                <h2>📊 Trading Analysis & Signals - Apache ECharts</h2>
                 <button class="fullscreen-btn" onclick="openFullscreen('symbol-content', 'Trading Analysis')">
                     <span>⛶</span> Fullscreen
                 </button>
@@ -600,7 +572,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             </div>
             
             <div id="symbol-content">
-                <!-- Will be populated by TradingView Lightweight Charts -->
+                <!-- Will be populated by Apache ECharts -->
             </div>
         </div>
         
@@ -617,8 +589,8 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
     <script>
         const chartData = {json.dumps(chart_data, indent=2)};
         let currentSymbol = '';
-        let equityCharts = {{}};
-        let candlestickCharts = {{}};
+        let echartsInstances = {{}};
+        let selectedTradeIndex = -1;
         
         // ag-Grid column definitions with auto-sizing and full-width expansion
         const tradeColumns = [
@@ -658,66 +630,198 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         ];
         
         let tradesGrid = null;
-        let selectedTradeMarker = null;
         
         // Function to highlight selected trade on chart
-        function highlightTradeOnChart(trade) {{
-            if (!candlestickCharts[currentSymbol]) return;
+        function highlightTradeOnChart(trade, tradeIndex) {{
+            if (!echartsInstances[currentSymbol]) return;
             
-            const chart = candlestickCharts[currentSymbol];
-            const candlestickSeries = chart.series()[0]; // Get the candlestick series
+            const chart = echartsInstances[currentSymbol];
+            selectedTradeIndex = tradeIndex;
             
-            // Remove previous highlight marker if exists
-            if (selectedTradeMarker) {{
-                try {{
-                    // Remove the previous highlight marker
-                    const currentMarkers = candlestickSeries.markers() || [];
-                    const filteredMarkers = currentMarkers.filter(m => m.id !== 'selected-trade');
-                    candlestickSeries.setMarkers(filteredMarkers);
-                }} catch (e) {{
-                    console.log('Could not remove previous marker:', e);
+            // Update chart with highlighted trade
+            updateChartWithHighlight(chart, currentSymbol, tradeIndex);
+            
+            console.log(`✓ Highlighted trade ${{tradeIndex + 1}} on chart: ${{trade.side}} at ${{new Date(trade.entry_timestamp * 1000).toLocaleString()}}`);
+        }}
+        
+        // Function to update chart with trade highlight
+        function updateChartWithHighlight(chart, symbol, highlightIndex) {{
+            const candlestickData = chartData.candlestick_data[symbol] || [];
+            const tradesData = chartData.trades[symbol] || [];
+            
+            if (candlestickData.length === 0) return;
+            
+            // Prepare candlestick data for ECharts
+            const dates = [];
+            const ohlcData = [];
+            
+            candlestickData.forEach(bar => {{
+                const date = new Date(bar.time * 1000);
+                dates.push(date.toISOString().split('T')[0] + ' ' + date.toTimeString().split(' ')[0]);
+                ohlcData.push([bar.open, bar.close, bar.low, bar.high]);
+            }});
+            
+            // Prepare trade markers
+            const entryMarkers = [];
+            const exitMarkers = [];
+            
+            tradesData.forEach((trade, index) => {{
+                const entryDate = new Date(trade.entry_timestamp * 1000);
+                const exitDate = new Date(trade.exit_timestamp * 1000);
+                const entryDateStr = entryDate.toISOString().split('T')[0] + ' ' + entryDate.toTimeString().split(' ')[0];
+                const exitDateStr = exitDate.toISOString().split('T')[0] + ' ' + exitDate.toTimeString().split(' ')[0];
+                
+                // Find the closest date index
+                const entryIndex = dates.findIndex(d => d >= entryDateStr);
+                const exitIndex = dates.findIndex(d => d >= exitDateStr);
+                
+                if (entryIndex >= 0) {{
+                    const isHighlighted = index === highlightIndex;
+                    entryMarkers.push({{
+                        name: `${{trade.side}} Entry`,
+                        coord: [entryIndex, trade.entry_price],
+                        value: trade.entry_price,
+                        symbol: trade.side === 'LONG' ? 'triangle' : 'diamond',
+                        symbolSize: isHighlighted ? 20 : 12,
+                        itemStyle: {{
+                            color: isHighlighted ? '#FFD700' : (trade.side === 'LONG' ? '#2196F3' : '#e91e63'),
+                            borderColor: isHighlighted ? '#FF8C00' : '#fff',
+                            borderWidth: 2
+                        }},
+                        label: {{
+                            show: isHighlighted,
+                            formatter: `${{trade.side}} Entry\\n$${{trade.entry_price.toFixed(4)}}`,
+                            position: trade.side === 'LONG' ? 'bottom' : 'top',
+                            color: '#333',
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            borderColor: '#ccc',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            padding: [4, 8]
+                        }}
+                    }});
                 }}
-            }}
+                
+                if (exitIndex >= 0) {{
+                    const isHighlighted = index === highlightIndex;
+                    exitMarkers.push({{
+                        name: `Exit`,
+                        coord: [exitIndex, trade.exit_price],
+                        value: trade.exit_price,
+                        symbol: 'circle',
+                        symbolSize: isHighlighted ? 18 : 10,
+                        itemStyle: {{
+                            color: isHighlighted ? '#FFD700' : (trade.pnl >= 0 ? '#4CAF50' : '#F44336'),
+                            borderColor: isHighlighted ? '#FF8C00' : '#fff',
+                            borderWidth: 2
+                        }},
+                        label: {{
+                            show: isHighlighted,
+                            formatter: `Exit\\n${{trade.pnl >= 0 ? '+' : ''}}$${{trade.pnl.toFixed(2)}}`,
+                            position: trade.pnl >= 0 ? 'top' : 'bottom',
+                            color: '#333',
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            borderColor: '#ccc',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            padding: [4, 8]
+                        }}
+                    }});
+                }}
+            }});
             
-            // Add highlight marker for selected trade
-            const highlightMarkers = [
-                {{
-                    id: 'selected-trade-entry',
-                    time: trade.entry_timestamp,
-                    position: 'aboveBar',
-                    color: '#FFD700', // Gold color for highlight
-                    shape: 'square',
-                    text: `🎯 SELECTED\\n${{trade.side}} Entry`,
-                    size: 3
+            // Update chart options
+            const option = {{
+                title: {{
+                    text: `${{symbol}} - Candlestick Chart with Trade Signals`,
+                    left: 'center',
+                    textStyle: {{
+                        fontSize: 16,
+                        fontWeight: 'bold'
+                    }}
                 }},
-                {{
-                    id: 'selected-trade-exit',
-                    time: trade.exit_timestamp,
-                    position: 'belowBar',
-                    color: '#FFD700', // Gold color for highlight
-                    shape: 'square',
-                    text: `🎯 SELECTED\\nExit: ${{trade.pnl >= 0 ? '+' : ''}}${{trade.pnl.toFixed(2)}}`,
-                    size: 3
-                }}
-            ];
+                tooltip: {{
+                    trigger: 'axis',
+                    axisPointer: {{
+                        type: 'cross'
+                    }},
+                    formatter: function(params) {{
+                        let result = params[0].name + '<br/>';
+                        params.forEach(param => {{
+                            if (param.seriesName === 'Candlestick') {{
+                                const data = param.data;
+                                result += `Open: $${{data[0].toFixed(4)}}<br/>`;
+                                result += `Close: $${{data[1].toFixed(4)}}<br/>`;
+                                result += `Low: $${{data[2].toFixed(4)}}<br/>`;
+                                result += `High: $${{data[3].toFixed(4)}}<br/>`;
+                            }}
+                        }});
+                        return result;
+                    }}
+                }},
+                grid: {{
+                    left: '8%',
+                    right: '8%',
+                    bottom: '15%',
+                    top: '10%'
+                }},
+                xAxis: {{
+                    type: 'category',
+                    data: dates,
+                    boundaryGap: false,
+                    axisLine: {{ onZero: false }},
+                    splitLine: {{ show: false }},
+                    min: 'dataMin',
+                    max: 'dataMax',
+                    axisLabel: {{
+                        formatter: function(value) {{
+                            return value.split(' ')[1]; // Show only time
+                        }}
+                    }}
+                }},
+                yAxis: {{
+                    scale: true,
+                    splitArea: {{
+                        show: true
+                    }},
+                    axisLabel: {{
+                        formatter: '${{value}}'
+                    }}
+                }},
+                dataZoom: [
+                    {{
+                        type: 'inside',
+                        start: 0,
+                        end: 100
+                    }},
+                    {{
+                        show: true,
+                        type: 'slider',
+                        top: '90%',
+                        start: 0,
+                        end: 100
+                    }}
+                ],
+                series: [
+                    {{
+                        name: 'Candlestick',
+                        type: 'candlestick',
+                        data: ohlcData,
+                        itemStyle: {{
+                            color: '#00da3c',
+                            color0: '#ec0000',
+                            borderColor: '#008F28',
+                            borderColor0: '#8A0000'
+                        }},
+                        markPoint: {{
+                            data: [...entryMarkers, ...exitMarkers],
+                            silent: false
+                        }}
+                    }}
+                ]
+            }};
             
-            try {{
-                // Get existing markers and add highlight markers
-                const existingMarkers = candlestickSeries.markers() || [];
-                const allMarkers = [...existingMarkers, ...highlightMarkers];
-                candlestickSeries.setMarkers(allMarkers);
-                
-                // Center the chart on the trade
-                chart.timeScale().setVisibleRange({{
-                    from: trade.entry_timestamp - 3600, // 1 hour before
-                    to: trade.exit_timestamp + 3600     // 1 hour after
-                }});
-                
-                selectedTradeMarker = highlightMarkers;
-                console.log(`✓ Highlighted trade on chart: ${{trade.side}} at ${{new Date(trade.entry_timestamp * 1000).toLocaleString()}}`);
-            }} catch (error) {{
-                console.error('Error highlighting trade:', error);
-            }}
+            chart.setOption(option, true);
         }}
         
         // Fullscreen functionality
@@ -741,11 +845,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             overlay.style.display = 'block';
             
             // Re-render charts in fullscreen
-            if (elementId === 'equity-chart') {{
-                setTimeout(() => {{
-                    drawEquityChartFullscreen(clone.id);
-                }}, 100);
-            }} else if (elementId === 'symbol-content' && currentSymbol) {{
+            if (currentSymbol) {{
                 setTimeout(() => {{
                     showSymbolFullscreen(currentSymbol, clone);
                 }}, 100);
@@ -756,211 +856,41 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             document.getElementById('fullscreen-overlay').style.display = 'none';
         }}
         
-        function drawEquityChartFullscreen(chartId) {{
-            const container = document.getElementById(chartId);
-            if (!container) return;
-            
-            // Create fullscreen equity chart
-            const chart = LightweightCharts.createChart(container, {{
-                width: container.clientWidth,
-                height: container.clientHeight,
-                layout: {{
-                    background: {{ type: 'solid', color: '#ffffff' }},
-                    textColor: '#333',
-                    fontSize: 14,
-                    fontFamily: 'Segoe UI, sans-serif'
-                }},
-                grid: {{
-                    vertLines: {{ color: '#e1e1e1' }},
-                    horzLines: {{ color: '#e1e1e1' }}
-                }},
-                rightPriceScale: {{
-                    borderColor: '#cccccc',
-                    scaleMargins: {{ top: 0.1, bottom: 0.1 }}
-                }},
-                timeScale: {{
-                    borderColor: '#cccccc',
-                    timeVisible: true,
-                    secondsVisible: false
-                }},
-                crosshair: {{
-                    mode: 1,
-                    vertLine: {{ width: 1, color: '#758696', style: 2 }},
-                    horzLine: {{ width: 1, color: '#758696', style: 2 }}
-                }}
-            }});
-            
-            // Define colors for symbols
-            const colors = ['#2962FF', '#E91E63', '#FF9800', '#4CAF50', '#9C27B0', '#00BCD4'];
-            let colorIndex = 0;
-            
-            chartData.symbols.forEach(symbol => {{
-                const data = chartData.equity_curves[symbol];
-                const color = colors[colorIndex % colors.length];
-                colorIndex++;
-                
-                const seriesData = data.timestamps.map((timestamp, i) => ({{
-                    time: timestamp,
-                    value: data.equity[i]
-                }}));
-                
-                const lineSeries = chart.addSeries(LightweightCharts.LineSeries, {{
-                    color: color,
-                    lineWidth: 4,
-                    title: `${{symbol}} (${{data.return_percent.toFixed(2)}}%)`
-                }});
-                
-                lineSeries.setData(seriesData);
-            }});
-            
-            chart.timeScale().fitContent();
-            
-            // Store reference for cleanup
-            equityCharts[chartId] = chart;
-        }}
-        
         function showSymbolFullscreen(symbol, container) {{
-            const equityData = chartData.equity_curves[symbol];
-            const tradesData = chartData.trades[symbol];
-            
-            // Create symbol-specific chart
-            const trace = {{
-                x: equityData.timestamps,
-                y: equityData.equity,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Equity',
-                line: {{ color: '#667eea', width: 4 }}
-            }};
-            
-            // Helper function to find closest equity value for a timestamp
-            function getEquityAtTime(timestamp) {{
-                const idx = equityData.timestamps.findIndex(t => t >= timestamp);
-                return idx >= 0 ? equityData.equity[idx] : equityData.equity[equityData.equity.length - 1];
-            }}
-            
-            // Add entry markers
-            const entryMarkers = {{
-                x: tradesData.map(t => t.entry_time),
-                y: tradesData.map(t => getEquityAtTime(t.entry_time)),
-                mode: 'markers',
-                marker: {{
-                    color: tradesData.map(t => t.side === 'LONG' ? '#28a745' : '#dc3545'),
-                    size: 20,
-                    symbol: tradesData.map(t => t.side === 'LONG' ? 'triangle-up' : 'triangle-down'),
-                    line: {{ color: 'white', width: 3 }}
-                }},
-                name: 'Entries',
-                hovertemplate: '<b>Entry</b><br>%{{x}}<br>Side: %{{customdata.side}}<br>Price: $%{{customdata.price}}<extra></extra>',
-                customdata: tradesData.map(t => ({{ side: t.side, price: t.entry_price }}))
-            }};
-            
-            // Add exit markers
-            const exitMarkers = {{
-                x: tradesData.map(t => t.exit_time),
-                y: tradesData.map(t => getEquityAtTime(t.exit_time)),
-                mode: 'markers',
-                marker: {{
-                    color: tradesData.map(t => t.pnl >= 0 ? '#28a745' : '#dc3545'),
-                    size: 16,
-                    symbol: 'x',
-                    line: {{ color: 'white', width: 3 }}
-                }},
-                name: 'Exits',
-                hovertemplate: '<b>Exit</b><br>%{{x}}<br>P&L: %{{customdata.pnl}}%<br>Price: $%{{customdata.price}}<br>Reason: %{{customdata.reason}}<extra></extra>',
-                customdata: tradesData.map(t => ({{ 
-                    pnl: t.pnl_percent.toFixed(2), 
-                    price: t.exit_price, 
-                    reason: t.exit_reason 
-                }}))
-            }};
-            
-            const layout = {{
-                title: {{ text: `${{symbol}} - Equity Curve & Trade Signals`, font: {{ size: 24 }} }},
-                xaxis: {{ title: 'Time', titlefont: {{ size: 18 }} }},
-                yaxis: {{ title: 'Equity ($)', titlefont: {{ size: 18 }} }},
-                showlegend: true,
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)',
-                font: {{ family: 'Segoe UI, sans-serif', size: 14 }},
-                margin: {{ t: 60, b: 60, l: 80, r: 80 }}
-            }};
-            
-            // Update container HTML
+            // Create fullscreen version
             container.innerHTML = `
-                <div style="height: 60%; margin-bottom: 20px;">
-                    <div id="symbol-chart-fullscreen" style="height: 100%;"></div>
+                <div style="height: 70%; margin-bottom: 20px;">
+                    <div id="candlestick-chart-fullscreen" style="width: 100%; height: 100%;"></div>
                 </div>
-                <div style="height: 35%;">
+                <div style="height: 25%;">
                     <h3>📋 Trade History for ${{symbol}} (${{chartData.trades[symbol].length}} trades)</h3>
                     <div id="trades-grid-fullscreen" class="ag-theme-alpine" style="height: calc(100% - 40px);"></div>
                 </div>
             `;
             
-            // Draw the chart using TradingView
             setTimeout(() => {{
-                const chartContainer = document.getElementById('symbol-chart-fullscreen');
+                const chartContainer = document.getElementById('candlestick-chart-fullscreen');
                 if (chartContainer) {{
-                    // Create TradingView chart for fullscreen symbol view
-                    const symbolChart = LightweightCharts.createChart(chartContainer, {{
-                        width: chartContainer.clientWidth,
-                        height: chartContainer.clientHeight * 0.6,
-                        layout: {{
-                            background: {{ type: 'solid', color: '#ffffff' }},
-                            textColor: '#333',
-                            fontSize: 12,
-                            fontFamily: 'Segoe UI, sans-serif'
-                        }},
-                        grid: {{
-                            vertLines: {{ color: '#f0f0f0' }},
-                            horzLines: {{ color: '#f0f0f0' }}
-                        }},
-                        rightPriceScale: {{
-                            borderColor: '#cccccc',
-                            scaleMargins: {{ top: 0.1, bottom: 0.1 }}
-                        }},
-                        timeScale: {{
-                            borderColor: '#cccccc',
-                            timeVisible: true,
-                            secondsVisible: false
-                        }},
-                        crosshair: {{
-                            mode: 1,
-                            vertLine: {{ width: 1, color: '#758696', style: 2 }},
-                            horzLine: {{ width: 1, color: '#758696', style: 2 }}
-                        }}
+                    const fullscreenChart = echarts.init(chartContainer);
+                    echartsInstances['fullscreen'] = fullscreenChart;
+                    updateChartWithHighlight(fullscreenChart, symbol, selectedTradeIndex);
+                    
+                    // Handle resize
+                    window.addEventListener('resize', () => {{
+                        fullscreenChart.resize();
                     }});
-                    
-                    // Add equity line
-                    const equityData = chartData.equity_curves[currentSymbol];
-                    if (equityData) {{
-                        const lineSeries = symbolChart.addSeries(LightweightCharts.LineSeries, {{
-                            color: '#2962FF',
-                            lineWidth: 3
-                        }});
-                        
-                        const seriesData = equityData.timestamps.map((timestamp, i) => ({{
-                            time: timestamp,
-                            value: equityData.equity[i]
-                        }}));
-                        
-                        lineSeries.setData(seriesData);
-                        symbolChart.timeScale().fitContent();
-                    }}
-                    
-                    // Store reference
-                    equityCharts['fullscreen-symbol'] = symbolChart;
                 }}
                 
-                // Initialize trades grid for fullscreen
+                // Initialize fullscreen trades grid
                 const gridOptions = {{
                     columnDefs: tradeColumns,
-                    rowData: tradesData,
+                    rowData: chartData.trades[symbol],
                     defaultColDef: {{
                         sortable: true,
                         filter: true,
                         resizable: true,
-                        suppressSizeToFit: false
+                        suppressSizeToFit: false,
+                        flex: 1
                     }},
                     pagination: false,
                     enableRangeSelection: true,
@@ -969,201 +899,25 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                     suppressHorizontalScroll: false,
                     enableCellTextSelection: true,
                     domLayout: 'normal',
-                    // Row selection and click handling
                     rowSelection: 'single',
                     onRowClicked: (event) => {{
                         const trade = event.data;
-                        console.log('Row clicked:', trade);
-                        highlightTradeOnChart(trade);
+                        const tradeIndex = trade.trade_number - 1;
+                        highlightTradeOnChart(trade, tradeIndex);
+                        if (echartsInstances['fullscreen']) {{
+                            updateChartWithHighlight(echartsInstances['fullscreen'], symbol, tradeIndex);
+                        }}
                     }},
-                    // Auto-size columns to fit content and container
                     onGridReady: (params) => {{
-                        console.log('Grid ready with', params.api.getDisplayedRowCount(), 'rows');
                         setTimeout(() => {{
                             params.api.sizeColumnsToFit();
                             params.api.autoSizeAllColumns();
                         }}, 100);
-                    }},
-                    onGridSizeChanged: (params) => {{
-                        params.api.sizeColumnsToFit();
-                    }},
-                    onFirstDataRendered: (params) => {{
-                        params.api.sizeColumnsToFit();
                     }}
                 }};
                 
                 agGrid.createGrid(document.getElementById('trades-grid-fullscreen'), gridOptions);
             }}, 100);
-        }}
-        
-        // Show individual symbol analysis with TradingView Lightweight Charts - FOCUSED VERSION
-        function showSymbol(symbol, targetElement = null) {{
-            currentSymbol = symbol;
-            
-            // Update active tab
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            if (targetElement && targetElement.classList) {{
-                targetElement.classList.add('active');
-            }} else if (typeof event !== 'undefined' && event.target && event.target.classList) {{
-                event.target.classList.add('active');
-            }} else {{
-                // Find the tab for this symbol and activate it
-                const tabs = document.querySelectorAll('.tab');
-                tabs.forEach(tab => {{
-                    if (tab.textContent.trim() === symbol) {{
-                        tab.classList.add('active');
-                    }}
-                }});
-            }}
-            
-            const equityData = chartData.equity_curves[symbol];
-            const candlestickData = chartData.candlestick_data[symbol] || [];
-            const tradesData = chartData.trades[symbol];
-            
-            // Create focused content HTML - CANDLESTICKS + TRADES ONLY
-            const contentHTML = `
-                <div style="margin-top: 20px;">
-                    <div style="height: 600px; margin-bottom: 20px;">
-                        <h4 style="margin-bottom: 10px;">📈 ${{symbol}} - Candlestick Chart with Trade Signals</h4>
-                        <div id="candlestick-chart-${{symbol}}" style="width: 100%; height: 580px; background: #fafafa; border-radius: 10px;"></div>
-                    </div>
-                    <div style="margin: 20px 0;">
-                        <h3>📋 Trade History for ${{symbol}} (${{tradesData.length}} trades)</h3>
-                    </div>
-                    <div id="trades-grid" class="ag-theme-alpine"></div>
-                </div>
-            `;
-            
-            document.getElementById('symbol-content').innerHTML = contentHTML;
-            
-            // Clean up existing charts
-            if (candlestickCharts[symbol]) {{
-                candlestickCharts[symbol].remove();
-            }}
-            
-            // Create candlestick chart with FIXED MARKERS
-            console.log(`Creating candlestick chart for ${{symbol}} with ${{candlestickData.length}} bars and ${{tradesData.length}} trades`);
-            
-            if (candlestickData.length > 0) {{
-                const candlestickContainer = document.getElementById(`candlestick-chart-${{symbol}}`);
-                if (!candlestickContainer) {{
-                    console.error(`Candlestick container not found for ${{symbol}}`);
-                    return;
-                }}
-                
-                // Create TradingView chart with proper configuration
-                const candlestickChart = LightweightCharts.createChart(candlestickContainer, {{
-                    width: candlestickContainer.clientWidth,
-                    height: 580,
-                    layout: {{
-                        background: {{ type: 'solid', color: '#ffffff' }},
-                        textColor: '#333',
-                        fontSize: 12,
-                        fontFamily: 'Segoe UI, sans-serif'
-                    }},
-                    grid: {{
-                        vertLines: {{ color: '#f0f0f0' }},
-                        horzLines: {{ color: '#f0f0f0' }}
-                    }},
-                    rightPriceScale: {{
-                        borderColor: '#cccccc',
-                        scaleMargins: {{ top: 0.1, bottom: 0.1 }}
-                    }},
-                    timeScale: {{
-                        borderColor: '#cccccc',
-                        timeVisible: true,
-                        secondsVisible: false
-                    }},
-                    crosshair: {{
-                        mode: 1,
-                        vertLine: {{ width: 1, color: '#758696', style: 2 }},
-                        horzLine: {{ width: 1, color: '#758696', style: 2 }}
-                    }}
-                }});
-                
-                // Add candlestick series
-                const candlestickSeries = candlestickChart.addSeries(LightweightCharts.CandlestickSeries, {{
-                    upColor: '#26a69a',
-                    downColor: '#ef5350',
-                    borderVisible: false,
-                    wickUpColor: '#26a69a',
-                    wickDownColor: '#ef5350',
-                }});
-                
-                // Set candlestick data
-                candlestickSeries.setData(candlestickData);
-                
-                // CORRECTED MARKERS IMPLEMENTATION - According to TradingView API docs
-                const markers = [];
-                
-                console.log(`Processing ${{tradesData.length}} trades for markers...`);
-                tradesData.forEach((trade, index) => {{
-                    console.log(`Trade ${{index + 1}}: ${{trade.side}} entry at ${{trade.entry_timestamp}} (${{new Date(trade.entry_timestamp * 1000).toLocaleString()}})`);
-                    
-                    // Entry marker with FIXED TradingView format
-                    markers.push({{
-                        time: trade.entry_timestamp,
-                        position: trade.side === 'LONG' ? 'belowBar' : 'aboveBar',
-                        color: trade.side === 'LONG' ? '#2196F3' : '#e91e63',
-                        shape: trade.side === 'LONG' ? 'arrowUp' : 'arrowDown',
-                        text: `${{trade.side}} Entry $$${{trade.entry_price.toFixed(4)}}`
-                    }});
-                    
-                    console.log(`Trade ${{index + 1}}: Exit at ${{trade.exit_timestamp}} with P&L ${{trade.pnl.toFixed(2)}}`);
-                    
-                    // Exit marker with FIXED TradingView format
-                    markers.push({{
-                        time: trade.exit_timestamp,
-                        position: trade.pnl >= 0 ? 'aboveBar' : 'belowBar',
-                        color: trade.pnl >= 0 ? '#4CAF50' : '#F44336',
-                        shape: 'circle',
-                        text: `Exit ${{trade.pnl >= 0 ? '+' : ''}}${{trade.pnl.toFixed(2)}}`
-                    }});
-                }});
-                
-                // Apply markers to candlestick series
-                console.log(`Applying ${{markers.length}} markers to chart...`);
-                if (markers.length > 0) {{
-                    try {{
-                        candlestickSeries.setMarkers(markers);
-                        console.log(`✓ Successfully added ${{markers.length}} markers to ${{symbol}} chart`);
-                        console.log('Sample marker:', markers[0]);
-                    }} catch (error) {{
-                        console.error(`✗ Error setting markers:`, error);
-                        console.log('Marker data structure:', markers[0]);
-                    }}
-                }} else {{
-                    console.warn(`No markers to add for ${{symbol}}`);
-                }}
-                
-                // Fit chart to content
-                candlestickChart.timeScale().fitContent();
-                
-                // Store chart reference
-                candlestickCharts[symbol] = candlestickChart;
-                
-                console.log(`✓ Candlestick chart created for ${{symbol}} with ${{candlestickData.length}} bars`);
-                
-            }} else {{
-                console.warn(`No candlestick data available for ${{symbol}}`);
-                const candlestickContainer = document.getElementById(`candlestick-chart-${{symbol}}`);
-                if (candlestickContainer) {{
-                    candlestickContainer.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 16px;">📊 No OHLCV data available for this symbol</div>';
-                }}
-            }}
-            
-            // Initialize trades grid
-            updateTradesGrid(symbol);
-            
-            // Handle window resize
-            window.addEventListener('resize', () => {{
-                if (candlestickCharts[symbol]) {{
-                    const container = document.getElementById(`candlestick-chart-${{symbol}}`);
-                    if (container) {{
-                        candlestickCharts[symbol].applyOptions({{ width: container.clientWidth }});
-                    }}
-                }}
-            }});
         }}
         
         // Update trades grid with full-width auto-sizing
@@ -1204,14 +958,13 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                 suppressHorizontalScroll: false,
                 enableCellTextSelection: true,
                 domLayout: 'normal',
-                // Row selection and click handling
                 rowSelection: 'single',
                 onRowClicked: (event) => {{
                     const trade = event.data;
+                    const tradeIndex = trade.trade_number - 1;
                     console.log('Row clicked:', trade);
-                    highlightTradeOnChart(trade);
+                    highlightTradeOnChart(trade, tradeIndex);
                 }},
-                // Auto-size columns to fit content and container
                 onGridReady: (params) => {{
                     console.log('Grid ready with', params.api.getDisplayedRowCount(), 'rows');
                     setTimeout(() => {{
@@ -1235,9 +988,87 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             }}
         }}
         
-        // Initialize - REMOVED EQUITY CHART INITIALIZATION
+        // Show individual symbol analysis with Apache ECharts
+        function showSymbol(symbol, targetElement = null) {{
+            currentSymbol = symbol;
+            selectedTradeIndex = -1; // Reset selection
+            
+            // Update active tab
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            if (targetElement && targetElement.classList) {{
+                targetElement.classList.add('active');
+            }} else {{
+                // Find the tab for this symbol and activate it
+                const tabs = document.querySelectorAll('.tab');
+                tabs.forEach(tab => {{
+                    if (tab.textContent.trim() === symbol) {{
+                        tab.classList.add('active');
+                    }}
+                }});
+            }}
+            
+            const candlestickData = chartData.candlestick_data[symbol] || [];
+            const tradesData = chartData.trades[symbol];
+            
+            // Create focused content HTML - CANDLESTICKS + TRADES ONLY
+            const contentHTML = `
+                <div style="margin-top: 20px;">
+                    <div style="height: 600px; margin-bottom: 20px;">
+                        <div id="candlestick-chart-${{symbol}}" style="width: 100%; height: 100%; background: #fafafa; border-radius: 10px;"></div>
+                    </div>
+                    <div style="margin: 20px 0;">
+                        <h3>📋 Trade History for ${{symbol}} (${{tradesData.length}} trades) - Click row to highlight on chart</h3>
+                    </div>
+                    <div id="trades-grid" class="ag-theme-alpine"></div>
+                </div>
+            `;
+            
+            document.getElementById('symbol-content').innerHTML = contentHTML;
+            
+            // Clean up existing charts
+            if (echartsInstances[symbol]) {{
+                echartsInstances[symbol].dispose();
+            }}
+            
+            // Create ECharts candlestick chart
+            console.log(`Creating ECharts candlestick chart for ${{symbol}} with ${{candlestickData.length}} bars and ${{tradesData.length}} trades`);
+            
+            if (candlestickData.length > 0) {{
+                const chartContainer = document.getElementById(`candlestick-chart-${{symbol}}`);
+                if (!chartContainer) {{
+                    console.error(`Candlestick container not found for ${{symbol}}`);
+                    return;
+                }}
+                
+                // Initialize ECharts instance
+                const chart = echarts.init(chartContainer);
+                echartsInstances[symbol] = chart;
+                
+                // Update chart with initial data
+                updateChartWithHighlight(chart, symbol, -1);
+                
+                // Handle window resize
+                window.addEventListener('resize', () => {{
+                    chart.resize();
+                }});
+                
+                console.log(`✓ ECharts candlestick chart created for ${{symbol}} with ${{candlestickData.length}} bars`);
+                
+            }} else {{
+                console.warn(`No candlestick data available for ${{symbol}}`);
+                const candlestickContainer = document.getElementById(`candlestick-chart-${{symbol}}`);
+                if (candlestickContainer) {{
+                    candlestickContainer.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 16px;">📊 No OHLCV data available for this symbol</div>';
+                }}
+            }}
+            
+            // Initialize trades grid
+            updateTradesGrid(symbol);
+        }}
+        
+        // Initialize
         window.onload = function() {{
-            console.log('Initializing focused trading view...');
+            console.log('Initializing Apache ECharts trading view...');
             if (chartData.symbols.length > 0) {{
                 document.querySelector('.tab').classList.add('active');
                 showSymbol(chartData.symbols[0]);
@@ -1252,13 +1083,8 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             if (event.key === 'f' || event.key === 'F') {{
                 if (event.ctrlKey || event.metaKey) {{
                     event.preventDefault();
-                    // Toggle fullscreen for the currently active chart
                     if (document.getElementById('fullscreen-overlay').style.display !== 'block') {{
-                        if (currentSymbol) {{
-                            openFullscreen('symbol-content', 'Trading Analysis');
-                        }} else {{
-                            openFullscreen('equity-chart', 'Equity Curves Comparison');
-                        }}
+                        openFullscreen('symbol-content', 'Trading Analysis');
                     }}
                 }}
             }}
@@ -1272,8 +1098,8 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    console.print(f"[green]✓ Ultra-Performance HTML chart with TradingView Lightweight Charts™ saved to {output_file}[/green]")
-    console.print(f"[yellow]⚡ Features: 35KB TradingView engine, real candlesticks, full-width tables, HTML5 Canvas acceleration[/yellow]")
+    console.print(f"[green]✓ Ultra-Performance HTML chart with Apache ECharts™ saved to {output_file}[/green]")
+    console.print(f"[yellow]⚡ Features: 35KB ECharts engine, real candlesticks, full-width tables, HTML5 Canvas acceleration[/yellow]")
     console.print(f"[cyan]🚀 Performance: WebGL-accelerated rendering, 1000x faster than DOM-based charts[/cyan]")
 
 def run_complete_optimization(symbols: List[str] = ["BTCUSDT", "ETHUSDT"], 
@@ -1300,8 +1126,8 @@ def run_complete_optimization(symbols: List[str] = ["BTCUSDT", "ETHUSDT"],
     console.print("\n[bold green]📊 Optimization Complete![/bold green]")
     display_optimization_results(results)
     
-    # Generate TradingView Lightweight Charts visualization
-    console.print("\n[bold cyan]🎨 Generating TradingView Lightweight Charts™ Visualization...[/bold cyan]")
+    # Generate Apache ECharts visualization
+    console.print("\n[bold cyan]🎨 Generating Apache ECharts™ Visualization...[/bold cyan]")
     generate_comprehensive_html_chart(results)
     
     # Save optimization results
