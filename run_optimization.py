@@ -18,7 +18,7 @@ def main():
     console.print("[bold blue]🚀 BarUpDn Strategy - Parameter Optimization & Visualization[/bold blue]\n")
     
     # Configuration
-    symbols = ["BTCUSDT"]
+    symbols = ["ETHUSDT"]
     days_back = 20  # Start with 2 days for quick testing
     
     console.print(f"[cyan]Configuration:[/cyan]")

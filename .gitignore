@@ -49,3 +49,6 @@ visualizations/html/
 backtest_results/
 models/
 wandb/
+
+data_cache/
+optimization_results_*.json

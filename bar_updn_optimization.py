@@ -21,6 +21,8 @@ from bar_updn_extreme_backtest import (
     BarUpDnStrategy, BarUpDnBacktester, DataFetcher, 
     BacktestResult, TradeResult, run_extreme_backtest
 )
+from enhanced_data_fetcher import EnhancedDataFetcher
+from enhanced_html_generator import generate_enhanced_html_report
 
 console = Console()
 
@@ -33,25 +35,26 @@ class ParameterOptimizer:
         self.days_back = days_back
         self.api_key = api_key
         self.api_secret = api_secret
-        self.fetcher = DataFetcher(api_key, api_secret)
+        self.fetcher = EnhancedDataFetcher(api_key, api_secret)
         
-        # Pre-fetch data for all symbols to avoid repeated API calls
+        # Pre-fetch data for all symbols using enhanced caching
         self.data_cache = {}
         self._fetch_all_data()
     
     def _fetch_all_data(self):
-        """Pre-fetch data for all symbols"""
-        console.print("[cyan]Pre-fetching data for all symbols...[/cyan]")
+        """Pre-fetch data for all symbols using enhanced caching"""
+        console.print("[cyan]📊 Pre-fetching data with intelligent caching...[/cyan]")
         
         end_date = datetime.now()
         start_date = end_date - timedelta(days=self.days_back)
         
+        # Show cache statistics first
+        self.fetcher.get_cache_summary()
+        
         for symbol in self.symbols:
             try:
-                console.print(f"[yellow]Fetching {symbol}...[/yellow]")
                 df = self.fetcher.fetch_data(symbol, start_date, end_date)
                 self.data_cache[symbol] = df
-                console.print(f"[green]✓ {symbol}: {len(df):,} bars[/green]")
             except Exception as e:
                 console.print(f"[red]✗ Failed to fetch {symbol}: {str(e)}[/red]")
                 self.data_cache[symbol] = None
@@ -107,6 +110,9 @@ class ParameterOptimizer:
                         backtester = BarUpDnBacktester(initial_capital=10000)
                         backtester.strategy = strategy
                         result = backtester.run_backtest(self.data_cache[symbol], symbol, show_progress=False)
+                        
+                        # Store raw OHLCV data for candlestick charts
+                        result.raw_data = self.data_cache[symbol].copy()
                         
                         # Add parameter info to result
                         result.parameters = {
@@ -709,9 +715,9 @@ def run_complete_optimization(symbols: List[str] = ["BTCUSDT", "ETHUSDT"],
     console.print("\n[bold green]📊 Optimization Complete![/bold green]")
     display_optimization_results(results)
     
-    # Generate HTML visualization
-    console.print("\n[bold cyan]🎨 Generating Interactive Visualization...[/bold cyan]")
-    generate_comprehensive_html_chart(results)
+    # Generate enhanced HTML visualization
+    console.print("\n[bold cyan]🎨 Generating Enhanced Full-Width Visualization...[/bold cyan]")
+    generate_enhanced_html_report(results)
     
     # Save optimization results
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
