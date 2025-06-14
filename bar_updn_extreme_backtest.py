@@ -236,57 +236,52 @@ class BarUpDnStrategy:
         self.min_hold_minutes = min_hold_minutes
     
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Generate BarUpDn signals with filtering"""
+        """Generate TRUE BarUpDn pattern signals"""
         df = df.copy()
-        
-        # Initialize signal columns
         df['signal'] = 'HOLD'
-        df['long_condition'] = False
-        df['short_condition'] = False
         
-        # Calculate conditions
-        # Long: close > open AND open > close[1]
-        df['long_condition'] = (df['close'] > df['open']) & (df['open'] > df['close'].shift(1))
+        # Identify individual bar types
+        df['is_bar_up'] = df['close'] > df['open']  # Green/bullish candle
+        df['is_bar_dn'] = df['close'] < df['open']  # Red/bearish candle
         
-        # Short: close < open AND open < close[1]  
-        df['short_condition'] = (df['close'] < df['open']) & (df['open'] < df['close'].shift(1))
+        # BarUpDn pattern detection (2-candle pattern)
+        # Current candle is BarDn, previous was BarUp
+        barupdn_pattern = (
+            df['is_bar_dn'] &  # Current candle is red/bearish
+            df['is_bar_up'].shift(1) &  # Previous candle was green/bullish  
+            (df['open'] >= df['close'].shift(1) * 0.999) &  # Opens near previous close
+            (df['close'] < df['open'].shift(1))  # Closes below previous open
+        )
         
-        # Add signal filtering to reduce noise
-        # Require minimum body size (0.1% of price) for signal validity
-        df['body_size_percent'] = abs(df['close'] - df['open']) / df['open'] * 100
-        df['min_body_filter'] = df['body_size_percent'] >= 0.1
+        # BarDnUp pattern (opposite)
+        # Current candle is BarUp, previous was BarDn
+        bardnup_pattern = (
+            df['is_bar_up'] &  # Current candle is green/bullish
+            df['is_bar_dn'].shift(1) &  # Previous candle was red/bearish
+            (df['open'] <= df['close'].shift(1) * 1.001) &  # Opens near previous close
+            (df['close'] > df['open'].shift(1))  # Closes above previous open
+        )
         
-        # Add volume filter (require above average volume)
-        df['volume_ma'] = df['volume'].rolling(window=20).mean()
-        df['volume_filter'] = df['volume'] > df['volume_ma']
+        # Signal assignment (pattern suggests reversal)
+        # BarUpDn suggests bearish reversal -> SHORT
+        df.loc[barupdn_pattern, 'signal'] = 'SHORT'
         
-        # Cooldown period - don't allow signals within 10 bars of each other
-        df['signal_cooldown'] = False
-        last_signal_idx = -20  # Start with safe distance
+        # BarDnUp suggests bullish reversal -> LONG  
+        df.loc[bardnup_pattern, 'signal'] = 'LONG'
         
-        for i in range(len(df)):
-            if i - last_signal_idx >= 10:  # At least 10 bars since last signal
-                df.loc[df.index[i], 'signal_cooldown'] = True
-                if df['long_condition'].iloc[i] or df['short_condition'].iloc[i]:
-                    last_signal_idx = i
-        
-        # Apply all filters
-        final_long_condition = (df['long_condition'] & 
-                              df['min_body_filter'] & 
-                              df['volume_filter'] & 
-                              df['signal_cooldown'])
-        
-        final_short_condition = (df['short_condition'] & 
-                               df['min_body_filter'] & 
-                               df['volume_filter'] & 
-                               df['signal_cooldown'])
-        
-        # Set signals
-        df.loc[final_long_condition, 'signal'] = 'LONG'
-        df.loc[final_short_condition, 'signal'] = 'SHORT'
+        # Optional: Add your filters
+        if hasattr(self, 'use_filters') and self.use_filters:
+            df['body_size_percent'] = abs(df['close'] - df['open']) / df['open'] * 100
+            df['min_body_filter'] = df['body_size_percent'] >= 0.1
+            
+            df['volume_ma'] = df['volume'].rolling(window=20).mean()
+            df['volume_filter'] = df['volume'] > df['volume_ma']
+            
+            # Apply filters
+            mask = df['signal'].isin(['LONG', 'SHORT'])
+            df.loc[mask & ~(df['min_body_filter'] & df['volume_filter']), 'signal'] = 'HOLD'
         
         return df
-
 class BarUpDnBacktester:
     """Advanced backtester for BarUpDn strategy"""
     
@@ -359,11 +354,12 @@ class BarUpDnBacktester:
                     # Check for opposite side signal (close current, open new)
                     elif row['signal'] in ['LONG', 'SHORT'] and row['signal'] != position.side:
                         # Close current position
-                        exit_trade = self._close_position(position, row, timestamp, "OPPOSITE_SIGNAL")
-                        trades.append(exit_trade)
-                        capital += exit_trade.pnl
-                        # Open new position with opposite signal
-                        position = self._open_position(row, timestamp, capital)
+                        # exit_trade = self._close_position(position, row, timestamp, "OPPOSITE_SIGNAL")
+                        # trades.append(exit_trade)
+                        # capital += exit_trade.pnl
+                        # # Open new position with opposite signal
+                        # position = self._open_position(row, timestamp, capital)
+                        pass  # No action, just continue to next row 
                 
                 # Handle new entries (only if no position)
                 elif row['signal'] in ['LONG', 'SHORT']:
