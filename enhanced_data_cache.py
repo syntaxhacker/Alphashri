@@ -117,6 +117,89 @@ class EnhancedDataCache:
             self.logger.warning(f"Error reading cache metadata: {str(e)}")
             return False
     
+    def _find_overlapping_cache_files(self, symbol: str, timeframe: str, 
+                                    start_date: datetime, end_date: datetime) -> List[Tuple[Path, Dict]]:
+        """Find all cache files that overlap with the requested date range"""
+        cache_path = self._get_cache_path(symbol, timeframe)
+        
+        if not cache_path.exists():
+            return []
+        
+        overlapping_files = []
+        
+        # Get all metadata files
+        for metadata_file in cache_path.glob("*.json"):
+            try:
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+                
+                cached_start = datetime.fromisoformat(metadata['start_date'])
+                cached_end = datetime.fromisoformat(metadata['end_date'])
+                
+                # Check if there's any overlap
+                if (cached_start <= end_date and cached_end >= start_date):
+                    # Check if the cache is still valid
+                    if self._is_cache_valid(metadata_file, end_date):
+                        overlapping_files.append((metadata_file, metadata))
+                
+            except Exception as e:
+                self.logger.warning(f"Error reading metadata {metadata_file}: {str(e)}")
+                continue
+        
+        return overlapping_files
+    
+    def _can_fulfill_from_cache(self, symbol: str, timeframe: str, 
+                               start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
+        """Check if we can fulfill the request from existing cache files"""
+        
+        overlapping_files = self._find_overlapping_cache_files(symbol, timeframe, start_date, end_date)
+        
+        if not overlapping_files:
+            return None
+        
+        # Find the cache file that best covers our requested range
+        best_file = None
+        best_coverage = 0
+        
+        for metadata_file, metadata in overlapping_files:
+            cached_start = datetime.fromisoformat(metadata['start_date'])
+            cached_end = datetime.fromisoformat(metadata['end_date'])
+            
+            # Check if this cache completely covers our requested range
+            if cached_start <= start_date and cached_end >= end_date:
+                # Perfect match - load and filter this data
+                data_file = metadata_file.with_suffix('.csv')
+                if data_file.exists():
+                    try:
+                        df = pd.read_csv(data_file, index_col=0, parse_dates=True)
+                        
+                        # Filter to requested date range
+                        mask = (df.index >= start_date) & (df.index <= end_date)
+                        filtered_df = df.loc[mask]
+                        
+                        if not filtered_df.empty:
+                            console.print(f"[green]✓ Cache hit (filtered): {symbol} {timeframe} "
+                                         f"({len(filtered_df):,} bars from {len(df):,} total)[/green]")
+                            return filtered_df
+                        
+                    except Exception as e:
+                        self.logger.error(f"Error loading cached data: {str(e)}")
+                        continue
+            
+            # Calculate coverage for partial matches (for future enhancement)
+            overlap_start = max(cached_start, start_date)
+            overlap_end = min(cached_end, end_date)
+            
+            if overlap_start < overlap_end:
+                coverage = (overlap_end - overlap_start).total_seconds()
+                if coverage > best_coverage:
+                    best_coverage = coverage
+                    best_file = (metadata_file, metadata)
+        
+        # If we found a partial match, we could potentially merge multiple files
+        # For now, we'll just return None to trigger a fresh download
+        return None
+
     def get_data(self, symbol: str, start_date: datetime, end_date: datetime, 
                  timeframe: str = '1m') -> Optional[pd.DataFrame]:
         """Get data from cache if available and valid"""
@@ -125,33 +208,31 @@ class EnhancedDataCache:
         start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
         
+        # First try exact match
         data_file = self._get_data_file(symbol, timeframe, start_date, end_date)
         metadata_file = self._get_metadata_file(symbol, timeframe, start_date, end_date)
         
-        if not data_file.exists() or not self._is_cache_valid(metadata_file, end_date):
-            console.print(f"[yellow]⚠ No valid cache for {symbol} {timeframe} {start_date.date()} to {end_date.date()}[/yellow]")
-            return None
+        if data_file.exists() and self._is_cache_valid(metadata_file, end_date):
+            try:
+                df = pd.read_csv(data_file, index_col=0, parse_dates=True)
+                
+                # Load and verify metadata
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+                
+                # Verify data integrity
+                current_hash = self._calculate_data_hash(df)
+                if current_hash == metadata.get('data_hash', ''):
+                    console.print(f"[green]✓ Cache hit (exact): {symbol} {timeframe} ({len(df):,} bars)[/green]")
+                    return df
+                else:
+                    self.logger.warning(f"Data integrity check failed for {symbol}")
+                    
+            except Exception as e:
+                self.logger.error(f"Error loading cached data: {str(e)}")
         
-        try:
-            # Load data
-            df = pd.read_csv(data_file, index_col=0, parse_dates=True)
-            
-            # Load and verify metadata
-            with open(metadata_file, 'r') as f:
-                metadata = json.load(f)
-            
-            # Verify data integrity
-            current_hash = self._calculate_data_hash(df)
-            if current_hash != metadata.get('data_hash', ''):
-                self.logger.warning(f"Data integrity check failed for {symbol}")
-                return None
-            
-            console.print(f"[green]✓ Cache hit: {symbol} {timeframe} ({len(df):,} bars)[/green]")
-            return df
-            
-        except Exception as e:
-            self.logger.error(f"Error loading cached data: {str(e)}")
-            return None
+        # Try to find overlapping cache files
+        return self._can_fulfill_from_cache(symbol, timeframe, start_date, end_date)
     
     def save_data(self, symbol: str, df: pd.DataFrame, start_date: datetime, 
                   end_date: datetime, timeframe: str = '1m') -> bool:
@@ -198,95 +279,102 @@ class EnhancedDataCache:
             return []
         
         symbols = []
-        for item in self.base_cache_dir.iterdir():
-            if item.is_dir():
-                symbols.append(item.name)
+        for symbol_dir in self.base_cache_dir.iterdir():
+            if symbol_dir.is_dir():
+                symbols.append(symbol_dir.name)
         
         return sorted(symbols)
-    
+
     def get_cached_timeframes(self, symbol: str) -> List[str]:
-        """Get list of cached timeframes for a symbol"""
+        """Get list of all cached timeframes for a symbol"""
         symbol_path = self.base_cache_dir / symbol.upper()
         if not symbol_path.exists():
             return []
         
         timeframes = []
-        for item in symbol_path.iterdir():
-            if item.is_dir():
-                timeframes.append(item.name)
+        for tf_dir in symbol_path.iterdir():
+            if tf_dir.is_dir():
+                timeframes.append(tf_dir.name)
         
         return sorted(timeframes)
-    
+
     def get_cached_date_ranges(self, symbol: str, timeframe: str = '1m') -> List[Dict]:
-        """Get list of cached date ranges for a symbol/timeframe"""
+        """Get list of all cached date ranges for a symbol/timeframe"""
         cache_path = self._get_cache_path(symbol, timeframe)
         if not cache_path.exists():
             return []
         
-        ranges = []
-        for item in cache_path.iterdir():
-            if item.suffix == '.json':  # metadata files
-                try:
-                    with open(item, 'r') as f:
-                        metadata = json.load(f)
-                    
-                    ranges.append({
-                        'start_date': metadata['start_date'],
-                        'end_date': metadata['end_date'],
-                        'cached_at': metadata['cached_at'],
-                        'rows': metadata['data_rows']
-                    })
-                except Exception as e:
-                    self.logger.warning(f"Error reading metadata {item}: {str(e)}")
+        date_ranges = []
+        for metadata_file in cache_path.glob("*.json"):
+            try:
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+                
+                date_ranges.append({
+                    'start_date': metadata['start_date'],
+                    'end_date': metadata['end_date'],
+                    'cached_at': metadata['cached_at'],
+                    'data_rows': metadata['data_rows'],
+                    'file': metadata_file.stem
+                })
+                
+            except Exception as e:
+                self.logger.warning(f"Error reading metadata {metadata_file}: {str(e)}")
+                continue
         
-        return sorted(ranges, key=lambda x: x['start_date'])
-    
+        # Sort by start date
+        date_ranges.sort(key=lambda x: x['start_date'])
+        return date_ranges
+
     def clear_expired(self, max_age_days: int = 7) -> int:
-        """Clear cache entries older than max_age_days"""
+        """Clear expired cache files"""
         if not self.base_cache_dir.exists():
             return 0
         
-        cleared_count = 0
         cutoff_date = datetime.now() - timedelta(days=max_age_days)
+        deleted_count = 0
         
         for symbol_dir in self.base_cache_dir.iterdir():
             if not symbol_dir.is_dir():
                 continue
-            
-            for timeframe_dir in symbol_dir.iterdir():
-                if not timeframe_dir.is_dir():
+                
+            for tf_dir in symbol_dir.iterdir():
+                if not tf_dir.is_dir():
                     continue
                 
-                for metadata_file in timeframe_dir.glob('*.json'):
+                for metadata_file in tf_dir.glob("*.json"):
                     try:
                         with open(metadata_file, 'r') as f:
                             metadata = json.load(f)
                         
                         cached_at = datetime.fromisoformat(metadata['cached_at'])
                         if cached_at < cutoff_date:
-                            # Remove both metadata and data files
+                            # Delete both metadata and data files
                             data_file = metadata_file.with_suffix('.csv')
                             
-                            metadata_file.unlink()
+                            if metadata_file.exists():
+                                metadata_file.unlink()
                             if data_file.exists():
                                 data_file.unlink()
                             
-                            cleared_count += 1
-                            console.print(f"[yellow]Cleared expired cache: {metadata_file.name}[/yellow]")
+                            deleted_count += 1
+                            self.logger.info(f"Deleted expired cache: {metadata_file.name}")
                     
                     except Exception as e:
                         self.logger.warning(f"Error processing {metadata_file}: {str(e)}")
+                        continue
         
-        console.print(f"[cyan]Cleared {cleared_count} expired cache entries[/cyan]")
-        return cleared_count
-    
+        return deleted_count
+
     def get_cache_stats(self) -> Dict:
         """Get comprehensive cache statistics"""
         stats = {
             'total_symbols': 0,
             'total_files': 0,
             'total_size_mb': 0,
-            'symbols': {}
+            'symbols': {},
+            'timeframes': {},
+            'date_coverage': {}
         }
         
         if not self.base_cache_dir.exists():
@@ -298,49 +386,66 @@ class EnhancedDataCache:
             
             symbol = symbol_dir.name
             stats['total_symbols'] += 1
-            stats['symbols'][symbol] = {
-                'timeframes': {},
-                'total_files': 0,
-                'total_size_mb': 0
-            }
+            stats['symbols'][symbol] = {'timeframes': {}, 'total_files': 0, 'size_mb': 0}
             
-            for timeframe_dir in symbol_dir.iterdir():
-                if not timeframe_dir.is_dir():
+            for tf_dir in symbol_dir.iterdir():
+                if not tf_dir.is_dir():
                     continue
                 
-                timeframe = timeframe_dir.name
-                timeframe_stats = {
-                    'files': 0,
-                    'size_mb': 0,
-                    'date_ranges': []
-                }
+                timeframe = tf_dir.name
+                if timeframe not in stats['timeframes']:
+                    stats['timeframes'][timeframe] = 0
                 
-                for file in timeframe_dir.iterdir():
-                    if file.is_file():
-                        file_size = file.stat().st_size / (1024 * 1024)  # MB
-                        timeframe_stats['files'] += 1
-                        timeframe_stats['size_mb'] += file_size
-                        stats['total_files'] += 1
-                        stats['total_size_mb'] += file_size
+                file_count = 0
+                tf_size = 0
                 
-                stats['symbols'][symbol]['timeframes'][timeframe] = timeframe_stats
-                stats['symbols'][symbol]['total_files'] += timeframe_stats['files']
-                stats['symbols'][symbol]['total_size_mb'] += timeframe_stats['size_mb']
+                for file_path in tf_dir.glob("*.csv"):
+                    file_count += 1
+                    tf_size += file_path.stat().st_size
+                
+                stats['timeframes'][timeframe] += file_count
+                stats['symbols'][symbol]['timeframes'][timeframe] = file_count
+                stats['symbols'][symbol]['total_files'] += file_count
+                stats['symbols'][symbol]['size_mb'] += tf_size / (1024 * 1024)
+                
+                stats['total_files'] += file_count
+                stats['total_size_mb'] += tf_size / (1024 * 1024)
         
         return stats
-    
+
     def print_cache_stats(self):
         """Print formatted cache statistics"""
         stats = self.get_cache_stats()
         
-        console.print("\n[bold cyan]📊 Enhanced Data Cache Statistics[/bold cyan]")
-        console.print(f"Total Symbols: {stats['total_symbols']}")
-        console.print(f"Total Files: {stats['total_files']}")
-        console.print(f"Total Size: {stats['total_size_mb']:.2f} MB")
+        console.print(f"\n[bold cyan]📊 Cache Statistics[/bold cyan]")
+        console.print(f"Total symbols: {stats['total_symbols']}")
+        console.print(f"Total files: {stats['total_files']}")
+        console.print(f"Total size: {stats['total_size_mb']:.2f} MB")
         
         if stats['symbols']:
-            console.print("\n[yellow]Symbol Breakdown:[/yellow]")
-            for symbol, symbol_stats in stats['symbols'].items():
-                console.print(f"  {symbol}: {symbol_stats['total_files']} files, {symbol_stats['total_size_mb']:.2f} MB")
-                for timeframe, tf_stats in symbol_stats['timeframes'].items():
-                    console.print(f"    └─ {timeframe}: {tf_stats['files']} files, {tf_stats['size_mb']:.2f} MB") 
+            console.print(f"\n[yellow]Symbols:[/yellow]")
+            for symbol, data in stats['symbols'].items():
+                console.print(f"  {symbol}: {data['total_files']} files, {data['size_mb']:.2f} MB")
+        
+        if stats['timeframes']:
+            console.print(f"\n[yellow]Timeframes:[/yellow]")
+            for tf, count in stats['timeframes'].items():
+                console.print(f"  {tf}: {count} files")
+
+    def get_cache_summary(self):
+        """Print a summary of the cache for debugging"""
+        console.print(f"[cyan]🔍 Cache Summary[/cyan]")
+        stats = self.get_cache_stats()
+        
+        if stats['total_symbols'] == 0:
+            console.print("[yellow]No cached data found[/yellow]")
+            return
+        
+        for symbol in stats['symbols']:
+            ranges = self.get_cached_date_ranges(symbol, '1m')
+            if ranges:
+                console.print(f"[green]{symbol}[/green]: {len(ranges)} cache files")
+                for r in ranges:
+                    console.print(f"  📅 {r['start_date']} to {r['end_date']} ({r['data_rows']:,} bars)")
+            else:
+                console.print(f"[yellow]{symbol}[/yellow]: No 1m data cached") 
