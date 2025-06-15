@@ -90,7 +90,8 @@ class QuickStrategyOptimizer:
                     trailing_stop_percent=param_set['trailing_stop_percent'],
                     position_size_percent=param_set['position_size_percent'],
                     max_intraday_loss_percent=param_set['max_intraday_loss_percent'],
-                    min_hold_minutes=param_set.get('min_hold_minutes', 15)
+                    min_hold_minutes=param_set.get('min_hold_minutes', 15),
+                    max_loss_dollars=8.0  # Fixed at $8 max loss per trade
                 )
                 
                 # Run backtest

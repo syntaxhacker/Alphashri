@@ -148,7 +148,8 @@ class SmartStrategyOptimizer:
                     trailing_stop_percent=trailing_stop_percent,
                     position_size_percent=position_size_percent,
                     max_intraday_loss_percent=max_intraday_loss_percent,
-                    min_hold_minutes=int(min_hold_minutes)
+                    min_hold_minutes=int(min_hold_minutes),
+                    max_loss_dollars=8.0  # Fixed at $8 max loss per trade
                 )
                 
                 # Run backtest
@@ -236,7 +237,7 @@ class SmartStrategyOptimizer:
         
         # Define search space - optimized for balanced opposite signal exits
         space = [
-            Real(1.0, 3.0, name='sl_percent'),                    # Stop loss (max 3% as requested)
+            Real(2.0, 3.0, name='sl_percent'),                    # Stop loss (max 3% as requested)
             Real(0.5, 1.5, name='trailing_stop_percent'),         # Trailing stop (min 1.5% for max profits)
             Real(5.0, 15.0, name='position_size_percent'),        # Position size (wider range for flexibility)
             Real(0.5, 2.0, name='max_intraday_loss_percent'),     # Max daily loss (wider range)
@@ -320,11 +321,11 @@ class SmartStrategyOptimizer:
             for i in range(n_trials):
                 # Random parameter sampling - balanced for opposite signal exits
                 params = [
-                    np.random.uniform(1.0, 3.0),      # sl_percent (corrected)
+                    np.random.uniform(2.0, 3.0),      # sl_percent (corrected)
                     np.random.uniform(1.5, 3.0),      # trailing_stop_percent (corrected)
                     np.random.uniform(3.0, 15.0),     # position_size_percent
                     np.random.uniform(0.5, 2.0),      # max_intraday_loss_percent (corrected)
-                    np.random.randint(5, 31)          # min_hold_minutes (balanced range)
+                    np.random.randint(60, 101)          # min_hold_minutes (balanced range)
                 ]
                 
                 self.evaluate_parameters(params)
@@ -959,7 +960,8 @@ class SmartStrategyOptimizer:
                 trailing_stop_percent=best_params['trailing_stop_percent'],
                 position_size_percent=best_params['position_size_percent'],
                 max_intraday_loss_percent=best_params['max_intraday_loss_percent'],
-                min_hold_minutes=best_params['min_hold_minutes']
+                min_hold_minutes=best_params['min_hold_minutes'],
+                max_loss_dollars=8.0  # Fixed at $8 max loss per trade
             )
             
             # Run backtests for all symbols

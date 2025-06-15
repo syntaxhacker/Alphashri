@@ -228,12 +228,14 @@ class BarUpDnStrategy:
                  trailing_stop_percent: float = 1.0,  # Changed to percentage
                  position_size_percent: float = 10.0,
                  max_intraday_loss_percent: float = 2.0,
-                 min_hold_minutes: int = 15):  # Minimum hold time
+                 min_hold_minutes: int = 15,  # Minimum hold time
+                 max_loss_dollars: float = 8.0):  # Maximum loss per trade in dollars
         self.sl_percent = sl_percent
         self.trailing_stop_percent = trailing_stop_percent  # Now percentage-based
         self.position_size_percent = position_size_percent
         self.max_intraday_loss_percent = max_intraday_loss_percent
         self.min_hold_minutes = min_hold_minutes
+        self.max_loss_dollars = max_loss_dollars  # New parameter for max dollar loss
         
         # Parameter validation and warnings
         self._validate_parameters()
@@ -267,6 +269,16 @@ class BarUpDnStrategy:
         if self.position_size_percent > 20.0:
             warnings.append(
                 f"[yellow]⚠️  Position size ({self.position_size_percent}%) is quite large - consider risk management[/yellow]"
+            )
+        
+        # Check max loss dollars parameter
+        if self.max_loss_dollars <= 0:
+            warnings.append(
+                f"[yellow]⚠️  Max loss dollars ({self.max_loss_dollars}) should be positive[/yellow]"
+            )
+        elif self.max_loss_dollars > 50:
+            warnings.append(
+                f"[yellow]⚠️  Max loss dollars ({self.max_loss_dollars}) seems quite high for risk management[/yellow]"
             )
         
         # Display warnings if any
@@ -395,30 +407,41 @@ class BarUpDnBacktester:
                     
                     # Check for opposite side signal (smart exit logic)
                     elif row['signal'] in ['LONG', 'SHORT'] and row['signal'] != position.side:
-                        # Check minimum hold time first
-                        hold_time = timestamp - position.entry_time
-                        min_hold_respected = hold_time.total_seconds() >= (self.strategy.min_hold_minutes * 60)
-                        
                         # Calculate current position profitability
                         current_price = row['close']
                         unrealized_pnl = self._calculate_unrealized_pnl(position, row)
                         is_profitable = unrealized_pnl > 0
                         
+                        # Check if max dollar loss is being approached (more conservative threshold)
+                        approaching_max_loss = unrealized_pnl <= -self.strategy.max_loss_dollars * 0.7  # 70% of max loss
+                        
+                        # Check minimum hold time first
+                        hold_time = timestamp - position.entry_time
+                        min_hold_respected = hold_time.total_seconds() >= (self.strategy.min_hold_minutes * 60)
+                        
                         # Smart exit logic: Only exit on opposite signals when:
                         # 1. Minimum hold time is respected, AND
                         # 2. Either position is unprofitable OR trailing stop hasn't been activated yet
-                        # Special exception: If position is heavily losing (>2%), ignore min hold time
+                        # Special exceptions: 
+                        #   - If position is heavily losing (>2%), ignore min hold time
+                        #   - If approaching max dollar loss (80% of limit), ignore min hold time
                         unrealized_pnl_percent = (unrealized_pnl / (position.entry_price * position.quantity)) * 100
                         is_heavily_losing = unrealized_pnl_percent < -2.0  # More than 2% loss
                         
                         should_exit_on_opposite = (
-                            (min_hold_respected or is_heavily_losing) and  # Respect min hold time unless heavily losing
+                            (min_hold_respected or is_heavily_losing or approaching_max_loss) and  # Respect min hold time unless heavily losing or approaching max loss
                             (not is_profitable or position.trailing_stop is None)  # Exit logic
                         )
                         
                         if should_exit_on_opposite:
                             # Close current position
-                            exit_reason = "OPPOSITE_SIGNAL_EMERGENCY" if is_heavily_losing else "OPPOSITE_SIGNAL"
+                            if approaching_max_loss:
+                                exit_reason = "OPPOSITE_SIGNAL_MAX_LOSS_PROTECTION"
+                            elif is_heavily_losing:
+                                exit_reason = "OPPOSITE_SIGNAL_EMERGENCY"
+                            else:
+                                exit_reason = "OPPOSITE_SIGNAL"
+                            
                             exit_trade = self._close_position(position, row, timestamp, exit_reason)
                             trades.append(exit_trade)
                             capital += exit_trade.pnl
@@ -493,10 +516,19 @@ class BarUpDnBacktester:
         """Check if position should be exited"""
         current_price = row['close']
         
-        # Check minimum hold time
+        # Calculate current unrealized PnL
+        unrealized_pnl = self._calculate_unrealized_pnl(position, row)
+        
+        # Check maximum dollar loss limit FIRST (highest priority)
+        # Use a more conservative threshold to account for slippage/gaps
+        max_loss_threshold = -self.strategy.max_loss_dollars * 0.9  # 90% of max loss to account for gaps
+        if unrealized_pnl <= max_loss_threshold:
+            return self._close_position(position, row, timestamp, "MAX_DOLLAR_LOSS")
+        
+        # Check minimum hold time for all other exit conditions
         hold_time = timestamp - position.entry_time
         if hold_time.total_seconds() < (self.strategy.min_hold_minutes * 60):
-            return None  # Don't exit if minimum hold time not met
+            return None  # Don't exit if minimum hold time not met (except for max dollar loss)
         
         # Check stop loss
         if position.side == 'LONG':

@@ -23,7 +23,7 @@ def run_smart_optimization():
     console.print("="*60)
     
     # Configuration
-    symbols = ["BTCUSDT"]
+    symbols = ["ETHUSDT"]
     days_back = 60# Use more data for better optimization
     
     console.print(f"[cyan]Smart Optimization Configuration:[/cyan]")
@@ -103,7 +103,8 @@ def run_smart_optimization():
                     f"• ✅ Emergency exits for >2% losses (ignores min hold)\n"
                     f"• ✅ Balances trend reversal speed vs. noise filtering\n\n"
                     f"[cyan]To reduce conflict:[/cyan]\n"
-                    f"• Consider min_hold_minutes: 5-10 for faster reversals\n"
+                    f"• Min hold time fixed to 60 minutes (1 hour) for testing\n"
+                    f"• Strategy will hold positions for minimum 1 hour\n"
                     f"• Or use longer timeframes (5m/15m) for natural filtering",
                     title="⚖️ Strategy Balance",
                     border_style="yellow"
