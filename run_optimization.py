@@ -23,8 +23,8 @@ def run_smart_optimization():
     console.print("="*60)
     
     # Configuration
-    symbols = ["ETHUSDT" , 'BTCUSDT', 'BNBUSDT']
-    days_back = 36# Use more data for better optimization
+    symbols = ["BTCUSDT"]
+    days_back = 60# Use more data for better optimization
     
     console.print(f"[cyan]Smart Optimization Configuration:[/cyan]")
     console.print(f"• Symbols: {', '.join(symbols)}")
@@ -89,6 +89,25 @@ def run_smart_optimization():
                 f"• {html_file or 'HTML generation failed'} (Detailed backtest)",
                 border_style="green"
             ))
+            
+            # Add information about parameter conflicts and solutions
+            min_hold = best.parameters.get('min_hold_minutes', 15)
+            if min_hold > 10:
+                console.print(Panel(
+                    f"[yellow]📝 Parameter Conflict Analysis:[/yellow]\n\n"
+                    f"[cyan]Current Configuration:[/cyan]\n"
+                    f"• Min Hold Time: {min_hold} minutes\n"
+                    f"• Opposite Signal Exits: Enabled (smart logic)\n\n"
+                    f"[cyan]Conflict Resolution:[/cyan]\n"
+                    f"• ✅ Smart exit logic respects min hold time\n"
+                    f"• ✅ Emergency exits for >2% losses (ignores min hold)\n"
+                    f"• ✅ Balances trend reversal speed vs. noise filtering\n\n"
+                    f"[cyan]To reduce conflict:[/cyan]\n"
+                    f"• Consider min_hold_minutes: 5-10 for faster reversals\n"
+                    f"• Or use longer timeframes (5m/15m) for natural filtering",
+                    title="⚖️ Strategy Balance",
+                    border_style="yellow"
+                ))
             
             # Try to open HTML file automatically
             if html_file:

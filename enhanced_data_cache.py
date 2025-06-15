@@ -85,7 +85,7 @@ class EnhancedDataCache:
         return hashlib.md5(pd.util.hash_pandas_object(df, index=True).values).hexdigest()
     
     def _is_cache_valid(self, metadata_file: Path, requested_end_date: datetime) -> bool:
-        """Check if cached data is still valid"""
+        """Check if cached data is still valid for overlapping usage"""
         if not metadata_file.exists():
             return False
         
@@ -96,21 +96,19 @@ class EnhancedDataCache:
             cached_end_date = datetime.fromisoformat(metadata['end_date'])
             cached_at = datetime.fromisoformat(metadata['cached_at'])
             
-            # Normalize all dates for comparison
-            requested_end_date = requested_end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            # Normalize dates for comparison
             now = datetime.now()
             
-            # If requesting data beyond what we have cached, invalid
-            if requested_end_date > cached_end_date:
-                self.logger.debug(f"Cache invalid: requested {requested_end_date} > cached {cached_end_date}")
-                return False
+            # Only invalidate if cached data includes today/future AND is stale
+            # Historical data should never be invalidated
+            if cached_end_date.date() >= now.date():
+                # For current/future data, check if it's older than 1 hour
+                if (now - cached_at).total_seconds() > 3600:
+                    self.logger.debug("Cache invalid: recent data older than 1 hour")
+                    return False
             
-            # If cached data is for today or future and is older than 1 hour, refresh
-            if cached_end_date.date() >= now.date() and (now - cached_at).total_seconds() > 3600:
-                self.logger.debug("Cache invalid: recent data older than 1 hour")
-                return False
-            
-            self.logger.debug(f"Cache valid for {metadata_file.name}")
+            # Historical data is always valid for overlapping usage
+            self.logger.debug(f"Cache valid for overlapping use: {metadata_file.name}")
             return True
             
         except Exception as e:
@@ -157,10 +155,7 @@ class EnhancedDataCache:
         if not overlapping_files:
             return None
         
-        # Find the cache file that best covers our requested range
-        best_file = None
-        best_coverage = 0
-        
+        # Try to find files that cover our requested range
         for metadata_file, metadata in overlapping_files:
             cached_start = datetime.fromisoformat(metadata['start_date'])
             cached_end = datetime.fromisoformat(metadata['end_date'])
@@ -186,18 +181,33 @@ class EnhancedDataCache:
                         self.logger.error(f"Error loading cached data: {str(e)}")
                         continue
             
-            # Calculate coverage for partial matches (for future enhancement)
-            overlap_start = max(cached_start, start_date)
-            overlap_end = min(cached_end, end_date)
-            
-            if overlap_start < overlap_end:
-                coverage = (overlap_end - overlap_start).total_seconds()
-                if coverage > best_coverage:
-                    best_coverage = coverage
-                    best_file = (metadata_file, metadata)
+            # Check for partial overlap that covers significant portion
+            elif cached_start <= start_date and cached_end > start_date:
+                # We have partial data from the start - could be useful
+                overlap_days = (cached_end - start_date).days
+                total_requested_days = (end_date - start_date).days
+                
+                # If we have >50% of requested data, use it and log what's missing
+                if overlap_days / total_requested_days > 0.5:
+                    data_file = metadata_file.with_suffix('.csv')
+                    if data_file.exists():
+                        try:
+                            df = pd.read_csv(data_file, index_col=0, parse_dates=True)
+                            
+                            # Filter to available overlap
+                            mask = (df.index >= start_date) & (df.index <= cached_end)
+                            filtered_df = df.loc[mask]
+                            
+                            if not filtered_df.empty:
+                                missing_days = (end_date - cached_end).days
+                                console.print(f"[yellow]⚠️  Partial cache hit: {symbol} {timeframe} "
+                                             f"({len(filtered_df):,} bars, missing {missing_days} days)[/yellow]")
+                                return filtered_df
+                            
+                        except Exception as e:
+                            self.logger.error(f"Error loading cached data: {str(e)}")
+                            continue
         
-        # If we found a partial match, we could potentially merge multiple files
-        # For now, we'll just return None to trigger a fresh download
         return None
 
     def get_data(self, symbol: str, start_date: datetime, end_date: datetime, 

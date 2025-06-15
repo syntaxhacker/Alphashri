@@ -234,13 +234,13 @@ class SmartStrategyOptimizer:
             border_style="cyan"
         ))
         
-        # Define search space
+        # Define search space - optimized for balanced opposite signal exits
         space = [
-            Real(1.0, 5.0, name='sl_percent'),                    # Stop loss
-            Real(0.2, 2.5, name='trailing_stop_percent'),         # Trailing stop  
-            Real(3.0, 15.0, name='position_size_percent'),        # Position size
-            Real(0.5, 4.0, name='max_intraday_loss_percent'),     # Max daily loss
-            Integer(5, 60, name='min_hold_minutes')               # Min hold time
+            Real(1.0, 3.0, name='sl_percent'),                    # Stop loss (max 3% as requested)
+            Real(1.5, 3.0, name='trailing_stop_percent'),         # Trailing stop (min 1.5% for max profits)
+            Real(3.0, 15.0, name='position_size_percent'),        # Position size (wider range for flexibility)
+            Real(0.5, 2.0, name='max_intraday_loss_percent'),     # Max daily loss (wider range)
+            Integer(5, 30, name='min_hold_minutes')               # Min hold time (balanced for opposite exits)
         ]
         
         start_time = time.time()
@@ -318,13 +318,13 @@ class SmartStrategyOptimizer:
             task = progress.add_task("Random search...", total=n_trials)
             
             for i in range(n_trials):
-                # Random parameter sampling
+                # Random parameter sampling - balanced for opposite signal exits
                 params = [
-                    np.random.uniform(1.0, 5.0),      # sl_percent
-                    np.random.uniform(0.2, 2.5),      # trailing_stop_percent
+                    np.random.uniform(1.0, 3.0),      # sl_percent (corrected)
+                    np.random.uniform(1.5, 3.0),      # trailing_stop_percent (corrected)
                     np.random.uniform(3.0, 15.0),     # position_size_percent
-                    np.random.uniform(0.5, 4.0),      # max_intraday_loss_percent
-                    np.random.randint(5, 61)          # min_hold_minutes
+                    np.random.uniform(0.5, 2.0),      # max_intraday_loss_percent (corrected)
+                    np.random.randint(5, 31)          # min_hold_minutes (balanced range)
                 ]
                 
                 self.evaluate_parameters(params)

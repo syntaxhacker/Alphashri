@@ -234,6 +234,48 @@ class BarUpDnStrategy:
         self.position_size_percent = position_size_percent
         self.max_intraday_loss_percent = max_intraday_loss_percent
         self.min_hold_minutes = min_hold_minutes
+        
+        # Parameter validation and warnings
+        self._validate_parameters()
+    
+    def _validate_parameters(self):
+        """Validate strategy parameters and warn about potential conflicts"""
+        from rich.console import Console
+        console = Console()
+        
+        warnings = []
+        
+        # Check if minimum hold time is too high for fast exits
+        if self.min_hold_minutes > 10:
+            warnings.append(
+                f"[yellow]⚠️  Min hold time ({self.min_hold_minutes} min) may conflict with opposite signal exits[/yellow]"
+            )
+        
+        # Check if stop loss is too wide
+        if self.sl_percent > 3.0:
+            warnings.append(
+                f"[yellow]⚠️  Stop loss ({self.sl_percent}%) is quite wide - consider 1.5-3.0% range[/yellow]"
+            )
+        
+        # Check if trailing stop is too narrow
+        if self.trailing_stop_percent < 1.0:
+            warnings.append(
+                f"[yellow]⚠️  Trailing stop ({self.trailing_stop_percent}%) is quite tight - may cause premature exits[/yellow]"
+            )
+        
+        # Check position size sanity
+        if self.position_size_percent > 20.0:
+            warnings.append(
+                f"[yellow]⚠️  Position size ({self.position_size_percent}%) is quite large - consider risk management[/yellow]"
+            )
+        
+        # Display warnings if any
+        if warnings:
+            console.print("\n[cyan]📋 Strategy Parameter Warnings:[/cyan]")
+            for warning in warnings:
+                console.print(f"   {warning}")
+            console.print()
+    
     
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         """Generate TRUE BarUpDn pattern signals"""
@@ -351,15 +393,36 @@ class BarUpDnBacktester:
                         capital += exit_result.pnl
                         position = None
                     
-                    # Check for opposite side signal (close current, open new)
+                    # Check for opposite side signal (smart exit logic)
                     elif row['signal'] in ['LONG', 'SHORT'] and row['signal'] != position.side:
-                        # Close current position
-                        # exit_trade = self._close_position(position, row, timestamp, "OPPOSITE_SIGNAL")
-                        # trades.append(exit_trade)
-                        # capital += exit_trade.pnl
-                        # # Open new position with opposite signal
-                        # position = self._open_position(row, timestamp, capital)
-                        pass  # No action, just continue to next row 
+                        # Check minimum hold time first
+                        hold_time = timestamp - position.entry_time
+                        min_hold_respected = hold_time.total_seconds() >= (self.strategy.min_hold_minutes * 60)
+                        
+                        # Calculate current position profitability
+                        current_price = row['close']
+                        unrealized_pnl = self._calculate_unrealized_pnl(position, row)
+                        is_profitable = unrealized_pnl > 0
+                        
+                        # Smart exit logic: Only exit on opposite signals when:
+                        # 1. Minimum hold time is respected, AND
+                        # 2. Either position is unprofitable OR trailing stop hasn't been activated yet
+                        # Special exception: If position is heavily losing (>2%), ignore min hold time
+                        unrealized_pnl_percent = (unrealized_pnl / (position.entry_price * position.quantity)) * 100
+                        is_heavily_losing = unrealized_pnl_percent < -2.0  # More than 2% loss
+                        
+                        should_exit_on_opposite = (
+                            (min_hold_respected or is_heavily_losing) and  # Respect min hold time unless heavily losing
+                            (not is_profitable or position.trailing_stop is None)  # Exit logic
+                        )
+                        
+                        if should_exit_on_opposite:
+                            # Close current position
+                            exit_reason = "OPPOSITE_SIGNAL_EMERGENCY" if is_heavily_losing else "OPPOSITE_SIGNAL"
+                            exit_trade = self._close_position(position, row, timestamp, exit_reason)
+                            trades.append(exit_trade)
+                            capital += exit_trade.pnl
+                            position = None  # Close position, don't immediately enter opposite 
                 
                 # Handle new entries (only if no position)
                 elif row['signal'] in ['LONG', 'SHORT']:
