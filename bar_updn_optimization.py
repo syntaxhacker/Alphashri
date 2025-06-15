@@ -307,6 +307,25 @@ def calculate_basic_indicators(df):
     macd_signal = macd.ewm(span=9).mean()
     macd_hist = macd - macd_signal
     
+    # Bollinger Bands
+    bb_period = 20
+    bb_std = 2
+    bb_middle = df['close'].rolling(window=bb_period).mean()
+    bb_std_dev = df['close'].rolling(window=bb_period).std()
+    bb_upper = bb_middle + (bb_std_dev * bb_std)
+    bb_lower = bb_middle - (bb_std_dev * bb_std)
+    
+    # Stochastic Oscillator
+    stoch_period = 14
+    stoch_k_period = 3
+    stoch_d_period = 3
+    
+    low_min = df['low'].rolling(window=stoch_period).min()
+    high_max = df['high'].rolling(window=stoch_period).max()
+    stoch_k_raw = 100 * (df['close'] - low_min) / (high_max - low_min)
+    stoch_k = stoch_k_raw.rolling(window=stoch_k_period).mean()
+    stoch_d = stoch_k.rolling(window=stoch_d_period).mean()
+    
     indicators = {
         'macd': {
             'macd': macd.fillna(0).tolist(),
@@ -318,6 +337,15 @@ def calculate_basic_indicators(df):
             'ema9': df['close'].ewm(span=9).mean().fillna(df['close']).tolist(),
             'ema21': df['close'].ewm(span=21).mean().fillna(df['close']).tolist(),
             'ema50': df['close'].ewm(span=50).mean().fillna(df['close']).tolist()
+        },
+        'bollinger': {
+            'upper': bb_upper.fillna(df['close']).tolist(),
+            'middle': bb_middle.fillna(df['close']).tolist(),
+            'lower': bb_lower.fillna(df['close']).tolist()
+        },
+        'stochastic': {
+            'k': stoch_k.fillna(50).tolist(),
+            'd': stoch_d.fillna(50).tolist()
         }
     }
     
@@ -1268,12 +1296,23 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             let gridIndex = 0;
             let yAxisIndex = 0;
             
+            // Calculate how many indicator panels we need
+            let indicatorCount = 0;
+            if (activeIndicators.volume && volumeData.some(v => v > 0)) indicatorCount++;
+            if (activeIndicators.macd && indicators.macd) indicatorCount++;
+            if (activeIndicators.rsi && indicators.rsi) indicatorCount++;
+            if (activeIndicators.stochastic && indicators.stochastic) indicatorCount++;
+            
+            // Calculate main chart height based on number of indicators
+            const indicatorPanelHeight = 18; // Each indicator panel takes 18% height
+            const mainChartHeight = Math.max(40, 85 - (indicatorCount * indicatorPanelHeight));
+            
             // Main price chart grid
             grids.push({{
                 left: '8%',
                 right: '8%',
                 top: '8%',
-                height: activeIndicators.volume ? '45%' : (activeIndicators.macd || activeIndicators.rsi || activeIndicators.stochastic ? '60%' : '75%')
+                height: mainChartHeight + '%'
             }});
             
             xAxes.push({{
@@ -1396,13 +1435,16 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             gridIndex++;
             yAxisIndex++;
             
+            // Track current position for indicator panels
+            let currentTop = mainChartHeight + 3; // Start after main chart with small gap
+            
             // Volume chart
             if (activeIndicators.volume && volumeData.some(v => v > 0)) {{
                 grids.push({{
                     left: '8%',
                     right: '8%',
-                    top: '55%',
-                    height: '15%'
+                    top: currentTop + '%',
+                    height: indicatorPanelHeight + '%'
                 }});
                 
                 xAxes.push({{
@@ -1436,16 +1478,16 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                 
                 gridIndex++;
                 yAxisIndex++;
+                currentTop += indicatorPanelHeight + 1; // Add small gap between indicators
             }}
             
             // MACD chart
             if (activeIndicators.macd && indicators.macd) {{
-                const macdTop = activeIndicators.volume ? '72%' : '62%';
                 grids.push({{
                     left: '8%',
                     right: '8%',
-                    top: macdTop,
-                    height: '15%'
+                    top: currentTop + '%',
+                    height: indicatorPanelHeight + '%'
                 }});
                 
                 xAxes.push({{
@@ -1497,16 +1539,16 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                 
                 gridIndex++;
                 yAxisIndex++;
+                currentTop += indicatorPanelHeight + 1;
             }}
             
             // RSI chart
             if (activeIndicators.rsi && indicators.rsi) {{
-                const rsiTop = (activeIndicators.volume ? '72%' : '62%') + (activeIndicators.macd ? '17%' : '0%');
                 grids.push({{
                     left: '8%',
                     right: '8%',
-                    top: activeIndicators.macd ? '89%' : (activeIndicators.volume ? '72%' : '62%'),
-                    height: '15%'
+                    top: currentTop + '%',
+                    height: indicatorPanelHeight + '%'
                 }});
                 
                 xAxes.push({{
@@ -1515,7 +1557,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                     gridIndex: gridIndex,
                     boundaryGap: false,
                     axisLabel: {{ 
-                        show: true,
+                        show: !activeIndicators.stochastic, // Show labels if this is the last indicator
                         color: isDarkMode ? '#e0e0e0' : '#333',
                         formatter: function(value) {{
                             return value.split(' ')[1];
@@ -1557,16 +1599,16 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                 
                 gridIndex++;
                 yAxisIndex++;
+                currentTop += indicatorPanelHeight + 1;
             }}
             
             // Stochastic chart
             if (activeIndicators.stochastic && indicators.stochastic) {{
-                const stochTop = '89%';
                 grids.push({{
                     left: '8%',
                     right: '8%',
-                    top: stochTop,
-                    height: '15%'
+                    top: currentTop + '%',
+                    height: indicatorPanelHeight + '%'
                 }});
                 
                 xAxes.push({{
@@ -1575,7 +1617,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                     gridIndex: gridIndex,
                     boundaryGap: false,
                     axisLabel: {{ 
-                        show: true,
+                        show: true, // Always show labels on the last indicator
                         color: isDarkMode ? '#e0e0e0' : '#333',
                         formatter: function(value) {{
                             return value.split(' ')[1];

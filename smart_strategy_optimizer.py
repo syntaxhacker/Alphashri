@@ -1369,7 +1369,7 @@ def main():
     # Initialize optimizer
     optimizer = SmartStrategyOptimizer(
         symbols=["BTCUSDT", "ETHUSDT"],
-        days_back=10,  # 6 months now feasible!
+        days_back=100,  # 6 months now feasible!
         api_key=API_KEY,
         api_secret=API_SECRET
     )
