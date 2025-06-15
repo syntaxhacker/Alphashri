@@ -229,7 +229,7 @@ class BarUpDnStrategy:
                  position_size_percent: float = 10.0,
                  max_intraday_loss_percent: float = 2.0,
                  min_hold_minutes: int = 15,  # Minimum hold time
-                 max_loss_dollars: float = 8.0):  # Maximum loss per trade in dollars
+                 max_loss_dollars: float = 18.0):  # Maximum loss per trade in dollars
         self.sl_percent = sl_percent
         self.trailing_stop_percent = trailing_stop_percent  # Now percentage-based
         self.position_size_percent = position_size_percent

@@ -24,7 +24,7 @@ def run_smart_optimization():
     
     # Configuration
     symbols = ["ETHUSDT"]
-    days_back = 60# Use more data for better optimization
+    days_back = 180# Use more data for better optimization
     
     console.print(f"[cyan]Smart Optimization Configuration:[/cyan]")
     console.print(f"• Symbols: {', '.join(symbols)}")
