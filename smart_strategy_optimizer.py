@@ -237,10 +237,10 @@ class SmartStrategyOptimizer:
         # Define search space - optimized for balanced opposite signal exits
         space = [
             Real(1.0, 3.0, name='sl_percent'),                    # Stop loss (max 3% as requested)
-            Real(1.5, 3.0, name='trailing_stop_percent'),         # Trailing stop (min 1.5% for max profits)
-            Real(3.0, 15.0, name='position_size_percent'),        # Position size (wider range for flexibility)
+            Real(0.5, 1.5, name='trailing_stop_percent'),         # Trailing stop (min 1.5% for max profits)
+            Real(5.0, 15.0, name='position_size_percent'),        # Position size (wider range for flexibility)
             Real(0.5, 2.0, name='max_intraday_loss_percent'),     # Max daily loss (wider range)
-            Integer(5, 30, name='min_hold_minutes')               # Min hold time (balanced for opposite exits)
+            Integer(60, 100, name='min_hold_minutes')              # Fixed to 1 hour (60 minutes)
         ]
         
         start_time = time.time()

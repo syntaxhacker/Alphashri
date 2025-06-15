@@ -154,7 +154,7 @@ class QuickStrategyOptimizer:
             'trailing_stop_percent': [0.5, 0.8, 1.0, 1.2, 1.5],   # Trailing stop
             'position_size_percent': [5.0, 8.0, 10.0, 12.0],      # Position size
             'max_intraday_loss_percent': [1.0, 1.5, 2.0, 2.5],    # Daily loss limit
-            'min_hold_minutes': [10, 15, 20, 30]                   # Minimum hold time
+            'min_hold_minutes': [60 , 90, 120]                               # Fixed to 1 hour (60 minutes)
         }
         
         console.print(Panel.fit(
