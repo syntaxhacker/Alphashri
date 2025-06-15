@@ -325,16 +325,17 @@ def calculate_basic_indicators(df):
 
 def generate_comprehensive_html_chart(optimization_results: Dict, output_file: str = "bar_updn_analysis.html"):
     """
-    Generate a minimal HTML chart with clean layout focusing on charts and tables
+    Generate a modern, comprehensive HTML chart with enhanced statistics and full-width charts
     """
     
-    console.print("[cyan]Generating minimal HTML visualization with clean layout...[/cyan]")
+    console.print("[cyan]📊 Generating compact HTML visualization with simplified layout...[/cyan]")
+    console.print("[yellow]💡 Compact Features: Simple tables, large charts (700px), minimal design, full-width layout[/yellow]")
     
     # Get best results for visualization
     best_params = optimization_results['best_parameters']
     best_results = best_params['results']
     
-    # Prepare data for charts
+    # Enhanced data preparation with comprehensive trade analytics
     chart_data = {
         'symbols': [],
         'equity_curves': {},
@@ -342,7 +343,9 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         'trades': {},
         'indicators': {},
         'parameters': best_params['parameters'],
-        'summary': best_params['metrics']
+        'summary': best_params['metrics'],
+        'trade_analytics': {},  # New: comprehensive trade analysis
+        'performance_metrics': {}  # New: enhanced performance metrics
     }
     
     def format_trades_for_table(trades_list):
@@ -398,6 +401,85 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             'return_percent': result.total_return_percent
         }
         
+        # Enhanced trade analytics
+        trades_data = []
+        running_total_pnl = 0
+        monthly_pnl = {}
+        trade_durations = []
+        win_streak = 0
+        loss_streak = 0
+        max_win_streak = 0
+        max_loss_streak = 0
+        current_win_streak = 0
+        current_loss_streak = 0
+        
+        for trade in result.trades:
+            running_total_pnl += trade.pnl
+            
+            # Calculate trade duration
+            duration_minutes = (trade.exit_time - trade.entry_time).total_seconds() / 60
+            trade_durations.append(duration_minutes)
+            
+            # Track win/loss streaks
+            if trade.pnl > 0:
+                current_win_streak += 1
+                current_loss_streak = 0
+                max_win_streak = max(max_win_streak, current_win_streak)
+            else:
+                current_loss_streak += 1
+                current_win_streak = 0
+                max_loss_streak = max(max_loss_streak, current_loss_streak)
+            
+            # Monthly PnL tracking
+            month_key = trade.entry_time.strftime('%Y-%m')
+            if month_key not in monthly_pnl:
+                monthly_pnl[month_key] = 0
+            monthly_pnl[month_key] += trade.pnl
+            
+            trades_data.append({
+                'entry_time': trade.entry_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'exit_time': trade.exit_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'side': trade.side,
+                'entry_price': trade.entry_price,
+                'exit_price': trade.exit_price,
+                'pnl': trade.pnl,
+                'pnl_percent': trade.pnl_percent,
+                'total_pnl': running_total_pnl,
+                'exit_reason': trade.exit_reason,
+                'quantity': trade.quantity if hasattr(trade, 'quantity') else 1,
+                'entry_timestamp': int(trade.entry_time.timestamp()),
+                'exit_timestamp': int(trade.exit_time.timestamp()),
+                'duration_minutes': duration_minutes
+            })
+        
+        # Comprehensive trade analytics
+        chart_data['trade_analytics'][symbol] = {
+            'avg_trade_duration': np.mean(trade_durations) if trade_durations else 0,
+            'median_trade_duration': np.median(trade_durations) if trade_durations else 0,
+            'max_win_streak': max_win_streak,
+            'max_loss_streak': max_loss_streak,
+            'monthly_pnl': monthly_pnl,
+            'win_trades': [t for t in trades_data if t['pnl'] > 0],
+            'loss_trades': [t for t in trades_data if t['pnl'] <= 0],
+            'avg_win': np.mean([t['pnl'] for t in trades_data if t['pnl'] > 0]) if any(t['pnl'] > 0 for t in trades_data) else 0,
+            'avg_loss': np.mean([t['pnl'] for t in trades_data if t['pnl'] <= 0]) if any(t['pnl'] <= 0 for t in trades_data) else 0,
+            'largest_win': max([t['pnl'] for t in trades_data]) if trades_data else 0,
+            'largest_loss': min([t['pnl'] for t in trades_data]) if trades_data else 0
+        }
+        
+        # Enhanced performance metrics
+        chart_data['performance_metrics'][symbol] = {
+            'total_trades': result.total_trades,
+            'win_rate': result.win_rate,
+            'profit_factor': (sum(t['pnl'] for t in trades_data if t['pnl'] > 0) / 
+                            abs(sum(t['pnl'] for t in trades_data if t['pnl'] <= 0))) if any(t['pnl'] <= 0 for t in trades_data) else 2.0,
+            'sharpe_ratio': result.sharpe_ratio if hasattr(result, 'sharpe_ratio') and not np.isnan(result.sharpe_ratio) else 0,
+            'max_drawdown': result.max_drawdown,
+            'total_return': result.total_return_percent,
+            'calmar_ratio': result.total_return_percent / result.max_drawdown if result.max_drawdown > 0 else 0,
+            'avg_trade_return': result.total_return_percent / result.total_trades if result.total_trades > 0 else 0
+        }
+        
         # Candlestick data from raw OHLCV data
         if hasattr(result, 'raw_data') and result.raw_data is not None:
             ohlcv = result.raw_data.copy()
@@ -425,40 +507,22 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                 console.print(f"[yellow]⚠️ Could not calculate indicators for {symbol}: {str(e)}[/yellow]")
                 chart_data['indicators'][symbol] = {}
         
-        # Trades data (individual)
-        trades_data = []
-        running_total_pnl = 0
-        for trade in result.trades:
-            running_total_pnl += trade.pnl
-            trades_data.append({
-                'entry_time': trade.entry_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'exit_time': trade.exit_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'side': trade.side,
-                'entry_price': trade.entry_price,
-                'exit_price': trade.exit_price,
-                'pnl': trade.pnl,
-                'pnl_percent': trade.pnl_percent,
-                'total_pnl': running_total_pnl,  # Running total P&L
-                'exit_reason': trade.exit_reason,
-                'quantity': trade.quantity if hasattr(trade, 'quantity') else 1,
-                'entry_timestamp': int(trade.entry_time.timestamp()),
-                'exit_timestamp': int(trade.exit_time.timestamp())
-            })
-        
+        # Store formatted trades for table display
         chart_data['trades'][symbol] = format_trades_for_table(trades_data)
     
-    # Generate HTML with Apache ECharts + ag-Grid
+    # Generate modern HTML with enhanced layout and analytics
     html_content = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BarUpDn Strategy Analysis - Apache ECharts 2025</title>
+    <title>BarUpDn Strategy Analysis - Enhanced 2025</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/dist/ag-grid-community.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-theme-alpine.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {{
             margin: 0;
@@ -468,209 +532,372 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: #f8f9fa;
-            color: #333;
-            line-height: 1.5;
-        }}
-        
-        /* Dark mode styles */
-        body.dark-mode {{
             background: #1a1a1a;
             color: #e0e0e0;
+            line-height: 1.4;
+            font-size: 14px;
+        }}
+        
+        body.light-mode {{
+            background: #f8f9fa;
+            color: #333;
         }}
         
         .container {{
             width: 100%;
-            min-height: 100vh;
-            background: white;
-            padding: 15px;
-        }}
-        
-        .dark-mode .container {{
+            margin: 0;
+            padding: 5px;
             background: #2d2d2d;
         }}
         
+        .light-mode .container {{
+            background: white;
+        }}
+        
         .header {{
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            padding: 8px 15px;
+            background: #3a3a3a;
+            border-bottom: 1px solid #555;
             position: relative;
         }}
         
-        .dark-mode .header {{
-            background: #3a3a3a;
-            border-color: #555;
+        .light-mode .header {{
+            background: #f8f9fa;
+            border-bottom-color: #dee2e6;
+        }}
+        
+        .header-left {{
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }}
+        
+        .header h1 {{
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin: 0;
+            color: #fff;
+        }}
+        
+        .light-mode .header h1 {{
+            color: #333;
+        }}
+        
+        .header p {{
+            font-size: 0.8rem;
+            color: #ccc;
+            margin: 0;
+        }}
+        
+        .light-mode .header p {{
+            color: #666;
+        }}
+        
+        .header-right {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }}
         
         .dark-mode-toggle {{
-            position: absolute;
-            top: 10px;
-            right: 15px;
             background: #007bff;
             border: none;
             color: white;
-            padding: 6px 12px;
-            border-radius: 4px;
+            padding: 5px 10px;
+            border-radius: 3px;
             cursor: pointer;
             font-size: 12px;
         }}
         
-        .dark-mode .dark-mode-toggle {{
+        .light-mode .dark-mode-toggle {{
             background: #6c757d;
         }}
         
-        .chart-container {{
-            margin: 15px 0;
-            background: white;
-            border: 1px solid #e9ecef;
-            padding: 15px;
+        /* Compact Vertical Statistics Table */
+        .symbol-stats {{
+            width: 280px;
+            border-collapse: collapse;
+            margin: 5px 0;
+            font-size: 11px;
         }}
         
-        .dark-mode .chart-container {{
+        .symbol-stats th,
+        .symbol-stats td {{
+            padding: 3px 6px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }}
+        
+        .symbol-stats th {{
             background: #3a3a3a;
-            border-color: #555;
+            font-weight: 600;
+            font-size: 10px;
+            width: 120px;
+            border-bottom-color: #555;
+        }}
+        
+        .light-mode .symbol-stats th {{
+            background: #f8f9fa;
+            border-bottom-color: #dee2e6;
+        }}
+        
+        .symbol-stats td {{
+            font-weight: 500;
+            width: 80px;
+            border-bottom-color: #555;
+        }}
+        
+        .light-mode .symbol-stats td {{
+            border-bottom-color: #dee2e6;
+        }}
+        
+        /* Side by side layout for analytics */
+        .analytics-container {{
+            display: flex;
+            gap: 20px;
+            padding: 5px 8px;
+            flex-wrap: wrap;
+        }}
+        
+        .analytics-section {{
+            flex: 1;
+            min-width: 300px;
+        }}
+        
+        .symbol-stats-container {{
+            flex: 0 0 300px;
+        }}
+        
+        .analytics-section h3,
+        .symbol-stats-container h3 {{
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #fff;
+        }}
+        
+        .light-mode .analytics-section h3,
+        .light-mode .symbol-stats-container h3 {{
+            color: #333;
+        }}
+        
+        .positive {{
+            color: #28a745;
+            font-weight: 600;
+        }}
+        
+        .negative {{
+            color: #dc3545;
+            font-weight: 600;
+        }}
+        
+        .neutral {{
+            color: #007bff;
+            font-weight: 600;
+        }}
+        
+        .chart-container {{
+            margin: 5px 0;
+            background: #2d2d2d;
+            border: 1px solid #555;
+        }}
+        
+        .light-mode .chart-container {{
+            background: white;
+            border-color: #dee2e6;
         }}
         
         .chart-header {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #e9ecef;
+            padding: 5px 8px;
+            background: #3a3a3a;
+            border-bottom: 1px solid #555;
         }}
         
-        .dark-mode .chart-header {{
-            border-bottom-color: #555;
+        .light-mode .chart-header {{
+            background: #f8f9fa;
+            border-bottom-color: #dee2e6;
+        }}
+        
+        .chart-header h2 {{
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            margin: 0;
+        }}
+        
+        .light-mode .chart-header h2 {{
+            color: #333;
         }}
         
         .fullscreen-btn {{
             background: #007bff;
             color: white;
             border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
+            padding: 5px 10px;
+            border-radius: 3px;
             cursor: pointer;
             font-size: 12px;
         }}
         
-        .dark-mode .fullscreen-btn {{
+        .light-mode .fullscreen-btn {{
             background: #6c757d;
         }}
         
         .symbol-tabs {{
             display: flex;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #e9ecef;
+            margin: 5px 8px;
+            gap: 3px;
             flex-wrap: wrap;
         }}
         
-        .dark-mode .symbol-tabs {{
-            border-bottom-color: #555;
-        }}
-        
         .tab {{
-            padding: 8px 16px;
+            padding: 4px 8px;
             cursor: pointer;
-            border: none;
-            background: none;
-            font-size: 14px;
-            color: #666;
-            border-bottom: 2px solid transparent;
-        }}
-        
-        .dark-mode .tab {{
+            border: 1px solid #555;
+            background: #3a3a3a;
+            font-size: 12px;
             color: #ccc;
+            border-radius: 3px;
         }}
         
-        .tab.active {{
-            color: #007bff;
-            border-bottom-color: #007bff;
-            font-weight: 500;
-        }}
-        
-        .dark-mode .tab.active {{
-            color: #6c757d;
-            border-bottom-color: #6c757d;
+        .light-mode .tab {{
+            background: #f8f9fa;
+            border-color: #dee2e6;
+            color: #495057;
         }}
         
         .tab:hover {{
-            color: #007bff;
-            background: #f8f9fa;
+            background: #4a4a4a;
         }}
         
-        .dark-mode .tab:hover {{
-            color: #6c757d;
-            background: #555;
+        .light-mode .tab:hover {{
+            background: #e9ecef;
         }}
         
-        .ag-theme-alpine {{
-            height: 500px;
+        .tab.active {{
+            background: #6c757d;
+            color: white;
+            border-color: #6c757d;
+        }}
+        
+        .light-mode .tab.active {{
+            background: #007bff;
+            border-color: #007bff;
+        }}
+        
+        /* Compact Chart Sizing - FULL WIDTH */
+        .chart-content {{
+            padding: 0;
             width: 100%;
         }}
         
-        /* Dark mode ag-Grid */
-        .dark-mode .ag-theme-alpine {{
-            --ag-background-color: #3a3a3a;
-            --ag-header-background-color: #555;
-            --ag-odd-row-background-color: #444;
-            --ag-row-hover-color: #555;
-            --ag-selected-row-background-color: #6c757d;
+        #symbol-content {{
+            width: 100%;
+            height: 100%;
+            padding: 5px;
+        }}
+        
+        #symbol-content > div {{
+            width: 100% !important;
+        }}
+        
+        [id*="candlestick-chart"] {{
+            width: 100% !important;
+            height: 900px !important;
+        }}
+        
+        .ag-theme-alpine {{
+            height: 500px !important;
+            width: 100% !important;
+            font-size: 12px;
+        }}
+        
+        .light-mode .ag-theme-alpine {{
+            --ag-background-color: #ffffff;
+            --ag-header-background-color: #f8f9fa;
+            --ag-odd-row-background-color: #f8f9fa;
+            --ag-row-hover-color: #e9ecef;
+            --ag-selected-row-background-color: #007bff;
+            --ag-foreground-color: #333;
+            --ag-header-foreground-color: #333;
+            --ag-border-color: #dee2e6;
+        }}
+        
+        .ag-theme-alpine {{
+            --ag-background-color: #2d2d2d;
+            --ag-header-background-color: #3a3a3a;
+            --ag-odd-row-background-color: #333;
+            --ag-row-hover-color: #4a4a4a;
+            --ag-selected-row-background-color: #007bff;
             --ag-foreground-color: #e0e0e0;
             --ag-header-foreground-color: #fff;
             --ag-border-color: #555;
         }}
         
-        /* Indicator controls */
+        /* Compact Indicator Controls */
         .indicator-controls {{
             display: flex;
-            gap: 8px;
-            margin-bottom: 10px;
+            gap: 3px;
+            margin: 5px 8px;
             flex-wrap: wrap;
         }}
         
         .indicator-btn {{
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            color: #495057;
-            padding: 4px 8px;
+            background: #3a3a3a;
+            border: 1px solid #555;
+            color: #ccc;
+            padding: 3px 6px;
             border-radius: 3px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 10px;
+        }}
+        
+        .light-mode .indicator-btn {{
+            background: #f8f9fa;
+            border-color: #dee2e6;
+            color: #495057;
+        }}
+        
+        .indicator-btn:hover {{
+            background: #4a4a4a;
+        }}
+        
+        .light-mode .indicator-btn:hover {{
+            background: #e9ecef;
         }}
         
         .indicator-btn.active {{
-            background: #007bff;
+            background: #6c757d;
             color: white;
+            border-color: #6c757d;
+        }}
+        
+        .light-mode .indicator-btn.active {{
+            background: #007bff;
             border-color: #007bff;
         }}
         
-        .dark-mode .indicator-btn {{
-            background: #555;
-            border-color: #666;
-            color: #ccc;
-        }}
-        
-        .dark-mode .indicator-btn.active {{
-            background: #6c757d;
-            border-color: #6c757d;
-            color: white;
-        }}
-        
         .trade-info {{
-            background: #e3f2fd;
-            padding: 8px;
-            border-radius: 3px;
-            margin-bottom: 10px;
-            font-size: 13px;
+            background: #1e3a8a;
+            padding: 5px 8px;
+            margin: 5px 8px;
+            font-size: 11px;
             display: none;
+            border: 1px solid #3b82f6;
+            color: #e0e0e0;
         }}
         
-        .dark-mode .trade-info {{
-            background: #555;
-            color: #e0e0e0;
+        .light-mode .trade-info {{
+            background: #e3f2fd;
+            border-color: #bbdefb;
+            color: inherit;
         }}
         
         .fullscreen-overlay {{
@@ -680,39 +907,47 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.95);
             z-index: 10000;
-            padding: 15px;
+            padding: 20px;
             box-sizing: border-box;
         }}
         
         .fullscreen-content {{
             width: 100%;
             height: 100%;
-            background: white;
-            padding: 15px;
+            background: #2d3748;
+            padding: 20px;
             position: relative;
             display: flex;
             flex-direction: column;
+            border-radius: 15px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
         }}
         
-        .dark-mode .fullscreen-content {{
-            background: #2d2d2d;
+        .light-mode .fullscreen-content {{
+            background: white;
         }}
         
         .fullscreen-close {{
             position: absolute;
-            top: 10px;
-            right: 15px;
-            background: #dc3545;
+            top: 15px;
+            right: 20px;
+            background: #ef4444;
             color: white;
             border: none;
-            width: 30px;
-            height: 30px;
-            border-radius: 4px;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 18px;
             z-index: 10001;
+            transition: all 0.3s ease;
+        }}
+        
+        .fullscreen-close:hover {{
+            background: #dc2626;
+            transform: scale(1.1);
         }}
         
         .fullscreen-chart {{
@@ -720,77 +955,68 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             min-height: 0;
         }}
         
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-        }}
-        
-        th, td {{
-            padding: 8px;
-            text-align: left;
-            border-bottom: 1px solid #dee2e6;
-        }}
-        
-        th {{
-            background: #f8f9fa;
-            font-weight: 500;
-        }}
-        
-        .dark-mode th {{
-            background: #555;
-            border-bottom-color: #666;
-        }}
-        
-        .dark-mode td {{
-            border-bottom-color: #666;
+        @media (max-width: 768px) {{
+            .container {{
+                margin: 2px;
+                padding: 2px;
+            }}
+            
+            .header {{
+                padding: 5px;
+            }}
+            
+            .header h1 {{
+                font-size: 1.1rem;
+            }}
+            
+            .chart-header {{
+                padding: 3px 5px;
+            }}
+            
+            .symbol-tabs {{
+                margin: 3px 5px;
+            }}
+            
+            [id*="candlestick-chart"] {{
+                height: 600px !important;
+            }}
+            
+            .ag-theme-alpine {{
+                height: 350px !important;
+            }}
+            
+            .symbol-stats {{
+                width: 100%;
+                float: none;
+                margin-bottom: 10px;
+            }}
         }}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <button class="dark-mode-toggle" onclick="toggleDarkMode()">🌙 Dark Mode</button>
-            <h1>BarUpDn Strategy Analysis</h1>
-            <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-        </div>
-
-        <!-- Stats Table -->
-        <table>
-            <tr>
-                <th>Stop Loss</th>
-                <th>Trailing Stop</th>
-                <th>Position Size</th>
-                <th>Avg Return</th>
-                <th>Win Rate</th>
-                <th>Sharpe Ratio</th>
-            </tr>
-            <tr>
-                <td>{best_params['parameters']['sl_percent']}%</td>
-                <td>{best_params['parameters']['trailing_stop_percent']:.1f}%</td>
-                <td>{best_params['parameters']['position_size_percent']}%</td>
-                <td style="color: #28a745;">{best_params['metrics']['avg_return_percent']:.2f}%</td>
-                <td style="color: #28a745;">{best_params['metrics']['avg_win_rate']:.1f}%</td>
-                <td style="color: #28a745;">{best_params['metrics']['avg_sharpe_ratio']:.2f}</td>
-            </tr>
-        </table>
-
-        <div class="chart-container">
-            <div class="chart-header">
-                <h2>Trading Analysis</h2>
+            <div class="header-left">
+                <h1>BarUpDn Strategy Analysis</h1>
+                <p>Enhanced Trading Analytics Dashboard - Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            </div>
+            <div class="header-right">
                 <button class="fullscreen-btn" onclick="openFullscreen('symbol-content', 'Trading Analysis')">
                     Fullscreen
                 </button>
+                <button class="dark-mode-toggle" onclick="toggleDarkMode()">☀️ Light Mode</button>
             </div>
-            
+        </div>
+
+        <div class="chart-container">
             <div class="symbol-tabs">
                 {' '.join([f'<button class="tab" onclick="showSymbol(\'{symbol}\', this)">{symbol}</button>' for symbol in chart_data['symbols']])}
             </div>
             
             <div class="indicator-controls">
                 <button class="indicator-btn active" onclick="toggleIndicator('candlestick', this)">Candlesticks</button>
-                <button class="indicator-btn" onclick="toggleIndicator('ema', this)">EMA (9,21,50)</button>
-                <button class="indicator-btn" onclick="toggleIndicator('bollinger', this)">Bollinger Bands</button>
+                <button class="indicator-btn" onclick="toggleIndicator('ema', this)">EMA</button>
+                <button class="indicator-btn" onclick="toggleIndicator('bollinger', this)">Bollinger</button>
                 <button class="indicator-btn" onclick="toggleIndicator('macd', this)">MACD</button>
                 <button class="indicator-btn" onclick="toggleIndicator('rsi', this)">RSI</button>
                 <button class="indicator-btn" onclick="toggleIndicator('stochastic', this)">Stochastic</button>
@@ -798,11 +1024,20 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             </div>
             
             <div class="trade-info" id="trade-info">
-                <strong>Selected Trade:</strong> <span id="trade-details">Click on a trade row to see details and auto-fit chart</span>
+                <strong>Selected Trade:</strong> <span id="trade-details">Click on a trade row to see details</span>
             </div>
             
-            <div id="symbol-content">
-                <!-- Will be populated by Apache ECharts -->
+            <div class="chart-content">
+                <div id="symbol-content">
+                    <!-- Will be populated by Apache ECharts -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Trade Analytics Section -->
+        <div class="chart-container">
+            <div id="trade-analytics-content">
+                <!-- Will be populated by JavaScript -->
             </div>
         </div>
         
@@ -822,7 +1057,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         let echartsInstances = {{}};
         let selectedTradeIndex = -1;
         let activeIndicators = {{'candlestick': true}};
-        let isDarkMode = false;
+        let isDarkMode = true;
         
         // ag-Grid column definitions with auto-sizing and full-width expansion
         const tradeColumns = [
@@ -866,7 +1101,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         // Dark mode toggle
         function toggleDarkMode() {{
             isDarkMode = !isDarkMode;
-            document.body.classList.toggle('dark-mode', isDarkMode);
+            document.body.classList.toggle('light-mode', !isDarkMode);
             
             const toggleBtn = document.querySelector('.dark-mode-toggle');
             toggleBtn.textContent = isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
@@ -1379,15 +1614,6 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             
             // Chart options
             const option = {{
-                title: {{
-                    text: `${{symbol}} - Advanced Technical Analysis`,
-                    left: 'center',
-                    textStyle: {{
-                        fontSize: 16,
-                        fontWeight: 'bold',
-                        color: isDarkMode ? '#e0e0e0' : '#333'
-                    }}
-                }},
                 backgroundColor: isDarkMode ? '#1e1e2e' : '#ffffff',
                 tooltip: {{
                     trigger: 'axis',
@@ -1594,7 +1820,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             }}
         }}
         
-        // Show individual symbol analysis with Apache ECharts
+        // Enhanced symbol analysis with comprehensive analytics
         function showSymbol(symbol, targetElement = null) {{
             currentSymbol = symbol;
             selectedTradeIndex = -1; // Reset selection
@@ -1615,21 +1841,26 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             
             const candlestickData = chartData.candlestick_data[symbol] || [];
             const tradesData = chartData.trades[symbol];
+            const analytics = chartData.trade_analytics[symbol] || {{}};
+            const metrics = chartData.performance_metrics[symbol] || {{}};
             
-            // Create focused content HTML - CANDLESTICKS + TRADES ONLY
+            // Enhanced content HTML with larger charts
             const contentHTML = `
-                <div style="margin-top: 15px;">
-                    <div style="height: 600px; margin-bottom: 15px;">
+                <div style="width: 100%; padding: 0;">
+                    <div style="height: 900px; margin-bottom: 10px; width: 100%;">
                         <div id="candlestick-chart-${{symbol}}" style="width: 100%; height: 100%;"></div>
                     </div>
-                    <div style="margin: 15px 0;">
-                        <h3>Trade History for ${{symbol}} (${{tradesData.length}} trades)</h3>
+                    <div style="margin: 10px 0;">
+                        <h3 style="font-size: 1.1rem; color: #333; font-weight: 600;">📊 Trade History for ${{symbol}} (${{tradesData.length}} trades)</h3>
                     </div>
-                    <div id="trades-grid" class="ag-theme-alpine"></div>
+                    <div id="trades-grid" class="ag-theme-alpine" style="width: 100%; height: 500px;"></div>
                 </div>
             `;
             
             document.getElementById('symbol-content').innerHTML = contentHTML;
+            
+            // Update trade analytics section
+            updateTradeAnalytics(symbol);
             
             // Clean up existing charts
             if (echartsInstances[symbol]) {{
@@ -1672,9 +1903,59 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             updateTradesGrid(symbol);
         }}
         
-        // Initialize
+        // Compact trade analytics display with symbol stats side by side
+        function updateTradeAnalytics(symbol) {{
+            const analytics = chartData.trade_analytics[symbol] || {{}};
+            const metrics = chartData.performance_metrics[symbol] || {{}};
+            
+            const analyticsHTML = `
+                <div class="analytics-container">
+                    <div class="symbol-stats-container">
+                        <h3>Symbol Parameters & Metrics</h3>
+                        <table class="symbol-stats">
+                            <tr><th>Stop Loss</th><td class="neutral">${{chartData.parameters.sl_percent}}%</td></tr>
+                            <tr><th>Trailing Stop</th><td class="neutral">${{chartData.parameters.trailing_stop_percent.toFixed(1)}}%</td></tr>
+                            <tr><th>Position Size</th><td class="neutral">${{chartData.parameters.position_size_percent}}%</td></tr>
+                            <tr><th>Win Rate</th><td class="${{metrics.win_rate >= 50 ? 'positive' : 'negative'}}">${{metrics.win_rate.toFixed(1)}}%</td></tr>
+                            <tr><th>Return</th><td class="${{metrics.total_return >= 0 ? 'positive' : 'negative'}}">${{metrics.total_return.toFixed(2)}}%</td></tr>
+                            <tr><th>Max Drawdown</th><td class="${{metrics.max_drawdown <= 5 ? 'positive' : 'negative'}}">${{metrics.max_drawdown.toFixed(2)}}%</td></tr>
+                            <tr><th>Sharpe Ratio</th><td class="${{metrics.sharpe_ratio >= 1 ? 'positive' : 'negative'}}">${{metrics.sharpe_ratio.toFixed(2)}}</td></tr>
+                            <tr><th>Profit Factor</th><td class="${{metrics.profit_factor >= 1.5 ? 'positive' : 'negative'}}">${{metrics.profit_factor.toFixed(2)}}</td></tr>
+                            <tr><th>Total Trades</th><td class="neutral">${{metrics.total_trades}}</td></tr>
+                        </table>
+                    </div>
+                    
+                    <div class="analytics-section">
+                        <h3>Trade Analytics</h3>
+                        <div style="display: flex; gap: 20px;">
+                            <table class="symbol-stats" style="width: 280px;">
+                                <tr><th>Total Trades</th><td>${{metrics.total_trades || 0}}</td></tr>
+                                <tr><th>Win Rate</th><td class="${{(metrics.win_rate || 0) >= 50 ? 'positive' : 'negative'}}">${{(metrics.win_rate || 0).toFixed(1)}}%</td></tr>
+                                <tr><th>Profit Factor</th><td class="${{(metrics.profit_factor || 0) >= 1.5 ? 'positive' : 'negative'}}">${{(metrics.profit_factor || 0).toFixed(2)}}</td></tr>
+                                <tr><th>Total Return</th><td class="${{(metrics.total_return || 0) >= 0 ? 'positive' : 'negative'}}">${{(metrics.total_return || 0).toFixed(2)}}%</td></tr>
+                                <tr><th>Avg Win</th><td class="positive">$${{(analytics.avg_win || 0).toFixed(2)}}</td></tr>
+                                <tr><th>Avg Loss</th><td class="negative">$${{(analytics.avg_loss || 0).toFixed(2)}}</td></tr>
+                            </table>
+                            
+                            <table class="symbol-stats" style="width: 280px;">
+                                <tr><th>Largest Win</th><td class="positive">$${{(analytics.largest_win || 0).toFixed(2)}}</td></tr>
+                                <tr><th>Largest Loss</th><td class="negative">$${{(analytics.largest_loss || 0).toFixed(2)}}</td></tr>
+                                <tr><th>Avg Duration</th><td>${{Math.round(analytics.avg_trade_duration || 0)}} min</td></tr>
+                                <tr><th>Max Win Streak</th><td class="positive">${{analytics.max_win_streak || 0}}</td></tr>
+                                <tr><th>Max Loss Streak</th><td class="negative">${{analytics.max_loss_streak || 0}}</td></tr>
+                                <tr><th>Sharpe Ratio</th><td class="${{(metrics.sharpe_ratio || 0) >= 1 ? 'positive' : 'negative'}}">${{(metrics.sharpe_ratio || 0).toFixed(2)}}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('trade-analytics-content').innerHTML = analyticsHTML;
+        }}
+        
+        // Initialize with enhanced functionality
         window.onload = function() {{
-            console.log('Initializing Apache ECharts trading view...');
+            console.log('Initializing Enhanced Apache ECharts trading view...');
             if (chartData.symbols.length > 0) {{
                 document.querySelector('.tab').classList.add('active');
                 showSymbol(chartData.symbols[0]);
@@ -1704,8 +1985,9 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    console.print(f"[green]✓ Minimal HTML chart saved to {output_file}[/green]")
-    console.print(f"[yellow]Features: Clean layout, ECharts candlesticks, full-width tables[/yellow]")
+    console.print(f"[green]✓ Compact HTML chart saved to {output_file}[/green]")
+    console.print(f"[yellow]📊 Features: Simple Tables, Full-Width Charts (700px), Minimal Design, Compact Layout[/yellow]")
+    console.print(f"[cyan]💡 Design: No cards, clean tables, large charts, responsive layout[/cyan]")
 
 def run_complete_optimization(symbols: List[str] = ["BTCUSDT", "ETHUSDT"], 
                              api_key: str = None, api_secret: str = None,
