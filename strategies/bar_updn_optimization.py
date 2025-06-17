@@ -17,12 +17,15 @@ from pathlib import Path
 import concurrent.futures
 from dataclasses import asdict
 
-from bar_updn_extreme_backtest import (
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from strategies.bar_updn_extreme_backtest import (
     BarUpDnStrategy, BarUpDnBacktester, DataFetcher, 
     BacktestResult, TradeResult, run_extreme_backtest
 )
 from enhanced_data_fetcher import EnhancedDataFetcher
-from enhanced_html_generator import generate_enhanced_html_report
 
 console = Console()
 
@@ -283,6 +286,140 @@ def calculate_technical_indicators(df):
         'd': stoch_d.tolist()
     }
     
+    # Support and Resistance Levels
+    def calculate_support_resistance(df, window=20, num_levels=3):
+        """Calculate support and resistance levels using improved pivot detection"""
+        support_levels = []
+        resistance_levels = []
+        
+        try:
+            # Calculate pivot points with multiple timeframes
+            highs = df['high'].values
+            lows = df['low'].values
+            closes = df['close'].values
+            current_price = closes[-1]
+            
+            # Method 1: Rolling window extremes
+            all_resistance = []
+            all_support = []
+            
+            # Use multiple window sizes for better detection
+            windows = [10, 20, 50]
+            
+            for w in windows:
+                if len(df) > w * 2:
+                    # Find resistance levels using rolling max
+                    rolling_max = df['high'].rolling(window=w, center=True).max()
+                    for i in range(w, len(df) - w):
+                        if highs[i] == rolling_max.iloc[i] and highs[i] > current_price:
+                            # Check if this is truly a local high
+                            is_local_high = True
+                            for j in range(max(0, i-5), min(len(highs), i+6)):
+                                if j != i and highs[j] > highs[i]:
+                                    is_local_high = False
+                                    break
+                            if is_local_high:
+                                all_resistance.append((highs[i], i, w))
+                    
+                    # Find support levels using rolling min
+                    rolling_min = df['low'].rolling(window=w, center=True).min()
+                    for i in range(w, len(df) - w):
+                        if lows[i] == rolling_min.iloc[i] and lows[i] < current_price:
+                            # Check if this is truly a local low
+                            is_local_low = True
+                            for j in range(max(0, i-5), min(len(lows), i+6)):
+                                if j != i and lows[j] < lows[i]:
+                                    is_local_low = False
+                                    break
+                            if is_local_low:
+                                all_support.append((lows[i], i, w))
+            
+            # Method 2: Percentage-based levels
+            price_range = np.max(highs) - np.min(lows)
+            price_levels = []
+            
+            # Add significant price levels (psychological levels)
+            min_price = np.min(lows)
+            max_price = np.max(highs)
+            
+            # Create levels at 10%, 25%, 50%, 75%, 90% of range
+            for pct in [0.1, 0.25, 0.38, 0.5, 0.62, 0.75, 0.9]:
+                level_price = min_price + (price_range * pct)
+                if level_price != current_price:  # Avoid current price
+                    if level_price > current_price:
+                        all_resistance.append((level_price, len(df)//2, 0))
+                    else:
+                        all_support.append((level_price, len(df)//2, 0))
+            
+            # Remove duplicates and cluster similar levels
+            def cluster_levels(levels, tolerance=0.005):
+                """Cluster similar price levels together"""
+                if not levels:
+                    return []
+                
+                levels.sort(key=lambda x: x[0])  # Sort by price
+                clustered = []
+                current_cluster = [levels[0]]
+                
+                for level in levels[1:]:
+                    if abs(level[0] - current_cluster[-1][0]) / current_cluster[-1][0] < tolerance:
+                        current_cluster.append(level)
+                    else:
+                        # Take the strongest level from current cluster
+                        best_level = max(current_cluster, key=lambda x: x[2])  # x[2] is window size
+                        clustered.append(best_level)
+                        current_cluster = [level]
+                
+                # Add the last cluster
+                if current_cluster:
+                    best_level = max(current_cluster, key=lambda x: x[2])
+                    clustered.append(best_level)
+                
+                return clustered
+            
+            # Cluster and select best levels
+            clustered_resistance = cluster_levels(all_resistance)
+            clustered_support = cluster_levels(all_support)
+            
+            # Sort resistance by proximity to current price (closest first)
+            clustered_resistance.sort(key=lambda x: abs(x[0] - current_price))
+            
+            # Sort support by proximity to current price (closest first)  
+            clustered_support.sort(key=lambda x: abs(x[0] - current_price))
+            
+            # Take the best levels
+            for i, (price, idx, window_size) in enumerate(clustered_resistance[:num_levels]):
+                resistance_levels.append({
+                    'price': float(price),
+                    'strength': window_size + 1,  # Larger window = stronger level
+                    'index': int(idx)
+                })
+            
+            for i, (price, idx, window_size) in enumerate(clustered_support[:num_levels]):
+                support_levels.append({
+                    'price': float(price),
+                    'strength': window_size + 1,
+                    'index': int(idx)
+                })
+            
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Error in support/resistance calculation: {str(e)}[/yellow]")
+        
+        return support_levels, resistance_levels
+    
+    try:
+        support_levels, resistance_levels = calculate_support_resistance(df)
+        indicators['support_resistance'] = {
+            'support_levels': support_levels,
+            'resistance_levels': resistance_levels
+        }
+    except Exception as e:
+        console.print(f"[yellow]⚠️ Could not calculate support/resistance: {str(e)}[/yellow]")
+        indicators['support_resistance'] = {
+            'support_levels': [],
+            'resistance_levels': []
+        }
+    
     return indicators
 
 def calculate_basic_indicators(df):
@@ -349,6 +486,99 @@ def calculate_basic_indicators(df):
         }
     }
     
+    # Support and Resistance Levels (basic version)
+    def calculate_support_resistance_basic(df, window=20, num_levels=3):
+        """Calculate support and resistance levels using basic pivot detection"""
+        support_levels = []
+        resistance_levels = []
+        
+        try:
+            # Calculate pivot points
+            highs = df['high'].values
+            lows = df['low'].values
+            closes = df['close'].values
+            current_price = closes[-1]
+            
+            # Multi-window approach for better level detection
+            all_resistance = []
+            all_support = []
+            
+            windows = [10, 20, 30]
+            
+            for w in windows:
+                if len(df) > w * 2:
+                    # Find resistance levels using rolling max
+                    high_window = df['high'].rolling(window=w, center=True).max()
+                    for i in range(w, len(highs) - w):
+                        if pd.notna(high_window.iloc[i]) and highs[i] == high_window.iloc[i] and highs[i] > current_price:
+                            all_resistance.append((highs[i], i))
+                    
+                    # Find support levels using rolling min
+                    low_window = df['low'].rolling(window=w, center=True).min()
+                    for i in range(w, len(lows) - w):
+                        if pd.notna(low_window.iloc[i]) and lows[i] == low_window.iloc[i] and lows[i] < current_price:
+                            all_support.append((lows[i], i))
+            
+            # Add percentage-based levels for better distribution
+            price_range = np.max(highs) - np.min(lows)
+            min_price = np.min(lows)
+            
+            # Add levels at different percentages
+            for pct in [0.2, 0.4, 0.6, 0.8]:
+                level_price = min_price + (price_range * pct)
+                if level_price > current_price:
+                    all_resistance.append((level_price, len(df)//2))
+                else:
+                    all_support.append((level_price, len(df)//2))
+            
+            # Remove very similar levels (cluster)
+            def remove_similar_levels(levels, tolerance=0.01):
+                if not levels:
+                    return []
+                
+                levels.sort(key=lambda x: x[0])
+                filtered = [levels[0]]
+                
+                for level in levels[1:]:
+                    if abs(level[0] - filtered[-1][0]) / filtered[-1][0] > tolerance:
+                        filtered.append(level)
+                
+                return filtered
+            
+            # Filter similar levels
+            all_resistance = remove_similar_levels(all_resistance)
+            all_support = remove_similar_levels(all_support)
+            
+            # Sort by distance from current price (closer levels are more relevant)
+            all_resistance.sort(key=lambda x: abs(x[0] - current_price))
+            all_support.sort(key=lambda x: abs(x[0] - current_price))
+            
+            # Select the best levels
+            for i, (price, idx) in enumerate(all_resistance[:num_levels]):
+                resistance_levels.append({
+                    'price': float(price),
+                    'strength': num_levels - i,  # Closer levels get higher strength
+                    'index': int(idx)
+                })
+            
+            for i, (price, idx) in enumerate(all_support[:num_levels]):
+                support_levels.append({
+                    'price': float(price),
+                    'strength': num_levels - i,
+                    'index': int(idx)
+                })
+                
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Basic support/resistance calculation failed: {str(e)}[/yellow]")
+        
+        return support_levels, resistance_levels
+    
+    support_levels, resistance_levels = calculate_support_resistance_basic(df)
+    indicators['support_resistance'] = {
+        'support_levels': support_levels,
+        'resistance_levels': resistance_levels
+    }
+    
     return indicators
 
 def generate_comprehensive_html_chart(optimization_results: Dict, output_file: str = "bar_updn_analysis.html"):
@@ -358,6 +588,22 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
     
     console.print("[cyan]📊 Generating compact HTML visualization with simplified layout...[/cyan]")
     console.print("[yellow]💡 Compact Features: Simple tables, large charts (700px), minimal design, full-width layout[/yellow]")
+    
+    # Define serialize function for JSON conversion
+    def serialize_for_json(obj):
+        """Custom serialization function for complex objects"""
+        if hasattr(obj, 'isoformat'):  # datetime objects
+            return obj.isoformat()
+        elif hasattr(obj, 'to_dict'):  # pandas objects
+            return obj.to_dict()
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return str(obj)
     
     # Get best results for visualization
     best_params = optimization_results['best_parameters']
@@ -539,6 +785,11 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         chart_data['trades'][symbol] = format_trades_for_table(trades_data)
     
     # Generate modern HTML with enhanced layout and analytics
+    # newline = '\\n'  # Define newline for JavaScript templates to avoid f-string backslash issues
+    
+    # Serialize chart data outside f-string to avoid backslash issues
+    chart_data_json = json.dumps(chart_data, indent=2, default=serialize_for_json)
+    
     html_content = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -1045,6 +1296,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                 <button class="indicator-btn active" onclick="toggleIndicator('candlestick', this)">Candlesticks</button>
                 <button class="indicator-btn" onclick="toggleIndicator('ema', this)">EMA</button>
                 <button class="indicator-btn" onclick="toggleIndicator('bollinger', this)">Bollinger</button>
+                <button class="indicator-btn active" onclick="toggleIndicator('supportResistance', this)">S/R</button>
                 <button class="indicator-btn" onclick="toggleIndicator('macd', this)">MACD</button>
                 <button class="indicator-btn" onclick="toggleIndicator('rsi', this)">RSI</button>
                 <button class="indicator-btn" onclick="toggleIndicator('stochastic', this)">Stochastic</button>
@@ -1080,11 +1332,11 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
     </div>
 
     <script>
-        const chartData = {json.dumps(chart_data, indent=2)};
+        const chartData = {chart_data_json};
         let currentSymbol = '';
         let echartsInstances = {{}};
         let selectedTradeIndex = -1;
-        let activeIndicators = {{'candlestick': true}};
+        let activeIndicators = {{'candlestick': true, 'supportResistance': true}};
         let isDarkMode = true;
         
         // ag-Grid column definitions with auto-sizing and full-width expansion
@@ -1247,7 +1499,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                         }},
                         label: {{
                             show: isHighlighted,
-                            formatter: `${{trade.side}} Entry\\n$${{trade.entry_price.toFixed(4)}}`,
+                            formatter: `${{trade.side}} Entry<br/>$${{trade.entry_price.toFixed(4)}}`,
                             position: trade.side === 'LONG' ? 'bottom' : 'top',
                             color: isDarkMode ? '#e0e0e0' : '#333',
                             backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.9)' : 'rgba(255, 255, 255, 0.9)',
@@ -1274,7 +1526,7 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                         }},
                         label: {{
                             show: isHighlighted,
-                            formatter: `Exit\\n${{trade.pnl >= 0 ? '+' : ''}}$${{trade.pnl.toFixed(2)}}`,
+                            formatter: `Exit<br/>$${{trade.pnl >= 0 ? '+' : ''}}$${{trade.pnl.toFixed(2)}}`,
                             position: trade.pnl >= 0 ? 'top' : 'bottom',
                             color: isDarkMode ? '#e0e0e0' : '#333',
                             backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.9)' : 'rgba(255, 255, 255, 0.9)',
@@ -1430,6 +1682,89 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                     lineStyle: {{ width: 1, color: '#ffa726', type: 'dashed' }},
                     showSymbol: false
                 }});
+            }}
+            
+            // Support and Resistance Levels
+            if (activeIndicators.supportResistance && indicators.support_resistance) {{
+                // Add support levels
+                if (indicators.support_resistance.support_levels) {{
+                    indicators.support_resistance.support_levels.forEach((level, index) => {{
+                        series.push({{
+                            name: `Support ${{index + 1}}`,
+                            type: 'line',
+                            data: new Array(ohlcData.length).fill(level.price),
+                            xAxisIndex: gridIndex,
+                            yAxisIndex: yAxisIndex,
+                            lineStyle: {{ 
+                                width: 2, 
+                                color: '#4CAF50', 
+                                type: 'dashed',
+                                opacity: 0.7
+                            }},
+                            showSymbol: false,
+                            silent: true,
+                            markLine: {{
+                                data: [{{
+                                    yAxis: level.price,
+                                    lineStyle: {{
+                                        color: '#4CAF50',
+                                        width: 2,
+                                        type: 'dashed',
+                                        opacity: 0.7
+                                    }},
+                                    label: {{
+                                        show: true,
+                                        formatter: `S: $${{level.price.toFixed(4)}}`,
+                                        position: 'insideEndTop',
+                                        color: '#4CAF50',
+                                        fontSize: 10,
+                                        fontWeight: 'bold'
+                                    }}
+                                }}]
+                            }}
+                        }});
+                    }});
+                }}
+                
+                // Add resistance levels
+                if (indicators.support_resistance.resistance_levels) {{
+                    indicators.support_resistance.resistance_levels.forEach((level, index) => {{
+                        series.push({{
+                            name: `Resistance ${{index + 1}}`,
+                            type: 'line',
+                            data: new Array(ohlcData.length).fill(level.price),
+                            xAxisIndex: gridIndex,
+                            yAxisIndex: yAxisIndex,
+                            lineStyle: {{ 
+                                width: 2, 
+                                color: '#F44336', 
+                                type: 'dashed',
+                                opacity: 0.7
+                            }},
+                            showSymbol: false,
+                            silent: true,
+                            markLine: {{
+                                data: [{{
+                                    yAxis: level.price,
+                                    lineStyle: {{
+                                        color: '#F44336',
+                                        width: 2,
+                                        type: 'dashed',
+                                        opacity: 0.7
+                                    }},
+                                    label: {{
+                                        show: true,
+                                        formatter: `R: $${{level.price.toFixed(4)}}`,
+                                        position: 'insideEndBottom',
+                                        color: '#F44336',
+                                        fontSize: 10,
+                                        fontWeight: 'bold'
+                                    }}
+                                }}]
+                            }}
+                        }});
+                    }});
+                }}
             }}
             
             gridIndex++;
@@ -1949,21 +2284,27 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
         function updateTradeAnalytics(symbol) {{
             const analytics = chartData.trade_analytics[symbol] || {{}};
             const metrics = chartData.performance_metrics[symbol] || {{}};
+            const params = chartData.parameters || {{}};
+            
+            // Safe parameter access with fallbacks
+            const safeValue = (value, decimals = 2) => {{
+                return (value !== undefined && value !== null) ? Number(value).toFixed(decimals) : '0.00';
+            }};
             
             const analyticsHTML = `
                 <div class="analytics-container">
                     <div class="symbol-stats-container">
                         <h3>Symbol Parameters & Metrics</h3>
                         <table class="symbol-stats">
-                            <tr><th>Stop Loss</th><td class="neutral">${{chartData.parameters.sl_percent}}%</td></tr>
-                            <tr><th>Trailing Stop</th><td class="neutral">${{chartData.parameters.trailing_stop_percent.toFixed(1)}}%</td></tr>
-                            <tr><th>Position Size</th><td class="neutral">${{chartData.parameters.position_size_percent}}%</td></tr>
-                            <tr><th>Win Rate</th><td class="${{metrics.win_rate >= 50 ? 'positive' : 'negative'}}">${{metrics.win_rate.toFixed(1)}}%</td></tr>
-                            <tr><th>Return</th><td class="${{metrics.total_return >= 0 ? 'positive' : 'negative'}}">${{metrics.total_return.toFixed(2)}}%</td></tr>
-                            <tr><th>Max Drawdown</th><td class="${{metrics.max_drawdown <= 5 ? 'positive' : 'negative'}}">${{metrics.max_drawdown.toFixed(2)}}%</td></tr>
-                            <tr><th>Sharpe Ratio</th><td class="${{metrics.sharpe_ratio >= 1 ? 'positive' : 'negative'}}">${{metrics.sharpe_ratio.toFixed(2)}}</td></tr>
-                            <tr><th>Profit Factor</th><td class="${{metrics.profit_factor >= 1.5 ? 'positive' : 'negative'}}">${{metrics.profit_factor.toFixed(2)}}</td></tr>
-                            <tr><th>Total Trades</th><td class="neutral">${{metrics.total_trades}}</td></tr>
+                            <tr><th>Stop Loss</th><td class="neutral">${{safeValue(params.sl_percent, 1)}}%</td></tr>
+                            <tr><th>Trailing Stop</th><td class="neutral">${{safeValue(params.trailing_stop_percent || params.tp_percent, 1)}}%</td></tr>
+                            <tr><th>Position Size</th><td class="neutral">${{safeValue(params.position_size_percent, 1)}}%</td></tr>
+                            <tr><th>Win Rate</th><td class="${{(metrics.win_rate || 0) >= 50 ? 'positive' : 'negative'}}">${{safeValue(metrics.win_rate, 1)}}%</td></tr>
+                            <tr><th>Return</th><td class="${{(metrics.total_return || 0) >= 0 ? 'positive' : 'negative'}}">${{safeValue(metrics.total_return, 2)}}%</td></tr>
+                            <tr><th>Max Drawdown</th><td class="${{(metrics.max_drawdown || 0) <= 5 ? 'positive' : 'negative'}}">${{safeValue(metrics.max_drawdown, 2)}}%</td></tr>
+                            <tr><th>Sharpe Ratio</th><td class="${{(metrics.sharpe_ratio || 0) >= 1 ? 'positive' : 'negative'}}">${{safeValue(metrics.sharpe_ratio, 2)}}</td></tr>
+                            <tr><th>Profit Factor</th><td class="${{(metrics.profit_factor || 0) >= 1.5 ? 'positive' : 'negative'}}">${{safeValue(metrics.profit_factor, 2)}}</td></tr>
+                            <tr><th>Total Trades</th><td class="neutral">${{metrics.total_trades || 0}}</td></tr>
                         </table>
                     </div>
                     
@@ -1972,20 +2313,20 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
                         <div style="display: flex; gap: 20px;">
                             <table class="symbol-stats" style="width: 280px;">
                                 <tr><th>Total Trades</th><td>${{metrics.total_trades || 0}}</td></tr>
-                                <tr><th>Win Rate</th><td class="${{(metrics.win_rate || 0) >= 50 ? 'positive' : 'negative'}}">${{(metrics.win_rate || 0).toFixed(1)}}%</td></tr>
-                                <tr><th>Profit Factor</th><td class="${{(metrics.profit_factor || 0) >= 1.5 ? 'positive' : 'negative'}}">${{(metrics.profit_factor || 0).toFixed(2)}}</td></tr>
-                                <tr><th>Total Return</th><td class="${{(metrics.total_return || 0) >= 0 ? 'positive' : 'negative'}}">${{(metrics.total_return || 0).toFixed(2)}}%</td></tr>
-                                <tr><th>Avg Win</th><td class="positive">$${{(analytics.avg_win || 0).toFixed(2)}}</td></tr>
-                                <tr><th>Avg Loss</th><td class="negative">$${{(analytics.avg_loss || 0).toFixed(2)}}</td></tr>
+                                <tr><th>Win Rate</th><td class="${{(metrics.win_rate || 0) >= 50 ? 'positive' : 'negative'}}">${{safeValue(metrics.win_rate, 1)}}%</td></tr>
+                                <tr><th>Profit Factor</th><td class="${{(metrics.profit_factor || 0) >= 1.5 ? 'positive' : 'negative'}}">${{safeValue(metrics.profit_factor, 2)}}</td></tr>
+                                <tr><th>Total Return</th><td class="${{(metrics.total_return || 0) >= 0 ? 'positive' : 'negative'}}">${{safeValue(metrics.total_return, 2)}}%</td></tr>
+                                <tr><th>Avg Win</th><td class="positive">$${{safeValue(analytics.avg_win, 2)}}</td></tr>
+                                <tr><th>Avg Loss</th><td class="negative">$${{safeValue(analytics.avg_loss, 2)}}</td></tr>
                             </table>
                             
                             <table class="symbol-stats" style="width: 280px;">
-                                <tr><th>Largest Win</th><td class="positive">$${{(analytics.largest_win || 0).toFixed(2)}}</td></tr>
-                                <tr><th>Largest Loss</th><td class="negative">$${{(analytics.largest_loss || 0).toFixed(2)}}</td></tr>
+                                <tr><th>Largest Win</th><td class="positive">$${{safeValue(analytics.largest_win, 2)}}</td></tr>
+                                <tr><th>Largest Loss</th><td class="negative">$${{safeValue(analytics.largest_loss, 2)}}</td></tr>
                                 <tr><th>Avg Duration</th><td>${{Math.round(analytics.avg_trade_duration || 0)}} min</td></tr>
                                 <tr><th>Max Win Streak</th><td class="positive">${{analytics.max_win_streak || 0}}</td></tr>
                                 <tr><th>Max Loss Streak</th><td class="negative">${{analytics.max_loss_streak || 0}}</td></tr>
-                                <tr><th>Sharpe Ratio</th><td class="${{(metrics.sharpe_ratio || 0) >= 1 ? 'positive' : 'negative'}}">${{(metrics.sharpe_ratio || 0).toFixed(2)}}</td></tr>
+                                <tr><th>Sharpe Ratio</th><td class="${{(metrics.sharpe_ratio || 0) >= 1 ? 'positive' : 'negative'}}">${{safeValue(metrics.sharpe_ratio, 2)}}</td></tr>
                             </table>
                         </div>
                     </div>
@@ -2037,10 +2378,10 @@ def run_complete_optimization(symbols: List[str] = ["BTCUSDT", "ETHUSDT"],
     """Run complete optimization and generate visualization"""
     
     console.print(Panel.fit(
-        f"[bold cyan]🔍 BarUpDn Strategy Complete Optimization[/bold cyan]\n"
+        "[bold cyan]🔍 BarUpDn Strategy Complete Optimization[/bold cyan]\n"
         f"Symbols: {', '.join(symbols)}\n"
         f"Days Back: {days_back}\n"
-        f"Analysis: Parameter optimization + Comprehensive visualization",
+        "Analysis: Parameter optimization + Comprehensive visualization",
         border_style="cyan"
     ))
     

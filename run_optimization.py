@@ -5,7 +5,7 @@ Includes both traditional optimization and smart Bayesian optimization
 """
 
 import time
-from bar_updn_optimization import run_complete_optimization
+from strategies.bar_updn_optimization import run_complete_optimization
 from smart_strategy_optimizer import SmartStrategyOptimizer
 from rich.console import Console
 from rich.panel import Panel

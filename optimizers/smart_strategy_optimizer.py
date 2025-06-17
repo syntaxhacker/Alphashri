@@ -50,24 +50,71 @@ console = Console()
 
 @njit
 def vectorized_bar_updn_signals(highs, lows, closes, volumes):
-    """Ultra-fast vectorized signal generation using Numba JIT compilation"""
+    """Ultra-fast vectorized signal generation using Numba JIT compilation with enhanced filters"""
     n = len(closes)
     long_signals = np.zeros(n, dtype=np.bool_)
     short_signals = np.zeros(n, dtype=np.bool_)
     
-    for i in range(1, n):
-        # BarUpDn logic vectorized
-        prev_close = closes[i-1]
-        curr_high = highs[i]
-        curr_low = lows[i]
-        curr_volume = volumes[i]
+    # Pre-calculate volume moving average (20-period)
+    volume_ma = np.zeros(n)
+    for i in range(20, n):
+        volume_ma[i] = np.mean(volumes[i-20:i])
+    
+    # Pre-calculate price moving averages (9 and 21 period EMAs approximated with SMA for speed)
+    ema_fast = np.zeros(n)
+    ema_slow = np.zeros(n)
+    for i in range(9, n):
+        ema_fast[i] = np.mean(closes[i-9:i+1])
+    for i in range(21, n):
+        ema_slow[i] = np.mean(closes[i-21:i+1])
+    
+    # Pre-calculate RSI (simplified version for speed)
+    rsi = np.zeros(n)
+    for i in range(14, n):
+        gains = 0.0
+        losses = 0.0
+        for j in range(i-13, i+1):
+            change = closes[j] - closes[j-1] if j > 0 else 0
+            if change > 0:
+                gains += change
+            else:
+                losses += abs(change)
         
-        # Long signal: current bar high > previous close
-        if curr_high > prev_close and curr_volume > 1000:
+        if losses > 0:
+            rs = gains / losses
+            rsi[i] = 100 - (100 / (1 + rs))
+        else:
+            rsi[i] = 100
+    
+    for i in range(1, n):
+        # Basic pattern detection
+        is_bar_up_curr = closes[i] > highs[i-1]  # Simplified: current close > prev high
+        is_bar_dn_curr = closes[i] < lows[i-1]   # Simplified: current close < prev low
+        is_bar_up_prev = closes[i-1] > highs[i-2] if i > 1 else False
+        is_bar_dn_prev = closes[i-1] < lows[i-2] if i > 1 else False
+        
+        # Volume filter (1.5x average)
+        volume_ok = volumes[i] > volume_ma[i] * 1.5 if i >= 20 else volumes[i] > 1000
+        
+        # Trend filter
+        trend_bullish = ema_fast[i] > ema_slow[i] and closes[i] > ema_fast[i] if i >= 21 else True
+        trend_bearish = ema_fast[i] < ema_slow[i] and closes[i] < ema_fast[i] if i >= 21 else True
+        
+        # RSI filter (avoid extremes)
+        rsi_ok = 25 <= rsi[i] <= 75 if i >= 14 else True
+        
+        # Body size filter (minimum 0.15%)
+        body_size_pct = abs(closes[i] - closes[i-1]) / closes[i-1] * 100
+        body_ok = body_size_pct >= 0.15
+        
+        # BarDnUp pattern -> LONG signal
+        if (is_bar_up_curr and is_bar_dn_prev and 
+            volume_ok and trend_bullish and rsi_ok and body_ok):
             long_signals[i] = True
         
-        # Short signal: current bar low < previous close  
-        if curr_low < prev_close and curr_volume > 1000:
+        # BarUpDn pattern -> SHORT signal  
+        if (is_bar_dn_curr and is_bar_up_prev and 
+            volume_ok and trend_bearish and rsi_ok and body_ok):
             short_signals[i] = True
             
     return long_signals, short_signals
@@ -462,14 +509,22 @@ class SmartStrategyOptimizer:
         
         for symbol, df in self.cached_data.items():
             try:
-                # Create strategy with parameters
+                # Create strategy with parameters (enhanced with volume/trend filters)
                 strategy = BarUpDnStrategy(
                     sl_percent=sl_percent,
                     trailing_stop_percent=trailing_stop_percent,
                     position_size_percent=position_size_percent,
                     max_intraday_loss_percent=max_intraday_loss_percent,
                     min_hold_minutes=int(min_hold_minutes),
-                    max_loss_dollars=8.0  # Fixed at $8 max loss per trade
+                    max_loss_dollars=8.0,  # Fixed at $8 max loss per trade
+                    # Enhanced filters enabled
+                    use_volume_filter=True,
+                    use_trend_filter=True,
+                    volume_threshold_multiplier=1.5,
+                    volume_spike_multiplier=2.0,
+                    trend_ma_fast=9,
+                    trend_ma_slow=21,
+                    min_body_size_percent=0.15
                 )
                 
                 # Run backtest (original method)
@@ -901,14 +956,22 @@ class SmartStrategyOptimizer:
                                 f"Trail={best_params['trailing_stop_percent']:.2f}%, "
                                 f"Pos={best_params['position_size_percent']:.1f}%[/yellow]")
                     
-                    # Create strategy with individual optimal parameters
+                    # Create strategy with individual optimal parameters (enhanced with volume/trend filters)
                     strategy = BarUpDnStrategy(
                         sl_percent=best_params['sl_percent'],
                         trailing_stop_percent=best_params['trailing_stop_percent'],
                         position_size_percent=best_params['position_size_percent'],
                         max_intraday_loss_percent=best_params['max_intraday_loss_percent'],
                         min_hold_minutes=best_params['min_hold_minutes'],
-                        max_loss_dollars=8.0
+                        max_loss_dollars=8.0,
+                        # Enhanced filters enabled
+                        use_volume_filter=True,
+                        use_trend_filter=True,
+                        volume_threshold_multiplier=1.5,
+                        volume_spike_multiplier=2.0,
+                        trend_ma_fast=9,
+                        trend_ma_slow=21,
+                        min_body_size_percent=0.15
                     )
                     
                     # Run backtest
@@ -965,7 +1028,7 @@ class SmartStrategyOptimizer:
             console.print("[cyan]Generating comprehensive HTML chart for individual optimization...[/cyan]")
             
             # Import the HTML generator
-            from bar_updn_optimization import generate_comprehensive_html_chart
+            from strategies.bar_updn_optimization import generate_comprehensive_html_chart
             
             # Generate HTML
             generate_comprehensive_html_chart(optimization_results, html_filename)
@@ -1261,14 +1324,22 @@ class SmartStrategyOptimizer:
         ))
         
         try:
-            # Create strategy with optimal parameters
+            # Create strategy with optimal parameters (enhanced with volume/trend filters)
             strategy = BarUpDnStrategy(
                 sl_percent=best_params['sl_percent'],
                 trailing_stop_percent=best_params['trailing_stop_percent'],
                 position_size_percent=best_params['position_size_percent'],
                 max_intraday_loss_percent=best_params['max_intraday_loss_percent'],
                 min_hold_minutes=best_params['min_hold_minutes'],
-                max_loss_dollars=8.0  # Fixed at $8 max loss per trade
+                max_loss_dollars=8.0,  # Fixed at $8 max loss per trade
+                # Enhanced filters enabled
+                use_volume_filter=True,
+                use_trend_filter=True,
+                volume_threshold_multiplier=1.5,
+                volume_spike_multiplier=2.0,
+                trend_ma_fast=9,
+                trend_ma_slow=21,
+                min_body_size_percent=0.15
             )
             
             # Run backtests for all symbols
@@ -1316,7 +1387,7 @@ class SmartStrategyOptimizer:
             console.print("[cyan]Generating comprehensive HTML chart (same as traditional method)...[/cyan]")
             
             # Import the exact same function that traditional optimization uses
-            from bar_updn_optimization import generate_comprehensive_html_chart
+            from strategies.bar_updn_optimization import generate_comprehensive_html_chart
             
             # Generate HTML using the traditional method's function
             generate_comprehensive_html_chart(optimization_results, html_filename)

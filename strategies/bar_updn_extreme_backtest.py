@@ -213,29 +213,49 @@ class DataFetcher:
 
 class BarUpDnStrategy:
     """
-    BarUpDn Strategy Implementation
-    Exact replication of Pine Script logic:
-    - Long: close > open AND open > close[1]  
-    - Short: close < open AND open < close[1]
-    - Stop Loss: 3.5% default
-    - Trailing Stop: 40 points default
-    - Position Size: 10% of equity
-    - Max Intraday Loss: 2% of equity
+    Enhanced BarUpDn Strategy Implementation with Volume and Trend Analysis
+    - Original BarUpDn pattern detection
+    - Volume confirmation (above average, volume spikes)
+    - Trend analysis (moving averages, momentum)
+    - Multiple filter combinations for high-quality signals
     """
     
     def __init__(self, 
                  sl_percent: float = 3.5,
-                 trailing_stop_percent: float = 1.0,  # Changed to percentage
+                 trailing_stop_percent: float = 1.0,
                  position_size_percent: float = 10.0,
                  max_intraday_loss_percent: float = 2.0,
-                 min_hold_minutes: int = 15,  # Minimum hold time
-                 max_loss_dollars: float = 18.0):  # Maximum loss per trade in dollars
+                 min_hold_minutes: int = 15,
+                 max_loss_dollars: float = 18.0,
+                 # Enhanced filter parameters
+                 use_volume_filter: bool = True,
+                 use_trend_filter: bool = True,
+                 volume_threshold_multiplier: float = 1.5,  # Volume must be 1.5x average
+                 volume_spike_multiplier: float = 2.0,      # Volume spike threshold
+                 trend_ma_fast: int = 9,                    # Fast moving average
+                 trend_ma_slow: int = 21,                   # Slow moving average
+                 min_body_size_percent: float = 0.15,      # Minimum candle body size
+                 atr_periods: int = 14,                     # ATR periods for volatility
+                 momentum_periods: int = 5):                # Momentum periods
+        
+        # Original parameters
         self.sl_percent = sl_percent
-        self.trailing_stop_percent = trailing_stop_percent  # Now percentage-based
+        self.trailing_stop_percent = trailing_stop_percent
         self.position_size_percent = position_size_percent
         self.max_intraday_loss_percent = max_intraday_loss_percent
         self.min_hold_minutes = min_hold_minutes
-        self.max_loss_dollars = max_loss_dollars  # New parameter for max dollar loss
+        self.max_loss_dollars = max_loss_dollars
+        
+        # Enhanced filter parameters
+        self.use_volume_filter = use_volume_filter
+        self.use_trend_filter = use_trend_filter
+        self.volume_threshold_multiplier = volume_threshold_multiplier
+        self.volume_spike_multiplier = volume_spike_multiplier
+        self.trend_ma_fast = trend_ma_fast
+        self.trend_ma_slow = trend_ma_slow
+        self.min_body_size_percent = min_body_size_percent
+        self.atr_periods = atr_periods
+        self.momentum_periods = momentum_periods
         
         # Parameter validation and warnings
         self._validate_parameters()
@@ -247,31 +267,27 @@ class BarUpDnStrategy:
         
         warnings = []
         
-        # Check if minimum hold time is too high for fast exits
+        # Original parameter checks
         if self.min_hold_minutes > 10:
             warnings.append(
                 f"[yellow]⚠️  Min hold time ({self.min_hold_minutes} min) may conflict with opposite signal exits[/yellow]"
             )
         
-        # Check if stop loss is too wide
         if self.sl_percent > 3.0:
             warnings.append(
                 f"[yellow]⚠️  Stop loss ({self.sl_percent}%) is quite wide - consider 1.5-3.0% range[/yellow]"
             )
         
-        # Check if trailing stop is too narrow
         if self.trailing_stop_percent < 1.0:
             warnings.append(
                 f"[yellow]⚠️  Trailing stop ({self.trailing_stop_percent}%) is quite tight - may cause premature exits[/yellow]"
             )
         
-        # Check position size sanity
         if self.position_size_percent > 20.0:
             warnings.append(
                 f"[yellow]⚠️  Position size ({self.position_size_percent}%) is quite large - consider risk management[/yellow]"
             )
         
-        # Check max loss dollars parameter
         if self.max_loss_dollars <= 0:
             warnings.append(
                 f"[yellow]⚠️  Max loss dollars ({self.max_loss_dollars}) should be positive[/yellow]"
@@ -281,25 +297,101 @@ class BarUpDnStrategy:
                 f"[yellow]⚠️  Max loss dollars ({self.max_loss_dollars}) seems quite high for risk management[/yellow]"
             )
         
+        # Enhanced filter checks
+        if self.volume_threshold_multiplier < 1.0:
+            warnings.append(
+                f"[yellow]⚠️  Volume threshold ({self.volume_threshold_multiplier}x) should be >= 1.0[/yellow]"
+            )
+        
+        if self.trend_ma_fast >= self.trend_ma_slow:
+            warnings.append(
+                f"[yellow]⚠️  Fast MA ({self.trend_ma_fast}) should be < Slow MA ({self.trend_ma_slow})[/yellow]"
+            )
+        
+        if self.min_body_size_percent > 1.0:
+            warnings.append(
+                f"[yellow]⚠️  Min body size ({self.min_body_size_percent}%) is quite large - may filter too many signals[/yellow]"
+            )
+        
         # Display warnings if any
         if warnings:
-            console.print("\n[cyan]📋 Strategy Parameter Warnings:[/cyan]")
+            console.print("\n[cyan]📋 Enhanced Strategy Parameter Warnings:[/cyan]")
             for warning in warnings:
                 console.print(f"   {warning}")
             console.print()
     
+    def _calculate_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate all technical indicators needed for filtering"""
+        df = df.copy()
+        
+        # Basic candle analysis
+        df['body_size'] = abs(df['close'] - df['open'])
+        df['body_size_percent'] = (df['body_size'] / df['open']) * 100
+        df['upper_shadow'] = df['high'] - df[['open', 'close']].max(axis=1)
+        df['lower_shadow'] = df[['open', 'close']].min(axis=1) - df['low']
+        df['is_bar_up'] = df['close'] > df['open']
+        df['is_bar_dn'] = df['close'] < df['open']
+        
+        # Volume analysis
+        df['volume_ma_20'] = df['volume'].rolling(window=20).mean()
+        df['volume_ma_50'] = df['volume'].rolling(window=50).mean()
+        df['volume_ratio'] = df['volume'] / df['volume_ma_20']
+        df['volume_spike'] = df['volume'] > (df['volume_ma_20'] * self.volume_spike_multiplier)
+        df['above_avg_volume'] = df['volume'] > (df['volume_ma_20'] * self.volume_threshold_multiplier)
+        
+        # Price movement and volatility
+        df['price_change'] = df['close'].pct_change()
+        df['price_range'] = df['high'] - df['low']
+        df['true_range'] = np.maximum(
+            df['high'] - df['low'],
+            np.maximum(
+                abs(df['high'] - df['close'].shift(1)),
+                abs(df['low'] - df['close'].shift(1))
+            )
+        )
+        df['atr'] = df['true_range'].rolling(window=self.atr_periods).mean()
+        
+        # Moving averages for trend
+        df['ema_fast'] = df['close'].ewm(span=self.trend_ma_fast).mean()
+        df['ema_slow'] = df['close'].ewm(span=self.trend_ma_slow).mean()
+        df['sma_fast'] = df['close'].rolling(window=self.trend_ma_fast).mean()
+        df['sma_slow'] = df['close'].rolling(window=self.trend_ma_slow).mean()
+        
+        # Trend determination
+        df['trend_bullish'] = (df['ema_fast'] > df['ema_slow']) & (df['close'] > df['ema_fast'])
+        df['trend_bearish'] = (df['ema_fast'] < df['ema_slow']) & (df['close'] < df['ema_fast'])
+        df['trend_neutral'] = ~(df['trend_bullish'] | df['trend_bearish'])
+        
+        # Momentum indicators
+        df['momentum'] = df['close'] / df['close'].shift(self.momentum_periods) - 1
+        df['rsi'] = self._calculate_rsi(df['close'], period=14)
+        
+        # Price position relative to recent range
+        df['high_20'] = df['high'].rolling(window=20).max()
+        df['low_20'] = df['low'].rolling(window=20).min()
+        df['price_position'] = (df['close'] - df['low_20']) / (df['high_20'] - df['low_20'])
+        
+        return df
+    
+    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
+        """Calculate RSI indicator"""
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
     
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Generate TRUE BarUpDn pattern signals"""
-        df = df.copy()
+        """Generate enhanced BarUpDn signals with volume and trend confirmation"""
+        
+        # Calculate all technical indicators
+        df = self._calculate_technical_indicators(df)
         df['signal'] = 'HOLD'
         
-        # Identify individual bar types
-        df['is_bar_up'] = df['close'] > df['open']  # Green/bullish candle
-        df['is_bar_dn'] = df['close'] < df['open']  # Red/bearish candle
+        console.print("[cyan]🔍 Applying enhanced BarUpDn pattern detection with volume & trend filters...[/cyan]")
         
-        # BarUpDn pattern detection (2-candle pattern)
-        # Current candle is BarDn, previous was BarUp
+        # Original BarUpDn pattern detection
         barupdn_pattern = (
             df['is_bar_dn'] &  # Current candle is red/bearish
             df['is_bar_up'].shift(1) &  # Previous candle was green/bullish  
@@ -308,7 +400,6 @@ class BarUpDnStrategy:
         )
         
         # BarDnUp pattern (opposite)
-        # Current candle is BarUp, previous was BarDn
         bardnup_pattern = (
             df['is_bar_up'] &  # Current candle is green/bullish
             df['is_bar_dn'].shift(1) &  # Previous candle was red/bearish
@@ -316,26 +407,107 @@ class BarUpDnStrategy:
             (df['close'] > df['open'].shift(1))  # Closes above previous open
         )
         
-        # Signal assignment (pattern suggests reversal)
-        # BarUpDn suggests bearish reversal -> SHORT
-        df.loc[barupdn_pattern, 'signal'] = 'SHORT'
+        # Enhanced filtering conditions
         
-        # BarDnUp suggests bullish reversal -> LONG  
-        df.loc[bardnup_pattern, 'signal'] = 'LONG'
+        # 1. Volume filters
+        if self.use_volume_filter:
+            volume_confirmation = (
+                df['above_avg_volume'] |  # Above average volume OR
+                df['volume_spike']        # Volume spike
+            )
+            console.print(f"[green]✓ Volume filter enabled: {self.volume_threshold_multiplier}x avg, {self.volume_spike_multiplier}x spike[/green]")
+        else:
+            volume_confirmation = True
+            console.print("[yellow]⚠️  Volume filter disabled[/yellow]")
         
-        # Optional: Add your filters
-        if hasattr(self, 'use_filters') and self.use_filters:
-            df['body_size_percent'] = abs(df['close'] - df['open']) / df['open'] * 100
-            df['min_body_filter'] = df['body_size_percent'] >= 0.1
-            
-            df['volume_ma'] = df['volume'].rolling(window=20).mean()
-            df['volume_filter'] = df['volume'] > df['volume_ma']
-            
-            # Apply filters
-            mask = df['signal'].isin(['LONG', 'SHORT'])
-            df.loc[mask & ~(df['min_body_filter'] & df['volume_filter']), 'signal'] = 'HOLD'
+        # 2. Trend filters
+        if self.use_trend_filter:
+            # For LONG signals: prefer bullish trend or neutral (for reversal)
+            long_trend_filter = df['trend_bullish'] | (df['trend_neutral'] & (df['rsi'] < 50))
+            # For SHORT signals: prefer bearish trend or neutral (for reversal)  
+            short_trend_filter = df['trend_bearish'] | (df['trend_neutral'] & (df['rsi'] > 50))
+            console.print(f"[green]✓ Trend filter enabled: MA({self.trend_ma_fast}/{self.trend_ma_slow}) + RSI[/green]")
+        else:
+            long_trend_filter = True
+            short_trend_filter = True
+            console.print("[yellow]⚠️  Trend filter disabled[/yellow]")
+        
+        # 3. Quality filters
+        quality_filter = (
+            (df['body_size_percent'] >= self.min_body_size_percent) &  # Minimum body size
+            (df['volume'] > 100) &  # Minimum volume
+            df['atr'].notna()  # Valid ATR data
+        )
+        
+        # 4. Market structure filters
+        # Avoid signals at extreme RSI levels (overbought/oversold)
+        rsi_filter = (df['rsi'] >= 25) & (df['rsi'] <= 75)
+        
+        # Avoid signals during low volatility periods
+        volatility_filter = df['atr'] > df['atr'].rolling(window=50).quantile(0.3)
+        
+        # Combined filters for LONG signals (BarDnUp pattern)
+        long_filters = (
+            bardnup_pattern &
+            volume_confirmation &
+            long_trend_filter &
+            quality_filter &
+            rsi_filter &
+            volatility_filter &
+            (df['price_position'] < 0.8)  # Not at recent highs
+        )
+        
+        # Combined filters for SHORT signals (BarUpDn pattern)  
+        short_filters = (
+            barupdn_pattern &
+            volume_confirmation &
+            short_trend_filter &
+            quality_filter &
+            rsi_filter &
+            volatility_filter &
+            (df['price_position'] > 0.2)  # Not at recent lows
+        )
+        
+        # Apply signals
+        df.loc[long_filters, 'signal'] = 'LONG'
+        df.loc[short_filters, 'signal'] = 'SHORT'
+        
+        # Signal quality scoring (for debugging/optimization)
+        df['signal_strength'] = 0.0
+        long_mask = df['signal'] == 'LONG'
+        short_mask = df['signal'] == 'SHORT'
+        
+        if long_mask.any():
+            df.loc[long_mask, 'signal_strength'] = (
+                (df.loc[long_mask, 'volume_ratio'] * 0.3) +
+                (df.loc[long_mask, 'body_size_percent'] * 0.2) +
+                ((100 - df.loc[long_mask, 'rsi']) / 100 * 0.3) +  # Favor oversold for longs
+                (df.loc[long_mask, 'momentum'] * 0.2)
+            )
+        
+        if short_mask.any():
+            df.loc[short_mask, 'signal_strength'] = (
+                (df.loc[short_mask, 'volume_ratio'] * 0.3) +
+                (df.loc[short_mask, 'body_size_percent'] * 0.2) +
+                (df.loc[short_mask, 'rsi'] / 100 * 0.3) +  # Favor overbought for shorts
+                (-df.loc[short_mask, 'momentum'] * 0.2)
+            )
+        
+        # Count and report signals
+        total_barupdn = barupdn_pattern.sum()
+        total_bardnup = bardnup_pattern.sum()
+        final_long = (df['signal'] == 'LONG').sum()
+        final_short = (df['signal'] == 'SHORT').sum()
+        
+        console.print(f"[cyan]📊 Signal Statistics:[/cyan]")
+        console.print(f"   Raw BarUpDn patterns: {total_barupdn}")
+        console.print(f"   Raw BarDnUp patterns: {total_bardnup}")
+        console.print(f"   Final LONG signals: {final_long} ({final_long/len(df)*100:.2f}%)")
+        console.print(f"   Final SHORT signals: {final_short} ({final_short/len(df)*100:.2f}%)")
+        console.print(f"   Filter efficiency: {(final_long + final_short)/(total_barupdn + total_bardnup)*100:.1f}%")
         
         return df
+
 class BarUpDnBacktester:
     """Advanced backtester for BarUpDn strategy"""
     

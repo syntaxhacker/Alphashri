@@ -450,15 +450,21 @@ def generate_enhanced_html_report(optimization_results: Dict, output_file: str =
             {{ field: 'trade_number', headerName: '#', width: 60, pinned: 'left' }},
             {{ 
                 field: 'entry_time', 
-                headerName: 'Entry Time', 
-                width: 150,
-                cellRenderer: params => new Date(params.value).toLocaleString()
+                headerName: 'Entry Time (UTC)', 
+                width: 170,
+                cellRenderer: params => {{
+                    const date = new Date(params.value);
+                    return date.toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+                }}
             }},
             {{ 
                 field: 'exit_time', 
-                headerName: 'Exit Time', 
-                width: 150,
-                cellRenderer: params => new Date(params.value).toLocaleString()
+                headerName: 'Exit Time (UTC)', 
+                width: 170,
+                cellRenderer: params => {{
+                    const date = new Date(params.value);
+                    return date.toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+                }}
             }},
             {{ 
                 field: 'side', 
@@ -498,7 +504,27 @@ def generate_enhanced_html_report(optimization_results: Dict, output_file: str =
                     return `<span class="${{className}}">${{value >= 0 ? '+' : ''}}{{value.toFixed(2)}}%</span>`;
                 }}
             }},
-            {{ field: 'duration', headerName: 'Duration', width: 120 }},
+            {{ 
+                field: 'duration', 
+                headerName: 'Duration', 
+                width: 120,
+                sortable: true,
+                comparator: (valueA, valueB) => {{
+                    // Custom duration sorting - convert to minutes for comparison
+                    const parseMinutes = (duration) => {{
+                        if (!duration) return 0;
+                        let minutes = 0;
+                        const days = duration.match(/(\\d+)d/);
+                        const hours = duration.match(/(\\d+)h/);
+                        const mins = duration.match(/(\\d+)m/);
+                        if (days) minutes += parseInt(days[1]) * 24 * 60;
+                        if (hours) minutes += parseInt(hours[1]) * 60;
+                        if (mins) minutes += parseInt(mins[1]);
+                        return minutes;
+                    }};
+                    return parseMinutes(valueA) - parseMinutes(valueB);
+                }}
+            }},
             {{ field: 'exit_reason', headerName: 'Exit Reason', width: 140 }},
             {{ 
                 field: 'quantity', 
@@ -609,6 +635,9 @@ def generate_enhanced_html_report(optimization_results: Dict, output_file: str =
                 }};
                 
                 const traces = [candlestickTrace, volumeTrace];
+                
+                // Add support and resistance lines
+                addSupportResistanceLines(traces, ohlcv, ohlcv.timestamps);
                 
                 // Add entry/exit markers if trades exist
                 if (trades.length > 0) {{
@@ -903,6 +932,143 @@ def generate_enhanced_html_report(optimization_results: Dict, output_file: str =
             if (tradesSection) {{
                 tradesSection.innerHTML = `📊 Trade Analysis - ${{symbol}} <small>(${{allTrades.length}} trades total)</small>`;
             }}
+        }}
+        
+        // Support and Resistance Detection Function
+        function detectSupportResistance(ohlcv, lookback = 20, minTouches = 2, tolerance = 0.002) {{
+            const levels = [];
+            const highs = ohlcv.high;
+            const lows = ohlcv.low;
+            const closes = ohlcv.close;
+            const timestamps = ohlcv.timestamps;
+            
+            // Find pivot highs and lows
+            const pivotHighs = [];
+            const pivotLows = [];
+            
+            for (let i = lookback; i < highs.length - lookback; i++) {{
+                let isHigh = true;
+                let isLow = true;
+                
+                // Check if current point is a pivot high
+                for (let j = i - lookback; j <= i + lookback; j++) {{
+                    if (j !== i && highs[j] >= highs[i]) {{
+                        isHigh = false;
+                        break;
+                    }}
+                }}
+                
+                // Check if current point is a pivot low
+                for (let j = i - lookback; j <= i + lookback; j++) {{
+                    if (j !== i && lows[j] <= lows[i]) {{
+                        isLow = false;
+                        break;
+                    }}
+                }}
+                
+                if (isHigh) {{
+                    pivotHighs.push({{ index: i, price: highs[i], time: timestamps[i] }});
+                }}
+                if (isLow) {{
+                    pivotLows.push({{ index: i, price: lows[i], time: timestamps[i] }});
+                }}
+            }}
+            
+            // Group similar price levels (resistance)
+            const resistanceLevels = groupSimilarLevels(pivotHighs, tolerance, minTouches);
+            // Group similar price levels (support)
+            const supportLevels = groupSimilarLevels(pivotLows, tolerance, minTouches);
+            
+            return {{
+                support: supportLevels,
+                resistance: resistanceLevels
+            }};
+        }}
+        
+        function groupSimilarLevels(pivots, tolerance, minTouches) {{
+            const levels = [];
+            const used = new Set();
+            
+            for (let i = 0; i < pivots.length; i++) {{
+                if (used.has(i)) continue;
+                
+                const currentLevel = pivots[i];
+                const similarPivots = [currentLevel];
+                used.add(i);
+                
+                // Find similar price levels within tolerance
+                for (let j = i + 1; j < pivots.length; j++) {{
+                    if (used.has(j)) continue;
+                    
+                    const priceDiff = Math.abs(pivots[j].price - currentLevel.price) / currentLevel.price;
+                    if (priceDiff <= tolerance) {{
+                        similarPivots.push(pivots[j]);
+                        used.add(j);
+                    }}
+                }}
+                
+                // Only include levels with minimum touches
+                if (similarPivots.length >= minTouches) {{
+                    const avgPrice = similarPivots.reduce((sum, p) => sum + p.price, 0) / similarPivots.length;
+                    const firstTime = Math.min(...similarPivots.map(p => new Date(p.time).getTime()));
+                    const lastTime = Math.max(...similarPivots.map(p => new Date(p.time).getTime()));
+                    
+                    levels.push({{
+                        price: avgPrice,
+                        touches: similarPivots.length,
+                        firstTime: new Date(firstTime).toISOString(),
+                        lastTime: new Date(lastTime).toISOString(),
+                        strength: similarPivots.length
+                    }});
+                }}
+            }}
+            
+            // Sort by strength (number of touches)
+            return levels.sort((a, b) => b.strength - a.strength);
+        }}
+        
+        function addSupportResistanceLines(traces, ohlcv, timestamps) {{
+            const srLevels = detectSupportResistance(ohlcv);
+            
+            // Add support lines
+            srLevels.support.forEach((level, index) => {{
+                if (index < 5) {{ // Limit to top 5 support levels
+                    traces.push({{
+                        x: [timestamps[0], timestamps[timestamps.length - 1]],
+                        y: [level.price, level.price],
+                        mode: 'lines',
+                        line: {{
+                            color: 'rgba(34, 139, 34, 0.8)',
+                            width: 2,
+                            dash: 'solid'
+                        }},
+                        name: `Support ${{level.price.toFixed(4)}} ({{level.touches}} touches)`,
+                        hovertemplate: '<b>Support Level</b><br>Price: $%{{y:.4f}}<br>Touches: {{level.touches}}<br>Strength: {{level.strength}}<extra></extra>',
+                        showlegend: true
+                    }});
+                }}
+            }});
+            
+            // Add resistance lines
+            srLevels.resistance.forEach((level, index) => {{
+                if (index < 5) {{ // Limit to top 5 resistance levels
+                    traces.push({{
+                        x: [timestamps[0], timestamps[timestamps.length - 1]],
+                        y: [level.price, level.price],
+                        mode: 'lines',
+                        line: {{
+                            color: 'rgba(220, 20, 60, 0.8)',
+                            width: 2,
+                            dash: 'solid'
+                        }},
+                        name: `Resistance ${{level.price.toFixed(4)}} ({{level.touches}} touches)`,
+                        hovertemplate: '<b>Resistance Level</b><br>Price: $%{{y:.4f}}<br>Touches: {{level.touches}}<br>Strength: {{level.strength}}<extra></extra>',
+                        showlegend: true
+                    }});
+                }}
+            }});
+            
+            return traces;
         }}
         
         // Initialize everything when page loads
