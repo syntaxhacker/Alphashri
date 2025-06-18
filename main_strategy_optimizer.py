@@ -82,8 +82,7 @@ def get_symbols_selection():
     user_input = input("\nEnter symbols (or press Enter for default): ").strip()
     
     if not user_input:
-        return ["BTCUSDT", "ETHUSDT"]
-    
+        return ["BTCUSDT", "ETHUSDT" , "SOLUSDT" , "XRPUSDT" , "BNBUSDT" ]
     # Parse user input
     symbols = [symbol.strip().upper() for symbol in user_input.split(",")]
     # Ensure USDT pairs

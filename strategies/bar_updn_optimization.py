@@ -45,8 +45,9 @@ class ParameterOptimizer:
         self._fetch_all_data()
     
     def _fetch_all_data(self):
-        """Pre-fetch data for all symbols using enhanced caching"""
-        console.print("[cyan]📊 Pre-fetching data with intelligent caching...[/cyan]")
+        """Pre-fetch data for all symbols using enhanced caching with 15-minute intervals"""
+        console.print("[cyan]📊 Pre-fetching 15-minute data with intelligent caching...[/cyan]")
+        console.print("[yellow]💡 Using 15-minute intervals directly to ensure complete data coverage[/yellow]")
         
         end_date = datetime.now()
         start_date = end_date - timedelta(days=self.days_back)
@@ -56,11 +57,114 @@ class ParameterOptimizer:
         
         for symbol in self.symbols:
             try:
-                df = self.fetcher.fetch_data(symbol, start_date, end_date)
-                self.data_cache[symbol] = df
+                # Fetch 15-minute data directly to avoid resampling gaps
+                console.print(f"[cyan]Fetching 15-minute data for {symbol}...[/cyan]")
+                df = self.fetcher.fetch_data(symbol, start_date, end_date, timeframe='15m')
+                
+                if df is not None and not df.empty:
+                    # Validate data completeness
+                    expected_bars = (self.days_back * 24 * 60) // 15  # Expected 15-min bars
+                    actual_bars = len(df)
+                    coverage = (actual_bars / expected_bars) * 100
+                    
+                    # Check for gaps in the data
+                    df_sorted = df.sort_index()
+                    time_diffs = df_sorted.index.to_series().diff()
+                    expected_interval = timedelta(minutes=15)
+                    large_gaps = time_diffs[time_diffs > expected_interval * 1.5]  # Gaps > 22.5 minutes
+                    
+                    if len(large_gaps) > 0:
+                        console.print(f"[yellow]⚠️ {symbol}: Found {len(large_gaps)} time gaps in data[/yellow]")
+                        for gap_time, gap_duration in large_gaps.items():
+                            console.print(f"   Gap at {gap_time}: {gap_duration}")
+                    
+                    # Fill small gaps with forward fill to ensure continuity
+                    if len(large_gaps) <= 5:  # Only if gaps are manageable
+                        # Create complete time index
+                        complete_index = pd.date_range(
+                            start=df_sorted.index.min(),
+                            end=df_sorted.index.max(),
+                            freq='15T'
+                        )
+                        
+                        # Reindex with complete timeline and forward fill small gaps
+                        df_complete = df_sorted.reindex(complete_index)
+                        
+                        # Forward fill only small gaps (< 2 hours)
+                        df_filled = df_complete.fillna(method='ffill', limit=8)  # 8 * 15min = 2 hours max
+                        
+                        # Remove any remaining NaN values
+                        df_final = df_filled.dropna()
+                        
+                        if len(df_final) > len(df_sorted):
+                            console.print(f"[green]✓ {symbol}: Filled {len(df_final) - len(df_sorted)} missing intervals[/green]")
+                            df = df_final
+                    
+                    self.data_cache[symbol] = df
+                    console.print(f"[green]✓ {symbol}: {actual_bars:,} bars loaded ({coverage:.1f}% coverage)[/green]")
+                    
+                    # Validate OHLCV data integrity
+                    if not self._validate_ohlcv_data(df, symbol):
+                        console.print(f"[yellow]⚠️ {symbol}: Data validation warnings (see above)[/yellow]")
+                        
+                else:
+                    console.print(f"[red]✗ {symbol}: No data available[/red]")
+                    self.data_cache[symbol] = None
+                    
             except Exception as e:
                 console.print(f"[red]✗ Failed to fetch {symbol}: {str(e)}[/red]")
                 self.data_cache[symbol] = None
+        
+        # Summary statistics
+        valid_symbols = [s for s, d in self.data_cache.items() if d is not None]
+        total_bars = sum(len(d) for d in self.data_cache.values() if d is not None)
+        
+        if valid_symbols:
+            console.print(f"[green]✅ Data ready: {len(valid_symbols)} symbols, {total_bars:,} total 15-minute bars[/green]")
+        else:
+            console.print("[red]❌ No valid data available for optimization![/red]")
+    
+    def _validate_ohlcv_data(self, df: pd.DataFrame, symbol: str) -> bool:
+        """Validate OHLCV data integrity"""
+        issues = []
+        
+        # Check for basic OHLC relationships
+        invalid_ohlc = df[(df['high'] < df['low']) | 
+                         (df['high'] < df['open']) | 
+                         (df['high'] < df['close']) |
+                         (df['low'] > df['open']) | 
+                         (df['low'] > df['close'])]
+        
+        if len(invalid_ohlc) > 0:
+            issues.append(f"Invalid OHLC relationships in {len(invalid_ohlc)} bars")
+        
+        # Check for zero or negative prices
+        zero_prices = df[(df['open'] <= 0) | (df['high'] <= 0) | 
+                        (df['low'] <= 0) | (df['close'] <= 0)]
+        
+        if len(zero_prices) > 0:
+            issues.append(f"Zero/negative prices in {len(zero_prices)} bars")
+        
+        # Check for extremely large price movements (>50% in one bar)
+        df['price_change'] = df['close'].pct_change()
+        extreme_moves = df[abs(df['price_change']) > 0.5]
+        
+        if len(extreme_moves) > 0:
+            issues.append(f"Extreme price movements (>50%) in {len(extreme_moves)} bars")
+        
+        # Check for duplicate timestamps
+        duplicates = df.index.duplicated().sum()
+        if duplicates > 0:
+            issues.append(f"{duplicates} duplicate timestamps")
+        
+        # Report issues
+        if issues:
+            console.print(f"[yellow]⚠️ {symbol} data validation issues:[/yellow]")
+            for issue in issues:
+                console.print(f"   • {issue}")
+            return False
+        
+        return True
     
     def optimize_parameters(self, 
                           sl_range: List[float] = [2.0, 3.5, 5.0],
@@ -1450,92 +1554,155 @@ def generate_comprehensive_html_chart(optimization_results: Dict, output_file: s
             const dates = [];
             const ohlcData = [];
             const volumeData = [];
+            const timestampMap = new Map(); // Map timestamp to index for exact positioning
             
-            candlestickData.forEach(bar => {{
+            candlestickData.forEach((bar, index) => {{
                 const date = new Date(bar.time * 1000);
-                dates.push(date.toISOString().split('T')[0] + ' ' + date.toTimeString().split(' ')[0]);
+                const dateStr = date.toISOString().split('T')[0] + ' ' + date.toTimeString().split(' ')[0];
+                dates.push(dateStr);
                 ohlcData.push([bar.open, bar.close, bar.low, bar.high]);
                 volumeData.push(bar.volume || 0);
+                // Map timestamp to exact index for precise marker positioning
+                timestampMap.set(bar.time, index);
             }});
             
-            // Prepare trade markers
+            // Prepare trade markers with EXACT positioning
             const entryMarkers = [];
             const exitMarkers = [];
             let autoFitRange = null;
             
             tradesData.forEach((trade, index) => {{
-                const entryDate = new Date(trade.entry_timestamp * 1000);
-                const exitDate = new Date(trade.exit_timestamp * 1000);
-                const entryDateStr = entryDate.toISOString().split('T')[0] + ' ' + entryDate.toTimeString().split(' ')[0];
-                const exitDateStr = exitDate.toISOString().split('T')[0] + ' ' + exitDate.toTimeString().split(' ')[0];
+                // Find EXACT candle index using timestamp mapping
+                let entryIndex = -1;
+                let exitIndex = -1;
                 
-                // Find the closest date index
-                const entryIndex = dates.findIndex(d => d >= entryDateStr);
-                const exitIndex = dates.findIndex(d => d >= exitDateStr);
+                // Method 1: Try exact timestamp match first
+                if (timestampMap.has(trade.entry_timestamp)) {{
+                    entryIndex = timestampMap.get(trade.entry_timestamp);
+                }} else {{
+                    // Method 2: Find closest timestamp (within reasonable range)
+                    let closestEntryDiff = Infinity;
+                    candlestickData.forEach((bar, idx) => {{
+                        const timeDiff = Math.abs(bar.time - trade.entry_timestamp);
+                        if (timeDiff < closestEntryDiff && timeDiff < 900) {{ // Within 15 minutes
+                            closestEntryDiff = timeDiff;
+                            entryIndex = idx;
+                        }}
+                    }});
+                }}
+                
+                if (timestampMap.has(trade.exit_timestamp)) {{
+                    exitIndex = timestampMap.get(trade.exit_timestamp);
+                }} else {{
+                    // Find closest exit timestamp
+                    let closestExitDiff = Infinity;
+                    candlestickData.forEach((bar, idx) => {{
+                        const timeDiff = Math.abs(bar.time - trade.exit_timestamp);
+                        if (timeDiff < closestExitDiff && timeDiff < 900) {{ // Within 15 minutes
+                            closestExitDiff = timeDiff;
+                            exitIndex = idx;
+                        }}
+                    }});
+                }}
                 
                 // Calculate auto-fit range for highlighted trade
                 if (index === highlightIndex && autoFit && entryIndex >= 0 && exitIndex >= 0) {{
-                    const padding = Math.max(10, Math.floor((exitIndex - entryIndex) * 0.2));
-                    const startIndex = Math.max(0, entryIndex - padding);
-                    const endIndex = Math.min(dates.length - 1, exitIndex + padding);
+                    const padding = Math.max(10, Math.floor(Math.abs(exitIndex - entryIndex) * 0.3));
+                    const startIndex = Math.max(0, Math.min(entryIndex, exitIndex) - padding);
+                    const endIndex = Math.min(dates.length - 1, Math.max(entryIndex, exitIndex) + padding);
                     autoFitRange = {{
                         start: (startIndex / dates.length) * 100,
                         end: (endIndex / dates.length) * 100
                     }};
                 }}
                 
+                // Create entry marker with exact positioning
                 if (entryIndex >= 0) {{
                     const isHighlighted = index === highlightIndex;
+                    const candleData = candlestickData[entryIndex];
+                    
+                    // Position marker on exact candle tip based on trade side
+                    const markerPrice = trade.side === 'LONG' ? 
+                        Math.min(candleData.low, trade.entry_price) : // Below candle for LONG
+                        Math.max(candleData.high, trade.entry_price);   // Above candle for SHORT
+                    
                     entryMarkers.push({{
                         name: `${{trade.side}} Entry`,
-                        coord: [entryIndex, trade.entry_price],
+                        coord: [entryIndex, markerPrice],
                         value: trade.entry_price,
                         symbol: trade.side === 'LONG' ? 'triangle' : 'diamond',
-                        symbolSize: isHighlighted ? 20 : 12,
+                        symbolSize: isHighlighted ? 25 : 15,
                         itemStyle: {{
-                            color: isHighlighted ? '#FFD700' : (trade.side === 'LONG' ? '#2196F3' : '#e91e63'),
-                            borderColor: isHighlighted ? '#FF8C00' : '#fff',
-                            borderWidth: 2
+                            color: isHighlighted ? '#FFD700' : (trade.side === 'LONG' ? '#00C853' : '#FF1744'),
+                            borderColor: isHighlighted ? '#FF8C00' : '#FFFFFF',
+                            borderWidth: 3,
+                            shadowBlur: isHighlighted ? 10 : 5,
+                            shadowColor: isHighlighted ? '#FFD700' : (trade.side === 'LONG' ? '#00C853' : '#FF1744'),
+                            shadowOffsetY: 2
                         }},
                         label: {{
                             show: isHighlighted,
-                            formatter: `${{trade.side}} Entry<br/>$${{trade.entry_price.toFixed(4)}}`,
+                            formatter: `${{trade.side}} Entry\\n$${{trade.entry_price.toFixed(4)}}\\nCandle: ${{entryIndex + 1}}`,
                             position: trade.side === 'LONG' ? 'bottom' : 'top',
-                            color: isDarkMode ? '#e0e0e0' : '#333',
-                            backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                            borderColor: isDarkMode ? '#4a5568' : '#ccc',
-                            borderWidth: 1,
-                            borderRadius: 4,
-                            padding: [4, 8]
+                            color: isDarkMode ? '#FFFFFF' : '#000000',
+                            backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                            borderColor: isDarkMode ? '#4a5568' : '#cccccc',
+                            borderWidth: 2,
+                            borderRadius: 6,
+                            padding: [6, 10],
+                            fontSize: 12,
+                            fontWeight: 'bold'
                         }}
                     }});
                 }}
                 
+                // Create exit marker with exact positioning
                 if (exitIndex >= 0) {{
                     const isHighlighted = index === highlightIndex;
+                    const candleData = candlestickData[exitIndex];
+                    
+                    // Position marker on exact candle tip based on profit/loss
+                    const markerPrice = trade.pnl >= 0 ? 
+                        Math.max(candleData.high, trade.exit_price) : // Above candle for profit
+                        Math.min(candleData.low, trade.exit_price);    // Below candle for loss
+                    
                     exitMarkers.push({{
                         name: `Exit`,
-                        coord: [exitIndex, trade.exit_price],
+                        coord: [exitIndex, markerPrice],
                         value: trade.exit_price,
                         symbol: 'circle',
-                        symbolSize: isHighlighted ? 18 : 10,
+                        symbolSize: isHighlighted ? 22 : 13,
                         itemStyle: {{
                             color: isHighlighted ? '#FFD700' : (trade.pnl >= 0 ? '#4CAF50' : '#F44336'),
-                            borderColor: isHighlighted ? '#FF8C00' : '#fff',
-                            borderWidth: 2
+                            borderColor: isHighlighted ? '#FF8C00' : '#FFFFFF',
+                            borderWidth: 3,
+                            shadowBlur: isHighlighted ? 8 : 4,
+                            shadowColor: isHighlighted ? '#FFD700' : (trade.pnl >= 0 ? '#4CAF50' : '#F44336'),
+                            shadowOffsetY: 2
                         }},
                         label: {{
                             show: isHighlighted,
-                            formatter: `Exit<br/>$${{trade.pnl >= 0 ? '+' : ''}}$${{trade.pnl.toFixed(2)}}`,
+                            formatter: `Exit\\n$${{trade.pnl >= 0 ? '+' : ''}}$${{trade.pnl.toFixed(2)}}\\n${{trade.exit_reason}}\\nCandle: ${{exitIndex + 1}}`,
                             position: trade.pnl >= 0 ? 'top' : 'bottom',
-                            color: isDarkMode ? '#e0e0e0' : '#333',
-                            backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                            borderColor: isDarkMode ? '#4a5568' : '#ccc',
-                            borderWidth: 1,
-                            borderRadius: 4,
-                            padding: [4, 8]
+                            color: isDarkMode ? '#FFFFFF' : '#000000',
+                            backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                            borderColor: isDarkMode ? '#4a5568' : '#cccccc',
+                            borderWidth: 2,
+                            borderRadius: 6,
+                            padding: [6, 10],
+                            fontSize: 12,
+                            fontWeight: 'bold'
                         }}
                     }});
+                }}
+                
+                // Log positioning for debugging (only for highlighted trades)
+                if (index === highlightIndex) {{
+                    console.log(`🎯 Highlighted Trade ${{index + 1}}: Entry at candle ${{entryIndex + 1}}, Exit at candle ${{exitIndex + 1}}`);
+                    console.log(`   Entry time: ${{new Date(trade.entry_timestamp * 1000).toISOString()}}`);
+                    console.log(`   Exit time: ${{new Date(trade.exit_timestamp * 1000).toISOString()}}`);
+                    console.log(`   Entry price: $${{trade.entry_price}}, Exit price: $${{trade.exit_price}}`);
+                    console.log(`   P&L: $${{trade.pnl.toFixed(2)}} (${{trade.pnl_percent.toFixed(2)}}%)`);
                 }}
             }});
             

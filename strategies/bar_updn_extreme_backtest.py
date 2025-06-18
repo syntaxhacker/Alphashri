@@ -690,6 +690,7 @@ class BarUpDnBacktester:
         
         # Calculate current unrealized PnL
         unrealized_pnl = self._calculate_unrealized_pnl(position, row)
+        unrealized_pnl_percent = (unrealized_pnl / (position.entry_price * position.quantity)) * 100
         
         # Check maximum dollar loss limit FIRST (highest priority)
         # Use a more conservative threshold to account for slippage/gaps
@@ -699,13 +700,21 @@ class BarUpDnBacktester:
         
         # Check minimum hold time for all other exit conditions
         hold_time = timestamp - position.entry_time
-        if hold_time.total_seconds() < (self.strategy.min_hold_minutes * 60):
+        min_hold_respected = hold_time.total_seconds() >= (self.strategy.min_hold_minutes * 60)
+        
+        if not min_hold_respected:
             return None  # Don't exit if minimum hold time not met (except for max dollar loss)
         
         # Check stop loss
         if position.side == 'LONG':
             if current_price <= position.stop_loss:
                 return self._close_position(position, row, timestamp, "STOP_LOSS")
+            
+            # NEW: Check take profit (2x the stop loss percentage)
+            take_profit_percent = self.strategy.sl_percent * 2  # 2:1 risk/reward ratio
+            take_profit_price = position.entry_price * (1 + take_profit_percent / 100)
+            if current_price >= take_profit_price:
+                return self._close_position(position, row, timestamp, "TAKE_PROFIT")
             
             # Update trailing stop (percentage-based)
             if position.trailing_stop is None:
@@ -726,6 +735,12 @@ class BarUpDnBacktester:
             if current_price >= position.stop_loss:
                 return self._close_position(position, row, timestamp, "STOP_LOSS")
             
+            # NEW: Check take profit for shorts
+            take_profit_percent = self.strategy.sl_percent * 2  # 2:1 risk/reward ratio
+            take_profit_price = position.entry_price * (1 - take_profit_percent / 100)
+            if current_price <= take_profit_price:
+                return self._close_position(position, row, timestamp, "TAKE_PROFIT")
+            
             # Update trailing stop for shorts (percentage-based)
             if position.trailing_stop is None:
                 if current_price < position.entry_price * 0.995:  # Only after 0.5% profit
@@ -743,7 +758,7 @@ class BarUpDnBacktester:
         return None
     
     def _close_position(self, position: 'Position', row: pd.Series, timestamp: datetime, reason: str) -> TradeResult:
-        """Close position and calculate PnL"""
+        """Close position and calculate PnL with validation"""
         exit_price = row['close']
         
         if position.side == 'LONG':
@@ -752,6 +767,15 @@ class BarUpDnBacktester:
             pnl = (position.entry_price - exit_price) * position.quantity
         
         pnl_percent = (pnl / (position.entry_price * position.quantity)) * 100
+        
+        # VALIDATION: Ensure exit reason matches actual P&L outcome
+        if reason == "TAKE_PROFIT" and pnl <= 0:
+            # This should never happen - log a warning and correct the reason
+            print(f"⚠️ WARNING: 'TAKE_PROFIT' exit with negative P&L (${pnl:.2f}). Correcting to 'STOP_LOSS'")
+            reason = "STOP_LOSS"
+        elif reason == "STOP_LOSS" and pnl > 0:
+            # This could happen due to gaps - log but keep reason
+            print(f"ℹ️ INFO: 'STOP_LOSS' exit with positive P&L (${pnl:.2f}) - likely due to price gap")
         
         return TradeResult(
             entry_time=position.entry_time,
