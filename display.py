@@ -3,14 +3,109 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.live import Live
 from rich import box
+from rich.layout import Layout
+from datetime import datetime
 import pandas as pd
 from typing import Dict, Optional
 
 console = Console()
 
 class TradingDisplay:
-    """Class for handling all display-related functionality"""
-    
+    def __init__(self):
+        self.trades_history = []
+        self.session_start_balance = None
+        
+    def add_trade(self, trade):
+        """Add trade to history"""
+        self.trades_history.append({
+            'timestamp': datetime.now(),
+            'side': trade['side'],
+            'price': trade['price'],
+            'quantity': trade['quantity'],
+            'pnl': trade.get('pnl', 0)
+        })
+        
+    def format_time_ago(self, timestamp):
+        """Format time difference to readable format"""
+        diff = datetime.now() - timestamp
+        seconds = diff.total_seconds()
+        if seconds < 60:
+            return f"{int(seconds)}s ago"
+        elif seconds < 3600:
+            return f"{int(seconds/60)}m ago"
+        else:
+            return f"{int(seconds/3600)}h ago"
+            
+    def display_live_status(self, data: Dict) -> Optional[Panel]:
+        """Display live trading status in compact format"""
+        if not data:
+            return None
+            
+        layout = Layout()
+        
+        for symbol, info in data.items():
+            price = info['price']
+            prev_price = info.get('prev_price', price)
+            price_change = ((price - prev_price) / prev_price) * 100
+            position = info['position']
+            pnl = info['pnl']
+            indicators = info.get('indicators', {})
+            leverage = info.get('leverage', 1)
+            
+            # Status panel
+            status_text = [
+                f"[cyan]{symbol}[/cyan] Live [{yellow}]{leverage}x[/yellow]",
+                f"${price:,.2f} ({price_change:+.2f}%) | {position} | P&L: ${pnl:,.2f}",
+                f"Bid: {indicators.get('Bid', 0):,.2f} Ask: {indicators.get('Ask', 0):,.2f}",
+                f"Spread: ${indicators.get('Spread', 0):,.2f} | {indicators.get('Hold Time', 'N/A')}"
+            ]
+            
+            # Session stats
+            if self.session_start_balance is None:
+                self.session_start_balance = info.get('balance', 0)
+            
+            current_balance = info.get('balance', self.session_start_balance)
+            session_return = ((current_balance - self.session_start_balance) / self.session_start_balance * 100)
+            
+            win_trades = len([t for t in self.trades_history if t['pnl'] > 0])
+            total_trades = len(self.trades_history)
+            win_rate = (win_trades / total_trades * 100) if total_trades > 0 else 0
+            
+            stats_text = [
+                "[bold cyan]Session Stats:[/bold cyan]",
+                f"Balance: ${self.session_start_balance:,.2f} → ${current_balance:,.2f} ({session_return:+.3f}%)",
+                f"Total P&L: ${sum(t['pnl'] for t in self.trades_history):,.2f} ({total_trades} trades)",
+                f"Win Rate: {win_trades}/{total_trades} ({win_rate:.1f}%)"
+            ]
+            
+            # Recent trades
+            trades_text = ["[bold cyan]Recent Trades (Last 5):[/bold cyan]"]
+            for trade in list(reversed(self.trades_history))[-5:]:
+                color = "green" if trade['pnl'] >= 0 else "red"
+                trades_text.append(
+                    f"[{color}]> {trade['side']} {trade['quantity']} @ ${trade['price']:,.2f} "
+                    f"[{trade['pnl']:+.2f}] [{self.format_time_ago(trade['timestamp'])}][/{color}]"
+                )
+            
+            # Active position
+            if position != "NONE":
+                pos_size = info.get('position_size', 0)
+                entry_price = info.get('position_entry_price', 0)
+                pos_text = [
+                    "[bold cyan]Active Position:[/bold cyan]",
+                    f"Size: {pos_size} BTC (≈${pos_size * price:,.2f})",
+                    f"Entry: ${entry_price:,.2f}",
+                    f"Current: ${price:,.2f}",
+                    f"P&L: ${pnl:,.2f} ({(pnl/(pos_size * entry_price) * 100):+.2f}%)",
+                    f"Hold Time: {indicators.get('Hold Time', 'N/A')}"
+                ]
+            else:
+                pos_text = ["[bold cyan]Position: None[/bold cyan]"]
+            
+            # Combine all sections
+            all_text = "\n".join(status_text + [""] + stats_text + [""] + trades_text + [""] + pos_text)
+            return Panel(all_text, border_style="green")
+            
     def display_backtest_results(self, trades_df: pd.DataFrame, symbol: str):
         """Display backtest results in a formatted table"""
         if trades_df is None or len(trades_df) == 0:
