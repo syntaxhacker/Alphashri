@@ -58,6 +58,9 @@ class BinancePaperTrader:
         self.current_bid = 0.0
         self.current_ask = 0.0
         self.prev_price = 0.0
+        self.session_start_price = None
+        self.price_samples = []  # Store last few prices for better change calculation
+        self.max_price_samples = 60  # Keep 60 samples (about 1 minute of data)
         
         # Time tracking
         self.last_trade_time = time.time()
@@ -114,7 +117,7 @@ class BinancePaperTrader:
             current_price = self.current_bid or self.current_ask or 0.0
         
         # Calculate position status
-        position_status = "NONE"
+        position_status = "FLAT"
         if self.current_position > 0:
             position_status = "LONG"
         elif self.current_position < 0:
@@ -139,6 +142,29 @@ class BinancePaperTrader:
         if self.current_ask is not None and self.current_bid is not None:
             spread = self.current_ask - self.current_bid
         
+        # Get proximity information from strategy if available
+        proximity_info = {}
+        if hasattr(self.strategy, 'get_proximity_info'):
+            proximity_info = self.strategy.get_proximity_info()
+        
+        # Build indicators dict with proximity data
+        indicators_dict = {
+            'Bid': self.current_bid if self.current_bid else 0,
+            'Ask': self.current_ask if self.current_ask else 0,
+            'Spread': spread,
+            'Hold Time': hold_time
+        }
+        
+        # Add proximity indicators if available
+        if proximity_info:
+            indicators_dict.update({
+                'Long Signal': f"{proximity_info.get('long_proximity', 0):.0f}%",
+                'Short Signal': f"{proximity_info.get('short_proximity', 0):.0f}%",
+                'Volume': f"{proximity_info.get('volume_proximity', 0):.0f}%",
+                'L-Price': f"${proximity_info.get('long_breakout_price', 0):.2f}",
+                'S-Price': f"${proximity_info.get('short_breakout_price', 0):.2f}"
+            })
+        
         return {
             self.trading_symbol: {
                 'price': current_price,
@@ -150,25 +176,20 @@ class BinancePaperTrader:
                 'balance': self.balance if hasattr(self, 'balance') else 0,
                 'leverage': self.leverage if hasattr(self, 'leverage') else 1,
                 'signal': 'NONE',  # Will be updated when signals are generated
-                'indicators': {
-                    'Bid': self.current_bid if self.current_bid else 0,
-                    'Ask': self.current_ask if self.current_ask else 0,
-                    'Spread': spread,
-                    'Hold Time': hold_time
-                }
+                'indicators': indicators_dict
             }
         }
         
     def should_trade(self) -> bool:
-        """Check if trading should occur"""
+        """Check if trading should occur - optimized for speed"""
         current_time = time.time()
         
         # Always allow closing positions
         if self.current_position != 0:
             return True
             
-        # Basic checks for new trades
-        if current_time - self.last_trade_time < 1:  # 1 second between trades
+        # Reduced delay between trades for faster execution
+        if current_time - self.last_trade_time < 0.1:  # 100ms minimum between trades
             return False
             
         return True  # Allow trading by default
@@ -185,17 +206,44 @@ class BinancePaperTrader:
                 if data['e'] == 'bookTicker':
                     with self.price_lock:
                         self.messages_received += 1
-                        self.prev_price = self.current_bid if self.current_bid else float(data['b'])
-                        self.current_bid = float(data['b'])
-                        self.current_ask = float(data['a'])
+                        
+                        # Update price tracking
+                        new_ask = float(data['a'])
+                        new_bid = float(data['b'])
+                        current_price = new_ask  # Use ask price as current price for consistency
+                        
+                        # Initialize session start price
+                        if self.session_start_price is None:
+                            self.session_start_price = current_price
+                            self.prev_price = current_price
+                        else:
+                            # Use price from 30 samples ago (about 30 seconds) for meaningful change calculation
+                            if len(self.price_samples) >= 30:
+                                self.prev_price = self.price_samples[-30]
+                            else:
+                                self.prev_price = self.session_start_price
+                        
+                        # Add current price to samples and maintain size limit
+                        self.price_samples.append(current_price)
+                        if len(self.price_samples) > self.max_price_samples:
+                            self.price_samples.pop(0)  # Remove oldest sample
+                        
+                        self.current_bid = new_bid
+                        self.current_ask = new_ask
                         current_time = time.time()
                         
                         # Calculate unrealized PnL if position exists
                         if self.current_position != 0 and self.position_entry_price:
                             current_price = self.current_bid if self.current_position > 0 else self.current_ask
+                            # P&L = position_size_btc * price_difference * leverage (Binance futures P&L includes leverage)
                             self.unrealized_pnl = self.current_position * (current_price - self.position_entry_price) * self.leverage
                         else:
                             self.unrealized_pnl = 0.0
+                        
+                        # Only process signals periodically to reduce CPU load
+                        if current_time - getattr(self, 'last_signal_time', 0) < 0.1:  # Process signals max 10x per second
+                            return
+                        self.last_signal_time = current_time
                         
                         # Generate signals from real-time prices
                         if not self.should_trade():
@@ -235,18 +283,21 @@ class BinancePaperTrader:
                         # Calculate position size based on balance and leverage
                         account_value = self.balance + (self.unrealized_pnl if self.unrealized_pnl else 0)
                         
-                        # Calculate maximum position size in BTC
-                        # Use a more conservative position size calculation
-                        max_position_value = (account_value * self.leverage) * 0.95  # 95% of available leveraged capital
-                        max_position_size = max_position_value / self.current_ask
+                        # Get position size percentage from strategy (5% = 0.05)
+                        position_size_percent = self.strategy.position_size if hasattr(self.strategy, 'position_size') else 0.05
                         
-                        # Calculate position size based on risk
-                        risk_amount = account_value * 0.01  # Risk 1% per trade
-                        risk_per_btc = self.current_ask * (self.strategy.stop_loss / 100)  # Convert stop loss to price
-                        position_size = (risk_amount / risk_per_btc) * self.leverage
+                        # Calculate position value in USD (this is what we want to control)
+                        position_value_usd = account_value * position_size_percent  # 5% of balance = $50 
                         
-                        # Take the smaller of the two sizes and round to 3 decimals
-                        trade_size = round(min(position_size, max_position_size), 3)
+                        # Convert to BTC quantity (no leverage multiplication here - leverage is handled by exchange)
+                        trade_size = position_value_usd / self.current_ask  # $50 / $104,895 = 0.000477 BTC
+                        
+                        # Safety check: ensure we don't exceed available margin
+                        max_position_value = account_value * self.leverage * 0.95  # Total buying power
+                        max_btc_size = max_position_value / self.current_ask
+                        
+                        # Take the smaller of the two and round to 3 decimals
+                        trade_size = round(min(trade_size, max_btc_size), 3)
                         
                         # Ensure minimum trade size
                         if trade_size < 0.001:  # Minimum trade size for BTC
@@ -255,8 +306,9 @@ class BinancePaperTrader:
                         if signal == 'BUY' and self.current_position <= 0:
                             if self.execute_trade("BUY", trade_size):
                                 self.strategy.last_trade_time = current_time
+                                position_value = trade_size * self.current_ask
                                 console.print(Panel.fit(
-                                    f"BUY SIGNAL EXECUTED\nPrice: ${self.current_ask:,.2f}\nSize: {trade_size:.3f} BTC\nLeverage: {self.leverage}x",
+                                    f"BUY SIGNAL EXECUTED\nPrice: ${self.current_ask:,.2f}\nSize: {trade_size:.3f} BTC\nPosition Value: ${position_value:,.2f}\nLeverage: {self.leverage}x\nBalance: ${account_value:,.2f}",
                                     title="Trade Signal",
                                     border_style="green"
                                 ))
@@ -264,8 +316,9 @@ class BinancePaperTrader:
                         elif signal == 'SELL' and self.current_position >= 0:
                             if self.execute_trade("SELL", trade_size):
                                 self.strategy.last_trade_time = current_time
+                                position_value = trade_size * self.current_bid
                                 console.print(Panel.fit(
-                                    f"SELL SIGNAL EXECUTED\nPrice: ${self.current_bid:,.2f}\nSize: {trade_size:.3f} BTC\nLeverage: {self.leverage}x",
+                                    f"SELL SIGNAL EXECUTED\nPrice: ${self.current_bid:,.2f}\nSize: {trade_size:.3f} BTC\nPosition Value: ${position_value:,.2f}\nLeverage: {self.leverage}x\nBalance: ${account_value:,.2f}",
                                     title="Trade Signal",
                                     border_style="red"
                                 ))
@@ -282,8 +335,8 @@ class BinancePaperTrader:
                                     border_style="yellow"
                                 ))
                         
-                        # Update display every second
-                        if current_time - self.last_print_time >= 1.0:
+                        # Update display more frequently for real-time feel
+                        if current_time - self.last_print_time >= 0.1:  # 10 FPS for smooth updates
                             self.update_counter += 1
                             display_data = self.get_display_data()
                             panel = self.display.display_live_status(display_data)
@@ -291,8 +344,13 @@ class BinancePaperTrader:
                             self.last_print_time = current_time
                             
                 elif data['e'] == 'kline' and data['k']['x']:
-                    # Skip kline processing since we're using real-time prices
-                    pass
+                    # Process completed klines for volume data
+                    kline = data['k']
+                    volume = float(kline['v'])
+                    
+                    # Update strategy with volume data
+                    if hasattr(self.strategy, 'update_volume'):
+                        self.strategy.update_volume(volume)
                         
         except Exception as e:
             self.log(f"Error processing message: {str(e)}", "error")
@@ -406,7 +464,7 @@ class BinancePaperTrader:
             self.initialize_websocket()
             
             while self.running:
-                time.sleep(0.001)  # Minimal sleep to prevent CPU overuse
+                time.sleep(0.0001)  # Ultra-minimal sleep for maximum responsiveness
                 
         except KeyboardInterrupt:
             print("\nStopping live trading...")

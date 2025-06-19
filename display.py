@@ -54,11 +54,20 @@ class TradingDisplay:
             
             # Status panel
             status_text = [
-                f"[cyan]{symbol}[/cyan] Live [{yellow}]{leverage}x[/yellow]",
+                f"[cyan]{symbol}[/cyan] Live [yellow]{leverage}x[/yellow]",
                 f"${price:,.2f} ({price_change:+.2f}%) | {position} | P&L: ${pnl:,.2f}",
                 f"Bid: {indicators.get('Bid', 0):,.2f} Ask: {indicators.get('Ask', 0):,.2f}",
                 f"Spread: ${indicators.get('Spread', 0):,.2f} | {indicators.get('Hold Time', 'N/A')}"
             ]
+            
+            # Add proximity indicators if available
+            if 'Long Signal' in indicators:
+                proximity_text = [
+                    "[bold green]🎯 Signal Proximity:[/bold green]",
+                    f"Long: {indicators.get('Long Signal', '0%')} | Short: {indicators.get('Short Signal', '0%')} | Vol: {indicators.get('Volume', '0%')}",
+                    f"L-Price: {indicators.get('L-Price', '$0.00')} | S-Price: {indicators.get('S-Price', '$0.00')}"
+                ]
+                status_text.extend([""] + proximity_text)
             
             # Session stats
             if self.session_start_balance is None:
@@ -96,7 +105,7 @@ class TradingDisplay:
                     f"Size: {pos_size} BTC (≈${pos_size * price:,.2f})",
                     f"Entry: ${entry_price:,.2f}",
                     f"Current: ${price:,.2f}",
-                    f"P&L: ${pnl:,.2f} ({(pnl/(pos_size * entry_price) * 100):+.2f}%)",
+                    f"P&L: ${pnl:,.2f} ({(pnl/(pos_size * entry_price) * 100):+.2f}%)" if pos_size > 0 and entry_price > 0 else f"P&L: ${pnl:,.2f}",
                     f"Hold Time: {indicators.get('Hold Time', 'N/A')}"
                 ]
             else:
@@ -180,42 +189,4 @@ class TradingDisplay:
             console.print("[yellow]Showing last 20 trades...[/yellow]")
         console.print(table)
     
-    def display_live_status(self, data: Dict) -> Optional[Panel]:
-        """Display live trading status"""
-        if not data:
-            return None
-            
-        table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED)
-        table.add_column("Symbol", style="cyan")
-        table.add_column("Price", style="yellow")
-        table.add_column("Change", style="green")
-        table.add_column("Position", style="blue")
-        table.add_column("P&L", style="red")
-        table.add_column("Signal", style="magenta")
-        table.add_column("Indicators", style="cyan")
-        
-        for symbol, info in data.items():
-            price = info['price']
-            prev_price = info.get('prev_price', price)
-            price_change = ((price - prev_price) / prev_price) * 100
-            
-            position = "LONG" if info['position'] else "NONE"
-            pnl = f"${info['pnl']:.2f}" if info['position'] else "-"
-            
-            indicators = info.get('indicators', {})
-            indicator_str = ", ".join([
-                f"{k}: {v:.2f}" if isinstance(v, float) else f"{k}: {v}"
-                for k, v in indicators.items()
-            ])
-            
-            table.add_row(
-                symbol,
-                f"${price:.2f}",
-                f"{price_change:+.2f}%" if price_change else "0.00%",
-                position,
-                pnl,
-                info.get('signal', 'NONE'),
-                indicator_str
-            )
-            
-        return Panel(table, title="Live Trading Status", border_style="green") 
+ 

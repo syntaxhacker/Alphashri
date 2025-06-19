@@ -110,3 +110,7 @@ class ScalpingStrategy(BaseStrategy):
                     signal = 'CLOSE'
                     
         return signal 
+    
+    def get_parameter_space(self):
+        """Return parameter space for optimization"""
+        return {} 

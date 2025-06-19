@@ -29,7 +29,9 @@ BINANCE_API_CONFIG = {
     'testnet': {
         'futures_api': 'https://testnet.binancefuture.com',
         'websocket_base': 'wss://stream.binancefuture.com',
-        'websocket_stream': 'wss://stream.binancefuture.com/ws'
+        'websocket_stream': 'wss://stream.binancefuture.com/ws',
+        'api_key': 'd3e6652041c1445af2617b399e6d8191907e3a7794b573e0de4337cf4de16ce3',
+        'api_secret': '7870a2b11cc89f8de478dd66c76057a50565e6ac85d89c127631fca033380c1c'
     },
     'mainnet': {
         'futures_api': 'https://fapi.binance.com',
@@ -43,7 +45,7 @@ WEBSOCKET_CONFIG = {
     'ping_interval': 20,  # Reduced for more stable connection
     'pong_timeout': 10,  # Reduced timeout for faster reconnection
     'display_update_ms': 100,  # More reasonable display frequency
-    'reconnect_delay': 1,  # Reduced reconnect delay to 1 second
-    'max_reconnect_attempts': 5,
-    'update_interval': 1  # Update interval in seconds
+    'reconnect_delay': 0.1,  # Ultra-fast reconnect for minimal downtime
+    'max_reconnect_attempts': 10,  # More attempts for reliability
+    'update_interval': 0.01  # Ultra-fast update interval (100 FPS)
 } 

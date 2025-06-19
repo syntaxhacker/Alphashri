@@ -104,3 +104,7 @@ class MeanReversionStrategy(BaseStrategy):
                 self.last_trade_time = current_time
                 
         return signal 
+    
+    def get_parameter_space(self):
+        """Return parameter space for optimization"""
+        return {} 
