@@ -14,6 +14,7 @@ class ScalpingStrategy(BaseStrategy):
         self.max_trade_duration = 15  # 15 seconds max hold time
         self.stop_loss = 0.002  # 0.2%
         self.take_profit = 0.004  # 0.4%
+        self.position_size = 0.1  # 10% of balance per trade
         self.max_spread_pct = 0.02  # 2% - Allow higher spreads
         self.min_data_points = 2  # Need only 2 data points
         self.leverage = 10  # Use 10x leverage

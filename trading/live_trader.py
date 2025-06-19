@@ -17,6 +17,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich import box
 from rich.console import Console
+from backtester.backtest_engine import run_backtest
 
 class BinancePaperTrader:
     def __init__(self, api_key, api_secret, use_testnet=True, leverage=1):
@@ -33,8 +34,11 @@ class BinancePaperTrader:
         self.client = UMFutures(
             key=api_key,
             secret=api_secret,
-            base_url=self.api_config['futures_api']
+            base_url=self.api_config['futures_api']  # This already points to testnet URL from config
         )
+        
+        # Log the API URL being used
+        self.log(f"Using Futures API URL: {self.api_config['futures_api']}", "info")
         
         # Initialize display
         self.display = TradingDisplay()
