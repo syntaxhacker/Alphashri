@@ -30,7 +30,7 @@ logger = logging.getLogger('data_fetcher')
 class NiftyDataFetcher:
     """Class to fetch and prepare Nifty intraday data for backtesting"""
     
-    def __init__(self, cache_dir='nifty_intraday_bot/data/cache', use_synthetic_data=True):
+    def __init__(self, cache_dir='nifty_intraday_bot/data/cache', use_synthetic_data=False):
         """Initialize the data fetcher with cache support"""
         self.cache = DataCache(cache_dir=cache_dir)
         self.default_intervals = ['5m', '15m', '30m', '1h']
@@ -39,6 +39,8 @@ class NiftyDataFetcher:
         # Create cache directory if it doesn't exist
         os.makedirs(cache_dir, exist_ok=True)
         logger.info(f"Initialized NiftyDataFetcher with cache at {cache_dir}")
+        if use_synthetic_data:
+            logger.warning("WARNING: Synthetic data generation is enabled. This should only be used for testing!")
     
     def fetch_intraday_data(self, symbol="^NSEI", interval="5m", period="3mo", preprocess=True):
         """

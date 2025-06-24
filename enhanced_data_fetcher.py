@@ -47,20 +47,28 @@ class EnhancedDataFetcher:
             console.print("[yellow]⚠ Enhanced DataFetcher with yfinance + Intelligent Caching[/yellow]")
     
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime, 
-                   timeframe: str = '1m', force_refresh: bool = False) -> pd.DataFrame:
-        """
-        Fetch data with intelligent caching
+                   timeframe: str = '1d', force_refresh: bool = False) -> Optional[pd.DataFrame]:
+        """Enhanced fetch with CSV data support"""
         
-        Args:
-            symbol: Trading symbol (e.g., 'BTCUSDT')
-            start_date: Start date for data
-            end_date: End date for data
-            timeframe: Data timeframe (default '1m')
-            force_refresh: Force fresh download ignoring cache
+        # For Indian stocks, try CSV first, then APIs
+        if self._is_indian_stock(symbol) or symbol in ['TATAMOTORS', 'TATAMOTORS.NS', 'TATAMOTORS.BO']:
+            print(f"🇮🇳 Loading Indian stock data for {symbol}...")
+            
+            # Try CSV data first
+            data = self._load_csv_data(symbol, start_date, end_date)
+            if data is not None and not data.empty:
+                return data
+            
+            # Fallback to APIs if CSV fails
+            print(f"🔄 CSV failed, trying APIs...")
         
-        Returns:
-            DataFrame with OHLCV data
-        """
+        # Try original method
+        data = self._fetch_yfinance_data(symbol, start_date, end_date, timeframe)
+        
+        # If original fails and it's an Indian stock, try free APIs
+        if (data is None or data.empty) and self._is_indian_stock(symbol):
+            print(f"🇮🇳 Trying free Indian APIs for {symbol}...")
+            data = self._try_free_indian_apis(symbol, start_date, end_date)
         
         console.print(f"[cyan]📊 Fetching {symbol} {timeframe} data: {start_date.date()} to {end_date.date()}[/cyan]")
         
@@ -191,13 +199,18 @@ class EnhancedDataFetcher:
     
     def _fetch_yfinance_data(self, symbol: str, start_date: datetime, end_date: datetime, 
                             timeframe: str = '1m') -> pd.DataFrame:
-        """Fetch data from Yahoo Finance (fallback)"""
+        """Fetch data from Yahoo Finance (fallback and Indian stocks)"""
         
         if not HAS_YFINANCE:
             raise ImportError("yfinance is required but not installed")
         
         # Convert symbol for yfinance
-        if symbol.endswith('USDT'):
+        # Handle Indian stock symbols (NSE/BSE)
+        if '.' in symbol and (symbol.endswith('.NS') or symbol.endswith('.BO')):
+            # Indian stocks - use symbol as-is
+            yf_symbol = symbol
+            console.print(f"[cyan]Fetching Indian stock: {yf_symbol}[/cyan]")
+        elif symbol.endswith('USDT'):
             yf_symbol = symbol.replace('USDT', '-USD')
         elif symbol.endswith('USD'):
             yf_symbol = symbol + 'T'  # Some symbols need this
@@ -212,7 +225,11 @@ class EnhancedDataFetcher:
             '15m': '15m',
             '30m': '30m',
             '1h': '1h',
+            '2h': '2h',
+            '4h': '4h',
             '1d': '1d',
+            '1wk': '1wk',
+            '1mo': '1mo',
         }
         
         if timeframe not in interval_map:
@@ -230,16 +247,28 @@ class EnhancedDataFetcher:
             df = ticker.history(start=start_date, end=end_date, interval=yf_interval)
             
             if df.empty:
+                if '.' in symbol and (symbol.endswith('.NS') or symbol.endswith('.BO')):
+                    raise ValueError(f"No Indian stock data received for {yf_symbol}. Check symbol format (e.g., TATAMOTORS.NS)")
+                else:
                 raise ValueError(f"No data received for {yf_symbol}")
             
             # Rename columns to match our format
             df.columns = df.columns.str.lower()
             df = df[['open', 'high', 'low', 'close', 'volume']]
             
+            # For Indian stocks, log specific success message
+            if '.' in symbol and (symbol.endswith('.NS') or symbol.endswith('.BO')):
+                exchange = "NSE" if symbol.endswith('.NS') else "BSE"
+                console.print(f"[green]✓ Downloaded {len(df):,} {timeframe} bars for {symbol} ({exchange} via yfinance)[/green]")
+            else:
             console.print(f"[green]✓ Downloaded {len(df):,} {timeframe} bars for {symbol} (via yfinance)[/green]")
             return df
             
         except Exception as e:
+            if '.' in symbol and (symbol.endswith('.NS') or symbol.endswith('.BO')):
+                raise ValueError(f"Failed to fetch Indian stock data from Yahoo Finance: {str(e)}. "
+                               f"Ensure symbol format is correct (e.g., TATAMOTORS.NS for NSE, TATAMOTORS.BO for BSE)")
+            else:
             raise ValueError(f"Failed to fetch data from Yahoo Finance: {str(e)}")
     
     def get_multiple_symbols(self, symbols: list, start_date: datetime, end_date: datetime, 
@@ -280,3 +309,110 @@ class EnhancedDataFetcher:
         
         console.print(f"[cyan]🔄 Refreshing {symbol} data (last {days_back} days)[/cyan]")
         return self.fetch_data(symbol, start_date, end_date, timeframe, force_refresh=True) 
+    
+    def _try_free_indian_apis(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
+        """Try free Indian stock market APIs as backup"""
+        
+        # Try NSEPy first (completely free)
+        try:
+            from nsepy import get_history
+            from datetime import date
+            
+            print(f"🔄 Trying NSEPy for {symbol}...")
+            
+            # Clean symbol name
+            clean_symbol = symbol.replace('.NS', '').replace('.BO', '')
+            
+            start_dt = start_date.date() if hasattr(start_date, 'date') else start_date
+            end_dt = end_date.date() if hasattr(end_date, 'date') else end_date
+            
+            data = get_history(symbol=clean_symbol, start=start_dt, end=end_dt)
+            
+            if data is not None and not data.empty:
+                # Standardize column names
+                data = data.rename(columns={
+                    'Open': 'open',
+                    'High': 'high', 
+                    'Low': 'low',
+                    'Close': 'close',
+                    'Volume': 'volume'
+                })
+                
+                print(f"✅ NSEPy success: {len(data)} rows for {symbol}")
+                return data
+                
+        except Exception as e:
+            print(f"   NSEPy failed: {e}")
+        
+        # If NSEPy fails, show alternative API instructions
+        print(f"💡 Consider signing up for FREE APIs:")
+        print(f"   🏆 Upstox API: https://upstox.com/trading-api/ (FREE)")
+        print(f"   🏆 ICICI Breeze: https://www.icicidirect.com/futures-and-options/api/breeze (FREE)")
+        
+        return None
+
+    def _is_indian_stock(self, symbol: str) -> bool:
+        """Check if a symbol is an Indian stock"""
+        return '.' in symbol and (symbol.endswith('.NS') or symbol.endswith('.BO'))
+
+    def _load_csv_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
+        """Load data from CSV files in data directory"""
+        
+        # Map symbols to CSV filenames
+        nse_data_dir = '/Users/developer/Documents/NSE-stock-datafeed-main/Datafeed/daily'
+        csv_files = {
+            'TATAMOTORS.NS': f'{nse_data_dir}/TATAMOTORS.csv',
+            'TATAMOTORS': f'{nse_data_dir}/TATAMOTORS.csv',
+            'TATAMOTORS.BO': f'{nse_data_dir}/TATAMOTORS.csv',  # Use same data for BSE
+        }
+        
+        csv_file = csv_files.get(symbol)
+        if not csv_file:
+            return None
+            
+        try:
+            import os
+            if not os.path.exists(csv_file):
+                print(f"   CSV file not found: {csv_file}")
+                return None
+                
+            print(f"📂 Loading CSV data from {csv_file}...")
+            
+            # Load CSV data
+            data = pd.read_csv(csv_file)
+            
+            # Convert Date column to datetime
+            data['Date'] = pd.to_datetime(data['Date'])
+            data.set_index('Date', inplace=True)
+            
+            # Standardize column names to lowercase
+            data.columns = [col.lower().replace(' ', '_') for col in data.columns]
+            
+            # Rename columns to match our expected format
+            column_mapping = {
+                'adj_close': 'adj_close',
+                'open': 'open',
+                'high': 'high', 
+                'low': 'low',
+                'close': 'close',
+                'volume': 'volume'
+            }
+            
+            data = data.rename(columns=column_mapping)
+            
+            # Filter by date range
+            mask = (data.index >= start_date) & (data.index <= end_date)
+            data = data[mask]
+            
+            if data.empty:
+                print(f"   No data found in date range: {start_date.date()} to {end_date.date()}")
+                return None
+            
+            print(f"✅ CSV data loaded: {len(data)} rows from {data.index[0].date()} to {data.index[-1].date()}")
+            print(f"   Latest close: ₹{data['close'].iloc[-1]:.2f}")
+            
+            return data
+            
+        except Exception as e:
+            print(f"❌ Error loading CSV data: {e}")
+            return None 

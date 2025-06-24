@@ -1,0 +1,601 @@
+/* Minimalist Financial Trading Interface */
+:root {
+  --bg-primary: #000000;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-muted: #888888;
+  --border-color: #333333;
+  --accent-green: #00ff88;
+  --accent-red: #ff4444;
+  --accent-blue: #4488ff;
+  --accent-yellow: #ffcc00;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.4;
+  font-size: 13px;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header - Minimal */
+.app-header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 12px 0;
+}
+
+.header-content {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-icon {
+  color: var(--accent-green);
+  width: 20px;
+  height: 20px;
+}
+
+.logo h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* Main Content - Maximum Space */
+.app-main {
+  flex: 1;
+  padding: 20px;
+}
+
+.container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+/* Top Controls - Desktop Only */
+.grid {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: 20px;
+  height: auto;
+  min-height: 360px;
+  flex-shrink: 0;
+}
+
+/* Panel Styles - Desktop Fixed */
+.panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 15px;
+  height: auto;
+  min-height: 320px;
+  overflow: visible;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.panel-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.panel-header svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent-blue);
+}
+
+/* Stock Search - Compact */
+.search-input {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.search-input input {
+  width: 100%;
+  padding: 8px 12px 8px 32px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.search-input input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  width: 14px;
+  height: 14px;
+}
+
+.stocks-list {
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+}
+
+.stock-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.stock-item:hover {
+  background: var(--bg-secondary);
+}
+
+.stock-item:last-child {
+  border-bottom: none;
+}
+
+.stock-symbol {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-green);
+  margin-bottom: 2px;
+}
+
+.stock-name {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.exchange {
+  background: var(--bg-primary);
+  color: var(--accent-blue);
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.selected-stock {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+}
+
+.selected-stock .stock-info h3 {
+  color: var(--accent-green);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.selected-stock .stock-info p {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* Backtest Form - Compact */
+.backtest-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+/* For Golden Cross strategy - 3 params in grid */
+.backtest-form select[value="golden_cross"] ~ .form-grid,
+.form-grid:has(.form-group #short_ma) {
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(3, 1fr);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.form-group label {
+  font-size: 9px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.form-group select,
+.form-group input {
+  font-size: 11px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.form-group input[type="range"] {
+  padding: 0;
+  height: 16px;
+}
+
+.range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-top: -2px;
+}
+
+.hint {
+  color: var(--accent-blue);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.strategy-info {
+  background: var(--bg-tertiary);
+  padding: 6px;
+  border-radius: 3px;
+  border-left: 3px solid var(--accent-blue);
+  margin: 6px 0;
+}
+
+.strategy-info p {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.run-button {
+  background: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  margin-top: auto;
+}
+
+.run-button:hover:not(:disabled) {
+  background: var(--accent-blue-hover);
+  transform: translateY(-1px);
+}
+
+.run-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Results Section - Fixed Position */
+.results-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 600px;
+  position: relative;
+  z-index: 1;
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.results-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: inherit;
+}
+
+.results-header h2 {
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.results-summary {
+  display: flex;
+  gap: 30px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.metric .label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric .value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.metric .value.positive {
+  color: var(--accent-green);
+}
+
+.metric .value.negative {
+  color: var(--accent-red);
+}
+
+/* Charts and Trades - Desktop Layout */
+.results-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 450px 1fr;
+  gap: 25px;
+  min-height: 500px;
+}
+
+.chart-panel,
+.table-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chart-panel h3,
+.table-panel h3 {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Chart Container - Desktop Fixed */
+.results-chart {
+  flex: 1;
+  height: 500px;
+  min-height: 500px;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 20px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.legend-symbol {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.legend-symbol.buy {
+  background: var(--accent-green);
+}
+
+.legend-symbol.sell {
+  background: var(--accent-red);
+}
+
+/* Table Styles - Desktop Fixed */
+.table-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.trades-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.trades-table th,
+.trades-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.trades-table th {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.trades-table td {
+  color: var(--text-primary);
+}
+
+.trades-table tr:hover {
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transform: translateX(4px);
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(68, 136, 255, 0.2);
+}
+
+.trades-table tr.clickable-row {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.trades-table tr.clickable-row::before {
+  content: '👁️';
+  position: absolute;
+  left: -25px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  font-size: 12px;
+}
+
+.trades-table tr.clickable-row:hover::before {
+  opacity: 0.6;
+}
+
+.status {
+  padding: 3px 8px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.status.win {
+  background: rgba(0, 255, 136, 0.2);
+  color: var(--accent-green);
+}
+
+.status.loss {
+  background: rgba(255, 68, 68, 0.2);
+  color: var(--accent-red);
+}
+
+/* Loading and Error States */
+.loading-panel,
+.error-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+.error-panel {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Footer - Minimal */
+.app-footer {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  padding: 10px 20px;
+  text-align: center;
+}
+
+.app-footer p {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

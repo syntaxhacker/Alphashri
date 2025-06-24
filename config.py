@@ -30,8 +30,8 @@ BINANCE_API_CONFIG = {
         'futures_api': 'https://testnet.binancefuture.com',
         'websocket_base': 'wss://stream.binancefuture.com',
         'websocket_stream': 'wss://stream.binancefuture.com/ws',
-        'api_key': 'd3e6652041c1445af2617b399e6d8191907e3a7794b573e0de4337cf4de16ce3',
-        'api_secret': '7870a2b11cc89f8de478dd66c76057a50565e6ac85d89c127631fca033380c1c'
+        'api_key': 'c5079bf884cc676c7d3e799e080df1463b6de7cecf2c9d4b34c376c60a99c491',
+        'api_secret': 'c9c4822f5944527b9ddd79f97fff3d0c33da5814c202020b938150acc4211a44'
     },
     'mainnet': {
         'futures_api': 'https://fapi.binance.com',

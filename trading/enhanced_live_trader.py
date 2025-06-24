@@ -66,7 +66,7 @@ class EnhancedBinanceTrader:
             'ask_levels': []   # sorted list of ask prices (ascending)
         }
         
-        # TRADE STREAM DATA
+        # TRADE STREAM DATA (with safe initialization)
         self.trade_data = {
             'recent_trades': deque(maxlen=100),  # Last 100 trades
             'trade_volume': deque(maxlen=60),    # Volume per second
@@ -74,6 +74,9 @@ class EnhancedBinanceTrader:
             'sell_volume': 0.0,
             'volume_imbalance': 0.0
         }
+        
+        # Ensure data integrity
+        self._initialize_data_structures()
         
         # AGGREGATE TRADE DATA
         self.agg_trade_data = {
@@ -113,6 +116,32 @@ class EnhancedBinanceTrader:
         
         # Large trade threshold (configurable)
         self.large_trade_threshold = 10000  # $10,000 USD
+    
+    def _initialize_data_structures(self):
+        """Ensure all data structures are properly initialized"""
+        try:
+            # Ensure trade_data has all required fields
+            if not isinstance(self.trade_data.get('recent_trades'), deque):
+                self.trade_data['recent_trades'] = deque(maxlen=100)
+            
+            if 'buy_volume' not in self.trade_data:
+                self.trade_data['buy_volume'] = 0.0
+            
+            if 'sell_volume' not in self.trade_data:
+                self.trade_data['sell_volume'] = 0.0
+            
+            if 'volume_imbalance' not in self.trade_data:
+                self.trade_data['volume_imbalance'] = 0.0
+            
+            # Ensure agg_trade_data has all required fields
+            if not isinstance(self.agg_trade_data.get('large_trades'), deque):
+                self.agg_trade_data['large_trades'] = deque(maxlen=50)
+                
+            if not isinstance(self.agg_trade_data.get('price_momentum'), deque):
+                self.agg_trade_data['price_momentum'] = deque(maxlen=20)
+                
+        except Exception as e:
+            self.log(f"Error initializing data structures: {str(e)}", "error")
         
     def set_leverage(self, leverage: int):
         """Set leverage for trading"""
@@ -173,6 +202,9 @@ class EnhancedBinanceTrader:
         """Update with aggregate trade data and handle all trade volume tracking"""
         with self.data_lock:
             try:
+                # Ensure data structures are properly initialized
+                self._initialize_data_structures()
+                
                 agg_trade = {
                     'price': float(data['p']),
                     'quantity': float(data['q']),
@@ -183,37 +215,62 @@ class EnhancedBinanceTrader:
                     'trade_count': data['l'] - data['f'] + 1
                 }
                 
+                # Safely extract trade data with defaults
+                price = float(agg_trade.get('price', 0))
+                quantity = float(agg_trade.get('quantity', 0))
+                is_buyer_maker = agg_trade.get('is_buyer_maker', False)
+                
+                # Skip invalid trades
+                if price <= 0 or quantity <= 0:
+                    return
+                
                 # Calculate trade value
-                trade_value = agg_trade['price'] * agg_trade['quantity']
+                trade_value = price * quantity
                 
                 # Track large trades
                 if trade_value > self.large_trade_threshold:
                     self.agg_trade_data['large_trades'].append(agg_trade)
                 
-                # Update volume tracking (now handled here instead of individual trades)
-                if agg_trade['is_buyer_maker']:
-                    self.trade_data['sell_volume'] += agg_trade['quantity']
+                # Update volume tracking with safe access
+                if is_buyer_maker:
+                    if 'sell_volume' in self.trade_data:
+                        self.trade_data['sell_volume'] += quantity
+                    else:
+                        self.trade_data['sell_volume'] = quantity
                 else:
-                    self.trade_data['buy_volume'] += agg_trade['quantity']
+                    if 'buy_volume' in self.trade_data:
+                        self.trade_data['buy_volume'] += quantity
+                    else:
+                        self.trade_data['buy_volume'] = quantity
                 
-                # Calculate volume imbalance
-                total_volume = self.trade_data['buy_volume'] + self.trade_data['sell_volume']
+                # Calculate volume imbalance safely
+                buy_vol = self.trade_data.get('buy_volume', 0.0)
+                sell_vol = self.trade_data.get('sell_volume', 0.0)
+                total_volume = buy_vol + sell_vol
+                
                 if total_volume > 0:
-                    self.trade_data['volume_imbalance'] = (
-                        (self.trade_data['buy_volume'] - self.trade_data['sell_volume']) / total_volume
-                    )
+                    self.trade_data['volume_imbalance'] = (buy_vol - sell_vol) / total_volume
+                else:
+                    self.trade_data['volume_imbalance'] = 0.0
                 
-                # Add to recent trades for analysis
+                # Add to recent trades for analysis (with safety check)
+                if 'recent_trades' not in self.trade_data:
+                    self.trade_data['recent_trades'] = deque(maxlen=100)
+                
+                # Ensure recent_trades is a deque or list
+                if not hasattr(self.trade_data['recent_trades'], 'append'):
+                    self.trade_data['recent_trades'] = deque(maxlen=100)
+                
                 self.trade_data['recent_trades'].append({
-                    'price': agg_trade['price'],
-                    'quantity': agg_trade['quantity'],
-                    'time': agg_trade['time'],
-                    'is_buyer_maker': agg_trade['is_buyer_maker'],
-                    'trade_id': agg_trade['last_trade_id']
+                    'price': price,
+                    'quantity': quantity,
+                    'time': agg_trade.get('time', time.time() * 1000),
+                    'is_buyer_maker': is_buyer_maker,
+                    'trade_id': agg_trade.get('last_trade_id', 0)
                 })
                 
                 # Update price momentum
-                self.agg_trade_data['price_momentum'].append(agg_trade['price'])
+                self.agg_trade_data['price_momentum'].append(price)
                 
                 # Calculate market maker ratio (last 50 trades)
                 recent_trades = list(self.agg_trade_data['large_trades'])[-50:]
@@ -225,8 +282,11 @@ class EnhancedBinanceTrader:
                 # Reset volume tracking every 60 seconds
                 current_minute = time.time() // 60
                 if not hasattr(self, 'last_volume_reset') or current_minute > self.last_volume_reset:
-                    self.trade_data['buy_volume'] = 0.0
-                    self.trade_data['sell_volume'] = 0.0
+                    # Safely reset volume tracking
+                    if 'buy_volume' in self.trade_data:
+                        self.trade_data['buy_volume'] = 0.0
+                    if 'sell_volume' in self.trade_data:
+                        self.trade_data['sell_volume'] = 0.0
                     self.last_volume_reset = current_minute
                     
             except Exception as e:
