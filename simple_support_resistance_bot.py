@@ -18,6 +18,9 @@ from datetime import datetime, timedelta
 from binance.um_futures import UMFutures
 from config import BINANCE_API_CONFIG
 import os
+import logging
+import re
+from telegram_sender import send_telegram_message
 
 # ANSI Color codes for terminal
 class Colors:
@@ -34,6 +37,18 @@ class Colors:
     BG_RED = '\033[101m'
     BG_GREEN = '\033[102m'
     BG_YELLOW = '\033[103m'
+
+# Logging setup
+log_formatter = logging.Formatter('%(message)s')
+log_handler = logging.FileHandler('trades.log', mode='w')
+log_handler.setFormatter(log_formatter)
+logger = logging.getLogger('trade_logger')
+logger.addHandler(log_handler)
+logger.setLevel(logging.INFO)
+
+def strip_ansi_codes(text):
+    """Removes ANSI color codes from a string."""
+    return re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', text)
 
 class SimpleSupportResistanceBot:
     """Simple Support & Resistance Trading Bot with 15min timeframe"""
@@ -132,25 +147,31 @@ class SimpleSupportResistanceBot:
         self.last_move_warning_time = 0  # Track when we last logged move warning
     
     def log_colored(self, message, level="info"):
-        """Enhanced colored logging"""
+        """Enhanced colored logging that also writes to a file."""
         timestamp = datetime.now().strftime("%H:%M:%S")
         
+        log_message = f"[{timestamp}] {message}"
+        
+        # Log to console with colors
         if level == "error":
-            print(f"{Colors.RED}[{timestamp}] ❌ {message}{Colors.RESET}")
+            print(f"{Colors.RED}{log_message}{Colors.RESET}")
         elif level == "success":
-            print(f"{Colors.GREEN}[{timestamp}] ✅ {message}{Colors.RESET}")
+            print(f"{Colors.GREEN}{log_message}{Colors.RESET}")
         elif level == "warning":
-            print(f"{Colors.YELLOW}[{timestamp}] ⚠️  {message}{Colors.RESET}")
+            print(f"{Colors.YELLOW}{log_message}{Colors.RESET}")
         elif level == "trade":
-            print(f"{Colors.CYAN}[{timestamp}] 🚀 {message}{Colors.RESET}")
+            print(f"{Colors.CYAN}{log_message}{Colors.RESET}")
         elif level == "profit":
-            print(f"{Colors.BG_GREEN}{Colors.BOLD}[{timestamp}] 💰 {message}{Colors.RESET}")
+            print(f"{Colors.BG_GREEN}{Colors.BOLD}{log_message}{Colors.RESET}")
         elif level == "loss":
-            print(f"{Colors.BG_RED}{Colors.BOLD}[{timestamp}] 🛑 {message}{Colors.RESET}")
+            print(f"{Colors.BG_RED}{Colors.BOLD}{log_message}{Colors.RESET}")
         elif level == "level":
-            print(f"{Colors.MAGENTA}[{timestamp}] 📊 {message}{Colors.RESET}")
+            print(f"{Colors.MAGENTA}{log_message}{Colors.RESET}")
         else:
-            print(f"{Colors.WHITE}[{timestamp}] ℹ️  {message}{Colors.RESET}")
+            print(f"{Colors.WHITE}{log_message}{Colors.RESET}")
+            
+        # Log to file without colors
+        logger.info(strip_ansi_codes(message))
     
     def set_leverage_safely(self, leverage: int):
         """Set leverage with proper error handling"""
@@ -970,17 +991,15 @@ class SimpleSupportResistanceBot:
             self.position_start_time = time.time()
             self.highest_profit = 0.0
             self.trade_count += 1
-            
-            self.log_colored(
-                f"🎯 {signal_type.upper()} | {action} {position_size} BTC @ ${self.current_price:,.2f} | Level: ${level:,.2f} | Conf: {confidence*100:.1f}% | Trend: {self.trend_direction}",
-                "trade"
-            )
-            
+
+            trade_message = f"🎯 {signal_type.upper()} | {action} {position_size} BTC @ ${self.current_price:,.2f} | Level: ${level:,.2f} | Conf: {confidence*100:.1f}% | Trend: {self.trend_direction}"
+            self.log_colored(trade_message, "trade")
+            send_telegram_message(strip_ansi_codes(trade_message))
+
             # Log position sizing details
-            self.log_colored(
-                f"💰 Risk: ${risk_amount:.2f} ({base_risk_pct:.2f}%) | Stop: ${stop_loss_price:,.2f} | R/R: {self.risk_reward_ratio}:1",
-                "success"
-            )
+            risk_message = f"💰 Risk: ${risk_amount:.2f} ({base_risk_pct:.2f}%) | Stop: ${stop_loss_price:,.2f} | R/R: {self.risk_reward_ratio}:1"
+            self.log_colored(risk_message, "success")
+            send_telegram_message(strip_ansi_codes(risk_message))
         
         return success
     
@@ -994,11 +1013,11 @@ class SimpleSupportResistanceBot:
             final_pnl = self.calculate_position_pnl()
             
             if self.execute_trade("CLOSE", position_size):
-                if final_pnl > 0:
-                    self.log_colored(f"CLOSED: {reason} | P&L: {Colors.GREEN}+{final_pnl:.2f}%{Colors.RESET}", "profit")
-                else:
-                    self.log_colored(f"CLOSED: {reason} | P&L: {Colors.RED}{final_pnl:.2f}%{Colors.RESET}", "loss")
-                
+                close_message = f"CLOSED: {reason} | P&L: {final_pnl:+.2f}%"
+                log_level = "profit" if final_pnl > 0 else "loss"
+                self.log_colored(close_message, log_level)
+                send_telegram_message(strip_ansi_codes(close_message))
+
                 self.total_pnl += final_pnl
                 
                 # Track failed levels for future avoidance
@@ -1296,4 +1315,4 @@ def run_simple_support_resistance_bot():
         print(f"\n{Colors.RED}❌ Error: {e}{Colors.RESET}")
 
 if __name__ == "__main__":
-    run_simple_support_resistance_bot() 
+    run_simple_support_resistance_bot()
