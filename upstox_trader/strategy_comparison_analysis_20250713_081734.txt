@@ -1,0 +1,33 @@
+STRATEGY COMPARISON ANALYSIS REPORT
+==================================================
+Generated: 2025-07-13T08:17:34.845954
+Test Symbol: COCHINSHIP
+Test Period: 3mo
+
+RESULTS SUMMARY:
+------------------------------
+
+OHLC Breakout (15m):
+  Return: -0.8%
+  Sharpe: -2.97
+  Drawdown: -1.7%
+  Win Rate: 33.3%
+  Trades: 40
+
+Realistic Breakout (1m):
+  Return: -99.1%
+  Sharpe: -127.06
+  Drawdown: -99.1%
+  Win Rate: 0.0%
+  Trades: 582
+
+Conservative Momentum (15m):
+  Return: -0.0%
+  Sharpe: -5.46
+  Drawdown: -0.0%
+  Win Rate: nan%
+  Trades: 1
+
+KEY INSIGHT: OHLC vs Realistic Backtesting Gap
+Performance Gap: -98.3%
+This demonstrates the importance of realistic backtesting.

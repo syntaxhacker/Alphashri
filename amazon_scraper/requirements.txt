@@ -1,0 +1,6 @@
+rookiepy
+requests
+beautifulsoup4
+pandas
+rich
+lxml

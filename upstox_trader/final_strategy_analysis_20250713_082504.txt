@@ -1,0 +1,23 @@
+FINAL STRATEGY ANALYSIS REPORT
+==================================================
+Generated: 2025-07-13T08:25:04.635989
+Symbol: COCHINSHIP
+
+ADAPTIVE STRATEGY RESULTS:
+------------------------------
+
+3mo - mean_reversion:
+  Return: -8.4%
+  Sharpe: -7.10
+  Win Rate: 37.5%
+  Trades: 16
+
+6mo - mean_reversion:
+  Return: -16.5%
+  Sharpe: -5.81
+  Win Rate: 42.4%
+  Trades: 33
+
+KEY INSIGHT: Market Regime Adaptation
+Different strategies for different market conditions.
+Adaptive approach shows promise for future development.

@@ -1,0 +1,1 @@
+Breakout Strategy Backtest Results\n========================================\nAverage Return: -9.9%\nAverage Sharpe Ratio: -8.08\nAverage Max Drawdown: -10.0%\nAverage Win Rate: 31.5%\nTotal Trades: 181\nTimestamp: 2025-07-13T02:23:23.092979\n

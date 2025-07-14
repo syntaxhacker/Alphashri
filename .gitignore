@@ -53,3 +53,8 @@ wandb/
 data_cache/
 *.json
 *.html
+
+# Configuration files with sensitive data
+config.py
+*_config.py
+!config_template.py
