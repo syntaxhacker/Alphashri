@@ -1,0 +1,1343 @@
+#!/usr/bin/env python3
+"""
+COMPREHENSIVE TRADINGVIEW SCREENER USAGE GUIDE
+==============================================
+
+This script provides practical examples for using TradingView screener for:
+1. Intraday Trading
+2. Swing Trading  
+3. Long-term Investing
+4. Research & Analysis
+
+Each function demonstrates different screening strategies with real-world applications.
+"""
+
+import rookiepy
+from tradingview_screener import Query, col
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.columns import Columns
+from datetime import datetime
+import pandas as pd
+import argparse
+import time
+import threading
+import os
+from datetime import datetime, timedelta
+
+# Telegram integration
+try:
+    import requests
+    from config import TELEGRAM_CONFIG
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
+    print("⚠️ Telegram not available - install requests and configure TELEGRAM_CONFIG")
+
+console = Console()
+
+def get_tradingview_cookies():
+    """Get TradingView cookies from browser"""
+    try:
+        # Try Chrome first
+        cookies_raw = rookiepy.chrome(['.tradingview.com'])
+        cookies = rookiepy.to_cookiejar(cookies_raw)
+        console.print("[green]Successfully loaded cookies from Chrome[/green]")
+        
+        # Check if we have valid cookies
+        if cookies_raw:
+            console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
+        else:
+            console.print("[yellow]⚠️  No cookies found[/yellow]")
+        
+        return cookies
+    except Exception:
+        console.print("[yellow]Chrome cookies failed, trying Firefox...[/yellow]")
+        try:
+            cookies_raw = rookiepy.firefox(['.tradingview.com'])
+            cookies = rookiepy.to_cookiejar(cookies_raw)
+            console.print("[green]Successfully loaded cookies from Firefox[/green]")
+            
+            if cookies_raw:
+                console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
+            else:
+                console.print("[yellow]⚠️  No cookies found[/yellow]")
+            
+            return cookies
+        except Exception:
+            console.print("[red]Could not load cookies from any browser.[/red]")
+            console.print("[yellow]💡 Make sure you're logged into TradingView in your browser[/yellow]")
+            console.print("[yellow]💡 Try refreshing the TradingView page and run script again[/yellow]")
+            return None
+
+class TVScreenerUsage:
+    def __init__(self, market='in'):
+        self.cookies = get_tradingview_cookies()
+        self.query = Query()
+        
+        # Set market based on parameter
+        if market.lower() == 'us':
+            self.market = 'america'
+        elif market.lower() == 'in':
+            self.market = 'india'
+        else:
+            self.market = 'india'  # Default to India
+            
+        console.print(f"[blue]📊 Market: {self.market.upper()}[/blue]")
+        
+        # Telegram integration
+        self.telegram_enabled = TELEGRAM_AVAILABLE and TELEGRAM_CONFIG.get('bot_token') if TELEGRAM_AVAILABLE else False
+        if self.telegram_enabled:
+            console.print("[green]✅ Telegram alerts enabled[/green]")
+        else:
+            console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
+        
+    def display_table(self, df, title, max_rows=15):
+        """Display results in a formatted table"""
+        if df.empty:
+            console.print(f"[red]No results found for {title}[/red]")
+            return
+            
+        table = Table(title=title, show_header=True, header_style="bold magenta")
+        
+        # Add columns dynamically based on dataframe
+        for col_name in df.columns:
+            if col_name == 'ticker':
+                table.add_column("Ticker", style="cyan", no_wrap=True)
+            elif col_name == 'name':
+                table.add_column("Name", style="green", max_width=12)
+            elif col_name == 'close':
+                table.add_column("Price", justify="right", style="yellow")
+            elif col_name == 'volume':
+                table.add_column("Volume", justify="right", style="blue")
+            elif col_name == 'change':
+                table.add_column("Change %", justify="right", style="magenta")
+            elif col_name == 'RSI':
+                table.add_column("RSI", justify="right", style="cyan")
+            elif col_name == 'relative_volume_10d_calc':
+                table.add_column("Vol Ratio", justify="right", style="blue")
+            elif col_name == 'Volatility.D':
+                table.add_column("Volatility %", justify="right", style="red")
+            elif col_name == 'market_cap_basic':
+                table.add_column("MCap (₹Cr)", justify="right", style="green")
+            elif col_name == 'price_earnings_ttm':
+                table.add_column("PE", justify="right", style="yellow")
+            elif col_name == 'return_on_equity':
+                table.add_column("ROE %", justify="right", style="green")
+            elif col_name == 'dividends_yield_current':
+                table.add_column("Div Yield", justify="right", style="blue")
+            elif col_name == 'debt_to_equity':
+                table.add_column("D/E", justify="right", style="red")
+            elif col_name == 'update_mode':
+                table.add_column("Data", style="dim")
+        
+        # Add rows
+        for i, (_, row) in enumerate(df.head(max_rows).iterrows()):
+            row_data = []
+            for col_name in df.columns:
+                if col_name == 'ticker':
+                    row_data.append(row[col_name])
+                elif col_name == 'name':
+                    row_data.append(row[col_name][:12])  # Truncate name
+                elif col_name == 'close':
+                    row_data.append(f"₹{row[col_name]:,.2f}")
+                elif col_name == 'volume':
+                    row_data.append(f"{row[col_name]:,.0f}")
+                elif col_name == 'change':
+                    change_val = row[col_name]
+                    color = "green" if change_val > 0 else "red"
+                    row_data.append(f"[{color}]{change_val:+.2f}%[/{color}]")
+                elif col_name == 'RSI':
+                    rsi_val = row[col_name]
+                    if rsi_val > 70:
+                        row_data.append(f"[red]{rsi_val:.1f}[/red]")
+                    elif rsi_val < 30:
+                        row_data.append(f"[green]{rsi_val:.1f}[/green]")
+                    else:
+                        row_data.append(f"{rsi_val:.1f}")
+                elif col_name == 'relative_volume_10d_calc':
+                    row_data.append(f"{row[col_name]:.2f}x")
+                elif col_name == 'Volatility.D':
+                    row_data.append(f"{row[col_name]*100:.1f}%")
+                elif col_name == 'market_cap_basic':
+                    row_data.append(f"₹{row[col_name]/1e7:,.0f}")
+                elif col_name == 'price_earnings_ttm':
+                    pe_val = row[col_name]
+                    if pd.isna(pe_val):
+                        row_data.append("N/A")
+                    else:
+                        row_data.append(f"{pe_val:.1f}")
+                elif col_name == 'return_on_equity':
+                    roe_val = row[col_name]
+                    if pd.isna(roe_val):
+                        row_data.append("N/A")
+                    else:
+                        row_data.append(f"{roe_val:.1f}%")
+                elif col_name == 'dividends_yield_current':
+                    div_val = row[col_name]
+                    if pd.isna(div_val):
+                        row_data.append("N/A")
+                    else:
+                        row_data.append(f"{div_val:.2f}%")
+                elif col_name == 'debt_to_equity':
+                    de_val = row[col_name]
+                    if pd.isna(de_val):
+                        row_data.append("N/A")
+                    else:
+                        row_data.append(f"{de_val:.2f}")
+                elif col_name == 'update_mode':
+                    row_data.append(row[col_name])
+                else:
+                    row_data.append(str(row[col_name]))
+            
+            table.add_row(*row_data)
+        
+        console.print(table)
+        console.print(f"[dim]Showing {min(len(df), max_rows)} of {len(df)} results[/dim]")
+
+    # ==================== INTRADAY TRADING STRATEGIES ====================
+    
+    def intraday_high_volume_breakouts(self):
+        """Find stocks with high volume breakouts for intraday trading"""
+        console.print(Panel.fit("🚀 INTRADAY: High Volume Breakouts", style="bold blue"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 50,  # Above ₹50 for liquidity
+                    col('volume') > 1000000,  # High volume
+                    col('relative_volume_10d_calc') > 2,  # 2x normal volume
+                    col('change') > 2,  # Positive momentum
+                    col('RSI').between(50, 80),  # Not overbought
+                    col('market_cap_basic') > 5e8  # Min 500 crores
+                )
+                .order_by('relative_volume_10d_calc', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "High Volume Breakouts - Intraday")
+            
+            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
+            console.print("• Entry: On breakout above resistance with high volume")
+            console.print("• Stop Loss: Below recent support (2-3%)")
+            console.print("• Target: 1:2 risk-reward ratio")
+            console.print("• Time Frame: 5-15 minute charts")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def intraday_gap_up_stocks(self):
+        """Find gap-up stocks for intraday momentum trading"""
+        console.print(Panel.fit("📈 INTRADAY: Gap-Up Momentum", style="bold green"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'price_52_week_high', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 100,  # Above ₹100
+                    col('change') > 3,  # Gap up 3%+
+                    col('volume') > 500000,  # Good volume
+                    col('relative_volume_10d_calc') > 1.5,  # Above average volume
+                    col('RSI') < 80,  # Not extremely overbought
+                    col('price_52_week_high') > col('close')  # Not at 52W high
+                )
+                .order_by('change', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Gap-Up Momentum Stocks")
+            
+            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
+            console.print("• Entry: On pullback to gap support or breakout continuation")
+            console.print("• Stop Loss: Below gap fill level")
+            console.print("• Target: Previous resistance or 5-8% gain")
+            console.print("• Time Frame: 15-30 minute charts")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def intraday_oversold_bounce(self):
+        """Find oversold stocks for bounce trading"""
+        console.print(Panel.fit("🔄 INTRADAY: Oversold Bounce", style="bold cyan"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'RSI', 'MACD.macd', 
+                       'MACD.signal', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 75,  # Above ₹75
+                    col('change') < -2,  # Down 2%+
+                    col('RSI') < 35,  # Oversold
+                    col('volume') > 750000,  # Good volume
+                    col('market_cap_basic') > 1e9,  # Min 1000 crores
+                    col('MACD.macd') > col('MACD.signal')  # MACD turning positive
+                )
+                .order_by('RSI', ascending=True)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Oversold Bounce Candidates")
+            
+            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
+            console.print("• Entry: On RSI reversal above 30 with volume")
+            console.print("• Stop Loss: Below recent low (1-2%)")
+            console.print("• Target: Previous support turned resistance")
+            console.print("• Time Frame: 15-30 minute charts")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def intraday_news_momentum(self):
+        """Find stocks with unusual activity (potential news-driven)"""
+        console.print(Panel.fit("📰 INTRADAY: News-Driven Momentum", style="bold magenta"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'Volatility.D', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 25,  # Above ₹25
+                    col('relative_volume_10d_calc') > 3,  # 3x normal volume
+                    col('Volatility.D') > 0.05,  # High volatility
+                    col('volume') > 2000000,  # Very high volume
+                    col('market_cap_basic') > 2e8  # Min 200 crores
+                )
+                .order_by('relative_volume_10d_calc', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "News-Driven Momentum Stocks")
+            
+            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
+            console.print("• Research: Check news/announcements immediately")
+            console.print("• Entry: On pullback or momentum continuation")
+            console.print("• Stop Loss: Tight stops (1-2%) due to volatility")
+            console.print("• Target: Quick profits, trail stops")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def intraday_early_breakout_setup(self):
+        """Find stocks building momentum BEFORE breakout - Early Detection"""
+        console.print(Panel.fit("🎯 INTRADAY: Early Breakout Setup (Pre-Breakout)", style="bold red"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'MACD.macd', 'MACD.signal', 'BB.upper', 'BB.lower', 
+                       'Volatility.D', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 50,  # Above ₹50
+                    col('change').between(-1, 2),  # Small moves (building pressure)
+                    col('relative_volume_10d_calc') > 1.3,  # Above average volume (accumulation)
+                    col('RSI').between(45, 65),  # Building momentum, not overbought
+                    col('MACD.macd') > col('MACD.signal'),  # MACD turning bullish
+                    col('Volatility.D') < 0.04,  # Low volatility (compression)
+                    col('volume') > 500000,  # Decent volume
+                    col('market_cap_basic') > 5e8  # Min 500 crores
+                )
+                .order_by('relative_volume_10d_calc', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Early Breakout Setup - Pre-Breakout Detection")
+            
+            console.print("\n[bold yellow]💡 Early Detection Strategy:[/bold yellow]")
+            console.print("• Entry: These stocks are BUILDING momentum (not broken out yet)")
+            console.print("• Watch: For volume surge + breakout above recent resistance")
+            console.print("• Advantage: Get in BEFORE the big move starts")
+            console.print("• Stop Loss: Below recent consolidation low (1-2%)")
+            console.print("• Target: Measured move from consolidation breakout")
+            console.print("• Time Frame: 5-15 minute charts for entry timing")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def intraday_volume_accumulation(self):
+        """Find stocks with smart money accumulation - High volume, minimal price movement"""
+        console.print(Panel.fit("📊 INTRADAY: Volume Accumulation (Smart Money)", style="bold cyan"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'price_52_week_high', 'price_52_week_low', 'BB.upper', 
+                       'BB.lower', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 75,  # Above ₹75
+                    col('change').between(-1.5, 1.5),  # Minimal price movement
+                    col('relative_volume_10d_calc') > 2.0,  # High volume (2x+ normal)
+                    col('RSI').between(40, 60),  # Neutral RSI (no extreme)
+                    col('volume') > 1000000,  # High absolute volume
+                    col('market_cap_basic') > 1e9,  # Min 1000 crores
+                    # Near middle of 52-week range (not at extremes)
+                    col('close') > col('price_52_week_low'),
+                    col('close') < col('price_52_week_high')
+                )
+                .order_by('relative_volume_10d_calc', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Volume Accumulation - Smart Money Building")
+            
+            console.print("\n[bold yellow]💡 Volume Accumulation Strategy:[/bold yellow]")
+            console.print("• Pattern: High volume + small price moves = Smart money buying")
+            console.print("• Entry: On breakout above accumulation range with volume")
+            console.print("• Logic: Big players accumulating before major move")
+            console.print("• Stop Loss: Below accumulation support")
+            console.print("• Target: Previous resistance levels")
+            console.print("• Time Frame: Can hold 1-3 days for bigger moves")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def intraday_compression_coiling(self):
+        """Find stocks in compression/coiling phase - Low volatility before explosion"""
+        console.print(Panel.fit("🌪️ INTRADAY: Compression/Coiling Stocks", style="bold yellow"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'BB.upper', 'BB.lower', 'Volatility.D', 'ATR',
+                       'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 100,  # Above ₹100
+                    col('Volatility.D') < 0.025,  # Very low volatility (coiling)
+                    col('change').between(-0.8, 0.8),  # Minimal price movement
+                    col('RSI').between(35, 65),  # Not at extremes
+                    col('relative_volume_10d_calc') > 0.8,  # Some volume activity
+                    col('volume') > 300000,  # Minimum volume
+                    col('market_cap_basic') > 5e8,  # Min 500 crores
+                    # Low volatility filtering
+                    col('BB.upper') > col('BB.lower')  # Valid BB data
+                )
+                .order_by('Volatility.D', ascending=True)  # Lowest volatility first
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Compression/Coiling Stocks - Pre-Explosion")
+            
+            console.print("\n[bold yellow]💡 Compression Strategy:[/bold yellow]")
+            console.print("• Pattern: Very low volatility = Energy building for big move")
+            console.print("• Entry: Wait for volume spike + breakout from range")
+            console.print("• Logic: Coiled spring effect - explosive moves follow compression")
+            console.print("• Direction: Can break either way - follow the breakout")
+            console.print("• Stop Loss: Opposite side of compression range")
+            console.print("• Target: Measured move = Range height projected")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    # ==================== SWING TRADING STRATEGIES ====================
+    
+    def swing_bullish_reversal(self):
+        """Find stocks showing bullish reversal patterns for swing trading"""
+        console.print(Panel.fit("🔄 SWING: Bullish Reversal Patterns", style="bold blue"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'RSI', 'MACD.macd', 
+                       'MACD.signal', 'EMA20', 'EMA50', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 100,  # Above ₹100
+                    col('RSI').between(30, 50),  # Recovering from oversold
+                    col('MACD.macd') > col('MACD.signal'),  # MACD bullish
+                    col('close') > col('EMA20'),  # Above 20 EMA
+                    col('volume') > 300000,  # Decent volume
+                    col('market_cap_basic') > 5e8  # Min 500 crores
+                )
+                .order_by('RSI', ascending=True)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Bullish Reversal Patterns")
+            
+            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
+            console.print("• Entry: On breakout above EMA50 with volume")
+            console.print("• Stop Loss: Below EMA20 (3-5%)")
+            console.print("• Target: Previous resistance levels")
+            console.print("• Time Frame: Daily charts, hold 1-4 weeks")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def swing_breakout_consolidation(self):
+        """Find stocks breaking out of consolidation for swing trading"""
+        console.print(Panel.fit("📊 SWING: Breakout from Consolidation", style="bold green"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                       'price_52_week_high', 'price_52_week_low', 'RSI', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 200,  # Above ₹200
+                    col('change') > 1,  # Positive momentum
+                    col('relative_volume_10d_calc') > 1.3,  # Above average volume
+                    col('RSI').between(45, 70),  # Healthy RSI
+                    col('price_52_week_low') < col('close'),  # Above 52W low
+                    col('price_52_week_high') > col('close'),  # Below 52W high
+                    col('volume') > 200000
+                )
+                .order_by('relative_volume_10d_calc', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Consolidation Breakouts")
+            
+            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
+            console.print("• Entry: On volume breakout above consolidation")
+            console.print("• Stop Loss: Below consolidation support")
+            console.print("• Target: Measured move (consolidation height)")
+            console.print("• Time Frame: Daily/Weekly charts")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def swing_sector_rotation(self):
+        """Find stocks in strong sectors for swing trading"""
+        console.print(Panel.fit("🔄 SWING: Sector Rotation Play", style="bold cyan"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'price_earnings_ttm',
+                       'return_on_equity', 'EMA20', 'EMA50', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 150,  # Above ₹150
+                    col('price_earnings_ttm') < 25,  # Reasonable PE
+                    col('return_on_equity') > 15,  # Good ROE
+                    col('close') > col('EMA20'),  # Above 20 EMA
+                    col('EMA20') > col('EMA50'),  # Uptrend
+                    col('volume') > 150000,
+                    col('market_cap_basic') > 1e9  # Min 1000 crores
+                )
+                .order_by('return_on_equity', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Sector Leaders")
+            
+            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
+            console.print("• Entry: On pullback to EMA20 support")
+            console.print("• Stop Loss: Below EMA50")
+            console.print("• Target: Sector relative strength")
+            console.print("• Time Frame: Weekly charts, hold 2-8 weeks")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    # ==================== LONG-TERM INVESTING STRATEGIES ====================
+    
+    def invest_quality_growth(self):
+        """Find quality growth stocks for long-term investing"""
+        console.print(Panel.fit("🌱 INVEST: Quality Growth Stocks", style="bold green"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'price_earnings_ttm', 'return_on_equity', 
+                       'total_revenue_yoy_growth_ttm', 'earnings_per_share_diluted_yoy_growth_ttm',
+                       'debt_to_equity', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 100,  # Above ₹100
+                    col('price_earnings_ttm').between(10, 30),  # Reasonable PE
+                    col('return_on_equity') > 18,  # High ROE
+                    col('total_revenue_yoy_growth_ttm') > 10,  # Revenue growth
+                    col('earnings_per_share_diluted_yoy_growth_ttm') > 15,  # EPS growth
+                    col('debt_to_equity') < 1,  # Low debt
+                    col('market_cap_basic') > 5e9  # Min 5000 crores
+                )
+                .order_by('return_on_equity', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Quality Growth Stocks")
+            
+            console.print("\n[bold yellow]💡 Investment Strategy:[/bold yellow]")
+            console.print("• Entry: On market corrections or pullbacks")
+            console.print("• Stop Loss: Not applicable (buy more on dips)")
+            console.print("• Target: Long-term wealth creation")
+            console.print("• Time Frame: Hold 3-5 years minimum")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def invest_dividend_aristocrats(self):
+        """Find dividend-paying stocks for income investing"""
+        console.print(Panel.fit("💰 INVEST: Dividend Aristocrats", style="bold blue"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'dividends_yield_current', 'price_earnings_ttm',
+                       'return_on_equity', 'debt_to_equity', 'current_ratio', 
+                       'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 200,  # Above ₹200
+                    col('dividends_yield_current') > 2,  # Min 2% dividend yield
+                    col('price_earnings_ttm') < 20,  # Reasonable PE
+                    col('return_on_equity') > 12,  # Decent ROE
+                    col('debt_to_equity') < 0.8,  # Low debt
+                    col('current_ratio') > 1.2,  # Good liquidity
+                    col('market_cap_basic') > 10e9  # Min 10000 crores
+                )
+                .order_by('dividends_yield_current', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Dividend Aristocrats")
+            
+            console.print("\n[bold yellow]💡 Investment Strategy:[/bold yellow]")
+            console.print("• Entry: On dividend yield above 3%")
+            console.print("• Stop Loss: Only on fundamental deterioration")
+            console.print("• Target: Consistent dividend income + growth")
+            console.print("• Time Frame: Hold for decades")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def invest_undervalued_gems(self):
+        """Find undervalued stocks with potential for long-term investing"""
+        console.print(Panel.fit("💎 INVEST: Undervalued Gems", style="bold magenta"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'price_earnings_ttm', 'price_book_ratio',
+                       'return_on_equity', 'price_sales_ratio', 'market_cap_basic',
+                       'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 50,  # Above ₹50
+                    col('price_earnings_ttm') < 15,  # Low PE
+                    col('price_book_ratio') < 2,  # Low P/B
+                    col('return_on_equity') > 10,  # Decent ROE
+                    col('price_sales_ratio') < 3,  # Low P/S
+                    col('market_cap_basic') > 1e9  # Min 1000 crores
+                )
+                .order_by('price_earnings_ttm', ascending=True)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Undervalued Gems")
+            
+            console.print("\n[bold yellow]💡 Investment Strategy:[/bold yellow]")
+            console.print("• Entry: After thorough fundamental analysis")
+            console.print("• Stop Loss: On business deterioration")
+            console.print("• Target: Fair value realization")
+            console.print("• Time Frame: Patient holding 2-5 years")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    # ==================== RESEARCH & ANALYSIS TOOLS ====================
+    
+    def research_sector_leaders(self):
+        """Research sector leaders and their performance"""
+        console.print(Panel.fit("🔍 RESEARCH: Sector Leaders Analysis", style="bold yellow"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'market_cap_basic', 'return_on_equity',
+                       'price_earnings_ttm', 'total_revenue_yoy_growth_ttm', 
+                       'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('market_cap_basic') > 20e9,  # Large cap (20000+ crores)
+                    col('return_on_equity') > 15,  # High ROE
+                    col('price_earnings_ttm') > 0,  # Profitable
+                    col('total_revenue_yoy_growth_ttm') > 5  # Revenue growth
+                )
+                .order_by('market_cap_basic', ascending=False)
+                .limit(20)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Sector Leaders Analysis")
+            
+            console.print("\n[bold yellow]💡 Research Insights:[/bold yellow]")
+            console.print("• Compare ROE across sectors")
+            console.print("• Identify sector rotation opportunities")
+            console.print("• Track revenue growth trends")
+            console.print("• Monitor profit margin sustainability")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def research_market_sentiment(self):
+        """Analyze current market sentiment and momentum"""
+        console.print(Panel.fit("📊 RESEARCH: Market Sentiment Analysis", style="bold red"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'change', 'volume', 'relative_volume_10d_calc',
+                       'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('market_cap_basic') > 5e9,  # Large companies
+                    col('volume') > 1000000,  # High volume
+                    col('relative_volume_10d_calc') > 0.5  # Some activity
+                )
+                .order_by('market_cap_basic', ascending=False)
+                .limit(50)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            if not df.empty:
+                # Calculate market sentiment metrics
+                total_stocks = len(df)
+                gainers = len(df[df['change'] > 0])
+                losers = len(df[df['change'] < 0])
+                high_volume = len(df[df['relative_volume_10d_calc'] > 1.2])
+                
+                console.print(f"\n[bold]Market Sentiment Summary:[/bold]")
+                console.print(f"• Total stocks analyzed: {total_stocks}")
+                console.print(f"• Gainers: {gainers} ({gainers/total_stocks*100:.1f}%)")
+                console.print(f"• Losers: {losers} ({losers/total_stocks*100:.1f}%)")
+                console.print(f"• High volume activity: {high_volume} ({high_volume/total_stocks*100:.1f}%)")
+                
+                avg_change = df['change'].mean()
+                avg_volume_ratio = df['relative_volume_10d_calc'].mean()
+                
+                console.print(f"• Average change: {avg_change:+.2f}%")
+                console.print(f"• Average volume ratio: {avg_volume_ratio:.2f}x")
+                
+                if avg_change > 0.5:
+                    console.print("[green]✅ Bullish market sentiment[/green]")
+                elif avg_change < -0.5:
+                    console.print("[red]❌ Bearish market sentiment[/red]")
+                else:
+                    console.print("[yellow]⚠️ Neutral market sentiment[/yellow]")
+            
+            self.display_table(df.head(15), "Market Sentiment Analysis")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def research_earnings_calendar(self):
+        """Find stocks with upcoming earnings or recent results"""
+        console.print(Panel.fit("📅 RESEARCH: Earnings Focus", style="bold cyan"))
+        
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'earnings_per_share_diluted_yoy_growth_ttm', 
+                       'total_revenue_yoy_growth_ttm', 'price_earnings_ttm',
+                       'return_on_equity', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 100,  # Above ₹100
+                    col('earnings_per_share_diluted_yoy_growth_ttm') > 10,  # EPS growth
+                    col('total_revenue_yoy_growth_ttm') > 5,  # Revenue growth
+                    col('price_earnings_ttm') < 30,  # Reasonable PE
+                    col('market_cap_basic') > 2e9  # Min 2000 crores
+                )
+                .order_by('earnings_per_share_diluted_yoy_growth_ttm', ascending=False)
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            self.display_table(df, "Earnings Growth Focus")
+            
+            console.print("\n[bold yellow]💡 Research Strategy:[/bold yellow]")
+            console.print("• Track earnings announcement dates")
+            console.print("• Monitor guidance and management commentary")
+            console.print("• Compare actual vs expected results")
+            console.print("• Identify earnings surprise opportunities")
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def research_sector_performance(self):
+        """Analyze sector-wise performance and trends"""
+        console.print(Panel.fit("🏢 RESEARCH: Sector Performance Analysis", style="bold green"))
+        
+        try:
+            # Get sector data
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'change', 'volume', 'market_cap_basic', 
+                       'sector', 'industry', 'return_on_equity', 'price_earnings_ttm',
+                       'relative_volume_10d_calc', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 50,  # Above ₹50
+                    col('market_cap_basic') > 5e8,  # Min 500 crores
+                    col('volume') > 100000,  # Minimum volume
+                    col('sector') != ''  # Has sector data
+                )
+                .order_by('market_cap_basic', ascending=False)
+                .limit(100)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            if not df.empty and 'sector' in df.columns:
+                # Calculate sector-wise metrics
+                sector_stats = df.groupby('sector').agg({
+                    'change': ['mean', 'count'],
+                    'market_cap_basic': 'sum',
+                    'volume': 'sum',
+                    'return_on_equity': 'mean',
+                    'price_earnings_ttm': 'mean',
+                    'relative_volume_10d_calc': 'mean'
+                }).round(2)
+                
+                # Flatten column names
+                sector_stats.columns = ['avg_change', 'stock_count', 'total_mcap', 'total_volume', 'avg_roe', 'avg_pe', 'avg_vol_ratio']
+                sector_stats = sector_stats.reset_index()
+                
+                # Sort by average performance
+                sector_stats = sector_stats.sort_values('avg_change', ascending=False)
+                
+                # Display sector performance table
+                self._display_sector_table(sector_stats, "Sector Performance Analysis")
+                
+                # Show top and bottom performers
+                console.print(f"\n[bold green]🏆 Top Performing Sectors:[/bold green]")
+                for i, (_, row) in enumerate(sector_stats.head(3).iterrows()):
+                    console.print(f"  {i+1}. {row['sector']}: {row['avg_change']:+.2f}% ({row['stock_count']} stocks)")
+                
+                console.print(f"\n[bold red]📉 Underperforming Sectors:[/bold red]")
+                for i, (_, row) in enumerate(sector_stats.tail(3).iterrows()):
+                    console.print(f"  {i+1}. {row['sector']}: {row['avg_change']:+.2f}% ({row['stock_count']} stocks)")
+                
+                console.print("\n[bold yellow]💡 Sector Analysis Insights:[/bold yellow]")
+                console.print("• Identify sector rotation opportunities")
+                console.print("• Compare relative strength across sectors")
+                console.print("• Monitor sector-specific news and events")
+                console.print("• Track institutional money flow patterns")
+                
+            else:
+                console.print("[yellow]⚠️ Sector data not available or limited[/yellow]")
+                self.display_table(df.head(15), "Market Analysis (No Sector Data)")
+                
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    def _display_sector_table(self, sector_df, title):
+        """Display sector performance in a formatted table"""
+        if sector_df.empty:
+            console.print(f"[red]No sector data available for {title}[/red]")
+            return
+            
+        table = Table(title=title, show_header=True, header_style="bold magenta")
+        table.add_column("Sector", style="cyan", no_wrap=True)
+        table.add_column("Avg Change %", justify="right", style="magenta")
+        table.add_column("Stock Count", justify="right", style="blue")
+        table.add_column("Total MCap (₹Cr)", justify="right", style="green")
+        table.add_column("Avg ROE %", justify="right", style="yellow")
+        table.add_column("Avg PE", justify="right", style="red")
+        table.add_column("Vol Ratio", justify="right", style="cyan")
+        
+        for _, row in sector_df.iterrows():
+            change_val = row['avg_change']
+            change_color = "green" if change_val > 0 else "red"
+            
+            # Format market cap
+            mcap_formatted = f"₹{row['total_mcap']/1e7:,.0f}"
+            
+            # Handle NaN values
+            avg_roe = row['avg_roe'] if pd.notna(row['avg_roe']) else 0
+            avg_pe = row['avg_pe'] if pd.notna(row['avg_pe']) else 0
+            avg_vol_ratio = row['avg_vol_ratio'] if pd.notna(row['avg_vol_ratio']) else 0
+            
+            table.add_row(
+                row['sector'][:20],  # Truncate long sector names
+                f"[{change_color}]{change_val:+.2f}%[/{change_color}]",
+                f"{int(row['stock_count'])}",
+                mcap_formatted,
+                f"{avg_roe:.1f}%" if avg_roe > 0 else "N/A",
+                f"{avg_pe:.1f}" if avg_pe > 0 else "N/A",
+                f"{avg_vol_ratio:.2f}x"
+            )
+        
+        console.print(table)
+        console.print(f"[dim]Showing {len(sector_df)} sectors[/dim]")
+    
+    def research_sector_stocks(self, sector_name=None, limit=20):
+        """Find top stocks in a specific sector"""
+        if sector_name:
+            title = f"🏢 SECTOR: {sector_name} Top Stocks"
+        else:
+            title = "🏢 SECTOR: Select Sector Stocks"
+            
+        console.print(Panel.fit(title, style="bold blue"))
+        
+        try:
+            query = (
+                Query()
+                .select('name', 'close', 'change', 'volume', 'market_cap_basic', 
+                       'sector', 'industry', 'return_on_equity', 'price_earnings_ttm',
+                       'relative_volume_10d_calc', 'RSI', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 25,  # Above ₹25
+                    col('market_cap_basic') > 1e8,  # Min 100 crores
+                    col('volume') > 50000,  # Minimum volume
+                    col('sector') != ''  # Has sector data
+                )
+            )
+            
+            # Add sector filter if specified
+            if sector_name:
+                query = query.where(col('sector') == sector_name)
+            
+            total_rows, df = (
+                query
+                .order_by('market_cap_basic', ascending=False)
+                .limit(limit)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            if not df.empty:
+                if sector_name:
+                    self.display_table(df, f"{sector_name} - Top Stocks")
+                else:
+                    # Show available sectors
+                    if 'sector' in df.columns:
+                        sectors = df['sector'].unique()
+                        console.print(f"[bold yellow]Available Sectors ({len(sectors)}):[/bold yellow]")
+                        for i, sector in enumerate(sorted(sectors), 1):
+                            console.print(f"  {i}. {sector}")
+                        console.print(f"\n[bold blue]Usage:[/bold blue] Use --sector '<sector_name>' parameter")
+                        console.print(f"[bold blue]Example:[/bold blue] python tv_screen_usage.py --example research_sector_stocks --sector 'Technology'")
+                    else:
+                        self.display_table(df.head(15), "Market Stocks (No Sector Data)")
+                        
+                console.print("\n[bold yellow]💡 Sector Analysis Tips:[/bold yellow]")
+                console.print("• Compare stocks within the same sector")
+                console.print("• Look for sector leaders vs laggards")
+                console.print("• Monitor sector-specific catalysts")
+                console.print("• Track relative performance trends")
+            else:
+                console.print(f"[red]No stocks found for sector: {sector_name}[/red]")
+                
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    # ==================== INTRADAY WATCH MODE ====================
+    
+    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=2.0, price_threshold=3.0):
+        """Watch mode for intraday trading - continuously monitors volume and price changes"""
+        console.print(Panel.fit("📊 INTRADAY WATCH MODE - Live Market Monitoring", style="bold red"))
+        
+        console.print(f"[yellow]⚙️  Configuration:[/yellow]")
+        console.print(f"• Refresh interval: {refresh_interval} seconds")
+        console.print(f"• Volume threshold: {volume_threshold}x normal volume")
+        console.print(f"• Price change threshold: {price_threshold}%")
+        console.print(f"• Press Ctrl+C to stop monitoring")
+        console.print()
+        
+        # Store previous data for comparison
+        previous_data = pd.DataFrame()
+        alert_count = 0
+        
+        try:
+            while True:
+                start_time = time.time()
+                
+                # Clear screen for fresh update
+                os.system('clear' if os.name == 'posix' else 'cls')
+                
+                # Header with current time
+                current_time = datetime.now().strftime("%H:%M:%S")
+                console.print(f"[bold blue]📊 INTRADAY WATCH MODE - {current_time}[/bold blue]")
+                console.print(f"[dim]Refresh: {refresh_interval}s | Vol: {volume_threshold}x | Price: {price_threshold}%[/dim]")
+                console.print()
+                
+                # Get current market data
+                current_data = self._get_watch_data()
+                
+                if not current_data.empty:
+                    # Detect alerts
+                    alerts = self._detect_alerts(current_data, previous_data, volume_threshold, price_threshold)
+                    
+                    if alerts:
+                        alert_count += len(alerts)
+                        console.print(f"[bold red]🚨 ALERTS ({len(alerts)} new, {alert_count} total)[/bold red]")
+                        self._display_alerts(alerts)
+                        console.print()
+                    
+                    # Display current top movers
+                    self._display_watch_data(current_data, alerts)
+                    
+                    # Store current data for next comparison
+                    previous_data = current_data.copy()
+                else:
+                    console.print("[red]❌ No data received - checking connection...[/red]")
+                
+                # Wait for next refresh
+                elapsed = time.time() - start_time
+                sleep_time = max(0, refresh_interval - elapsed)
+                
+                if sleep_time > 0:
+                    console.print(f"[dim]Next refresh in {sleep_time:.1f}s... (Ctrl+C to stop)[/dim]")
+                    time.sleep(sleep_time)
+                    
+        except KeyboardInterrupt:
+            console.print("\n[yellow]👋 Watch mode stopped by user[/yellow]")
+            console.print(f"[green]Total alerts generated: {alert_count}[/green]")
+    
+    def _get_watch_data(self):
+        """Get current market data for watch mode"""
+        try:
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 50,  # Above ₹50
+                    col('volume') > 500000,  # Minimum volume
+                    col('market_cap_basic') > 1e9,  # Min 1000 crores
+                    col('relative_volume_10d_calc') > 0.5  # Some activity
+                )
+                .order_by('relative_volume_10d_calc', ascending=False)
+                .limit(25)
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            # Add calculated fields
+            df['volatility_pct'] = df['Volatility.D'] * 100
+            df['market_cap_cr'] = df['market_cap_basic'] / 1e7
+            
+            return df
+            
+        except Exception as e:
+            console.print(f"[red]Error fetching watch data: {e}[/red]")
+            return pd.DataFrame()
+    
+    def _detect_alerts(self, current_data, previous_data, volume_threshold, price_threshold):
+        """Detect volume spikes and price movements"""
+        alerts = []
+        
+        if previous_data.empty:
+            return alerts
+            
+        for _, row in current_data.iterrows():
+            ticker = row['ticker']
+            
+            # Volume spike alert
+            if row['relative_volume_10d_calc'] > volume_threshold:
+                prev_vol = previous_data[previous_data['ticker'] == ticker]['relative_volume_10d_calc'].values
+                if len(prev_vol) > 0 and row['relative_volume_10d_calc'] > prev_vol[0] * 1.2:
+                    alerts.append({
+                        'type': 'VOLUME_SPIKE',
+                        'ticker': ticker,
+                        'name': row['name'],
+                        'current_volume_ratio': row['relative_volume_10d_calc'],
+                        'previous_volume_ratio': prev_vol[0] if len(prev_vol) > 0 else 0,
+                        'price': row['close'],
+                        'change': row['change']
+                    })
+            
+            # Price movement alert
+            if abs(row['change']) > price_threshold:
+                prev_change = previous_data[previous_data['ticker'] == ticker]['change'].values
+                if len(prev_change) > 0 and abs(row['change']) > abs(prev_change[0]) * 1.1:
+                    alerts.append({
+                        'type': 'PRICE_MOVE',
+                        'ticker': ticker,
+                        'name': row['name'],
+                        'current_change': row['change'],
+                        'previous_change': prev_change[0] if len(prev_change) > 0 else 0,
+                        'price': row['close'],
+                        'volume_ratio': row['relative_volume_10d_calc']
+                    })
+        
+        return alerts
+    
+    def send_telegram_alert(self, alert):
+        """Send a Telegram alert for a new event"""
+        if not self.telegram_enabled:
+            return
+
+        try:
+            bot_token = TELEGRAM_CONFIG['bot_token']
+            chat_id = TELEGRAM_CONFIG['chat_id']
+            
+            message = f"🔥 *TradingView Alert: {alert['type'].replace('_', ' ').title()}* 🔥\n\n"
+            message += f"📈 *Symbol:* {alert['ticker']} ({alert['name']})\n"
+            message += f"💰 *Price:* ₹{alert['price']:.2f}\n"
+
+            if alert['type'] == 'VOLUME_SPIKE':
+                message += f"📊 *Volume Ratio:* {alert['current_volume_ratio']:.1f}x (was {alert['previous_volume_ratio']:.1f}x)\n"
+                message += f"📈 *Change:* {alert['change']:+.2f}%\n"
+            elif alert['type'] == 'PRICE_MOVE':
+                message += f"📈 *Change:* {alert['current_change']:+.2f}% (was {alert['previous_change']:+.2f}%)\n"
+                message += f"📊 *Volume Ratio:* {alert['volume_ratio']:.1f}x\n"
+
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            payload = {
+                'chat_id': chat_id,
+                'text': message,
+                'parse_mode': 'Markdown'
+            }
+            
+            response = requests.post(url, json=payload, timeout=10)
+            if response.status_code == 200:
+                console.print(f"[green]✅ Telegram alert sent for {alert['ticker']}[/green]")
+            else:
+                console.print(f"[red]⚠️ Telegram alert failed for {alert['ticker']}: {response.text}[/red]")
+
+        except Exception as e:
+            console.print(f"[red]❌ Error sending Telegram alert: {str(e)}[/red]")
+
+    def _display_alerts(self, alerts):
+        """Display alerts in a formatted way"""
+        for alert in alerts:
+            self.send_telegram_alert(alert)
+            if alert['type'] == 'VOLUME_SPIKE':
+                console.print(f"[bold red]🔥 VOLUME SPIKE:[/bold red] {alert['ticker']} ({alert['name'][:15]})")
+                console.print(f"   Volume: {alert['current_volume_ratio']:.1f}x (was {alert['previous_volume_ratio']:.1f}x)")
+                console.print(f"   Price: ₹{alert['price']:.2f} ({alert['change']:+.2f}%)")
+                
+            elif alert['type'] == 'PRICE_MOVE':
+                direction = "🚀" if alert['current_change'] > 0 else "📉"
+                console.print(f"[bold yellow]{direction} PRICE MOVE:[/bold yellow] {alert['ticker']} ({alert['name'][:15]})")
+                console.print(f"   Change: {alert['current_change']:+.2f}% (was {alert['previous_change']:+.2f}%)")
+                console.print(f"   Price: ₹{alert['price']:.2f} | Volume: {alert['volume_ratio']:.1f}x")
+    
+    def _display_watch_data(self, df, alerts=[]):
+        """Display current watch data"""
+        alert_tickers = [alert['ticker'] for alert in alerts]
+        
+        table = Table(title="Live Market Monitor - Top Volume Movers", show_header=True)
+        table.add_column("Ticker", style="cyan", no_wrap=True)
+        table.add_column("Name", style="green", max_width=12)
+        table.add_column("Price", justify="right", style="yellow")
+        table.add_column("Change %", justify="right", style="magenta")
+        table.add_column("Volume", justify="right", style="blue")
+        table.add_column("Vol Ratio", justify="right", style="red")
+        table.add_column("RSI", justify="right", style="cyan")
+        table.add_column("Alert", style="bold red")
+        
+        for _, row in df.head(15).iterrows():
+            ticker = row['ticker']
+            is_alert = ticker in alert_tickers
+            
+            # Color coding for alerts
+            ticker_style = "[bold red]" if is_alert else ""
+            alert_symbol = "🚨" if is_alert else ""
+            
+            change_val = row['change']
+            change_color = "green" if change_val > 0 else "red"
+            
+            rsi_val = row['RSI']
+            rsi_color = "red" if rsi_val > 70 else "green" if rsi_val < 30 else "white"
+            
+            vol_ratio = row['relative_volume_10d_calc']
+            vol_color = "bold red" if vol_ratio > 3 else "red" if vol_ratio > 2 else "white"
+            
+            table.add_row(
+                f"{ticker_style}{ticker}",
+                row['name'][:12],
+                f"₹{row['close']:,.2f}",
+                f"[{change_color}]{change_val:+.2f}%[/{change_color}]",
+                f"{row['volume']:,.0f}",
+                f"[{vol_color}]{vol_ratio:.1f}x[/{vol_color}]",
+                f"[{rsi_color}]{rsi_val:.1f}[/{rsi_color}]",
+                alert_symbol
+            )
+        
+        console.print(table)
+    
+    # ==================== UTILITY FUNCTIONS ====================
+    
+    def save_results(self, df, filename):
+        """Save results to CSV file"""
+        if not df.empty:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{filename}_{timestamp}.csv"
+            df.to_csv(filename, index=False)
+            console.print(f"[green]Results saved to: {filename}[/green]")
+    
+    def run_example(self, example_name, **kwargs):
+        """Run a specific example"""
+        examples = {
+            # Intraday Trading
+            'intraday_breakouts': self.intraday_high_volume_breakouts,
+            'intraday_gap_up': self.intraday_gap_up_stocks,
+            'intraday_oversold': self.intraday_oversold_bounce,
+            'intraday_news': self.intraday_news_momentum,
+            'intraday_watch': lambda: self.intraday_watch_mode(**kwargs),
+            # Early Detection
+            'intraday_early_setup': self.intraday_early_breakout_setup,
+            'intraday_accumulation': self.intraday_volume_accumulation,
+            'intraday_compression': self.intraday_compression_coiling,
+            
+            # Swing Trading
+            'swing_reversal': self.swing_bullish_reversal,
+            'swing_breakout': self.swing_breakout_consolidation,
+            'swing_sector': self.swing_sector_rotation,
+            
+            # Long-term Investing
+            'invest_growth': self.invest_quality_growth,
+            'invest_dividend': self.invest_dividend_aristocrats,
+            'invest_value': self.invest_undervalued_gems,
+            
+            # Research & Analysis
+            'research_leaders': self.research_sector_leaders,
+            'research_sentiment': self.research_market_sentiment,
+            'research_earnings': self.research_earnings_calendar,
+            'research_sectors': self.research_sector_performance,
+            'research_sector_stocks': lambda: self.research_sector_stocks(**kwargs),
+        }
+        
+        if example_name in examples:
+            console.print(f"\n[bold blue]Running: {example_name}[/bold blue]")
+            examples[example_name]()
+        else:
+            console.print(f"[red]Example '{example_name}' not found[/red]")
+            self.show_available_examples()
+    
+    def show_available_examples(self):
+        """Show all available examples"""
+        console.print("\n[bold yellow]Available Examples:[/bold yellow]")
+        
+        categories = [
+            ("🚀 Intraday Trading", [
+                "intraday_breakouts - High volume breakouts",
+                "intraday_gap_up - Gap-up momentum",
+                "intraday_oversold - Oversold bounce plays",
+                "intraday_news - News-driven momentum",
+                "intraday_watch - Live watch mode (continuous monitoring)"
+            ]),
+            ("🎯 Early Detection (Pre-Breakout)", [
+                "intraday_early_setup - Early breakout setups (BEFORE breakout)",
+                "intraday_accumulation - Volume accumulation (smart money)",
+                "intraday_compression - Compression/coiling stocks (pre-explosion)"
+            ]),
+            ("📊 Swing Trading", [
+                "swing_reversal - Bullish reversal patterns",
+                "swing_breakout - Consolidation breakouts",
+                "swing_sector - Sector rotation plays"
+            ]),
+            ("💰 Long-term Investing", [
+                "invest_growth - Quality growth stocks",
+                "invest_dividend - Dividend aristocrats",
+                "invest_value - Undervalued gems"
+            ]),
+            ("🔍 Research & Analysis", [
+                "research_leaders - Sector leaders",
+                "research_sentiment - Market sentiment",
+                "research_earnings - Earnings focus",
+                "research_sectors - Sector performance analysis",
+                "research_sector_stocks - Stocks in specific sector"
+            ])
+        ]
+        
+        for category, examples in categories:
+            console.print(f"\n[bold]{category}:[/bold]")
+            for example in examples:
+                console.print(f"  • {example}")
+    
+    def run_all_examples(self):
+        """Run all examples with delays"""
+        examples = [
+            'intraday_breakouts', 'intraday_gap_up', 'intraday_oversold', 'intraday_news',
+            'swing_reversal', 'swing_breakout', 'swing_sector',
+            'invest_growth', 'invest_dividend', 'invest_value',
+            'research_leaders', 'research_sentiment', 'research_earnings', 'research_sectors'
+        ]
+        
+        for example in examples:
+            self.run_example(example)
+            time.sleep(1)  # Small delay between examples
+            console.print("\n" + "="*80 + "\n")
+
+def main():
+    parser = argparse.ArgumentParser(description='TradingView Screener Usage Examples')
+    parser.add_argument('--example', type=str, help='Run specific example')
+    parser.add_argument('--list-examples', action='store_true', help='List all available examples')
+    parser.add_argument('--run-all', action='store_true', help='Run all examples')
+    parser.add_argument('--market', type=str, default='in', choices=['us', 'in'], help='Market to screen (us/in, default: in)')
+    parser.add_argument('--sector', type=str, help='Sector name for sector-specific analysis')
+    
+    # Watch mode specific arguments
+    parser.add_argument('--watch', action='store_true', help='Start intraday watch mode')
+    parser.add_argument('--refresh', type=int, default=30, help='Refresh interval in seconds (default: 30)')
+    parser.add_argument('--volume-threshold', type=float, default=2.0, help='Volume threshold for alerts (default: 2.0x)')
+    parser.add_argument('--price-threshold', type=float, default=3.0, help='Price change threshold for alerts (default: 3.0 percent)')
+    
+    args = parser.parse_args()
+    
+    screener = TVScreenerUsage(market=args.market)
+    
+    if args.list_examples:
+        screener.show_available_examples()
+    elif args.watch:
+        screener.intraday_watch_mode(
+            refresh_interval=args.refresh,
+            volume_threshold=args.volume_threshold,
+            price_threshold=args.price_threshold
+        )
+    elif args.example:
+        if args.example == 'intraday_watch':
+            screener.run_example(args.example, 
+                               refresh_interval=args.refresh,
+                               volume_threshold=args.volume_threshold,
+                               price_threshold=args.price_threshold)
+        elif args.example == 'research_sector_stocks':
+            screener.run_example(args.example, sector_name=args.sector)
+        else:
+            screener.run_example(args.example)
+    elif args.run_all:
+        screener.run_all_examples()
+    else:
+        console.print("[bold blue]TradingView Screener Usage Guide[/bold blue]")
+        console.print("\nUse --list-examples to see all available examples")
+        console.print("Use --example <name> to run a specific example")
+        console.print("Use --run-all to run all examples")
+        console.print("Use --watch to start intraday watch mode")
+        console.print("Use --market <us|in> to select market (default: in)")
+        console.print("Use --sector <name> for sector-specific analysis")
+        console.print("\nExample usage:")
+        console.print("  python tv_screen_usage.py --example intraday_breakouts")
+        console.print("  python tv_screen_usage.py --market us --example intraday_breakouts")
+        console.print("  python tv_screen_usage.py --example research_sectors")
+        console.print("  python tv_screen_usage.py --example research_sector_stocks --sector 'Technology'")
+        console.print("  python tv_screen_usage.py --watch --refresh 15 --volume-threshold 2.5")
+        console.print("  python tv_screen_usage.py --market us --example intraday_watch --refresh 10")
+
+if __name__ == "__main__":
+    main()

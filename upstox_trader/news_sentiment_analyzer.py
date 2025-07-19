@@ -16,16 +16,22 @@ import json
 from urllib.parse import quote_plus
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import csv
+from pathlib import Path
 
 # Already in upstox_trader folder
 
 class NewsAnalyzer:
     """Early news detection system for trading signals"""
     
-    def __init__(self):
-        # Logging setup
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    def __init__(self, debug=False):
+        # Logging setup - minimal unless debug mode
+        log_level = logging.DEBUG if debug else logging.WARNING
+        logging.basicConfig(level=log_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger('NewsAnalyzer')
+        self.debug_mode = debug
         
         # TradingView cookies for authenticated access
         self.tv_cookies = self._get_tv_cookies()
@@ -52,6 +58,9 @@ class NewsAnalyzer:
         # Cache for avoiding duplicate processing
         self.processed_news = set()
         
+        # Setup news logging
+        self.setup_news_logging()
+        
         # Sentiment keywords
         self.positive_keywords = [
             'win', 'won', 'award', 'contract', 'order', 'growth', 'expansion', 'profit', 
@@ -74,26 +83,23 @@ class NewsAnalyzer:
             'bagged', 'won', 'midc', 'zld', 'effluent', 'treatment', 'infrastructure'
         ]
         
-        # EIEL-specific positive keywords
-        self.eiel_positive_keywords = [
-            'zld', 'zero liquid discharge', 'cetp', 'effluent treatment', 
-            'midc', 'maharashtra industrial', 'order', 'project', 'contract',
-            'environment', 'water treatment', 'pollution control'
-        ]
         
     def _get_tv_cookies(self):
         """Get TradingView cookies for authenticated access"""
         try:
             cookies = rookiepy.to_cookiejar(rookiepy.chrome(['.tradingview.com']))
-            self.logger.info("✅ TradingView cookies loaded from Chrome")
+            if self.debug_mode:
+                self.logger.info("✅ TradingView cookies loaded from Chrome")
             return cookies
         except:
             try:
                 cookies = rookiepy.to_cookiejar(rookiepy.firefox(['.tradingview.com']))
-                self.logger.info("✅ TradingView cookies loaded from Firefox")
+                if self.debug_mode:
+                    self.logger.info("✅ TradingView cookies loaded from Firefox")
                 return cookies
             except:
-                self.logger.warning("⚠️ No TradingView cookies - using delayed data")
+                if self.debug_mode:
+                    self.logger.warning("⚠️ No TradingView cookies - using delayed data")
                 return None
     
     def _get_headers(self):
@@ -123,11 +129,13 @@ class NewsAnalyzer:
             
             for url in urls_to_try:
                 try:
-                    self.logger.info(f"🔍 Scraping MoneyControl: {url}")
+                    if self.debug_mode:
+                        self.logger.info(f"🔍 Scraping MoneyControl: {url}")
                     response = requests.get(url, headers=headers, timeout=10)
                     
                     if response.status_code != 200:
-                        self.logger.warning(f"⚠️ MoneyControl returned status {response.status_code}")
+                        if self.debug_mode:
+                            self.logger.warning(f"⚠️ MoneyControl returned status {response.status_code}")
                         continue
                     
                     soup = BeautifulSoup(response.content, 'html.parser')
@@ -148,7 +156,8 @@ class NewsAnalyzer:
                 search_items = self._search_moneycontrol_news(symbol, hours_back)
                 news_items.extend(search_items)
             
-            self.logger.info(f"📰 Found {len(news_items)} recent news items for {symbol} on MoneyControl")
+            if self.debug_mode:
+                self.logger.info(f"📰 Found {len(news_items)} recent news items for {symbol} on MoneyControl")
             return news_items
             
         except Exception as e:
@@ -242,7 +251,7 @@ class NewsAnalyzer:
                 f'"{symbol}" stock share price india',
                 f'"{symbol}" order win contract',
                 f'"{symbol}" earnings results',
-                f'Enviro Infra Engineers' if symbol == 'EIEL' else f'{symbol} company news'
+f'{symbol} company news'
             ]
             
             all_news = []
@@ -266,7 +275,8 @@ class NewsAnalyzer:
                     unique_news.append(news)
                     seen_headlines.add(headline_key)
             
-            self.logger.info(f"📰 Found {len(unique_news)} relevant news items for {symbol} on Google News")
+            if self.debug_mode:
+                self.logger.info(f"📰 Found {len(unique_news)} relevant news items for {symbol} on Google News")
             return unique_news
             
         except Exception as e:
@@ -284,7 +294,8 @@ class NewsAnalyzer:
             response = requests.get(url, headers=headers, timeout=10)
             
             if response.status_code != 200:
-                self.logger.debug(f"Google News returned status {response.status_code} for query: {search_query}")
+                if self.debug_mode:
+                    self.logger.debug(f"Google News returned status {response.status_code} for query: {search_query}")
                 return []
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -318,8 +329,6 @@ class NewsAnalyzer:
                     
                     # More flexible symbol matching
                     symbol_variations = [symbol.lower()]
-                    if symbol == 'EIEL':
-                        symbol_variations.extend(['enviro infra', 'eiel', 'enviro infra engineers'])
                     
                     # Check if headline contains symbol or company name
                     is_relevant = any(var in headline.lower() for var in symbol_variations)
@@ -390,7 +399,8 @@ class NewsAnalyzer:
                     self.logger.debug(f"Error searching {site}: {e}")
                     continue
             
-            self.logger.info(f"📰 Found {len(all_news)} news items from financial websites for {symbol}")
+            if self.debug_mode:
+                self.logger.info(f"📰 Found {len(all_news)} news items from financial websites for {symbol}")
             return all_news
             
         except Exception as e:
@@ -454,8 +464,6 @@ class NewsAnalyzer:
                     
                     # Check relevance
                     symbol_variations = [symbol.lower()]
-                    if symbol == 'EIEL':
-                        symbol_variations.extend(['enviro infra', 'eiel'])
                     
                     is_relevant = any(var in headline.lower() for var in symbol_variations)
                     if not is_relevant:
@@ -519,10 +527,6 @@ class NewsAnalyzer:
             positive_count = sum(1 for keyword in self.positive_keywords if keyword in text)
             negative_count = sum(1 for keyword in self.negative_keywords if keyword in text)
             
-            # Add symbol-specific keywords
-            if symbol == 'EIEL':
-                eiel_positive = sum(1 for keyword in self.eiel_positive_keywords if keyword in text)
-                positive_count += eiel_positive * 2  # Weight EIEL-specific keywords higher
             
             # Check for high-impact keywords and financial amounts
             impact_multiplier = 1.0
@@ -665,7 +669,8 @@ class NewsAnalyzer:
     def scan_stock_news(self, symbol, hours_back=2):
         """Comprehensive news scanning for a specific stock"""
         try:
-            self.logger.info(f"🔍 Scanning news for {symbol} (last {hours_back} hours)")
+            if self.debug_mode:
+                self.logger.info(f"🔍 Scanning news for {symbol} (last {hours_back} hours)")
             
             all_news = []
             
@@ -681,7 +686,8 @@ class NewsAnalyzer:
             all_news.extend(web_news)
             
             if not all_news:
-                self.logger.info(f"📰 No recent news found for {symbol}")
+                if self.debug_mode:
+                    self.logger.info(f"📰 No recent news found for {symbol}")
                 return []
             
             # Analyze sentiment for each news item
@@ -700,7 +706,8 @@ class NewsAnalyzer:
             # Sort by impact score (most impactful first)
             analyzed_news.sort(key=lambda x: x['volume_prediction']['impact_score'], reverse=True)
             
-            self.logger.info(f"📊 Analyzed {len(analyzed_news)} news items for {symbol}")
+            if self.debug_mode:
+                self.logger.info(f"📊 Analyzed {len(analyzed_news)} news items for {symbol}")
             return analyzed_news
             
         except Exception as e:
@@ -743,81 +750,359 @@ class NewsAnalyzer:
             self.logger.error(f"❌ Error generating alert: {e}")
             return None
     
-    def test_eiel_analysis(self):
-        """Test case: Analyze EIEL news for validation"""
-        self.logger.info("🧪 Testing news analysis with multiple stocks...")
+    def watch_mode(self, symbols=None, refresh_interval=60, max_workers=10):
+        """Watch mode - continuously monitor latest news for given symbols using parallel workers"""
+        if symbols is None:
+            symbols = self.load_nse_stocks()
         
-        # Test with EIEL first
-        self.logger.info("📊 Testing EIEL...")
-        eiel_news = self.scan_stock_news('EIEL', hours_back=48)
+        if self.debug_mode:
+            self.logger.info("📺 Starting News Watch Mode with Parallel Processing...")
+            self.logger.info(f"🎯 Monitoring: {len(symbols)} NSE stocks")
+            self.logger.info(f"⚙️ Workers: {max_workers} parallel threads")
+            self.logger.info(f"⏱️ Refresh interval: {refresh_interval} seconds")
+            self.logger.info("=" * 80)
         
-        # Also test with a popular stock to validate scraper works
-        self.logger.info("📊 Testing RELIANCE (to validate scraper)...")
-        reliance_news = self.scan_stock_news('RELIANCE', hours_back=24)
-        
-        # Test with TCS as well
-        self.logger.info("📊 Testing TCS...")
-        tcs_news = self.scan_stock_news('TCS', hours_back=24)
-        
-        # Combine all for reporting
-        all_tests = [
-            ('EIEL', eiel_news),
-            ('RELIANCE', reliance_news), 
-            ('TCS', tcs_news)
-        ]
-        
-        for symbol, news_items in all_tests:
-            self._report_analysis_results(symbol, news_items)
+        try:
+            while True:
+                start_time = time.time()
+                print(f"\n🕒 {datetime.now().strftime('%H:%M:%S')} - Latest News Update (Parallel Scan)")
+                print("=" * 80)
+                
+                # Use ThreadPoolExecutor for parallel processing
+                all_results = self._parallel_news_scan(symbols, max_workers)
+                
+                # Display results in organized format
+                stocks_with_news = 0
+                total_news_items = 0
+                news_stocks = []
+                no_news_stocks = []
+                error_stocks = []
+                
+                # Calculate scan time first
+                scan_time = time.time() - start_time
+                
+                for symbol, news_items, error in all_results:
+                    if error:
+                        error_stocks.append((symbol, error))
+                        continue
+                    
+                    if news_items:
+                        stocks_with_news += 1
+                        total_news_items += len(news_items)
+                        news_stocks.append((symbol, news_items))
+                        # Save news to CSV
+                        self.save_news_to_csv(symbol, news_items, scan_time)
+                    else:
+                        no_news_stocks.append(symbol)
+                
+                # Clear screen for better display
+                import os
+                os.system('clear' if os.name == 'posix' else 'cls')
+                
+                print(f"📰 NSE News Monitor - {datetime.now().strftime('%H:%M:%S')}")
+                print("=" * 100)
+                print(f"⏱️ Scan: {scan_time:.1f}s | 📈 News: {stocks_with_news}/{len(symbols)} | 📰 Items: {total_news_items} | 🔄 Next: {refresh_interval}s")
+                print("=" * 100)
+                
+                # Show stocks with news first
+                if news_stocks:
+                    print(f"\n🔥 STOCKS WITH NEWS ({len(news_stocks)}):")
+                    print("-" * 100)
+                    
+                    for symbol, news_items in news_stocks:
+                        print(f"\n📊 {symbol:<12} | {len(news_items)} items")
+                        for i, news in enumerate(news_items[:2], 1):  # Top 2 news
+                            headline = news['headline'][:85] + "..." if len(news['headline']) > 85 else news['headline']
+                            time_str = news['timestamp'].strftime('%H:%M')
+                            source = news['source'][:15]
+                            print(f"   {i}. {headline}")
+                            print(f"      ⏰ {time_str} | 📡 {source}")
+                        if len(news_items) > 2:
+                            print(f"      ... and {len(news_items) - 2} more items")
+                
+                # Show stocks without news in compact format
+                if no_news_stocks:
+                    print(f"\n📭 NO NEWS ({len(no_news_stocks)}):")
+                    print("-" * 100)
+                    # Display in rows of 8 stocks
+                    for i in range(0, len(no_news_stocks), 8):
+                        row_stocks = no_news_stocks[i:i+8]
+                        print("   " + " | ".join(f"{stock:<10}" for stock in row_stocks))
+                
+                # Show errors if any
+                if error_stocks:
+                    print(f"\n❌ ERRORS ({len(error_stocks)}):")
+                    print("-" * 100)
+                    for symbol, error in error_stocks:
+                        print(f"   {symbol}: {error[:60]}...")
+                
+                # Save scan summary
+                self.save_scan_summary(scan_time, stocks_with_news, len(symbols), total_news_items)
+                
+                print("\n" + "=" * 100)
+                print(f"⏳ Next scan in {refresh_interval} seconds... (Press Ctrl+C to stop)")
+                print(f"💾 Saved to: {self.daily_log_file.name} | Session: {self.session_log_file.name}")
+                print("=" * 100)
+                time.sleep(refresh_interval)
+                
+        except KeyboardInterrupt:
+            print("\n\n👋 News watch mode stopped by user")
+            print("📊 Session complete!")
+        except Exception as e:
+            self.logger.error(f"❌ Watch mode error: {e}")
+            print(f"\n❌ Error: {e}")
+            print("🔄 Restarting in 5 seconds...")
+            time.sleep(5)
     
-    def _report_analysis_results(self, symbol, news_items):
-        """Report analysis results for a symbol"""
-        if not news_items:
-            self.logger.warning(f"⚠️ No recent news found for {symbol}")
+    def _parallel_news_scan(self, symbols, max_workers):
+        """Scan news for multiple symbols in parallel"""
+        results = []
+        
+        def scan_single_stock(symbol):
+            """Scan news for a single stock"""
+            try:
+                news_items = self.scan_stock_news(symbol, hours_back=2)
+                return symbol, news_items, None
+            except Exception as e:
+                return symbol, [], str(e)
+        
+        # Use ThreadPoolExecutor for parallel processing
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_symbol = {executor.submit(scan_single_stock, symbol): symbol for symbol in symbols}
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_symbol):
+                symbol = future_to_symbol[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    results.append((symbol, [], f"Future error: {e}"))
+        
+        # Sort results by symbol name for consistent display
+        results.sort(key=lambda x: x[0])
+        return results
+    
+    def load_nse_stocks(self):
+        """Load NSE stocks from CSV file"""
+        try:
+            import pandas as pd
+            
+            # Try to find the most recent NSE stocks file
+            csv_files = [
+                'nse_stocks_20250714_124836.csv',
+                # Add other potential file names
+            ]
+            
+            for csv_file in csv_files:
+                try:
+                    if os.path.exists(csv_file):
+                        df = pd.read_csv(csv_file)
+                        # Filter out non-stock entries and get symbols
+                        symbols = df['symbol'].tolist()
+                        symbols = [s for s in symbols if s and s != 'NIFTY 50' and not s.startswith('NIFTY')]
+                        if self.debug_mode:
+                            self.logger.info(f"📊 Loaded {len(symbols)} stocks from {csv_file}")
+                        return symbols
+                except Exception as e:
+                    self.logger.debug(f"Error reading {csv_file}: {e}")
+                    continue
+            
+            # Fallback to hardcoded list if CSV not found
+            fallback_symbols = [
+                'ADANIENT', 'ADANIPORTS', 'APOLLOHOSP', 'ASIANPAINT', 'AXISBANK', 
+                'BAJAJ-AUTO', 'BAJAJFINSV', 'BAJFINANCE', 'BEL', 'BHARTIARTL',
+                'CIPLA', 'COALINDIA', 'DRREDDY', 'EICHERMOT', 'ETERNAL',
+                'GRASIM', 'HCLTECH', 'HDFCBANK', 'HDFCLIFE', 'HEROMOTOCO',
+                'HINDALCO', 'HINDUNILVR', 'ICICIBANK', 'INDUSINDBK', 'INFY',
+                'ITC', 'JIOFIN', 'JSWSTEEL', 'KOTAKBANK', 'LT',
+                'M&M', 'MARUTI', 'NESTLEIND', 'NTPC', 'ONGC',
+                'POWERGRID', 'RELIANCE', 'SBILIFE', 'SBIN', 'SHRIRAMFIN',
+                'SUNPHARMA', 'TATACONSUM', 'TATAMOTORS', 'TATASTEEL', 'TCS',
+                'TECHM', 'TITAN', 'TRENT', 'ULTRACEMCO', 'WIPRO'
+            ]
+            if self.debug_mode:
+                self.logger.info(f"📊 Using fallback list of {len(fallback_symbols)} NSE stocks")
+            return fallback_symbols
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error loading NSE stocks: {e}")
+            # Return basic fallback
+            return ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'WIPRO']
+    
+    def setup_news_logging(self):
+        """Setup news logging directories and files"""
+        try:
+            # Create news directory if it doesn't exist
+            self.news_dir = Path("news")
+            self.news_dir.mkdir(exist_ok=True)
+            
+            # Create today's log file
+            today = datetime.now().strftime('%Y%m%d')
+            self.daily_log_file = self.news_dir / f"{today}_news.csv"
+            self.session_log_file = self.news_dir / f"{today}_{datetime.now().strftime('%H%M%S')}_session.csv"
+            
+            # CSV headers
+            self.csv_headers = [
+                'timestamp', 'symbol', 'source', 'headline', 'url', 
+                'scan_time', 'session_id', 'news_count'
+            ]
+            
+            # Initialize CSV files if they don't exist
+            for log_file in [self.daily_log_file, self.session_log_file]:
+                if not log_file.exists():
+                    with open(log_file, 'w', newline='', encoding='utf-8') as f:
+                        writer = csv.writer(f)
+                        writer.writerow(self.csv_headers)
+            
+            # Session ID for tracking
+            self.session_id = datetime.now().strftime('%H%M%S')
+            
+            if self.debug_mode:
+                self.logger.info(f"📁 News logging setup: {self.news_dir}")
+                self.logger.info(f"📄 Daily log: {self.daily_log_file.name}")
+                self.logger.info(f"📄 Session log: {self.session_log_file.name}")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error setting up news logging: {e}")
+            self.daily_log_file = None
+            self.session_log_file = None
+    
+    def save_news_to_csv(self, symbol, news_items, scan_time):
+        """Save news items to CSV files"""
+        if not self.daily_log_file or not news_items:
             return
         
-        self.logger.info(f"📊 {symbol} News Analysis Results:")
-        self.logger.info(f"   Total news items: {len(news_items)}")
-        
-        for i, news in enumerate(news_items[:3], 1):  # Show top 3
-            sentiment = news['sentiment_analysis']
-            prediction = news['volume_prediction']
+        try:
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            self.logger.info(f"\n   {i}. {news['headline'][:80]}...")
-            self.logger.info(f"      Source: {news['source']}")
-            self.logger.info(f"      Sentiment: {sentiment['sentiment_score']:.2f} (confidence: {sentiment['confidence']:.1%})")
-            self.logger.info(f"      Volume Impact: {prediction['prediction']} ({prediction['probability']:.1%})")
-            self.logger.info(f"      Direction: {prediction['sentiment_direction']}")
-        
-        # Generate alert if applicable
-        alert = self.generate_alert(symbol, news_items)
-        if alert:
-            self.logger.info(f"\n🚨 ALERT GENERATED FOR {symbol}:")
-            self.logger.info(f"   📰 {alert['headline']}")
-            self.logger.info(f"   📊 Sentiment: {alert['sentiment_score']:.2f} ({alert['direction']})")
-            self.logger.info(f"   📈 Volume: {alert['volume_prediction']} ({alert['probability']:.1%})")
-            self.logger.info(f"   ⚡ Action: {alert['action']}")
-        else:
-            self.logger.info(f"\n📝 No alert generated for {symbol} (impact too low)")
-        
-        self.logger.info("-" * 60)
+            # Prepare rows for CSV
+            rows = []
+            for news in news_items:
+                row = [
+                    current_time,
+                    symbol,
+                    news.get('source', ''),
+                    news.get('headline', '').replace('\n', ' ').replace('\r', ''),
+                    news.get('link', ''),
+                    f"{scan_time:.1f}s",
+                    self.session_id,
+                    len(news_items)
+                ]
+                rows.append(row)
+            
+            # Write to both daily and session logs
+            for log_file in [self.daily_log_file, self.session_log_file]:
+                try:
+                    with open(log_file, 'a', newline='', encoding='utf-8') as f:
+                        writer = csv.writer(f)
+                        writer.writerows(rows)
+                except Exception as e:
+                    self.logger.debug(f"Error writing to {log_file}: {e}")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error saving news to CSV: {e}")
+    
+    def save_scan_summary(self, scan_time, stocks_with_news, total_stocks, total_news_items):
+        """Save scan summary to a separate summary file"""
+        try:
+            summary_file = self.news_dir / f"{datetime.now().strftime('%Y%m%d')}_summary.csv"
+            
+            # Create summary file if it doesn't exist
+            if not summary_file.exists():
+                with open(summary_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(['timestamp', 'scan_time', 'stocks_with_news', 'total_stocks', 'total_news_items', 'session_id'])
+            
+            # Append summary data
+            with open(summary_file, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    f"{scan_time:.1f}s",
+                    stocks_with_news,
+                    total_stocks,
+                    total_news_items,
+                    self.session_id
+                ])
+                
+        except Exception as e:
+            self.logger.debug(f"Error saving scan summary: {e}")
+    
 
 def main():
-    """Test the news analyzer"""
-    print("📰 News Sentiment Analyzer - Early Signal Detection")
+    """Start the news analyzer in watch mode"""
+    print("📰 News Monitor - Latest News Watch Mode")
     print("=" * 60)
     
-    analyzer = NewsAnalyzer()
+    # Check for debug mode
+    import sys
+    debug_mode = '--debug' in sys.argv or '-d' in sys.argv
     
-    # Test with EIEL
-    analyzer.test_eiel_analysis()
+    analyzer = NewsAnalyzer(debug=debug_mode)
     
-    print("\n" + "=" * 60)
-    print("✅ News analyzer test complete!")
-    print("\n💡 Next steps:")
-    print("   1. Integrate with volatility scanner")
-    print("   2. Set up real-time monitoring")
-    print("   3. Add Telegram alerts")
-    print("   4. Monitor correlation with volume spikes")
+    if debug_mode:
+        print("🐛 Debug mode enabled - verbose logging active")
+    
+    # Load NSE stocks
+    nse_stocks = analyzer.load_nse_stocks()
+    default_symbols = nse_stocks[:10]  # Show first 10 as preview
+    
+    print("🎯 Available options:")
+    print(f"   1. Start watch mode with ALL {len(nse_stocks)} NSE stocks (parallel)")
+    print("   2. Enter custom symbols")
+    print("   3. Quick test with single symbol")
+    print(f"   4. Preview mode (first 10 stocks: {', '.join(default_symbols)})")
+    print("   5. Configure parallel workers")
+    if debug_mode:
+        print("   🐛 Debug mode: Verbose logging enabled")
+    
+    try:
+        choice = input(f"\nEnter choice (1-5) or press Enter for ALL {len(nse_stocks)} stocks: ").strip()
+        
+        if choice == '2':
+            symbols_input = input("Enter symbols separated by commas: ").strip()
+            symbols = [s.strip().upper() for s in symbols_input.split(',') if s.strip()]
+            if not symbols:
+                symbols = nse_stocks
+        elif choice == '3':
+            symbol = input("Enter symbol to test: ").strip().upper()
+            if symbol:
+                print(f"\n🔍 Testing {symbol}...")
+                news_items = analyzer.scan_stock_news(symbol, hours_back=24)
+                if news_items:
+                    print(f"\n📰 Found {len(news_items)} news items for {symbol}:")
+                    for i, news in enumerate(news_items[:5], 1):
+                        print(f"   {i}. {news['headline'][:100]}...")
+                        print(f"      📅 {news['timestamp'].strftime('%H:%M')} | 🔗 {news['source']}")
+                else:
+                    print(f"📰 No recent news found for {symbol}")
+                return
+            else:
+                symbols = nse_stocks
+        elif choice == '4':
+            symbols = default_symbols
+        elif choice == '5':
+            symbols = nse_stocks
+            try:
+                workers = int(input("Enter number of parallel workers (default 10): ").strip() or "10")
+                refresh = int(input("Enter refresh interval in seconds (default 60): ").strip() or "60")
+                print(f"\n🚀 Starting with {workers} workers, {refresh}s refresh...")
+                analyzer.watch_mode(symbols, refresh_interval=refresh, max_workers=workers)
+                return
+            except ValueError:
+                print("Invalid input, using defaults...")
+        else:
+            symbols = nse_stocks
+        
+        # Start watch mode with default settings
+        analyzer.watch_mode(symbols, refresh_interval=60, max_workers=10)
+        
+    except KeyboardInterrupt:
+        print("\n👋 Goodbye!")
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
 
 if __name__ == "__main__":
     main()
