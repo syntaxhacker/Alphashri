@@ -191,9 +191,74 @@ class StrategyBacktester:
 
 
 def fetch_and_resample_data(api: UpstoxAPI, symbol: str, timeframe: str, days_to_fetch: int):
-    """Fetches and resamples data to the target timeframe."""
+    """Fetches and resamples data to the target timeframe using V3 Historical API for better coverage."""
     
-    # Determine the best base interval to fetch from Upstox
+    print(f"{Colors.YELLOW}Using V3 Historical API to fetch {days_to_fetch} days of data for {symbol}...{Colors.RESET}")
+    
+    # Parse timeframe to determine the best V3 API parameters
+    timeframe_td = pd.to_timedelta(timeframe)
+    timeframe_minutes = int(timeframe_td.total_seconds() / 60)
+    
+    # Choose the best unit and interval for V3 Historical API
+    if timeframe_minutes <= 300:  # Up to 5 hours (300 minutes)
+        unit = 'minutes'
+        interval = timeframe_minutes
+    elif timeframe_minutes <= 300:  # Hours (up to 5 hours)
+        hours = timeframe_minutes // 60
+        if hours <= 5 and timeframe_minutes % 60 == 0:
+            unit = 'hours'
+            interval = hours
+        else:
+            # Fall back to minutes
+            unit = 'minutes' 
+            interval = timeframe_minutes
+    elif timeframe_minutes == 1440:  # 1 day
+        unit = 'days'
+        interval = 1
+    else:
+        # For timeframes not directly supported, use smaller interval and resample
+        print(f"{Colors.YELLOW}Timeframe {timeframe} not directly supported. Using 15-minute data and resampling...{Colors.RESET}")
+        unit = 'minutes'
+        interval = 15
+    
+    # Calculate date range
+    from datetime import datetime, timedelta
+    to_date = datetime.now().strftime('%Y-%m-%d')
+    from_date = (datetime.now() - timedelta(days=days_to_fetch)).strftime('%Y-%m-%d')
+    
+    print(f"📊 Fetching {interval} {unit} data using V3 Historical API from {from_date} to {to_date}...")
+    
+    # Use the new V3 Historical method for comprehensive data
+    df = api.fetch_historical_data_v3(
+        symbol=symbol, 
+        unit=unit, 
+        interval=interval,
+        to_date=to_date,
+        from_date=from_date
+    )
+    
+    if df is None or df.empty:
+        print(f"{Colors.RED}Failed to fetch V3 historical data. Trying V2 fallback...{Colors.RESET}")
+        # Fallback to V2 API if V3 fails
+        return fetch_v2_fallback_data(api, symbol, timeframe, days_to_fetch)
+    
+    # If we used a different interval than requested, resample the data
+    if interval != timeframe_minutes:
+        print(f"🔄 Resampling {interval} {unit} data to {timeframe}...")
+        ohlc_dict = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum', 'oi': 'last'}
+        df = df.resample(timeframe).apply(ohlc_dict)
+        df.dropna(subset=['open'], inplace=True)
+    
+    print(f"{Colors.GREEN}✅ Successfully fetched {len(df)} data points using V3 Historical API.{Colors.RESET}")
+    print(f"📅 Data range: {df.index[0]} to {df.index[-1]}")
+    
+    return df
+
+def fetch_v2_fallback_data(api: UpstoxAPI, symbol: str, timeframe: str, days_to_fetch: int):
+    """Fallback method using V2 API when V3 fails."""
+    print(f"{Colors.YELLOW}Using V2 API fallback for {symbol}...{Colors.RESET}")
+    
+    # Determine the best base interval to fetch from Upstox V2
     timeframe_td = pd.to_timedelta(timeframe)
     if timeframe_td < pd.to_timedelta('60min'):
         base_interval = '1minute'
@@ -202,7 +267,7 @@ def fetch_and_resample_data(api: UpstoxAPI, symbol: str, timeframe: str, days_to
         base_interval = '30minute'
         chunk_days = 180 # 30-minute data has a longer lookback
 
-    print(f"{Colors.YELLOW}Fetching {days_to_fetch} days of {base_interval} data for {symbol} to resample to {timeframe}...{Colors.RESET}")
+    print(f"Fetching {days_to_fetch} days of {base_interval} data for {symbol} to resample to {timeframe}...")
 
     to_date = datetime.now()
     from_date = to_date - timedelta(days=days_to_fetch)

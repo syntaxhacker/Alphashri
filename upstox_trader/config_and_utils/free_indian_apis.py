@@ -34,8 +34,9 @@ except ImportError:
 # --- Constants ---
 TOKEN_FILE = Path(".upstox_token.json")
 REDIRECT_URI = "http://localhost:5000/callback"
-API_VERSION = "2.0"
-BASE_URL = "https://api.upstox.com/v2"
+API_VERSION = "2.0"  # Still used for authentication
+BASE_URL_V2 = "https://api.upstox.com/v2"
+BASE_URL_V3 = "https://api.upstox.com/v3"
 ORDER_URL = "https://api.upstox.com/v2/order/place"
 INSTRUMENT_LIST_URL = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz"
 INSTRUMENT_CACHE_FILE = Path("nse_instruments.json")
@@ -137,7 +138,7 @@ class UpstoxAPI:
             'grant_type': 'authorization_code'
         }
         try:
-            response = requests.post(f"{BASE_URL}/login/authorization/token", headers=headers, data=data)
+            response = requests.post(f"{BASE_URL_V2}/login/authorization/token", headers=headers, data=data)
             response.raise_for_status()
             return response.json().get('access_token')
         except requests.RequestException as e:
@@ -155,7 +156,7 @@ class UpstoxAPI:
         server_thread.start()
         time.sleep(1)
 
-        login_url = f"{BASE_URL}/login/authorization/dialog?response_type=code&client_id={self.api_key}&redirect_uri={self.redirect_uri}"
+        login_url = f"{BASE_URL_V2}/login/authorization/dialog?response_type=code&client_id={self.api_key}&redirect_uri={self.redirect_uri}"
         print(f"🔐 Opening browser for authentication: {login_url}")
         webbrowser.open(login_url)
 
@@ -252,7 +253,7 @@ class UpstoxAPI:
             
         print(f"📊 Fetching {interval} historical data for {symbol}...")
         
-        url = f"{BASE_URL}/historical-candle/{instrument_key}/{interval}/{to_date}"
+        url = f"{BASE_URL_V2}/historical-candle/{instrument_key}/{interval}/{to_date}"
         params = {'from_date': from_date}
         
         try:
@@ -278,6 +279,257 @@ class UpstoxAPI:
                 TOKEN_FILE.unlink(missing_ok=True)
                 return self.fetch_historical_data(symbol, interval, from_date, to_date)
             print(f"❌ API Error fetching historical data for {symbol}: {e.response.text if e.response else e}")
+            return None
+
+    def fetch_intraday_data_v3(self, symbol: str, unit: str, interval: int, instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None, exchange: str = 'NSE_EQ') -> Optional[pd.DataFrame]:
+        """
+        Fetches intraday OHLCV data using the V3 API for better data coverage.
+        
+        Args:
+            symbol: Stock symbol (e.g., 'TATAMOTORS', 'RELIANCE')
+            unit: Time unit - 'minutes', 'hours', or 'days'
+            interval: Interval value:
+                - minutes: 1-300
+                - hours: 1-5  
+                - days: 1
+            instrument_type: 'EQ', 'INDEX', 'CE', 'PE'
+            expiry_date: For options (YYYY-MM-DD format)
+            strike_price: For options
+            option_type: 'CE' or 'PE' for options
+            exchange: Exchange segment (default: 'NSE_EQ')
+            
+        Returns:
+            pandas.DataFrame with OHLCV data indexed by datetime
+            
+        Note:
+            V3 API returns data only during market hours (9:15 AM - 3:30 PM IST).
+            No authentication required for V3 API.
+        """
+        # V3 API doesn't require authentication, but we need instrument key
+        instrument_key = self.get_instrument_key(symbol, instrument_type=instrument_type, expiry_date=expiry_date, strike_price=strike_price, option_type=option_type, exchange=exchange)
+        if not instrument_key:
+            return None
+            
+        # Validate unit and interval combinations
+        valid_intervals = {
+            'minutes': list(range(1, 301)),  # 1-300 minutes
+            'hours': list(range(1, 6)),      # 1-5 hours
+            'days': [1]                      # Only 1 day
+        }
+        
+        if unit not in valid_intervals:
+            print(f"❌ Invalid unit '{unit}'. Valid units: {list(valid_intervals.keys())}")
+            return None
+            
+        if interval not in valid_intervals[unit]:
+            print(f"❌ Invalid interval '{interval}' for unit '{unit}'. Valid intervals: {valid_intervals[unit]}")
+            return None
+            
+        print(f"📊 Fetching V3 intraday data for {symbol} ({interval} {unit})...")
+        
+        # V3 API endpoint format: /v3/historical-candle/intraday/:instrument_key/:unit/:interval
+        # URL encode the instrument key to handle special characters like |
+        encoded_instrument_key = urllib.parse.quote(instrument_key, safe='')
+        url = f"{BASE_URL_V3}/historical-candle/intraday/{encoded_instrument_key}/{unit}/{interval}"
+        
+        # V3 API doesn't require authorization - just Accept header
+        headers = {
+            'Accept': 'application/json'
+        }
+        
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            
+            json_data = response.json()
+            
+            if json_data.get('status') != 'success':
+                print(f"❌ API returned non-success status: {json_data}")
+                return pd.DataFrame()
+            
+            candles = json_data.get('data', {}).get('candles', [])
+            if not candles:
+                # Check if markets are closed
+                from datetime import datetime
+                current_hour = datetime.now().hour
+                if current_hour < 9 or current_hour >= 15:  # Before 9 AM or after 3 PM
+                    print(f"ℹ️ No intraday data for {symbol} - Markets are closed (Current time: {datetime.now().strftime('%H:%M')})")
+                    print("📅 NSE trading hours: 9:15 AM - 3:30 PM IST")
+                else:
+                    print(f"⚠️ No intraday data returned for {symbol} during market hours.")
+                return pd.DataFrame()
+            
+            # V3 API returns data as: [timestamp, open, high, low, close, volume, open_interest]
+            df = pd.DataFrame(candles, columns=['datetime', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+            df['datetime'] = pd.to_datetime(df['datetime'])
+            df.set_index('datetime', inplace=True)
+            
+            # Sort by datetime to ensure chronological order
+            df.sort_index(inplace=True)
+            
+            print(f"✅ Successfully fetched {len(df)} intraday records for {symbol} using V3 API.")
+            print(f"📅 Data range: {df.index[0]} to {df.index[-1]}")
+            return df
+
+        except requests.RequestException as e:
+            print(f"❌ V3 API Error fetching intraday data for {symbol}: {e.response.text if e.response else e}")
+            return None
+
+    def fetch_historical_data_v3(self, symbol: str, unit: str, interval: int, to_date: str, from_date: Optional[str] = None, instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None, exchange: str = 'NSE_EQ') -> Optional[pd.DataFrame]:
+        """
+        Fetches historical OHLCV data using the V3 Historical Candle Data API with automatic chunking.
+        
+        Args:
+            symbol: Stock symbol (e.g., 'TATAMOTORS', 'RELIANCE')
+            unit: Time unit - 'minutes', 'hours', 'days', 'weeks', 'months'
+            interval: Interval value:
+                - minutes: 1-300 (1 month limit for 1-15min, 1 quarter for >15min)
+                - hours: 1-5 (1 quarter limit)
+                - days: 1 (1 decade limit)
+                - weeks: 1 (no limit)
+                - months: 1 (no limit)
+            to_date: End date in 'YYYY-MM-DD' format
+            from_date: Start date in 'YYYY-MM-DD' format (optional)
+            instrument_type: 'EQ', 'INDEX', 'CE', 'PE'
+            expiry_date: For options (YYYY-MM-DD format)
+            strike_price: For options
+            option_type: 'CE' or 'PE' for options
+            exchange: Exchange segment (default: 'NSE_EQ')
+            
+        Returns:
+            pandas.DataFrame with OHLCV data indexed by datetime
+            
+        Note:
+            No authentication required for V3 API.
+            Automatically handles chunking based on API limits.
+            Historical data available from Jan 2022 for minutes/hours, Jan 2000 for days/weeks/months.
+        """
+        # V3 API doesn't require authentication, but we need instrument key
+        instrument_key = self.get_instrument_key(symbol, instrument_type=instrument_type, expiry_date=expiry_date, strike_price=strike_price, option_type=option_type, exchange=exchange)
+        if not instrument_key:
+            return None
+            
+        # Validate unit and interval combinations
+        valid_intervals = {
+            'minutes': list(range(1, 301)),  # 1-300 minutes
+            'hours': list(range(1, 6)),      # 1-5 hours
+            'days': [1],                     # Only 1 day
+            'weeks': [1],                    # Only 1 week
+            'months': [1]                    # Only 1 month
+        }
+        
+        if unit not in valid_intervals:
+            print(f"❌ Invalid unit '{unit}'. Valid units: {list(valid_intervals.keys())}")
+            return None
+            
+        if interval not in valid_intervals[unit]:
+            print(f"❌ Invalid interval '{interval}' for unit '{unit}'. Valid intervals: {valid_intervals[unit]}")
+            return None
+
+        # Determine chunk size based on API limits
+        if unit == 'minutes':
+            if interval <= 15:
+                chunk_days = 30  # 1 month limit for 1-15 minute intervals
+            else:
+                chunk_days = 90  # 1 quarter limit for >15 minute intervals
+        elif unit == 'hours':
+            chunk_days = 90  # 1 quarter limit
+        elif unit == 'days':
+            chunk_days = 3650  # 1 decade limit
+        else:  # weeks, months
+            chunk_days = None  # No limit
+        
+        # If no from_date or chunking not needed, make single API call
+        if not from_date or not chunk_days:
+            return self._fetch_single_chunk_v3(symbol, unit, interval, to_date, from_date, instrument_key)
+        
+        # Parse dates for chunking
+        from datetime import datetime
+        to_dt = datetime.strptime(to_date, '%Y-%m-%d')
+        from_dt = datetime.strptime(from_date, '%Y-%m-%d')
+        total_days = (to_dt - from_dt).days
+        
+        # If within limits, make single call
+        if total_days <= chunk_days:
+            return self._fetch_single_chunk_v3(symbol, unit, interval, to_date, from_date, instrument_key)
+        
+        # Chunking required
+        print(f"📊 Fetching V3 historical data for {symbol} ({interval} {unit}) from {from_date} to {to_date}...")
+        print(f"🔄 Large date range detected ({total_days} days). Using chunking with {chunk_days}-day chunks...")
+        
+        all_data = []
+        current_to = to_dt
+        
+        while current_to > from_dt:
+            current_from = max(current_to - timedelta(days=chunk_days), from_dt)
+            
+            chunk_from = current_from.strftime('%Y-%m-%d')
+            chunk_to = current_to.strftime('%Y-%m-%d')
+            
+            print(f"  📥 Fetching chunk: {chunk_from} to {chunk_to}")
+            
+            chunk_df = self._fetch_single_chunk_v3(symbol, unit, interval, chunk_to, chunk_from, instrument_key)
+            
+            if chunk_df is not None and not chunk_df.empty:
+                all_data.append(chunk_df)
+            
+            current_to = current_from - timedelta(days=1)
+            time.sleep(0.5)  # Be nice to the API
+        
+        if not all_data:
+            print(f"⚠️ No data retrieved for {symbol}")
+            return pd.DataFrame()
+        
+        # Combine all chunks
+        full_df = pd.concat(all_data).sort_index()
+        full_df = full_df[~full_df.index.duplicated(keep='first')]
+        
+        print(f"✅ Successfully fetched {len(full_df)} historical records for {symbol} using V3 API (chunked).")
+        print(f"📅 Data range: {full_df.index[0]} to {full_df.index[-1]}")
+        return full_df
+
+    def _fetch_single_chunk_v3(self, symbol: str, unit: str, interval: int, to_date: str, from_date: Optional[str], instrument_key: str) -> Optional[pd.DataFrame]:
+        """Helper method to fetch a single chunk of V3 historical data."""
+        # URL encode the instrument key to handle special characters like |
+        encoded_instrument_key = urllib.parse.quote(instrument_key, safe='')
+        
+        # Build URL - from_date is optional
+        if from_date:
+            url = f"{BASE_URL_V3}/historical-candle/{encoded_instrument_key}/{unit}/{interval}/{to_date}/{from_date}"
+        else:
+            url = f"{BASE_URL_V3}/historical-candle/{encoded_instrument_key}/{unit}/{interval}/{to_date}"
+        
+        # V3 API doesn't require authorization - just Accept header
+        headers = {
+            'Accept': 'application/json'
+        }
+        
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            
+            json_data = response.json()
+            
+            if json_data.get('status') != 'success':
+                print(f"❌ API returned non-success status: {json_data}")
+                return pd.DataFrame()
+            
+            candles = json_data.get('data', {}).get('candles', [])
+            if not candles:
+                return pd.DataFrame()
+            
+            # V3 API returns data as: [timestamp, open, high, low, close, volume, open_interest]
+            df = pd.DataFrame(candles, columns=['datetime', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+            df['datetime'] = pd.to_datetime(df['datetime'])
+            df.set_index('datetime', inplace=True)
+            
+            # Sort by datetime to ensure chronological order
+            df.sort_index(inplace=True)
+            
+            return df
+
+        except requests.RequestException as e:
+            print(f"❌ V3 Historical API Error for {symbol}: {e.response.text if e.response else e}")
             return None
 
     def place_order(self, symbol: str, transaction_type: str, quantity: int, order_type: str = "MARKET", product: str = "D", price: float = 0, trigger_price: float = 0) -> Optional[Dict]:
@@ -360,6 +612,19 @@ def main():
     if reliance_df is not None and not reliance_df.empty:
         print("\n📊 RELIANCE Last 5 Minutes:")
         print(reliance_df.tail())
+
+    print("\n--- Example 3: Fetching 15-Minute Intraday Data using V3 API ---")
+    # This demonstrates the new V3 API with better data coverage
+    reliance_v3_df = api.fetch_intraday_data_v3(
+        symbol="RELIANCE",
+        unit="minutes",
+        interval=15
+    )
+    
+    if reliance_v3_df is not None and not reliance_v3_df.empty:
+        print("\n📊 RELIANCE V3 API Last 10 Records:")
+        print(reliance_v3_df.tail(10))
+        print(f"\nTotal records fetched with V3: {len(reliance_v3_df)}")
 
 if __name__ == "__main__":
     main()
