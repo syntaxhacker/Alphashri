@@ -26,14 +26,26 @@ import threading
 import os
 from datetime import datetime, timedelta
 
-# Telegram integration
+# Telegram integration and Paper Trading Bot
 try:
     import requests
-    from config import TELEGRAM_CONFIG
+    import sys
+    import os
+    # Add parent directory to path to import config
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config import TELEGRAM_CONFIG, UPSTOX_CONFIG
+    
+    # Import paper trading bot
+    sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'trading_bots'))
+    from upstox_paper_trading_bot import UpstoxPaperTradingBot
+    
     TELEGRAM_AVAILABLE = True
-except ImportError:
+    PAPER_TRADING_AVAILABLE = True
+except ImportError as e:
     TELEGRAM_AVAILABLE = False
-    print("⚠️ Telegram not available - install requests and configure TELEGRAM_CONFIG")
+    PAPER_TRADING_AVAILABLE = False
+    print(f"⚠️ Integration not available: {e}")
+    print("⚠️ Paper trading and/or Telegram disabled")
 
 console = Console()
 
@@ -72,7 +84,7 @@ def get_tradingview_cookies():
             return None
 
 class TVScreenerUsage:
-    def __init__(self, market='in'):
+    def __init__(self, market='in', enable_paper_trading=False):
         self.cookies = get_tradingview_cookies()
         self.query = Query()
         
@@ -92,6 +104,34 @@ class TVScreenerUsage:
             console.print("[green]✅ Telegram alerts enabled[/green]")
         else:
             console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
+        
+        # Simple Paper Trading integration (without full bot monitoring)
+        self.paper_trading_enabled = enable_paper_trading
+        self.live_trades = []  # Track live trades for display
+        self.positions = {}   # Simple position tracking
+        self.current_prices = {}  # Track current prices
+        self.price_cache_timestamps = {}  # Track when prices were last fetched
+        self.exchange_fallbacks = {}  # Track which symbols use fallback exchange
+        self.trade_count = 0  # Track number of trades
+        
+        # Initialize Upstox API for live prices if available
+        self.upstox_api = None
+        self.background_monitor_active = False
+        self.monitor_thread = None
+        self.stop_monitoring = threading.Event()
+        
+        if self.paper_trading_enabled:
+            try:
+                from config_and_utils.free_indian_apis import UpstoxAPI
+                self.upstox_api = UpstoxAPI(
+                    api_key=UPSTOX_CONFIG.get('api_key'),
+                    api_secret=UPSTOX_CONFIG.get('api_secret')
+                )
+                console.print("[green]✅ Paper Trading enabled (₹20,000 per trade) with live Upstox prices[/green]")
+            except Exception as e:
+                console.print(f"[yellow]⚠️ Paper Trading enabled (₹20,000 per trade) - Upstox API unavailable: {e}[/yellow]")
+        else:
+            console.print("[yellow]⚠️ Paper Trading disabled[/yellow]")
         
     def display_table(self, df, title, max_rows=15):
         """Display results in a formatted table"""
@@ -214,7 +254,8 @@ class TVScreenerUsage:
                     col('relative_volume_10d_calc') > 2,  # 2x normal volume
                     col('change') > 2,  # Positive momentum
                     col('RSI').between(50, 80),  # Not overbought
-                    col('market_cap_basic') > 5e8  # Min 500 crores
+                    col('market_cap_basic') > 5e8,  # Min 500 crores
+                    col('exchange') == 'NSE'  # NSE only, ignore BSE
                 )
                 .order_by('relative_volume_10d_calc', ascending=False)
                 .limit(15)
@@ -247,6 +288,7 @@ class TVScreenerUsage:
                     col('change') > 3,  # Gap up 3%+
                     col('volume') > 500000,  # Good volume
                     col('relative_volume_10d_calc') > 1.5,  # Above average volume
+                    col('exchange') == 'NSE',  # NSE only, ignore BSE
                     col('RSI') < 80,  # Not extremely overbought
                     col('price_52_week_high') > col('close')  # Not at 52W high
                 )
@@ -964,12 +1006,19 @@ class TVScreenerUsage:
         console.print(f"• Refresh interval: {refresh_interval} seconds")
         console.print(f"• Volume threshold: {volume_threshold}x normal volume")
         console.print(f"• Price change threshold: {price_threshold}%")
+        console.print(f"• Paper trading: {'🟢 ENABLED (₹20,000 per trade)' if self.paper_trading_enabled else '🔴 DISABLED'}")
+        if self.paper_trading_enabled:
+            console.print(f"• Live risk management: 🟢 ENABLED (2% SL | 4% TP | 1.5% TSL | 2sec checks)")
         console.print(f"• Press Ctrl+C to stop monitoring")
         console.print()
         
         # Store previous data for comparison
         previous_data = pd.DataFrame()
         alert_count = 0
+        
+        # Start background monitoring for live risk management
+        self._start_time = datetime.now()
+        self.start_background_monitoring()
         
         try:
             while True:
@@ -1016,6 +1065,17 @@ class TVScreenerUsage:
         except KeyboardInterrupt:
             console.print("\n[yellow]👋 Watch mode stopped by user[/yellow]")
             console.print(f"[green]Total alerts generated: {alert_count}[/green]")
+            
+            # Show execution time
+            end_time = datetime.now()
+            if hasattr(self, '_start_time'):
+                duration = end_time - self._start_time
+                hours, remainder = divmod(duration.total_seconds(), 3600)
+                minutes, seconds = divmod(remainder, 60)
+                console.print(f"[blue]Execution time: {int(hours)}h:{int(minutes):02d}m:{int(seconds):02d}s[/blue]")
+        finally:
+            # Stop background monitoring when exiting
+            self.stop_background_monitoring()
     
     def _get_watch_data(self):
         """Get current market data for watch mode"""
@@ -1029,7 +1089,8 @@ class TVScreenerUsage:
                     col('close') > 50,  # Above ₹50
                     col('volume') > 500000,  # Minimum volume
                     col('market_cap_basic') > 1e9,  # Min 1000 crores
-                    col('relative_volume_10d_calc') > 0.5  # Some activity
+                    col('relative_volume_10d_calc') > 0.5,  # Some activity
+                    col('exchange') == 'NSE'  # NSE only, ignore BSE
                 )
                 .order_by('relative_volume_10d_calc', ascending=False)
                 .limit(25)
@@ -1105,6 +1166,12 @@ class TVScreenerUsage:
             elif alert['type'] == 'PRICE_MOVE':
                 message += f"📈 *Change:* {alert['current_change']:+.2f}% (was {alert['previous_change']:+.2f}%)\n"
                 message += f"📊 *Volume Ratio:* {alert['volume_ratio']:.1f}x\n"
+            
+            # Add trading action if paper trading is enabled
+            if self.paper_trading_enabled:
+                trading_action = self._get_trading_action(alert)
+                message += f"\n💰 *Trading Action:* {trading_action}\n"
+                message += f"💵 *Position Size:* ₹20,000"
 
             url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
             payload = {
@@ -1123,9 +1190,15 @@ class TVScreenerUsage:
             console.print(f"[red]❌ Error sending Telegram alert: {str(e)}[/red]")
 
     def _display_alerts(self, alerts):
-        """Display alerts in a formatted way"""
+        """Display alerts in a formatted way and send to both Telegram and Paper Trading Bot"""
         for alert in alerts:
+            # Send to Telegram
             self.send_telegram_alert(alert)
+            
+            # Send to Paper Trading Bot
+            self._process_paper_trading_alert(alert)
+            
+            # Display alert
             if alert['type'] == 'VOLUME_SPIKE':
                 console.print(f"[bold red]🔥 VOLUME SPIKE:[/bold red] {alert['ticker']} ({alert['name'][:15]})")
                 console.print(f"   Volume: {alert['current_volume_ratio']:.1f}x (was {alert['previous_volume_ratio']:.1f}x)")
@@ -1136,6 +1209,212 @@ class TVScreenerUsage:
                 console.print(f"[bold yellow]{direction} PRICE MOVE:[/bold yellow] {alert['ticker']} ({alert['name'][:15]})")
                 console.print(f"   Change: {alert['current_change']:+.2f}% (was {alert['previous_change']:+.2f}%)")
                 console.print(f"   Price: ₹{alert['price']:.2f} | Volume: {alert['volume_ratio']:.1f}x")
+            
+            # Show trading action taken
+            if self.paper_trading_enabled:
+                trade_action = self._get_trading_action(alert)
+                console.print(f"   [cyan]💰 Trading Action: {trade_action}[/cyan]")
+    
+    def _get_base_symbol(self, ticker):
+        """Extract base symbol from exchange:symbol format"""
+        if ':' in ticker:
+            return ticker.split(':')[1]
+        return ticker
+    
+    def _has_existing_position(self, ticker):
+        """Check if we already have a position in this base symbol (any exchange)"""
+        base_symbol = self._get_base_symbol(ticker)
+        
+        for existing_ticker in self.positions:
+            if self.positions[existing_ticker]:  # Active position
+                existing_base = self._get_base_symbol(existing_ticker)
+                if base_symbol == existing_base:
+                    return True, existing_ticker
+        return False, None
+    
+    def _process_paper_trading_alert(self, alert):
+        """Process alert for paper trading bot with duplicate prevention"""
+        if not self.paper_trading_enabled:
+            return
+        
+        try:
+            # Check for existing position in same base symbol
+            ticker = alert.get('ticker', '')
+            has_position, existing_ticker = self._has_existing_position(ticker)
+            
+            if has_position:
+                console.print(f"[yellow]⚠️ Already have position in {self._get_base_symbol(ticker)} ({existing_ticker}) - skipping {ticker}[/yellow]")
+                return
+            
+            # Determine trading action based on alert type
+            symbol = alert['ticker']
+            price = alert['price']
+            
+            # Calculate confidence based on alert strength
+            confidence = self._calculate_alert_confidence(alert)
+            
+            # Only trade if confidence is sufficient (70%+)
+            if confidence < 0.7:
+                console.print(f"   [yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping trade[/yellow]")
+                return
+            
+            # Determine trade direction
+            trade_side = None
+            if alert['type'] == 'VOLUME_SPIKE':
+                # Volume spike with positive change = BUY
+                if alert.get('change', 0) > 0:
+                    trade_side = 'BUY'
+                elif alert.get('change', 0) < -2:  # Strong negative move
+                    trade_side = 'SELL'
+            
+            elif alert['type'] == 'PRICE_MOVE':
+                # Strong positive price move = BUY
+                if alert.get('current_change', 0) > 2:
+                    trade_side = 'BUY'
+                # Strong negative price move = SELL
+                elif alert.get('current_change', 0) < -2:
+                    trade_side = 'SELL'
+            
+            if trade_side:
+                # Check if we already have a position in this symbol
+                if symbol in self.positions and self.positions[symbol]:
+                    console.print(f"   [yellow]⚠️ Already have position in {symbol} - skipping[/yellow]")
+                    return
+                
+                # Calculate quantity for ₹20,000 position
+                quantity = max(1, int(20000 / price))
+                
+                # Execute trade
+                success = self._execute_screener_trade(symbol, trade_side, alert, price, quantity, confidence)
+                
+                if success:
+                    # Add to live trades display
+                    trade_info = {
+                        'timestamp': datetime.now(),
+                        'symbol': symbol,
+                        'side': trade_side,
+                        'price': price,
+                        'quantity': quantity,
+                        'amount': quantity * price,
+                        'alert_type': alert['type'],
+                        'confidence': confidence
+                    }
+                    
+                    self.live_trades.append(trade_info)
+                    
+                    # Keep only last 10 trades
+                    if len(self.live_trades) > 10:
+                        self.live_trades.pop(0)
+                    
+                    console.print(f"   [green]✅ Paper trade executed: {trade_side} {quantity} {symbol} @ ₹{price:.2f}[/green]")
+                else:
+                    console.print(f"   [red]❌ Paper trade failed for {symbol}[/red]")
+            else:
+                console.print(f"   [dim]No clear trading signal for {symbol}[/dim]")
+                
+        except Exception as e:
+            console.print(f"   [red]❌ Paper trading error: {e}[/red]")
+    
+    def _calculate_alert_confidence(self, alert):
+        """Calculate confidence score for alert"""
+        confidence = 0.5  # Base confidence
+        
+        if alert['type'] == 'VOLUME_SPIKE':
+            vol_ratio = alert.get('current_volume_ratio', 1)
+            if vol_ratio > 5:
+                confidence += 0.3
+            elif vol_ratio > 3:
+                confidence += 0.2
+            elif vol_ratio > 2:
+                confidence += 0.1
+                
+            # Price change factor
+            change = abs(alert.get('change', 0))
+            if change > 5:
+                confidence += 0.2
+            elif change > 3:
+                confidence += 0.1
+        
+        elif alert['type'] == 'PRICE_MOVE':
+            change = abs(alert.get('current_change', 0))
+            if change > 8:
+                confidence += 0.3
+            elif change > 5:
+                confidence += 0.2
+            elif change > 3:
+                confidence += 0.1
+                
+            # Volume factor
+            vol_ratio = alert.get('volume_ratio', 1)
+            if vol_ratio > 2:
+                confidence += 0.1
+        
+        return min(confidence, 0.95)  # Cap at 95%
+    
+    def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence):
+        """Execute paper trade via bot"""
+        try:
+            # Validate price against live Upstox price
+            live_price = self._get_live_price_from_upstox(symbol)
+            if live_price:
+                price_diff_pct = abs(live_price - price) / price * 100
+                if price_diff_pct > 0.5:  # More than 0.5% difference
+                    console.print(f"[yellow]⚠️ TRADE SKIPPED: {symbol} - Price difference too high: {price_diff_pct:.2f}% (Signal: ₹{price:.2f} vs Live: ₹{live_price:.2f})[/yellow]")
+                    return False
+                
+                # Use live price for execution
+                price = live_price
+            
+            # Create position directly in bot
+            trade_log_msg = f"SCREENER_ALERT_TRADE: Side={side}, Qty={quantity}, Symbol={symbol}, Price={price:.2f}, Alert={alert['type']}, Confidence={confidence:.2f}"
+            
+            # Log the trade
+            print(trade_log_msg)
+            
+            # Create position
+            self.positions[symbol] = {
+                'side': side,
+                'qty': quantity,
+                'entry_price': round(price, 2),
+                'timestamp': datetime.now(),
+                'highest_profit_pct': 0.0,
+                'highest_price': round(price, 2),
+                'trailing_stop_active': False,
+                'trailing_stop_pct': 0.0,
+                'trade_id': self.trade_count + 1,
+                'source': 'TV_SCREENER',
+                'alert_type': alert['type'],
+                'confidence': confidence
+            }
+            
+            self.trade_count += 1
+            self.current_prices[symbol] = round(price, 2)
+            
+            return True
+            
+        except Exception as e:
+            console.print(f"Trade execution error: {e}")
+            return False
+    
+    def _get_trading_action(self, alert):
+        """Get human readable trading action"""
+        if alert['type'] == 'VOLUME_SPIKE':
+            if alert.get('change', 0) > 0:
+                return f"🟢 BUY {alert['ticker']} (Volume Spike + Positive Move)"
+            elif alert.get('change', 0) < -2:
+                return f"🔴 SELL {alert['ticker']} (Volume Spike + Strong Drop)"
+            else:
+                return f"⏳ MONITOR {alert['ticker']} (Volume Spike - Unclear Direction)"
+        
+        elif alert['type'] == 'PRICE_MOVE':
+            if alert.get('current_change', 0) > 2:
+                return f"🟢 BUY {alert['ticker']} (Strong Upward Move)"
+            elif alert.get('current_change', 0) < -2:
+                return f"🔴 SELL {alert['ticker']} (Strong Downward Move)"
+            else:
+                return f"⏳ MONITOR {alert['ticker']} (Price Move - Moderate)"
+        
+        return f"⏳ MONITOR {alert['ticker']}"
     
     def _display_watch_data(self, df, alerts=[]):
         """Display current watch data"""
@@ -1180,6 +1459,373 @@ class TVScreenerUsage:
             )
         
         console.print(table)
+        
+        # Display live trades if paper trading is enabled
+        if self.paper_trading_enabled and self.live_trades:
+            self._display_live_trades()
+        
+        # Display active positions if paper trading is enabled
+        if self.paper_trading_enabled:
+            self._display_active_positions()
+    
+    def _display_live_trades(self):
+        """Display recent live trades"""
+        console.print()
+        trades_table = Table(title="🔴 LIVE TRADES (Last 10)", show_header=True)
+        trades_table.add_column("Time", style="cyan", no_wrap=True)
+        trades_table.add_column("Symbol", style="bold", no_wrap=True)
+        trades_table.add_column("Side", style="white")
+        trades_table.add_column("Price", justify="right", style="yellow")
+        trades_table.add_column("Qty", justify="right", style="blue")
+        trades_table.add_column("Amount", justify="right", style="green")
+        trades_table.add_column("Alert Type", style="magenta")
+        trades_table.add_column("Confidence", justify="right", style="cyan")
+        
+        for trade in reversed(self.live_trades[-10:]):  # Show most recent first
+            time_str = trade['timestamp'].strftime("%H:%M:%S")
+            side_style = "green" if trade['side'] == 'BUY' else "red"
+            side_emoji = "🟢" if trade['side'] == 'BUY' else "🔴"
+            
+            trades_table.add_row(
+                time_str,
+                trade['symbol'],
+                f"[{side_style}]{side_emoji} {trade['side']}[/{side_style}]",
+                f"₹{trade['price']:,.0f}",
+                str(trade['quantity']),
+                f"₹{trade['amount']:,.0f}",
+                trade['alert_type'],
+                f"{trade['confidence']:.0%}"
+            )
+        
+        console.print(trades_table)
+    
+    def _get_live_price_from_upstox(self, symbol, force_refresh=False):
+        """Get live price from Upstox API for a symbol with BSE fallback"""
+        try:
+            if not (hasattr(self, 'upstox_api') and self.upstox_api):
+                return None
+                
+            # Check cache freshness (avoid excessive API calls)
+            current_time = time.time()
+            cache_duration = 10  # Cache for 10 seconds
+            
+            if not force_refresh and symbol in self.price_cache_timestamps:
+                if current_time - self.price_cache_timestamps[symbol] < cache_duration:
+                    return self.current_prices.get(symbol)
+            
+            # Extract exchange and symbol
+            if ':' in symbol:
+                exchange, clean_symbol = symbol.split(':', 1)
+            else:
+                exchange = 'NSE'
+                clean_symbol = symbol
+            
+            # First attempt: Try original exchange
+            price = self._fetch_price_from_exchange(clean_symbol, exchange)
+            
+            # Fallback: If NSE fails, try BSE (and vice versa)
+            if price is None:
+                fallback_exchange = 'BSE' if exchange == 'NSE' else 'NSE'
+                price = self._fetch_price_from_exchange(clean_symbol, fallback_exchange)
+                
+                if price is not None:
+                    console.print(f"[green]✅ Found {clean_symbol} on {fallback_exchange} (fallback from {exchange})[/green]")
+                    # Track fallback usage
+                    self.exchange_fallbacks[symbol] = fallback_exchange
+            
+            if price is not None:
+                # Update cache
+                self.current_prices[symbol] = round(price, 2)
+                self.price_cache_timestamps[symbol] = current_time
+                return round(price, 2)
+                
+        except Exception as e:
+            # Only show error once per minute to avoid spam
+            if not hasattr(self, '_last_error_time'):
+                self._last_error_time = {}
+            
+            current_time = time.time()
+            if symbol not in self._last_error_time or current_time - self._last_error_time[symbol] > 60:
+                console.print(f"[yellow]⚠️ Failed to get live price for {symbol}: {e}[/yellow]")
+                self._last_error_time[symbol] = current_time
+                
+        return None
+    
+    def _fetch_price_from_exchange(self, symbol, exchange):
+        """Fetch price from specific exchange with proper error handling"""
+        try:
+            # Map exchange to Upstox format
+            exchange_map = {
+                'NSE': 'NSE_EQ',
+                'BSE': 'BSE_EQ'
+            }
+            
+            upstox_exchange = exchange_map.get(exchange, 'NSE_EQ')
+            
+            # Get latest intraday data (1-minute) to get current price
+            df = self.upstox_api.fetch_intraday_data_v3(
+                symbol=symbol, 
+                unit='minutes', 
+                interval=1,
+                exchange=upstox_exchange
+            )
+            
+            if df is not None and not df.empty:
+                # Get the latest close price (most recent data point)
+                return float(df['close'].iloc[-1])
+                
+        except Exception as e:
+            # Check for specific "instrument key not found" error
+            if "instrument key" in str(e).lower() or "not found" in str(e).lower():
+                return None  # Silent fallback for missing instruments
+            else:
+                # Log other errors
+                console.print(f"[dim red]⚠️ {exchange} error for {symbol}: {str(e)[:50]}...[/dim red]")
+                
+        return None
+
+    def _display_active_positions(self):
+        """Display active positions with live P&L from Upstox"""
+        active_positions = {k: v for k, v in self.positions.items() if v}
+        
+        if not active_positions:
+            return
+        
+        console.print()
+        positions_table = Table(title="📊 ACTIVE POSITIONS", show_header=True)
+        positions_table.add_column("Symbol", style="bold", no_wrap=True)
+        positions_table.add_column("Side", style="white")
+        positions_table.add_column("Entry", justify="right", style="cyan")
+        positions_table.add_column("Current", justify="right", style="white")
+        positions_table.add_column("Qty", justify="right", style="blue")
+        positions_table.add_column("P&L %", justify="right", style="bold")
+        positions_table.add_column("P&L ₹", justify="right", style="bold")
+        positions_table.add_column("TSL", justify="right", style="magenta")
+        positions_table.add_column("Source", style="dim")
+        
+        for symbol, position in active_positions.items():
+            # Try to get live price from Upstox first, fallback to cached price
+            live_price = self._get_live_price_from_upstox(symbol)
+            current_price = live_price if live_price else self.current_prices.get(symbol, position['entry_price'])
+            
+            # Calculate P&L
+            pnl_pct = (current_price - position['entry_price']) / position['entry_price'] * 100
+            if position['side'] == 'SELL':
+                pnl_pct *= -1
+            
+            pnl_amount = pnl_pct * position['entry_price'] * position['qty'] / 100
+            
+            # Color coding
+            pnl_style = "green" if pnl_pct > 0 else "red"
+            side_style = "green" if position['side'] == 'BUY' else "red"
+            side_emoji = "🟢" if position['side'] == 'BUY' else "🔴"
+            
+            # Add price source indicator with exchange info
+            if live_price:
+                # Check if we used fallback exchange
+                if symbol in self.exchange_fallbacks:
+                    price_indicator = "🔄"  # Fallback exchange indicator
+                else:
+                    price_indicator = "🟢"  # Original exchange
+                current_price_display = f"{price_indicator}₹{current_price:,.2f}"
+            else:
+                price_indicator = "🔴"
+                current_price_display = f"{price_indicator}₹{current_price:,.2f}"
+            
+            # Trailing stop display
+            if position.get('trailing_stop_active', False):
+                tsl_display = f"🎯{position.get('trailing_stop_pct', 0):+.1f}%"
+                tsl_style = "bold green"
+            else:
+                tsl_display = "OFF"
+                tsl_style = "dim"
+            
+            positions_table.add_row(
+                symbol,
+                f"[{side_style}]{side_emoji} {position['side']}[/{side_style}]",
+                f"₹{position['entry_price']:,.2f}",
+                current_price_display,
+                str(position['qty']),
+                f"[{pnl_style}]{pnl_pct:+.2f}%[/{pnl_style}]",
+                f"[{pnl_style}]₹{pnl_amount:+,.0f}[/{pnl_style}]",
+                f"[{tsl_style}]{tsl_display}[/{tsl_style}]",
+                position.get('source', 'MANUAL')[:10]
+            )
+        
+        console.print(positions_table)
+        console.print("[dim]🟢 = Live price | 🔄 = Fallback exchange | 🔴 = Cached | 🎯 = Trailing Stop[/dim]")
+    
+    def start_background_monitoring(self):
+        """Start background thread for continuous live price monitoring and risk management"""
+        if not self.paper_trading_enabled or not self.upstox_api:
+            return
+        
+        if self.background_monitor_active:
+            console.print("[yellow]⚠️ Background monitoring already active[/yellow]")
+            return
+        
+        self.background_monitor_active = True
+        self.stop_monitoring.clear()
+        self.monitor_thread = threading.Thread(target=self._background_monitor_loop, daemon=True)
+        self.monitor_thread.start()
+        console.print("[green]🔄 Started background live price monitoring[/green]")
+    
+    def stop_background_monitoring(self):
+        """Stop background monitoring thread"""
+        if self.background_monitor_active:
+            self.stop_monitoring.set()
+            self.background_monitor_active = False
+            if self.monitor_thread:
+                self.monitor_thread.join(timeout=2.0)
+            console.print("[yellow]⏹️ Stopped background monitoring[/yellow]")
+    
+    def _background_monitor_loop(self):
+        """Background loop for continuous position monitoring and risk management"""
+        console.print("[dim]🔍 Background monitor started - checking positions every 2 seconds[/dim]")
+        
+        while not self.stop_monitoring.wait(2.0):  # Check every 2 seconds
+            try:
+                if not self.positions:
+                    continue
+                
+                active_positions = {k: v for k, v in self.positions.items() if v}
+                if not active_positions:
+                    continue
+                
+                for symbol, position in active_positions.items():
+                    self._monitor_position_risk(symbol, position)
+                    
+            except Exception as e:
+                console.print(f"[red]❌ Error in background monitor: {e}[/red]")
+                continue
+    
+    def _monitor_position_risk(self, symbol, position):
+        """Monitor individual position for risk management with trailing stop"""
+        try:
+            # Get live price (force refresh for accuracy in risk management)
+            live_price = self._get_live_price_from_upstox(symbol, force_refresh=True)
+            if not live_price:
+                return
+            
+            # Update current price
+            self.current_prices[symbol] = live_price
+            
+            # Calculate current P&L
+            entry_price = position['entry_price']
+            pnl_pct = (live_price - entry_price) / entry_price * 100
+            if position['side'] == 'SELL':
+                pnl_pct *= -1
+            
+            # Risk Management Rules
+            stop_loss_pct = -2.0  # 2% initial stop loss
+            take_profit_pct = 1.0  # 1% take profit threshold for intraday
+            trailing_stop_buffer = 0.5  # 0.5% trailing buffer for tighter control
+            
+            # Update highest profit and price tracking
+            if pnl_pct > position['highest_profit_pct']:
+                position['highest_profit_pct'] = pnl_pct
+                position['highest_price'] = live_price
+            
+            # Check for exit conditions
+            should_exit = False
+            exit_reason = ""
+            
+            # 1. Regular stop loss (if not in trailing mode)
+            if not position['trailing_stop_active'] and pnl_pct <= stop_loss_pct:
+                should_exit = True
+                exit_reason = f"STOP LOSS: {pnl_pct:.2f}%"
+            
+            # 2. Activate trailing stop when take profit is reached
+            elif pnl_pct >= take_profit_pct and not position['trailing_stop_active']:
+                position['trailing_stop_active'] = True
+                position['trailing_stop_pct'] = pnl_pct - trailing_stop_buffer
+                console.print(f"[bold green]🎯 TRAILING STOP ACTIVATED for {symbol} at {pnl_pct:.2f}% (TSL: {position['trailing_stop_pct']:.2f}%)[/bold green]")
+                
+                # Send Telegram notification
+                if self.telegram_enabled:
+                    try:
+                        self._send_telegram_alert(
+                            f"🎯 TRAILING STOP ACTIVATED\n"
+                            f"Symbol: {symbol}\n"
+                            f"Current P&L: {pnl_pct:.2f}%\n"
+                            f"Trailing Stop: {position['trailing_stop_pct']:.2f}%\n"
+                            f"Buffer: {trailing_stop_buffer}%"
+                        )
+                    except Exception as e:
+                        pass
+            
+            # 3. Update trailing stop as profit increases
+            elif position['trailing_stop_active']:
+                new_trailing_stop = pnl_pct - trailing_stop_buffer
+                
+                # Only move trailing stop up (lock in more profit)
+                if new_trailing_stop > position['trailing_stop_pct']:
+                    position['trailing_stop_pct'] = new_trailing_stop
+                
+                # Check if trailing stop is hit
+                if pnl_pct <= position['trailing_stop_pct']:
+                    should_exit = True
+                    exit_reason = f"TRAILING STOP: {pnl_pct:.2f}% (TSL: {position['trailing_stop_pct']:.2f}%)"
+            
+            # Execute exit if needed
+            if should_exit:
+                self._execute_exit_trade(symbol, position, live_price, exit_reason)
+                
+        except Exception as e:
+            console.print(f"[red]❌ Error monitoring {symbol}: {e}[/red]")
+    
+    def _execute_exit_trade(self, symbol, position, exit_price, reason):
+        """Execute exit trade for risk management"""
+        try:
+            # Log the exit
+            pnl_pct = (exit_price - position['entry_price']) / position['entry_price'] * 100
+            if position['side'] == 'SELL':
+                pnl_pct *= -1
+            
+            pnl_amount = pnl_pct * position['entry_price'] * position['qty'] / 100
+            
+            exit_log = (f"🔥 AUTO EXIT: {symbol} | "
+                       f"{reason} | "
+                       f"Entry: ₹{position['entry_price']:.0f} | "
+                       f"Exit: ₹{exit_price:.0f} | "
+                       f"P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})")
+            
+            console.print(f"[bold red]{exit_log}[/bold red]")
+            
+            # Add to live trades log
+            self.live_trades.append({
+                'timestamp': datetime.now(),
+                'symbol': symbol,
+                'side': 'SELL' if position['side'] == 'BUY' else 'BUY',
+                'price': exit_price,
+                'quantity': position['qty'],
+                'amount': exit_price * position['qty'],
+                'alert_type': 'AUTO_EXIT',
+                'confidence': 1.0,
+                'reason': reason,
+                'pnl_pct': pnl_pct,
+                'pnl_amount': pnl_amount
+            })
+            
+            # Send Telegram alert if enabled
+            if self.telegram_enabled:
+                try:
+                    self._send_telegram_alert(
+                        f"🔥 AUTO EXIT\n"
+                        f"Symbol: {symbol}\n"
+                        f"Reason: {reason}\n"
+                        f"Entry: ₹{position['entry_price']:.0f}\n"
+                        f"Exit: ₹{exit_price:.0f}\n"
+                        f"P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})"
+                    )
+                except Exception as e:
+                    console.print(f"[yellow]⚠️ Failed to send Telegram exit alert: {e}[/yellow]")
+            
+            # Close the position
+            self.positions[symbol] = None
+            
+        except Exception as e:
+            console.print(f"[red]❌ Error executing exit for {symbol}: {e}[/red]")
     
     # ==================== UTILITY FUNCTIONS ====================
     
@@ -1299,9 +1945,12 @@ def main():
     parser.add_argument('--volume-threshold', type=float, default=2.0, help='Volume threshold for alerts (default: 2.0x)')
     parser.add_argument('--price-threshold', type=float, default=3.0, help='Price change threshold for alerts (default: 3.0 percent)')
     
+    # Paper Trading Bot integration
+    parser.add_argument('--enable-trading', action='store_true', help='Enable paper trading bot integration (₹20,000 per trade)')
+    
     args = parser.parse_args()
     
-    screener = TVScreenerUsage(market=args.market)
+    screener = TVScreenerUsage(market=args.market, enable_paper_trading=args.enable_trading)
     
     if args.list_examples:
         screener.show_available_examples()
@@ -1337,6 +1986,7 @@ def main():
         console.print("  python tv_screen_usage.py --example research_sectors")
         console.print("  python tv_screen_usage.py --example research_sector_stocks --sector 'Technology'")
         console.print("  python tv_screen_usage.py --watch --refresh 15 --volume-threshold 2.5")
+        console.print("  python tv_screen_usage.py --watch --enable-trading --volume-threshold 1.5 --price-threshold 1.5")
         console.print("  python tv_screen_usage.py --market us --example intraday_watch --refresh 10")
 
 if __name__ == "__main__":
