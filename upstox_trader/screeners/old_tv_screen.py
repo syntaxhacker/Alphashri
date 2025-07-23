@@ -98,10 +98,6 @@ class TVScreenerUsage:
             
         console.print(f"[blue]📊 Market: {self.market.upper()}[/blue]")
         
-        # Initialize trade journaling
-        self.journal_file = None
-        self.setup_trade_journal()
-        
         # Telegram integration
         self.telegram_enabled = TELEGRAM_AVAILABLE and TELEGRAM_CONFIG.get('bot_token') if TELEGRAM_AVAILABLE else False
         if self.telegram_enabled:
@@ -109,14 +105,10 @@ class TVScreenerUsage:
         else:
             console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
         
-        # Alert deduplication and cooldown system
-        self.sent_alerts = set()  # Track sent alerts to avoid duplicates
-        self.last_alert_time = {}  # Track last alert time per symbol
-        self.alert_cooldown = 300  # 5 minutes between alerts per symbol (in seconds)
-        
         # Simple Paper Trading integration (without full bot monitoring)
         self.paper_trading_enabled = enable_paper_trading
         self.live_trades = []  # Track live trades for display
+        self.closed_trades = []  # Track closed trades with P&L
         self.positions = {}   # Simple position tracking
         self.current_prices = {}  # Track current prices
         self.price_cache_timestamps = {}  # Track when prices were last fetched
@@ -142,87 +134,6 @@ class TVScreenerUsage:
         else:
             console.print("[yellow]⚠️ Paper Trading disabled[/yellow]")
         
-    def setup_trade_journal(self):
-        """Setup trade journal file with date and mode"""
-        from datetime import datetime
-        import os
-        
-        # Create logs directory if it doesn't exist
-        logs_dir = "logs"
-        if not os.path.exists(logs_dir):
-            os.makedirs(logs_dir)
-            
-        # Create journal filename with date
-        date_str = datetime.now().strftime("%d%b").lower()  # 17jul format
-        mode = getattr(self, 'watch_mode', 'prebreakout').lower()
-        self.journal_file = f"{logs_dir}/tv_screener_{mode}_{date_str}.log"
-        
-        # Write header if new file
-        if not os.path.exists(self.journal_file):
-            with open(self.journal_file, 'w') as f:
-                f.write(f"# TV Screener Trade Journal - {mode.upper()} Mode\n")
-                f.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("# Format: TIMESTAMP | ACTION | SYMBOL | PRICE | QTY | AMOUNT | ALERT_TYPE | P&L\n")
-                f.write("-" * 80 + "\n")
-    
-    def log_trade(self, action, symbol, price, qty, amount, alert_type, pnl_pct=None, pnl_amount=None):
-        """Log trade to journal file"""
-        if not self.journal_file:
-            return
-            
-        from datetime import datetime
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Format P&L info
-        pnl_info = ""
-        if pnl_pct is not None:
-            pnl_info = f" | P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})"
-        
-        log_entry = f"{timestamp} | {action} | {symbol} | ₹{price:.2f} | {qty} | ₹{amount:,.0f} | {alert_type}{pnl_info}\n"
-        
-        try:
-            with open(self.journal_file, 'a') as f:
-                f.write(log_entry)
-        except Exception as e:
-            console.print(f"[dim red]⚠️ Journal write failed: {e}[/dim red]")
-
-    def _check_historical_upside(self, symbol, current_price):
-        """Check how much upside is left based on recent historical highs"""
-        try:
-            if not hasattr(self, 'upstox_api') or not self.upstox_api:
-                return True  # No historical data available, allow trade
-                
-            # Get previous day's data (daily timeframe)
-            df = self.upstox_api.fetch_intraday_data_v3(
-                symbol=symbol,
-                unit='days',
-                duration=5  # Last 5 days
-            )
-            
-            if df is None or df.empty:
-                return True  # No data, allow trade
-            
-            # Calculate recent high and average high
-            recent_high = df['high'].max()
-            avg_high = df['high'].rolling(window=3).mean().iloc[-1]
-            
-            # Calculate potential upside
-            upside_to_recent_high = ((recent_high - current_price) / current_price) * 100
-            upside_to_avg_high = ((avg_high - current_price) / current_price) * 100
-            
-            # Only enter if there's at least 2% upside to recent highs
-            min_upside = 2.0
-            has_upside = upside_to_recent_high >= min_upside
-            
-            if not has_upside:
-                console.print(f"[dim yellow]⚠️ {symbol}: Only {upside_to_recent_high:.1f}% upside left (need >{min_upside}%)[/dim yellow]")
-            
-            return has_upside
-            
-        except Exception as e:
-            # If historical check fails, allow trade (failsafe)
-            return True
-
     def display_table(self, df, title, max_rows=15):
         """Display results in a formatted table"""
         if df.empty:
@@ -325,119 +236,6 @@ class TVScreenerUsage:
         
         console.print(table)
         console.print(f"[dim]Showing {min(len(df), max_rows)} of {len(df)} results[/dim]")
-
-    # ==================== PRE-BREAKOUT STRATEGIES (NEW) ====================
-    
-    def pre_breakout_accumulation(self):
-        """Find stocks in accumulation phase before breakout"""
-        console.print(Panel.fit("📊 PRE-BREAKOUT: Accumulation Patterns", style="bold blue"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'price_52_week_high', 'EMA20', 'EMA50', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 50,  # Above ₹50 for liquidity
-                    col('volume') > 200000,  # Decent volume but not explosive
-                    col('relative_volume_10d_calc').between(0.8, 1.8),  # Normal to slightly above volume
-                    col('change').between(-2, 3),  # Consolidating, not explosive moves
-                    col('RSI').between(40, 65),  # Building strength but not overbought
-                    col('close') > col('EMA20'),  # Above 20 EMA (trend support)
-                    col('close') > 200,  # Strong price level (proxy for quality stocks)
-                    col('market_cap_basic') > 5e8,  # Min 500 crores
-                    col('exchange') == 'NSE'  # NSE only, ignore BSE
-                )
-                .order_by('RSI', ascending=False)  # Stocks gaining momentum
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Pre-Breakout Accumulation - Early Entry")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On volume expansion above EMA20 with RSI >50")
-            console.print("• Stop Loss: Below EMA20 or recent swing low (1-2%)")
-            console.print("• Target: Resistance levels or 52W high")
-            console.print("• Logic: Catch accumulation before the breakout crowd")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def early_momentum_detection(self):
-        """Detect early momentum before FOMO kicks in"""
-        console.print(Panel.fit("⚡ EARLY MOMENTUM: Pre-FOMO Signals", style="bold green"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 30,  # Lower threshold for early detection
-                    col('volume') > 100000,  # Minimum liquidity
-                    col('relative_volume_10d_calc').between(1.1, 2.5),  # Slightly elevated volume
-                    col('change').between(0.5, 4),  # Small positive moves
-                    col('RSI') > col('RSI[1]'),  # RSI improving
-                    col('RSI').between(35, 70),  # Not oversold, not overbought
-                    col('MACD.macd') > col('MACD.signal'),  # MACD bullish crossover
-                    col('market_cap_basic') > 2e8,  # Min 200 crores
-                    col('exchange') == 'NSE'  # NSE only, ignore BSE
-                )
-                .order_by('change', ascending=False)  # Current momentum
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Early Momentum - Before FOMO")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: When RSI crosses 50 with volume confirmation")
-            console.print("• Stop Loss: Below recent swing low (1.5%)")
-            console.print("• Target: Next resistance or 3-5% move")
-            console.print("• Logic: Catch momentum before crowd notices")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def relative_strength_leaders(self):
-        """Find stocks showing relative strength vs market"""
-        console.print(Panel.fit("💪 RELATIVE STRENGTH: Market Outperformers", style="bold cyan"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'Perf.W', 'Perf.M', 
-                       'RSI', 'Beta', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 50,  # Above ₹50
-                    col('volume') > 150000,  # Decent volume
-                    col('Perf.W') > 2,  # Outperforming weekly
-                    col('Perf.M') > 5,  # Strong monthly performance
-                    col('change') > -2,  # Not falling hard today
-                    col('RSI').between(45, 75),  # Good momentum zone
-                    col('Beta') > 0.8,  # Responsive to market moves
-                    col('market_cap_basic') > 3e8,  # Min 300 crores
-                    col('exchange') == 'NSE'  # NSE only, ignore BSE
-                )
-                .order_by('Perf.W', ascending=False)  # Best weekly performers
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Relative Strength Leaders")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On any pullback or consolidation break")
-            console.print("• Stop Loss: Below weekly support (2-3%)")
-            console.print("• Target: Continuation of relative strength trend")
-            console.print("• Logic: Leaders continue to lead in trends")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
 
     # ==================== INTRADAY TRADING STRATEGIES ====================
     
@@ -1201,35 +999,17 @@ class TVScreenerUsage:
     
     # ==================== INTRADAY WATCH MODE ====================
     
-    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=2.0, price_threshold=3.0, mode='PREBREAKOUT'):
+    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=2.0, price_threshold=3.0):
         """Watch mode for intraday trading - continuously monitors volume and price changes"""
-        mode_titles = {
-            'PREBREAKOUT': ("📊 PRE-BREAKOUT MODE - Early Entry Signals", "bold blue"),
-            'FOMO': ("🔥 FOMO MODE - High Volume Breakouts", "bold red"), 
-            'SMART_FOMO': ("🧠 SMART FOMO MODE - Historical Analysis + FOMO", "bold yellow"),
-            'ACCUMULATION': ("📈 ACCUMULATION MODE - Smart Money Tracking", "bold green"),
-            'MOMENTUM': ("⚡ MOMENTUM MODE - Early Momentum Detection", "bold cyan")
-        }
-        title, style = mode_titles.get(mode, ("📊 WATCH MODE", "bold blue"))
-        console.print(Panel.fit(title, style=style))
-        
-        # Store mode for use in data fetching
-        self.watch_mode = mode
-        
-        # Update journal file with correct mode
-        if hasattr(self, 'journal_file'):
-            self.setup_trade_journal()
+        console.print(Panel.fit("📊 INTRADAY WATCH MODE - Live Market Monitoring", style="bold red"))
         
         console.print(f"[yellow]⚙️  Configuration:[/yellow]")
-        console.print(f"• Mode: {mode}")
         console.print(f"• Refresh interval: {refresh_interval} seconds")
         console.print(f"• Volume threshold: {volume_threshold}x normal volume")
         console.print(f"• Price change threshold: {price_threshold}%")
         console.print(f"• Paper trading: {'🟢 ENABLED (₹20,000 per trade)' if self.paper_trading_enabled else '🔴 DISABLED'}")
         if self.paper_trading_enabled:
-            console.print(f"• Live risk management: 🟢 ENABLED (2% SL | 1% TP | 0.5% TSL | 2sec checks)")
-        console.print(f"• Trade journal: 📝 {self.journal_file}")
-        console.print(f"• Logging: 🔇 Minimal (reduced console spam)")
+            console.print(f"• Live risk management: 🟢 ENABLED (2% SL | 4% TP | 1.5% TSL | 2sec checks)")
         console.print(f"• Press Ctrl+C to stop monitoring")
         console.print()
         
@@ -1299,130 +1079,27 @@ class TVScreenerUsage:
             self.stop_background_monitoring()
     
     def _get_watch_data(self):
-        """Get current market data for watch mode based on selected mode"""
-        mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
-        
+        """Get current market data for watch mode"""
         try:
-            if mode == 'FOMO':
-                # Original FOMO high volume breakouts
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 50,  # Above ₹50
-                        col('volume') > 500000,  # High volume
-                        col('relative_volume_10d_calc') > 1.5,  # Elevated volume
-                        col('market_cap_basic') > 1e9,  # Min 1000 crores
-                        col('exchange') == 'NSE'  # NSE only
-                    )
-                    .order_by('relative_volume_10d_calc', ascending=False)
-                    .limit(25)
-                    .get_scanner_data(cookies=self.cookies)
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 50,  # Above ₹50
+                    col('volume') > 500000,  # Minimum volume
+                    col('market_cap_basic') > 1e9,  # Min 1000 crores
+                    col('relative_volume_10d_calc') > 0.5,  # Some activity
+                    col('exchange') == 'NSE'  # NSE only, ignore BSE
                 )
+                .order_by('relative_volume_10d_calc', ascending=False)
+                .limit(25)
+                .get_scanner_data(cookies=self.cookies)
+            )
             
-            elif mode == 'ACCUMULATION':
-                # Accumulation patterns
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'EMA20', 'market_cap_basic', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 50,  # Above ₹50
-                        col('volume') > 200000,  # Decent volume
-                        col('relative_volume_10d_calc').between(0.8, 1.8),  # Normal volume
-                        col('RSI').between(40, 65),  # Building strength
-                        col('close') > col('EMA20'),  # Above trend
-                        col('market_cap_basic') > 5e8,  # Min 500 crores
-                        col('exchange') == 'NSE'  # NSE only
-                    )
-                    .order_by('RSI', ascending=False)
-                    .limit(25)
-                    .get_scanner_data(cookies=self.cookies)
-                )
-            
-            elif mode == 'SMART_FOMO':
-                # Smart FOMO: Use FOMO signals but filter by historical upside potential
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 50,  # Above ₹50
-                        col('volume') > 500000,  # High volume
-                        col('relative_volume_10d_calc') > 1.5,  # Elevated volume (FOMO signal)
-                        col('change') > 1,  # Positive momentum
-                        col('RSI').between(40, 85),  # Allow higher RSI for FOMO
-                        col('market_cap_basic') > 1e9,  # Min 1000 crores
-                        col('exchange') == 'NSE'  # NSE only
-                    )
-                    .order_by('relative_volume_10d_calc', ascending=False)
-                    .limit(30)  # Get more to filter
-                    .get_scanner_data(cookies=self.cookies)
-                )
-                
-                # Filter by historical upside potential
-                if not df.empty:
-                    smart_fomo_stocks = []
-                    for _, row in df.iterrows():
-                        if self._check_historical_upside(row.get('ticker', ''), row.get('close', 0)):
-                            smart_fomo_stocks.append(row)
-                    
-                    if smart_fomo_stocks:
-                        df = pd.DataFrame(smart_fomo_stocks).head(25)  # Limit to 25
-                    else:
-                        df = pd.DataFrame()  # No stocks passed historical filter
-            
-            elif mode == 'MOMENTUM':
-                # Early momentum detection
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 30,  # Lower threshold
-                        col('volume') > 100000,  # Minimum liquidity
-                        col('relative_volume_10d_calc').between(1.1, 2.5),  # Slightly elevated
-                        col('change').between(0.5, 4),  # Small positive moves
-                        col('RSI') > col('RSI[1]'),  # RSI improving
-                        col('RSI').between(35, 70),  # Sweet spot
-                        col('MACD.macd') > col('MACD.signal'),  # MACD bullish
-                        col('market_cap_basic') > 2e8,  # Min 200 crores
-                        col('exchange') == 'NSE'  # NSE only
-                    )
-                    .order_by('change', ascending=False)
-                    .limit(25)
-                    .get_scanner_data(cookies=self.cookies)
-                )
-            
-            else:  # PREBREAKOUT (default)
-                # Pre-breakout focus
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'RSI[1]', 'EMA20', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 30,  # Lower threshold for early detection
-                        col('volume') > 100000,  # Minimum liquidity
-                        col('market_cap_basic') > 2e8,  # Min 200 crores
-                        col('relative_volume_10d_calc').between(0.8, 3.0),  # Normal to moderately elevated
-                        col('RSI').between(35, 75),  # Building momentum zone
-                        col('change').between(-3, 6),  # Not extreme moves
-                        col('exchange') == 'NSE'  # NSE only, ignore BSE
-                    )
-                    .order_by('RSI', ascending=False)  # Momentum building
-                    .limit(25)
-                    .get_scanner_data(cookies=self.cookies)
-                )
-            
-            # Add calculated fields if needed
-            if 'Volatility.D' in df.columns:
-                df['volatility_pct'] = df['Volatility.D'] * 100
+            # Add calculated fields
+            df['volatility_pct'] = df['Volatility.D'] * 100
             df['market_cap_cr'] = df['market_cap_basic'] / 1e7
             
             return df
@@ -1432,7 +1109,7 @@ class TVScreenerUsage:
             return pd.DataFrame()
     
     def _detect_alerts(self, current_data, previous_data, volume_threshold, price_threshold):
-        """Detect volume spikes and price movements with cooldown protection"""
+        """Detect volume spikes and price movements"""
         alerts = []
         
         if previous_data.empty:
@@ -1445,154 +1122,31 @@ class TVScreenerUsage:
             if row['relative_volume_10d_calc'] > volume_threshold:
                 prev_vol = previous_data[previous_data['ticker'] == ticker]['relative_volume_10d_calc'].values
                 if len(prev_vol) > 0 and row['relative_volume_10d_calc'] > prev_vol[0] * 1.2:
-                    
-                    # Check cooldown
-                    should_skip, time_diff = self._should_skip_alert(ticker, 'VOLUME_SPIKE')
-                    if should_skip:
-                        console.print(f"[dim]⏳ Skipping {ticker} VOLUME_SPIKE (cooldown: {self.alert_cooldown - time_diff:.0f}s left)[/dim]")
-                        continue
-                    
-                    # Calculate confidence
-                    confidence = self._calculate_alert_confidence('VOLUME_SPIKE', row['relative_volume_10d_calc'], row['change'])
-                    
-                    # Only send if confidence is high enough
-                    if confidence >= 0.7:  # 70% minimum confidence
-                        alert = {
-                            'type': 'VOLUME_SPIKE',
-                            'ticker': ticker,
-                            'name': row['name'],
-                            'current_volume_ratio': row['relative_volume_10d_calc'],
-                            'previous_volume_ratio': prev_vol[0] if len(prev_vol) > 0 else 0,
-                            'price': row['close'],
-                            'change': row['change'],
-                            'confidence': confidence
-                        }
-                        alerts.append(alert)
-                        
-                        # Record alert time to prevent spam
-                        self.last_alert_time[f"{ticker}_VOLUME_SPIKE"] = datetime.now()
-                    else:
-                        console.print(f"[yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping {ticker}[/yellow]")
+                    alerts.append({
+                        'type': 'VOLUME_SPIKE',
+                        'ticker': ticker,
+                        'name': row['name'],
+                        'current_volume_ratio': row['relative_volume_10d_calc'],
+                        'previous_volume_ratio': prev_vol[0] if len(prev_vol) > 0 else 0,
+                        'price': row['close'],
+                        'change': row['change']
+                    })
             
             # Price movement alert
             if abs(row['change']) > price_threshold:
                 prev_change = previous_data[previous_data['ticker'] == ticker]['change'].values
                 if len(prev_change) > 0 and abs(row['change']) > abs(prev_change[0]) * 1.1:
-                    
-                    # Check cooldown
-                    should_skip, time_diff = self._should_skip_alert(ticker, 'PRICE_MOVE')
-                    if should_skip:
-                        console.print(f"[dim]⏳ Skipping {ticker} PRICE_MOVE (cooldown: {self.alert_cooldown - time_diff:.0f}s left)[/dim]")
-                        continue
-                    
-                    # Calculate confidence
-                    confidence = self._calculate_alert_confidence('PRICE_MOVE', row['relative_volume_10d_calc'], row['change'])
-                    
-                    # Only send if confidence is high enough
-                    if confidence >= 0.7:  # 70% minimum confidence
-                        alert = {
-                            'type': 'PRICE_MOVE',
-                            'ticker': ticker,
-                            'name': row['name'],
-                            'current_change': row['change'],
-                            'previous_change': prev_change[0] if len(prev_change) > 0 else 0,
-                            'price': row['close'],
-                            'volume_ratio': row['relative_volume_10d_calc'],
-                            'confidence': confidence
-                        }
-                        alerts.append(alert)
-                        
-                        # Record alert time to prevent spam
-                        self.last_alert_time[f"{ticker}_PRICE_MOVE"] = datetime.now()
-                    else:
-                        console.print(f"[yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping {ticker}[/yellow]")
-            
-            # Smart FOMO alert - only in SMART_FOMO mode
-            watch_mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
-            if (watch_mode == 'SMART_FOMO' and
-                row['relative_volume_10d_calc'] > volume_threshold and
-                row['change'] > 1 and  # Positive momentum
-                self._check_historical_upside(ticker, row['close'])):  # Historical validation
-                
-                # Check cooldown
-                should_skip, time_diff = self._should_skip_alert(ticker, 'SMART_FOMO')
-                if should_skip:
-                    console.print(f"[dim]⏳ Skipping {ticker} SMART_FOMO (cooldown: {self.alert_cooldown - time_diff:.0f}s left)[/dim]")
-                    continue
-                
-                # Calculate confidence (Smart FOMO gets bonus for historical validation)
-                confidence = self._calculate_alert_confidence('SMART_FOMO', row['relative_volume_10d_calc'], row['change'])
-                
-                # Only send if confidence is high enough
-                if confidence >= 0.7:  # 70% minimum confidence
-                    alert = {
-                        'type': 'SMART_FOMO',
+                    alerts.append({
+                        'type': 'PRICE_MOVE',
                         'ticker': ticker,
                         'name': row['name'],
-                        'volume_ratio': row['relative_volume_10d_calc'],
+                        'current_change': row['change'],
+                        'previous_change': prev_change[0] if len(prev_change) > 0 else 0,
                         'price': row['close'],
-                        'change': row['change'],
-                        'upside_potential': 'Validated',
-                        'confidence': confidence
-                    }
-                    alerts.append(alert)
-                    
-                    # Record alert time to prevent spam
-                    self.last_alert_time[f"{ticker}_SMART_FOMO"] = datetime.now()
-                else:
-                    console.print(f"[yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping {ticker}[/yellow]")
+                        'volume_ratio': row['relative_volume_10d_calc']
+                    })
         
         return alerts
-    
-    def _should_skip_alert(self, ticker, alert_type):
-        """Check if we should skip this alert due to cooldown"""
-        current_time = datetime.now()
-        alert_key = f"{ticker}_{alert_type}"
-        
-        # Check if this exact alert was sent recently
-        if alert_key in self.last_alert_time:
-            time_diff = (current_time - self.last_alert_time[alert_key]).total_seconds()
-            if time_diff < self.alert_cooldown:
-                return True, time_diff
-        
-        return False, 0
-    
-    def _calculate_alert_confidence(self, alert_type, volume_ratio, change_pct):
-        """Calculate confidence score for alert (fixing the 50% issue)"""
-        confidence = 0.3  # Base confidence
-        
-        # Volume factor (higher volume = higher confidence)
-        if volume_ratio > 4.0:
-            confidence += 0.3
-        elif volume_ratio > 3.0:
-            confidence += 0.2
-        elif volume_ratio > 2.0:
-            confidence += 0.15
-        elif volume_ratio > 1.5:
-            confidence += 0.1
-        
-        # Price change factor
-        if alert_type == 'VOLUME_SPIKE':
-            if abs(change_pct) > 5:
-                confidence += 0.25
-            elif abs(change_pct) > 3:
-                confidence += 0.2
-            elif abs(change_pct) > 1.5:
-                confidence += 0.1
-        elif alert_type == 'PRICE_MOVE':
-            if abs(change_pct) > 4:
-                confidence += 0.25
-            elif abs(change_pct) > 2.5:
-                confidence += 0.15
-        elif alert_type == 'SMART_FOMO':
-            if change_pct > 3:
-                confidence += 0.2
-            elif change_pct > 1.5:
-                confidence += 0.1
-            # Historical validation bonus
-            confidence += 0.15
-        
-        return min(confidence, 0.95)  # Cap at 95%
     
     def send_telegram_alert(self, alert):
         """Send a Telegram alert for a new event"""
@@ -1613,15 +1167,6 @@ class TVScreenerUsage:
             elif alert['type'] == 'PRICE_MOVE':
                 message += f"📈 *Change:* {alert['current_change']:+.2f}% (was {alert['previous_change']:+.2f}%)\n"
                 message += f"📊 *Volume Ratio:* {alert['volume_ratio']:.1f}x\n"
-            elif alert['type'] == 'SMART_FOMO':
-                message += f"📊 *Volume Ratio:* {alert['volume_ratio']:.1f}x (FOMO signal)\n"
-                message += f"📈 *Change:* {alert['change']:+.2f}%\n"
-                message += f"🧠 *Historical Check:* ✅ Upside potential validated\n"
-                message += f"🎯 *Strategy:* Smart FOMO (avoid late entries)\n"
-            
-            # Add confidence score
-            confidence = alert.get('confidence', 0.5)
-            message += f"🎯 *Confidence:* {confidence:.0%}\n"
             
             # Add trading action if paper trading is enabled
             if self.paper_trading_enabled:
@@ -1644,6 +1189,31 @@ class TVScreenerUsage:
 
         except Exception as e:
             console.print(f"[red]❌ Error sending Telegram alert: {str(e)}[/red]")
+
+    def send_telegram_exit_alert(self, message):
+        """Send a Telegram alert for exit trades"""
+        if not self.telegram_enabled:
+            return
+
+        try:
+            bot_token = TELEGRAM_CONFIG['bot_token']
+            chat_id = TELEGRAM_CONFIG['chat_id']
+            
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            payload = {
+                'chat_id': chat_id,
+                'text': message,
+                'parse_mode': 'Markdown'
+            }
+            
+            response = requests.post(url, json=payload, timeout=10)
+            if response.status_code == 200:
+                console.print("[green]✅ Telegram exit alert sent[/green]")
+            else:
+                console.print(f"[red]⚠️ Telegram exit alert failed: {response.text}[/red]")
+
+        except Exception as e:
+            console.print(f"[red]❌ Error sending Telegram exit alert: {str(e)}[/red]")
 
     def _display_alerts(self, alerts):
         """Display alerts in a formatted way and send to both Telegram and Paper Trading Bot"""
@@ -1706,8 +1276,8 @@ class TVScreenerUsage:
             symbol = alert['ticker']
             price = alert['price']
             
-            # Get confidence from alert (already calculated in detection phase)
-            confidence = alert.get('confidence', 0.5)
+            # Calculate confidence based on alert strength
+            confidence = self._calculate_alert_confidence(alert)
             
             # Only trade if confidence is sufficient (70%+)
             if confidence < 0.7:
@@ -1730,11 +1300,6 @@ class TVScreenerUsage:
                 # Strong negative price move = SELL
                 elif alert.get('current_change', 0) < -2:
                     trade_side = 'SELL'
-            
-            elif alert['type'] == 'SMART_FOMO':
-                # Smart FOMO - only BUY validated breakouts
-                if alert.get('change', 0) > 1:  # Positive momentum
-                    trade_side = 'BUY'
             
             if trade_side:
                 # Check if we already have a position in this symbol
@@ -1776,6 +1341,41 @@ class TVScreenerUsage:
         except Exception as e:
             console.print(f"   [red]❌ Paper trading error: {e}[/red]")
     
+    def _calculate_alert_confidence(self, alert):
+        """Calculate confidence score for alert"""
+        confidence = 0.5  # Base confidence
+        
+        if alert['type'] == 'VOLUME_SPIKE':
+            vol_ratio = alert.get('current_volume_ratio', 1)
+            if vol_ratio > 5:
+                confidence += 0.3
+            elif vol_ratio > 3:
+                confidence += 0.2
+            elif vol_ratio > 2:
+                confidence += 0.1
+                
+            # Price change factor
+            change = abs(alert.get('change', 0))
+            if change > 5:
+                confidence += 0.2
+            elif change > 3:
+                confidence += 0.1
+        
+        elif alert['type'] == 'PRICE_MOVE':
+            change = abs(alert.get('current_change', 0))
+            if change > 8:
+                confidence += 0.3
+            elif change > 5:
+                confidence += 0.2
+            elif change > 3:
+                confidence += 0.1
+                
+            # Volume factor
+            vol_ratio = alert.get('volume_ratio', 1)
+            if vol_ratio > 2:
+                confidence += 0.1
+        
+        return min(confidence, 0.95)  # Cap at 95%
     
     def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence):
         """Execute paper trade via bot"""
@@ -1794,12 +1394,8 @@ class TVScreenerUsage:
             # Create position directly in bot
             trade_log_msg = f"SCREENER_ALERT_TRADE: Side={side}, Qty={quantity}, Symbol={symbol}, Price={price:.2f}, Alert={alert['type']}, Confidence={confidence:.2f}"
             
-            # Log the trade (reduce console spam)
-            console.print(f"[dim]📝 Trade: {side} {quantity} {symbol} @ ₹{price:.2f}[/dim]")
-            
-            # Log to journal
-            amount = price * quantity
-            self.log_trade("ENTRY", symbol, price, quantity, amount, alert['type'])
+            # Log the trade
+            print(trade_log_msg)
             
             # Create position
             self.positions[symbol] = {
@@ -1807,6 +1403,7 @@ class TVScreenerUsage:
                 'qty': quantity,
                 'entry_price': round(price, 2),
                 'timestamp': datetime.now(),
+                'entry_time': datetime.now(),
                 'highest_profit_pct': 0.0,
                 'highest_price': round(price, 2),
                 'trailing_stop_active': False,
@@ -1850,17 +1447,7 @@ class TVScreenerUsage:
         """Display current watch data"""
         alert_tickers = [alert['ticker'] for alert in alerts]
         
-        # Dynamic title based on mode
-        mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
-        mode_titles = {
-            'PREBREAKOUT': "Live Market Monitor - Pre-Breakout Signals",
-            'FOMO': "Live Market Monitor - Top Volume Movers", 
-            'SMART_FOMO': "Live Market Monitor - Smart FOMO (Historical Analysis)",
-            'ACCUMULATION': "Live Market Monitor - Accumulation Patterns",
-            'MOMENTUM': "Live Market Monitor - Early Momentum"
-        }
-        title = mode_titles.get(mode, "Live Market Monitor")
-        table = Table(title=title, show_header=True)
+        table = Table(title="Live Market Monitor - Top Volume Movers", show_header=True)
         table.add_column("Ticker", style="cyan", no_wrap=True)
         table.add_column("Name", style="green", max_width=12)
         table.add_column("Price", justify="right", style="yellow")
@@ -1907,6 +1494,7 @@ class TVScreenerUsage:
         # Display active positions if paper trading is enabled
         if self.paper_trading_enabled:
             self._display_active_positions()
+            self._display_closed_trades()
     
     def _display_live_trades(self):
         """Display recent live trades"""
@@ -2095,6 +1683,70 @@ class TVScreenerUsage:
         console.print(positions_table)
         console.print("[dim]🟢 = Live price | 🔄 = Fallback exchange | 🔴 = Cached | 🎯 = Trailing Stop[/dim]")
     
+    def _display_closed_trades(self):
+        """Display closed trades with P&L information in a table format"""
+        if not self.closed_trades:
+            return
+        
+        console.print()
+        closed_table = Table(title="📈 CLOSED TRADES P&L", show_header=True)
+        closed_table.add_column("Symbol", style="bold", no_wrap=True)
+        closed_table.add_column("Side", style="white")
+        closed_table.add_column("Entry ₹", justify="right", style="cyan")
+        closed_table.add_column("Exit ₹", justify="right", style="white")
+        closed_table.add_column("Qty", justify="right", style="blue")
+        closed_table.add_column("P&L %", justify="right", style="bold")
+        closed_table.add_column("P&L ₹", justify="right", style="bold")
+        closed_table.add_column("Hold Time", justify="right", style="dim")
+        closed_table.add_column("Reason", style="yellow")
+        
+        total_pnl_amount = 0
+        profitable_trades = 0
+        
+        # Show last 10 closed trades
+        recent_trades = self.closed_trades[-10:] if len(self.closed_trades) > 10 else self.closed_trades
+        
+        for trade in recent_trades:
+            # Color coding
+            pnl_style = "green" if trade['pnl_pct'] > 0 else "red"
+            side_style = "green" if trade['entry_side'] == 'BUY' else "red"
+            side_emoji = "🟢" if trade['entry_side'] == 'BUY' else "🔴"
+            
+            # Format hold time
+            hold_time = trade['hold_time']
+            if hold_time.total_seconds() < 3600:  # Less than 1 hour
+                hold_display = f"{int(hold_time.total_seconds() / 60)}m"
+            elif hold_time.total_seconds() < 86400:  # Less than 1 day
+                hold_display = f"{int(hold_time.total_seconds() / 3600)}h"
+            else:
+                hold_display = f"{hold_time.days}d"
+            
+            total_pnl_amount += trade['pnl_amount']
+            if trade['pnl_pct'] > 0:
+                profitable_trades += 1
+            
+            closed_table.add_row(
+                trade['symbol'],
+                f"[{side_style}]{side_emoji} {trade['entry_side']}[/{side_style}]",
+                f"₹{trade['entry_price']:,.2f}",
+                f"₹{trade['exit_price']:,.2f}",
+                str(trade['quantity']),
+                f"[{pnl_style}]{trade['pnl_pct']:+.2f}%[/{pnl_style}]",
+                f"[{pnl_style}]₹{trade['pnl_amount']:+,.0f}[/{pnl_style}]",
+                hold_display,
+                trade['reason'][:15]
+            )
+        
+        console.print(closed_table)
+        
+        # Display summary stats
+        total_trades = len(self.closed_trades)
+        win_rate = (profitable_trades / total_trades * 100) if total_trades > 0 else 0
+        total_pnl_style = "green" if total_pnl_amount > 0 else "red"
+        
+        console.print(f"[dim]Total Trades: {total_trades} | Win Rate: {win_rate:.1f}% | "
+                     f"Total P&L: [{total_pnl_style}]₹{total_pnl_amount:+,.0f}[/{total_pnl_style}][/dim]")
+    
     def start_background_monitoring(self):
         """Start background thread for continuous live price monitoring and risk management"""
         if not self.paper_trading_enabled or not self.upstox_api:
@@ -2160,6 +1812,7 @@ class TVScreenerUsage:
             stop_loss_pct = -2.0  # 2% initial stop loss
             take_profit_pct = 1.0  # 1% take profit threshold for intraday
             trailing_stop_buffer = 0.5  # 0.5% trailing buffer for tighter control
+            quick_exit_pct = 0.5  # 0.5% quick exit threshold
             
             # Update highest profit and price tracking
             if pnl_pct > position['highest_profit_pct']:
@@ -2184,7 +1837,7 @@ class TVScreenerUsage:
                 # Send Telegram notification
                 if self.telegram_enabled:
                     try:
-                        self._send_telegram_alert(
+                        self.send_telegram_exit_alert(
                             f"🎯 TRAILING STOP ACTIVATED\n"
                             f"Symbol: {symbol}\n"
                             f"Current P&L: {pnl_pct:.2f}%\n"
@@ -2206,6 +1859,11 @@ class TVScreenerUsage:
                 if pnl_pct <= position['trailing_stop_pct']:
                     should_exit = True
                     exit_reason = f"TRAILING STOP: {pnl_pct:.2f}% (TSL: {position['trailing_stop_pct']:.2f}%)"
+            
+            # 4. Check 0.5% quick exit (if not in trailing mode and profit is at 0.5%)
+            elif pnl_pct >= quick_exit_pct and not position['trailing_stop_active']:
+                should_exit = True
+                exit_reason = f"QUICK EXIT: {pnl_pct:.2f}% (0.5% target)"
             
             # Execute exit if needed
             if should_exit:
@@ -2232,10 +1890,6 @@ class TVScreenerUsage:
             
             console.print(f"[bold red]{exit_log}[/bold red]")
             
-            # Log to journal
-            amount = exit_price * position['qty']
-            self.log_trade("EXIT", symbol, exit_price, position['qty'], amount, reason, pnl_pct, pnl_amount)
-            
             # Add to live trades log
             self.live_trades.append({
                 'timestamp': datetime.now(),
@@ -2251,10 +1905,26 @@ class TVScreenerUsage:
                 'pnl_amount': pnl_amount
             })
             
+            # Add to closed trades log
+            self.closed_trades.append({
+                'timestamp': datetime.now(),
+                'symbol': symbol,
+                'entry_side': position['side'],
+                'entry_price': position['entry_price'],
+                'exit_price': exit_price,
+                'quantity': position['qty'],
+                'entry_amount': position['entry_price'] * position['qty'],
+                'exit_amount': exit_price * position['qty'],
+                'pnl_pct': pnl_pct,
+                'pnl_amount': pnl_amount,
+                'reason': reason,
+                'hold_time': datetime.now() - position['entry_time']
+            })
+            
             # Send Telegram alert if enabled
             if self.telegram_enabled:
                 try:
-                    self._send_telegram_alert(
+                    self.send_telegram_exit_alert(
                         f"🔥 AUTO EXIT\n"
                         f"Symbol: {symbol}\n"
                         f"Reason: {reason}\n"
@@ -2284,11 +1954,6 @@ class TVScreenerUsage:
     def run_example(self, example_name, **kwargs):
         """Run a specific example"""
         examples = {
-            # Pre-Breakout (NEW - Anti-FOMO)
-            'pre_breakout': self.pre_breakout_accumulation,
-            'early_momentum': self.early_momentum_detection,
-            'relative_strength': self.relative_strength_leaders,
-            
             # Intraday Trading
             'intraday_breakouts': self.intraday_high_volume_breakouts,
             'intraday_gap_up': self.intraday_gap_up_stocks,
@@ -2330,11 +1995,6 @@ class TVScreenerUsage:
         console.print("\n[bold yellow]Available Examples:[/bold yellow]")
         
         categories = [
-            ("⚡ PRE-BREAKOUT (NEW - Anti-FOMO)", [
-                "pre_breakout - Accumulation patterns (catch before crowd)",
-                "early_momentum - Early momentum detection (pre-FOMO)",
-                "relative_strength - Market outperformers (strength leaders)"
-            ]),
             ("🚀 Intraday Trading", [
                 "intraday_breakouts - High volume breakouts",
                 "intraday_gap_up - Gap-up momentum",
@@ -2395,9 +2055,6 @@ def main():
     
     # Watch mode specific arguments
     parser.add_argument('--watch', action='store_true', help='Start intraday watch mode')
-    parser.add_argument('--mode', type=str, default='PREBREAKOUT', 
-                       choices=['PREBREAKOUT', 'FOMO', 'SMART_FOMO', 'ACCUMULATION', 'MOMENTUM'],
-                       help='Watch mode strategy (default: PREBREAKOUT)')
     parser.add_argument('--refresh', type=int, default=30, help='Refresh interval in seconds (default: 30)')
     parser.add_argument('--volume-threshold', type=float, default=2.0, help='Volume threshold for alerts (default: 2.0x)')
     parser.add_argument('--price-threshold', type=float, default=3.0, help='Price change threshold for alerts (default: 3.0 percent)')
@@ -2415,8 +2072,7 @@ def main():
         screener.intraday_watch_mode(
             refresh_interval=args.refresh,
             volume_threshold=args.volume_threshold,
-            price_threshold=args.price_threshold,
-            mode=args.mode
+            price_threshold=args.price_threshold
         )
     elif args.example:
         if args.example == 'intraday_watch':
@@ -2443,9 +2099,8 @@ def main():
         console.print("  python tv_screen_usage.py --market us --example intraday_breakouts")
         console.print("  python tv_screen_usage.py --example research_sectors")
         console.print("  python tv_screen_usage.py --example research_sector_stocks --sector 'Technology'")
-        console.print("  python tv_screen_usage.py --watch --mode PREBREAKOUT --refresh 15")
-        console.print("  python tv_screen_usage.py --watch --mode FOMO --volume-threshold 2.5")
-        console.print("  python tv_screen_usage.py --watch --mode ACCUMULATION --enable-trading")
+        console.print("  python tv_screen_usage.py --watch --refresh 15 --volume-threshold 2.5")
+        console.print("  python tv_screen_usage.py --watch --enable-trading --volume-threshold 1.5 --price-threshold 1.5")
         console.print("  python tv_screen_usage.py --market us --example intraday_watch --refresh 10")
 
 if __name__ == "__main__":
