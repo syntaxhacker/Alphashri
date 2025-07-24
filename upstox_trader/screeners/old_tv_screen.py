@@ -1809,7 +1809,7 @@ class TVScreenerUsage:
                 pnl_pct *= -1
             
             # Risk Management Rules
-            stop_loss_pct = -2.0  # 2% initial stop loss
+            stop_loss_pct = -0.5  # 0.5% initial stop loss
             take_profit_pct = 1.0  # 1% take profit threshold for intraday
             trailing_stop_buffer = 0.5  # 0.5% trailing buffer for tighter control
             quick_exit_pct = 0.5  # 0.5% quick exit threshold
