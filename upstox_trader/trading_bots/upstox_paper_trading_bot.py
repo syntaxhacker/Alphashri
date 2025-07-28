@@ -338,10 +338,61 @@ class UpstoxPaperTradingBot:
             self.log_colored(f"❌ WebSocket setup failed: {str(e)}", "error")
             return False
 
+    def update_live_prices_from_upstox_v3(self):
+        """Update live prices using Upstox V3 API (no authentication required)"""
+        try:
+            import requests
+            
+            updated_count = 0
+            for symbol in self.trading_symbols:
+                # Get instrument key for the symbol
+                instrument_key = self.get_instrument_key_for_symbol(symbol)
+                if not instrument_key:
+                    continue
+                
+                # Use V3 API to get latest minute candle (live price)
+                from datetime import datetime
+                today = datetime.now().strftime('%Y-%m-%d')
+                
+                url = f"https://api.upstox.com/v3/historical-candle-data/{instrument_key}/minutes/1/{today}/{today}"
+                
+                try:
+                    response = requests.get(url, timeout=3)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get('status') == 'success' and data.get('data'):
+                            candles = data['data']
+                            if candles:
+                                # Get the latest candle's close price
+                                latest_candle = candles[-1]
+                                new_price = float(latest_candle[4])  # Close price is at index 4
+                                old_price = self.real_time_prices.get(symbol, 0)
+                                
+                                # Update only if price changed significantly
+                                if abs(new_price - old_price) >= 0.01:
+                                    self.real_time_prices[symbol] = new_price
+                                    self.current_prices[symbol] = new_price
+                                    updated_count += 1
+                                    
+                except requests.RequestException:
+                    # Skip this symbol if API call fails
+                    continue
+                    
+            return updated_count > 0
+            
+        except Exception as e:
+            # Silently fail and use historical prices
+            return False
+
     def get_instrument_key_for_symbol(self, symbol):
         """Get the proper instrument key for WebSocket subscription"""
         try:
-            # Try to load instruments if not already loaded
+            # Use the main client's existing instruments or get instrument key directly
+            # This avoids repeated downloads during background monitoring
+            if hasattr(self.client, 'get_instrument_key'):
+                return self.client.get_instrument_key(symbol)
+            
+            # Fallback: Try to load instruments if not already loaded
             if not self.client.instruments:
                 try:
                     self.client._download_and_cache_instruments()
@@ -352,12 +403,11 @@ class UpstoxPaperTradingBot:
             # Find the instrument key for the symbol
             if self.client.instruments:
                 for instrument in self.client.instruments:
-                    if (instrument.get('tradingsymbol') == symbol and 
+                    if (instrument.get('trading_symbol') == symbol and 
                         instrument.get('exchange') == 'NSE' and 
                         instrument.get('instrument_type') == 'EQ'):
                         
-                        instrument_key = f"NSE_EQ|{instrument.get('instrument_token')}"
-                        return instrument_key
+                        return instrument.get('instrument_key')
             
             # Fallback: use known instrument keys for common symbols
             known_symbols = {
@@ -897,34 +947,22 @@ class UpstoxPaperTradingBot:
             self.log_colored("Failed to get initial candle data. Exiting.", "error")
             return
         
-        # Initialize WebSocket for real-time data
+        # Use Upstox V3 API for live price updates (no authentication required)
         websocket_connected = False
-        if self.websocket_enabled:
-            self.log_colored("🔗 Setting up real-time WebSocket streaming...", "info")
-            if self.setup_websocket_streaming():
-                try:
-                    self.market_streamer.connect()
-                    websocket_connected = True
-                    self.log_colored("✅ Real-time data streaming active!", "success")
-                    
-                    # Wait for initial real-time prices
-                    wait_count = 0
-                    received_prices = set()
-                    while len(received_prices) < len(self.trading_symbols) and wait_count < 30:
-                        for symbol in self.trading_symbols:
-                            if self.real_time_prices.get(symbol, 0) > 0:
-                                received_prices.add(symbol)
-                        time.sleep(0.5)
-                        wait_count += 1
-                    
-                    if received_prices:
-                        for symbol in received_prices:
-                            price = self.real_time_prices[symbol]
-                            self.log_colored(f"📡 {symbol} initial real-time price: ₹{price:.2f}", "success")
-                            self.current_prices[symbol] = price
-                except Exception as e:
-                    self.log_colored(f"WebSocket connection failed: {str(e)}", "error")
-                    websocket_connected = False
+        self.log_colored("🔗 Setting up live price updates via Upstox V3 API...", "info")
+        
+        # Test V3 API connection with one symbol
+        if self.update_live_prices_from_upstox_v3():
+            websocket_connected = True
+            self.log_colored("✅ Upstox V3 live data available", "success")
+            
+            # Get initial prices for all symbols
+            for symbol in self.trading_symbols:
+                price = self.real_time_prices.get(symbol, 0)
+                if price > 0:
+                    self.log_colored(f"📡 {symbol} current price: ₹{price:.2f}", "success")
+        else:
+            self.log_colored("⚠️ Upstox V3 API connection failed, using historical prices", "warning")
         
         # Identify initial levels for all symbols (for display only, not immediate trading)
         for symbol in self.trading_symbols:
@@ -941,20 +979,17 @@ class UpstoxPaperTradingBot:
         price_updates_received = 0
         
         while time.time() - observation_start < self.observation_period:
-            # Update real-time price tracking during observation for all symbols
+            # Update real-time price tracking using V3 API
             if websocket_connected:
-                for symbol in self.trading_symbols:
-                    if (self.real_time_prices.get(symbol, 0) > 0 and 
-                        self.real_time_prices[symbol] != self.current_prices.get(symbol, 0)):
-                        price_updates_received += 1
-                        self.current_prices[symbol] = self.real_time_prices[symbol]
-                        
-                        # Show we're receiving live data
-                        if price_updates_received % 20 == 0:
-                            remaining = self.observation_period - (time.time() - observation_start)
-                            self.log_colored(f"📡 Live updates: {price_updates_received} | Observation ends in {remaining:.0f}s", "info")
+                if self.update_live_prices_from_upstox_v3():
+                    price_updates_received += 1
+                    
+                    # Show we're receiving live data
+                    if price_updates_received % 5 == 0:
+                        remaining = self.observation_period - (time.time() - observation_start)
+                        self.log_colored(f"📡 V3 API updates: {price_updates_received} | Observation ends in {remaining:.0f}s", "info")
             
-            time.sleep(1)
+            time.sleep(5)  # Update every 5 seconds
         
         # End observation period
         observation_status = f"📊 Observation complete! Received {price_updates_received} real-time price updates"
@@ -969,8 +1004,17 @@ class UpstoxPaperTradingBot:
             while self.running:
                 current_time = time.time()
                 
+                # Update live prices every 10 seconds using V3 API
+                if websocket_connected and current_time - last_data_update > 10:
+                    if self.update_live_prices_from_upstox_v3():
+                        # Show live price updates for positions
+                        for symbol in self.trading_symbols:
+                            if self.positions.get(symbol):
+                                self.check_position_pnl_realtime_smart(symbol)
+                    last_data_update = current_time
+                
                 # Update historical data every 5 minutes for all symbols
-                if current_time - last_data_update > 300:
+                elif current_time - last_data_update > 300:
                     if self.get_candles():
                         for symbol in self.trading_symbols:
                             if self.candle_data.get(symbol):

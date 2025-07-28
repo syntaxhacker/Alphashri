@@ -98,12 +98,20 @@ class TVScreenerUsage:
             
         console.print(f"[blue]📊 Market: {self.market.upper()}[/blue]")
         
+        # Initialize trade journaling
+        self.journal_file = None
+        self.setup_trade_journal()
+        
         # Telegram integration
         self.telegram_enabled = TELEGRAM_AVAILABLE and TELEGRAM_CONFIG.get('bot_token') if TELEGRAM_AVAILABLE else False
         if self.telegram_enabled:
             console.print("[green]✅ Telegram alerts enabled[/green]")
         else:
             console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
+        
+        # Trading Time Configuration
+        self.trading_start_time = "09:30"  # Start trading at 9:30 AM
+        self.trading_end_time = "15:00"    # Stop trading at 3:00 PM
         
         # Simple Paper Trading integration (without full bot monitoring)
         self.paper_trading_enabled = enable_paper_trading
@@ -133,6 +141,73 @@ class TVScreenerUsage:
                 console.print(f"[yellow]⚠️ Paper Trading enabled (₹20,000 per trade) - Upstox API unavailable: {e}[/yellow]")
         else:
             console.print("[yellow]⚠️ Paper Trading disabled[/yellow]")
+        
+        # Display trading hours if paper trading is enabled
+        if self.paper_trading_enabled:
+            console.print(f"[cyan]⏰ Trading Hours: {self.trading_start_time} - {self.trading_end_time} IST[/cyan]")
+    
+    def setup_trade_journal(self):
+        """Setup trade journal file with date and mode"""
+        from datetime import datetime
+        import os
+        
+        # Create logs directory if it doesn't exist
+        logs_dir = "logs"
+        if not os.path.exists(logs_dir):
+            os.makedirs(logs_dir)
+            
+        # Create journal filename with date
+        date_str = datetime.now().strftime("%d%b").lower()  # 17jul format
+        mode = getattr(self, 'watch_mode', 'old_screener').lower()
+        self.journal_file = f"{logs_dir}/old_tv_screener_{mode}_{date_str}.log"
+        
+        # Write header if new file
+        if not os.path.exists(self.journal_file):
+            with open(self.journal_file, 'w') as f:
+                f.write(f"# Old TV Screener Trade Journal - {mode.upper()} Mode\n")
+                f.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("# Format: TIMESTAMP | ACTION | SYMBOL | PRICE | QTY | AMOUNT | ALERT_TYPE | P&L\n")
+                f.write("-" * 80 + "\n")
+    
+    def log_trade(self, action, symbol, price, qty, amount, alert_type, pnl_pct=None, pnl_amount=None):
+        """Log trade to journal file"""
+        if not self.journal_file:
+            return
+            
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Format P&L info
+        pnl_info = ""
+        if pnl_pct is not None:
+            pnl_info = f" | P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})"
+        
+        log_entry = f"{timestamp} | {action} | {symbol} | ₹{price:.2f} | {qty} | ₹{amount:,.0f} | {alert_type}{pnl_info}\n"
+        
+        try:
+            with open(self.journal_file, 'a') as f:
+                f.write(log_entry)
+        except Exception as e:
+            console.print(f"[dim red]⚠️ Journal write failed: {e}[/dim red]")
+
+    def _is_trading_hours(self):
+        """Check if current time is within trading hours"""
+        if not self.paper_trading_enabled:
+            return True  # Always allow if paper trading is disabled
+            
+        try:
+            from datetime import datetime, time
+            now = datetime.now().time()
+            
+            # Parse trading hours
+            start_time = datetime.strptime(self.trading_start_time, "%H:%M").time()
+            end_time = datetime.strptime(self.trading_end_time, "%H:%M").time()
+            
+            # Check if current time is within trading hours
+            return start_time <= now <= end_time
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Error checking trading hours: {e}. Allowing trade.[/yellow]")
+            return True  # Default to allowing trade if there's an error
         
     def display_table(self, df, title, max_rows=15):
         """Display results in a formatted table"""
@@ -999,6 +1074,52 @@ class TVScreenerUsage:
     
     # ==================== INTRADAY WATCH MODE ====================
     
+    def wait_until_market_open(self):
+        """Wait until 9:20 AM before starting active monitoring"""
+        target_time = datetime.now().replace(hour=9, minute=20, second=0, microsecond=0)
+        current_time = datetime.now()
+        
+        # If we're past 9:20 AM today, start immediately
+        if current_time >= target_time:
+            console.print("[green]✅ Market open time reached - starting active monitoring[/green]")
+            return
+        
+        # Calculate wait time
+        wait_seconds = (target_time - current_time).total_seconds()
+        wait_minutes = int(wait_seconds // 60)
+        wait_secs = int(wait_seconds % 60)
+        
+        console.print(f"[yellow]⏰ Waiting until 9:20 AM to start active monitoring...[/yellow]")
+        console.print(f"[blue]Current time: {current_time.strftime('%H:%M:%S')}[/blue]")
+        console.print(f"[blue]Target time: 9:20:00[/blue]")
+        console.print(f"[yellow]Time remaining: {wait_minutes}m {wait_secs}s[/yellow]")
+        console.print()
+        
+        # Wait with periodic updates
+        while datetime.now() < target_time:
+            remaining = (target_time - datetime.now()).total_seconds()
+            if remaining <= 0:
+                break
+                
+            mins = int(remaining // 60)
+            secs = int(remaining % 60)
+            
+            # Update every 30 seconds
+            if int(remaining) % 30 == 0:
+                # Clear screen and show countdown
+                os.system('clear' if os.name == 'posix' else 'cls')
+                console.print("[bold yellow]⏰ WAITING FOR MARKET OPEN[/bold yellow]")
+                console.print(f"[dim]Current time: {datetime.now().strftime('%H:%M:%S')}[/dim]")
+                console.print(f"[blue]🕘 {mins}m {secs}s until active monitoring starts (9:20 AM)[/blue]")
+                console.print("[dim]Press Ctrl+C to stop[/dim]")
+            
+            time.sleep(1)
+        
+        # Clear screen and show start message
+        os.system('clear' if os.name == 'posix' else 'cls')
+        console.print("[green]🚀 9:20 AM reached - starting active monitoring mode![/green]")
+        time.sleep(2)
+    
     def intraday_watch_mode(self, refresh_interval=30, volume_threshold=2.0, price_threshold=3.0):
         """Watch mode for intraday trading - continuously monitors volume and price changes"""
         console.print(Panel.fit("📊 INTRADAY WATCH MODE - Live Market Monitoring", style="bold red"))
@@ -1010,8 +1131,12 @@ class TVScreenerUsage:
         console.print(f"• Paper trading: {'🟢 ENABLED (₹20,000 per trade)' if self.paper_trading_enabled else '🔴 DISABLED'}")
         if self.paper_trading_enabled:
             console.print(f"• Live risk management: 🟢 ENABLED (2% SL | 4% TP | 1.5% TSL | 2sec checks)")
+        console.print(f"• Trade journal: 📝 {self.journal_file}")
         console.print(f"• Press Ctrl+C to stop monitoring")
         console.print()
+        
+        # Wait until 9:20 AM before starting active monitoring
+        self.wait_until_market_open()
         
         # Store previous data for comparison
         previous_data = pd.DataFrame()
@@ -1332,6 +1457,9 @@ class TVScreenerUsage:
                     if len(self.live_trades) > 10:
                         self.live_trades.pop(0)
                     
+                    # Log trade to journal
+                    self.log_trade("ENTRY", symbol, price, quantity, quantity * price, alert['type'])
+                    
                     console.print(f"   [green]✅ Paper trade executed: {trade_side} {quantity} {symbol} @ ₹{price:.2f}[/green]")
                 else:
                     console.print(f"   [red]❌ Paper trade failed for {symbol}[/red]")
@@ -1380,6 +1508,11 @@ class TVScreenerUsage:
     def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence):
         """Execute paper trade via bot"""
         try:
+            # Check trading hours - prevent new trades outside market hours
+            if not self._is_trading_hours():
+                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Outside trading hours ({self.trading_start_time}-{self.trading_end_time})[/yellow]")
+                return False
+            
             # Validate price against live Upstox price
             live_price = self._get_live_price_from_upstox(symbol)
             if live_price:
@@ -1920,6 +2053,9 @@ class TVScreenerUsage:
                 'reason': reason,
                 'hold_time': datetime.now() - position['entry_time']
             })
+            
+            # Log exit trade to journal
+            self.log_trade("EXIT", symbol, exit_price, position['qty'], exit_price * position['qty'], reason, pnl_pct, pnl_amount)
             
             # Send Telegram alert if enabled
             if self.telegram_enabled:

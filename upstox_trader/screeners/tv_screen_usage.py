@@ -114,9 +114,14 @@ class TVScreenerUsage:
         self.last_alert_time = {}  # Track last alert time per symbol
         self.alert_cooldown = 300  # 5 minutes between alerts per symbol (in seconds)
         
+        # Trading Time Configuration
+        self.trading_start_time = "09:30"  # Start trading at 9:30 AM
+        self.trading_end_time = "15:00"    # Stop trading at 3:00 PM
+        
         # Simple Paper Trading integration (without full bot monitoring)
         self.paper_trading_enabled = enable_paper_trading
         self.live_trades = []  # Track live trades for display
+        self.closed_trades = []  # Track closed trades with P&L
         self.positions = {}   # Simple position tracking
         self.current_prices = {}  # Track current prices
         self.price_cache_timestamps = {}  # Track when prices were last fetched
@@ -141,6 +146,29 @@ class TVScreenerUsage:
                 console.print(f"[yellow]⚠️ Paper Trading enabled (₹20,000 per trade) - Upstox API unavailable: {e}[/yellow]")
         else:
             console.print("[yellow]⚠️ Paper Trading disabled[/yellow]")
+        
+        # Display trading hours if paper trading is enabled
+        if self.paper_trading_enabled:
+            console.print(f"[cyan]⏰ Trading Hours: {self.trading_start_time} - {self.trading_end_time} IST[/cyan]")
+    
+    def _is_trading_hours(self):
+        """Check if current time is within trading hours"""
+        if not self.paper_trading_enabled:
+            return True  # Always allow if paper trading is disabled
+            
+        try:
+            from datetime import datetime, time
+            now = datetime.now().time()
+            
+            # Parse trading hours
+            start_time = datetime.strptime(self.trading_start_time, "%H:%M").time()
+            end_time = datetime.strptime(self.trading_end_time, "%H:%M").time()
+            
+            # Check if current time is within trading hours
+            return start_time <= now <= end_time
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Error checking trading hours: {e}. Allowing trade.[/yellow]")
+            return True  # Default to allowing trade if there's an error
         
     def setup_trade_journal(self):
         """Setup trade journal file with date and mode"""
@@ -1253,13 +1281,18 @@ class TVScreenerUsage:
                     col('close') > 50,  # Above ₹50
                     col('market_cap_basic') > 5e8,  # Min 500 crores
                     col('volume') > 100000,  # Minimum volume
-                    col('sector') != ''  # Has sector data
+                    col('sector') != '',  # Has sector data
+                    col('exchange') == 'NSE'  # NSE only, ignore BSE
                 )
                 .order_by('market_cap_basic', ascending=False)
                 .limit(100)
                 .get_scanner_data(cookies=self.cookies)
             )
             
+            # Manual NSE filter (TradingView exchange filter doesn't work reliably)
+            if not df.empty and 'ticker' in df.columns:
+                df = df[df['ticker'].str.startswith('NSE:')]
+                
             if not df.empty and 'sector' in df.columns:
                 # Calculate sector-wise metrics
                 sector_stats = df.groupby('sector').agg({
@@ -1363,7 +1396,8 @@ class TVScreenerUsage:
                     col('close') > 25,  # Above ₹25
                     col('market_cap_basic') > 1e8,  # Min 100 crores
                     col('volume') > 50000,  # Minimum volume
-                    col('sector') != ''  # Has sector data
+                    col('sector') != '',  # Has sector data
+                    col('exchange') == 'NSE'  # NSE only, ignore BSE
                 )
             )
             
@@ -1377,6 +1411,10 @@ class TVScreenerUsage:
                 .limit(limit)
                 .get_scanner_data(cookies=self.cookies)
             )
+            
+            # Manual NSE filter (TradingView exchange filter doesn't work reliably)
+            if not df.empty and 'ticker' in df.columns:
+                df = df[df['ticker'].str.startswith('NSE:')]
             
             if not df.empty:
                 if sector_name:
@@ -1406,7 +1444,53 @@ class TVScreenerUsage:
     
     # ==================== INTRADAY WATCH MODE ====================
     
-    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=2.0, price_threshold=3.0, mode='PREBREAKOUT'):
+    def wait_until_market_open(self):
+        """Wait until 9:20 AM before starting active monitoring"""
+        target_time = datetime.now().replace(hour=9, minute=20, second=0, microsecond=0)
+        current_time = datetime.now()
+        
+        # If we're past 9:20 AM today, start immediately
+        if current_time >= target_time:
+            console.print("[green]✅ Market open time reached - starting active monitoring[/green]")
+            return
+        
+        # Calculate wait time
+        wait_seconds = (target_time - current_time).total_seconds()
+        wait_minutes = int(wait_seconds // 60)
+        wait_secs = int(wait_seconds % 60)
+        
+        console.print(f"[yellow]⏰ Waiting until 9:20 AM to start active monitoring...[/yellow]")
+        console.print(f"[blue]Current time: {current_time.strftime('%H:%M:%S')}[/blue]")
+        console.print(f"[blue]Target time: 9:20:00[/blue]")
+        console.print(f"[yellow]Time remaining: {wait_minutes}m {wait_secs}s[/yellow]")
+        console.print()
+        
+        # Wait with periodic updates
+        while datetime.now() < target_time:
+            remaining = (target_time - datetime.now()).total_seconds()
+            if remaining <= 0:
+                break
+                
+            mins = int(remaining // 60)
+            secs = int(remaining % 60)
+            
+            # Update every 30 seconds
+            if int(remaining) % 30 == 0:
+                # Clear screen and show countdown
+                os.system('clear' if os.name == 'posix' else 'cls')
+                console.print("[bold yellow]⏰ WAITING FOR MARKET OPEN[/bold yellow]")
+                console.print(f"[dim]Current time: {datetime.now().strftime('%H:%M:%S')}[/dim]")
+                console.print(f"[blue]🕘 {mins}m {secs}s until active monitoring starts (9:20 AM)[/blue]")
+                console.print("[dim]Press Ctrl+C to stop[/dim]")
+            
+            time.sleep(1)
+        
+        # Clear screen and show start message
+        os.system('clear' if os.name == 'posix' else 'cls')
+        console.print("[green]🚀 9:20 AM reached - starting active monitoring mode![/green]")
+        time.sleep(2)
+
+    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT'):
         """Watch mode for intraday trading - continuously monitors volume and price changes"""
         mode_titles = {
             'PREBREAKOUT': ("📊 PRE-BREAKOUT MODE - Early Entry Signals", "bold blue"),
@@ -1438,6 +1522,9 @@ class TVScreenerUsage:
         console.print(f"• Logging: 🔇 Minimal (reduced console spam)")
         console.print(f"• Press Ctrl+C to stop monitoring")
         console.print()
+        
+        # Wait until 9:20 AM before starting active monitoring
+        self.wait_until_market_open()
         
         # Store previous data for comparison
         previous_data = pd.DataFrame()
@@ -1698,7 +1785,7 @@ class TVScreenerUsage:
                     confidence = self._calculate_alert_confidence('VOLUME_SPIKE', row['relative_volume_10d_calc'], row['change'])
                     
                     # Only send if confidence is high enough
-                    if confidence >= 0.7:  # 70% minimum confidence
+                    if confidence >= 0.5:  # 50% minimum confidence
                         alert = {
                             'type': 'VOLUME_SPIKE',
                             'ticker': ticker,
@@ -1731,7 +1818,7 @@ class TVScreenerUsage:
                     confidence = self._calculate_alert_confidence('PRICE_MOVE', row['relative_volume_10d_calc'], row['change'])
                     
                     # Only send if confidence is high enough
-                    if confidence >= 0.7:  # 70% minimum confidence
+                    if confidence >= 0.5:  # 50% minimum confidence
                         alert = {
                             'type': 'PRICE_MOVE',
                             'ticker': ticker,
@@ -1749,10 +1836,9 @@ class TVScreenerUsage:
                     else:
                         console.print(f"[yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping {ticker}[/yellow]")
             
-            # Smart FOMO alert - only in SMART_FOMO mode
+            # Smart FOMO alert - available in all modes
             watch_mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
-            if (watch_mode == 'SMART_FOMO' and
-                row['relative_volume_10d_calc'] > volume_threshold and
+            if (row['relative_volume_10d_calc'] > volume_threshold and
                 row['change'] > 1 and  # Positive momentum
                 self._check_historical_upside(ticker, row['close'])):  # Historical validation
                 
@@ -1766,7 +1852,7 @@ class TVScreenerUsage:
                 confidence = self._calculate_alert_confidence('SMART_FOMO', row['relative_volume_10d_calc'], row['change'])
                 
                 # Only send if confidence is high enough
-                if confidence >= 0.7:  # 70% minimum confidence
+                if confidence >= 0.5:  # 50% minimum confidence
                     alert = {
                         'type': 'SMART_FOMO',
                         'ticker': ticker,
@@ -1783,6 +1869,114 @@ class TVScreenerUsage:
                     self.last_alert_time[f"{ticker}_SMART_FOMO"] = datetime.now()
                 else:
                     console.print(f"[yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping {ticker}[/yellow]")
+            
+            # Mode-specific alerts - each mode has its own logic matching its purpose
+            if watch_mode == 'MOMENTUM':
+                # Early momentum: RSI improving + small moves before big ones
+                rsi_current = row.get('RSI', 50)
+                rsi_prev = row.get('RSI[1]', 50)
+                macd = row.get('MACD.macd', 0)
+                macd_signal = row.get('MACD.signal', 0)
+                
+                if (0.5 <= row['change'] <= 4 and  # Small positive moves (before FOMO)
+                    1.1 <= row['relative_volume_10d_calc'] <= 2.5 and  # Slightly elevated volume
+                    35 <= rsi_current <= 70 and  # RSI sweet spot
+                    rsi_current > rsi_prev and  # RSI improving
+                    macd > macd_signal):  # MACD bullish
+                    
+                    should_skip, time_diff = self._should_skip_alert(ticker, 'EARLY_MOMENTUM')
+                    if not should_skip:
+                        confidence = self._calculate_alert_confidence('EARLY_MOMENTUM', row['relative_volume_10d_calc'], row['change'])
+                        if confidence >= 0.5:
+                            alert = {
+                                'type': 'EARLY_MOMENTUM',
+                                'ticker': ticker,
+                                'name': row['name'],
+                                'volume_ratio': row['relative_volume_10d_calc'],
+                                'price': row['close'],
+                                'change': row['change'],
+                                'rsi': rsi_current,
+                                'rsi_trend': 'Improving' if rsi_current > rsi_prev else 'Stable',
+                                'confidence': confidence
+                            }
+                            alerts.append(alert)
+                            self.last_alert_time[f"{ticker}_EARLY_MOMENTUM"] = datetime.now()
+            
+            elif watch_mode == 'ACCUMULATION':
+                # Accumulation: Normal volume, controlled price, building strength
+                if (0.8 <= row['relative_volume_10d_calc'] <= 1.8 and  # Normal volume (accumulation)
+                    -2 <= row['change'] <= 3 and  # Controlled price movement
+                    40 <= row.get('RSI', 50) <= 65 and  # Building strength
+                    row['close'] > row.get('EMA20', row['close'])):  # Above trend
+                    
+                    should_skip, time_diff = self._should_skip_alert(ticker, 'ACCUMULATION')
+                    if not should_skip:
+                        confidence = self._calculate_alert_confidence('ACCUMULATION', row['relative_volume_10d_calc'], row['change'])
+                        if confidence >= 0.5:
+                            alert = {
+                                'type': 'ACCUMULATION',
+                                'ticker': ticker,
+                                'name': row['name'],
+                                'volume_ratio': row['relative_volume_10d_calc'],
+                                'price': row['close'],
+                                'change': row['change'],
+                                'rsi': row.get('RSI', 0),
+                                'trend': 'Above EMA20',
+                                'confidence': confidence
+                            }
+                            alerts.append(alert)
+                            self.last_alert_time[f"{ticker}_ACCUMULATION"] = datetime.now()
+            
+            elif watch_mode == 'PREBREAKOUT':
+                # Pre-breakout: High RSI, building volume, testing resistance
+                if (1.2 <= row['relative_volume_10d_calc'] <= 3.0 and  # Building volume
+                    1 <= row['change'] <= 5 and  # Moderate positive moves
+                    65 <= row.get('RSI', 50) <= 85):  # High RSI (pre-breakout)
+                    
+                    should_skip, time_diff = self._should_skip_alert(ticker, 'PREBREAKOUT')
+                    if not should_skip:
+                        confidence = self._calculate_alert_confidence('PREBREAKOUT', row['relative_volume_10d_calc'], row['change'])
+                        if confidence >= 0.5:
+                            alert = {
+                                'type': 'PREBREAKOUT',
+                                'ticker': ticker,
+                                'name': row['name'],
+                                'volume_ratio': row['relative_volume_10d_calc'],
+                                'price': row['close'],
+                                'change': row['change'],
+                                'rsi': row.get('RSI', 0),
+                                'status': 'Testing Resistance',
+                                'confidence': confidence
+                            }
+                            alerts.append(alert)
+                            self.last_alert_time[f"{ticker}_PREBREAKOUT"] = datetime.now()
+            
+            elif watch_mode == 'OPTIMIZED_GAP':
+                # Gap strategy: Quality gaps with momentum continuation
+                week_high = row.get('price_52_week_high', row['close'] * 2)
+                distance_from_high = (week_high - row['close']) / week_high * 100
+                
+                if (1 <= row['change'] <= 15 and  # Quality gap range
+                    row['relative_volume_10d_calc'] > 1.5 and  # Volume confirmation
+                    distance_from_high > 20 and  # Not at 52-week high
+                    row.get('Volatility.D', 0) < 0.08):  # Not too volatile
+                    
+                    should_skip, time_diff = self._should_skip_alert(ticker, 'GAP_BREAKOUT')
+                    if not should_skip:
+                        confidence = self._calculate_alert_confidence('GAP_BREAKOUT', row['relative_volume_10d_calc'], row['change'])
+                        if confidence >= 0.5:
+                            alert = {
+                                'type': 'GAP_BREAKOUT',
+                                'ticker': ticker,
+                                'name': row['name'],
+                                'volume_ratio': row['relative_volume_10d_calc'],
+                                'price': row['close'],
+                                'change': row['change'],
+                                'gap_quality': 'Quality Gap',
+                                'confidence': confidence
+                            }
+                            alerts.append(alert)
+                            self.last_alert_time[f"{ticker}_GAP_BREAKOUT"] = datetime.now()
         
         return alerts
     
@@ -1833,6 +2027,37 @@ class TVScreenerUsage:
                 confidence += 0.1
             # Historical validation bonus
             confidence += 0.15
+        elif alert_type == 'EARLY_MOMENTUM':
+            if change_pct > 2.5:
+                confidence += 0.2
+            elif change_pct > 1.5:
+                confidence += 0.15
+            # Early entry bonus
+            confidence += 0.1
+        elif alert_type == 'ACCUMULATION':
+            # Controlled movement is preferred for accumulation
+            if 0.5 < abs(change_pct) < 2:
+                confidence += 0.2
+            elif abs(change_pct) < 3:
+                confidence += 0.1
+            # Volume-based accumulation bonus
+            confidence += 0.1
+        elif alert_type == 'PREBREAKOUT':
+            # Pre-breakout signals
+            if change_pct > 2:
+                confidence += 0.2
+            elif change_pct > 1:
+                confidence += 0.15
+            # High RSI pre-breakout bonus
+            confidence += 0.1
+        elif alert_type == 'GAP_BREAKOUT':
+            # Gap quality matters
+            if 2 <= change_pct <= 8:
+                confidence += 0.25  # Sweet spot for gaps
+            elif 1 <= change_pct <= 15:
+                confidence += 0.15
+            # Volume confirmation bonus
+            confidence += 0.1
         
         return min(confidence, 0.95)  # Cap at 95%
     
@@ -2032,8 +2257,8 @@ class TVScreenerUsage:
             # Get confidence from alert (already calculated in detection phase)
             confidence = alert.get('confidence', 0.5)
             
-            # Only trade if confidence is sufficient (70%+)
-            if confidence < 0.7:
+            # Only trade if confidence is sufficient (50%+)
+            if confidence < 0.5:
                 console.print(f"   [yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping trade[/yellow]")
                 return
             
@@ -2108,6 +2333,11 @@ class TVScreenerUsage:
     def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence):
         """Execute paper trade via bot"""
         try:
+            # Check trading hours - prevent new trades outside market hours
+            if not self._is_trading_hours():
+                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Outside trading hours ({self.trading_start_time}-{self.trading_end_time})[/yellow]")
+                return False
+            
             # Validate price against live Upstox price
             live_price = self._get_live_price_from_upstox(symbol)
             if live_price:
@@ -2235,6 +2465,10 @@ class TVScreenerUsage:
         # Display active positions if paper trading is enabled
         if self.paper_trading_enabled:
             self._display_active_positions()
+            
+        # Display closed trades if paper trading is enabled
+        if self.paper_trading_enabled and self.closed_trades:
+            self._display_closed_trades()
     
     def _display_live_trades(self):
         """Display recent live trades"""
@@ -2266,6 +2500,70 @@ class TVScreenerUsage:
             )
         
         console.print(trades_table)
+    
+    def _display_closed_trades(self):
+        """Display closed trades with P&L information in a table format"""
+        if not self.closed_trades:
+            return
+        
+        console.print()
+        closed_table = Table(title="📈 CLOSED TRADES P&L", show_header=True)
+        closed_table.add_column("Symbol", style="bold", no_wrap=True)
+        closed_table.add_column("Side", style="white")
+        closed_table.add_column("Entry ₹", justify="right", style="cyan")
+        closed_table.add_column("Exit ₹", justify="right", style="white")
+        closed_table.add_column("Qty", justify="right", style="blue")
+        closed_table.add_column("P&L %", justify="right", style="bold")
+        closed_table.add_column("P&L ₹", justify="right", style="bold")
+        closed_table.add_column("Hold Time", justify="right", style="dim")
+        closed_table.add_column("Reason", style="yellow")
+        
+        total_pnl_amount = 0
+        profitable_trades = 0
+        
+        # Show last 10 closed trades
+        recent_trades = self.closed_trades[-10:] if len(self.closed_trades) > 10 else self.closed_trades
+        
+        for trade in recent_trades:
+            # Color coding
+            pnl_style = "green" if trade['pnl_pct'] > 0 else "red"
+            side_style = "green" if trade['side'] == 'BUY' else "red"
+            side_emoji = "🟢" if trade['side'] == 'BUY' else "🔴"
+            
+            # Format hold time
+            hold_time = trade['exit_time'] - trade['entry_time']
+            if hold_time.total_seconds() < 3600:  # Less than 1 hour
+                hold_display = f"{int(hold_time.total_seconds() / 60)}m"
+            elif hold_time.total_seconds() < 86400:  # Less than 1 day
+                hold_display = f"{int(hold_time.total_seconds() / 3600)}h"
+            else:
+                hold_display = f"{hold_time.days}d"
+            
+            total_pnl_amount += trade['pnl_amount']
+            if trade['pnl_pct'] > 0:
+                profitable_trades += 1
+            
+            closed_table.add_row(
+                trade['symbol'],
+                f"[{side_style}]{side_emoji} {trade['side']}[/{side_style}]",
+                f"₹{trade['entry_price']:,.2f}",
+                f"₹{trade['exit_price']:,.2f}",
+                str(trade['quantity']),
+                f"[{pnl_style}]{trade['pnl_pct']:+.2f}%[/{pnl_style}]",
+                f"[{pnl_style}]₹{trade['pnl_amount']:+,.0f}[/{pnl_style}]",
+                hold_display,
+                trade['exit_reason'][:15]
+            )
+        
+        console.print(closed_table)
+        
+        # Display summary stats
+        total_trades = len(self.closed_trades)
+        win_rate = (profitable_trades / total_trades * 100) if total_trades > 0 else 0
+        total_pnl_style = "green" if total_pnl_amount > 0 else "red"
+        
+        console.print(f"[dim]Total Trades: {total_trades} | Win Rate: {win_rate:.1f}% | "
+                     f"Total P&L: [{total_pnl_style}]₹{total_pnl_amount:+,.0f}[/{total_pnl_style}][/dim]")
     
     def _get_live_price_from_upstox(self, symbol, force_refresh=False):
         """Get live price from Upstox API for a symbol with BSE fallback"""
@@ -2515,9 +2813,10 @@ class TVScreenerUsage:
                 pnl_pct *= -1
             
             # Risk Management Rules
-            stop_loss_pct = -2.0  # 2% initial stop loss
+            stop_loss_pct = -0.5  # 0.5% initial stop loss
             take_profit_pct = 1.0  # 1% take profit threshold for intraday
             trailing_stop_buffer = 0.5  # 0.5% trailing buffer for tighter control
+            quick_exit_pct = 0.5  # 0.5% quick exit threshold
             
             # Update highest profit and price tracking
             if pnl_pct > position['highest_profit_pct']:
@@ -2622,6 +2921,20 @@ class TVScreenerUsage:
                     )
                 except Exception as e:
                     console.print(f"[yellow]⚠️ Failed to send Telegram exit alert: {e}[/yellow]")
+            
+            # Add to closed trades list
+            self.closed_trades.append({
+                'symbol': symbol,
+                'side': position['side'],
+                'entry_time': position.get('timestamp', datetime.now()),
+                'exit_time': datetime.now(),
+                'entry_price': position['entry_price'],
+                'exit_price': exit_price,
+                'quantity': position['qty'],
+                'pnl_pct': pnl_pct,
+                'pnl_amount': pnl_amount,
+                'exit_reason': reason
+            })
             
             # Close the position
             self.positions[symbol] = None
