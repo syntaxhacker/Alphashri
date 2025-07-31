@@ -190,6 +190,158 @@ class TVScreenerUsage:
         except Exception as e:
             console.print(f"[dim red]⚠️ Journal write failed: {e}[/dim red]")
 
+    def _check_historical_trend(self, symbol, timeframe='daily', lookback_days=20):
+        """Analyze historical trend using multiple indicators"""
+        try:
+            if not hasattr(self, 'upstox_api') or not self.upstox_api:
+                return 'neutral'  # No historical data available
+                
+            # Get historical data with proper date range
+            from datetime import datetime, timedelta
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
+            
+            if timeframe == 'daily':
+                df = self.upstox_api.fetch_historical_data_v3(
+                    symbol=symbol,
+                    unit='days',
+                    interval=1,
+                    to_date=to_date,
+                    from_date=from_date
+                )
+            else:  # hourly for shorter-term trend (limited to 90 days per documentation)
+                # Limit hourly lookback to 90 days max due to API constraints
+                hourly_lookback = min(lookback_days, 90)
+                hourly_from_date = (datetime.now() - timedelta(days=hourly_lookback)).strftime('%Y-%m-%d')
+                df = self.upstox_api.fetch_historical_data_v3(
+                    symbol=symbol,
+                    unit='hours',
+                    interval=1,
+                    to_date=to_date,
+                    from_date=hourly_from_date
+                )
+            
+            if df is None or df.empty or len(df) < 10:
+                return 'neutral'  # Insufficient data
+            
+            # Calculate trend indicators
+            df = df.sort_values('timestamp').reset_index(drop=True)
+            
+            # 1. Price trend - Compare current vs moving averages
+            df['sma_5'] = df['close'].rolling(5).mean()
+            df['sma_10'] = df['close'].rolling(10).mean()
+            df['sma_20'] = df['close'].rolling(20).mean() if len(df) >= 20 else df['close'].rolling(len(df)//2).mean()
+            
+            current_price = df['close'].iloc[-1]
+            sma_5 = df['sma_5'].iloc[-1]
+            sma_10 = df['sma_10'].iloc[-1]
+            sma_20 = df['sma_20'].iloc[-1]
+            
+            # 2. Trend slope - Check if moving averages are ascending/descending
+            sma_5_slope = (df['sma_5'].iloc[-1] - df['sma_5'].iloc[-3]) / 3 if len(df) >= 3 else 0
+            sma_10_slope = (df['sma_10'].iloc[-1] - df['sma_10'].iloc[-5]) / 5 if len(df) >= 5 else 0
+            
+            # 3. Volume trend
+            avg_volume = df['volume'].rolling(10).mean().iloc[-1] if len(df) >= 10 else df['volume'].mean()
+            recent_volume = df['volume'].iloc[-3:].mean()  # Last 3 periods
+            volume_strength = recent_volume / avg_volume if avg_volume > 0 else 1
+            
+            # 4. Price momentum (rate of change)
+            price_change_5d = (current_price - df['close'].iloc[-6]) / df['close'].iloc[-6] * 100 if len(df) >= 6 else 0
+            price_change_10d = (current_price - df['close'].iloc[-11]) / df['close'].iloc[-11] * 100 if len(df) >= 11 else 0
+            
+            # Trend scoring system
+            trend_score = 0
+            
+            # Price vs MA alignment (40% weight)
+            if current_price > sma_5 > sma_10 > sma_20:
+                trend_score += 40  # Strong uptrend
+            elif current_price > sma_5 > sma_10:
+                trend_score += 25  # Moderate uptrend
+            elif current_price > sma_5:
+                trend_score += 10  # Weak uptrend
+            elif current_price < sma_5 < sma_10 < sma_20:
+                trend_score -= 40  # Strong downtrend
+            elif current_price < sma_5 < sma_10:
+                trend_score -= 25  # Moderate downtrend
+            elif current_price < sma_5:
+                trend_score -= 10  # Weak downtrend
+            
+            # MA slope trend (20% weight)
+            if sma_5_slope > 0 and sma_10_slope > 0:
+                trend_score += 20
+            elif sma_5_slope > 0:
+                trend_score += 10
+            elif sma_5_slope < 0 and sma_10_slope < 0:
+                trend_score -= 20
+            elif sma_5_slope < 0:
+                trend_score -= 10
+            
+            # Momentum (20% weight)
+            if price_change_5d > 2 and price_change_10d > 1:
+                trend_score += 20
+            elif price_change_5d > 1:
+                trend_score += 10
+            elif price_change_5d < -2 and price_change_10d < -1:
+                trend_score -= 20
+            elif price_change_5d < -1:
+                trend_score -= 10
+            
+            # Volume confirmation (20% weight)
+            if volume_strength > 1.2:
+                trend_score += 20
+            elif volume_strength > 1.0:
+                trend_score += 10
+            elif volume_strength < 0.8:
+                trend_score -= 10
+            
+            # Determine trend category
+            if trend_score >= 40:
+                return 'strong_bullish'
+            elif trend_score >= 20:
+                return 'bullish'
+            elif trend_score >= -20:
+                return 'neutral'
+            elif trend_score >= -40:
+                return 'bearish'
+            else:
+                return 'strong_bearish'
+                
+        except Exception as e:
+            # Try fallback with 15-minute data for 7 days if daily fails
+            try:
+                console.print(f"[dim yellow]⚠️ Daily trend analysis failed for {symbol}, trying 15min fallback...[/dim yellow]")
+                from datetime import datetime, timedelta
+                to_date = datetime.now().strftime('%Y-%m-%d')
+                from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+                
+                df = self.upstox_api.fetch_historical_data_v3(
+                    symbol=symbol,
+                    unit='minutes',
+                    interval=15,
+                    to_date=to_date,
+                    from_date=from_date
+                )
+                
+                if df is not None and not df.empty and len(df) >= 10:
+                    # Simple trend analysis with available data
+                    df = df.sort_values('timestamp').reset_index(drop=True)
+                    recent_price = df['close'].iloc[-1]
+                    older_price = df['close'].iloc[0]
+                    price_change = (recent_price - older_price) / older_price * 100
+                    
+                    if price_change > 3:
+                        return 'bullish'
+                    elif price_change < -3:
+                        return 'bearish'
+                    else:
+                        return 'neutral'
+                        
+            except Exception as fallback_error:
+                console.print(f"[dim red]⚠️ All trend analysis failed for {symbol}: {e} | Fallback: {fallback_error}[/dim red]")
+            
+            return 'neutral'  # Ultimate failsafe
+
     def _is_trading_hours(self):
         """Check if current time is within trading hours"""
         if not self.paper_trading_enabled:
@@ -247,6 +399,8 @@ class TVScreenerUsage:
                 table.add_column("D/E", justify="right", style="red")
             elif col_name == 'update_mode':
                 table.add_column("Data", style="dim")
+            elif col_name == 'trend':
+                table.add_column("Trend", style="bold", justify="center")
         
         # Add rows
         for i, (_, row) in enumerate(df.head(max_rows).iterrows()):
@@ -304,6 +458,20 @@ class TVScreenerUsage:
                         row_data.append(f"{de_val:.2f}")
                 elif col_name == 'update_mode':
                     row_data.append(row[col_name])
+                elif col_name == 'trend':
+                    trend_val = row[col_name]
+                    if trend_val == 'strong_bullish':
+                        row_data.append("[bold green]🚀 Strong Bull[/bold green]")
+                    elif trend_val == 'bullish':
+                        row_data.append("[green]📈 Bullish[/green]")
+                    elif trend_val == 'neutral':
+                        row_data.append("[yellow]➡️ Neutral[/yellow]")
+                    elif trend_val == 'bearish':
+                        row_data.append("[red]📉 Bearish[/red]")
+                    elif trend_val == 'strong_bearish':
+                        row_data.append("[bold red]💥 Strong Bear[/bold red]")
+                    else:
+                        row_data.append(f"[dim]{trend_val}[/dim]")
                 else:
                     row_data.append(str(row[col_name]))
             
@@ -337,6 +505,16 @@ class TVScreenerUsage:
                 .limit(15)
                 .get_scanner_data(cookies=self.cookies)
             )
+            
+            # Add trend analysis for each stock
+            if not df.empty:
+                console.print("[dim]Adding trend analysis...[/dim]")
+                trend_data = []
+                for _, row in df.iterrows():
+                    ticker = row['name']  # Use 'name' field as it contains the ticker
+                    trend = self._check_historical_trend(ticker, timeframe='daily', lookback_days=15)
+                    trend_data.append(trend)
+                df['trend'] = trend_data
             
             self.display_table(df, "High Volume Breakouts - Intraday")
             
@@ -1132,6 +1310,7 @@ class TVScreenerUsage:
         if self.paper_trading_enabled:
             console.print(f"• Live risk management: 🟢 ENABLED (2% SL | 4% TP | 1.5% TSL | 2sec checks)")
         console.print(f"• Trade journal: 📝 {self.journal_file}")
+        console.print(f"• Trend analysis: 🎯 ENABLED (15-day lookback | SELL in bearish trends)")
         console.print(f"• Press Ctrl+C to stop monitoring")
         console.print()
         
@@ -1404,27 +1583,42 @@ class TVScreenerUsage:
             # Calculate confidence based on alert strength
             confidence = self._calculate_alert_confidence(alert)
             
-            # Only trade if confidence is sufficient (70%+)
-            if confidence < 0.7:
+            # Only trade if confidence is sufficient (80%+)
+            if confidence < 0.8:
                 console.print(f"   [yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping trade[/yellow]")
                 return
             
-            # Determine trade direction
-            trade_side = None
-            if alert['type'] == 'VOLUME_SPIKE':
-                # Volume spike with positive change = BUY
-                if alert.get('change', 0) > 0:
-                    trade_side = 'BUY'
-                elif alert.get('change', 0) < -2:  # Strong negative move
-                    trade_side = 'SELL'
+            # Check historical trend to align trading with market direction
+            trend = self._check_historical_trend(symbol, timeframe='daily', lookback_days=15)
             
-            elif alert['type'] == 'PRICE_MOVE':
-                # Strong positive price move = BUY
-                if alert.get('current_change', 0) > 2:
-                    trade_side = 'BUY'
-                # Strong negative price move = SELL
-                elif alert.get('current_change', 0) < -2:
+            # Determine trade direction with trend consideration
+            trade_side = None
+            
+            # In bearish trends, prioritize SELL signals  
+            if trend in ['strong_bearish', 'bearish']:
+                console.print(f"   [red]📉 {symbol} in {trend} trend - prioritizing SELL signals[/red]")
+                # Convert any signal to SELL in bearish trends
+                if alert['type'] in ['VOLUME_SPIKE', 'PRICE_MOVE']:
                     trade_side = 'SELL'
+            else:
+                # Normal trend-based logic for neutral/bullish trends
+                if alert['type'] == 'VOLUME_SPIKE':
+                    # Volume spike with positive change = BUY (only in neutral+ trends)
+                    if alert.get('change', 0) > 0 and trend in ['strong_bullish', 'bullish', 'neutral']:
+                        trade_side = 'BUY'
+                    elif alert.get('change', 0) < -2:  # Strong negative move
+                        trade_side = 'SELL'
+                
+                elif alert['type'] == 'PRICE_MOVE':
+                    # Strong positive price move = BUY (prefer bullish trends)
+                    if alert.get('current_change', 0) > 2:
+                        if trend in ['strong_bullish', 'bullish']:
+                            trade_side = 'BUY'  # Higher confidence in bullish trends
+                        elif trend == 'neutral':
+                            trade_side = 'BUY'  # Allow in neutral markets
+                    # Strong negative price move = SELL
+                    elif alert.get('current_change', 0) < -2:
+                        trade_side = 'SELL'
             
             if trade_side:
                 # Check if we already have a position in this symbol
@@ -1436,7 +1630,7 @@ class TVScreenerUsage:
                 quantity = max(1, int(20000 / price))
                 
                 # Execute trade
-                success = self._execute_screener_trade(symbol, trade_side, alert, price, quantity, confidence)
+                success = self._execute_screener_trade(symbol, trade_side, alert, price, quantity, confidence, trend)
                 
                 if success:
                     # Add to live trades display
@@ -1458,9 +1652,11 @@ class TVScreenerUsage:
                         self.live_trades.pop(0)
                     
                     # Log trade to journal
-                    self.log_trade("ENTRY", symbol, price, quantity, quantity * price, alert['type'])
+                    self.log_trade("ENTRY", symbol, price, quantity, quantity * price, f"{alert['type']}|trend:{trend}")
                     
-                    console.print(f"   [green]✅ Paper trade executed: {trade_side} {quantity} {symbol} @ ₹{price:.2f}[/green]")
+                    trend_emoji = "📈" if trend in ['strong_bullish', 'bullish'] else "📉" if trend in ['strong_bearish', 'bearish'] else "➡️"
+                    strategy_reason = f"bearish trend short" if trend in ['strong_bearish', 'bearish'] and trade_side == 'SELL' else f"signal-based {trade_side.lower()}"  
+                    console.print(f"   [green]✅ Paper trade executed: {trade_side} {quantity} {symbol} @ ₹{price:.2f} {trend_emoji} ({strategy_reason})[/green]")
                 else:
                     console.print(f"   [red]❌ Paper trade failed for {symbol}[/red]")
             else:
@@ -1505,7 +1701,7 @@ class TVScreenerUsage:
         
         return min(confidence, 0.95)  # Cap at 95%
     
-    def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence):
+    def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence, trend='neutral'):
         """Execute paper trade via bot"""
         try:
             # Check trading hours - prevent new trades outside market hours
