@@ -29,6 +29,31 @@ import sys
 import atexit
 from datetime import datetime, timedelta
 
+# Import mode functions from tv_modes
+try:
+    from . import tv_modes
+except ImportError:
+    # Fallback for direct script execution
+    import tv_modes
+
+# Robust helper import: supports package, installed, and direct-script execution
+try:
+    # Package context (e.g., python -m upstox_trader.screeners.tv_screen_usage)
+    from .tv_helpers import get_tradingview_cookies, display_table as helpers_display_table, save_results as helpers_save_results
+except Exception:
+    try:
+        # Absolute import if package is on sys.path
+        from upstox_trader.screeners.tv_helpers import get_tradingview_cookies, display_table as helpers_display_table, save_results as helpers_save_results
+    except Exception:
+        # Direct script execution fallback:
+        # Add parent directory of this file (i.e., .../upstox_trader) to sys.path, then import tv_helpers
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+        # Now import as a sibling module
+        from tv_helpers import get_tradingview_cookies, display_table as helpers_display_table, save_results as helpers_save_results
+
 # Telegram integration and Paper Trading Bot
 try:
     import requests
@@ -52,45 +77,60 @@ except ImportError as e:
 
 console = Console()
 
-def get_tradingview_cookies():
-    """Get TradingView cookies from browser"""
+# Local display module for Rich table rendering
+# Try multiple strategies to import tv_display reliably across run contexts
+try:
+    from . import tv_display  # Package-relative
+except Exception:
     try:
-        # Try Chrome first
-        cookies_raw = rookiepy.chrome(['.tradingview.com'])
-        cookies = rookiepy.to_cookiejar(cookies_raw)
-        console.print("[green]Successfully loaded cookies from Chrome[/green]")
-        
-        # Check if we have valid cookies
-        if cookies_raw:
-            console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
-        else:
-            console.print("[yellow]⚠️  No cookies found[/yellow]")
-        
-        return cookies
+        import upstox_trader.screeners.tv_display as tv_display  # Absolute package path
     except Exception:
-        console.print("[yellow]Chrome cookies failed, trying Firefox...[/yellow]")
+        # As a last resort, add the parent directory of this file to sys.path and import sibling
         try:
-            cookies_raw = rookiepy.firefox(['.tradingview.com'])
-            cookies = rookiepy.to_cookiejar(cookies_raw)
-            console.print("[green]Successfully loaded cookies from Firefox[/green]")
-            
-            if cookies_raw:
-                console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
-            else:
-                console.print("[yellow]⚠️  No cookies found[/yellow]")
-            
-            return cookies
+            _current_dir = os.path.dirname(os.path.abspath(__file__))
+            _parent_dir = os.path.dirname(_current_dir)
+            if _parent_dir not in sys.path:
+                sys.path.insert(0, _parent_dir)
+            import tv_display as tv_display  # sibling import
         except Exception:
-            console.print("[red]Could not load cookies from any browser.[/red]")
-            console.print("[yellow]💡 Make sure you're logged into TradingView in your browser[/yellow]")
-            console.print("[yellow]💡 Try refreshing the TradingView page and run script again[/yellow]")
-            return None
+            tv_display = None  # Will guard at call sites
+
+# Local alerts module for Telegram sending
+try:
+    from . import tv_alerts
+except Exception:
+    try:
+        import upstox_trader.screeners.tv_alerts as tv_alerts
+    except Exception:
+        tv_alerts = None  # Guard at call sites
+
+# get_tradingview_cookies moved to tv_helpers.get_tradingview_cookies
+
+# Local utils module for shared screener helpers
+try:
+    from . import tv_utils
+except Exception:
+    try:
+        import upstox_trader.screeners.tv_utils as tv_utils
+    except Exception:
+        tv_utils = None  # Guard at call sites
 
 class TVScreenerUsage:
     def __init__(self, market='in', enable_paper_trading=False):
         self.cookies = get_tradingview_cookies()
         self.query = Query()
-        
+
+        # Bind optional display module to instance once, so delegated modules can rely on it
+        # and avoid re-import attempts in tight loops.
+        try:
+            self.tv_display = tv_display if 'tv_display' in globals() else None
+        except Exception:
+            self.tv_display = None
+
+        # Emit a one-time note if display is unavailable (avoid spamming every refresh)
+        if self.tv_display is None:
+            console.print("[yellow]tv_display module unavailable (table rendering degraded).[/yellow]")
+
         # Set market based on parameter
         if market.lower() == 'us':
             self.market = 'america'
@@ -259,101 +299,24 @@ class TVScreenerUsage:
         console.print(f"\n[bold green]✅ Exited {exit_count} positions | Total P&L: ₹{total_pnl:+,.0f}[/bold green]")
     
     def _get_progressive_trailing_buffer(self, profit_pct, volatility_adjustment=0.0):
-        """
-        Calculate trailing stop buffer based on profit tiers with optional volatility adjustment
-        Higher profits = Tighter trailing stops to lock in gains
-        
-        Profit Tiers:
-        0-1%:   1.0% buffer (let it breathe)
-        1-2%:   0.8% buffer (start tightening)  
-        2-3%:   0.6% buffer (moderate tightening)
-        3-5%:   0.4% buffer (aggressive tightening)
-        5%+:    0.3% buffer (very tight - lock profits)
-        
-        Volatility Adjustment: +0.1-0.2% for highly volatile stocks
-        """
-        base_buffer = 1.0  # Default
-        
-        if profit_pct >= 5.0:
-            base_buffer = 0.3  # Very tight for big winners
-        elif profit_pct >= 3.0:
-            base_buffer = 0.4  # Aggressive for good profits
-        elif profit_pct >= 2.0:
-            base_buffer = 0.6  # Moderate tightening
-        elif profit_pct >= 1.0:
-            base_buffer = 0.8  # Start tightening
-        
-        # Add volatility adjustment (looser for volatile stocks)
-        adjusted_buffer = base_buffer + volatility_adjustment
-        
-        # Cap the buffer between 0.2% and 1.5%
-        return max(0.2, min(1.5, adjusted_buffer))
+        """Delegate to shared utils to calculate trailing buffer."""
+        if tv_utils is None:
+            return 1.0
+        return tv_utils.get_progressive_trailing_buffer(profit_pct, volatility_adjustment)
     
     def _calculate_trading_charges(self, trade_value, trade_type='intraday'):
-        """
-        Calculate realistic trading charges for Indian markets
-        
-        Charges include:
-        - Brokerage: 0.03% or ₹20 per trade (whichever is lower)
-        - STT: 0.025% on sell side for intraday
-        - Exchange charges: 0.00325% 
-        - GST: 18% on (brokerage + exchange charges)
-        - SEBI charges: ₹10 per crore
-        """
-        # Brokerage: 0.03% or ₹20 per trade (whichever is lower)
-        brokerage = min(trade_value * 0.0003, 20)
-        
-        # STT: 0.025% on sell side for intraday (we'll apply half on both sides)
-        stt = trade_value * 0.000125 if trade_type == 'intraday' else trade_value * 0.001
-        
-        # Exchange charges: ~0.00325%
-        exchange_charges = trade_value * 0.0000325
-        
-        # GST: 18% on (brokerage + exchange charges)
-        gst = (brokerage + exchange_charges) * 0.18
-        
-        # SEBI charges: ₹10 per crore (₹1 per lakh)
-        sebi_charges = max(1, trade_value / 100000)
-        
-        total_charges = brokerage + stt + exchange_charges + gst + sebi_charges
-        return round(total_charges, 2)
+        """Delegate to shared utils to calculate trading charges."""
+        if tv_utils is None:
+            return 0.0
+        return tv_utils.calculate_trading_charges(trade_value, trade_type)
     
     def _get_acceleration_based_buffer(self, current_profit, highest_profit, time_since_entry_minutes):
-        """
-        Alternative: Acceleration-based trailing stop
-        Tightens based on momentum acceleration and time
-        
-        Fast acceleration (quick gains) = Tighter stops
-        Slow steady gains = Normal stops
-        """
-        profit_velocity = current_profit / max(1, time_since_entry_minutes)  # % per minute
-        
-        # Base buffer from progressive system
-        base_buffer = self._get_progressive_trailing_buffer(current_profit)
-        
-        # Acceleration adjustment
-        if profit_velocity > 0.1:  # Very fast gains (>0.1% per minute)
-            acceleration_adjustment = -0.2  # Tighten significantly
-        elif profit_velocity > 0.05:  # Fast gains
-            acceleration_adjustment = -0.1  # Tighten moderately
-        elif profit_velocity < 0.01:  # Slow gains
-            acceleration_adjustment = 0.1   # Loosen slightly
-        else:
-            acceleration_adjustment = 0.0   # No change
-        
-        # Apply adjustment
-        adjusted_buffer = base_buffer + acceleration_adjustment
-        return max(0.2, min(1.0, adjusted_buffer))
+        """Delegate to shared utils for acceleration-based buffer."""
+        if tv_utils is None:
+            return 1.0
+        return tv_utils.get_acceleration_based_buffer(current_profit, highest_profit, time_since_entry_minutes)
     
-    def _send_telegram_alert(self, message):
-        """Send telegram alert message"""
-        try:
-            if hasattr(self, 'send_telegram_alert'):
-                # Create a mock alert object for the existing method
-                alert = {'type': 'AUTO_EXIT', 'ticker': 'BULK_EXIT'}
-                self.send_telegram_alert(alert)
-        except Exception as e:
-            pass  # Ignore telegram errors
+    # Removed unused _send_telegram_alert stub; sending is delegated to tv_alerts.send_telegram_alert
         
     def setup_trade_journal(self):
         """Setup trade journal file with date and mode"""
@@ -413,44 +376,61 @@ class TVScreenerUsage:
             price_52w_high = row.get('price_52_week_high', current_price * 1.1)
             ema20 = row.get('EMA20', current_price)
             ema50 = row.get('EMA50', current_price)
+            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
             
             # Calculate distance from 52-week high
             distance_from_high = ((price_52w_high - current_price) / current_price) * 100
             
-            # Check 1: Too close to 52-week high (less than 5% below)
-            if distance_from_high < 5.0:
+            # Check 1: Too close to 52-week high (less than 8% below - more conservative)
+            if distance_from_high < 8.0:
                 console.print(f"[dim yellow]⚠️ {symbol}: Too close to 52W high (only {distance_from_high:.1f}% below)[/dim yellow]")
                 return False
             
-            # Check 2: RSI too overbought (above 75)
-            if rsi > 75:
-                console.print(f"[dim yellow]⚠️ {symbol}: RSI too overbought ({rsi:.1f} > 75)[/dim yellow]")
+            # Check 2: RSI too overbought (above 70 - more aggressive than 75)
+            if rsi > 70:
+                console.print(f"[dim yellow]⚠️ {symbol}: RSI too overbought ({rsi:.1f} > 70)[/dim yellow]")
                 return False
             
-            # Check 3: TODAY'S move too extreme (above 8% - CRITICAL FILTER)
+            # Check 3: TODAY'S move too extreme (above 6% - more conservative than 8%)
             today_change = row.get('change', 0)
-            if today_change > 8.0:
-                console.print(f"[dim yellow]⚠️ {symbol}: Today's move too extreme (+{today_change:.1f}% > 8%)[/dim yellow]")
+            if today_change > 6.0:
+                console.print(f"[dim yellow]⚠️ {symbol}: Today's move too extreme (+{today_change:.1f}% > 6%)[/dim yellow]")
                 return False
             
-            # Check 4: Weekly performance too extended (above 15%)
-            if week_perf > 15:
-                console.print(f"[dim yellow]⚠️ {symbol}: Weekly move too extended (+{week_perf:.1f}% > 15%)[/dim yellow]")
+            # Check 4: Intraday momentum divergence - very high volume with small move suggests profit taking
+            if volume_ratio > 5.0 and today_change < 2.0:
+                console.print(f"[dim yellow]⚠️ {symbol}: High volume ({volume_ratio:.1f}x) with weak price action - potential distribution[/dim yellow]")
                 return False
             
-            # Check 5: 3-month performance too extended (above 50%)
-            if month3_perf > 50:
-                console.print(f"[dim yellow]⚠️ {symbol}: 3-month move too extended (+{month3_perf:.1f}% > 50%)[/dim yellow]")
+            # Check 5: Weekly performance too extended (above 12% - more conservative)
+            if week_perf > 12:
+                console.print(f"[dim yellow]⚠️ {symbol}: Weekly move too extended (+{week_perf:.1f}% > 12%)[/dim yellow]")
                 return False
             
-            # Check 6: Not above key moving averages (trend weakness)
+            # Check 6: 3-month performance too extended (above 40% - more conservative)
+            if month3_perf > 40:
+                console.print(f"[dim yellow]⚠️ {symbol}: 3-month move too extended (+{month3_perf:.1f}% > 40%)[/dim yellow]")
+                return False
+            
+            # Check 7: Not above key moving averages (trend weakness)
             if current_price < ema20:
                 console.print(f"[dim yellow]⚠️ {symbol}: Below 20 EMA - weak trend[/dim yellow]")
                 return False
             
-            # Check 7: EMA alignment (20 EMA should be above 50 EMA)
+            # Check 8: EMA alignment (20 EMA should be above 50 EMA)
             if ema20 < ema50:
                 console.print(f"[dim yellow]⚠️ {symbol}: 20 EMA below 50 EMA - downtrend[/dim yellow]")
+                return False
+            
+            # Check 9: Price extension from EMA20 (don't chase stocks too far above support)
+            price_above_ema20 = ((current_price - ema20) / ema20) * 100
+            if price_above_ema20 > 5.0:
+                console.print(f"[dim yellow]⚠️ {symbol}: Too far above EMA20 ({price_above_ema20:.1f}% > 5%) - wait for pullback[/dim yellow]")
+                return False
+            
+            # Check 10: Momentum quality check - RSI vs Price action alignment
+            if rsi > 65 and today_change < 1.5:
+                console.print(f"[dim yellow]⚠️ {symbol}: RSI high ({rsi:.1f}) but weak price action - momentum fading[/dim yellow]")
                 return False
             
             # If all checks pass, it's safer to enter
@@ -461,6 +441,54 @@ class TVScreenerUsage:
             console.print(f"[dim red]⚠️ Error checking top avoidance for {symbol}: {e}[/dim red]")
             # If error, be conservative and avoid entry
             return False
+    
+    def _check_momentum_divergence(self, symbol, row, previous_data=None):
+        """
+        Check for momentum divergence - price making higher highs but indicators showing weakness
+        Returns True if momentum is healthy, False if divergence detected
+        """
+        try:
+            current_price = row['close']
+            rsi = row.get('RSI', 50)
+            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
+            macd = row.get('MACD.macd', 0)
+            macd_signal = row.get('MACD.signal', 0)
+            
+            # Check 1: Price vs RSI divergence
+            # If price is strong but RSI is weakening, that's bearish divergence
+            today_change = row.get('change', 0)
+            if today_change > 3.0 and rsi < 55:
+                console.print(f"[dim yellow]⚠️ {symbol}: Potential RSI divergence - strong price (+{today_change:.1f}%) but weak RSI ({rsi:.1f})[/dim yellow]")
+                return False
+            
+            # Check 2: Volume-Price divergence
+            # Very high volume with small price move suggests institutions selling into strength
+            if volume_ratio > 4.0 and today_change < 2.5:
+                console.print(f"[dim yellow]⚠️ {symbol}: Volume-price divergence - high volume ({volume_ratio:.1f}x) with weak move (+{today_change:.1f}%)[/dim yellow]")
+                return False
+            
+            # Check 3: MACD momentum check
+            if macd < macd_signal and today_change > 2.0:
+                console.print(f"[dim yellow]⚠️ {symbol}: MACD bearish divergence - price up but MACD below signal[/dim yellow]")
+                return False
+            
+            # Check 4: Compare with previous data if available
+            if previous_data is not None and not previous_data.empty:
+                prev_row = previous_data[previous_data['ticker'] == symbol]
+                if not prev_row.empty:
+                    prev_rsi = prev_row.iloc[0].get('RSI', 50)
+                    prev_change = prev_row.iloc[0].get('change', 0)
+                    
+                    # Check if price momentum improving but RSI momentum declining
+                    if today_change > prev_change and rsi < prev_rsi - 5:
+                        console.print(f"[dim yellow]⚠️ {symbol}: Momentum divergence - price accelerating but RSI declining[/dim yellow]")
+                        return False
+            
+            return True
+            
+        except Exception as e:
+            console.print(f"[dim red]⚠️ Error checking momentum divergence for {symbol}: {e}[/dim red]")
+            return True  # If error, don't block trade but log
     
     def _is_overextended_for_short(self, symbol):
         """
@@ -711,20 +739,17 @@ class TVScreenerUsage:
     def _detect_support_resistance_levels(self, symbol, lookback_days=60):
         """Detect key support and resistance levels from historical OHLC data"""
         try:
-            # Try to fetch real historical data first
+            # Only use real historical data via Upstox API
             if hasattr(self, 'upstox_api') and self.upstox_api:
                 return self._get_real_sr_levels_from_upstox(symbol, lookback_days)
             else:
-                # Fallback to simulated levels if no Upstox API
-                console.print(f"[dim yellow]⚠️ Using simulated S/R for {symbol} (no Upstox API)[/dim yellow]")
-                return self._simulate_sr_levels_from_current_data(symbol)
+                # No simulation fallback; mark unavailable
+                console.print(f"[dim yellow]⚠️ S/R unavailable for {symbol} (Upstox API not initialized)[/dim yellow]")
+                return {'levels': [], 'data_quality': 'unavailable'}
         except Exception as e:
             console.print(f"[dim red]⚠️ S/R analysis failed for {symbol}: {e}[/dim red]")
-            # Fallback to simulated on error
-            try:
-                return self._simulate_sr_levels_from_current_data(symbol)
-            except:
-                return {'levels': [], 'data_quality': 'error'}
+            # No simulation fallback on errors
+            return {'levels': [], 'data_quality': 'error'}
     
     def _get_real_sr_levels_from_upstox(self, symbol, lookback_days=60):
         """Get real S/R levels using historical OHLC data from Upstox"""
@@ -836,7 +861,7 @@ class TVScreenerUsage:
             
         except Exception as e:
             console.print(f"[dim red]Historical S/R failed for {symbol}: {e}[/dim red]")
-            return self._simulate_sr_levels_from_current_data(symbol)
+            return {'levels': [], 'data_quality': 'error'}
     
     def _detect_gap_reversal_signals(self, symbol, gap_direction, current_price, gap_size):
         """Detect if a gap is showing reversal/exhaustion signals for safe counter-trend trading"""
@@ -993,117 +1018,7 @@ class TVScreenerUsage:
             console.print(f"[dim red]Reversal analysis failed for {symbol}: {e}[/dim red]")
             return {'reversal_strength': 0, 'signals': ['error'], 'recommendation': 'SKIP'}
     
-    def _simulate_sr_levels_from_current_data(self, symbol):
-        """Create realistic S/R levels based on current market data and technical levels"""
-        try:
-            # Get current stock data from screener
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'change', 'RSI', 'price_52_week_high', 'price_52_week_low')
-                .set_markets(self.market)
-                .where(
-                    col('name') == symbol,
-                    col('exchange') == 'NSE'
-                )
-                .limit(1)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            if df.empty:
-                return {'levels': [], 'data_quality': 'no_data'}
-            
-            row = df.iloc[0]
-            current_price = row['close']
-            week_52_high = row.get('price_52_week_high', current_price * 1.3)
-            week_52_low = row.get('price_52_week_low', current_price * 0.7)
-            
-            levels = []
-            
-            # Generate realistic S/R levels based on technical analysis principles
-            
-            # 1. Psychological levels (round numbers)
-            if current_price > 100:
-                step = 50 if current_price > 1000 else 25
-            else:
-                step = 10
-            
-            # Find nearest round numbers above and below
-            round_resistance = ((current_price // step) + 1) * step
-            round_support = ((current_price // step)) * step
-            
-            if round_resistance > current_price:
-                levels.append({
-                    'type': 'resistance',
-                    'price': round_resistance,
-                    'distance_pct': ((round_resistance - current_price) / current_price * 100),
-                    'strength': 'moderate'
-                })
-            
-            if round_support < current_price:
-                levels.append({
-                    'type': 'support',
-                    'price': round_support,
-                    'distance_pct': ((current_price - round_support) / current_price * 100),
-                    'strength': 'moderate'
-                })
-            
-            # 2. Fibonacci retracement levels (if we have 52-week range)
-            if week_52_high > current_price:
-                fib_resistance = current_price + (week_52_high - current_price) * 0.382  # 38.2% resistance
-                if fib_resistance != round_resistance:  # Avoid duplicates
-                    levels.append({
-                        'type': 'resistance',
-                        'price': fib_resistance,
-                        'distance_pct': ((fib_resistance - current_price) / current_price * 100),
-                        'strength': 'weak'
-                    })
-            
-            if week_52_low < current_price:
-                fib_support = current_price - (current_price - week_52_low) * 0.382  # 38.2% support
-                if fib_support != round_support:  # Avoid duplicates
-                    levels.append({
-                        'type': 'support',
-                        'price': fib_support,
-                        'distance_pct': ((current_price - fib_support) / current_price * 100),
-                        'strength': 'weak'
-                    })
-            
-            # 3. Recent high/low levels (simulated)
-            recent_resistance = current_price * 1.05  # 5% above current price
-            recent_support = current_price * 0.95     # 5% below current price
-            
-            levels.append({
-                'type': 'resistance',
-                'price': recent_resistance,
-                'distance_pct': 5.0,
-                'strength': 'strong'
-            })
-            
-            levels.append({
-                'type': 'support',
-                'price': recent_support,
-                'distance_pct': 5.0,
-                'strength': 'strong'
-            })
-            
-            # Sort by distance from current price
-            levels = sorted(levels, key=lambda x: x['distance_pct'])
-            
-            # Round prices properly
-            for level in levels:
-                level['price'] = round(level['price'], 2)
-                level['distance_pct'] = round(level['distance_pct'], 2)
-            
-            return {
-                'levels': levels[:6],  # Return top 6 closest levels
-                'current_price': round(current_price, 2),
-                'data_quality': 'simulated',
-                'lookback_days': 'current_data'
-            }
-            
-        except Exception as e:
-            console.print(f"[dim red]⚠️ S/R simulation failed for {symbol}: {e}[/dim red]")
-            return {'levels': [], 'data_quality': 'error'}
+    # Removed: _simulate_sr_levels_from_current_data (simulation-based S/R) per "remove simulations"
 
     def _original_detect_support_resistance_levels(self, symbol, lookback_days=60):
         """Original historical S/R detection (requires Upstox API)"""
@@ -1245,59 +1160,16 @@ class TVScreenerUsage:
             return {'levels': [], 'data_quality': 'error'}
     
     def _calculate_level_strength(self, level, all_levels):
-        """Calculate strength of a support/resistance level based on touch frequency"""
-        tolerance = 0.01  # 1% tolerance
-        touches = sum(1 for l in all_levels if abs(l - level) / level <= tolerance)
-        
-        if touches >= 4:
-            return 'strong'
-        elif touches >= 2:
-            return 'moderate'
-        else:
+        """Delegate to shared utils to calculate level strength."""
+        if tv_utils is None:
             return 'weak'
+        return tv_utils.calculate_level_strength(level, all_levels)
     
     def _calculate_trend_target_probability(self, current_price, target_price, trend_strength, gap_direction):
-        """Calculate probability of reaching target based on trend and gap analysis"""
-        distance_pct = abs((target_price - current_price) / current_price * 100)
-        
-        # Base probability based on distance
-        if distance_pct < 1:
-            base_prob = 85
-        elif distance_pct < 2:
-            base_prob = 70
-        elif distance_pct < 3:
-            base_prob = 55
-        elif distance_pct < 5:
-            base_prob = 40
-        else:
-            base_prob = 25
-        
-        # Adjust based on trend alignment
-        target_direction = 'UP' if target_price > current_price else 'DOWN'
-        
-        # Trend multipliers
-        trend_multiplier = 1.0
-        if trend_strength == 'strong_bullish' and target_direction == 'UP':
-            trend_multiplier = 1.3
-        elif trend_strength == 'bullish' and target_direction == 'UP':
-            trend_multiplier = 1.15
-        elif trend_strength == 'strong_bearish' and target_direction == 'DOWN':
-            trend_multiplier = 1.3
-        elif trend_strength == 'bearish' and target_direction == 'DOWN':
-            trend_multiplier = 1.15
-        elif (trend_strength in ['strong_bullish', 'bullish'] and target_direction == 'DOWN') or \
-             (trend_strength in ['strong_bearish', 'bearish'] and target_direction == 'UP'):
-            trend_multiplier = 0.7
-        
-        # Gap direction alignment
-        gap_multiplier = 1.0
-        if gap_direction and target_direction:
-            if (gap_direction == 'UP' and target_direction == 'DOWN') or \
-               (gap_direction == 'DOWN' and target_direction == 'UP'):
-                gap_multiplier = 1.2  # Gap fill scenario
-        
-        final_probability = min(95, base_prob * trend_multiplier * gap_multiplier)
-        return round(final_probability, 1)
+        """Delegate to shared utils to calculate target probability."""
+        if tv_utils is None:
+            return 50.0
+        return tv_utils.calculate_trend_target_probability(current_price, target_price, trend_strength, gap_direction)
 
     def _check_historical_trend(self, symbol, timeframe='daily', lookback_days=20):
         """Analyze historical trend using multiple indicators"""
@@ -1434,514 +1306,17 @@ class TVScreenerUsage:
             # Simplified trend analysis as fallback (avoids historical data API issues)
             return 'neutral'  # Return neutral when historical analysis fails
 
+    # Use shared helper to display tables to avoid duplication
     def display_table(self, df, title, max_rows=15):
-        """Display results in a formatted table"""
-        if df.empty:
-            console.print(f"[red]No results found for {title}[/red]")
-            return
-            
-        table = Table(title=title, show_header=True, header_style="bold magenta")
-        
-        # Add columns dynamically based on dataframe
-        for col_name in df.columns:
-            if col_name == 'ticker':
-                table.add_column("Ticker", style="cyan", no_wrap=True)
-            elif col_name == 'name':
-                table.add_column("Name", style="green", max_width=12)
-            elif col_name == 'close':
-                table.add_column("Price", justify="right", style="yellow")
-            elif col_name == 'volume':
-                table.add_column("Volume", justify="right", style="blue")
-            elif col_name == 'change':
-                table.add_column("Change %", justify="right", style="magenta")
-            elif col_name == 'RSI':
-                table.add_column("RSI", justify="right", style="cyan")
-            elif col_name == 'relative_volume_10d_calc':
-                table.add_column("Vol Ratio", justify="right", style="blue")
-            elif col_name == 'Volatility.D':
-                table.add_column("Volatility %", justify="right", style="red")
-            elif col_name == 'market_cap_basic':
-                table.add_column("MCap (₹Cr)", justify="right", style="green")
-            elif col_name == 'price_earnings_ttm':
-                table.add_column("PE", justify="right", style="yellow")
-            elif col_name == 'return_on_equity':
-                table.add_column("ROE %", justify="right", style="green")
-            elif col_name == 'dividends_yield_current':
-                table.add_column("Div Yield", justify="right", style="blue")
-            elif col_name == 'debt_to_equity':
-                table.add_column("D/E", justify="right", style="red")
-            elif col_name == 'update_mode':
-                table.add_column("Data", style="dim")
-            elif col_name == 'trend':
-                table.add_column("Trend", style="bold", justify="center")
-        
-        # Add rows
-        for i, (_, row) in enumerate(df.head(max_rows).iterrows()):
-            row_data = []
-            for col_name in df.columns:
-                if col_name == 'ticker':
-                    row_data.append(row[col_name])
-                elif col_name == 'name':
-                    row_data.append(row[col_name][:12])  # Truncate name
-                elif col_name == 'close':
-                    row_data.append(f"₹{row[col_name]:,.2f}")
-                elif col_name == 'volume':
-                    row_data.append(f"{row[col_name]:,.0f}")
-                elif col_name == 'change':
-                    change_val = row[col_name]
-                    color = "green" if change_val > 0 else "red"
-                    row_data.append(f"[{color}]{change_val:+.2f}%[/{color}]")
-                elif col_name == 'RSI':
-                    rsi_val = row[col_name]
-                    if rsi_val > 70:
-                        row_data.append(f"[red]{rsi_val:.1f}[/red]")
-                    elif rsi_val < 30:
-                        row_data.append(f"[green]{rsi_val:.1f}[/green]")
-                    else:
-                        row_data.append(f"{rsi_val:.1f}")
-                elif col_name == 'relative_volume_10d_calc':
-                    row_data.append(f"{row[col_name]:.2f}x")
-                elif col_name == 'Volatility.D':
-                    row_data.append(f"{row[col_name]*100:.1f}%")
-                elif col_name == 'market_cap_basic':
-                    row_data.append(f"₹{row[col_name]/1e7:,.0f}")
-                elif col_name == 'price_earnings_ttm':
-                    pe_val = row[col_name]
-                    if pd.isna(pe_val):
-                        row_data.append("N/A")
-                    else:
-                        row_data.append(f"{pe_val:.1f}")
-                elif col_name == 'return_on_equity':
-                    roe_val = row[col_name]
-                    if pd.isna(roe_val):
-                        row_data.append("N/A")
-                    else:
-                        row_data.append(f"{roe_val:.1f}%")
-                elif col_name == 'dividends_yield_current':
-                    div_val = row[col_name]
-                    if pd.isna(div_val):
-                        row_data.append("N/A")
-                    else:
-                        row_data.append(f"{div_val:.2f}%")
-                elif col_name == 'debt_to_equity':
-                    de_val = row[col_name]
-                    if pd.isna(de_val):
-                        row_data.append("N/A")
-                    else:
-                        row_data.append(f"{de_val:.2f}")
-                elif col_name == 'update_mode':
-                    row_data.append(row[col_name])
-                elif col_name == 'trend':
-                    trend_val = row[col_name]
-                    if trend_val == 'strong_bullish':
-                        row_data.append("[bold green]🚀 Strong Bull[/bold green]")
-                    elif trend_val == 'bullish':
-                        row_data.append("[green]📈 Bullish[/green]")
-                    elif trend_val == 'neutral':
-                        row_data.append("[yellow]➡️ Neutral[/yellow]")
-                    elif trend_val == 'bearish':
-                        row_data.append("[red]📉 Bearish[/red]")
-                    elif trend_val == 'strong_bearish':
-                        row_data.append("[bold red]💥 Strong Bear[/bold red]")
-                    else:
-                        row_data.append(f"[dim]{trend_val}[/dim]")
-                else:
-                    row_data.append(str(row[col_name]))
-            
-            table.add_row(*row_data)
-        
-        console.print(table)
-        console.print(f"[dim]Showing {min(len(df), max_rows)} of {len(df)} results[/dim]")
+        return helpers_display_table(df, title, max_rows)
 
     # ==================== PRE-BREAKOUT STRATEGIES (NEW) ====================
     
-    def pre_breakout_accumulation(self):
-        """Find stocks in accumulation phase before breakout"""
-        console.print(Panel.fit("📊 PRE-BREAKOUT: Accumulation Patterns", style="bold blue"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'price_52_week_high', 'EMA20', 'EMA50', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 50,  # Above ₹50 for liquidity
-                    col('volume') > 200000,  # Decent volume but not explosive
-                    col('relative_volume_10d_calc').between(0.8, 1.8),  # Normal to slightly above volume
-                    col('change').between(-2, 3),  # Consolidating, not explosive moves
-                    col('RSI').between(40, 65),  # Building strength but not overbought
-                    col('close') > col('EMA20'),  # Above 20 EMA (trend support)
-                    col('close') > 200,  # Strong price level (proxy for quality stocks)
-                    col('market_cap_basic') > 5e8,  # Min 500 crores
-                    col('exchange') == 'NSE'  # NSE only, ignore BSE
-                )
-                .order_by('RSI', ascending=False)  # Stocks gaining momentum
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            # Add trend analysis for each stock
-            if not df.empty:
-                console.print("[dim]Adding trend analysis...[/dim]")
-                trend_data = []
-                for _, row in df.iterrows():
-                    ticker = row['name']  # Use 'name' field as it contains the ticker
-                    trend = self._check_historical_trend(ticker, timeframe='daily', lookback_days=15)
-                    trend_data.append(trend)
-                df['trend'] = trend_data
-            
-            self.display_table(df, "Pre-Breakout Accumulation - Early Entry")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On volume expansion above EMA20 with RSI >50")
-            console.print("• Stop Loss: Below EMA20 or recent swing low (0.5%)")
-            console.print("• Target: Resistance levels or 52W high")
-            console.print("• Logic: Catch accumulation before the breakout crowd")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def early_momentum_detection(self):
-        """Detect early momentum before FOMO kicks in"""
-        console.print(Panel.fit("⚡ EARLY MOMENTUM: Pre-FOMO Signals", style="bold green"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 30,  # Lower threshold for early detection
-                    col('volume') > 100000,  # Minimum liquidity
-                    col('relative_volume_10d_calc').between(1.1, 2.5),  # Slightly elevated volume
-                    col('change').between(0.5, 4),  # Small positive moves
-                    col('RSI') > col('RSI[1]'),  # RSI improving
-                    col('RSI').between(35, 70),  # Not oversold, not overbought
-                    col('MACD.macd') > col('MACD.signal'),  # MACD bullish crossover
-                    col('market_cap_basic') > 2e8,  # Min 200 crores
-                    col('exchange') == 'NSE'  # NSE only, ignore BSE
-                )
-                .order_by('change', ascending=False)  # Current momentum
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Early Momentum - Before FOMO")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: When RSI crosses 50 with volume confirmation")
-            console.print("• Stop Loss: Below recent swing low (0.5%)")
-            console.print("• Target: Next resistance or 3-5% move")
-            console.print("• Logic: Catch momentum before crowd notices")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def relative_strength_leaders(self):
-        """Find stocks showing relative strength vs market"""
-        console.print(Panel.fit("💪 RELATIVE STRENGTH: Market Outperformers", style="bold cyan"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'Perf.W', 'Perf.M', 
-                       'RSI', 'Beta', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 50,  # Above ₹50
-                    col('volume') > 150000,  # Decent volume
-                    col('Perf.W') > 2,  # Outperforming weekly
-                    col('Perf.M') > 5,  # Strong monthly performance
-                    col('change') > -2,  # Not falling hard today
-                    col('RSI').between(45, 75),  # Good momentum zone
-                    col('Beta') > 0.8,  # Responsive to market moves
-                    col('market_cap_basic') > 3e8,  # Min 300 crores
-                    col('exchange') == 'NSE'  # NSE only, ignore BSE
-                )
-                .order_by('Perf.W', ascending=False)  # Best weekly performers
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Relative Strength Leaders")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On any pullback or consolidation break")
-            console.print("• Stop Loss: Below weekly support (0.5%)")
-            console.print("• Target: Continuation of relative strength trend")
-            console.print("• Logic: Leaders continue to lead in trends")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-
-    # ==================== INTRADAY TRADING STRATEGIES ====================
-    
-    def intraday_high_volume_breakouts(self):
-        """Find stocks with high volume breakouts for intraday trading"""
-        console.print(Panel.fit("🚀 INTRADAY: High Volume Breakouts", style="bold blue"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 50,  # Above ₹50 for liquidity
-                    col('volume') > 1000000,  # High volume
-                    col('relative_volume_10d_calc') > 2,  # 2x normal volume
-                    col('change') > 2,  # Positive momentum
-                    col('RSI').between(50, 80),  # Not overbought
-                    col('market_cap_basic') > 5e8,  # Min 500 crores
-                    col('exchange') == 'NSE'  # NSE only, ignore BSE
-                )
-                .order_by('relative_volume_10d_calc', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "High Volume Breakouts - Intraday")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On breakout above resistance with high volume")
-            console.print("• Stop Loss: Below recent support (0.5%)")
-            console.print("• Target: 1:2 risk-reward ratio")
-            console.print("• Time Frame: 5-15 minute charts")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def intraday_gap_up_stocks(self):
-        """Find gap-up stocks for intraday momentum trading"""
-        console.print(Panel.fit("📈 INTRADAY: Gap-Up Momentum", style="bold green"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'price_52_week_high', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 100,  # Above ₹100
-                    col('change') > 3,  # Gap up 3%+
-                    col('volume') > 500000,  # Good volume
-                    col('relative_volume_10d_calc') > 1.5,  # Above average volume
-                    col('exchange') == 'NSE',  # NSE only, ignore BSE
-                    col('RSI') < 80,  # Not extremely overbought
-                    col('price_52_week_high') > col('close')  # Not at 52W high
-                )
-                .order_by('change', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Gap-Up Momentum Stocks")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On pullback to gap support or breakout continuation")
-            console.print("• Stop Loss: Below gap fill level (0.5%)")
-            console.print("• Target: Previous resistance or 5-8% gain")
-            console.print("• Time Frame: 15-30 minute charts")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def gap_fill_trading_strategy(self):
-        """
-        🎯 GAP-FILL TRADING STRATEGY (HISTORICAL ANALYSIS)
-        =================================================
-        
-        True gap-fill strategy that:
-        - Analyzes historical gap-fill patterns for each stock
-        - Calculates probability of gap filling based on 90-day history
-        - Provides precise entry/exit signals for gap trades
-        - Focuses on stocks with predictable gap-fill behavior
-        
-        STRATEGY LOGIC:
-        - Gap UP: Look for SHORT opportunities (expect fill down)
-        - Gap DOWN: Look for LONG opportunities (expect fill up)
-        - Entry: After 9:30 AM when gap direction is confirmed
-        - Target: Previous day's closing price (gap fill level)
-        - Stop: Beyond gap extreme with 1-2% buffer
-        """
-        console.print(Panel.fit("🎯 GAP-FILL TRADING STRATEGY (HISTORICAL ANALYSIS)", style="bold magenta"))
-        
-        try:
-            # Screen for stocks with significant gaps today
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'market_cap_basic', 'Volatility.D', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 30,  # Minimum price for liquidity
-                    col('volume') > 300000,  # Minimum liquidity
-                    col('relative_volume_10d_calc') > 1.2,  # Above normal volume
-                    col('market_cap_basic') > 1e8,  # Min 100 crores (avoid penny stocks)
-                    col('exchange') == 'NSE'  # NSE only for better data
-                )
-                .order_by('relative_volume_10d_calc', ascending=False)  # Highest volume first
-                .limit(25)  # Focus on top gap opportunities
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            if df.empty:
-                console.print("[yellow]No volume movers found in current market scan[/yellow]")
-                return
-            
-            # Filter for stocks with meaningful gaps (0.8% or more)
-            df = df[abs(df['change']) >= 0.8].copy()
-            
-            if df.empty:
-                console.print("[yellow]No significant gaps found in current volume movers[/yellow]")
-                return
-            
-            # Analyze gap-fill probability for each stock
-            console.print("[dim]Analyzing historical gap-fill patterns...[/dim]")
-            gap_analysis_results = []
-            
-            for _, row in df.iterrows():
-                symbol = row['name']
-                current_change = row['change']
-                gap_direction = 'UP' if current_change > 0 else 'DOWN'
-                
-                # Get historical gap-fill analysis
-                gap_analysis = self._analyze_gap_fill_probability(
-                    symbol=symbol,
-                    current_gap_size=abs(current_change),
-                    gap_direction=gap_direction,
-                    lookback_days=90
-                )
-                
-                # Add analysis results to the row data
-                row_data = row.to_dict()
-                row_data.update({
-                    'gap_direction': gap_direction,
-                    'gap_fill_probability': gap_analysis['probability'],
-                    'historical_similar_gaps': gap_analysis.get('total_similar_gaps', 0),
-                    'historical_fills': gap_analysis.get('filled_gaps', 0),
-                    'avg_fill_rate': gap_analysis.get('avg_fill_percentage', 0),
-                    'data_quality': gap_analysis['historical_data']
-                })
-                gap_analysis_results.append(row_data)
-            
-            # Convert to DataFrame and sort by fill probability
-            gap_df = pd.DataFrame(gap_analysis_results)
-            gap_df = gap_df.sort_values('gap_fill_probability', ascending=False)
-            
-            # Display results
-            self._display_gap_fill_results(gap_df)
-            
-        except Exception as e:
-            console.print(f"[red]Error in gap-fill strategy: {e}[/red]")
-    
     def _display_gap_fill_results(self, gap_df):
-        """Display gap-fill analysis results in a formatted table"""
-        if gap_df.empty:
-            console.print("[yellow]No gap-fill opportunities found[/yellow]")
-            return
-        
-        # Create table for gap-fill opportunities
-        table = Table(title="🎯 Gap-Fill Trading Opportunities (Historical Analysis)", show_header=True, header_style="bold magenta")
-        table.add_column("Symbol", style="cyan", no_wrap=True)
-        table.add_column("Gap", justify="right", style="yellow")
-        table.add_column("Direction", justify="center", style="bold")
-        table.add_column("Fill Prob", justify="right", style="green")
-        table.add_column("Historical", justify="center", style="blue")
-        table.add_column("Volume", justify="right", style="red")
-        table.add_column("Trade Signal", justify="center", style="bold")
-        
-        high_prob_trades = 0
-        
-        for _, row in gap_df.head(15).iterrows():
-            symbol = row['name'][:12]
-            gap_size = row['change']
-            gap_direction = row['gap_direction']
-            fill_prob = row['gap_fill_probability']
-            similar_gaps = row['historical_similar_gaps']
-            filled_gaps = row['historical_fills']
-            vol_ratio = row['relative_volume_10d_calc']
-            
-            # Format gap display
-            gap_color = "green" if gap_size > 0 else "red"
-            gap_display = f"[{gap_color}]{gap_size:+.2f}%[/{gap_color}]"
-            
-            # Format direction with emoji
-            direction_display = "🔺 UP" if gap_direction == "UP" else "🔻 DOWN"
-            
-            # Format probability with color coding
-            if fill_prob >= 70:
-                prob_color = "bold green"
-                prob_display = f"[{prob_color}]{fill_prob:.1f}%[/{prob_color}]"
-            elif fill_prob >= 50:
-                prob_color = "yellow"
-                prob_display = f"[{prob_color}]{fill_prob:.1f}%[/{prob_color}]"
-            else:
-                prob_color = "red"
-                prob_display = f"[{prob_color}]{fill_prob:.1f}%[/{prob_color}]"
-            
-            # Historical data display
-            historical_display = f"{filled_gaps}/{similar_gaps}" if similar_gaps > 0 else "N/A"
-            
-            # Volume display
-            vol_color = "bold red" if vol_ratio > 3 else "red" if vol_ratio > 2 else "white"
-            vol_display = f"[{vol_color}]{vol_ratio:.1f}x[/{vol_color}]"
-            
-            # Trade signal
-            if fill_prob >= 60 and similar_gaps >= 3:
-                if gap_direction == "UP":
-                    signal = "[bold red]📉 SHORT[/bold red]"
-                else:
-                    signal = "[bold green]📈 LONG[/bold green]"
-                high_prob_trades += 1
-            elif fill_prob >= 45:
-                signal = "[yellow]⚠️ WATCH[/yellow]"
-            else:
-                signal = "[dim]❌ SKIP[/dim]"
-            
-            table.add_row(
-                symbol,
-                gap_display,
-                direction_display,
-                prob_display,
-                historical_display,
-                vol_display,
-                signal
-            )
-        
-        console.print(table)
-        
-        # Display strategy guidance
-        console.print(f"\n[bold yellow]📊 ANALYSIS SUMMARY:[/bold yellow]")
-        console.print(f"• [green]High-probability trades:[/green] {high_prob_trades}")
-        console.print(f"• [cyan]Total opportunities:[/cyan] {len(gap_df)}")
-        console.print(f"• [blue]Analysis period:[/blue] 90-day historical lookback")
-        
-        console.print(f"\n[bold yellow]🎯 TRADING STRATEGY:[/bold yellow]")
-        console.print("• [green]Entry:[/green] After 9:30 AM gap confirmation")
-        console.print("• [green]TARGET:[/green] Previous day's closing price (gap fill)")
-        console.print("• [green]STOP LOSS:[/green] Beyond gap extreme + 1-2% buffer")
-        console.print("• [green]Position Size:[/green] Risk 0.5-1% of capital per trade")
-        
-        console.print(f"\n[bold yellow]📈 SIGNAL INTERPRETATION:[/bold yellow]")
-        console.print("• [bold green]📈 LONG:[/bold green] Gap DOWN with high fill probability")
-        console.print("• [bold red]📉 SHORT:[/bold red] Gap UP with high fill probability")
-        console.print("• [yellow]⚠️ WATCH:[/yellow] Moderate probability - wait for confirmation")
-        console.print("• [dim]❌ SKIP:[/dim] Low probability or insufficient historical data")
-        
-        # Display top 3 recommendations
-        top_trades = gap_df[gap_df['gap_fill_probability'] >= 60].head(3)
-        if not top_trades.empty:
-            console.print(f"\n[bold yellow]🏆 TOP RECOMMENDATIONS:[/bold yellow]")
-            for i, (_, row) in enumerate(top_trades.iterrows(), 1):
-                symbol = row['name']
-                gap_size = row['change']
-                fill_prob = row['gap_fill_probability']
-                direction = "SHORT" if row['gap_direction'] == "UP" else "LONG"
-                
-                console.print(f"{i}. [cyan]{symbol}[/cyan]: {direction} ({gap_size:+.2f}% gap, {fill_prob:.1f}% fill probability)")
+        """Deprecated: moved to tv_display.display_gap_fill_results"""
+        if tv_display:
+            return tv_display.display_gap_fill_results(gap_df)
+        console.print("[red]tv_display module unavailable[/red]")
 
     def live_gap_fill_monitor_with_sr(self, refresh_interval=30):
         """
@@ -2713,914 +2088,17 @@ class TVScreenerUsage:
         console.print("• [green]S/R Prob:[/green] Probability of reaching next S/R level")
         console.print("• [bold]Signal:[/bold] Trading recommendation based on analysis")
 
-    def optimized_gap_strategy_15min(self):
-        """
-        🚀 OPTIMIZED GAP STRATEGY (15-MIN TIMEFRAME)
-        ============================================
-        
-        Based on comprehensive backtesting of 50+ stocks, this strategy uses:
-        - 15-minute timeframe for optimal entry timing
-        - 68.4% win rate proven performance  
-        - 2.5% target with 1% stop loss
-        - Entry after 9:30 AM trend confirmation
-        - Focus on high-quality gaps with volume confirmation
-        
-        PROVEN RESULTS:
-        ✅ Total P&L: ₹2,965 across 19 stocks
-        ✅ Win Rate: 68.4% (vs 31.6% for 1-min, 63.2% for 5-min)
-        ✅ Works across all market caps (100% win rate on large caps)
-        """
-        console.print(Panel.fit("🚀 OPTIMIZED GAP STRATEGY (15-MIN PROVEN)", style="bold green"))
-        
-        try:
-            # Screen for high-quality gap opportunities
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'market_cap_basic', 'Volatility.D', 'price_52_week_high', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    # Quality gap criteria (proven in backtesting)
-                    col('close') > 50,  # Minimum price for liquidity
-                    col('change') > 1,  # At least 1% gap for momentum
-                    col('change') < 15,  # Avoid extreme gaps (retracement risk)
-                    
-                    # Volume confirmation (critical for 15-min success)
-                    col('volume') > 500000,  # Minimum liquidity
-                    col('relative_volume_10d_calc') > 2.0,  # 2x+ volume (institutional interest)
-                    
-                    # Risk management filters
-                    col('RSI') < 85,  # Not extremely overbought
-                    col('RSI') > 25,  # Not in freefall
-                    col('exchange') == 'NSE',  # NSE only for better liquidity
-                    
-                    # Quality and size filters
-                    col('market_cap_basic') > 2e8,  # Min 200 crores (avoid penny stocks)
-                    col('Volatility.D') < 0.08,  # Reasonable volatility (<8%)
-                    col('price_52_week_high') > col('close')  # Room for upside
-                )
-                .order_by('relative_volume_10d_calc', ascending=False)  # Highest volume first
-                .limit(20)  # Focus on top 20 opportunities
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            if df.empty:
-                console.print("[yellow]No gap opportunities meeting quality criteria found[/yellow]")
-                return
-            
-            # Add quality scoring for each stock
-            df['quality_score'] = self._calculate_quality_score(df)
-            
-            # Sort by quality score
-            df = df.sort_values('quality_score', ascending=False)
-            
-            self.display_table(df, "🚀 Optimized 15-Min Gap Strategy Stocks")
-            
-            # Display strategy details
-            console.print("\n[bold yellow]📊 PROVEN STRATEGY PARAMETERS:[/bold yellow]")
-            console.print("• [green]Timeframe:[/green] 15-minute intervals (68.4% win rate)")
-            console.print("• [green]Entry:[/green] 9:30 AM after trend confirmation")
-            console.print("• [green]Target:[/green] 2.5% (proven achievable)")
-            console.print("• [green]Stop Loss:[/green] 0.5% (tight risk control)")
-            console.print("• [green]Expected P&L:[/green] ₹156 per trade average")
-            
-            console.print("\n[bold yellow]🎯 ENTRY STRATEGY:[/bold yellow]")
-            console.print("1. [cyan]Wait for 9:30 AM[/cyan] - Let market settle after opening volatility")
-            console.print("2. [cyan]Check 15-min chart[/cyan] - Look for gap holding above previous close")
-            console.print("3. [cyan]Volume confirmation[/cyan] - Ensure 2x+ volume continues")
-            console.print("4. [cyan]Enter on pullback[/cyan] - Buy gap support or breakout continuation")
-            console.print("5. [cyan]Set strict levels[/cyan] - 2.5% target, 0.5% stop loss")
-            
-            console.print("\n[bold yellow]⚠️ QUALITY SCORING (Higher = Better):[/bold yellow]")
-            for _, row in df.head(5).iterrows():
-                score = row['quality_score']
-                color = "green" if score >= 80 else "yellow" if score >= 60 else "red"
-                recommendation = "BUY" if score >= 80 else "CAUTIOUS" if score >= 60 else "AVOID"
-                
-                console.print(f"• [cyan]{row['name'][:15]:15}[/cyan] | "
-                            f"Gap: {row['change']:+5.1f}% | "
-                            f"Vol: {row['relative_volume_10d_calc']:4.1f}x | "
-                            f"Score: [{color}]{score:3.0f}/100[/{color}] | "
-                            f"[{color}]{recommendation}[/{color}]")
-            
-            console.print("\n[bold yellow]📈 BACKTESTING RESULTS SUMMARY:[/bold yellow]")
-            console.print("• [green]Tested:[/green] 50+ stocks, 57 total trades")
-            console.print("• [green]15-Min Performance:[/green] 68.4% win rate, ₹2,965 total profit")
-            console.print("• [green]Large Caps:[/green] 100% win rate (4/4 trades)")
-            console.print("• [green]Gap Up Focus:[/green] 75% win rate (vs 33% for gap downs)")
-            console.print("• [green]Risk-Adjusted:[/green] Positive expected value with tight stops")
-            
-            # Paper trading integration if available
-            if hasattr(self, 'paper_trading_enabled') and self.paper_trading_enabled:
-                console.print("\n[bold blue]📊 PAPER TRADING READY:[/bold blue]")
-                console.print("• Strategy parameters loaded for automated execution")
-                console.print("• 15-min timeframe monitoring active")
-                console.print("• Quality scoring filters applied")
-                
-                # Process top quality stocks for paper trading
-                top_stocks = df[df['quality_score'] >= 80].head(5)
-                if not top_stocks.empty:
-                    console.print(f"\n[bold blue]🤖 AUTO-TRADING {len(top_stocks)} HIGH-QUALITY GAPS:[/bold blue]")
-                    
-                    for _, row in top_stocks.iterrows():
-                        # Create alert for paper trading system
-                        alert = {
-                            'type': 'OPTIMIZED_GAP_15MIN',
-                            'ticker': row.get('ticker', row['name']),
-                            'symbol': row.get('ticker', row['name']),
-                            'price': row['close'],
-                            'change': row['change'],
-                            'volume_ratio': row['relative_volume_10d_calc'],
-                            'quality_score': row['quality_score'],
-                            'confidence': min(0.95, row['quality_score'] / 100),  # Convert score to confidence
-                            'target_pct': 2.5,  # Proven target
-                            'stop_loss_pct': 1.0,  # Proven stop loss
-                            'timeframe': '15min',
-                            'strategy': 'gap_15min_optimized',
-                            'reason': f"Gap {row['change']:+.1f}% with {row['relative_volume_10d_calc']:.1f}x volume (Score: {row['quality_score']:.0f}/100)"
-                        }
-                        
-                        # Send to paper trading system
-                        self._process_gap_paper_trading_alert(alert)
-                        
-                        console.print(f"   🤖 {row['name'][:15]:15} | Gap: {row['change']:+.1f}% | Score: {row['quality_score']:3.0f} | Target: +2.5% | Stop: -1.0%")
-                
-            # Alert setup guidance
-            console.print("\n[bold yellow]🔔 ALERT SETUP:[/bold yellow]")
-            console.print("• [cyan]9:15 AM:[/cyan] Check screener for gap stocks")
-            console.print("• [cyan]9:30 AM:[/cyan] Analyze top quality scores on 15-min charts")
-            console.print("• [cyan]Entry:[/cyan] Wait for trend confirmation before entering")
-            console.print("• [cyan]Exit:[/cyan] Stick to 2.5% target / 0.5% stop discipline")
-            
-            console.print("\n[bold blue]💡 HOW TO USE THIS STRATEGY:[/bold blue]")
-            console.print("1. [yellow]Run this screener at 9:15 AM[/yellow] after market opens")
-            console.print("2. [yellow]Focus on stocks with Quality Score ≥80[/yellow] (BUY recommendation)")
-            console.print("3. [yellow]Switch to 15-minute charts[/yellow] in your trading platform")
-            console.print("4. [yellow]Wait until 9:30 AM[/yellow] for trend confirmation")
-            console.print("5. [yellow]Enter trades with strict discipline[/yellow]: 2.5% target, 0.5% stop")
-            console.print("6. [yellow]Expected performance[/yellow]: 68.4% win rate, ₹156 avg profit")
-            
-            return df
-            
-        except Exception as e:
-            console.print(f"[red]Error in optimized gap strategy: {e}[/red]")
-            return None
-    
-    def _calculate_quality_score(self, df):
-        """Calculate quality score for gap stocks based on backtesting insights"""
-        scores = []
-        
-        for _, row in df.iterrows():
-            score = 100  # Start with perfect score
-            
-            # Gap size analysis (based on backtesting results)
-            gap_pct = row['change']
-            if gap_pct > 8:
-                score -= 25  # Large gaps often retrace
-            elif gap_pct < 1:
-                score -= 15  # Too small for momentum
-            elif 2 <= gap_pct <= 5:
-                score += 10  # Sweet spot range
-            
-            # Volume confirmation (critical factor)
-            vol_ratio = row['relative_volume_10d_calc']
-            if vol_ratio > 15:
-                score += 15  # Exceptional volume
-            elif vol_ratio > 5:
-                score += 10  # Good volume
-            elif vol_ratio < 2:
-                score -= 20  # Insufficient volume
-            
-            # RSI positioning
-            rsi = row.get('RSI', 50)
-            if rsi > 80:
-                score -= 15  # Overbought risk
-            elif rsi < 30:
-                score -= 10  # Oversold (may continue down)
-            elif 45 <= rsi <= 70:
-                score += 5   # Good momentum zone
-            
-            # Market cap factor
-            mcap = row.get('market_cap_basic', 0)
-            if mcap > 1e10:  # > 1000 crores
-                score += 5   # Large cap stability
-            elif mcap < 5e8:  # < 500 crores
-                score -= 10  # Small cap volatility risk
-            
-            # Volatility check
-            volatility = row.get('Volatility.D', 0.05)
-            if volatility > 0.06:
-                score -= 10  # High volatility risk
-            elif volatility < 0.03:
-                score += 5   # Stable stock
-            
-            scores.append(max(0, min(100, score)))  # Clamp between 0-100
-        
-        return scores
-    
-    def intraday_oversold_bounce(self):
-        """Find oversold stocks for bounce trading"""
-        console.print(Panel.fit("🔄 INTRADAY: Oversold Bounce", style="bold cyan"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'RSI', 'MACD.macd', 
-                       'MACD.signal', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 75,  # Above ₹75
-                    col('change') < -2,  # Down 2%+
-                    col('RSI') < 35,  # Oversold
-                    col('volume') > 750000,  # Good volume
-                    col('market_cap_basic') > 1e9,  # Min 1000 crores
-                    col('MACD.macd') > col('MACD.signal')  # MACD turning positive
-                )
-                .order_by('RSI', ascending=True)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Oversold Bounce Candidates")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On RSI reversal above 30 with volume")
-            console.print("• Stop Loss: Below recent low (0.5%)")
-            console.print("• Target: Previous support turned resistance")
-            console.print("• Time Frame: 15-30 minute charts")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def intraday_news_momentum(self):
-        """Find stocks with unusual activity (potential news-driven)"""
-        console.print(Panel.fit("📰 INTRADAY: News-Driven Momentum", style="bold magenta"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'Volatility.D', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 25,  # Above ₹25
-                    col('relative_volume_10d_calc') > 3,  # 3x normal volume
-                    col('Volatility.D') > 0.05,  # High volatility
-                    col('volume') > 2000000,  # Very high volume
-                    col('market_cap_basic') > 2e8  # Min 200 crores
-                )
-                .order_by('relative_volume_10d_calc', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "News-Driven Momentum Stocks")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Research: Check news/announcements immediately")
-            console.print("• Entry: On pullback or momentum continuation")
-            console.print("• Stop Loss: Tight stops (0.5%) due to volatility")
-            console.print("• Target: Quick profits (1.0%), trail stops")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def intraday_early_breakout_setup(self):
-        """Find stocks building momentum BEFORE breakout - Early Detection"""
-        console.print(Panel.fit("🎯 INTRADAY: Early Breakout Setup (Pre-Breakout)", style="bold red"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'MACD.macd', 'MACD.signal', 'BB.upper', 'BB.lower', 
-                       'Volatility.D', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 50,  # Above ₹50
-                    col('change').between(-1, 2),  # Small moves (building pressure)
-                    col('relative_volume_10d_calc') > 1.3,  # Above average volume (accumulation)
-                    col('RSI').between(45, 65),  # Building momentum, not overbought
-                    col('MACD.macd') > col('MACD.signal'),  # MACD turning bullish
-                    col('Volatility.D') < 0.04,  # Low volatility (compression)
-                    col('volume') > 500000,  # Decent volume
-                    col('market_cap_basic') > 5e8  # Min 500 crores
-                )
-                .order_by('relative_volume_10d_calc', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Early Breakout Setup - Pre-Breakout Detection")
-            
-            console.print("\n[bold yellow]💡 Early Detection Strategy:[/bold yellow]")
-            console.print("• Entry: These stocks are BUILDING momentum (not broken out yet)")
-            console.print("• Watch: For volume surge + breakout above recent resistance")
-            console.print("• Advantage: Get in BEFORE the big move starts")
-            console.print("• Stop Loss: Below recent consolidation low (0.5%)")
-            console.print("• Target: Measured move from consolidation breakout")
-            console.print("• Time Frame: 5-15 minute charts for entry timing")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def intraday_volume_accumulation(self):
-        """Find stocks with smart money accumulation - High volume, minimal price movement"""
-        console.print(Panel.fit("📊 INTRADAY: Volume Accumulation (Smart Money)", style="bold cyan"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'price_52_week_high', 'price_52_week_low', 'BB.upper', 
-                       'BB.lower', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 75,  # Above ₹75
-                    col('change').between(-1.5, 1.5),  # Minimal price movement
-                    col('relative_volume_10d_calc') > 2.0,  # High volume (2x+ normal)
-                    col('RSI').between(40, 60),  # Neutral RSI (no extreme)
-                    col('volume') > 1000000,  # High absolute volume
-                    col('market_cap_basic') > 1e9,  # Min 1000 crores
-                    # Near middle of 52-week range (not at extremes)
-                    col('close') > col('price_52_week_low'),
-                    col('close') < col('price_52_week_high')
-                )
-                .order_by('relative_volume_10d_calc', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Volume Accumulation - Smart Money Building")
-            
-            console.print("\n[bold yellow]💡 Volume Accumulation Strategy:[/bold yellow]")
-            console.print("• Pattern: High volume + small price moves = Smart money buying")
-            console.print("• Entry: On breakout above accumulation range with volume")
-            console.print("• Logic: Big players accumulating before major move")
-            console.print("• Stop Loss: Below accumulation support")
-            console.print("• Target: Previous resistance levels")
-            console.print("• Time Frame: Can hold 1-3 days for bigger moves")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def intraday_compression_coiling(self):
-        """Find stocks in compression/coiling phase - Low volatility before explosion"""
-        console.print(Panel.fit("🌪️ INTRADAY: Compression/Coiling Stocks", style="bold yellow"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'BB.upper', 'BB.lower', 'Volatility.D', 'ATR',
-                       'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 100,  # Above ₹100
-                    col('Volatility.D') < 0.025,  # Very low volatility (coiling)
-                    col('change').between(-0.8, 0.8),  # Minimal price movement
-                    col('RSI').between(35, 65),  # Not at extremes
-                    col('relative_volume_10d_calc') > 0.8,  # Some volume activity
-                    col('volume') > 300000,  # Minimum volume
-                    col('market_cap_basic') > 5e8,  # Min 500 crores
-                    # Low volatility filtering
-                    col('BB.upper') > col('BB.lower')  # Valid BB data
-                )
-                .order_by('Volatility.D', ascending=True)  # Lowest volatility first
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Compression/Coiling Stocks - Pre-Explosion")
-            
-            console.print("\n[bold yellow]💡 Compression Strategy:[/bold yellow]")
-            console.print("• Pattern: Very low volatility = Energy building for big move")
-            console.print("• Entry: Wait for volume spike + breakout from range")
-            console.print("• Logic: Coiled spring effect - explosive moves follow compression")
-            console.print("• Direction: Can break either way - follow the breakout")
-            console.print("• Stop Loss: Opposite side of compression range")
-            console.print("• Target: Measured move = Range height projected (1.0% quick exit)")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    # ==================== SWING TRADING STRATEGIES ====================
-    
-    def swing_bullish_reversal(self):
-        """Find stocks showing bullish reversal patterns for swing trading"""
-        console.print(Panel.fit("🔄 SWING: Bullish Reversal Patterns", style="bold blue"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'RSI', 'MACD.macd', 
-                       'MACD.signal', 'EMA20', 'EMA50', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 100,  # Above ₹100
-                    col('RSI').between(30, 50),  # Recovering from oversold
-                    col('MACD.macd') > col('MACD.signal'),  # MACD bullish
-                    col('close') > col('EMA20'),  # Above 20 EMA
-                    col('volume') > 300000,  # Decent volume
-                    col('market_cap_basic') > 5e8  # Min 500 crores
-                )
-                .order_by('RSI', ascending=True)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Bullish Reversal Patterns")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On breakout above EMA50 with volume")
-            console.print("• Stop Loss: Below EMA20 (0.5%)")
-            console.print("• Target: Previous resistance levels")
-            console.print("• Time Frame: Daily charts, hold 1-4 weeks")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def swing_breakout_consolidation(self):
-        """Find stocks breaking out of consolidation for swing trading"""
-        console.print(Panel.fit("📊 SWING: Breakout from Consolidation", style="bold green"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc',
-                       'price_52_week_high', 'price_52_week_low', 'RSI', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 200,  # Above ₹200
-                    col('change') > 1,  # Positive momentum
-                    col('relative_volume_10d_calc') > 1.3,  # Above average volume
-                    col('RSI').between(45, 70),  # Healthy RSI
-                    col('price_52_week_low') < col('close'),  # Above 52W low
-                    col('price_52_week_high') > col('close'),  # Below 52W high
-                    col('volume') > 200000
-                )
-                .order_by('relative_volume_10d_calc', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Consolidation Breakouts")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On volume breakout above consolidation")
-            console.print("• Stop Loss: Below consolidation support (0.5%)")
-            console.print("• Target: Measured move (consolidation height)")
-            console.print("• Time Frame: Daily/Weekly charts")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def swing_sector_rotation(self):
-        """Find stocks in strong sectors for swing trading"""
-        console.print(Panel.fit("🔄 SWING: Sector Rotation Play", style="bold cyan"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'price_earnings_ttm',
-                       'return_on_equity', 'EMA20', 'EMA50', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 150,  # Above ₹150
-                    col('price_earnings_ttm') < 25,  # Reasonable PE
-                    col('return_on_equity') > 15,  # Good ROE
-                    col('close') > col('EMA20'),  # Above 20 EMA
-                    col('EMA20') > col('EMA50'),  # Uptrend
-                    col('volume') > 150000,
-                    col('market_cap_basic') > 1e9  # Min 1000 crores
-                )
-                .order_by('return_on_equity', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Sector Leaders")
-            
-            console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
-            console.print("• Entry: On pullback to EMA20 support")
-            console.print("• Stop Loss: Below EMA50 (0.5%)")
-            console.print("• Target: Sector relative strength")
-            console.print("• Time Frame: Weekly charts, hold 2-8 weeks")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    # ==================== LONG-TERM INVESTING STRATEGIES ====================
-    
-    def invest_quality_growth(self):
-        """Find quality growth stocks for long-term investing"""
-        console.print(Panel.fit("🌱 INVEST: Quality Growth Stocks", style="bold green"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'price_earnings_ttm', 'return_on_equity', 
-                       'total_revenue_yoy_growth_ttm', 'earnings_per_share_diluted_yoy_growth_ttm',
-                       'debt_to_equity', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 100,  # Above ₹100
-                    col('price_earnings_ttm').between(10, 30),  # Reasonable PE
-                    col('return_on_equity') > 18,  # High ROE
-                    col('total_revenue_yoy_growth_ttm') > 10,  # Revenue growth
-                    col('earnings_per_share_diluted_yoy_growth_ttm') > 15,  # EPS growth
-                    col('debt_to_equity') < 1,  # Low debt
-                    col('market_cap_basic') > 5e9  # Min 5000 crores
-                )
-                .order_by('return_on_equity', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Quality Growth Stocks")
-            
-            console.print("\n[bold yellow]💡 Investment Strategy:[/bold yellow]")
-            console.print("• Entry: On market corrections or pullbacks")
-            console.print("• Stop Loss: Not applicable (buy more on dips, or 0.5% if needed)")
-            console.print("• Target: Long-term wealth creation")
-            console.print("• Time Frame: Hold 3-5 years minimum")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def invest_dividend_aristocrats(self):
-        """Find dividend-paying stocks for income investing"""
-        console.print(Panel.fit("💰 INVEST: Dividend Aristocrats", style="bold blue"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'dividends_yield_current', 'price_earnings_ttm',
-                       'return_on_equity', 'debt_to_equity', 'current_ratio', 
-                       'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 200,  # Above ₹200
-                    col('dividends_yield_current') > 2,  # Min 2% dividend yield
-                    col('price_earnings_ttm') < 20,  # Reasonable PE
-                    col('return_on_equity') > 12,  # Decent ROE
-                    col('debt_to_equity') < 0.8,  # Low debt
-                    col('current_ratio') > 1.2,  # Good liquidity
-                    col('market_cap_basic') > 10e9  # Min 10000 crores
-                )
-                .order_by('dividends_yield_current', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Dividend Aristocrats")
-            
-            console.print("\n[bold yellow]💡 Investment Strategy:[/bold yellow]")
-            console.print("• Entry: On dividend yield above 3%")
-            console.print("• Stop Loss: Only on fundamental deterioration (or 0.5% technical stop)")
-            console.print("• Target: Consistent dividend income + growth")
-            console.print("• Time Frame: Hold for decades")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def invest_undervalued_gems(self):
-        """Find undervalued stocks with potential for long-term investing"""
-        console.print(Panel.fit("💎 INVEST: Undervalued Gems", style="bold magenta"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'price_earnings_ttm', 'price_book_ratio',
-                       'return_on_equity', 'price_sales_ratio', 'market_cap_basic',
-                       'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 50,  # Above ₹50
-                    col('price_earnings_ttm') < 15,  # Low PE
-                    col('price_book_ratio') < 2,  # Low P/B
-                    col('return_on_equity') > 10,  # Decent ROE
-                    col('price_sales_ratio') < 3,  # Low P/S
-                    col('market_cap_basic') > 1e9  # Min 1000 crores
-                )
-                .order_by('price_earnings_ttm', ascending=True)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Undervalued Gems")
-            
-            console.print("\n[bold yellow]💡 Investment Strategy:[/bold yellow]")
-            console.print("• Entry: After thorough fundamental analysis")
-            console.print("• Stop Loss: On business deterioration (or 0.5% technical stop)")
-            console.print("• Target: Fair value realization")
-            console.print("• Time Frame: Patient holding 2-5 years")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    # ==================== RESEARCH & ANALYSIS TOOLS ====================
-    
-    def research_sector_leaders(self):
-        """Research sector leaders and their performance"""
-        console.print(Panel.fit("🔍 RESEARCH: Sector Leaders Analysis", style="bold yellow"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'market_cap_basic', 'return_on_equity',
-                       'price_earnings_ttm', 'total_revenue_yoy_growth_ttm', 
-                       'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('market_cap_basic') > 20e9,  # Large cap (20000+ crores)
-                    col('return_on_equity') > 15,  # High ROE
-                    col('price_earnings_ttm') > 0,  # Profitable
-                    col('total_revenue_yoy_growth_ttm') > 5  # Revenue growth
-                )
-                .order_by('market_cap_basic', ascending=False)
-                .limit(20)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Sector Leaders Analysis")
-            
-            console.print("\n[bold yellow]💡 Research Insights:[/bold yellow]")
-            console.print("• Compare ROE across sectors")
-            console.print("• Identify sector rotation opportunities")
-            console.print("• Track revenue growth trends")
-            console.print("• Monitor profit margin sustainability")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def research_market_sentiment(self):
-        """Analyze current market sentiment and momentum"""
-        console.print(Panel.fit("📊 RESEARCH: Market Sentiment Analysis", style="bold red"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'change', 'volume', 'relative_volume_10d_calc',
-                       'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('market_cap_basic') > 5e9,  # Large companies
-                    col('volume') > 1000000,  # High volume
-                    col('relative_volume_10d_calc') > 0.5  # Some activity
-                )
-                .order_by('market_cap_basic', ascending=False)
-                .limit(50)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            if not df.empty:
-                # Calculate market sentiment metrics
-                total_stocks = len(df)
-                gainers = len(df[df['change'] > 0])
-                losers = len(df[df['change'] < 0])
-                high_volume = len(df[df['relative_volume_10d_calc'] > 1.2])
-                
-                console.print(f"\n[bold]Market Sentiment Summary:[/bold]")
-                console.print(f"• Total stocks analyzed: {total_stocks}")
-                console.print(f"• Gainers: {gainers} ({gainers/total_stocks*100:.1f}%)")
-                console.print(f"• Losers: {losers} ({losers/total_stocks*100:.1f}%)")
-                console.print(f"• High volume activity: {high_volume} ({high_volume/total_stocks*100:.1f}%)")
-                
-                avg_change = df['change'].mean()
-                avg_volume_ratio = df['relative_volume_10d_calc'].mean()
-                
-                console.print(f"• Average change: {avg_change:+.2f}%")
-                console.print(f"• Average volume ratio: {avg_volume_ratio:.2f}x")
-                
-                if avg_change > 0.5:
-                    console.print("[green]✅ Bullish market sentiment[/green]")
-                elif avg_change < -0.5:
-                    console.print("[red]❌ Bearish market sentiment[/red]")
-                else:
-                    console.print("[yellow]⚠️ Neutral market sentiment[/yellow]")
-            
-            self.display_table(df.head(15), "Market Sentiment Analysis")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def research_earnings_calendar(self):
-        """Find stocks with upcoming earnings or recent results"""
-        console.print(Panel.fit("📅 RESEARCH: Earnings Focus", style="bold cyan"))
-        
-        try:
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'earnings_per_share_diluted_yoy_growth_ttm', 
-                       'total_revenue_yoy_growth_ttm', 'price_earnings_ttm',
-                       'return_on_equity', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 100,  # Above ₹100
-                    col('earnings_per_share_diluted_yoy_growth_ttm') > 10,  # EPS growth
-                    col('total_revenue_yoy_growth_ttm') > 5,  # Revenue growth
-                    col('price_earnings_ttm') < 30,  # Reasonable PE
-                    col('market_cap_basic') > 2e9  # Min 2000 crores
-                )
-                .order_by('earnings_per_share_diluted_yoy_growth_ttm', ascending=False)
-                .limit(15)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            self.display_table(df, "Earnings Growth Focus")
-            
-            console.print("\n[bold yellow]💡 Research Strategy:[/bold yellow]")
-            console.print("• Track earnings announcement dates")
-            console.print("• Monitor guidance and management commentary")
-            console.print("• Compare actual vs expected results")
-            console.print("• Identify earnings surprise opportunities")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
-    def research_sector_performance(self):
-        """Analyze sector-wise performance and trends"""
-        console.print(Panel.fit("🏢 RESEARCH: Sector Performance Analysis", style="bold green"))
-        
-        try:
-            # Get sector data
-            total_rows, df = (
-                Query()
-                .select('name', 'close', 'change', 'volume', 'market_cap_basic', 
-                       'sector', 'industry', 'return_on_equity', 'price_earnings_ttm',
-                       'relative_volume_10d_calc', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 50,  # Above ₹50
-                    col('market_cap_basic') > 5e8,  # Min 500 crores
-                    col('volume') > 100000,  # Minimum volume
-                    col('sector') != '',  # Has sector data
-                    col('exchange') == 'NSE'  # NSE only, ignore BSE
-                )
-                .order_by('market_cap_basic', ascending=False)
-                .limit(100)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            # Manual NSE filter (TradingView exchange filter doesn't work reliably)
-            if not df.empty and 'ticker' in df.columns:
-                df = df[df['ticker'].str.startswith('NSE:')]
-                
-            if not df.empty and 'sector' in df.columns:
-                # Calculate sector-wise metrics
-                sector_stats = df.groupby('sector').agg({
-                    'change': ['mean', 'count'],
-                    'market_cap_basic': 'sum',
-                    'volume': 'sum',
-                    'return_on_equity': 'mean',
-                    'price_earnings_ttm': 'mean',
-                    'relative_volume_10d_calc': 'mean'
-                }).round(2)
-                
-                # Flatten column names
-                sector_stats.columns = ['avg_change', 'stock_count', 'total_mcap', 'total_volume', 'avg_roe', 'avg_pe', 'avg_vol_ratio']
-                sector_stats = sector_stats.reset_index()
-                
-                # Sort by average performance
-                sector_stats = sector_stats.sort_values('avg_change', ascending=False)
-                
-                # Display sector performance table
-                self._display_sector_table(sector_stats, "Sector Performance Analysis")
-                
-                # Show top and bottom performers
-                console.print(f"\n[bold green]🏆 Top Performing Sectors:[/bold green]")
-                for i, (_, row) in enumerate(sector_stats.head(3).iterrows()):
-                    console.print(f"  {i+1}. {row['sector']}: {row['avg_change']:+.2f}% ({row['stock_count']} stocks)")
-                
-                console.print(f"\n[bold red]📉 Underperforming Sectors:[/bold red]")
-                for i, (_, row) in enumerate(sector_stats.tail(3).iterrows()):
-                    console.print(f"  {i+1}. {row['sector']}: {row['avg_change']:+.2f}% ({row['stock_count']} stocks)")
-                
-                console.print("\n[bold yellow]💡 Sector Analysis Insights:[/bold yellow]")
-                console.print("• Identify sector rotation opportunities")
-                console.print("• Compare relative strength across sectors")
-                console.print("• Monitor sector-specific news and events")
-                console.print("• Track institutional money flow patterns")
-                
-            else:
-                console.print("[yellow]⚠️ Sector data not available or limited[/yellow]")
-                self.display_table(df.head(15), "Market Analysis (No Sector Data)")
-                
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-    
     def _display_sector_table(self, sector_df, title):
-        """Display sector performance in a formatted table"""
-        if sector_df.empty:
-            console.print(f"[red]No sector data available for {title}[/red]")
-            return
-            
-        table = Table(title=title, show_header=True, header_style="bold magenta")
-        table.add_column("Sector", style="cyan", no_wrap=True)
-        table.add_column("Avg Change %", justify="right", style="magenta")
-        table.add_column("Stock Count", justify="right", style="blue")
-        table.add_column("Total MCap (₹Cr)", justify="right", style="green")
-        table.add_column("Avg ROE %", justify="right", style="yellow")
-        table.add_column("Avg PE", justify="right", style="red")
-        table.add_column("Vol Ratio", justify="right", style="cyan")
-        
-        for _, row in sector_df.iterrows():
-            change_val = row['avg_change']
-            change_color = "green" if change_val > 0 else "red"
-            
-            # Format market cap
-            mcap_formatted = f"₹{row['total_mcap']/1e7:,.0f}"
-            
-            # Handle NaN values
-            avg_roe = row['avg_roe'] if pd.notna(row['avg_roe']) else 0
-            avg_pe = row['avg_pe'] if pd.notna(row['avg_pe']) else 0
-            avg_vol_ratio = row['avg_vol_ratio'] if pd.notna(row['avg_vol_ratio']) else 0
-            
-            table.add_row(
-                row['sector'][:20],  # Truncate long sector names
-                f"[{change_color}]{change_val:+.2f}%[/{change_color}]",
-                f"{int(row['stock_count'])}",
-                mcap_formatted,
-                f"{avg_roe:.1f}%" if avg_roe > 0 else "N/A",
-                f"{avg_pe:.1f}" if avg_pe > 0 else "N/A",
-                f"{avg_vol_ratio:.2f}x"
-            )
-        
-        console.print(table)
-        console.print(f"[dim]Showing {len(sector_df)} sectors[/dim]")
-    
-    def research_sector_stocks(self, sector_name=None, limit=20):
-        """Find top stocks in a specific sector"""
-        if sector_name:
-            title = f"🏢 SECTOR: {sector_name} Top Stocks"
-        else:
-            title = "🏢 SECTOR: Select Sector Stocks"
-            
-        console.print(Panel.fit(title, style="bold blue"))
-        
-        try:
-            query = (
-                Query()
-                .select('name', 'close', 'change', 'volume', 'market_cap_basic', 
-                       'sector', 'industry', 'return_on_equity', 'price_earnings_ttm',
-                       'relative_volume_10d_calc', 'RSI', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 25,  # Above ₹25
-                    col('market_cap_basic') > 1e8,  # Min 100 crores
-                    col('volume') > 50000,  # Minimum volume
-                    col('sector') != '',  # Has sector data
-                    col('exchange') == 'NSE'  # NSE only, ignore BSE
-                )
-            )
-            
-            # Add sector filter if specified
-            if sector_name:
-                query = query.where(col('sector') == sector_name)
-            
-            total_rows, df = (
-                query
-                .order_by('market_cap_basic', ascending=False)
-                .limit(limit)
-                .get_scanner_data(cookies=self.cookies)
-            )
-            
-            # Manual NSE filter (TradingView exchange filter doesn't work reliably)
-            if not df.empty and 'ticker' in df.columns:
-                df = df[df['ticker'].str.startswith('NSE:')]
-            
-            if not df.empty:
-                if sector_name:
-                    self.display_table(df, f"{sector_name} - Top Stocks")
-                else:
-                    # Show available sectors
-                    if 'sector' in df.columns:
-                        sectors = df['sector'].unique()
-                        console.print(f"[bold yellow]Available Sectors ({len(sectors)}):[/bold yellow]")
-                        for i, sector in enumerate(sorted(sectors), 1):
-                            console.print(f"  {i}. {sector}")
-                        console.print(f"\n[bold blue]Usage:[/bold blue] Use --sector '<sector_name>' parameter")
-                        console.print(f"[bold blue]Example:[/bold blue] python tv_screen_usage.py --example research_sector_stocks --sector 'Technology'")
-                    else:
-                        self.display_table(df.head(15), "Market Stocks (No Sector Data)")
-                        
-                console.print("\n[bold yellow]💡 Sector Analysis Tips:[/bold yellow]")
-                console.print("• Compare stocks within the same sector")
-                console.print("• Look for sector leaders vs laggards")
-                console.print("• Monitor sector-specific catalysts")
-                console.print("• Track relative performance trends")
-            else:
-                console.print(f"[red]No stocks found for sector: {sector_name}[/red]")
-                
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
+        """Deprecated: moved to tv_display.display_sector_table"""
+        if tv_display:
+            return tv_display.display_sector_table(sector_df, title)
+        console.print("[red]tv_display module unavailable[/red]")
     
     # ==================== INTRADAY WATCH MODE ====================
     
     def wait_until_market_open(self):
         """Wait until 9:20 AM before starting active monitoring"""
-        target_time = datetime.now().replace(hour=9, minute=20, second=0, microsecond=0)
+        target_time = datetime.now().replace(hour=9, minute=16, second=0, microsecond=0)
         current_time = datetime.now()
         
         # If we're past 9:20 AM today, start immediately
@@ -3664,363 +2142,6 @@ class TVScreenerUsage:
         console.print("[green]🚀 9:20 AM reached - starting active monitoring mode![/green]")
         time.sleep(2)
 
-    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT'):
-        """Watch mode for intraday trading - continuously monitors volume and price changes"""
-        mode_titles = {
-            'PREBREAKOUT': ("📊 PRE-BREAKOUT MODE - Early Entry Signals", "bold blue"),
-            'FOMO': ("🔥 FOMO MODE - High Volume Breakouts", "bold red"), 
-            'SMART_FOMO': ("🧠 SMART FOMO MODE - Historical Analysis + FOMO", "bold yellow"),
-            'ACCUMULATION': ("📈 ACCUMULATION MODE - Smart Money Tracking", "bold green"),
-            'MOMENTUM': ("⚡ MOMENTUM MODE - Early Momentum Detection", "bold cyan"),
-            'OPTIMIZED_GAP': ("🚀 OPTIMIZED GAP MODE - 15-Min Gap Strategy (68.4% Win Rate)", "bold green"),
-            'GAP_FILL_SR': ("🎯 GAP-FILL S/R MODE - Live Gap Analysis with Support/Resistance", "bold magenta")
-        }
-        title, style = mode_titles.get(mode, ("📊 WATCH MODE", "bold blue"))
-        console.print(Panel.fit(title, style=style))
-        
-        # Store mode for use in data fetching
-        self.watch_mode = mode
-        
-        # Update journal file with correct mode
-        if hasattr(self, 'journal_file'):
-            self.setup_trade_journal()
-        
-        console.print(f"[yellow]⚙️  Configuration:[/yellow]")
-        console.print(f"• Mode: {mode}")
-        console.print(f"• Refresh interval: {refresh_interval} seconds")
-        console.print(f"• Volume threshold: {volume_threshold}x normal volume")
-        console.print(f"• Price change threshold: {price_threshold}%")
-        console.print(f"• Paper trading: {'🟢 ENABLED (₹20,000 per trade)' if self.paper_trading_enabled else '🔴 DISABLED'}")
-        if self.paper_trading_enabled:
-            console.print(f"• Live risk management: 🟢 ENABLED (0.5% SL | 1% TP | 1.0% TSL | 2sec checks)")
-        console.print(f"• Trade journal: 📝 {self.journal_file}")
-        console.print(f"• Trend analysis: 🎯 ENABLED (15-day lookback | SELL in bearish trends)")
-        console.print(f"• Logging: 🔇 Minimal (reduced console spam)")
-        console.print(f"• Press Ctrl+C to stop monitoring")
-        console.print()
-        
-        # Special handling for GAP_FILL_SR mode - redirect to live gap-fill monitor
-        if mode == 'GAP_FILL_SR':
-            console.print(f"[yellow]🔄 Redirecting to live gap-fill monitor...[/yellow]")
-            time.sleep(1)
-            return self.live_gap_fill_monitor_with_sr()
-        
-        # Wait until 9:20 AM before starting active monitoring
-        self.wait_until_market_open()
-        
-        # Store previous data for comparison
-        previous_data = pd.DataFrame()
-        alert_count = 0
-        
-        # Start background monitoring for live risk management
-        self._start_time = datetime.now()
-        self.start_background_monitoring()
-        
-        try:
-            while True:
-                start_time = time.time()
-                
-                # Clear screen for fresh update
-                os.system('clear' if os.name == 'posix' else 'cls')
-                
-                # Header with current time
-                current_time = datetime.now().strftime("%H:%M:%S")
-                console.print(f"[bold blue]📊 INTRADAY WATCH MODE - {current_time}[/bold blue]")
-                console.print(f"[dim]Refresh: {refresh_interval}s | Vol: {volume_threshold}x | Price: {price_threshold}%[/dim]")
-                console.print()
-                
-                # Check if market is closed - exit all positions at 3:00 PM
-                if self._is_market_closed():
-                    self._exit_all_positions("MARKET_CLOSED")
-                    console.print("[bold red]📴 Market closed - All positions exited. Script will continue monitoring.[/bold red]")
-                    time.sleep(refresh_interval)
-                    continue
-                
-                # Get current market data
-                current_data = self._get_watch_data()
-                
-                if not current_data.empty:
-                    # Detect alerts
-                    alerts = self._detect_alerts(current_data, previous_data, volume_threshold, price_threshold)
-                    
-                    if alerts:
-                        alert_count += len(alerts)
-                        console.print(f"[bold red]🚨 ALERTS ({len(alerts)} new, {alert_count} total)[/bold red]")
-                        self._display_alerts(alerts)
-                        console.print()
-                    
-                    # Display current top movers
-                    self._display_watch_data(current_data, alerts)
-                    
-                    # Store current data for next comparison
-                    previous_data = current_data.copy()
-                else:
-                    console.print("[red]❌ No data received - checking connection...[/red]")
-                
-                # Wait for next refresh
-                elapsed = time.time() - start_time
-                sleep_time = max(0, refresh_interval - elapsed)
-                
-                if sleep_time > 0:
-                    console.print(f"[dim]Next refresh in {sleep_time:.1f}s... (Ctrl+C to stop)[/dim]")
-                    time.sleep(sleep_time)
-                    
-        except KeyboardInterrupt:
-            console.print("\n[yellow]👋 Watch mode stopped by user[/yellow]")
-            console.print(f"[green]Total alerts generated: {alert_count}[/green]")
-            
-            # Show execution time
-            end_time = datetime.now()
-            if hasattr(self, '_start_time'):
-                duration = end_time - self._start_time
-                hours, remainder = divmod(duration.total_seconds(), 3600)
-                minutes, seconds = divmod(remainder, 60)
-                console.print(f"[blue]Execution time: {int(hours)}h:{int(minutes):02d}m:{int(seconds):02d}s[/blue]")
-        finally:
-            # Stop background monitoring when exiting
-            self.stop_background_monitoring()
-    
-    def _get_watch_data(self):
-        """Get current market data for watch mode based on selected mode"""
-        mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
-        
-        try:
-            if mode == 'FOMO':
-                # Original FOMO high volume breakouts
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 50,  # Above ₹50
-                        col('volume') > 500000,  # High volume
-                        col('relative_volume_10d_calc') > 1.5,  # Elevated volume
-                        col('market_cap_basic') > 1e9,  # Min 1000 crores
-                        col('exchange') == 'NSE'  # NSE only
-                    )
-                    .order_by('relative_volume_10d_calc', ascending=False)
-                    .limit(25)
-                    .get_scanner_data(cookies=self.cookies)
-                )
-            
-            elif mode == 'ACCUMULATION':
-                # Accumulation patterns
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'EMA20', 'market_cap_basic', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 50,  # Above ₹50
-                        col('volume') > 200000,  # Decent volume
-                        col('relative_volume_10d_calc').between(0.8, 1.8),  # Normal volume
-                        col('RSI').between(40, 65),  # Building strength
-                        col('close') > col('EMA20'),  # Above trend
-                        col('market_cap_basic') > 5e8,  # Min 500 crores
-                        col('exchange') == 'NSE'  # NSE only
-                    )
-                    .order_by('RSI', ascending=False)
-                    .limit(25)
-                    .get_scanner_data(cookies=self.cookies)
-                )
-            
-            elif mode == 'SMART_FOMO':
-                # Enhanced Smart FOMO: Avoid buying at tops using multiple filters
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'Volatility.D', 'market_cap_basic', 'price_52_week_high',
-                           'Perf.W', 'Perf.3M', 'EMA20', 'EMA50', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 50,  # Above ₹50
-                        col('volume') > 500000,  # High volume
-                        col('relative_volume_10d_calc') > 1.5,  # Elevated volume (FOMO signal)
-                        col('change').between(1, 8),  # Positive momentum but NOT extreme (CRITICAL)
-                        col('RSI').between(40, 75),  # Avoid extreme overbought (was 85)
-                        col('market_cap_basic') > 1e9,  # Min 1000 crores
-                        col('exchange') == 'NSE',  # NSE only
-                        # NEW: Avoid stocks too close to 52-week highs
-                        col('close') < col('price_52_week_high') * 0.95,  # At least 5% below 52W high
-                        # NEW: Avoid overextended weekly/monthly moves
-                        col('Perf.W') < 15,  # Weekly gain < 15%
-                        col('Perf.3M') < 50,  # 3-month gain < 50%
-                        # NEW: Ensure stock is above key moving averages (trend confirmation)
-                        col('close') > col('EMA20'),  # Above 20 EMA
-                        col('EMA20') > col('EMA50')   # 20 EMA above 50 EMA (uptrend)
-                    )
-                    .order_by('relative_volume_10d_calc', ascending=False)
-                    .limit(30)  # Get more to filter
-                    .get_scanner_data(cookies=self.cookies)
-                )
-                
-                # Filter by historical upside potential
-                if not df.empty:
-                    smart_fomo_stocks = []
-                    for _, row in df.iterrows():
-                        if self._check_historical_upside(row.get('ticker', ''), row.get('close', 0)):
-                            smart_fomo_stocks.append(row)
-                    
-                    if smart_fomo_stocks:
-                        df = pd.DataFrame(smart_fomo_stocks).head(25)  # Limit to 25
-                    else:
-                        df = pd.DataFrame()  # No stocks passed historical filter
-            
-            elif mode == 'MOMENTUM':
-                # Early momentum detection
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 30,  # Lower threshold
-                        col('volume') > 100000,  # Minimum liquidity
-                        col('relative_volume_10d_calc').between(1.1, 2.5),  # Slightly elevated
-                        col('change').between(0.5, 4),  # Small positive moves
-                        col('RSI') > col('RSI[1]'),  # RSI improving
-                        col('RSI').between(35, 70),  # Sweet spot
-                        col('MACD.macd') > col('MACD.signal'),  # MACD bullish
-                        col('market_cap_basic') > 2e8,  # Min 200 crores
-                        col('exchange') == 'NSE'  # NSE only
-                    )
-                    .order_by('change', ascending=False)
-                    .limit(25)
-                    .get_scanner_data(cookies=self.cookies)
-                )
-            
-            elif mode == 'OPTIMIZED_GAP':
-                # Optimized gap strategy - 15-minute proven strategy
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'market_cap_basic', 'Volatility.D', 'price_52_week_high', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        # Quality gap criteria (proven in backtesting)
-                        col('close') > 50,  # Minimum price for liquidity
-                        col('change') > 1,  # At least 1% gap for momentum
-                        col('change') < 15,  # Avoid extreme gaps (retracement risk)
-                        
-                        # Volume confirmation (critical for 15-min success)
-                        col('volume') > 500000,  # Minimum liquidity
-                        col('relative_volume_10d_calc') > 2.0,  # 2x+ volume (institutional interest)
-                        
-                        # Risk management filters
-                        col('RSI') < 85,  # Not extremely overbought
-                        col('RSI') > 25,  # Not in freefall
-                        col('exchange') == 'NSE',  # NSE only for better liquidity
-                        
-                        # Quality and size filters
-                        col('market_cap_basic') > 2e8,  # Min 200 crores (avoid penny stocks)
-                        col('Volatility.D') < 0.08,  # Reasonable volatility (<8%)
-                        col('price_52_week_high') > col('close')  # Room for upside
-                    )
-                    .order_by('relative_volume_10d_calc', ascending=False)  # Highest volume first
-                    .limit(20)  # Focus on top 20 opportunities
-                    .get_scanner_data(cookies=self.cookies)
-                )
-            
-            else:  # PREBREAKOUT (default)
-                # Pre-breakout focus
-                total_rows, df = (
-                    Query()
-                    .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                           'RSI', 'RSI[1]', 'EMA20', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
-                    .set_markets(self.market)
-                    .where(
-                        col('close') > 30,  # Lower threshold for early detection
-                        col('volume') > 100000,  # Minimum liquidity
-                        col('market_cap_basic') > 2e8,  # Min 200 crores
-                        col('relative_volume_10d_calc').between(0.8, 3.0),  # Normal to moderately elevated
-                        col('RSI').between(35, 75),  # Building momentum zone
-                        col('change').between(-3, 6),  # Not extreme moves
-                        col('exchange') == 'NSE'  # NSE only, ignore BSE
-                    )
-                    .order_by('RSI', ascending=False)  # Momentum building
-                    .limit(25)
-                    .get_scanner_data(cookies=self.cookies)
-                )
-            
-            # Add calculated fields if needed
-            if 'Volatility.D' in df.columns:
-                df['volatility_pct'] = df['Volatility.D'] * 100
-            df['market_cap_cr'] = df['market_cap_basic'] / 1e7
-            
-            # Add quality scoring for optimized gap mode
-            if mode == 'OPTIMIZED_GAP' and not df.empty:
-                df['quality_score'] = self._calculate_quality_score(df)
-            
-            # Add trend analysis for each stock (simplified based on current market data)
-            if not df.empty:
-                trend_data = []
-                for _, row in df.iterrows():
-                    # Simple trend analysis based on current data points
-                    change = row.get('change', 0)
-                    rsi = row.get('RSI', 50)
-                    vol_ratio = row.get('relative_volume_10d_calc', 1)
-                    
-                    # Determine trend based on available indicators
-                    trend_score = 0
-                    
-                    # Price change contribution (40% weight)
-                    if change > 5:
-                        trend_score += 40
-                    elif change > 2:
-                        trend_score += 20
-                    elif change > 0:
-                        trend_score += 10
-                    elif change < -5:
-                        trend_score -= 40
-                    elif change < -2:
-                        trend_score -= 20
-                    elif change < 0:
-                        trend_score -= 10
-                    
-                    # RSI contribution (35% weight)
-                    if rsi > 65:
-                        trend_score += 35
-                    elif rsi > 55:
-                        trend_score += 20
-                    elif rsi > 45:
-                        trend_score += 5
-                    elif rsi < 35:
-                        trend_score -= 35
-                    elif rsi < 45:
-                        trend_score -= 20
-                    
-                    # Volume confirmation (25% weight)
-                    if vol_ratio > 2:
-                        trend_score += 25
-                    elif vol_ratio > 1.5:
-                        trend_score += 15
-                    elif vol_ratio > 1:
-                        trend_score += 5
-                    elif vol_ratio < 0.5:
-                        trend_score -= 15
-                    
-                    # Categorize trend
-                    if trend_score >= 60:
-                        trend = 'strong_bullish'
-                    elif trend_score >= 30:
-                        trend = 'bullish'
-                    elif trend_score >= -30:
-                        trend = 'neutral'
-                    elif trend_score >= -60:
-                        trend = 'bearish'
-                    else:
-                        trend = 'strong_bearish'
-                    
-                    trend_data.append(trend)
-                df['trend'] = trend_data
-            
-            return df
-            
-        except Exception as e:
-            console.print(f"[red]Error fetching watch data: {e}[/red]")
-            return pd.DataFrame()
-    
     def _detect_alerts(self, current_data, previous_data, volume_threshold, price_threshold):
         """Detect volume spikes and price movements with cooldown protection"""
         alerts = []
@@ -4105,10 +2226,11 @@ class TVScreenerUsage:
             
             # Enhanced Smart FOMO alert - available in all modes with top-avoidance filters
             watch_mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
-            if (row['relative_volume_10d_calc'] > volume_threshold and
-                row['change'] > 1 and  # Positive momentum
+            if (row['relative_volume_10d_calc'] > max(volume_threshold, 2.0) and  # Minimum 2x volume for SMART_FOMO
+                (row['change'] > 1 or row['change'] < -1) and  # Positive OR negative momentum
                 self._check_historical_upside(ticker, row['close']) and  # Historical validation
-                self._check_not_buying_at_top(ticker, row)):  # NEW: Avoid buying at tops
+                self._check_not_buying_at_top(ticker, row) and  # Avoid buying at tops
+                self._check_momentum_divergence(ticker, row, previous_data)):  # Check momentum quality
                 
                 # Check cooldown
                 should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'SMART_FOMO')
@@ -4123,7 +2245,7 @@ class TVScreenerUsage:
                 confidence = self._calculate_alert_confidence('SMART_FOMO', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
                 
                 # Only send if confidence is high enough
-                if confidence >= 0.5:  # 50% minimum confidence
+                if confidence >= 0.55:  # 55% minimum confidence for FOMO mode earlier entries
                     alert = {
                         'type': 'SMART_FOMO',
                         'ticker': ticker,
@@ -4248,6 +2370,130 @@ class TVScreenerUsage:
                             }
                             alerts.append(alert)
                             self.last_alert_time[f"{ticker}_GAP_BREAKOUT"] = datetime.now()
+            
+            elif watch_mode == 'HEAVY_BREAKOUT':
+                # Heavy Breakout: Real-time channel analysis with support/resistance levels
+                breakout_score = row.get('breakout_score', 0)
+                active_channels = row.get('active_channels', 0)
+                recent_breakouts = row.get('recent_breakouts', 0)
+                support_level = row.get('support_level')
+                resistance_level = row.get('resistance_level')
+                breakout_type = row.get('breakout_type')
+                breakout_strength = row.get('breakout_strength', 0)
+                
+                # Enhanced criteria using real-time channel analysis
+                if (breakout_score > 40 and  # High breakout potential from channel analysis
+                    (recent_breakouts > 0 or active_channels > 0) and  # Has patterns
+                    row['relative_volume_10d_calc'] > 1.2 and  # Volume confirmation
+                    abs(row['change']) >= 1):  # Meaningful price movement
+                    
+                    should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'HEAVY_BREAKOUT')
+                    if not should_skip:
+                        # Calculate enhanced confidence based on channel analysis
+                        confidence = min(0.95, (breakout_score / 100) + 0.3)
+                        
+                        # Determine trade direction and levels
+                        if recent_breakouts > 0 and breakout_type:
+                            if breakout_type == 'bullish':
+                                trade_direction = 'LONG'
+                                entry_level = resistance_level
+                                stop_loss = support_level
+                                target = resistance_level + ((resistance_level - support_level) * 1.5) if support_level and resistance_level else None
+                            else:  # bearish
+                                trade_direction = 'SHORT'
+                                entry_level = support_level
+                                stop_loss = resistance_level
+                                target = support_level - ((resistance_level - support_level) * 1.5) if support_level and resistance_level else None
+                        else:
+                            # Active channel - wait for breakout
+                            trade_direction = 'WATCH'
+                            entry_level = row['close']
+                            stop_loss = None
+                            target = None
+                        
+                        alert = {
+                            'type': 'HEAVY_BREAKOUT',
+                            'ticker': ticker,
+                            'name': row['name'],
+                            'volume_ratio': row['relative_volume_10d_calc'],
+                            'price': row['close'],
+                            'change': row['change'],
+                            'breakout_score': breakout_score,
+                            'pattern': f"{breakout_type.title()} Breakout" if breakout_type else "Channel Setup",
+                            'confidence': confidence,
+                            # Trading levels
+                            'trade_direction': trade_direction,
+                            'support_level': support_level,
+                            'resistance_level': resistance_level,
+                            'entry_level': entry_level,
+                            'stop_loss': stop_loss,
+                            'target': target,
+                            'breakout_strength': breakout_strength,
+                            'active_channels': active_channels,
+                            'recent_breakouts': recent_breakouts
+                        }
+                        alerts.append(alert)
+                        self.last_alert_time[f"{ticker}_HEAVY_BREAKOUT"] = datetime.now()
+
+        # Universal overbought short detection - available in all modes
+        for _, row in current_data.iterrows():
+            ticker = row['ticker']
+            rsi = row.get('RSI', 50)
+            change_pct = row.get('change', 0)
+            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
+            
+            # Check for overbought short opportunities
+            if (rsi >= 70 and  # Overbought RSI
+                volume_ratio >= 1.5 and  # Decent volume
+                change_pct > 2):  # Stock has moved up (potential reversal)
+                
+                should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'OVERBOUGHT_SHORT')
+                if not should_skip:
+                    # Get 15min RSI for intraday confirmation
+                    rsi_15min = self._get_15min_rsi(ticker)
+                    
+                    # Use overextended check for additional confirmation
+                    is_overextended = self._is_overextended_for_short(ticker)
+                    
+                    # Enhanced logic: Require 15min RSI confirmation if available
+                    rsi_confirmed = True  # Default to allow signal
+                    if rsi_15min is not None:
+                        # 15min RSI should also be overbought (>=65) for strong confirmation
+                        rsi_confirmed = rsi_15min >= 65
+                        console.print(f"[dim yellow]📊 {ticker}: Daily RSI {rsi:.1f}, 15min RSI {rsi_15min:.1f}[/dim yellow]")
+                    
+                    if rsi_confirmed:
+                        # Calculate confidence for short signal (boost if 15min confirms)
+                        confidence = self._calculate_short_confidence(rsi, change_pct, volume_ratio, is_overextended)
+                        if rsi_15min is not None and rsi_15min >= 75:
+                            confidence += 0.1  # Bonus for strong 15min confirmation
+                        
+                        if confidence >= 0.6:  # 60% minimum for shorts
+                            alert = {
+                                'type': 'OVERBOUGHT_SHORT',
+                                'ticker': ticker,
+                                'name': row['name'],
+                                'volume_ratio': volume_ratio,
+                                'price': row['close'],
+                                'change': change_pct,
+                                'rsi': rsi,
+                                'rsi_15min': rsi_15min,
+                                'reason': '15min RSI Confirmed' if rsi_15min else 'Daily RSI Only',
+                                'confidence': confidence,
+                                'is_overextended': is_overextended
+                            }
+                            alerts.append(alert)
+                            self.last_alert_time[f"{ticker}_OVERBOUGHT_SHORT"] = datetime.now()
+                            
+                            # Enhanced logging with both RSI values
+                            rsi_str = f"Daily {rsi:.1f}"
+                            if rsi_15min:
+                                rsi_str += f", 15min {rsi_15min:.1f}"
+                            console.print(f"[red]🔴 {ticker}: OVERBOUGHT SHORT - {rsi_str}, +{change_pct:.1f}%, {volume_ratio:.1f}x vol[/red]")
+                        else:
+                            console.print(f"[yellow]⚠️ {ticker}: Overbought but confidence too low ({confidence:.0%})[/yellow]")
+                    else:
+                        console.print(f"[yellow]⚠️ {ticker}: Daily RSI {rsi:.1f} overbought but 15min RSI {rsi_15min:.1f} not confirmed[/yellow]")
         
         return alerts
     
@@ -4272,158 +2518,92 @@ class TVScreenerUsage:
         return False, 0, ""
     
     def _calculate_alert_confidence(self, alert_type, volume_ratio, change_pct, rsi=None):
-        """Calculate confidence score for alert with momentum confirmation"""
-        confidence = 0.3  # Base confidence
+        """Calculate confidence score using shared tv_utils to avoid duplication"""
+        if tv_utils is None:
+            # Fallback to original behavior if utils unavailable
+            return 0.2
+        return tv_utils.calculate_alert_confidence(alert_type, volume_ratio, change_pct, rsi)
+    
+    def _calculate_short_confidence(self, rsi, change_pct, volume_ratio, is_overextended):
+        """Calculate confidence for short signals based on overbought conditions"""
+        confidence = 0.4  # Base confidence for short signals
         
-        # RSI-based momentum confirmation - avoid buying at peaks
-        if rsi is not None:
-            if rsi > 80:  # Overbought - very risky entry
-                confidence -= 0.25
-            elif rsi > 75:  # Getting overbought
-                confidence -= 0.15
-            elif rsi > 70:  # Slightly overbought
-                confidence -= 0.05
-            elif 50 <= rsi <= 65:  # Sweet spot for momentum
-                confidence += 0.1
-            elif rsi < 30:  # Oversold - potential reversal but risky for FOMO
-                confidence -= 0.1
+        # RSI factor (higher RSI = higher short confidence)
+        if rsi >= 80:
+            confidence += 0.3  # Very overbought
+        elif rsi >= 75:
+            confidence += 0.2  # Overbought
+        elif rsi >= 70:
+            confidence += 0.1  # Slightly overbought
         
-        # Volume factor (higher volume = higher confidence)
-        if volume_ratio > 4.0:
-            confidence += 0.3
-        elif volume_ratio > 3.0:
-            confidence += 0.2
-        elif volume_ratio > 2.0:
+        # Price move factor (larger moves = higher reversal probability)
+        if change_pct >= 8:
+            confidence += 0.25  # Large move
+        elif change_pct >= 5:
+            confidence += 0.15  # Medium move  
+        elif change_pct >= 3:
+            confidence += 0.1   # Small move
+        
+        # Volume confirmation
+        if volume_ratio >= 4.0:
+            confidence += 0.2  # High volume
+        elif volume_ratio >= 2.5:
+            confidence += 0.15  # Medium volume
+        elif volume_ratio >= 1.5:
+            confidence += 0.1   # Elevated volume
+        
+        # Overextended bonus
+        if is_overextended:
             confidence += 0.15
-        elif volume_ratio > 1.5:
-            confidence += 0.1
-        
-        # Price change factor
-        if alert_type == 'VOLUME_SPIKE':
-            if abs(change_pct) > 5:
-                confidence += 0.25
-            elif abs(change_pct) > 3:
-                confidence += 0.2
-            elif abs(change_pct) > 1.5:
-                confidence += 0.1
-        elif alert_type == 'PRICE_MOVE':
-            if abs(change_pct) > 4:
-                confidence += 0.25
-            elif abs(change_pct) > 2.5:
-                confidence += 0.15
-        elif alert_type == 'SMART_FOMO':
-            if change_pct > 3:
-                confidence += 0.2
-            elif change_pct > 1.5:
-                confidence += 0.1
-            # Historical validation bonus
-            confidence += 0.15
-        elif alert_type == 'EARLY_MOMENTUM':
-            if change_pct > 2.5:
-                confidence += 0.2
-            elif change_pct > 1.5:
-                confidence += 0.15
-            # Early entry bonus
-            confidence += 0.1
-        elif alert_type == 'ACCUMULATION':
-            # Controlled movement is preferred for accumulation
-            if 0.5 < abs(change_pct) < 2:
-                confidence += 0.2
-            elif abs(change_pct) < 3:
-                confidence += 0.1
-            # Volume-based accumulation bonus
-            confidence += 0.1
-        elif alert_type == 'PREBREAKOUT':
-            # Pre-breakout signals
-            if change_pct > 2:
-                confidence += 0.2
-            elif change_pct > 1:
-                confidence += 0.15
-            # High RSI pre-breakout bonus
-            confidence += 0.1
-        elif alert_type == 'GAP_BREAKOUT':
-            # Gap quality matters
-            if 2 <= change_pct <= 8:
-                confidence += 0.25  # Sweet spot for gaps
-            elif 1 <= change_pct <= 15:
-                confidence += 0.15
-            # Volume confirmation bonus
-            confidence += 0.1
         
         return min(confidence, 0.95)  # Cap at 95%
     
+    def _get_15min_rsi(self, symbol):
+        """Get 15min RSI from Upstox for intraday confirmation"""
+        try:
+            import talib
+            
+            # Fetch 15min data for last 3 days (enough for RSI calculation)
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+            
+            # Use the existing Upstox API
+            if hasattr(self, 'upstox_api') and self.upstox_api:
+                df = self.upstox_api.fetch_historical_data_v3(
+                    symbol=symbol,
+                    unit='minutes',
+                    interval=15,
+                    to_date=to_date,
+                    from_date=from_date
+                )
+                
+                if df is not None and len(df) >= 14:  # Need at least 14 periods for RSI
+                    # Calculate 15min RSI
+                    rsi = talib.RSI(df['close'], timeperiod=14)
+                    current_15min_rsi = rsi.iloc[-1]  # Latest RSI value
+                    
+                    return current_15min_rsi
+            
+            return None  # Return None if data unavailable
+            
+        except Exception as e:
+            # Fallback silently - don't break the main flow
+            return None
+    
     def send_telegram_alert(self, alert):
-        """Send a Telegram alert for a new event"""
+        """Send a Telegram alert for a new event via shared tv_alerts utility"""
         if not self.telegram_enabled:
             return
+        if tv_alerts is None:
+            return
 
-        try:
-            bot_token = TELEGRAM_CONFIG['bot_token']
-            chat_id = TELEGRAM_CONFIG['chat_id']
-            
-            message = f"🔥 *TradingView Alert: {alert['type'].replace('_', ' ').title()}* 🔥\n\n"
-            message += f"📈 *Symbol:* {alert['ticker']} ({alert.get('name', alert['ticker'])})\n"
-            message += f"💰 *Price:* ₹{alert['price']:.2f}\n"
-
-            if alert['type'] == 'VOLUME_SPIKE':
-                message += f"📊 *Volume Ratio:* {alert['current_volume_ratio']:.1f}x (was {alert['previous_volume_ratio']:.1f}x)\n"
-                message += f"📈 *Change:* {alert['change']:+.2f}%\n"
-            elif alert['type'] == 'PRICE_MOVE':
-                message += f"📈 *Change:* {alert['current_change']:+.2f}% (was {alert['previous_change']:+.2f}%)\n"
-                message += f"📊 *Volume Ratio:* {alert['volume_ratio']:.1f}x\n"
-            elif alert['type'] == 'SMART_FOMO':
-                message += f"📊 *Volume Ratio:* {alert['volume_ratio']:.1f}x (FOMO signal)\n"
-                message += f"📈 *Change:* {alert['change']:+.2f}%\n"
-                message += f"🧠 *Historical Check:* ✅ Upside potential validated\n"
-                message += f"🎯 *Strategy:* Smart FOMO (avoid late entries)\n"
-            elif alert['type'] == 'TRADE_ENTRY':
-                side_emoji = "🟢" if alert['side'] == 'BUY' else "🔴"
-                message = f"🎯 *TRADE EXECUTED* 🎯\n\n"
-                message += f"{side_emoji} *{alert['side']}* {alert['quantity']} shares of *{alert['ticker']}*\n"
-                message += f"💰 *Entry Price:* ₹{alert['price']:.2f}\n"
-                message += f"💵 *Amount:* ₹{alert['amount']:,.0f}\n"
-                message += f"📊 *Signal:* {alert['alert_type'].replace('_', ' ').title()}\n"
-                message += f"🎯 *Confidence:* {alert['confidence']:.0%}\n"
-                if alert.get('trend') and alert['trend'] != 'neutral':
-                    message += f"📈 *Trend:* {alert['trend'].replace('_', ' ').title()}\n"
-            elif alert['type'] == 'TRADE_EXIT':
-                side_emoji = "🔴" if alert['side'] == 'SELL' else "🟢"
-                pnl_emoji = "💚" if alert['pnl_pct'] > 0 else "❌" if alert['pnl_pct'] < 0 else "⚪"
-                message = f"🔥 *TRADE CLOSED* 🔥\n\n"
-                message += f"{side_emoji} *{alert['side']}* {alert['quantity']} shares of *{alert['ticker']}*\n"
-                message += f"📈 *Entry:* ₹{alert['entry_price']:.2f}\n"
-                message += f"📉 *Exit:* ₹{alert['exit_price']:.2f}\n"
-                message += f"💵 *Amount:* ₹{alert['amount']:,.0f}\n"
-                message += f"{pnl_emoji} *P&L:* {alert['pnl_pct']:+.2f}% (₹{alert['pnl_amount']:+,.0f})\n"
-                message += f"⏱️ *Hold Time:* {alert['hold_time_minutes']}m\n"
-                message += f"📋 *Reason:* {alert['reason']}\n"
-            
-            # Add confidence score (only for non-trade alerts, as trade alerts already include it)
-            if alert['type'] not in ['TRADE_ENTRY', 'TRADE_EXIT']:
-                confidence = alert.get('confidence', 0.5)
-                message += f"🎯 *Confidence:* {confidence:.0%}\n"
-            
-            # Add trading action if paper trading is enabled (only for non-executed trades)
-            if self.paper_trading_enabled and alert['type'] not in ['TRADE_ENTRY', 'TRADE_EXIT']:
-                trading_action = self._get_trading_action(alert)
-                message += f"\n💰 *Trading Action:* {trading_action}\n"
-                message += f"💵 *Position Size:* ₹20,000"
-
-            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-            payload = {
-                'chat_id': chat_id,
-                'text': message,
-                'parse_mode': 'Markdown'
-            }
-            
-            response = requests.post(url, json=payload, timeout=10)
-            if response.status_code == 200:
-                console.print(f"[green]✅ Telegram alert sent for {alert['ticker']}[/green]")
-            else:
-                console.print(f"[red]⚠️ Telegram alert failed for {alert['ticker']}: {response.text}[/red]")
-
-        except Exception as e:
-            console.print(f"[red]❌ Error sending Telegram alert: {str(e)}[/red]")
+        # Delegate to shared alerts module (keeps original formatting/logic)
+        tv_alerts.send_telegram_alert(
+            alert=alert,
+            telegram_config=TELEGRAM_CONFIG,
+            paper_trading_enabled=self.paper_trading_enabled,
+            trading_action_resolver=(lambda a: self._get_trading_action(a)) if hasattr(self, "_get_trading_action") else None
+        )
 
     def _display_alerts(self, alerts):
         """Display alerts in a formatted way and send to both Telegram and Paper Trading Bot"""
@@ -4442,6 +2622,39 @@ class TVScreenerUsage:
                 console.print(f"[bold yellow]{direction} PRICE MOVE:[/bold yellow] {alert['ticker']} ({alert['name'][:15]})")
                 console.print(f"   Change: {alert['current_change']:+.2f}% (was {alert['previous_change']:+.2f}%)")
                 console.print(f"   Price: ₹{alert['price']:.2f} | Volume: {alert['volume_ratio']:.1f}x")
+            
+            elif alert['type'] == 'HEAVY_BREAKOUT':
+                # Enhanced heavy breakout alert with trading levels
+                direction_emoji = "🚀" if alert.get('trade_direction') == 'LONG' else "📉" if alert.get('trade_direction') == 'SHORT' else "⚡"
+                console.print(f"[bold red]{direction_emoji} HEAVY BREAKOUT:[/bold red] {alert['ticker']} ({alert['name'][:15]})")
+                console.print(f"   Pattern: {alert.get('pattern', 'Channel Breakout')} (Score: {alert.get('breakout_score', 0):.0f})")
+                console.print(f"   Price: ₹{alert['price']:.2f} ({alert['change']:+.2f}%) | Volume: {alert['volume_ratio']:.1f}x")
+                
+                # Show support/resistance levels
+                support = alert.get('support_level')
+                resistance = alert.get('resistance_level')
+                if support and resistance:
+                    console.print(f"   📊 Support: ₹{support:.2f} | Resistance: ₹{resistance:.2f}")
+                
+                # Show trading setup
+                trade_direction = alert.get('trade_direction', 'WATCH')
+                if trade_direction == 'LONG':
+                    entry = alert.get('entry_level')
+                    stop = alert.get('stop_loss')
+                    target = alert.get('target')
+                    console.print(f"   🎯 LONG SETUP: Entry ₹{entry:.2f} | Stop ₹{stop:.2f} | Target ₹{target:.2f}")
+                elif trade_direction == 'SHORT':
+                    entry = alert.get('entry_level')
+                    stop = alert.get('stop_loss')
+                    target = alert.get('target')
+                    console.print(f"   🎯 SHORT SETUP: Entry ₹{entry:.2f} | Stop ₹{stop:.2f} | Target ₹{target:.2f}")
+                else:
+                    console.print(f"   👀 WATCH: Channel setup - wait for breakout above/below levels")
+                
+                # Show breakout strength if available
+                strength = alert.get('breakout_strength', 0)
+                if strength > 0:
+                    console.print(f"   💪 Breakout Strength: {strength:.1f}%")
             
             # Show trading action taken
             if self.paper_trading_enabled:
@@ -4596,16 +2809,36 @@ class TVScreenerUsage:
                         trade_side = 'SELL'
                 
                 elif alert['type'] == 'SMART_FOMO':
-                    # Enhanced Smart FOMO - BUY safe breakouts, SELL overextended stocks
+                    # Enhanced Smart FOMO - BUY safe breakouts, SELL overextended/declining stocks
                     change_pct = alert.get('change', 0)
                     
                     if change_pct > 1 and trend in ['strong_bullish', 'bullish', 'neutral']:
-                        # Check if stock is overextended (potential SHORT candidate)
+                        # Positive move - check if overextended for shorting
                         if self._is_overextended_for_short(symbol):
                             trade_side = 'SELL'  # Short overextended stocks
                             console.print(f"   [red]📉 {symbol} overextended - considering SHORT[/red]")
                         else:
                             trade_side = 'BUY'  # Normal long entry
+                    elif change_pct < -1:
+                        # Negative move - consider shorting the decline
+                        trade_side = 'SELL'  # Short declining stocks with volume
+                        console.print(f"   [red]📉 {symbol} declining with volume ({change_pct:.1f}%) - considering SHORT[/red]")
+                
+                elif alert['type'] == 'OVERBOUGHT_SHORT':
+                    # Direct short signal for overbought stocks
+                    trade_side = 'SELL'
+                    
+                    # Enhanced display with both RSI values
+                    daily_rsi = alert.get('rsi', 0)
+                    min_rsi_15 = alert.get('rsi_15min')
+                    confidence = alert.get('confidence', 0)
+                    reason = alert.get('reason', 'Daily RSI Only')
+                    
+                    rsi_info = f"Daily RSI {daily_rsi:.1f}"
+                    if min_rsi_15:
+                        rsi_info += f", 15min RSI {min_rsi_15:.1f}"
+                    
+                    console.print(f"   [red]🔴 {symbol} OVERBOUGHT SHORT - {rsi_info}, confidence {confidence:.0%} ({reason})[/red]")
             
             # Handle special gap strategy (outside trend-based logic)  
             if alert['type'] == 'OPTIMIZED_GAP_15MIN':
@@ -4752,185 +2985,47 @@ class TVScreenerUsage:
     
     def _display_watch_data(self, df, alerts=[]):
         """Display current watch data"""
-        alert_tickers = [alert['ticker'] for alert in alerts]
-        
-        # Dynamic title based on mode
         mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
-        mode_titles = {
-            'PREBREAKOUT': "Live Market Monitor - Pre-Breakout Signals",
-            'FOMO': "Live Market Monitor - Top Volume Movers", 
-            'SMART_FOMO': "Live Market Monitor - Smart FOMO (Historical Analysis)",
-            'ACCUMULATION': "Live Market Monitor - Accumulation Patterns",
-            'MOMENTUM': "Live Market Monitor - Early Momentum"
-        }
-        title = mode_titles.get(mode, "Live Market Monitor")
-        table = Table(title=title, show_header=True)
-        table.add_column("Ticker", style="cyan", no_wrap=True)
-        table.add_column("Name", style="green", max_width=12)
-        table.add_column("Price", justify="right", style="yellow")
-        table.add_column("Change %", justify="right", style="magenta")
-        table.add_column("Volume", justify="right", style="blue")
-        table.add_column("Vol Ratio", justify="right", style="red")
-        table.add_column("RSI", justify="right", style="cyan")
-        table.add_column("Trend", style="bold", justify="center")
-        table.add_column("Alert", style="bold red")
-        
-        for _, row in df.head(15).iterrows():
-            ticker = row['ticker']
-            is_alert = ticker in alert_tickers
-            
-            # Color coding for alerts
-            ticker_style = "[bold red]" if is_alert else ""
-            alert_symbol = "🚨" if is_alert else ""
-            
-            change_val = row['change']
-            change_color = "green" if change_val > 0 else "red"
-            
-            rsi_val = row['RSI']
-            rsi_color = "red" if rsi_val > 70 else "green" if rsi_val < 30 else "white"
-            
-            vol_ratio = row['relative_volume_10d_calc']
-            vol_color = "bold red" if vol_ratio > 3 else "red" if vol_ratio > 2 else "white"
-            
-            # Get trend if available
-            trend_display = ""
-            if 'trend' in row and row['trend']:
-                trend_val = row['trend']
-                if trend_val == 'strong_bullish':
-                    trend_display = "[bold green]🚀[/bold green]"
-                elif trend_val == 'bullish':
-                    trend_display = "[green]📈[/green]"
-                elif trend_val == 'neutral':
-                    trend_display = "[yellow]➡️[/yellow]"
-                elif trend_val == 'bearish':
-                    trend_display = "[red]📉[/red]"
-                elif trend_val == 'strong_bearish':
-                    trend_display = "[bold red]💥[/bold red]"
-                else:
-                    trend_display = f"[dim]{trend_val}[/dim]"
-            else:
-                trend_display = "[dim]—[/dim]"
-            
-            table.add_row(
-                f"{ticker_style}{ticker}",
-                row['name'][:12],
-                f"₹{row['close']:,.2f}",
-                f"[{change_color}]{change_val:+.2f}%[/{change_color}]",
-                f"{row['volume']:,.0f}",
-                f"[{vol_color}]{vol_ratio:.1f}x[/{vol_color}]",
-                f"[{rsi_color}]{rsi_val:.1f}[/{rsi_color}]",
-                trend_display,
-                alert_symbol
-            )
-        
-        console.print(table)
-        
-        # Display live trades if paper trading is enabled
+        # Prefer instance-bound tv_display for reliability
+        _tv_display = getattr(self, 'tv_display', None) or tv_display
+        if _tv_display:
+            table = _tv_display.render_watch_table(df, alerts or [], mode)
+            console.print(table)
+        else:
+            # Keep a single concise message; upstream header already shows context
+            console.print("[red]tv_display module unavailable[/red]")
+            return
+
+        # Preserve class-only extra sections
         if self.paper_trading_enabled and self.live_trades:
-            self._display_live_trades()
-        
-        # Display active positions if paper trading is enabled
+            if tv_display:
+                tv_display.display_live_trades(self.live_trades)
+            else:
+                self._display_live_trades()
+
         if self.paper_trading_enabled:
             self._display_active_positions()
-            
-        # Display closed trades if paper trading is enabled
+
         if self.paper_trading_enabled and self.closed_trades:
-            self._display_closed_trades()
+            if tv_display:
+                tv_display.display_closed_trades(self.closed_trades)
+            else:
+                self._display_closed_trades()
     
     def _display_live_trades(self):
-        """Display recent live trades"""
-        console.print()
-        trades_table = Table(title="🔴 LIVE TRADES (Last 10)", show_header=True)
-        trades_table.add_column("Time", style="cyan", no_wrap=True)
-        trades_table.add_column("Symbol", style="bold", no_wrap=True)
-        trades_table.add_column("Side", style="white")
-        trades_table.add_column("Price", justify="right", style="yellow")
-        trades_table.add_column("Qty", justify="right", style="blue")
-        trades_table.add_column("Amount", justify="right", style="green")
-        trades_table.add_column("Alert Type", style="magenta")
-        trades_table.add_column("Confidence", justify="right", style="cyan")
-        
-        for trade in reversed(self.live_trades[-10:]):  # Show most recent first
-            time_str = trade['timestamp'].strftime("%H:%M:%S")
-            side_style = "green" if trade['side'] == 'BUY' else "red"
-            side_emoji = "🟢" if trade['side'] == 'BUY' else "🔴"
-            
-            trades_table.add_row(
-                time_str,
-                trade['symbol'],
-                f"[{side_style}]{side_emoji} {trade['side']}[/{side_style}]",
-                f"₹{trade['price']:,.0f}",
-                str(trade['quantity']),
-                f"₹{trade['amount']:,.0f}",
-                trade['alert_type'],
-                f"{trade['confidence']:.0%}"
-            )
-        
-        console.print(trades_table)
+        """Deprecated: moved to tv_display.display_live_trades"""
+        if tv_display:
+            return tv_display.display_live_trades(self.live_trades)
+        console.print("[red]tv_display module unavailable[/red]")
     
     def _display_closed_trades(self):
-        """Display closed trades with P&L information in a table format"""
+        """Deprecated: moved to tv_display.display_closed_trades"""
+        if tv_display:
+            return tv_display.display_closed_trades(self.closed_trades)
+        # If empty, original would silently return; keep behavior
         if not self.closed_trades:
             return
-        
-        console.print()
-        closed_table = Table(title="📈 CLOSED TRADES P&L", show_header=True)
-        closed_table.add_column("Symbol", style="bold", no_wrap=True)
-        closed_table.add_column("Side", style="white")
-        closed_table.add_column("Entry ₹", justify="right", style="cyan")
-        closed_table.add_column("Exit ₹", justify="right", style="white")
-        closed_table.add_column("Qty", justify="right", style="blue")
-        closed_table.add_column("P&L %", justify="right", style="bold")
-        closed_table.add_column("P&L ₹", justify="right", style="bold")
-        closed_table.add_column("Hold Time", justify="right", style="dim")
-        closed_table.add_column("Reason", style="yellow")
-        
-        total_pnl_amount = 0
-        profitable_trades = 0
-        
-        # Show last 10 closed trades
-        recent_trades = self.closed_trades[-10:] if len(self.closed_trades) > 10 else self.closed_trades
-        
-        for trade in recent_trades:
-            # Color coding
-            pnl_style = "green" if trade['pnl_pct'] > 0 else "red"
-            side_style = "green" if trade['side'] == 'BUY' else "red"
-            side_emoji = "🟢" if trade['side'] == 'BUY' else "🔴"
-            
-            # Format hold time
-            hold_time = trade['exit_time'] - trade['entry_time']
-            if hold_time.total_seconds() < 3600:  # Less than 1 hour
-                hold_display = f"{int(hold_time.total_seconds() / 60)}m"
-            elif hold_time.total_seconds() < 86400:  # Less than 1 day
-                hold_display = f"{int(hold_time.total_seconds() / 3600)}h"
-            else:
-                hold_display = f"{hold_time.days}d"
-            
-            total_pnl_amount += trade['pnl_amount']
-            if trade['pnl_pct'] > 0:
-                profitable_trades += 1
-            
-            closed_table.add_row(
-                trade['symbol'],
-                f"[{side_style}]{side_emoji} {trade['side']}[/{side_style}]",
-                f"₹{trade['entry_price']:,.2f}",
-                f"₹{trade['exit_price']:,.2f}",
-                str(trade['quantity']),
-                f"[{pnl_style}]{trade['pnl_pct']:+.2f}%[/{pnl_style}]",
-                f"[{pnl_style}]₹{trade['pnl_amount']:+,.0f}[/{pnl_style}]",
-                hold_display,
-                trade['exit_reason'][:15]
-            )
-        
-        console.print(closed_table)
-        
-        # Display summary stats
-        total_trades = len(self.closed_trades)
-        win_rate = (profitable_trades / total_trades * 100) if total_trades > 0 else 0
-        total_pnl_style = "green" if total_pnl_amount > 0 else "red"
-        
-        console.print(f"[dim]Total Trades: {total_trades} | Win Rate: {win_rate:.1f}% | "
-                     f"Total P&L: [{total_pnl_style}]₹{total_pnl_amount:+,.0f}[/{total_pnl_style}][/dim]")
+        console.print("[red]tv_display module unavailable[/red]")
     
     def _get_live_price_from_upstox(self, symbol, force_refresh=False):
         """Get live price from Upstox API for a symbol with BSE fallback"""
@@ -4946,12 +3041,26 @@ class TVScreenerUsage:
                 if current_time - self.price_cache_timestamps[symbol] < cache_duration:
                     return self.current_prices.get(symbol)
             
-            # Extract exchange and symbol
-            if ':' in symbol:
-                exchange, clean_symbol = symbol.split(':', 1)
+            # Validate and clean the symbol
+            clean_symbol = symbol.strip().upper()
+            
+            # Extract exchange and symbol first
+            if ':' in clean_symbol:
+                exchange, clean_symbol = clean_symbol.split(':', 1)
             else:
                 exchange = 'NSE'
-                clean_symbol = symbol
+            
+            # Remove common suffixes that might cause instrument key not found errors
+            suffixes_to_remove = ['.EQ', '-EQ', 'EQ', '.NS', '.BO', '-NS', '-BO']
+            for suffix in suffixes_to_remove:
+                if clean_symbol.endswith(suffix):
+                    clean_symbol = clean_symbol[:-len(suffix)]
+                    break
+            
+            # Validate symbol format AFTER cleaning (should be 3-15 characters for Indian stocks)
+            if not (3 <= len(clean_symbol) <= 15):
+                console.print(f"[yellow]⚠️ Invalid symbol format for {symbol}: {clean_symbol} (length: {len(clean_symbol)})[/yellow]")
+                return None
             
             # First attempt: Try original exchange
             price = self._fetch_price_from_exchange(clean_symbol, exchange)
@@ -5351,12 +3460,7 @@ class TVScreenerUsage:
     # ==================== UTILITY FUNCTIONS ====================
     
     def save_results(self, df, filename):
-        """Save results to CSV file"""
-        if not df.empty:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{filename}_{timestamp}.csv"
-            df.to_csv(filename, index=False)
-            console.print(f"[green]Results saved to: {filename}[/green]")
+        return helpers_save_results(df, filename)
     
     def run_example(self, example_name, **kwargs):
         """Run a specific example"""
@@ -5381,6 +3485,7 @@ class TVScreenerUsage:
             'intraday_early_setup': self.intraday_early_breakout_setup,
             'intraday_accumulation': self.intraday_volume_accumulation,
             'intraday_compression': self.intraday_compression_coiling,
+            'heavy_breakout': self.heavy_breakout,
             
             # Swing Trading
             'swing_reversal': self.swing_bullish_reversal,
@@ -5432,7 +3537,8 @@ class TVScreenerUsage:
             ("🎯 Early Detection (Pre-Breakout)", [
                 "intraday_early_setup - Early breakout setups (BEFORE breakout)",
                 "intraday_accumulation - Volume accumulation (smart money)",
-                "intraday_compression - Compression/coiling stocks (pre-explosion)"
+                "intraday_compression - Compression/coiling stocks (pre-explosion)",
+                "heavy_breakout - 💥 Smart money consolidation channel breakouts"
             ]),
             ("📊 Swing Trading", [
                 "swing_reversal - Bullish reversal patterns",
@@ -5473,6 +3579,119 @@ class TVScreenerUsage:
             time.sleep(1)  # Small delay between examples
             console.print("\n" + "="*80 + "\n")
 
+    # =============== DELEGATION METHODS TO TV_MODES ===============
+    # These methods delegate to functions in tv_modes.py
+    
+    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT'):
+        """Delegate to intraday_watch_mode in tv_modes"""
+        return tv_modes.intraday_watch_mode(self, refresh_interval, volume_threshold, price_threshold, mode)
+    
+    def _get_watch_data(self):
+        """Delegate to _get_watch_data in tv_modes"""
+        return tv_modes._get_watch_data(self)
+    
+    # Trading mode delegation methods
+    def pre_breakout_accumulation(self):
+        """Delegate to pre_breakout_accumulation in tv_modes"""
+        return tv_modes.pre_breakout_accumulation(self)
+    
+    def early_momentum_detection(self):
+        """Delegate to early_momentum_detection in tv_modes"""
+        return tv_modes.early_momentum_detection(self)
+    
+    def relative_strength_leaders(self):
+        """Delegate to relative_strength_leaders in tv_modes"""
+        return tv_modes.relative_strength_leaders(self)
+    
+    def intraday_high_volume_breakouts(self):
+        """Delegate to intraday_high_volume_breakouts in tv_modes"""
+        return tv_modes.intraday_high_volume_breakouts(self)
+    
+    def intraday_gap_up_stocks(self):
+        """Delegate to intraday_gap_up_stocks in tv_modes"""
+        return tv_modes.intraday_gap_up_stocks(self)
+    
+    def gap_fill_trading_strategy(self):
+        """Delegate to gap_fill_trading_strategy in tv_modes"""
+        return tv_modes.gap_fill_trading_strategy(self)
+    
+    def optimized_gap_strategy_15min(self):
+        """Delegate to optimized_gap_strategy_15min in tv_modes"""
+        return tv_modes.optimized_gap_strategy_15min(self)
+    
+    def intraday_oversold_bounce(self):
+        """Delegate to intraday_oversold_bounce in tv_modes"""
+        return tv_modes.intraday_oversold_bounce(self)
+    
+    def intraday_news_momentum(self):
+        """Delegate to intraday_news_momentum in tv_modes"""
+        return tv_modes.intraday_news_momentum(self)
+    
+    def intraday_early_breakout_setup(self):
+        """Delegate to intraday_early_breakout_setup in tv_modes"""
+        return tv_modes.intraday_early_breakout_setup(self)
+    
+    def intraday_volume_accumulation(self):
+        """Delegate to intraday_volume_accumulation in tv_modes"""
+        return tv_modes.intraday_volume_accumulation(self)
+    
+    def intraday_compression_coiling(self):
+        """Delegate to intraday_compression_coiling in tv_modes"""
+        return tv_modes.intraday_compression_coiling(self)
+    
+    def swing_bullish_reversal(self):
+        """Delegate to swing_bullish_reversal in tv_modes"""
+        return tv_modes.swing_bullish_reversal(self)
+    
+    def swing_breakout_consolidation(self):
+        """Delegate to swing_breakout_consolidation in tv_modes"""
+        return tv_modes.swing_breakout_consolidation(self)
+    
+    def swing_sector_rotation(self):
+        """Delegate to swing_sector_rotation in tv_modes"""
+        return tv_modes.swing_sector_rotation(self)
+    
+    def invest_quality_growth(self):
+        """Delegate to invest_quality_growth in tv_modes"""
+        return tv_modes.invest_quality_growth(self)
+    
+    def invest_dividend_aristocrats(self):
+        """Delegate to invest_dividend_aristocrats in tv_modes"""
+        return tv_modes.invest_dividend_aristocrats(self)
+    
+    def invest_undervalued_gems(self):
+        """Delegate to invest_undervalued_gems in tv_modes"""
+        return tv_modes.invest_undervalued_gems(self)
+    
+    def research_sector_leaders(self):
+        """Delegate to research_sector_leaders in tv_modes"""
+        return tv_modes.research_sector_leaders(self)
+    
+    def research_market_sentiment(self):
+        """Delegate to research_market_sentiment in tv_modes"""
+        return tv_modes.research_market_sentiment(self)
+    
+    def research_earnings_calendar(self):
+        """Delegate to research_earnings_calendar in tv_modes"""
+        return tv_modes.research_earnings_calendar(self)
+    
+    def research_sector_performance(self):
+        """Delegate to research_sector_performance in tv_modes"""
+        return tv_modes.research_sector_performance(self)
+    
+    def research_sector_stocks(self, sector_name=None, limit=20):
+        """Delegate to research_sector_stocks in tv_modes"""
+        return tv_modes.research_sector_stocks(self, sector_name, limit)
+    
+    def heavy_breakout(self):
+        """Delegate to heavy_breakout in tv_modes"""
+        return tv_modes.heavy_breakout(self)
+    
+    def _add_heavy_breakout_analysis(self, df):
+        """Delegate to _add_heavy_breakout_analysis in tv_modes"""
+        return tv_modes._add_heavy_breakout_analysis(self, df)
+
+
 def main():
     parser = argparse.ArgumentParser(description='TradingView Screener Usage Examples')
     parser.add_argument('--example', type=str, help='Run specific example')
@@ -5483,12 +3702,13 @@ def main():
     
     # Watch mode specific arguments
     parser.add_argument('--watch', action='store_true', help='Start intraday watch mode')
-    parser.add_argument('--mode', type=str, default='PREBREAKOUT', 
-                       choices=['PREBREAKOUT', 'FOMO', 'SMART_FOMO', 'ACCUMULATION', 'MOMENTUM', 'OPTIMIZED_GAP', 'GAP_FILL_SR'],
+    parser.add_argument('--mode', type=str, default='PREBREAKOUT',
+                       choices=['PREBREAKOUT', 'FOMO', 'SMART_FOMO', 'ACCUMULATION', 'MOMENTUM', 'OPTIMIZED_GAP', 'GAP_FILL_SR', 'HEAVY_BREAKOUT'],
                        help='Watch mode strategy (default: PREBREAKOUT)')
     parser.add_argument('--refresh', type=int, default=30, help='Refresh interval in seconds (default: 30)')
-    parser.add_argument('--volume-threshold', type=float, default=2.0, help='Volume threshold for alerts (default: 2.0x)')
-    parser.add_argument('--price-threshold', type=float, default=3.0, help='Price change threshold for alerts (default: 3.0 percent)')
+    # Adjusted lighter defaults as requested: Vol 1.2x, Price 1.0%
+    parser.add_argument('--volume-threshold', type=float, default=1.2, help='Volume threshold for alerts (default: 1.2x)')
+    parser.add_argument('--price-threshold', type=float, default=1.0, help='Price change threshold for alerts (default: 1.0 percent)')
     
     # Paper Trading Bot integration
     parser.add_argument('--enable-trading', action='store_true', help='Enable paper trading bot integration (₹20,000 per trade)')
@@ -5534,10 +3754,12 @@ def main():
         console.print("  python tv_screen_usage.py --example live_gap_sr_monitor  # Live gap-fill monitor")
         console.print("  python tv_screen_usage.py --example gap_fill_analysis    # Historical gap analysis")
         console.print("  python tv_screen_usage.py --watch --mode PREBREAKOUT --refresh 15")
-        console.print("  python tv_screen_usage.py --watch --mode FOMO --volume-threshold 2.5")
+        console.print("  python tv_screen_usage.py --watch --mode FOMO --volume-threshold 2.5 --price-threshold 2.0")
         console.print("  python tv_screen_usage.py --watch --mode ACCUMULATION --enable-trading")
         console.print("  python tv_screen_usage.py --watch --mode OPTIMIZED_GAP --refresh 2 --enable-trading")
         console.print("  python tv_screen_usage.py --watch --mode GAP_FILL_SR --refresh 30 --enable-trading  # Gap-fill + S/R")
+        console.print("  python tv_screen_usage.py --watch --mode HEAVY_BREAKOUT --refresh 30 --enable-trading  # Smart money breakouts")
+        console.print("  python tv_screen_usage.py --example heavy_breakout  # Analyze heavy breakout patterns")
         console.print("  python tv_screen_usage.py --market us --example intraday_watch --refresh 10")
 
 if __name__ == "__main__":

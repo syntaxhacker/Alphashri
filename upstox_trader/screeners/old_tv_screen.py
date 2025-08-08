@@ -25,6 +25,8 @@ import time
 import threading
 import os
 from datetime import datetime, timedelta
+import atexit
+import signal
 
 # Telegram integration and Paper Trading Bot
 try:
@@ -48,6 +50,15 @@ except ImportError as e:
     print("⚠️ Paper trading and/or Telegram disabled")
 
 console = Console()
+
+# Optional utils import for trailing buffer and charges
+try:
+    from . import tv_utils  # package-relative
+except Exception:
+    try:
+        import upstox_trader.screeners.tv_utils as tv_utils  # absolute
+    except Exception:
+        tv_utils = None  # guard at call sites
 
 def get_tradingview_cookies():
     """Get TradingView cookies from browser"""
@@ -110,8 +121,8 @@ class TVScreenerUsage:
             console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
         
         # Trading Time Configuration
-        self.trading_start_time = "09:30"  # Start trading at 9:30 AM
-        self.trading_end_time = "15:00"    # Stop trading at 3:00 PM
+        self.trading_start_time = "09:20"  # Start trading at 9:20 AM
+        self.trading_end_time = "15:30"    # Stop trading at 3:30 PM (align with newer file)
         
         # Simple Paper Trading integration (without full bot monitoring)
         self.paper_trading_enabled = enable_paper_trading
@@ -122,6 +133,18 @@ class TVScreenerUsage:
         self.price_cache_timestamps = {}  # Track when prices were last fetched
         self.exchange_fallbacks = {}  # Track which symbols use fallback exchange
         self.trade_count = 0  # Track number of trades
+
+        # Alert deduplication & cooldown (minimal set to align with newer risk handling)
+        self.sent_alerts = set()
+        self.last_alert_time = {}
+        self.alert_cooldown = 300  # 5 minutes per symbol per alert
+
+        # Stop loss cooldown tracking (30 minutes)
+        self.stop_loss_cooldown = {}
+        self.stop_loss_cooldown_duration = 1800  # seconds
+
+        # Setup signal handlers for graceful shutdown (bulk exit)
+        self._setup_signal_handlers()
         
         # Initialize Upstox API for live prices if available
         self.upstox_api = None
@@ -346,15 +369,15 @@ class TVScreenerUsage:
         """Check if current time is within trading hours"""
         if not self.paper_trading_enabled:
             return True  # Always allow if paper trading is disabled
-            
+
         try:
-            from datetime import datetime, time
+            from datetime import datetime
             now = datetime.now().time()
-            
+
             # Parse trading hours
             start_time = datetime.strptime(self.trading_start_time, "%H:%M").time()
             end_time = datetime.strptime(self.trading_end_time, "%H:%M").time()
-            
+
             # Check if current time is within trading hours
             return start_time <= now <= end_time
         except Exception as e:
@@ -1583,8 +1606,8 @@ class TVScreenerUsage:
             # Calculate confidence based on alert strength
             confidence = self._calculate_alert_confidence(alert)
             
-            # Only trade if confidence is sufficient (80%+)
-            if confidence < 0.8:
+            # Only trade if confidence is sufficient (50%+)
+            if confidence < 0.5:
                 console.print(f"   [yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping trade[/yellow]")
                 return
             
@@ -1745,7 +1768,23 @@ class TVScreenerUsage:
             
             self.trade_count += 1
             self.current_prices[symbol] = round(price, 2)
-            
+
+            # Calculate and store entry trading charges for accurate net P&L later
+            try:
+                entry_amount = price * quantity
+                entry_charges = self._calculate_trading_charges(entry_amount, 'intraday')
+            except Exception:
+                entry_charges = 0.0
+
+            # Augment stored position with entry charges and trailing metadata (if not already)
+            pos = self.positions.get(symbol, {})
+            pos['entry_charges'] = entry_charges
+            pos.setdefault('trailing_stop_active', False)
+            pos.setdefault('trailing_stop_pct', 0.0)
+            pos.setdefault('highest_profit_pct', 0.0)
+            pos.setdefault('highest_price', round(price, 2))
+            self.positions[symbol] = pos
+
             return True
             
         except Exception as e:
@@ -1860,6 +1899,7 @@ class TVScreenerUsage:
         """Get live price from Upstox API for a symbol with BSE fallback"""
         try:
             if not (hasattr(self, 'upstox_api') and self.upstox_api):
+                console.print(f"[dim]ℹ️ No Upstox API available for {symbol}, using fallback price[/dim]")
                 return None
                 
             # Check cache freshness (avoid excessive API calls)
@@ -1870,12 +1910,28 @@ class TVScreenerUsage:
                 if current_time - self.price_cache_timestamps[symbol] < cache_duration:
                     return self.current_prices.get(symbol)
             
-            # Extract exchange and symbol
-            if ':' in symbol:
-                exchange, clean_symbol = symbol.split(':', 1)
-            else:
+            # Validate and clean the symbol
+            clean_symbol = symbol.strip().upper()
+            
+            # Extract exchange and symbol first
+            if ':' in clean_symbol:
+                exchange, clean_symbol = clean_symbol.split(':', 1)
+            
+            # Remove common suffixes that might cause instrument key not found errors
+            suffixes_to_remove = ['.EQ', '-EQ', 'EQ', '.NS', '.BO', '-NS', '-BO']
+            for suffix in suffixes_to_remove:
+                if clean_symbol.endswith(suffix):
+                    clean_symbol = clean_symbol[:-len(suffix)]
+                    break
+            
+            # Validate symbol format (should be 3-15 characters for Indian stocks)
+            if not (3 <= len(clean_symbol) <= 15):
+                console.print(f"[yellow]⚠️ Invalid symbol format for {symbol}: {clean_symbol} (length: {len(clean_symbol)})[/yellow]")
+                return None
+                
+            # Set default exchange if not specified
+            if ':' not in symbol.strip().upper():
                 exchange = 'NSE'
-                clean_symbol = symbol
             
             # First attempt: Try original exchange
             price = self._fetch_price_from_exchange(clean_symbol, exchange)
@@ -1911,6 +1967,10 @@ class TVScreenerUsage:
     def _fetch_price_from_exchange(self, symbol, exchange):
         """Fetch price from specific exchange with proper error handling"""
         try:
+            if not (hasattr(self, 'upstox_api') and self.upstox_api):
+                console.print(f"[dim]ℹ️ No Upstox API available for {symbol} on {exchange}[/dim]")
+                return None
+            
             # Map exchange to Upstox format
             exchange_map = {
                 'NSE': 'NSE_EQ',
@@ -1942,12 +2002,12 @@ class TVScreenerUsage:
         return None
 
     def _display_active_positions(self):
-        """Display active positions with live P&L from Upstox"""
+        """Display active positions with live P&L from Upstox (net after estimated charges)"""
         active_positions = {k: v for k, v in self.positions.items() if v}
-        
+
         if not active_positions:
             return
-        
+
         console.print()
         positions_table = Table(title="📊 ACTIVE POSITIONS", show_header=True)
         positions_table.add_column("Symbol", style="bold", no_wrap=True)
@@ -1956,47 +2016,51 @@ class TVScreenerUsage:
         positions_table.add_column("Current", justify="right", style="white")
         positions_table.add_column("Qty", justify="right", style="blue")
         positions_table.add_column("P&L %", justify="right", style="bold")
-        positions_table.add_column("P&L ₹", justify="right", style="bold")
+        positions_table.add_column("P&L ₹ (Net)", justify="right", style="bold")
         positions_table.add_column("TSL", justify="right", style="magenta")
         positions_table.add_column("Source", style="dim")
-        
+
         for symbol, position in active_positions.items():
             # Try to get live price from Upstox first, fallback to cached price
             live_price = self._get_live_price_from_upstox(symbol)
             current_price = live_price if live_price else self.current_prices.get(symbol, position['entry_price'])
-            
-            # Calculate P&L
-            pnl_pct = (current_price - position['entry_price']) / position['entry_price'] * 100
+
+            # Charges
+            entry_charges = position.get('entry_charges', 0.0)
+            current_value = current_price * position['qty']
+            estimated_exit_charges = self._calculate_trading_charges(current_value, 'intraday')
+
+            # Gross PnL
+            gross_pnl = (current_price - position['entry_price']) * position['qty']
             if position['side'] == 'SELL':
-                pnl_pct *= -1
-            
-            pnl_amount = pnl_pct * position['entry_price'] * position['qty'] / 100
-            
+                gross_pnl *= -1
+
+            # Net PnL
+            pnl_amount = gross_pnl - entry_charges - estimated_exit_charges
+            entry_value = position['entry_price'] * position['qty']
+            pnl_pct = (pnl_amount / entry_value) * 100 if entry_value else 0.0
+
             # Color coding
             pnl_style = "green" if pnl_pct > 0 else "red"
             side_style = "green" if position['side'] == 'BUY' else "red"
             side_emoji = "🟢" if position['side'] == 'BUY' else "🔴"
-            
-            # Add price source indicator with exchange info
+
+            # Price source indicator with exchange info
             if live_price:
-                # Check if we used fallback exchange
-                if symbol in self.exchange_fallbacks:
-                    price_indicator = "🔄"  # Fallback exchange indicator
-                else:
-                    price_indicator = "🟢"  # Original exchange
+                price_indicator = "🔄" if symbol in self.exchange_fallbacks else "🟢"
                 current_price_display = f"{price_indicator}₹{current_price:,.2f}"
             else:
-                price_indicator = "🔴"
-                current_price_display = f"{price_indicator}₹{current_price:,.2f}"
-            
-            # Trailing stop display
+                current_price_display = f"🔴₹{current_price:,.2f}"
+
+            # Trailing stop display with progressive buffer info
             if position.get('trailing_stop_active', False):
-                tsl_display = f"🎯{position.get('trailing_stop_pct', 0):+.1f}%"
+                current_buffer = self._get_progressive_trailing_buffer(abs(pnl_pct))
+                tsl_display = f"🎯{position.get('trailing_stop_pct', 0):+.1f}% ({current_buffer:.1f}%)"
                 tsl_style = "bold green"
             else:
                 tsl_display = "OFF"
                 tsl_style = "dim"
-            
+
             positions_table.add_row(
                 symbol,
                 f"[{side_style}]{side_emoji} {position['side']}[/{side_style}]",
@@ -2008,7 +2072,7 @@ class TVScreenerUsage:
                 f"[{tsl_style}]{tsl_display}[/{tsl_style}]",
                 position.get('source', 'MANUAL')[:10]
             )
-        
+
         console.print(positions_table)
         console.print("[dim]🟢 = Live price | 🔄 = Fallback exchange | 🔴 = Cached | 🎯 = Trailing Stop[/dim]")
     
@@ -2121,104 +2185,123 @@ class TVScreenerUsage:
                 continue
     
     def _monitor_position_risk(self, symbol, position):
-        """Monitor individual position for risk management with trailing stop"""
+        """Monitor individual position for risk management with progressive trailing stop and net P&L"""
         try:
             # Get live price (force refresh for accuracy in risk management)
             live_price = self._get_live_price_from_upstox(symbol, force_refresh=True)
             if not live_price:
                 return
-            
+
             # Update current price
             self.current_prices[symbol] = live_price
-            
-            # Calculate current P&L
+
+            # Compute net P&L including estimated exit charges
             entry_price = position['entry_price']
-            pnl_pct = (live_price - entry_price) / entry_price * 100
+            entry_charges = position.get('entry_charges', 0.0)
+
+            current_value = live_price * position['qty']
+            estimated_exit_charges = self._calculate_trading_charges(current_value, 'intraday')
+
+            gross_pnl = (live_price - entry_price) * position['qty']
             if position['side'] == 'SELL':
-                pnl_pct *= -1
-            
+                gross_pnl *= -1
+
+            net_pnl = gross_pnl - entry_charges - estimated_exit_charges
+            entry_value = entry_price * position['qty']
+            pnl_pct = (net_pnl / entry_value) * 100 if entry_value else 0.0
+
             # Risk Management Rules
             stop_loss_pct = -0.5  # 0.5% initial stop loss
             take_profit_pct = 1.0  # 1% take profit threshold for intraday
-            trailing_stop_buffer = 0.5  # 0.5% trailing buffer for tighter control
-            quick_exit_pct = 0.5  # 0.5% quick exit threshold
-            
+            quick_exit_pct = 1.0  # 1.0% quick exit threshold
+
+            # Progressive trailing stop buffer (tightens with higher profits)
+            trailing_stop_buffer = self._get_progressive_trailing_buffer(abs(pnl_pct))
+
             # Update highest profit and price tracking
-            if pnl_pct > position['highest_profit_pct']:
+            if pnl_pct > position.get('highest_profit_pct', 0.0):
                 position['highest_profit_pct'] = pnl_pct
                 position['highest_price'] = live_price
-            
+
             # Check for exit conditions
             should_exit = False
             exit_reason = ""
-            
+
             # 1. Regular stop loss (if not in trailing mode)
-            if not position['trailing_stop_active'] and pnl_pct <= stop_loss_pct:
+            if not position.get('trailing_stop_active', False) and pnl_pct <= stop_loss_pct:
                 should_exit = True
                 exit_reason = f"STOP LOSS: {pnl_pct:.2f}%"
-            
+
             # 2. Activate trailing stop when take profit is reached
-            elif pnl_pct >= take_profit_pct and not position['trailing_stop_active']:
+            elif pnl_pct >= take_profit_pct and not position.get('trailing_stop_active', False):
                 position['trailing_stop_active'] = True
                 position['trailing_stop_pct'] = pnl_pct - trailing_stop_buffer
-                console.print(f"[bold green]🎯 TRAILING STOP ACTIVATED for {symbol} at {pnl_pct:.2f}% (TSL: {position['trailing_stop_pct']:.2f}%)[/bold green]")
-                
-                # Send Telegram notification
-                if self.telegram_enabled:
-                    try:
-                        self.send_telegram_exit_alert(
-                            f"🎯 TRAILING STOP ACTIVATED\n"
-                            f"Symbol: {symbol}\n"
-                            f"Current P&L: {pnl_pct:.2f}%\n"
-                            f"Trailing Stop: {position['trailing_stop_pct']:.2f}%\n"
-                            f"Buffer: {trailing_stop_buffer}%"
-                        )
-                    except Exception as e:
-                        pass
-            
-            # 3. Update trailing stop as profit increases
-            elif position['trailing_stop_active']:
+                console.print(f"[bold green]🎯 PROGRESSIVE TRAILING STOP ACTIVATED for {symbol} at {pnl_pct:.2f}% (TSL: {position['trailing_stop_pct']:.2f}% | Buffer: {trailing_stop_buffer:.1f}%)[/bold green]")
+
+            # 3. Update trailing stop as profit increases (progressive tightening)
+            elif position.get('trailing_stop_active', False):
                 new_trailing_stop = pnl_pct - trailing_stop_buffer
-                
+                old_trailing_stop = position.get('trailing_stop_pct', 0.0)
+
                 # Only move trailing stop up (lock in more profit)
-                if new_trailing_stop > position['trailing_stop_pct']:
+                if new_trailing_stop > old_trailing_stop:
                     position['trailing_stop_pct'] = new_trailing_stop
-                
+                    if abs(new_trailing_stop - old_trailing_stop) >= 0.2:  # show only meaningful moves
+                        console.print(f"[dim green]📈 {symbol} trailing stop tightened: {old_trailing_stop:.2f}% → {new_trailing_stop:.2f}% (Buffer: {trailing_stop_buffer:.1f}%)[/dim green]")
+
                 # Check if trailing stop is hit
                 if pnl_pct <= position['trailing_stop_pct']:
                     should_exit = True
-                    exit_reason = f"TRAILING STOP: {pnl_pct:.2f}% (TSL: {position['trailing_stop_pct']:.2f}%)"
-            
-            # 4. Check 0.5% quick exit (if not in trailing mode and profit is at 0.5%)
-            elif pnl_pct >= quick_exit_pct and not position['trailing_stop_active']:
+                    exit_reason = f"TRAILING STOP: {pnl_pct:.2f}% (TSL: {position['trailing_stop_pct']:.2f}% | Buffer: {trailing_stop_buffer:.1f}%)"
+
+            # 4. Quick exit at 1.0% if not trailing
+            elif pnl_pct >= quick_exit_pct and not position.get('trailing_stop_active', False):
                 should_exit = True
-                exit_reason = f"QUICK EXIT: {pnl_pct:.2f}% (0.5% target)"
-            
+                exit_reason = f"QUICK EXIT: {pnl_pct:.2f}% (1.0% target)"
+
             # Execute exit if needed
             if should_exit:
                 self._execute_exit_trade(symbol, position, live_price, exit_reason)
-                
+
         except Exception as e:
             console.print(f"[red]❌ Error monitoring {symbol}: {e}[/red]")
     
     def _execute_exit_trade(self, symbol, position, exit_price, reason):
-        """Execute exit trade for risk management"""
+        """Execute exit trade for risk management with net P&L and charges"""
         try:
-            # Log the exit
-            pnl_pct = (exit_price - position['entry_price']) / position['entry_price'] * 100
+            # Calculate trading charges
+            exit_amount = exit_price * position['qty']
+            exit_charges = self._calculate_trading_charges(exit_amount, 'intraday')
+
+            # Calculate P&L with trading charges
+            gross_pnl = (exit_price - position['entry_price']) * position['qty']
             if position['side'] == 'SELL':
-                pnl_pct *= -1
-            
-            pnl_amount = pnl_pct * position['entry_price'] * position['qty'] / 100
-            
+                gross_pnl *= -1
+
+            total_charges = position.get('entry_charges', 0.0) + exit_charges
+            net_pnl = gross_pnl - total_charges
+            pnl_amount = net_pnl
+
+            entry_value = position['entry_price'] * position['qty']
+            pnl_pct = (net_pnl / entry_value) * 100 if entry_value else 0.0
+
             exit_log = (f"🔥 AUTO EXIT: {symbol} | "
-                       f"{reason} | "
-                       f"Entry: ₹{position['entry_price']:.0f} | "
-                       f"Exit: ₹{exit_price:.0f} | "
-                       f"P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})")
-            
+                        f"{reason} | "
+                        f"Entry: ₹{position['entry_price']:.0f} | "
+                        f"Exit: ₹{exit_price:.0f} | "
+                        f"P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f}) | "
+                        f"Charges: ₹{total_charges:.0f}")
+
             console.print(f"[bold red]{exit_log}[/bold red]")
-            
+
+            # Log exit trade to journal
+            self.log_trade("EXIT", symbol, exit_price, position['qty'], exit_amount, reason, pnl_pct, pnl_amount)
+
+            # If stop loss exit, add cooldown
+            if "STOP LOSS" in reason:
+                self.stop_loss_cooldown[symbol] = datetime.now()
+                console.print(f"[dim red]🚫 Added {symbol} to 30-minute stop loss cooldown[/dim red]")
+
             # Add to live trades log
             self.live_trades.append({
                 'timestamp': datetime.now(),
@@ -2233,10 +2316,9 @@ class TVScreenerUsage:
                 'pnl_pct': pnl_pct,
                 'pnl_amount': pnl_amount
             })
-            
-            # Add to closed trades log
+
+            # Add to closed trades list
             self.closed_trades.append({
-                'timestamp': datetime.now(),
                 'symbol': symbol,
                 'entry_side': position['side'],
                 'entry_price': position['entry_price'],
@@ -2247,29 +2329,12 @@ class TVScreenerUsage:
                 'pnl_pct': pnl_pct,
                 'pnl_amount': pnl_amount,
                 'reason': reason,
-                'hold_time': datetime.now() - position['entry_time']
+                'hold_time': datetime.now() - position.get('entry_time', datetime.now())
             })
-            
-            # Log exit trade to journal
-            self.log_trade("EXIT", symbol, exit_price, position['qty'], exit_price * position['qty'], reason, pnl_pct, pnl_amount)
-            
-            # Send Telegram alert if enabled
-            if self.telegram_enabled:
-                try:
-                    self.send_telegram_exit_alert(
-                        f"🔥 AUTO EXIT\n"
-                        f"Symbol: {symbol}\n"
-                        f"Reason: {reason}\n"
-                        f"Entry: ₹{position['entry_price']:.0f}\n"
-                        f"Exit: ₹{exit_price:.0f}\n"
-                        f"P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})"
-                    )
-                except Exception as e:
-                    console.print(f"[yellow]⚠️ Failed to send Telegram exit alert: {e}[/yellow]")
-            
+
             # Close the position
             self.positions[symbol] = None
-            
+
         except Exception as e:
             console.print(f"[red]❌ Error executing exit for {symbol}: {e}[/red]")
     
@@ -2282,6 +2347,36 @@ class TVScreenerUsage:
             filename = f"{filename}_{timestamp}.csv"
             df.to_csv(filename, index=False)
             console.print(f"[green]Results saved to: {filename}[/green]")
+
+    # ==================== Trailing/Charges Utilities ====================
+    def _get_progressive_trailing_buffer(self, profit_pct, volatility_adjustment=0.0):
+        """Calculate trailing buffer; delegate to tv_utils when available"""
+        try:
+            if tv_utils is None:
+                # Reasonable fallback curve: tightens as profit grows
+                if profit_pct >= 3:
+                    base = 0.6
+                elif profit_pct >= 2:
+                    base = 0.8
+                elif profit_pct >= 1:
+                    base = 1.0
+                else:
+                    base = 1.2
+                return max(0.3, base - volatility_adjustment)
+            return tv_utils.get_progressive_trailing_buffer(profit_pct, volatility_adjustment)
+        except Exception:
+            return 1.0
+
+    def _calculate_trading_charges(self, trade_value, trade_type='intraday'):
+        """Estimate trading charges; delegate to tv_utils when available"""
+        try:
+            if tv_utils is None:
+                # Simple fallback: ~0.035% of trade value as charges approximation
+                rate = 0.00035 if trade_type == 'intraday' else 0.0005
+                return trade_value * rate
+            return tv_utils.calculate_trading_charges(trade_value, trade_type)
+        except Exception:
+            return 0.0
     
     def run_example(self, example_name, **kwargs):
         """Run a specific example"""
@@ -2377,6 +2472,55 @@ class TVScreenerUsage:
             time.sleep(1)  # Small delay between examples
             console.print("\n" + "="*80 + "\n")
 
+    # ==================== Signal/Exit Handling & Cleanup ====================
+    def _setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown (bulk exit)"""
+        try:
+            signal.signal(signal.SIGINT, self._signal_handler)  # Ctrl+C
+            signal.signal(signal.SIGTERM, self._signal_handler)  # Termination
+            atexit.register(self._cleanup_on_exit)
+        except Exception:
+            pass
+
+    def _signal_handler(self, signum=None, _frame=None):
+        """Handle shutdown signals"""
+        console.print(f"\n[bold yellow]🛑 Signal received: {signal.Signals(signum).name if signum else 'EXIT'}[/bold yellow]")
+        try:
+            self._exit_all_positions("SCRIPT_STOPPED")
+        except Exception as e:
+            console.print(f"[red]Error during cleanup: {e}[/red]")
+        finally:
+            console.print("[yellow]👋 Exiting script...[/yellow]")
+            os._exit(0)  # Force exit
+
+    def _cleanup_on_exit(self):
+        """Cleanup function called on script exit"""
+        if hasattr(self, 'positions') and self.positions:
+            self._exit_all_positions("SCRIPT_EXIT")
+
+    def _exit_all_positions(self, reason="MANUAL_EXIT"):
+        """Exit all live positions"""
+        if not hasattr(self, 'positions') or not self.positions:
+            console.print("[dim]No active positions to exit.[/dim]")
+            return
+
+        console.print(f"\n[bold red]🚨 EXITING ALL POSITIONS - Reason: {reason}[/bold red]")
+
+        positions_to_exit = dict(self.positions)
+        for symbol, position in positions_to_exit.items():
+            try:
+                # Get current price for exit
+                current_price = self._get_live_price_from_upstox(symbol) or self.current_prices.get(symbol, position['entry_price'])
+                self._execute_exit_trade(symbol, position, current_price, f"{reason}: Bulk Exit")
+                # Remove from positions after successful exit
+                if symbol in self.positions:
+                    del self.positions[symbol]
+            except Exception as e:
+                console.print(f"[red]❌ Failed to exit {symbol}: {e}[/red]")
+                # Still remove the position to prevent repeated attempts
+                if hasattr(self, 'positions') and symbol in self.positions:
+                    del self.positions[symbol]
+                    console.print(f"[yellow]⚠️ Removed {symbol} from positions due to exit failure[/yellow]")
 def main():
     parser = argparse.ArgumentParser(description='TradingView Screener Usage Examples')
     parser.add_argument('--example', type=str, help='Run specific example')
@@ -2408,7 +2552,7 @@ def main():
         )
     elif args.example:
         if args.example == 'intraday_watch':
-            screener.run_example(args.example, 
+            screener.run_example(args.example,
                                refresh_interval=args.refresh,
                                volume_threshold=args.volume_threshold,
                                price_threshold=args.price_threshold)
@@ -2427,13 +2571,13 @@ def main():
         console.print("Use --market <us|in> to select market (default: in)")
         console.print("Use --sector <name> for sector-specific analysis")
         console.print("\nExample usage:")
-        console.print("  python tv_screen_usage.py --example intraday_breakouts")
-        console.print("  python tv_screen_usage.py --market us --example intraday_breakouts")
-        console.print("  python tv_screen_usage.py --example research_sectors")
-        console.print("  python tv_screen_usage.py --example research_sector_stocks --sector 'Technology'")
-        console.print("  python tv_screen_usage.py --watch --refresh 15 --volume-threshold 2.5")
-        console.print("  python tv_screen_usage.py --watch --enable-trading --volume-threshold 1.5 --price-threshold 1.5")
-        console.print("  python tv_screen_usage.py --market us --example intraday_watch --refresh 10")
+        console.print("  python old_tv_screen.py --example intraday_breakouts")
+        console.print("  python old_tv_screen.py --market us --example intraday_breakouts")
+        console.print("  python old_tv_screen.py --example research_sectors")
+        console.print("  python old_tv_screen.py --example research_sector_stocks --sector 'Technology'")
+        console.print("  python old_tv_screen.py --watch --refresh 15 --volume-threshold 2.5")
+        console.print("  python old_tv_screen.py --watch --enable-trading --volume-threshold 1.5 --price-threshold 1.5")
+        console.print("  python old_tv_screen.py --market us --example intraday_watch --refresh 10")
 
 if __name__ == "__main__":
     main()
