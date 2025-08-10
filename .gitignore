@@ -58,3 +58,5 @@ data_cache/
 config.py
 *_config.py
 !config_template.py
+
+TradingView-Screener/
