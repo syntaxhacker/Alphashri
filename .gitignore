@@ -51,5 +51,12 @@ models/
 wandb/
 
 data_cache/
-optimization_results_*.json
-quick_optimization_results_*.json
+*.json
+*.html
+
+# Configuration files with sensitive data
+config.py
+*_config.py
+!config_template.py
+
+TradingView-Screener/

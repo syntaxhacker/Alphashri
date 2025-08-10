@@ -1,0 +1,3 @@
+"""
+Binance Paper Trading Bot
+""" 
