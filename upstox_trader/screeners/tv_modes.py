@@ -475,7 +475,19 @@ def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_t
         'ACCUMULATION': ("📈 ACCUMULATION MODE - Smart Money Tracking", "bold green"),
         'MOMENTUM': ("⚡ MOMENTUM MODE - Early Momentum Detection", "bold cyan"),
         'OPTIMIZED_GAP': ("🚀 OPTIMIZED GAP MODE - 15-Min Gap Strategy (68.4% Win Rate)", "bold green"),
-        'GAP_FILL_SR': ("🎯 GAP-FILL S/R MODE - Live Gap Analysis with Support/Resistance", "bold magenta")
+        'GAP_FILL_SR': ("🎯 GAP-FILL S/R MODE - Live Gap Analysis with Support/Resistance", "bold magenta"),
+        'SCALPING': ("⚡ SCALPING MODE - Ultra-Fast 1-3% Moves", "bold white"),
+        'MOMENTUM_SCALPER': ("🚀 MOMENTUM SCALPER - Second-Level Delta Trading", "bold bright_white"),
+        'SECTOR_SCALPER': ("🏭 SECTOR SCALPER - Correlation Catch-Up Trades", "bold bright_cyan"),
+        'SHORT_SQUEEZE': ("🍋 SHORT SQUEEZE - Over-Shorted Explosion Hunter", "bold bright_magenta"),
+        'BREAKOUT_FAILURE': ("📉 BREAKOUT FAILURE - Failed Breakout Shorting", "bold red"),
+        'EXHAUSTION_REVERSAL': ("😵 EXHAUSTION REVERSAL - Momentum Exhaustion Shorts", "bold bright_red"),
+        'MORNING_FADE': ("🌅 MORNING FADE - Gap-Up Failure Shorting", "bold yellow"),
+        'REVERSAL': ("🔄 REVERSAL MODE - Counter-Trend Opportunities", "bold purple"),
+        'VOLUME_SURGE': ("📊 VOLUME SURGE MODE - Unusual Activity Detector", "bold bright_blue"),
+        'CHANNEL_PLAY': ("📈 CHANNEL PLAY MODE - Range-Bound Trading", "bold bright_green"),
+        'SECTOR_MOMENTUM': ("🏭 SECTOR MOMENTUM MODE - Industry Group Moves", "bold bright_yellow"),
+        'QUICK_PROFIT': ("💰 QUICK PROFIT MODE - 1-2% Fast Scalps", "bold bright_red")
     }
     title, style = mode_titles.get(mode, ("📊 WATCH MODE", "bold blue"))
     console.print(Panel.fit(title, style=style))
@@ -1307,6 +1319,299 @@ def _get_watch_data(self):
                 .get_scanner_data(cookies=self.cookies)
             )
         
+        elif mode == 'SCALPING':
+            # Scalping mode - Ultra-fast 1-3% moves with high liquidity
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'Volatility.D', 'ATR', 'BB.upper', 'BB.lower', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 50,  # Minimum price for scalping
+                    col('volume') > 1000000,  # High liquidity essential
+                    col('market_cap_basic') > 10e8,  # Min 1000 crores for tight spreads
+                    col('relative_volume_10d_calc') > 0.8,  # Active trading
+                    col('Volatility.D') > 0.015,  # Enough movement for scalping
+                    col('ATR') > 2,  # Sufficient range
+                    col('exchange') == 'NSE'
+                )
+                .order_by('volume', ascending=False)  # Highest liquidity first
+                .limit(15)  # Focus on most liquid stocks
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'MOMENTUM_SCALPER':
+            # Advanced Momentum Scalper - Second-level delta detection with rapid momentum following
+            # First get candidate stocks with basic momentum criteria
+            total_rows, df_candidates = (
+                Query()
+                .select('name', 'close', 'open', 'volume', 'change', 'change_abs', 'relative_volume_10d_calc', 
+                       'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'MACD.hist', 'Mom', 
+                       'Volatility.D', 'ATR', 'BB.upper', 'BB.lower', 'EMA20', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 100,  # Higher price for better spread ratios
+                    col('volume') > 2000000,  # Ultra-high liquidity for instant execution
+                    col('market_cap_basic') > 20e8,  # Min 2000 crores - only most liquid stocks
+                    col('relative_volume_10d_calc') > 1.0,  # Active but not crazy volume
+                    col('change_abs') > 0.5,  # Meaningful absolute price movement
+                    col('Volatility.D') > 0.02,  # Sufficient volatility for scalping
+                    col('ATR') > 3,  # Good intraday range
+                    # Simplified momentum conditions (complex conditions moved to post-processing)
+                    col('RSI').between(35, 85),  # Wide RSI range for momentum detection
+                    col('MACD.hist') > -5,       # MACD histogram not too negative
+                    col('exchange') == 'NSE'
+                )
+                .order_by('change_abs', ascending=False)  # Strongest absolute price movement first
+                .limit(20)  # Get more candidates for intraday analysis
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            # Enhance with intraday momentum analysis
+            if not df_candidates.empty:
+                df = _add_intraday_momentum_analysis(self, df_candidates)
+                # Filter to top 10 after intraday analysis
+                df = df.head(10) if not df.empty else df_candidates.head(10)
+            else:
+                df = df_candidates
+        
+        elif mode == 'SECTOR_SCALPER':
+            # Sector Scalper - Find correlation catch-up opportunities
+            console.print(f"[dim cyan]🏭 Analyzing sector correlations for catch-up trades...[/dim cyan]")
+            
+            # Get all active stocks with sector data
+            total_rows, df_all = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'change_abs', 'relative_volume_10d_calc', 
+                       'RSI', 'sector', 'industry', 'market_cap_basic', 'Perf.W', 'Perf.3M', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 50,  # Minimum price
+                    col('volume') > 500000,  # Good liquidity
+                    col('market_cap_basic') > 5e8,  # Min 500 crores
+                    col('relative_volume_10d_calc') > 0.8,  # Active trading
+                    col('change_abs') > 0.3,  # Some movement
+                    col('exchange') == 'NSE'
+                )
+                .order_by('change_abs', ascending=False)
+                .limit(200)  # Get large pool for sector analysis
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            if not df_all.empty:
+                # Analyze sector correlations and find catch-up opportunities
+                df = _analyze_sector_correlations(self, df_all)
+            else:
+                df = df_all
+        
+        elif mode == 'SHORT_SQUEEZE':
+            # Short Squeeze Hunter - Find over-shorted stocks ready to explode
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'RSI[1]', 'Perf.W', 'Perf.3M', 'price_52_week_low', 
+                       'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 30,  # Minimum price
+                    col('volume') > 1000000,  # High volume for squeeze
+                    col('market_cap_basic') > 3e8,  # Min 300 crores
+                    col('relative_volume_10d_calc') > 2.0,  # High volume surge
+                    col('RSI') < 35,  # Oversold (potential short covering)
+                    col('RSI') > col('RSI[1]'),  # RSI turning up (shorts covering)
+                    col('Perf.W') < -5,  # Weekly decline (shorts built up)
+                    col('Perf.3M') < -15,  # 3M decline (heavy shorting)
+                    col('exchange') == 'NSE'
+                )
+                .order_by('relative_volume_10d_calc', ascending=False)  # Highest volume first
+                .limit(15)
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'BREAKOUT_FAILURE':
+            # Breakout Failure Shorting - Short failed breakouts (high win rate)
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'high', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'price_52_week_high', 'BB.upper', 'MACD.macd', 'MACD.signal',
+                       'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 100,  # Higher prices for better shorting spreads
+                    col('volume') > 800000,  # Good liquidity for shorting
+                    col('market_cap_basic') > 10e8,  # Min 1000 crores
+                    col('relative_volume_10d_calc') > 1.5,  # Volume on breakout attempt
+                    col('RSI') > 70,  # Overbought (failed breakout zone)
+                    col('change') > 2,  # Attempted breakout today
+                    col('high') > col('BB.upper'),  # Breaking bollinger bands (overextension)
+                    col('MACD.macd') < col('MACD.signal'),  # MACD divergence (weakness)
+                    col('exchange') == 'NSE'
+                )
+                .order_by('RSI', ascending=False)  # Most overbought first (best shorts)
+                .limit(12)
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'EXHAUSTION_REVERSAL':
+            # Exhaustion Reversal - Short momentum exhaustion at key levels
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'Perf.W', 'Perf.3M', 'Volatility.D', 'price_52_week_high',
+                       'BB.upper', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 150,  # Higher prices for exhaustion patterns
+                    col('volume') > 500000,  # Sufficient volume
+                    col('market_cap_basic') > 5e8,  # Min 500 crores
+                    col('relative_volume_10d_calc') > 1.2,  # Elevated volume
+                    col('RSI') > 80,  # Extreme overbought (exhaustion zone)
+                    col('Perf.W') > 10,  # Strong weekly performance (exhausting)
+                    col('Perf.3M') > 20,  # Strong 3M run (due for reversal)
+                    col('Volatility.D') > 0.04,  # High volatility (climax moves)
+                    # Near 52-week highs (resistance zone)
+                    col('close') > (col('price_52_week_high') - (col('price_52_week_high') * 0.05)),
+                    col('exchange') == 'NSE'
+                )
+                .order_by('RSI', ascending=False)  # Most exhausted first
+                .limit(10)
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'MORNING_FADE':
+            # Morning Fade - Short gap-ups that fail to hold (classic strategy)
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'open', 'high', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'premarket_change', 'gap', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 80,  # Minimum price for gap fades
+                    col('volume') > 600000,  # Good volume
+                    col('market_cap_basic') > 5e8,  # Min 500 crores
+                    col('relative_volume_10d_calc') > 1.3,  # Above normal volume
+                    col('gap') > 2,  # Gapped up >2% (fade candidate)
+                    col('change') < (col('gap') - 1.0),  # Failed to hold most of the gap (fading)
+                    col('RSI') > 65,  # Overbought from gap
+                    col('high') < col('open') + (col('open') * 0.03),  # Didn't extend much above open (weak)
+                    col('exchange') == 'NSE'
+                )
+                .order_by('gap', ascending=False)  # Biggest gaps first (best fades)
+                .limit(12)
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'REVERSAL':
+            # Reversal mode - Counter-trend opportunities at key levels
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'Stoch.K', 'BB.upper', 'BB.lower', 'price_52_week_high', 
+                       'price_52_week_low', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 75,
+                    col('volume') > 400000,
+                    col('market_cap_basic') > 3e8,  # Min 300 crores
+                    col('relative_volume_10d_calc') > 1.0,
+                    # Reversal conditions: Either overbought or oversold
+                    (col('RSI') > 75) | (col('RSI') < 25),
+                    col('exchange') == 'NSE'
+                )
+                .order_by('RSI', ascending=True)  # Most oversold first, then overbought
+                .limit(20)
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'VOLUME_SURGE':
+            # Volume Surge mode - Unusual activity detector
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'average_volume_10d_calc', 'RSI', 'MACD.macd', 'MACD.signal', 
+                       'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 40,
+                    col('volume') > 200000,
+                    col('market_cap_basic') > 1e8,  # Min 100 crores
+                    col('relative_volume_10d_calc') > 3.0,  # 3x+ unusual volume
+                    col('change').between(-15, 15),  # Filter out extreme gaps
+                    col('exchange') == 'NSE'
+                )
+                .order_by('relative_volume_10d_calc', ascending=False)  # Highest volume surge first
+                .limit(25)
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'CHANNEL_PLAY':
+            # Channel Play mode - Range-bound trading opportunities
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'BB.upper', 'BB.lower', 'EMA20', 'EMA50', 'Volatility.D', 
+                       'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 60,
+                    col('volume') > 300000,
+                    col('market_cap_basic') > 2e8,  # Min 200 crores
+                    col('relative_volume_10d_calc').between(0.7, 2.0),  # Moderate activity
+                    col('RSI').between(30, 70),  # Range-bound RSI
+                    col('Volatility.D').between(0.02, 0.06),  # Moderate volatility
+                    col('change').between(-3, 3),  # Not trending strongly
+                    col('exchange') == 'NSE'
+                )
+                .order_by('volume', ascending=False)
+                .limit(20)
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'SECTOR_MOMENTUM':
+            # Sector Momentum mode - Industry group moves
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'Perf.W', 'Perf.3M', 'sector', 'industry', 'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 50,
+                    col('volume') > 250000,
+                    col('market_cap_basic') > 2e8,  # Min 200 crores
+                    col('relative_volume_10d_calc') > 1.1,
+                    col('RSI') > 50,  # Momentum stocks
+                    col('Perf.W') > 2,  # Weekly outperformance
+                    col('change') > 0.5,  # Positive today
+                    col('exchange') == 'NSE'
+                )
+                .order_by('Perf.W', ascending=False)  # Best weekly performers first
+                .limit(25)
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'QUICK_PROFIT':
+            # Quick Profit mode - 1-2% fast scalps with momentum
+            total_rows, df = (
+                Query()
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
+                       'RSI', 'MACD.macd', 'MACD.signal', 'EMA20', 'Volatility.D', 
+                       'market_cap_basic', 'update_mode')
+                .set_markets(self.market)
+                .where(
+                    col('close') > 40,
+                    col('volume') > 800000,  # High liquidity for quick exits
+                    col('market_cap_basic') > 5e8,  # Min 500 crores
+                    col('relative_volume_10d_calc') > 1.3,  # Above normal volume
+                    col('RSI').between(45, 75),  # Momentum zone
+                    col('change').between(0.5, 4),  # Positive momentum, not overbought
+                    col('Volatility.D') > 0.02,  # Enough movement for quick profits
+                    col('exchange') == 'NSE'
+                )
+                .order_by('change', ascending=False)  # Strongest momentum first
+                .limit(15)  # Focus on best opportunities
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
         else:  # PREBREAKOUT (default)
             # Pre-breakout focus
             total_rows, df = (
@@ -2062,4 +2367,340 @@ def _add_heavy_breakout_analysis(self, df: pd.DataFrame) -> pd.DataFrame:
     console.print(f"[dim green]✅ Completed parallel analysis for {len(df)} stocks[/dim green]")
     
     return df
+
+
+def _add_intraday_momentum_analysis(self, df: pd.DataFrame) -> pd.DataFrame:
+    """Add real-time intraday momentum analysis with 1-min delta detection"""
+    import concurrent.futures
+    from datetime import datetime, timedelta
+    from threading import Lock
+    
+    console.print(f"[dim cyan]🔍 Starting intraday momentum analysis for {len(df)} stocks...[/dim cyan]")
+    
+    momentum_results = {}
+    results_lock = Lock()
+    
+    def analyze_intraday_momentum(row):
+        """Analyze intraday momentum with price/volume deltas"""
+        symbol = row['name']
+        try:
+            # Get symbol from ticker (e.g., NSE:RELIANCE -> RELIANCE)
+            if hasattr(self, 'upstox_data_fetcher') and self.upstox_data_fetcher:
+                # Fetch 1-minute data for last 30 minutes for delta analysis
+                df_1min = self.upstox_data_fetcher.fetch_data(
+                    symbol=symbol, 
+                    days=1, 
+                    timeframe='1min'
+                )
+                
+                if df_1min is not None and len(df_1min) >= 10:
+                    # Calculate momentum metrics
+                    momentum_analysis = _calculate_intraday_momentum_metrics(self, df_1min, row)
+                    
+                    with results_lock:
+                        momentum_results[symbol] = momentum_analysis
+                else:
+                    # Fallback to basic momentum calculation from current data
+                    with results_lock:
+                        momentum_results[symbol] = _calculate_basic_momentum_metrics(self, row)
+            else:
+                # No intraday data available, use basic momentum
+                with results_lock:
+                    momentum_results[symbol] = _calculate_basic_momentum_metrics(self, row)
+                
+        except Exception as e:
+            console.print(f"[dim red]Error analyzing momentum for {symbol}: {str(e)[:50]}[/dim red]")
+            with results_lock:
+                momentum_results[symbol] = {
+                    'momentum_score': 0,
+                    'price_delta_1min': 0,
+                    'volume_delta_1min': 0,
+                    'momentum_direction': 'NEUTRAL',
+                    'entry_signal': False,
+                    'momentum_strength': 'WEAK'
+                }
+    
+    # Execute parallel momentum analysis
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = []
+        for _, row in df.iterrows():
+            future = executor.submit(analyze_intraday_momentum, row)
+            futures.append(future)
+        
+        # Wait for completion
+        completed = 0
+        for future in concurrent.futures.as_completed(futures):
+            completed += 1
+            if completed % 3 == 0:
+                console.print(f"[dim]Momentum analysis: {completed}/{len(df)} stocks[/dim]")
+    
+    # Add momentum results to dataframe
+    df['momentum_score'] = df['name'].map(lambda x: momentum_results.get(x, {}).get('momentum_score', 0))
+    df['price_delta_1min'] = df['name'].map(lambda x: momentum_results.get(x, {}).get('price_delta_1min', 0))
+    df['volume_delta_1min'] = df['name'].map(lambda x: momentum_results.get(x, {}).get('volume_delta_1min', 0))
+    df['momentum_direction'] = df['name'].map(lambda x: momentum_results.get(x, {}).get('momentum_direction', 'NEUTRAL'))
+    df['entry_signal'] = df['name'].map(lambda x: momentum_results.get(x, {}).get('entry_signal', False))
+    df['momentum_strength'] = df['name'].map(lambda x: momentum_results.get(x, {}).get('momentum_strength', 'WEAK'))
+    
+    # Sort by momentum score (highest first) and filter strong signals
+    df = df.sort_values('momentum_score', ascending=False)
+    df = df[df['momentum_score'] > 30]  # Only strong momentum stocks
+    
+    console.print(f"[dim green]✅ Completed intraday momentum analysis. {len(df)} stocks with strong momentum.[/dim green]")
+    
+    return df
+
+
+def _calculate_intraday_momentum_metrics(self, df_1min: pd.DataFrame, current_row) -> dict:
+    """Calculate detailed momentum metrics from 1-minute intraday data"""
+    try:
+        # Sort by timestamp to ensure proper order
+        df_1min = df_1min.sort_values('timestamp')
+        
+        # Get last 10 candles for analysis
+        recent_candles = df_1min.tail(10)
+        
+        if len(recent_candles) < 5:
+            return _calculate_basic_momentum_metrics(self, current_row)
+        
+        # Calculate price deltas
+        recent_candles['price_delta'] = recent_candles['close'].diff()
+        recent_candles['volume_delta'] = recent_candles['volume'].diff()
+        
+        # Price momentum metrics
+        price_changes = recent_candles['price_delta'].dropna()
+        avg_price_delta = price_changes.mean()
+        last_3_price_delta = price_changes.tail(3).mean()
+        
+        # Volume momentum metrics  
+        volume_changes = recent_candles['volume_delta'].dropna()
+        avg_volume_delta = volume_changes.mean()
+        
+        # Direction detection
+        positive_moves = len(price_changes[price_changes > 0])
+        negative_moves = len(price_changes[price_changes < 0])
+        
+        # Momentum direction
+        if positive_moves > negative_moves and last_3_price_delta > 0:
+            direction = 'BULLISH'
+        elif negative_moves > positive_moves and last_3_price_delta < 0:
+            direction = 'BEARISH'
+        else:
+            direction = 'NEUTRAL'
+        
+        # Momentum strength based on consistency and magnitude
+        consistency_score = max(positive_moves, negative_moves) / len(price_changes) * 100
+        magnitude_score = abs(last_3_price_delta) / current_row['ATR'] * 100 if current_row['ATR'] > 0 else 0
+        
+        momentum_score = (consistency_score + magnitude_score) / 2
+        
+        # Entry signal logic
+        entry_signal = (
+            momentum_score > 40 and
+            direction in ['BULLISH', 'BEARISH'] and
+            abs(last_3_price_delta) > current_row['close'] * 0.0005  # 0.05% minimum move
+        )
+        
+        # Strength categorization
+        if momentum_score > 70:
+            strength = 'VERY_STRONG'
+        elif momentum_score > 50:
+            strength = 'STRONG'
+        elif momentum_score > 30:
+            strength = 'MODERATE'
+        else:
+            strength = 'WEAK'
+        
+        return {
+            'momentum_score': momentum_score,
+            'price_delta_1min': last_3_price_delta,
+            'volume_delta_1min': avg_volume_delta,
+            'momentum_direction': direction,
+            'entry_signal': entry_signal,
+            'momentum_strength': strength,
+            'consistency_score': consistency_score,
+            'magnitude_score': magnitude_score
+        }
+        
+    except Exception as e:
+        console.print(f"[dim red]Error in momentum calculation: {str(e)[:30]}[/dim red]")
+        return _calculate_basic_momentum_metrics(self, current_row)
+
+
+def _calculate_basic_momentum_metrics(self, row) -> dict:
+    """Calculate basic momentum metrics when intraday data is unavailable"""
+    try:
+        # Use available technical indicators for momentum assessment
+        rsi = row.get('RSI', 50)
+        rsi_prev = row.get('RSI[1]', 50) 
+        macd = row.get('MACD.macd', 0)
+        macd_signal = row.get('MACD.signal', 0)
+        mom = row.get('Mom', 0)
+        change = row.get('change', 0)
+        
+        # Basic momentum score from technical indicators
+        rsi_momentum = (rsi - rsi_prev) * 2  # RSI change weight
+        macd_momentum = (macd - macd_signal) * 10  # MACD divergence
+        price_momentum = abs(change) * 5  # Price change weight
+        
+        momentum_score = max(0, min(100, 
+            50 + rsi_momentum + macd_momentum + price_momentum
+        ))
+        
+        # Direction from price change and indicators
+        if change > 0.5 and macd > macd_signal and rsi > rsi_prev:
+            direction = 'BULLISH'
+        elif change < -0.5 and macd < macd_signal and rsi < rsi_prev:
+            direction = 'BEARISH'  
+        else:
+            direction = 'NEUTRAL'
+        
+        # Basic entry signal
+        entry_signal = (
+            momentum_score > 35 and
+            direction in ['BULLISH', 'BEARISH'] and
+            abs(change) > 0.5
+        )
+        
+        # Strength from momentum score
+        if momentum_score > 60:
+            strength = 'STRONG'
+        elif momentum_score > 40:
+            strength = 'MODERATE'
+        else:
+            strength = 'WEAK'
+        
+        return {
+            'momentum_score': momentum_score,
+            'price_delta_1min': change,
+            'volume_delta_1min': 0,  # Not available without intraday data
+            'momentum_direction': direction,
+            'entry_signal': entry_signal,
+            'momentum_strength': strength
+        }
+        
+    except Exception as e:
+        return {
+            'momentum_score': 0,
+            'price_delta_1min': 0,
+            'volume_delta_1min': 0,
+            'momentum_direction': 'NEUTRAL',
+            'entry_signal': False,
+            'momentum_strength': 'WEAK'
+        }
+
+
+def _analyze_sector_correlations(self, df: pd.DataFrame) -> pd.DataFrame:
+    """Analyze sector correlations to find catch-up trade opportunities"""
+    from collections import defaultdict
+    import numpy as np
+    
+    console.print(f"[dim cyan]📊 Analyzing {len(df)} stocks across sectors...[/dim cyan]")
+    
+    # Group stocks by sector
+    sector_groups = defaultdict(list)
+    for _, row in df.iterrows():
+        sector = row.get('sector', 'Unknown')
+        if sector and sector != 'Unknown':
+            sector_groups[sector].append(row.to_dict())
+    
+    console.print(f"[dim]Found {len(sector_groups)} sectors with active stocks[/dim]")
+    
+    catch_up_opportunities = []
+    
+    for sector, stocks in sector_groups.items():
+        if len(stocks) < 2:  # Need at least 2 stocks for correlation
+            continue
+            
+        # Sort stocks by absolute change (biggest movers first)
+        stocks_sorted = sorted(stocks, key=lambda x: abs(x['change']), reverse=True)
+        
+        # Get top performer (leader)
+        leader = stocks_sorted[0]
+        leader_change = leader['change']
+        
+        # Skip if leader move is too small
+        if abs(leader_change) < 1.0:
+            continue
+            
+        # Find potential catch-up candidates (stocks 2-4 that haven't moved much)
+        for i in range(1, min(4, len(stocks_sorted))):  # Check positions 2-4
+            candidate = stocks_sorted[i]
+            candidate_change = candidate['change']
+            
+            # Calculate correlation opportunity
+            change_gap = abs(leader_change) - abs(candidate_change)
+            
+            # Ideal catch-up conditions:
+            # 1. Leader moved significantly (>2%) 
+            # 2. Candidate hasn't moved much (<1%)
+            # 3. Good liquidity in candidate
+            # 4. Same direction potential (RSI not extreme)
+            
+            if (abs(leader_change) > 2.0 and           # Leader moved big
+                abs(candidate_change) < 1.0 and       # Candidate lagging
+                change_gap > 1.5 and                  # Significant gap
+                candidate['relative_volume_10d_calc'] > 0.8 and  # Active
+                30 < candidate.get('RSI', 50) < 80):  # Not extreme RSI
+                
+                # Calculate catch-up potential
+                expected_move = leader_change * 0.6  # Expect 60% of leader's move
+                current_gap = expected_move - candidate_change
+                
+                # Direction determination
+                if leader_change > 0:
+                    direction = 'LONG'  # Expect upside catch-up
+                    signal_strength = min(change_gap * 20, 100)  # Up to 100% strength
+                else:
+                    direction = 'SHORT'  # Expect downside catch-up  
+                    signal_strength = min(change_gap * 20, 100)
+                
+                # Entry urgency based on time and volume
+                volume_ratio = candidate['relative_volume_10d_calc']
+                if volume_ratio > 1.5:
+                    urgency = 'HIGH'
+                elif volume_ratio > 1.0:
+                    urgency = 'MEDIUM'
+                else:
+                    urgency = 'LOW'
+                
+                # Create catch-up opportunity
+                opportunity = candidate.copy()
+                opportunity.update({
+                    'sector_leader': leader['name'],
+                    'leader_change': leader_change,
+                    'change_gap': change_gap,
+                    'expected_move': expected_move,
+                    'catch_up_potential': current_gap,
+                    'trade_direction': direction,
+                    'signal_strength': signal_strength,
+                    'entry_urgency': urgency,
+                    'correlation_score': min(90, change_gap * 25),  # Scoring system
+                    'sector': sector
+                })
+                
+                catch_up_opportunities.append(opportunity)
+    
+    if not catch_up_opportunities:
+        console.print(f"[yellow]⚠️ No sector catch-up opportunities found[/yellow]")
+        return pd.DataFrame()
+    
+    # Convert to DataFrame and sort by correlation score
+    df_opportunities = pd.DataFrame(catch_up_opportunities)
+    df_opportunities = df_opportunities.sort_values('correlation_score', ascending=False)
+    
+    # Filter to top opportunities
+    df_opportunities = df_opportunities[df_opportunities['correlation_score'] > 30]
+    df_opportunities = df_opportunities.head(15)  # Top 15 opportunities
+    
+    console.print(f"[dim green]✅ Found {len(df_opportunities)} sector catch-up opportunities[/dim green]")
+    
+    # Add summary info for display
+    for idx, row in df_opportunities.iterrows():
+        leader = row['sector_leader']
+        gap = row['change_gap']
+        direction = row['trade_direction']
+        console.print(f"[dim]  {row['name'][:10]:10} | Leader: {leader[:8]:8} | Gap: {gap:+.1f}% | {direction}[/dim]")
+    
+    return df_opportunities
 

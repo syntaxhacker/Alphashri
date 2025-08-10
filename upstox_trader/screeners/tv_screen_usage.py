@@ -602,6 +602,108 @@ class TVScreenerUsage:
             # If historical check fails, allow trade (failsafe)
             return True
 
+    def _detect_pre_breakout_volume(self, symbol, row):
+        """
+        Detect early volume building before main FOMO spike (PREDICTIVE)
+        Returns True if volume is building but not yet spiked (better entry timing)
+        """
+        try:
+            current_volume_ratio = row.get('relative_volume_10d_calc', 1.0)
+            today_change = row.get('change', 0)
+            rsi = row.get('RSI', 50)
+            
+            # PRE-BREAKOUT criteria (early detection)
+            volume_building = 1.3 <= current_volume_ratio <= 2.5  # Building but not spiked yet
+            controlled_move = 0.1 <= today_change <= 2.0         # Small controlled move
+            rsi_healthy = 45 <= rsi <= 68                         # Healthy RSI range
+            
+            # Additional quality filters
+            ema20 = row.get('EMA20', row['close'])
+            price_near_support = row['close'] >= ema20 * 0.98     # Within 2% of EMA20
+            
+            is_pre_breakout = (volume_building and controlled_move and 
+                             rsi_healthy and price_near_support)
+            
+            if is_pre_breakout:
+                console.print(f"[green]🟢 {symbol}: PRE-BREAKOUT detected - Vol:{current_volume_ratio:.1f}x, "
+                            f"Change:+{today_change:.1f}%, RSI:{rsi:.1f}[/green]")
+            
+            return is_pre_breakout
+            
+        except Exception as e:
+            console.print(f"[red]❌ Pre-breakout detection error for {symbol}: {e}[/red]")
+            return False
+
+    def _detect_pullback_entry(self, symbol, row):
+        """
+        Detect pullback entry opportunities after initial momentum
+        Returns True if stock is pulling back to good entry level
+        """
+        try:
+            today_change = row.get('change', 0)
+            rsi = row.get('RSI', 50)
+            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
+            
+            # PULLBACK criteria
+            small_pullback = -0.8 <= today_change <= 0.5         # Minor pullback or flat
+            rsi_cooling = 50 <= rsi <= 70                         # RSI cooling from overbought
+            volume_normalizing = 1.2 <= volume_ratio <= 2.0      # Volume normalizing
+            
+            # Check if we're near support (EMA20)
+            ema20 = row.get('EMA20', row['close'])
+            near_ema20 = row['close'] >= ema20 * 0.99             # Very close to EMA20
+            
+            # Check recent strength (weekly performance should be positive)
+            week_perf = row.get('Perf.W', 0)
+            has_recent_strength = week_perf > 2                   # At least 2% weekly gain
+            
+            is_pullback_entry = (small_pullback and rsi_cooling and 
+                               volume_normalizing and near_ema20 and has_recent_strength)
+            
+            if is_pullback_entry:
+                console.print(f"[cyan]🔵 {symbol}: PULLBACK ENTRY detected - Change:{today_change:+.1f}%, "
+                            f"RSI:{rsi:.1f}, near EMA20[/cyan]")
+            
+            return is_pullback_entry
+            
+        except Exception as e:
+            console.print(f"[red]❌ Pullback detection error for {symbol}: {e}[/red]")
+            return False
+
+    def _check_momentum_cooling(self, symbol, row):
+        """
+        Check if momentum is cooling down from excessive levels (safer entry)
+        Returns True if momentum has cooled to safer levels
+        """
+        try:
+            rsi = row.get('RSI', 50)
+            today_change = row.get('change', 0)
+            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
+            
+            # Get distance from 52w high
+            price_52w_high = row.get('price_52_week_high', row['close'] * 1.1)
+            current_price = row['close']
+            distance_from_high = ((price_52w_high - current_price) / current_price) * 100
+            
+            # COOLING criteria (momentum has settled)
+            rsi_cooled = 55 <= rsi <= 75                          # RSI in middle range
+            moderate_move = -1.0 <= today_change <= 3.0           # Not extreme moves
+            reasonable_distance = distance_from_high >= 5.0       # Not too close to highs
+            volume_reasonable = volume_ratio <= 3.0               # Volume not extreme
+            
+            momentum_cooled = (rsi_cooled and moderate_move and 
+                             reasonable_distance and volume_reasonable)
+            
+            if momentum_cooled:
+                console.print(f"[blue]🔷 {symbol}: MOMENTUM COOLED - Safe entry window "
+                            f"(RSI:{rsi:.1f}, {distance_from_high:.1f}% from high)[/blue]")
+            
+            return momentum_cooled
+            
+        except Exception as e:
+            console.print(f"[red]❌ Momentum cooling check error for {symbol}: {e}[/red]")
+            return False
+
     def _analyze_gap_fill_probability(self, symbol, current_gap_size, gap_direction, lookback_days=90):
         """Analyze historical gap-fill patterns to predict current gap-fill probability"""
         try:
@@ -2224,13 +2326,29 @@ class TVScreenerUsage:
                     else:
                         console.print(f"[yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping {ticker}[/yellow]")
             
-            # Enhanced Smart FOMO alert - available in all modes with top-avoidance filters
+            # Enhanced Smart FOMO alert - IMPROVED TIMING for better entries
             watch_mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
-            if (row['relative_volume_10d_calc'] > max(volume_threshold, 2.0) and  # Minimum 2x volume for SMART_FOMO
-                (row['change'] > 1 or row['change'] < -1) and  # Positive OR negative momentum
-                self._check_historical_upside(ticker, row['close']) and  # Historical validation
-                self._check_not_buying_at_top(ticker, row) and  # Avoid buying at tops
-                self._check_momentum_divergence(ticker, row, previous_data)):  # Check momentum quality
+            
+            # IMPROVED TIMING: Check for different entry opportunities based on timing
+            pre_breakout_detected = self._detect_pre_breakout_volume(ticker, row)
+            pullback_entry_detected = self._detect_pullback_entry(ticker, row)
+            momentum_cooled = self._check_momentum_cooling(ticker, row)
+            
+            # Original FOMO conditions (now as fallback for existing strong signals)
+            original_fomo = (row['relative_volume_10d_calc'] > max(volume_threshold, 2.0) and  
+                           (row['change'] > 1 or row['change'] < -1) and
+                           self._check_not_buying_at_top(ticker, row))
+            
+            # SMART_FOMO triggers on ANY of these improved timing conditions
+            smart_fomo_trigger = (
+                pre_breakout_detected or           # BEST: Early volume building
+                pullback_entry_detected or         # GOOD: Pullback to support  
+                momentum_cooled or                 # SAFE: Momentum has cooled
+                (original_fomo and self._check_historical_upside(ticker, row['close']))  # FALLBACK: Original logic
+            )
+            
+            if (smart_fomo_trigger and  
+                self._check_momentum_divergence(ticker, row, previous_data)):  # Quality check
                 
                 # Check cooldown
                 should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'SMART_FOMO')
@@ -2241,11 +2359,27 @@ class TVScreenerUsage:
                         console.print(f"[dim]⏳ Skipping {ticker} SMART_FOMO (cooldown: {self.alert_cooldown - time_diff:.0f}s left)[/dim]")
                     continue
                 
-                # Calculate confidence (Smart FOMO gets bonus for historical validation)
-                confidence = self._calculate_alert_confidence('SMART_FOMO', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
+                # Determine which timing condition triggered for better tracking
+                timing_type = "ORIGINAL"
+                if pre_breakout_detected:
+                    timing_type = "PRE_BREAKOUT"
+                    confidence = self._calculate_alert_confidence('SMART_FOMO', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None)) + 0.15  # Bonus for early entry
+                elif pullback_entry_detected:
+                    timing_type = "PULLBACK"
+                    confidence = self._calculate_alert_confidence('SMART_FOMO', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None)) + 0.10  # Bonus for pullback
+                elif momentum_cooled:
+                    timing_type = "COOLED"
+                    confidence = self._calculate_alert_confidence('SMART_FOMO', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None)) + 0.05  # Small bonus for cooled
+                else:
+                    confidence = self._calculate_alert_confidence('SMART_FOMO', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
                 
-                # Only send if confidence is high enough
-                if confidence >= 0.55:  # 55% minimum confidence for FOMO mode earlier entries
+                # Cap confidence at 95%
+                confidence = min(confidence, 0.95)
+                
+                # Adjust minimum confidence based on timing quality
+                min_confidence = 0.45 if timing_type in ["PRE_BREAKOUT", "PULLBACK"] else 0.55
+                
+                if confidence >= min_confidence:
                     alert = {
                         'type': 'SMART_FOMO',
                         'ticker': ticker,
@@ -2253,8 +2387,9 @@ class TVScreenerUsage:
                         'volume_ratio': row['relative_volume_10d_calc'],
                         'price': row['close'],
                         'change': row['change'],
-                        'upside_potential': 'Validated',
-                        'confidence': confidence
+                        'upside_potential': f'Validated-{timing_type}',
+                        'confidence': confidence,
+                        'timing_type': timing_type
                     }
                     alerts.append(alert)
                     
@@ -2809,20 +2944,43 @@ class TVScreenerUsage:
                         trade_side = 'SELL'
                 
                 elif alert['type'] == 'SMART_FOMO':
-                    # Enhanced Smart FOMO - BUY safe breakouts, SELL overextended/declining stocks
+                    # Enhanced Smart FOMO - IMPROVED TIMING-BASED ENTRY LOGIC
                     change_pct = alert.get('change', 0)
+                    timing_type = alert.get('timing_type', 'ORIGINAL')
                     
-                    if change_pct > 1 and trend in ['strong_bullish', 'bullish', 'neutral']:
-                        # Positive move - check if overextended for shorting
-                        if self._is_overextended_for_short(symbol):
-                            trade_side = 'SELL'  # Short overextended stocks
-                            console.print(f"   [red]📉 {symbol} overextended - considering SHORT[/red]")
-                        else:
-                            trade_side = 'BUY'  # Normal long entry
-                    elif change_pct < -1:
-                        # Negative move - consider shorting the decline
-                        trade_side = 'SELL'  # Short declining stocks with volume
-                        console.print(f"   [red]📉 {symbol} declining with volume ({change_pct:.1f}%) - considering SHORT[/red]")
+                    # Better entry logic based on timing type
+                    if timing_type == 'PRE_BREAKOUT':
+                        # Pre-breakout: Always BUY in neutral+ trends (best timing)
+                        if trend in ['strong_bullish', 'bullish', 'neutral']:
+                            trade_side = 'BUY'
+                            console.print(f"   [bright_green]🟢 {symbol} PRE-BREAKOUT entry - optimal timing![/bright_green]")
+                        
+                    elif timing_type == 'PULLBACK':
+                        # Pullback: Safe BUY opportunity (good timing)
+                        if trend in ['strong_bullish', 'bullish', 'neutral']:
+                            trade_side = 'BUY'
+                            console.print(f"   [cyan]🔵 {symbol} PULLBACK entry - buying dip near support[/cyan]")
+                            
+                    elif timing_type == 'COOLED':
+                        # Cooled momentum: Conservative BUY (safe timing)
+                        if trend in ['strong_bullish', 'bullish', 'neutral']:
+                            trade_side = 'BUY'
+                            console.print(f"   [blue]🔷 {symbol} COOLED momentum - safe entry window[/blue]")
+                    
+                    else:  # ORIGINAL timing (fallback)
+                        # Original logic for late entries
+                        if change_pct > 1 and trend in ['strong_bullish', 'bullish', 'neutral']:
+                            # Positive move - check if overextended for shorting
+                            if self._is_overextended_for_short(symbol):
+                                trade_side = 'SELL'  # Short overextended stocks
+                                console.print(f"   [red]📉 {symbol} overextended - considering SHORT[/red]")
+                            else:
+                                trade_side = 'BUY'  # Normal long entry
+                                console.print(f"   [yellow]⚠️ {symbol} LATE entry - buying after move[/yellow]")
+                        elif change_pct < -1:
+                            # Negative move - consider shorting the decline
+                            trade_side = 'SELL'  # Short declining stocks with volume
+                            console.print(f"   [red]📉 {symbol} declining with volume ({change_pct:.1f}%) - considering SHORT[/red]")
                 
                 elif alert['type'] == 'OVERBOUGHT_SHORT':
                     # Direct short signal for overbought stocks
@@ -3586,6 +3744,50 @@ class TVScreenerUsage:
         """Delegate to intraday_watch_mode in tv_modes"""
         return tv_modes.intraday_watch_mode(self, refresh_interval, volume_threshold, price_threshold, mode)
     
+    def run_mode_once(self, mode='PREBREAKOUT'):
+        """Run a specific mode once to display current data"""
+        mode_titles = {
+            'PREBREAKOUT': ("📊 PRE-BREAKOUT MODE - Early Entry Signals", "bold blue"),
+            'FOMO': ("🔥 FOMO MODE - High Volume Breakouts", "bold red"), 
+            'SMART_FOMO': ("🧠 SMART FOMO MODE - Historical Analysis + FOMO", "bold yellow"),
+            'ACCUMULATION': ("📈 ACCUMULATION MODE - Smart Money Tracking", "bold green"),
+            'MOMENTUM': ("⚡ MOMENTUM MODE - Early Momentum Detection", "bold cyan"),
+            'OPTIMIZED_GAP': ("🚀 OPTIMIZED GAP MODE - 15-Min Gap Strategy (68.4% Win Rate)", "bold green"),
+            'GAP_FILL_SR': ("🎯 GAP-FILL S/R MODE - Live Gap Analysis with Support/Resistance", "bold magenta"),
+            'HEAVY_BREAKOUT': ("📊 HEAVY BREAKOUT MODE - Channel Analysis", "bold bright_magenta"),
+            'SCALPING': ("⚡ SCALPING MODE - Ultra-Fast 1-3% Moves", "bold white"),
+            'MOMENTUM_SCALPER': ("🚀 MOMENTUM SCALPER - Second-Level Delta Trading", "bold bright_white"),
+            'SECTOR_SCALPER': ("🏭 SECTOR SCALPER - Correlation Catch-Up Trades", "bold bright_cyan"),
+            'SHORT_SQUEEZE': ("🍋 SHORT SQUEEZE - Over-Shorted Explosion Hunter", "bold bright_magenta"),
+            'BREAKOUT_FAILURE': ("📉 BREAKOUT FAILURE - Failed Breakout Shorting", "bold red"),
+            'EXHAUSTION_REVERSAL': ("😵 EXHAUSTION REVERSAL - Momentum Exhaustion Shorts", "bold bright_red"),
+            'MORNING_FADE': ("🌅 MORNING FADE - Gap-Up Failure Shorting", "bold yellow"),
+            'REVERSAL': ("🔄 REVERSAL MODE - Counter-Trend Opportunities", "bold purple"),
+            'VOLUME_SURGE': ("📊 VOLUME SURGE MODE - Unusual Activity Detector", "bold bright_blue"),
+            'CHANNEL_PLAY': ("📈 CHANNEL PLAY MODE - Range-Bound Trading", "bold bright_green"),
+            'SECTOR_MOMENTUM': ("🏭 SECTOR MOMENTUM MODE - Industry Group Moves", "bold bright_yellow"),
+            'QUICK_PROFIT': ("💰 QUICK PROFIT MODE - 1-2% Fast Scalps", "bold bright_red")
+        }
+        
+        title, style = mode_titles.get(mode, ("📊 MODE", "bold blue"))
+        console.print(Panel.fit(f"{title} - Current Data", style=style))
+        
+        try:
+            # Get current data using the same logic as watch mode
+            self.watch_mode = mode  # Set the mode for data fetching
+            df = self._get_watch_data()
+            
+            if not df.empty:
+                console.print(f"\n[green]✅ Found {len(df)} stocks matching {mode} criteria:[/green]")
+                self._display_watch_data(df, [])  # Empty alerts list for single run
+            else:
+                console.print(f"[yellow]⚠️ No stocks currently match {mode} criteria[/yellow]")
+                
+        except Exception as e:
+            console.print(f"[red]❌ Error running {mode}: {e}[/red]")
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
+    
     def _get_watch_data(self):
         """Delegate to _get_watch_data in tv_modes"""
         return tv_modes._get_watch_data(self)
@@ -3703,7 +3905,7 @@ def main():
     # Watch mode specific arguments
     parser.add_argument('--watch', action='store_true', help='Start intraday watch mode')
     parser.add_argument('--mode', type=str, default='PREBREAKOUT',
-                       choices=['PREBREAKOUT', 'FOMO', 'SMART_FOMO', 'ACCUMULATION', 'MOMENTUM', 'OPTIMIZED_GAP', 'GAP_FILL_SR', 'HEAVY_BREAKOUT'],
+                       choices=['PREBREAKOUT', 'FOMO', 'SMART_FOMO', 'ACCUMULATION', 'MOMENTUM', 'OPTIMIZED_GAP', 'GAP_FILL_SR', 'HEAVY_BREAKOUT', 'SCALPING', 'MOMENTUM_SCALPER', 'SECTOR_SCALPER', 'SHORT_SQUEEZE', 'BREAKOUT_FAILURE', 'EXHAUSTION_REVERSAL', 'MORNING_FADE', 'REVERSAL', 'VOLUME_SURGE', 'CHANNEL_PLAY', 'SECTOR_MOMENTUM', 'QUICK_PROFIT'],
                        help='Watch mode strategy (default: PREBREAKOUT)')
     parser.add_argument('--refresh', type=int, default=30, help='Refresh interval in seconds (default: 30)')
     # Adjusted lighter defaults as requested: Vol 1.2x, Price 1.0%
@@ -3738,6 +3940,8 @@ def main():
             screener.run_example(args.example)
     elif args.run_all:
         screener.run_all_examples()
+    elif len(sys.argv) > 1 and '--mode' in sys.argv:  # Mode explicitly specified but not in watch mode - run once
+        screener.run_mode_once(args.mode)
     else:
         console.print("[bold blue]TradingView Screener Usage Guide[/bold blue]")
         console.print("\nUse --list-examples to see all available examples")
@@ -3759,6 +3963,18 @@ def main():
         console.print("  python tv_screen_usage.py --watch --mode OPTIMIZED_GAP --refresh 2 --enable-trading")
         console.print("  python tv_screen_usage.py --watch --mode GAP_FILL_SR --refresh 30 --enable-trading  # Gap-fill + S/R")
         console.print("  python tv_screen_usage.py --watch --mode HEAVY_BREAKOUT --refresh 30 --enable-trading  # Smart money breakouts")
+        console.print("  python tv_screen_usage.py --watch --mode SCALPING --refresh 5 --enable-trading  # Ultra-fast scalping")
+        console.print("  python tv_screen_usage.py --watch --mode MOMENTUM_SCALPER --refresh 2 --enable-trading  # Advanced momentum with deltas")
+        console.print("  python tv_screen_usage.py --watch --mode SECTOR_SCALPER --refresh 3 --enable-trading  # Sector correlation scalping")
+        console.print("  python tv_screen_usage.py --watch --mode SHORT_SQUEEZE --refresh 5 --enable-trading  # Short squeeze explosions")
+        console.print("  python tv_screen_usage.py --watch --mode BREAKOUT_FAILURE --refresh 10 --enable-trading  # Failed breakout shorts")
+        console.print("  python tv_screen_usage.py --watch --mode EXHAUSTION_REVERSAL --refresh 15 --enable-trading  # Momentum exhaustion shorts")
+        console.print("  python tv_screen_usage.py --watch --mode MORNING_FADE --refresh 5 --enable-trading  # Gap fade shorting")
+        console.print("  python tv_screen_usage.py --watch --mode REVERSAL --refresh 15 --enable-trading  # Counter-trend trades")
+        console.print("  python tv_screen_usage.py --watch --mode VOLUME_SURGE --refresh 10  # Unusual activity detector")
+        console.print("  python tv_screen_usage.py --watch --mode CHANNEL_PLAY --refresh 20  # Range-bound trading")
+        console.print("  python tv_screen_usage.py --watch --mode SECTOR_MOMENTUM --refresh 30  # Industry group moves")
+        console.print("  python tv_screen_usage.py --watch --mode QUICK_PROFIT --refresh 5 --enable-trading  # Fast 1-2% scalps")
         console.print("  python tv_screen_usage.py --example heavy_breakout  # Analyze heavy breakout patterns")
         console.print("  python tv_screen_usage.py --market us --example intraday_watch --refresh 10")
 

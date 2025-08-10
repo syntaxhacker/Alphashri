@@ -183,7 +183,22 @@ def render_watch_table(df: pd.DataFrame, alerts: List[Dict], mode: str) -> Table
         'FOMO': "Live Market Monitor - Top Volume Movers",
         'SMART_FOMO': "Live Market Monitor - Smart FOMO (Historical Analysis)",
         'ACCUMULATION': "Live Market Monitor - Accumulation Patterns",
-        'MOMENTUM': "Live Market Monitor - Early Momentum"
+        'MOMENTUM': "Live Market Monitor - Early Momentum",
+        'OPTIMIZED_GAP': "Live Market Monitor - Gap Strategy Signals",
+        'GAP_FILL_SR': "Live Market Monitor - Gap Fill Analysis",
+        'HEAVY_BREAKOUT': "Live Market Monitor - Heavy Breakout Patterns",
+        'SCALPING': "Live Market Monitor - Ultra-Fast Scalping Signals",
+        'MOMENTUM_SCALPER': "Live Market Monitor - Advanced Momentum Scalping",
+        'SECTOR_SCALPER': "Live Market Monitor - Sector Correlation Trading",
+        'SHORT_SQUEEZE': "Live Market Monitor - Short Squeeze Hunting",
+        'BREAKOUT_FAILURE': "Live Market Monitor - Failed Breakout Shorts",
+        'EXHAUSTION_REVERSAL': "Live Market Monitor - Exhaustion Reversal Shorts",
+        'MORNING_FADE': "Live Market Monitor - Morning Gap Fade Shorts",
+        'REVERSAL': "Live Market Monitor - Counter-Trend Reversals",
+        'VOLUME_SURGE': "Live Market Monitor - Unusual Volume Activity",
+        'CHANNEL_PLAY': "Live Market Monitor - Range-Bound Opportunities",
+        'SECTOR_MOMENTUM': "Live Market Monitor - Sector Group Moves",
+        'QUICK_PROFIT': "Live Market Monitor - Quick Profit Scalps"
     }
     title = mode_titles.get(mode, "Live Market Monitor")
 

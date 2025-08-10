@@ -10,6 +10,9 @@ Modular TradingView screener implementation with:
 - tv_strategies.py: Different screening strategies
 """
 
-from .tv_base import TVScreener
-
-__all__ = ['TVScreener']
+try:
+    from .tv_base import TVScreener
+    __all__ = ['TVScreener']
+except ImportError:
+    # tv_base not available, skip import
+    __all__ = []
