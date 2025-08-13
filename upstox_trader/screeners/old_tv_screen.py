@@ -121,7 +121,7 @@ class TVScreenerUsage:
             console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
         
         # Trading Time Configuration
-        self.trading_start_time = "09:20"  # Start trading at 9:20 AM
+        self.trading_start_time = "09:17"  # Start trading at 9:20 AM
         self.trading_end_time = "15:30"    # Stop trading at 3:30 PM (align with newer file)
         
         # Simple Paper Trading integration (without full bot monitoring)
@@ -142,6 +142,14 @@ class TVScreenerUsage:
         # Stop loss cooldown tracking (30 minutes)
         self.stop_loss_cooldown = {}
         self.stop_loss_cooldown_duration = 1800  # seconds
+        
+        # Loss-based cooling system - 30+ minute timeout after any loss
+        self.loss_cooldown = {}  # Track symbols that had losses: {symbol: timestamp}
+        self.loss_cooldown_duration = 1800  # 30 minutes in seconds (minimum)
+        
+        # Daily entry limits - max 2 entries per day per stock
+        self.daily_entry_count = {}  # Track entries per symbol per day: {symbol: {date: count}}
+        self.max_daily_entries_per_stock = 2
 
         # Setup signal handlers for graceful shutdown (bulk exit)
         self._setup_signal_handlers()
@@ -189,10 +197,10 @@ class TVScreenerUsage:
             with open(self.journal_file, 'w') as f:
                 f.write(f"# Old TV Screener Trade Journal - {mode.upper()} Mode\n")
                 f.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("# Format: TIMESTAMP | ACTION | SYMBOL | PRICE | QTY | AMOUNT | ALERT_TYPE | P&L\n")
+                f.write("# Format: TIMESTAMP | ACTION_SIDE | SYMBOL | PRICE | QTY | AMOUNT | ALERT_TYPE | P&L\n")
                 f.write("-" * 80 + "\n")
     
-    def log_trade(self, action, symbol, price, qty, amount, alert_type, pnl_pct=None, pnl_amount=None):
+    def log_trade(self, action, symbol, price, qty, amount, alert_type, pnl_pct=None, pnl_amount=None, side=None):
         """Log trade to journal file"""
         if not self.journal_file:
             return
@@ -205,7 +213,12 @@ class TVScreenerUsage:
         if pnl_pct is not None:
             pnl_info = f" | P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})"
         
-        log_entry = f"{timestamp} | {action} | {symbol} | ₹{price:.2f} | {qty} | ₹{amount:,.0f} | {alert_type}{pnl_info}\n"
+        # Include side information in the action
+        action_with_side = action
+        if side:
+            action_with_side = f"{action}_{side}"
+        
+        log_entry = f"{timestamp} | {action_with_side} | {symbol} | ₹{price:.2f} | {qty} | ₹{amount:,.0f} | {alert_type}{pnl_info}\n"
         
         try:
             with open(self.journal_file, 'a') as f:
@@ -1277,7 +1290,7 @@ class TVScreenerUsage:
     
     def wait_until_market_open(self):
         """Wait until 9:20 AM before starting active monitoring"""
-        target_time = datetime.now().replace(hour=9, minute=20, second=0, microsecond=0)
+        target_time = datetime.now().replace(hour=9, minute=17, second=0, microsecond=0)
         current_time = datetime.now()
         
         # If we're past 9:20 AM today, start immediately
@@ -1644,6 +1657,22 @@ class TVScreenerUsage:
                         trade_side = 'SELL'
             
             if trade_side:
+                # REQUIRE confirmed downtrend before shorting
+                if trade_side == 'SELL':
+                    # Create a mock row from alert data for downtrend confirmation
+                    mock_row = {
+                        'close': price,
+                        'change': alert.get('change', alert.get('current_change', 0)),
+                        'relative_volume_10d_calc': alert.get('volume_ratio', 1.0),
+                        'VWAP': alert.get('VWAP', price),
+                        'EMA20': alert.get('EMA20', price),
+                        'EMA50': alert.get('EMA50', price)
+                    }
+                    confirmed_downtrend = self._check_confirmed_downtrend_for_short(symbol, mock_row)
+                    if not confirmed_downtrend:
+                        console.print(f"[yellow]⚠️ {symbol}: SHORT signal but no confirmed downtrend - skipping[/yellow]")
+                        return
+                
                 # Check if we already have a position in this symbol
                 if symbol in self.positions and self.positions[symbol]:
                     console.print(f"   [yellow]⚠️ Already have position in {symbol} - skipping[/yellow]")
@@ -1675,7 +1704,7 @@ class TVScreenerUsage:
                         self.live_trades.pop(0)
                     
                     # Log trade to journal
-                    self.log_trade("ENTRY", symbol, price, quantity, quantity * price, f"{alert['type']}|trend:{trend}")
+                    self.log_trade("ENTRY", symbol, price, quantity, quantity * price, f"{alert['type']}|trend:{trend}", side=trade_side)
                     
                     trend_emoji = "📈" if trend in ['strong_bullish', 'bullish'] else "📉" if trend in ['strong_bearish', 'bearish'] else "➡️"
                     strategy_reason = f"bearish trend short" if trend in ['strong_bearish', 'bearish'] and trade_side == 'SELL' else f"signal-based {trade_side.lower()}"  
@@ -1724,12 +1753,68 @@ class TVScreenerUsage:
         
         return min(confidence, 0.95)  # Cap at 95%
     
+    def _check_daily_entry_limit(self, symbol):
+        """Check if symbol has reached daily entry limit (max 2 per day)"""
+        from datetime import date
+        today = date.today().isoformat()
+        
+        if symbol not in self.daily_entry_count:
+            return False, 0
+            
+        if today not in self.daily_entry_count[symbol]:
+            return False, 0
+            
+        entries_today = self.daily_entry_count[symbol][today]
+        if entries_today >= self.max_daily_entries_per_stock:
+            return True, entries_today
+            
+        return False, entries_today
+    
+    def _increment_daily_entry_count(self, symbol):
+        """Increment daily entry count for a symbol"""
+        from datetime import date
+        today = date.today().isoformat()
+        
+        if symbol not in self.daily_entry_count:
+            self.daily_entry_count[symbol] = {}
+            
+        if today not in self.daily_entry_count[symbol]:
+            self.daily_entry_count[symbol][today] = 0
+            
+        self.daily_entry_count[symbol][today] += 1
+    
+    def _check_loss_cooldown(self, symbol):
+        """Check if symbol is in loss-based cooldown (30+ minutes after loss)"""
+        if symbol not in self.loss_cooldown:
+            return False, 0
+            
+        current_time = datetime.now()
+        loss_time_diff = (current_time - self.loss_cooldown[symbol]).total_seconds()
+        
+        if loss_time_diff < self.loss_cooldown_duration:
+            cooldown_left = self.loss_cooldown_duration - loss_time_diff
+            return True, cooldown_left
+            
+        return False, 0
+    
     def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence, trend='neutral'):
         """Execute paper trade via bot"""
         try:
             # Check trading hours - prevent new trades outside market hours
             if not self._is_trading_hours():
                 console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Outside trading hours ({self.trading_start_time}-{self.trading_end_time})[/yellow]")
+                return False
+            
+            # Check daily entry limit (max 2 entries per day per stock)
+            at_limit, entries_today = self._check_daily_entry_limit(symbol)
+            if at_limit:
+                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Daily entry limit reached ({entries_today}/{self.max_daily_entries_per_stock})[/yellow]")
+                return False
+            
+            # Check loss-based cooldown (30+ minutes after any loss)
+            in_cooldown, cooldown_left = self._check_loss_cooldown(symbol)
+            if in_cooldown:
+                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Loss cooldown active ({cooldown_left/60:.1f}m left)[/yellow]")
                 return False
             
             # Validate price against live Upstox price
@@ -1749,6 +1834,9 @@ class TVScreenerUsage:
             # Log the trade
             print(trade_log_msg)
             
+            # Detect volatility level for ATR-based stops
+            volatility_level = self._detect_volatility_level(symbol, price)
+            
             # Create position
             self.positions[symbol] = {
                 'side': side,
@@ -1759,6 +1847,7 @@ class TVScreenerUsage:
                 'highest_profit_pct': 0.0,
                 'highest_price': round(price, 2),
                 'trailing_stop_active': False,
+                'volatility': volatility_level,
                 'trailing_stop_pct': 0.0,
                 'trade_id': self.trade_count + 1,
                 'source': 'TV_SCREENER',
@@ -1768,6 +1857,9 @@ class TVScreenerUsage:
             
             self.trade_count += 1
             self.current_prices[symbol] = round(price, 2)
+            
+            # Increment daily entry count for this symbol
+            self._increment_daily_entry_count(symbol)
 
             # Calculate and store entry trading charges for accurate net P&L later
             try:
@@ -2210,13 +2302,38 @@ class TVScreenerUsage:
             entry_value = entry_price * position['qty']
             pnl_pct = (net_pnl / entry_value) * 100 if entry_value else 0.0
 
-            # Risk Management Rules
-            stop_loss_pct = -0.5  # 0.5% initial stop loss
-            take_profit_pct = 1.0  # 1% take profit threshold for intraday
-            quick_exit_pct = 1.0  # 1.0% quick exit threshold
+            # Risk Management Rules with ATR-based stops for volatile stocks
+            volatility = position.get('volatility', 'normal')  # Track volatility level
+            
+            if volatility == 'high':
+                # Use ATR-based stops for volatile stocks
+                atr_stop_price = self._calculate_atr_based_stop(symbol, live_price)
+                atr_stop_pct = ((atr_stop_price - entry_price) / entry_price) * 100
+                if position['side'] == 'SELL':
+                    atr_stop_pct *= -1
+                stop_loss_pct = atr_stop_pct
+                console.print(f"[dim]Using ATR-based stop for volatile {symbol}: {stop_loss_pct:.2f}%[/dim]")
+            else:
+                # Regular tight stop loss for normal volatility stocks
+                stop_loss_pct = -0.5  # 0.5% initial stop loss (tightened from -1.5%)
+                
+            take_profit_pct = 0.4  # 0.4% take profit threshold for ULTRA TIGHT trailing (was 1.3%)
+            quick_exit_pct = 0.4   # 0.4% quick exit threshold (was 1.0%)
 
-            # Progressive trailing stop buffer (tightens with higher profits)
-            trailing_stop_buffer = self._get_progressive_trailing_buffer(abs(pnl_pct))
+            # Calculate trade duration for ultra-quick trailing determination
+            trade_duration_minutes = (datetime.now() - position.get('timestamp', datetime.now())).total_seconds() / 60
+            
+            # Determine if ultra-quick trailing should be active
+            ultra_quick_trailing = False
+            if trade_duration_minutes <= 3 and pnl_pct >= 0.8:  # 0.8% in 3 minutes
+                ultra_quick_trailing = True
+            elif trade_duration_minutes <= 5 and pnl_pct >= 1.0:  # 1.0% in 5 minutes
+                ultra_quick_trailing = True
+            elif trade_duration_minutes <= 10 and pnl_pct >= 1.5:  # 1.5% in 10 minutes
+                ultra_quick_trailing = True
+
+            # MUCH TIGHTER trailing stop buffer (aggressive profit locking)
+            trailing_stop_buffer = self._get_tighter_trailing_buffer(abs(pnl_pct), is_ultra_quick=ultra_quick_trailing)
 
             # Update highest profit and price tracking
             if pnl_pct > position.get('highest_profit_pct', 0.0):
@@ -2226,9 +2343,24 @@ class TVScreenerUsage:
             # Check for exit conditions
             should_exit = False
             exit_reason = ""
+            
+            # 0. Ultra-quick tight trailing activation for very fast profits (NO HARD EXITS)
+            if ultra_quick_trailing and not position.get('trailing_stop_active', False):
+                position['trailing_stop_active'] = True
+                position['best_profit_pct'] = pnl_pct
+                
+                # Determine trigger type for logging
+                if trade_duration_minutes <= 3:
+                    trigger_type = "ULTRA-QUICK"
+                elif trade_duration_minutes <= 5:
+                    trigger_type = "QUICK"
+                else:
+                    trigger_type = "FAST"
+                    
+                console.print(f"[green]🚀 {symbol}: {trigger_type} trailing activated at {pnl_pct:.2f}% in {trade_duration_minutes:.1f}m[/green]")
 
             # 1. Regular stop loss (if not in trailing mode)
-            if not position.get('trailing_stop_active', False) and pnl_pct <= stop_loss_pct:
+            elif not position.get('trailing_stop_active', False) and pnl_pct <= stop_loss_pct:
                 should_exit = True
                 exit_reason = f"STOP LOSS: {pnl_pct:.2f}%"
 
@@ -2295,12 +2427,18 @@ class TVScreenerUsage:
             console.print(f"[bold red]{exit_log}[/bold red]")
 
             # Log exit trade to journal
-            self.log_trade("EXIT", symbol, exit_price, position['qty'], exit_amount, reason, pnl_pct, pnl_amount)
+            exit_side = 'SELL' if position['side'] == 'BUY' else 'BUY'
+            self.log_trade("EXIT", symbol, exit_price, position['qty'], exit_amount, reason, pnl_pct, pnl_amount, side=exit_side)
 
             # If stop loss exit, add cooldown
             if "STOP LOSS" in reason:
                 self.stop_loss_cooldown[symbol] = datetime.now()
                 console.print(f"[dim red]🚫 Added {symbol} to 30-minute stop loss cooldown[/dim red]")
+            
+            # Add to loss cooldown for ANY loss (30+ minutes after loss)
+            if pnl_amount < 0:  # Any loss
+                self.loss_cooldown[symbol] = datetime.now()
+                console.print(f"[dim red]🚫 Added {symbol} to 30-minute loss cooldown (₹{pnl_amount:+,.0f})[/dim red]")
 
             # Add to live trades log
             self.live_trades.append({
@@ -2366,6 +2504,184 @@ class TVScreenerUsage:
             return tv_utils.get_progressive_trailing_buffer(profit_pct, volatility_adjustment)
         except Exception:
             return 1.0
+    
+    def _get_tighter_trailing_buffer(self, profit_pct, is_ultra_quick=False):
+        """MUCH TIGHTER trailing buffer for aggressive profit locking"""
+        # Ultra-tight trailing stops that lock in profits very quickly
+        
+        # EVEN TIGHTER for ultra-quick trailing scenarios  
+        if is_ultra_quick:
+            if profit_pct >= 2.0:    # 2%+ profit: Lock in 95% (0.1% buffer)
+                return 0.1
+            elif profit_pct >= 1.5:  # 1.5%+ profit: Lock in 92% (0.15% buffer)  
+                return 0.15
+            elif profit_pct >= 1.0:  # 1%+ profit: Lock in 88% (0.2% buffer)
+                return 0.2
+            elif profit_pct >= 0.8:  # 0.8%+ profit: Lock in 85% (0.25% buffer)
+                return 0.25
+            else:                    # < 0.8% profit: Tight initial buffer
+                return 0.3
+        
+        # Regular tight trailing (original logic)
+        if profit_pct >= 2.0:    # 2%+ profit: Lock in 90% (0.2% buffer)
+            return 0.2
+        elif profit_pct >= 1.5:  # 1.5%+ profit: Lock in 85% (0.25% buffer)  
+            return 0.25
+        elif profit_pct >= 1.0:  # 1%+ profit: Lock in 80% (0.3% buffer)
+            return 0.3
+        elif profit_pct >= 0.8:  # 0.8%+ profit: Lock in 75% (0.35% buffer)
+            return 0.35
+        elif profit_pct >= 0.6:  # 0.6%+ profit: Lock in 65% (0.4% buffer)
+            return 0.4
+        elif profit_pct >= 0.4:  # 0.4%+ profit: Lock in 50% (0.45% buffer)
+            return 0.45
+        else:                    # < 0.4% profit: Initial buffer
+            return 0.5
+
+    def _detect_volatility_level(self, symbol, current_price):
+        """Detect volatility level for a stock to determine if ATR-based stops should be used"""
+        try:
+            if not hasattr(self, 'upstox_api') or not self.upstox_api:
+                return 'normal'  # Default to normal volatility
+            
+            from datetime import datetime, timedelta
+            import numpy as np
+            
+            # Get recent price data (10 days for volatility calculation)
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - timedelta(days=15)).strftime('%Y-%m-%d')
+            
+            df = self.upstox_api.fetch_historical_data_v3(
+                symbol=symbol,
+                unit='days',
+                interval=1,
+                to_date=to_date,
+                from_date=from_date
+            )
+            
+            if df is None or df.empty or len(df) < 5:
+                return 'normal'  # Default if insufficient data
+            
+            # Calculate daily returns
+            df['returns'] = df['close'].pct_change()
+            
+            # Calculate volatility (standard deviation of returns)
+            volatility = df['returns'].std()
+            
+            # Calculate average daily range as % of price
+            df['daily_range_pct'] = ((df['high'] - df['low']) / df['close']) * 100
+            avg_daily_range = df['daily_range_pct'].mean()
+            
+            # Thresholds for volatility classification
+            high_vol_threshold = 0.03  # 3% daily volatility
+            high_range_threshold = 4.0  # 4% average daily range
+            
+            # Classify volatility
+            if volatility > high_vol_threshold or avg_daily_range > high_range_threshold:
+                console.print(f"[dim yellow]⚠️ {symbol} classified as HIGH volatility (Vol: {volatility:.3f}, Range: {avg_daily_range:.1f}%)[/dim yellow]")
+                return 'high'
+            else:
+                console.print(f"[dim green]✅ {symbol} classified as NORMAL volatility (Vol: {volatility:.3f}, Range: {avg_daily_range:.1f}%)[/dim green]")
+                return 'normal'
+                
+        except Exception as e:
+            console.print(f"[dim red]⚠️ Volatility detection failed for {symbol}: {e}[/dim red]")
+            return 'normal'  # Conservative default
+    
+    def _calculate_atr_based_stop(self, symbol, current_price, atr_multiplier=2.0):
+        """Calculate ATR-based stop loss for volatile stocks"""
+        try:
+            if not hasattr(self, 'upstox_api') or not self.upstox_api:
+                # Fallback to fixed percentage for volatile stocks
+                return current_price * 0.98  # 2% stop loss as fallback
+            
+            from datetime import datetime, timedelta
+            import numpy as np
+            
+            # Get historical data for ATR calculation (need at least 14 days)
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            
+            df = self.upstox_api.fetch_historical_data_v3(
+                symbol=symbol,
+                unit='days',
+                interval=1,
+                to_date=to_date,
+                from_date=from_date
+            )
+            
+            if df is None or df.empty or len(df) < 14:
+                # Fallback to fixed percentage
+                return current_price * 0.98
+            
+            # Calculate True Range
+            df['high_low'] = df['high'] - df['low']
+            df['high_close_prev'] = np.abs(df['high'] - df['close'].shift(1))
+            df['low_close_prev'] = np.abs(df['low'] - df['close'].shift(1))
+            
+            df['true_range'] = df[['high_low', 'high_close_prev', 'low_close_prev']].max(axis=1)
+            
+            # Calculate ATR (14-period average)
+            atr = df['true_range'].rolling(window=14).mean().iloc[-1]
+            
+            if pd.isna(atr) or atr <= 0:
+                # Fallback to fixed percentage
+                return current_price * 0.98
+            
+            # ATR-based stop: current_price - (ATR * multiplier)
+            atr_stop = current_price - (atr * atr_multiplier)
+            
+            # Ensure stop is reasonable (not more than 5% below current price)
+            min_stop = current_price * 0.95
+            atr_stop = max(atr_stop, min_stop)
+            
+            console.print(f"[dim]ATR Stop for {symbol}: ₹{atr_stop:.2f} (ATR: {atr:.2f}, Current: ₹{current_price:.2f})[/dim]")
+            return atr_stop
+            
+        except Exception as e:
+            console.print(f"[dim red]⚠️ ATR calculation failed for {symbol}: {e}[/dim red]")
+            # Conservative fallback
+            return current_price * 0.98
+
+    def _check_confirmed_downtrend_for_short(self, symbol, row):
+        """Check if confirmed downtrend exists before allowing short (price < VWAP + bearish volume)"""
+        try:
+            current_price = row['close']
+            
+            # Get VWAP if available, otherwise estimate using volume-weighted price
+            vwap = row.get('VWAP', current_price)  # Fallback to current price if no VWAP
+            
+            # Check if price is below VWAP (bearish condition)
+            price_below_vwap = current_price < vwap
+            
+            # Check for bearish volume (volume above average with negative price action)
+            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
+            change = row.get('change', 0)
+            
+            # Bearish volume: elevated volume (>1.2x) with negative or weak positive move
+            bearish_volume = volume_ratio > 1.2 and change < 1.0
+            
+            # Additional trend confirmation
+            ema20 = row.get('EMA20', current_price)
+            ema50 = row.get('EMA50', current_price)
+            
+            # Stronger confirmation: price below moving averages
+            below_ema20 = current_price < ema20
+            ema_bearish = ema20 < ema50  # 20 EMA below 50 EMA
+            
+            # Require at least basic downtrend confirmation
+            confirmed_downtrend = price_below_vwap and (bearish_volume or (below_ema20 and ema_bearish))
+            
+            if confirmed_downtrend:
+                console.print(f"[dim green]✅ {symbol}: Confirmed downtrend for short - Price<VWAP: {price_below_vwap}, Bearish Vol: {bearish_volume}[/dim green]")
+            else:
+                console.print(f"[dim yellow]⚠️ {symbol}: No confirmed downtrend - Price<VWAP: {price_below_vwap}, Bearish Vol: {bearish_volume}[/dim yellow]")
+            
+            return confirmed_downtrend
+            
+        except Exception as e:
+            console.print(f"[dim red]⚠️ Error checking downtrend for {symbol}: {e}[/dim red]")
+            return False  # Conservative approach - don't short if can't confirm
 
     def _calculate_trading_charges(self, trade_value, trade_type='intraday'):
         """Estimate trading charges; delegate to tv_utils when available"""
