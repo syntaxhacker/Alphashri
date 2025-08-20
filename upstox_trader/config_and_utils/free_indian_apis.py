@@ -237,6 +237,50 @@ class UpstoxAPI:
         print(f"❌ Instrument key for '{symbol}' not found with the specified criteria.")
         return None
 
+    def fetch_intraday_data(self, symbol: str, interval: str, to_date: str, instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None, exchange: str = 'NSE_EQ') -> Optional[pd.DataFrame]:
+        """
+        Fetches intraday OHLCV data for the current trading day using the Intraday API.
+        
+        Note: The Intraday API supports '1minute', '30minute' for the current trading day only.
+        """
+        if not self.access_token and not self.authenticate():
+            return None
+        
+        instrument_key = self.get_instrument_key(symbol, instrument_type=instrument_type, expiry_date=expiry_date, strike_price=strike_price, option_type=option_type, exchange=exchange)
+        if not instrument_key:
+            return None
+            
+        print(f"📊 Fetching intraday data for {symbol}...")
+        
+        # Intraday API endpoint - no from_date for same day
+        url = f"{BASE_URL_V2}/historical-candle/{instrument_key}/{interval}/{to_date}"
+        
+        try:
+            response = requests.get(url, headers=self._get_headers())
+            response.raise_for_status()
+            
+            data = response.json()
+            if data.get('status') == 'success' and 'data' in data:
+                candles_data = data['data']['candles']
+                if candles_data:
+                    print(f"✅ Successfully fetched {len(candles_data)} records for {symbol}.")
+                    df = pd.DataFrame(candles_data, columns=['datetime', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+                    df['datetime'] = pd.to_datetime(df['datetime'])
+                    df.set_index('datetime', inplace=True)
+                    return df
+                else:
+                    print(f"⚠️ No candle data available for {symbol}.")
+                    return None
+            else:
+                print(f"❌ API returned error for {symbol}: {data}")
+                return None
+        except requests.RequestException as e:
+            print(f"❌ Request failed for {symbol}: {e}")
+            return None
+        except Exception as e:
+            print(f"❌ Error processing data for {symbol}: {e}")
+            return None
+
     def fetch_historical_data(self, symbol: str, interval: str, from_date: str, to_date: str, instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None, exchange: str = 'NSE_EQ') -> Optional[pd.DataFrame]:
         """
         Fetches historical OHLCV data for a given symbol using the V2 API.
@@ -253,11 +297,11 @@ class UpstoxAPI:
             
         print(f"📊 Fetching {interval} historical data for {symbol}...")
         
-        url = f"{BASE_URL_V2}/historical-candle/{instrument_key}/{interval}/{to_date}"
-        params = {'from_date': from_date}
+        # Historical API endpoint - includes from_date in URL path
+        url = f"{BASE_URL_V2}/historical-candle/{instrument_key}/{interval}/{to_date}/{from_date}"
         
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers())
             response.raise_for_status()
             
             data = response.json().get('data', {}).get('candles', [])

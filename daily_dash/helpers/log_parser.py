@@ -56,7 +56,7 @@ def parse_trade_line(parts: List[str]) -> Dict[str, Any]:
         
         # For EXIT trades, the alertType and P&L are in separate parts
         # For ENTRY trades, there's only one part after the first 6
-        if action == 'EXIT':
+        if action.startswith('EXIT'):
             # Combine parts from index 6 to second-to-last for alertType
             alert_type = ' | '.join(parts[6:-1]).strip()
             # Parse P&L from the last part
@@ -101,17 +101,12 @@ def parse_pl_info(pl_text: str) -> tuple:
     pl_percent = 0.0
     
     if 'P&L:' in pl_text:
-        # Regex pattern to match P&L format: "P&L: -0.59% (₹-117)"
-        pattern = r'P&L:\s*([+-]?\d+(?:\.\d+)?)%?\s*(?:\((₹[+-]?\d+(?:,\d+)?(?:\.\d+)?)\))?'
+        # Regex pattern to match P&L format: "P&L: -0.37% (₹-74)"
+        pattern = r'P&L:\s*([+-]?\d+(?:\.\d+)?)%\s*\((₹[+-]?\d+(?:,\d+)?(?:\.\d+)?)\)'
         match = re.search(pattern, pl_text)
         
         if match:
             pl_percent = float(match.group(1))
-            if match.group(2):
-                pl_amount = float(match.group(2).replace('₹', '').replace(',', ''))
-            else:
-                # Calculate P&L amount if not provided
-                # This would need the price and qty from the trade
-                pass
+            pl_amount = float(match.group(2).replace('₹', '').replace(',', ''))
     
     return pl_amount, pl_percent

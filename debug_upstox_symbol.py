@@ -131,18 +131,19 @@ def main():
         print("\n❌ Cannot proceed without API connection")
         return
     
-    # Define different symbol format variations to test
+    # Define different symbol format variations for problematic symbols
     symbol_variants = [
-        'UPLPP1.E1',      # Original problematic format
-        'UPLPP1',         # Just symbol name
-        'UPLPP1:NSE',     # With NSE exchange
-        'UPLPP1:BSE',     # With BSE exchange
-        'UPLPP1.NS',      # Yahoo Finance style
-        'UPLPP1.BO',      # Yahoo Finance BSE style
-        'UPP1',           # Maybe different symbol
-        'UPL',            # Maybe different symbol
+        'SOMATEX',        # Failed symbol 1
+        'SOMTX',          # Maybe abbreviated
+        'SOMA',           # Maybe shorter
+        'CALSOFTPP',      # Failed symbol 2 (without .E1)
+        'CALSOFT',        # Maybe different format  
+        'TGL',            # Failed symbol 3
+        'TGLOBAL',        # Maybe full name
+        'INDSWFTLTD',     # Failed symbol 4
+        'INDSWFT',        # Maybe abbreviated
+        'INDSWIFT',       # Maybe different format
         'RELIANCE',       # Known working symbol for comparison
-        'RELIANCE:NSE',   # Known working with exchange
     ]
     
     # Test all symbol variations
@@ -170,7 +171,7 @@ def main():
     
     # Test fallback mechanism from the main script
     print(f"\n🔍 Testing fallback mechanism (NSE -> BSE)...")
-    test_symbols = ['UPLPP1', 'UPLPP1:NSE', 'UPLPP1:BSE']
+    test_symbols = ['JSLL', 'CAMLINFINE']
     
     for symbol in test_symbols:
         print(f"\n📋 Testing fallback for: {symbol}")

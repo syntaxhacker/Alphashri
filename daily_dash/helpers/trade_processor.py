@@ -15,7 +15,7 @@ def process_trades(raw_trades: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     open_trades = {}  # Dictionary to track open trades by symbol
     
     for trade in raw_trades:
-        if trade['action'] == 'ENTRY':
+        if trade['action'].startswith('ENTRY'):
             # Open a new trade
             open_trades[trade['symbol']] = {
                 'symbol': trade['symbol'],
@@ -30,9 +30,9 @@ def process_trades(raw_trades: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 'pl_percent': trade['pl_percent'],
                 'pl_class': trade['pl_class'],
                 'pl_symbol': trade['pl_symbol'],
-                'action': 'ENTRY'
+                'action': trade['action']
             }
-        elif trade['action'] == 'EXIT':
+        elif trade['action'].startswith('EXIT'):
             # Close the open trade for this symbol
             if trade['symbol'] in open_trades:
                 entry_trade = open_trades[trade['symbol']]
@@ -43,7 +43,7 @@ def process_trades(raw_trades: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 entry_trade['pl_percent'] = trade['pl_percent']
                 entry_trade['pl_class'] = trade['pl_class']
                 entry_trade['pl_symbol'] = trade['pl_symbol']
-                entry_trade['action'] = 'EXIT'
+                entry_trade['action'] = trade['action']
                 
                 processed_trades.append(entry_trade)
                 del open_trades[trade['symbol']]

@@ -18,8 +18,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.columns import Columns
-from datetime import datetime
-import pandas as pd
+from datetime import datetime, timedelta
 import argparse
 import time
 import threading
@@ -27,7 +26,8 @@ import os
 import signal
 import sys
 import atexit
-from datetime import datetime, timedelta
+
+import pandas as pd
 
 # Import mode functions from tv_modes
 try:
@@ -98,6 +98,33 @@ except Exception:
         except Exception:
             tv_display = None  # Will guard at call sites
 
+# Import utility modules with the same robust import pattern
+try:
+    # Package context imports
+    from .utils import tv_time_utils, tv_system_utils, tv_risk_utils, tv_technical_utils
+    from .utils import tv_price_utils, tv_data_utils, tv_logging_utils
+except Exception:
+    try:
+        # Absolute imports
+        from upstox_trader.screeners.utils import tv_time_utils, tv_system_utils, tv_risk_utils, tv_technical_utils
+        from upstox_trader.screeners.utils import tv_price_utils, tv_data_utils, tv_logging_utils
+    except Exception:
+        # Direct script execution fallback
+        try:
+            import sys
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            utils_dir = os.path.join(current_dir, 'utils')
+            if utils_dir not in sys.path:
+                sys.path.insert(0, utils_dir)
+            import tv_time_utils, tv_system_utils, tv_risk_utils, tv_technical_utils
+            import tv_price_utils, tv_data_utils, tv_logging_utils
+        except Exception as e:
+            print(f"⚠️ Could not import utility modules: {e}")
+            # Set to None to handle gracefully
+            tv_time_utils = tv_system_utils = tv_risk_utils = tv_technical_utils = None
+            tv_price_utils = tv_data_utils = tv_logging_utils = None
+
 # Local alerts module for Telegram sending
 try:
     from . import tv_alerts
@@ -118,6 +145,26 @@ except Exception:
     except Exception:
         tv_utils = None  # Guard at call sites
 
+# Import separated functionality modules
+try:
+    from .tv_trading_core import TradingCore
+    from .tv_gap_analysis import GapAnalysis
+    from .tv_technical_analysis import TechnicalAnalysis
+    from .tv_live_data import LiveDataMonitor
+    from .tv_display_utils import DisplayUtils
+    from .symbol_validator import get_symbol_validator, validate_symbol, get_valid_symbol, is_symbol_blacklisted
+except ImportError:
+    try:
+        from tv_trading_core import TradingCore
+        from tv_gap_analysis import GapAnalysis
+        from tv_technical_analysis import TechnicalAnalysis
+        from tv_live_data import LiveDataMonitor
+        from tv_display_utils import DisplayUtils
+        from symbol_validator import get_symbol_validator, validate_symbol, get_valid_symbol, is_symbol_blacklisted
+    except ImportError as e:
+        console.print(f"⚠️ Could not import separated modules: {e}", style="yellow")
+        TradingCore = GapAnalysis = TechnicalAnalysis = LiveDataMonitor = DisplayUtils = None
+
 class TVScreenerUsage:
     def __init__(self, market='in', enable_paper_trading=False, config: TVTradingConfig = None):
         self.cookies = get_tradingview_cookies()
@@ -137,9 +184,9 @@ class TVScreenerUsage:
         if self.tv_display is None:
             console.print("[yellow]tv_display module unavailable (table rendering degraded).[/yellow]")
 
-        # Set market based on parameter
+        # Set market based on parameter - use TradingView API format
         if market.lower() == 'us':
-            self.market = 'america'
+            self.market = 'america'  # TradingView expects 'america' for US stocks
         elif market.lower() == 'in':
             self.market = 'india'
         else:
@@ -147,9 +194,16 @@ class TVScreenerUsage:
             
         console.print(f"[blue]📊 Market: {self.market.upper()}[/blue]")
         
+        # Set currency symbol based on market
+        self.currency_symbol = '$' if self.market == 'america' else '₹'
+        
+        # Initialize real-time momentum tracking
+        self.momentum_history = {}  # {ticker: [(timestamp, price, change%), ...]}
+        self.momentum_signals = {}  # {ticker: {'direction': 'UP/DOWN', 'consecutive_count': int, 'last_signal_time': datetime}}
+        
         # Initialize trade journaling
         self.journal_file = None
-        self.setup_trade_journal()
+        # Note: setup_trade_journal() called after module initialization
         
         # Telegram integration
         self.telegram_enabled = TELEGRAM_AVAILABLE and TELEGRAM_CONFIG.get('bot_token') if TELEGRAM_AVAILABLE else False
@@ -213,6 +267,28 @@ class TVScreenerUsage:
             console.print(f"[yellow]⚠️ Upstox API unavailable - using simulated S/R: {e}[/yellow]")
             self.upstox_api = None
         
+        # Set upstox_client alias for compatibility with separated modules
+        self.upstox_client = self.upstox_api
+        
+        # Initialize separated functionality modules
+        if TradingCore and GapAnalysis and TechnicalAnalysis and LiveDataMonitor and DisplayUtils:
+            self.trading_core = TradingCore(self)
+            self.gap_analysis = GapAnalysis(self)
+            self.technical_analysis = TechnicalAnalysis(self)
+            self.live_data = LiveDataMonitor(self)
+            self.display_utils = DisplayUtils(self)
+            console.print("[green]✅ Separated modules initialized successfully[/green]")
+        else:
+            console.print("[yellow]⚠️ Some separated modules unavailable - using original methods[/yellow]")
+            self.trading_core = None
+            self.gap_analysis = None
+            self.technical_analysis = None
+            self.live_data = None
+            self.display_utils = None
+        
+        # Now setup trade journal after modules are initialized
+        self.setup_trade_journal()
+        
         if self.paper_trading_enabled:
             if self.upstox_api:
                 console.print("[green]✅ Paper Trading enabled (₹20,000 per trade) with live Upstox prices[/green]")
@@ -230,29 +306,34 @@ class TVScreenerUsage:
     
     def _is_trading_hours(self):
         """Check if current time is within trading hours"""
+        if tv_time_utils:
+            return tv_time_utils.is_trading_hours(
+                self.trading_start_time, 
+                self.trading_end_time, 
+                self.paper_trading_enabled
+            )
+        # Fallback if utility not available
         if not self.paper_trading_enabled:
-            return True  # Always allow if paper trading is disabled
-            
+            return True
         try:
             from datetime import datetime, time
             now = datetime.now().time()
-            
-            # Parse trading hours
             start_time = datetime.strptime(self.trading_start_time, "%H:%M").time()
             end_time = datetime.strptime(self.trading_end_time, "%H:%M").time()
-            
-            # Check if current time is within trading hours
             return start_time <= now <= end_time
         except Exception as e:
             console.print(f"[yellow]⚠️ Error checking trading hours: {e}. Allowing trade.[/yellow]")
-            return True  # Default to allowing trade if there's an error
+            return True
     
     def _is_market_closed(self):
-        """Check if market has closed (after 3:00 PM)"""
+        """Check if market has closed (after 3:30 PM)"""
+        if tv_time_utils:
+            return tv_time_utils.is_market_closed("15:30")  # Use actual market close time
+        # Fallback if utility not available
         try:
             from datetime import datetime, time
             now = datetime.now().time()
-            market_close = datetime.strptime(self.trading_end_time, "%H:%M").time()
+            market_close = datetime.strptime("15:30", "%H:%M").time()  # Market closes at 3:30 PM
             return now > market_close
         except Exception as e:
             return False  # If error, assume market is open
@@ -445,6 +526,10 @@ class TVScreenerUsage:
     # Removed unused _send_telegram_alert stub; sending is delegated to tv_alerts.send_telegram_alert
         
     def setup_trade_journal(self):
+        """Setup trade journal - delegate to trading_core if available"""
+        # if self.trading_core:
+        #     return self.trading_core.setup_trade_journal()
+        # Original implementation follows below
         """Setup trade journal file with date and mode"""
         from datetime import datetime
         import os
@@ -517,19 +602,19 @@ class TVScreenerUsage:
                 console.print(f"[dim yellow]⚠️ {symbol}: Too close to 52W high (only {distance_from_high:.1f}% below)[/dim yellow]")
                 return False
             
-            # Check 2: RSI too overbought (above 70 - more aggressive than 75)
-            if rsi > 70:
-                console.print(f"[dim yellow]⚠️ {symbol}: RSI too overbought ({rsi:.1f} > 70)[/dim yellow]")
+            # Check 2: RSI too overbought (relaxed for FOMO mode)
+            if rsi > 85:  # Much more aggressive threshold
+                console.print(f"[dim yellow]⚠️ {symbol}: RSI too overbought ({rsi:.1f} > 85)[/dim yellow]")
                 return False
             
-            # Check 3: TODAY'S move too extreme (above 6% - more conservative than 8%)
+            # Check 3: TODAY'S move too extreme (relaxed for FOMO mode)
             today_change = row.get('change', 0)
-            if today_change > 6.0:
-                console.print(f"[dim yellow]⚠️ {symbol}: Today's move too extreme (+{today_change:.1f}% > 6%)[/dim yellow]")
+            if today_change > 12.0:  # Much more aggressive threshold
+                console.print(f"[dim yellow]⚠️ {symbol}: Today's move too extreme (+{today_change:.1f}% > 12%)[/dim yellow]")
                 return False
             
-            # Check 4: Intraday momentum divergence - very high volume with small move suggests profit taking
-            if volume_ratio > 5.0 and today_change < 2.0:
+            # Check 4: Intraday momentum divergence (relaxed for FOMO mode)
+            if volume_ratio > 15.0 and today_change < 0.5:  # Much more aggressive thresholds
                 console.print(f"[dim yellow]⚠️ {symbol}: High volume ({volume_ratio:.1f}x) with weak price action - potential distribution[/dim yellow]")
                 return False
             
@@ -555,12 +640,12 @@ class TVScreenerUsage:
             
             # Check 9: Price extension from EMA20 (don't chase stocks too far above support)
             price_above_ema20 = ((current_price - ema20) / ema20) * 100
-            if price_above_ema20 > 5.0:
-                console.print(f"[dim yellow]⚠️ {symbol}: Too far above EMA20 ({price_above_ema20:.1f}% > 5%) - wait for pullback[/dim yellow]")
+            if price_above_ema20 > 8.0:  # More aggressive threshold
+                console.print(f"[dim yellow]⚠️ {symbol}: Too far above EMA20 ({price_above_ema20:.1f}% > 8%) - wait for pullback[/dim yellow]")
                 return False
             
-            # Check 10: Momentum quality check - RSI vs Price action alignment
-            if rsi > 65 and today_change < 1.5:
+            # Check 10: Momentum quality check - RSI vs Price action alignment (relaxed)
+            if rsi > 75 and today_change < 0.5:  # More aggressive thresholds
                 console.print(f"[dim yellow]⚠️ {symbol}: RSI high ({rsi:.1f}) but weak price action - momentum fading[/dim yellow]")
                 return False
             
@@ -585,16 +670,16 @@ class TVScreenerUsage:
             macd = row.get('MACD.macd', 0)
             macd_signal = row.get('MACD.signal', 0)
             
-            # Check 1: Price vs RSI divergence
+            # Check 1: Price vs RSI divergence (relaxed for FOMO mode)
             # If price is strong but RSI is weakening, that's bearish divergence
             today_change = row.get('change', 0)
-            if today_change > 3.0 and rsi < 55:
+            if today_change > 8.0 and rsi < 35:  # Much more aggressive thresholds
                 console.print(f"[dim yellow]⚠️ {symbol}: Potential RSI divergence - strong price (+{today_change:.1f}%) but weak RSI ({rsi:.1f})[/dim yellow]")
                 return False
             
-            # Check 2: Volume-Price divergence
+            # Check 2: Volume-Price divergence (relaxed for FOMO mode)
             # Very high volume with small price move suggests institutions selling into strength
-            if volume_ratio > 4.0 and today_change < 2.5:
+            if volume_ratio > 6.0 and today_change < 1.0:  # More relaxed thresholds
                 console.print(f"[dim yellow]⚠️ {symbol}: Volume-price divergence - high volume ({volume_ratio:.1f}x) with weak move (+{today_change:.1f}%)[/dim yellow]")
                 return False
             
@@ -1541,7 +1626,11 @@ class TVScreenerUsage:
 
     # Use shared helper to display tables to avoid duplication
     def display_table(self, df, title, max_rows=15):
-        return helpers_display_table(df, title, max_rows)
+        """Display table - delegate to display_utils if available"""
+        if self.display_utils:
+            return self.display_utils.display_table(df, title, max_rows)
+        # Original implementation follows below
+        return helpers_display_table(df, title, max_rows, self.currency_symbol)
 
     # ==================== PRE-BREAKOUT STRATEGIES (NEW) ====================
     
@@ -1895,7 +1984,7 @@ class TVScreenerUsage:
             
             # Filter for stocks with meaningful gaps (0.8% or more) after getting data
             if not df.empty:
-                df = df[abs(df['change']) >= 0.8].copy()
+                df = df[df['change'].abs() >= 0.8].copy()
             
             return df
             
@@ -2330,13 +2419,26 @@ class TVScreenerUsage:
     # ==================== INTRADAY WATCH MODE ====================
     
     def wait_until_market_open(self):
-        """Wait until 9:20 AM before starting active monitoring"""
+        """Wait until market open time before starting active monitoring"""
+        if tv_time_utils:
+            return tv_time_utils.wait_until_market_open(self.paper_trading_enabled, self.market)
+        # Fallback implementation
+        if not self.paper_trading_enabled:
+            console.print("[green]✅ Paper trading disabled - starting monitoring immediately (watch mode)[/green]")
+            return
+            
+        # Skip waiting for US market - always start immediately since US market hours are different
+        if self.market == 'us':
+            console.print("[green]✅ US Market - starting monitoring immediately (no wait)[/green]")
+            return
+            
+        # For Indian market with paper trading enabled, wait until 9:20 AM IST
         target_time = datetime.now().replace(hour=9, minute=16, second=0, microsecond=0)
         current_time = datetime.now()
         
         # If we're past 9:20 AM today, start immediately
         if current_time >= target_time:
-            console.print("[green]✅ Market open time reached - starting active monitoring[/green]")
+            console.print("[green]✅ Indian market open time reached - starting active monitoring[/green]")
             return
         
         # Calculate wait time
@@ -2344,9 +2446,9 @@ class TVScreenerUsage:
         wait_minutes = int(wait_seconds // 60)
         wait_secs = int(wait_seconds % 60)
         
-        console.print(f"[yellow]⏰ Waiting until 9:20 AM to start active monitoring...[/yellow]")
-        console.print(f"[blue]Current time: {current_time.strftime('%H:%M:%S')}[/blue]")
-        console.print(f"[blue]Target time: 9:20:00[/blue]")
+        console.print(f"[yellow]⏰ Paper trading enabled - waiting until 9:20 AM IST to start trading...[/yellow]")
+        console.print(f"[blue]Current time: {current_time.strftime('%H:%M:%S')} IST[/blue]")
+        console.print(f"[blue]Target time: 9:20:00 IST[/blue]")
         console.print(f"[yellow]Time remaining: {wait_minutes}m {wait_secs}s[/yellow]")
         console.print()
         
@@ -2363,16 +2465,16 @@ class TVScreenerUsage:
             if int(remaining) % 30 == 0:
                 # Clear screen and show countdown
                 os.system('clear' if os.name == 'posix' else 'cls')
-                console.print("[bold yellow]⏰ WAITING FOR MARKET OPEN[/bold yellow]")
+                console.print("[bold yellow]⏰ WAITING FOR TRADING HOURS (Paper Trading)[/bold yellow]")
                 console.print(f"[dim]Current time: {datetime.now().strftime('%H:%M:%S')}[/dim]")
-                console.print(f"[blue]🕘 {mins}m {secs}s until active monitoring starts (9:20 AM)[/blue]")
+                console.print(f"[blue]🕘 {mins}m {secs}s until active monitoring starts (9:20 AM IST)[/blue]")
                 console.print("[dim]Press Ctrl+C to stop[/dim]")
             
             time.sleep(1)
         
         # Clear screen and show start message
         os.system('clear' if os.name == 'posix' else 'cls')
-        console.print("[green]🚀 9:20 AM reached - starting active monitoring mode![/green]")
+        console.print("[green]🚀 9:20 AM IST reached - starting paper trading mode![/green]")
         time.sleep(2)
 
     def _detect_alerts(self, current_data, previous_data, volume_threshold, price_threshold):
@@ -2402,8 +2504,8 @@ class TVScreenerUsage:
                     # Calculate confidence
                     confidence = self._calculate_alert_confidence('VOLUME_SPIKE', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
                     
-                    # Only send if confidence is high enough
-                    if confidence >= 0.8:  # 80% minimum confidence
+                    # Only send if confidence is high enough (relaxed for FOMO mode)
+                    if confidence >= 0.3:  # 30% minimum confidence
                         alert = {
                             'type': 'VOLUME_SPIKE',
                             'ticker': ticker,
@@ -2438,8 +2540,8 @@ class TVScreenerUsage:
                     # Calculate confidence
                     confidence = self._calculate_alert_confidence('PRICE_MOVE', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
                     
-                    # Only send if confidence is high enough
-                    if confidence >= 0.8:  # 80% minimum confidence
+                    # Only send if confidence is high enough (relaxed for FOMO mode)
+                    if confidence >= 0.3:  # 30% minimum confidence
                         alert = {
                             'type': 'PRICE_MOVE',
                             'ticker': ticker,
@@ -2548,7 +2650,7 @@ class TVScreenerUsage:
                     should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'EARLY_MOMENTUM')
                     if not should_skip:
                         confidence = self._calculate_alert_confidence('EARLY_MOMENTUM', row['relative_volume_10d_calc'], row['change'], rsi_current)
-                        if confidence >= 0.5:
+                        if confidence >= 0.25:
                             alert = {
                                 'type': 'EARLY_MOMENTUM',
                                 'ticker': ticker,
@@ -2573,7 +2675,7 @@ class TVScreenerUsage:
                     should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'ACCUMULATION')
                     if not should_skip:
                         confidence = self._calculate_alert_confidence('ACCUMULATION', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
-                        if confidence >= 0.5:
+                        if confidence >= 0.25:
                             alert = {
                                 'type': 'ACCUMULATION',
                                 'ticker': ticker,
@@ -2597,7 +2699,7 @@ class TVScreenerUsage:
                     should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'PREBREAKOUT')
                     if not should_skip:
                         confidence = self._calculate_alert_confidence('PREBREAKOUT', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
-                        if confidence >= 0.5:
+                        if confidence >= 0.25:
                             alert = {
                                 'type': 'PREBREAKOUT',
                                 'ticker': ticker,
@@ -2625,7 +2727,7 @@ class TVScreenerUsage:
                     should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'GAP_BREAKOUT')
                     if not should_skip:
                         confidence = self._calculate_alert_confidence('GAP_BREAKOUT', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
-                        if confidence >= 0.5:
+                        if confidence >= 0.25:
                             alert = {
                                 'type': 'GAP_BREAKOUT',
                                 'ticker': ticker,
@@ -2702,6 +2804,95 @@ class TVScreenerUsage:
                         }
                         alerts.append(alert)
                         self.last_alert_time[f"{ticker}_HEAVY_BREAKOUT"] = datetime.now()
+            
+            elif watch_mode == 'FOMO_MOMENTUM':
+                # FOMO Momentum: Directional momentum trading on 0.8-6% moves
+                change_pct = row['change']
+                volume_ratio = row['relative_volume_10d_calc']
+                rsi_current = row.get('RSI', 50)
+                
+                # Check if this matches our momentum criteria (same as mode definition)
+                if ((0.8 <= change_pct <= 6.0) or (-6.0 <= change_pct <= -0.8)) and \
+                   volume_ratio > 1.3 and \
+                   35 <= rsi_current <= 75 and \
+                   row.get('Volatility.D', 0) > 0.02:
+                    
+                    should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'FOMO_MOMENTUM')
+                    if not should_skip:
+                        # Determine direction and calculate confidence
+                        direction = 'LONG' if change_pct > 0 else 'SHORT'
+                        
+                        # Enhanced confidence based on momentum strength and volume
+                        base_confidence = min(abs(change_pct) / 6.0, 1.0)  # Stronger moves = higher confidence
+                        volume_boost = min((volume_ratio - 1.3) / 2.0, 0.3)  # Volume adds up to 30% confidence
+                        rsi_factor = 1.0 if 45 <= rsi_current <= 65 else 0.8  # Optimal RSI range
+                        
+                        confidence = min(0.95, (base_confidence + volume_boost) * rsi_factor)
+                        
+                        if confidence >= 0.3:  # Relaxed confidence threshold for momentum trades
+                            alert = {
+                                'type': 'FOMO_MOMENTUM',
+                                'ticker': ticker,
+                                'name': row['name'],
+                                'volume_ratio': volume_ratio,
+                                'price': row['close'],
+                                'change': change_pct,
+                                'direction': direction,
+                                'rsi': rsi_current,
+                                'volatility': row.get('Volatility.D', 0) * 100,
+                                'confidence': confidence
+                            }
+                            alerts.append(alert)
+                            self.last_alert_time[f"{ticker}_FOMO_MOMENTUM"] = datetime.now()
+            
+            elif watch_mode == 'REALTIME_MOMENTUM':
+                # REALTIME Momentum: Continuous price action detection on short intervals
+                if hasattr(self, 'momentum_signals') and ticker in self.momentum_signals:
+                    signal_info = self.momentum_signals[ticker]
+                    
+                    # Check if we have a valid momentum signal
+                    if (signal_info['consecutive_count'] >= 3 and  # Minimum consecutive moves
+                        signal_info['direction'] != 'NEUTRAL' and  # Clear direction
+                        signal_info['last_signal_time'] and
+                        (datetime.now() - signal_info['last_signal_time']).total_seconds() < 300):  # Signal is recent (5 min)
+                        
+                        should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'REALTIME_MOMENTUM')
+                        if not should_skip:
+                            # Calculate momentum strength from recent data
+                            history = self.momentum_history.get(ticker, [])
+                            momentum_strength = 0.0
+                            if len(history) >= 2:
+                                # Calculate average price change over recent intervals
+                                recent_moves = []
+                                for i in range(1, min(len(history), 5)):
+                                    prev_price = history[i-1][1]
+                                    curr_price = history[i][1]
+                                    move_pct = abs((curr_price - prev_price) / prev_price) * 100
+                                    recent_moves.append(move_pct)
+                                momentum_strength = sum(recent_moves) / len(recent_moves) if recent_moves else 0.0
+                            
+                            # Enhanced confidence based on consecutive count and momentum strength
+                            base_confidence = min(signal_info['consecutive_count'] / 5.0, 0.8)  # Up to 80% from consecutive moves
+                            strength_boost = min(momentum_strength / 2.0, 0.15)  # Up to 15% from momentum strength
+                            volume_factor = min(row['relative_volume_10d_calc'] / 2.0, 0.05)  # Small volume boost
+                            
+                            confidence = min(0.95, base_confidence + strength_boost + volume_factor)
+                            
+                            if confidence >= 0.35:  # Relaxed confidence threshold for real-time momentum
+                                alert = {
+                                    'type': 'REALTIME_MOMENTUM',
+                                    'ticker': ticker,
+                                    'name': row['name'],
+                                    'volume_ratio': row['relative_volume_10d_calc'],
+                                    'price': row['close'],
+                                    'change': row['change'],
+                                    'direction': signal_info['direction'],
+                                    'consecutive_moves': signal_info['consecutive_count'],
+                                    'momentum_strength': momentum_strength,
+                                    'confidence': confidence
+                                }
+                                alerts.append(alert)
+                                self.last_alert_time[f"{ticker}_REALTIME_MOMENTUM"] = datetime.now()
 
         # Universal overbought short detection - available in all modes
         for _, row in current_data.iterrows():
@@ -2715,9 +2906,9 @@ class TVScreenerUsage:
                 volume_ratio >= self.config.signal_filtering.min_volume_ratio and  # Decent volume  
                 change_pct > self.config.signal_filtering.min_change_overbought):  # Stock has moved up (potential reversal)
                 
-                # REQUIRE confirmed downtrend before shorting overbought signals
+                # RELAXED downtrend requirement for FOMO mode
                 confirmed_downtrend = self._check_confirmed_downtrend_for_short(ticker, row)
-                if not confirmed_downtrend:
+                if not confirmed_downtrend and rsi < 85:  # Only require confirmation for less extreme RSI
                     console.print(f"[yellow]⚠️ {ticker}: Overbought but no confirmed downtrend - skipping short[/yellow]")
                     continue
                 
@@ -2862,8 +3053,8 @@ class TVScreenerUsage:
             below_ema20 = current_price < ema20
             ema_bearish = ema20 < ema50  # 20 EMA below 50 EMA
             
-            # Require at least basic downtrend confirmation
-            confirmed_downtrend = price_below_vwap and (bearish_volume or (below_ema20 and ema_bearish))
+            # Relaxed downtrend confirmation for FOMO mode
+            confirmed_downtrend = price_below_vwap or bearish_volume or (below_ema20 and ema_bearish)  # OR instead of AND
             
             if confirmed_downtrend:
                 console.print(f"[dim green]✅ {symbol}: Confirmed downtrend for short - Price<VWAP: {price_below_vwap}, Bearish Vol: {bearish_volume}[/dim green]")
@@ -2879,8 +3070,29 @@ class TVScreenerUsage:
     def _calculate_alert_confidence(self, alert_type, volume_ratio, change_pct, rsi=None):
         """Calculate confidence score using shared tv_utils to avoid duplication"""
         if tv_utils is None:
-            # Fallback to original behavior if utils unavailable
-            return 0.2
+            # Fallback confidence calculation for FOMO mode (much more aggressive)
+            confidence = 0.5  # Base confidence boosted from 0.2 to 0.5
+            
+            # Volume factor
+            if volume_ratio >= 10.0:
+                confidence += 0.3
+            elif volume_ratio >= 5.0:
+                confidence += 0.2
+            elif volume_ratio >= 2.0:
+                confidence += 0.1
+            
+            # Price change factor
+            if abs(change_pct) >= 5.0:
+                confidence += 0.2
+            elif abs(change_pct) >= 2.0:
+                confidence += 0.1
+            
+            # RSI factor (if available)
+            if rsi is not None:
+                if 40 <= rsi <= 70:  # Good RSI range
+                    confidence += 0.1
+            
+            return min(confidence, 0.95)
         return tv_utils.calculate_alert_confidence(alert_type, volume_ratio, change_pct, rsi)
     
     def _calculate_short_confidence(self, rsi, change_pct, volume_ratio, is_overextended):
@@ -2974,26 +3186,26 @@ class TVScreenerUsage:
             if alert['type'] == 'VOLUME_SPIKE':
                 console.print(f"[bold red]🔥 VOLUME SPIKE:[/bold red] {alert['ticker']} ({alert['name'][:15]})")
                 console.print(f"   Volume: {alert['current_volume_ratio']:.1f}x (was {alert['previous_volume_ratio']:.1f}x)")
-                console.print(f"   Price: ₹{alert['price']:.2f} ({alert['change']:+.2f}%)")
+                console.print(f"   Price: {self.format_price(alert['price'])} ({alert['change']:+.2f}%)")
                 
             elif alert['type'] == 'PRICE_MOVE':
                 direction = "🚀" if alert['current_change'] > 0 else "📉"
-                console.print(f"[bold yellow]{direction} PRICE MOVE:[/bold yellow] {alert['ticker']} ({alert['name'][:15]})")
+                console.print(f"[bold yellow]{direction} PRICE_MOVE:[/bold yellow] {alert['ticker']} ({alert['name'][:15]})")
                 console.print(f"   Change: {alert['current_change']:+.2f}% (was {alert['previous_change']:+.2f}%)")
-                console.print(f"   Price: ₹{alert['price']:.2f} | Volume: {alert['volume_ratio']:.1f}x")
+                console.print(f"   Price: {self.format_price(alert['price'])} | Volume: {alert['volume_ratio']:.1f}x")
             
             elif alert['type'] == 'HEAVY_BREAKOUT':
                 # Enhanced heavy breakout alert with trading levels
                 direction_emoji = "🚀" if alert.get('trade_direction') == 'LONG' else "📉" if alert.get('trade_direction') == 'SHORT' else "⚡"
                 console.print(f"[bold red]{direction_emoji} HEAVY BREAKOUT:[/bold red] {alert['ticker']} ({alert['name'][:15]})")
                 console.print(f"   Pattern: {alert.get('pattern', 'Channel Breakout')} (Score: {alert.get('breakout_score', 0):.0f})")
-                console.print(f"   Price: ₹{alert['price']:.2f} ({alert['change']:+.2f}%) | Volume: {alert['volume_ratio']:.1f}x")
+                console.print(f"   Price: {self.format_price(alert['price'])} ({alert['change']:+.2f}%) | Volume: {alert['volume_ratio']:.1f}x")
                 
                 # Show support/resistance levels
                 support = alert.get('support_level')
                 resistance = alert.get('resistance_level')
                 if support and resistance:
-                    console.print(f"   📊 Support: ₹{support:.2f} | Resistance: ₹{resistance:.2f}")
+                    console.print(f"   📊 Support: {self.format_price(support)} | Resistance: {self.format_price(resistance)}")
                 
                 # Show trading setup
                 trade_direction = alert.get('trade_direction', 'WATCH')
@@ -3001,12 +3213,12 @@ class TVScreenerUsage:
                     entry = alert.get('entry_level')
                     stop = alert.get('stop_loss')
                     target = alert.get('target')
-                    console.print(f"   🎯 LONG SETUP: Entry ₹{entry:.2f} | Stop ₹{stop:.2f} | Target ₹{target:.2f}")
+                    console.print(f"   🎯 LONG SETUP: Entry {self.format_price(entry)} | Stop {self.format_price(stop)} | Target {self.format_price(target)}")
                 elif trade_direction == 'SHORT':
                     entry = alert.get('entry_level')
                     stop = alert.get('stop_loss')
                     target = alert.get('target')
-                    console.print(f"   🎯 SHORT SETUP: Entry ₹{entry:.2f} | Stop ₹{stop:.2f} | Target ₹{target:.2f}")
+                    console.print(f"   🎯 SHORT SETUP: Entry {self.format_price(entry)} | Stop {self.format_price(stop)} | Target {self.format_price(target)}")
                 else:
                     console.print(f"   👀 WATCH: Channel setup - wait for breakout above/below levels")
                 
@@ -3015,13 +3227,171 @@ class TVScreenerUsage:
                 if strength > 0:
                     console.print(f"   💪 Breakout Strength: {strength:.1f}%")
             
+            elif alert['type'] == 'FOMO_MOMENTUM':
+                # FOMO Momentum alert display
+                direction = alert.get('direction', 'UNKNOWN')
+                direction_emoji = "🚀" if direction == 'LONG' else "📉"
+                direction_color = "green" if direction == 'LONG' else "red"
+                
+                console.print(f"[bold {direction_color}]{direction_emoji} FOMO MOMENTUM:[/bold {direction_color}] {alert['ticker']} ({alert['name'][:15]})")
+                console.print(f"   Direction: {direction} | Change: {alert['change']:+.2f}% | Price: {self.format_price(alert['price'])}")
+                console.print(f"   Volume: {alert['volume_ratio']:.1f}x | RSI: {alert['rsi']:.1f} | Volatility: {alert['volatility']:.1f}%")
+                console.print(f"   🎯 Momentum Confidence: {alert['confidence']:.0%}")
+            
+            elif alert['type'] == 'REALTIME_MOMENTUM':
+                # Real-time momentum alert display
+                direction = alert.get('direction', 'UNKNOWN')
+                consecutive_moves = alert.get('consecutive_moves', 0)
+                momentum_strength = alert.get('momentum_strength', 0)
+                direction_emoji = "⚡🚀" if direction == 'UP' else "⚡📉"
+                direction_color = "green" if direction == 'UP' else "red"
+                
+                console.print(f"[bold {direction_color}]{direction_emoji} REALTIME MOMENTUM:[/bold {direction_color}] {alert['ticker']} ({alert['name'][:15]})")
+                console.print(f"   Direction: {direction} | Consecutive: {consecutive_moves} moves | Change: {alert['change']:+.2f}%")
+                console.print(f"   Price: {self.format_price(alert['price'])} | Volume: {alert['volume_ratio']:.1f}x")
+                console.print(f"   🔥 Momentum Strength: {momentum_strength:.2f}% | Confidence: {alert['confidence']:.0%}")
+            
             # Show trading action taken
             if self.paper_trading_enabled:
                 trade_action = self._get_trading_action(alert)
                 console.print(f"   [cyan]💰 Trading Action: {trade_action}[/cyan]")
     
+    def format_price(self, price: float) -> str:
+        """Format price with correct currency symbol based on market"""
+        if tv_price_utils:
+            return tv_price_utils.format_price(price, self.currency_symbol)
+        # Fallback
+        return f"{self.currency_symbol}{price:.2f}"
+    
+    def _add_realtime_momentum_analysis(self, df):
+        """Add real-time momentum analysis to detect continuous price action"""
+        from tv_modes import get_market_config
+        
+        current_time = datetime.now()
+        config = get_market_config(self.market)
+        momentum_config = config['realtime_momentum']
+        
+        interval_seconds = momentum_config['interval_seconds']
+        min_consecutive = momentum_config['min_consecutive_moves']
+        min_threshold = momentum_config['min_move_threshold']
+        
+        # Add momentum tracking columns
+        df['momentum_direction'] = 'NEUTRAL'
+        df['consecutive_moves'] = 0
+        df['momentum_strength'] = 0.0
+        df['momentum_signal'] = False
+        
+        for _, row in df.iterrows():
+            ticker = row['ticker']
+            current_price = row['close']
+            current_change = row['change']
+            
+            # Initialize tracking for new ticker
+            if ticker not in self.momentum_history:
+                self.momentum_history[ticker] = []
+                self.momentum_signals[ticker] = {
+                    'direction': 'NEUTRAL',
+                    'consecutive_count': 0,
+                    'last_signal_time': None
+                }
+            
+            # Add current data point
+            self.momentum_history[ticker].append((current_time, current_price, current_change))
+            
+            # Keep only recent data (last 10 intervals)
+            cutoff_time = current_time - timedelta(seconds=interval_seconds * 10)
+            self.momentum_history[ticker] = [
+                (t, p, c) for t, p, c in self.momentum_history[ticker] 
+                if t > cutoff_time
+            ]
+            
+            # Analyze momentum if we have enough data points
+            history = self.momentum_history[ticker]
+            if len(history) >= 3:  # Need at least 3 points to detect momentum
+                momentum_direction, consecutive_count, strength = self._calculate_momentum_signal(history, min_threshold)
+                
+                # Update tracking
+                signal_info = self.momentum_signals[ticker]
+                
+                if momentum_direction != 'NEUTRAL':
+                    if signal_info['direction'] == momentum_direction:
+                        signal_info['consecutive_count'] = consecutive_count
+                    else:
+                        # Direction changed, reset count
+                        signal_info['direction'] = momentum_direction
+                        signal_info['consecutive_count'] = consecutive_count
+                    
+                    # Check if we have enough consecutive moves for a signal
+                    if consecutive_count >= min_consecutive:
+                        df.loc[df['ticker'] == ticker, 'momentum_signal'] = True
+                        df.loc[df['ticker'] == ticker, 'momentum_direction'] = momentum_direction
+                        df.loc[df['ticker'] == ticker, 'consecutive_moves'] = consecutive_count
+                        df.loc[df['ticker'] == ticker, 'momentum_strength'] = strength
+                        
+                        signal_info['last_signal_time'] = current_time
+                
+        return df
+    
+    def _calculate_momentum_signal(self, history, min_threshold):
+        """Calculate momentum signal from price history"""
+        if len(history) < 3:
+            return 'NEUTRAL', 0, 0.0
+        
+        # Sort by timestamp
+        history = sorted(history, key=lambda x: x[0])
+        
+        # Calculate price movements between intervals
+        movements = []
+        for i in range(1, len(history)):
+            prev_price = history[i-1][1]
+            curr_price = history[i][1]
+            price_move = ((curr_price - prev_price) / prev_price) * 100
+            movements.append(price_move)
+        
+        if not movements:
+            return 'NEUTRAL', 0, 0.0
+        
+        # Detect consecutive moves in same direction
+        consecutive_up = 0
+        consecutive_down = 0
+        current_consecutive = 0
+        last_direction = None
+        
+        for move in movements:
+            if abs(move) >= min_threshold:  # Significant move
+                if move > 0:  # Up move
+                    if last_direction == 'UP':
+                        current_consecutive += 1
+                    else:
+                        current_consecutive = 1
+                        last_direction = 'UP'
+                    consecutive_up = max(consecutive_up, current_consecutive)
+                elif move < 0:  # Down move
+                    if last_direction == 'DOWN':
+                        current_consecutive += 1
+                    else:
+                        current_consecutive = 1
+                        last_direction = 'DOWN'
+                    consecutive_down = max(consecutive_down, current_consecutive)
+            else:
+                current_consecutive = 0
+                last_direction = None
+        
+        # Determine overall momentum
+        strength = sum(abs(m) for m in movements) / len(movements)
+        
+        if consecutive_up >= consecutive_down and consecutive_up > 0:
+            return 'UP', consecutive_up, strength
+        elif consecutive_down > consecutive_up and consecutive_down > 0:
+            return 'DOWN', consecutive_down, strength
+        else:
+            return 'NEUTRAL', 0, strength
+    
     def _get_base_symbol(self, ticker):
         """Extract base symbol from exchange:symbol format"""
+        if tv_data_utils:
+            return tv_data_utils.get_base_symbol(ticker)
+        # Fallback
         if ':' in ticker:
             return ticker.split(':')[1]
         return ticker
@@ -3131,8 +3501,8 @@ class TVScreenerUsage:
             # Get confidence from alert (already calculated in detection phase)
             confidence = alert.get('confidence', 0.5)
             
-            # Only trade if confidence is sufficient (80%+)
-            if confidence < 0.8:
+            # Only trade if confidence is sufficient (relaxed for FOMO mode)
+            if confidence < 0.7:
                 console.print(f"   [yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping trade[/yellow]")
                 return
             
@@ -3146,7 +3516,7 @@ class TVScreenerUsage:
             if trend in ['strong_bearish', 'bearish']:
                 console.print(f"   [red]📉 {symbol} in {trend} trend - prioritizing SELL signals[/red]")
                 # Convert any signal to SELL in bearish trends
-                if alert['type'] in ['VOLUME_SPIKE', 'PRICE_MOVE', 'SMART_FOMO']:
+                if alert['type'] in ['VOLUME_SPIKE', 'PRICE_MOVE', 'SMART_FOMO', 'FOMO_MOMENTUM']:
                     trade_side = 'SELL'
             else:
                 # Normal trend-based logic for neutral/bullish trends
@@ -3206,6 +3576,58 @@ class TVScreenerUsage:
                             # Negative move - consider shorting the decline
                             trade_side = 'SELL'  # Short declining stocks with volume
                             console.print(f"   [red]📉 {symbol} declining with volume ({change_pct:.1f}%) - considering SHORT[/red]")
+                
+                elif alert['type'] == 'FOMO_MOMENTUM':
+                    # FOMO Momentum - Direction-based trading with trend confirmation
+                    direction = alert.get('direction', 'UNKNOWN')
+                    change_pct = alert.get('change', 0)
+                    confidence = alert.get('confidence', 0)
+                    
+                    if direction == 'LONG' and change_pct > 0:
+                        # Bullish momentum - BUY in neutral+ trends
+                        if trend in ['strong_bullish', 'bullish', 'neutral']:
+                            trade_side = 'BUY'
+                            console.print(f"   [bright_green]🚀 {symbol} BULLISH MOMENTUM ({change_pct:+.1f}%) - BUY trend confirmed[/bright_green]")
+                        else:  # bearish trend - be cautious
+                            trade_side = 'WATCH'
+                            console.print(f"   [yellow]⚠️ {symbol} bullish momentum in bearish trend - WATCH only[/yellow]")
+                    
+                    elif direction == 'SHORT' and change_pct < 0:
+                        # Bearish momentum - SELL/SHORT opportunity
+                        trade_side = 'SELL'
+                        console.print(f"   [red]📉 {symbol} BEARISH MOMENTUM ({change_pct:+.1f}%) - SELL/SHORT opportunity[/red]")
+                    
+                    else:
+                        # Fallback - watch for unclear signals
+                        trade_side = 'WATCH'
+                        console.print(f"   [dim]👀 {symbol} momentum signal unclear - WATCH mode[/dim]")
+                
+                elif alert['type'] == 'REALTIME_MOMENTUM':
+                    # REALTIME Momentum - Immediate action on continuous price movements
+                    direction = alert.get('direction', 'UNKNOWN')
+                    consecutive_moves = alert.get('consecutive_moves', 0)
+                    momentum_strength = alert.get('momentum_strength', 0)
+                    confidence = alert.get('confidence', 0)
+                    
+                    # More aggressive entry due to real-time nature
+                    if direction == 'UP' and consecutive_moves >= 3:
+                        # Continuous upward momentum - BUY immediately
+                        if trend in ['strong_bullish', 'bullish', 'neutral']:
+                            trade_side = 'BUY'
+                            console.print(f"   [bright_green]⚡🚀 {symbol} CONTINUOUS UP MOMENTUM ({consecutive_moves} moves, {momentum_strength:.2f}%) - IMMEDIATE BUY[/bright_green]")
+                        else:
+                            trade_side = 'WATCH'
+                            console.print(f"   [yellow]⚠️ {symbol} up momentum in bearish trend - WATCH for reversal[/yellow]")
+                    
+                    elif direction == 'DOWN' and consecutive_moves >= 3:
+                        # Continuous downward momentum - SELL/SHORT immediately
+                        trade_side = 'SELL'
+                        console.print(f"   [red]⚡📉 {symbol} CONTINUOUS DOWN MOMENTUM ({consecutive_moves} moves, {momentum_strength:.2f}%) - IMMEDIATE SELL/SHORT[/red]")
+                    
+                    else:
+                        # Insufficient momentum - watch
+                        trade_side = 'WATCH'
+                        console.print(f"   [dim]👀 {symbol} momentum building ({consecutive_moves} moves) - WATCH for continuation[/dim]")
                 
                 elif alert['type'] == 'OVERBOUGHT_SHORT':
                     # Direct short signal for overbought stocks
@@ -3275,6 +3697,23 @@ class TVScreenerUsage:
     def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence, trend='neutral'):
         """Execute paper trade via bot"""
         try:
+            # Validate symbol before trading
+            try:
+                is_valid, validation_result = validate_symbol(symbol)
+                if not is_valid:
+                    console.print(f"[red]❌ TRADE BLOCKED: {symbol} - {validation_result}[/red]")
+                    return False
+                
+                # Use validated symbol for trading
+                validated_symbol = validation_result
+                if validated_symbol != symbol.replace('NSE:', '').replace('BSE:', ''):
+                    console.print(f"[cyan]📝 Symbol mapped: {symbol} -> {validated_symbol}[/cyan]")
+                    symbol = f"NSE:{validated_symbol}"  # Keep NSE prefix for consistency
+                    
+            except Exception as e:
+                console.print(f"[red]❌ TRADE BLOCKED: {symbol} - Symbol validation error: {e}[/red]")
+                return False
+            
             # Check trading hours - prevent new trades outside market hours
             if not self._is_trading_hours():
                 console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Outside trading hours ({self.trading_start_time}-{self.trading_end_time})[/yellow]")
@@ -3294,7 +3733,11 @@ class TVScreenerUsage:
             
             # Validate price against live Upstox price
             live_price = self._get_live_price_from_upstox(symbol)
-            if live_price:
+            if live_price is None:
+                # Instrument key not found - block trade creation
+                console.print(f"[red]❌ TRADE BLOCKED: {symbol} - Instrument key not found in Upstox[/red]")
+                return False
+            elif live_price:
                 price_diff_pct = abs(live_price - price) / price * 100
                 if price_diff_pct > 0.5:  # More than 0.5% difference
                     console.print(f"[yellow]⚠️ TRADE SKIPPED: {symbol} - Price difference too high: {price_diff_pct:.2f}% (Signal: ₹{price:.2f} vs Live: ₹{live_price:.2f})[/yellow]")
@@ -3391,7 +3834,7 @@ class TVScreenerUsage:
         # Prefer instance-bound tv_display for reliability
         _tv_display = getattr(self, 'tv_display', None) or tv_display
         if _tv_display:
-            table = _tv_display.render_watch_table(df, alerts or [], mode)
+            table = _tv_display.render_watch_table(df, alerts or [], mode, self.currency_symbol)
             console.print(table)
         else:
             # Keep a single concise message; upstream header already shows context
@@ -3430,6 +3873,10 @@ class TVScreenerUsage:
         console.print("[red]tv_display module unavailable[/red]")
     
     def _get_live_price_from_upstox(self, symbol, force_refresh=False):
+        """Get live price - delegate to live_data module if available"""
+        if self.live_data:
+            return self.live_data._get_live_price_from_upstox(symbol, force_refresh)
+        # Original implementation follows below
         """Get live price from Upstox API for a symbol with BSE fallback"""
         try:
             if not (hasattr(self, 'upstox_api') and self.upstox_api):
@@ -3442,6 +3889,24 @@ class TVScreenerUsage:
             if not force_refresh and symbol in self.price_cache_timestamps:
                 if current_time - self.price_cache_timestamps[symbol] < cache_duration:
                     return self.current_prices.get(symbol)
+            
+            # Check if symbol is in blacklist of non-existent symbols to avoid repeated API calls
+            if not hasattr(self, '_symbol_blacklist'):
+                self._symbol_blacklist = set()
+            if symbol in self._symbol_blacklist:
+                return None
+            
+            # Use symbol validator for comprehensive checking
+            try:
+                if is_symbol_blacklisted(symbol):
+                    return None
+                    
+                validated_symbol = get_valid_symbol(symbol)
+                if not validated_symbol:
+                    return None
+                    
+            except Exception as e:
+                console.print(f"[yellow]⚠️ Symbol validation error for {symbol}: {e}[/yellow]")
             
             # Validate and clean the symbol
             clean_symbol = symbol.strip().upper()
@@ -3475,6 +3940,10 @@ class TVScreenerUsage:
                 if price is not None:
                     console.print(f"[green]✅ Found {clean_symbol} on {fallback_exchange} (fallback from {exchange})[/green]")
                     # Track fallback usage
+                else:
+                    # Add to blacklist if not found on any exchange
+                    self._symbol_blacklist.add(symbol)
+                    console.print(f"[red]❌ Symbol {clean_symbol} not found on NSE or BSE - blacklisting[/red]")
                     self.exchange_fallbacks[symbol] = fallback_exchange
             
             if price is not None:
@@ -3534,11 +4003,11 @@ class TVScreenerUsage:
             upstox_exchange = exchange_map.get(exchange, 'NSE_EQ')
             
             # Get latest intraday data (1-minute) to get current price
+            # Remove exchange parameter as it causes "instrument key not found" errors
             df = self.upstox_api.fetch_intraday_data_v3(
                 symbol=symbol, 
                 unit='minutes', 
-                interval=1,
-                exchange=upstox_exchange
+                interval=1
             )
             
             if df is not None and not df.empty:
@@ -4186,7 +4655,7 @@ def main():
     # Watch mode specific arguments
     parser.add_argument('--watch', action='store_true', help='Start intraday watch mode')
     parser.add_argument('--mode', type=str, default='PREBREAKOUT',
-                       choices=['PREBREAKOUT', 'FOMO', 'SMART_FOMO', 'ACCUMULATION', 'MOMENTUM', 'OPTIMIZED_GAP', 'GAP_FILL_SR', 'HEAVY_BREAKOUT', 'SCALPING', 'MOMENTUM_SCALPER', 'SECTOR_SCALPER', 'SHORT_SQUEEZE', 'BREAKOUT_FAILURE', 'EXHAUSTION_REVERSAL', 'MORNING_FADE', 'REVERSAL', 'VOLUME_SURGE', 'CHANNEL_PLAY', 'SECTOR_MOMENTUM', 'QUICK_PROFIT'],
+                       choices=['PREBREAKOUT', 'FOMO', 'SMART_FOMO', 'ACCUMULATION', 'MOMENTUM', 'OPTIMIZED_GAP', 'GAP_FILL_SR', 'HEAVY_BREAKOUT', 'SCALPING', 'MOMENTUM_SCALPER', 'SECTOR_SCALPER', 'SHORT_SQUEEZE', 'BREAKOUT_FAILURE', 'EXHAUSTION_REVERSAL', 'MORNING_FADE', 'REVERSAL', 'VOLUME_SURGE', 'CHANNEL_PLAY', 'SECTOR_MOMENTUM', 'QUICK_PROFIT', 'FOMO_MOMENTUM', 'REALTIME_MOMENTUM'],
                        help='Watch mode strategy (default: PREBREAKOUT)')
     parser.add_argument('--refresh', type=int, default=30, help='Refresh interval in seconds (default: 30)')
     # Adjusted lighter defaults as requested: Vol 1.2x, Price 1.0%

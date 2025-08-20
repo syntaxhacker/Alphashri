@@ -3,6 +3,7 @@ from tradingview_screener import Query, col  # noqa: F401 (col imported for pote
 from rich.console import Console
 from rich.table import Table
 from datetime import datetime
+
 import pandas as pd
 
 console = Console()
@@ -42,6 +43,11 @@ def get_tradingview_cookies():
             console.print("[yellow]💡 Try refreshing the TradingView page and run script again[/yellow]")
             return None
 
+
+# Currency-aware formatters
+def get_currency_price_formatter(currency_symbol='₹'):
+    """Get a price formatter for the specified currency"""
+    return lambda x: f"{currency_symbol}{x:,.2f}"
 
 # Column configuration to eliminate DRY code
 COLUMN_CONFIG = {
@@ -143,17 +149,23 @@ COLUMN_CONFIG = {
 }
 
 
-def display_table(df: pd.DataFrame, title: str, max_rows: int = 15):
+def display_table(df: pd.DataFrame, title: str, max_rows: int = 15, currency_symbol: str = '₹'):
     """Display a generic dataframe in a formatted table, tailored for TradingView screener columns."""
     if df.empty:
         console.print(f"[red]No results found for {title}[/red]")
         return
 
+    # Create a copy of COLUMN_CONFIG with currency-aware price formatter
+    column_config = COLUMN_CONFIG.copy()
+    if 'close' in df.columns:
+        column_config['close'] = column_config['close'].copy()
+        column_config['close']['formatter'] = get_currency_price_formatter(currency_symbol)
+
     table = Table(title=title, show_header=True, header_style="bold magenta")
 
     # Add columns dynamically based on dataframe using configuration
     for col_name in df.columns:
-        config = COLUMN_CONFIG.get(col_name, {})
+        config = column_config.get(col_name, {})
         display_name = config.get('display_name', col_name)
         
         # Build column properties
@@ -173,7 +185,7 @@ def display_table(df: pd.DataFrame, title: str, max_rows: int = 15):
     for _, row in df.head(max_rows).iterrows():
         row_data = []
         for col_name in df.columns:
-            config = COLUMN_CONFIG.get(col_name, {})
+            config = column_config.get(col_name, {})
             value = row[col_name]
             
             # Use formatter if available, otherwise convert to string

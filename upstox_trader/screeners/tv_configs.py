@@ -14,8 +14,8 @@ class RiskManagementConfig:
     """Risk management parameters"""
     # Stop Loss & Take Profit
     regular_stop_loss_pct: float = -0.5      # Regular stop loss: -0.5%
-    take_profit_pct: float = 0.4             # Take profit threshold: 0.4%
-    quick_exit_pct: float = 0.4              # Quick exit threshold: 0.4%
+    take_profit_pct: float = 0.8             # Take profit threshold: 0.8%
+    quick_exit_pct: float = 0.7              # Quick exit threshold: 0.7%
     
     # ATR-based parameters for volatile stocks
     atr_multiplier: float = 2.0              # ATR multiplier for stop calculation
@@ -70,10 +70,10 @@ class TrailingStopsConfig:
 @dataclass
 class TradingHoursConfig:
     """Trading time configuration"""
-    trading_start_time: str = "09:20"        # Start trading at 9:20 AM
-    trading_end_time: str = "15:30"          # Stop trading at 3:30 PM
-    
-    
+    trading_start_time: str = "09:17"        # Start trading at 9:17 AM
+    trading_end_time: str = "10:00"          # Stop trading at 10:00 AM
+
+
 @dataclass
 class PositionSizingConfig:
     """Position sizing parameters"""
@@ -92,8 +92,8 @@ class DowntrendConfig:
 class SignalFilteringConfig:
     """Signal quality and filtering parameters"""
     # Confidence thresholds
-    min_confidence_regular: float = 0.55     # Minimum confidence for regular signals
-    min_confidence_prebreak_pullback: float = 0.45  # Lower threshold for PRE_BREAKOUT/PULLBACK
+    min_confidence_regular: float = 0.7      # Minimum confidence for regular signals
+    min_confidence_prebreak_pullback: float = 0.7   # Minimum threshold for PRE_BREAKOUT/PULLBACK
     min_confidence_short: float = 0.6        # 60% minimum for short signals
     
     # RSI confirmation thresholds

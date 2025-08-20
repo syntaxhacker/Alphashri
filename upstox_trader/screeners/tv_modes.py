@@ -2,13 +2,167 @@ from typing import Optional, List, Dict, Tuple
 from rich.panel import Panel
 from rich.console import Console
 from tradingview_screener import Query, col
-import pandas as pd
-import numpy as np
 import time
 import os
 from datetime import datetime
 
+import pandas as pd
+import numpy as np
+
 console = Console()
+
+
+# =============== MARKET-SPECIFIC CONSTANTS ===============
+class MarketConstants:
+    """Market-specific constants for different trading modes"""
+    
+    # US Market Constants
+    US = {
+        'market_name': 'america',
+        'currency_symbol': '$',
+        'min_price': 30,                   # Above $30 for better liquidity
+        'min_volume': 100000,              # 100K+ volume for US stocks
+        'min_market_cap': 1e8,             # $100M+ market cap
+        'fomo_volume_ratio': 1.5,          # Volume surge threshold
+        'momentum_volume_ratio': 1.3,      # Momentum volume threshold  
+        'min_volatility': 0.01,            # 1%+ daily volatility
+        'fomo_momentum_volatility': 0.01,  # Sufficient volatility for momentum
+        'momentum_range': {
+            'positive': (0.8, 6.0),        # +0.8% to +6.0%
+            'negative': (-6.0, -0.8)       # -6.0% to -0.8%
+        },
+        # Real-time momentum tracking
+        'realtime_momentum': {
+            'min_consecutive_moves': 3,    # Minimum consecutive moves in same direction
+            'interval_seconds': 60,        # Check every 60 seconds (1 min intervals)
+            'min_move_threshold': 0.15,    # 0.15% minimum move per interval
+            'acceleration_factor': 1.5     # Accelerating momentum multiplier
+        }
+    }
+    
+    # Indian Market Constants
+    INDIA = {
+        'market_name': 'india',
+        'currency_symbol': '₹',
+        'min_price': 50,                   # Above ₹50 for liquidity
+        'min_volume': 500000,              # 500K+ volume for Indian stocks
+        'min_market_cap': 1e9,             # ₹1000cr+ market cap
+        'fomo_volume_ratio': 1.5,          # Volume surge threshold
+        'momentum_volume_ratio': 1.3,      # Momentum volume threshold
+        'min_volatility': 0.02,            # 2%+ daily volatility  
+        'fomo_momentum_volatility': 0.02,  # Higher volatility for Indian stocks
+        'exchange_filter': 'NSE',          # NSE only for Indian stocks
+        'momentum_range': {
+            'positive': (0.8, 6.0),        # +0.8% to +6.0%
+            'negative': (-6.0, -0.8)       # -6.0% to -0.8%
+        }
+    }
+    
+    # Indian Market Constants  
+    INDIA = {
+        'market_name': 'india',
+        'currency_symbol': '₹',
+        'min_price': 50,                   # Above ₹50 for liquidity
+        'min_volume': 500000,              # 500K+ volume for Indian stocks
+        'min_market_cap': 1e9,             # ₹1000cr+ market cap
+        'fomo_volume_ratio': 1.5,          # Volume surge threshold
+        'momentum_volume_ratio': 1.3,      # Momentum volume threshold
+        'min_volatility': 0.02,            # 2%+ daily volatility  
+        'fomo_momentum_volatility': 0.02,  # Higher volatility for Indian stocks
+        'exchange_filter': 'NSE',          # NSE only for Indian stocks
+        'momentum_range': {
+            'positive': (0.8, 6.0),        # +0.8% to +6.0%
+            'negative': (-6.0, -0.8)       # -6.0% to -0.8%
+        },
+        # Real-time momentum tracking (3min intervals for Indian market)
+        'realtime_momentum': {
+            'min_consecutive_moves': 3,    # Minimum consecutive moves in same direction
+            'interval_seconds': 180,       # Check every 180 seconds (3 min intervals)
+            'min_move_threshold': 0.2,     # 0.2% minimum move per interval
+            'acceleration_factor': 1.5     # Accelerating momentum multiplier
+        }
+    }
+
+
+# Query Configuration Constants
+class QueryConfig:
+    """Common query configurations"""
+    
+    # Common field selections
+    BASIC_FIELDS = ['name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 'update_mode']
+    
+    FOMO_FIELDS = BASIC_FIELDS + ['RSI', 'Volatility.D', 'market_cap_basic']
+    
+    MOMENTUM_FIELDS = BASIC_FIELDS + ['RSI', 'MACD.macd', 'MACD.signal', 'EMA20', 'Volatility.D', 'market_cap_basic']
+    
+    REALTIME_MOMENTUM_FIELDS = BASIC_FIELDS + ['RSI', 'Volatility.D', 'market_cap_basic', 'price_52_week_high', 'MACD.macd']
+    
+    # Common limits
+    DEFAULT_LIMIT = 25
+    FOCUSED_LIMIT = 15
+    REALTIME_LIMIT = 20
+    
+    # RSI ranges
+    MOMENTUM_RSI_RANGE = (35, 75)
+    CONSERVATIVE_RSI_RANGE = (45, 65)
+
+
+# =============== HELPER FUNCTIONS ===============
+def get_market_config(market: str) -> dict:
+    """Get market-specific configuration"""
+    return MarketConstants.US if market == 'america' else MarketConstants.INDIA
+
+
+def build_market_aware_query(base_query: Query, market: str, mode_type: str = 'fomo') -> Query:
+    """Build market-aware query with appropriate filters"""
+    config = get_market_config(market)
+    
+    # Common filters based on mode type
+    if mode_type == 'fomo':
+        query = base_query.where(
+            col('close') > config['min_price'],
+            col('volume') > config['min_volume'],
+            col('market_cap_basic') > config['min_market_cap'],
+            col('relative_volume_10d_calc') > config['fomo_volume_ratio']
+        )
+    elif mode_type == 'fomo_momentum':
+        momentum_pos = config['momentum_range']['positive']
+        momentum_neg = config['momentum_range']['negative'] 
+        rsi_range = QueryConfig.MOMENTUM_RSI_RANGE
+        
+        query = base_query.where(
+            col('close') > (config['min_price'] * 0.8),  # Slightly lower for momentum
+            col('volume') > (config['min_volume'] * 0.6),  # Lower volume requirement
+            col('market_cap_basic') > (config['min_market_cap'] * 0.5),  # Wider universe
+            col('relative_volume_10d_calc') > config['momentum_volume_ratio'],
+            col('RSI').between(rsi_range[0], rsi_range[1]),  # Momentum RSI range
+            # Momentum range filter
+            (col('change').between(momentum_pos[0], momentum_pos[1])) | 
+            (col('change').between(momentum_neg[0], momentum_neg[1])),
+            col('Volatility.D') > config['fomo_momentum_volatility']
+        )
+    elif mode_type == 'realtime_momentum':
+        # Real-time momentum mode - faster-moving stocks with good volatility
+        query = base_query.where(
+            col('close') > config['min_price'],
+            col('volume') > (config['min_volume'] * 0.8),  # Lower volume for more candidates
+            col('market_cap_basic') > (config['min_market_cap'] * 0.3),  # Wider universe
+            col('relative_volume_10d_calc') > 1.2,  # Some volume activity
+            col('RSI').between(25, 85),  # Very wide RSI range for momentum
+            col('Volatility.D') > config['min_volatility'],  # Need volatility for momentum
+            (col('change') > 0.5) | (col('change') < -0.5)  # At least 0.5% movement today
+        )
+    
+    # Add exchange filter for Indian market only
+    if market != 'america' and 'exchange_filter' in config:
+        query = query.where(col('exchange') == config['exchange_filter'])
+    
+    return query
+
+
+def create_base_query(fields: list, market: str) -> Query:
+    """Create base query with specified fields and market"""
+    return Query().select(*fields).set_markets(market)
 
 
 # =============== Delegated Mode Functions ===============
@@ -237,7 +391,7 @@ def gap_fill_trading_strategy(self) -> None:
             console.print("[yellow]No volume movers found in current market scan[/yellow]")
             return
 
-        df = df[abs(df['change']) >= 0.8].copy()
+        df = df[df['change'].abs() >= 0.8].copy()
         if df.empty:
             console.print("[yellow]No significant gaps found in current volume movers[/yellow]")
             return
@@ -487,7 +641,9 @@ def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_t
         'VOLUME_SURGE': ("📊 VOLUME SURGE MODE - Unusual Activity Detector", "bold bright_blue"),
         'CHANNEL_PLAY': ("📈 CHANNEL PLAY MODE - Range-Bound Trading", "bold bright_green"),
         'SECTOR_MOMENTUM': ("🏭 SECTOR MOMENTUM MODE - Industry Group Moves", "bold bright_yellow"),
-        'QUICK_PROFIT': ("💰 QUICK PROFIT MODE - 1-2% Fast Scalps", "bold bright_red")
+        'QUICK_PROFIT': ("💰 QUICK PROFIT MODE - 1-2% Fast Scalps", "bold bright_red"),
+        'FOMO_MOMENTUM': ("🎯 FOMO MOMENTUM MODE - Gap & Intraday 0.8-6% Momentum", "bold magenta"),
+        'REALTIME_MOMENTUM': ("⚡ REALTIME MOMENTUM MODE - Live 1min/3min Price Action", "bold bright_red")
     }
     title, style = mode_titles.get(mode, ("📊 WATCH MODE", "bold blue"))
     console.print(Panel.fit(title, style=style))
@@ -1161,21 +1317,14 @@ def _get_watch_data(self):
     
     try:
         if mode == 'FOMO':
-            # Original FOMO high volume breakouts
+            # Original FOMO high volume breakouts - using market-aware helper
+            base_query = create_base_query(QueryConfig.FOMO_FIELDS, self.market)
+            query = build_market_aware_query(base_query, self.market, 'fomo')
+            
             total_rows, df = (
-                Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'Volatility.D', 'market_cap_basic', 'update_mode')
-                .set_markets(self.market)
-                .where(
-                    col('close') > 50,  # Above ₹50
-                    col('volume') > 500000,  # High volume
-                    col('relative_volume_10d_calc') > 1.5,  # Elevated volume
-                    col('market_cap_basic') > 1e9,  # Min 1000 crores
-                    col('exchange') == 'NSE'  # NSE only
-                )
+                query
                 .order_by('relative_volume_10d_calc', ascending=False)
-                .limit(25)
+                .limit(QueryConfig.DEFAULT_LIMIT)
                 .get_scanner_data(cookies=self.cookies)
             )
         
@@ -1611,6 +1760,37 @@ def _get_watch_data(self):
                 .limit(15)  # Focus on best opportunities
                 .get_scanner_data(cookies=self.cookies)
             )
+        
+        elif mode == 'FOMO_MOMENTUM':
+            # FOMO Momentum mode - using market-aware helper
+            # Catches momentum 0.8-6.0% (includes gap openings and intraday moves)
+            # Perfect for gap continuations and strong intraday momentum
+            base_query = create_base_query(QueryConfig.MOMENTUM_FIELDS, self.market)
+            query = build_market_aware_query(base_query, self.market, 'fomo_momentum')
+            
+            total_rows, df = (
+                query
+                .order_by('relative_volume_10d_calc', ascending=False)  # Volume surge priority
+                .limit(QueryConfig.DEFAULT_LIMIT)  # More opportunities for momentum trading
+                .get_scanner_data(cookies=self.cookies)
+            )
+        
+        elif mode == 'REALTIME_MOMENTUM':
+            # Real-time momentum mode - tracks continuous price action over short intervals
+            # Detects stocks moving consistently in same direction over 1min/3min intervals
+            base_query = create_base_query(QueryConfig.REALTIME_MOMENTUM_FIELDS, self.market)
+            query = build_market_aware_query(base_query, self.market, 'realtime_momentum')
+            
+            total_rows, df = (
+                query
+                .order_by('Volatility.D', ascending=False)  # Highest volatility first for momentum
+                .limit(QueryConfig.REALTIME_LIMIT)  # Focus on most active stocks
+                .get_scanner_data(cookies=self.cookies)
+            )
+            
+            # Add real-time momentum tracking
+            if not df.empty:
+                df = self._add_realtime_momentum_analysis(df)
         
         else:  # PREBREAKOUT (default)
             # Pre-breakout focus

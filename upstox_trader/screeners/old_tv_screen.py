@@ -122,8 +122,8 @@ class TVScreenerUsage:
         
         # Trading Time Configuration
         self.trading_start_time = "09:17"  # Start trading at 9:20 AM
-        self.trading_end_time = "15:30"    # Stop trading at 3:30 PM (align with newer file)
-        
+        self.trading_end_time = "10:00"    # Stop trading at 10:00 AM (align with newer file)
+
         # Simple Paper Trading integration (without full bot monitoring)
         self.paper_trading_enabled = enable_paper_trading
         self.live_trades = []  # Track live trades for display
@@ -1620,7 +1620,7 @@ class TVScreenerUsage:
             confidence = self._calculate_alert_confidence(alert)
             
             # Only trade if confidence is sufficient (50%+)
-            if confidence < 0.5:
+            if confidence < 0.7:
                 console.print(f"   [yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping trade[/yellow]")
                 return
             
@@ -1657,7 +1657,7 @@ class TVScreenerUsage:
                         trade_side = 'SELL'
             
             if trade_side:
-                # REQUIRE confirmed downtrend before shorting
+                # RELAXED downtrend requirement for FOMO mode
                 if trade_side == 'SELL':
                     # Create a mock row from alert data for downtrend confirmation
                     mock_row = {
@@ -1669,7 +1669,9 @@ class TVScreenerUsage:
                         'EMA50': alert.get('EMA50', price)
                     }
                     confirmed_downtrend = self._check_confirmed_downtrend_for_short(symbol, mock_row)
-                    if not confirmed_downtrend:
+                    rsi = alert.get('rsi', 50)
+                    # Only require confirmation for less extreme RSI (allow very overbought signals through)
+                    if not confirmed_downtrend and rsi < 85:
                         console.print(f"[yellow]⚠️ {symbol}: SHORT signal but no confirmed downtrend - skipping[/yellow]")
                         return
                 
@@ -2002,6 +2004,12 @@ class TVScreenerUsage:
                 if current_time - self.price_cache_timestamps[symbol] < cache_duration:
                     return self.current_prices.get(symbol)
             
+            # Check if symbol is in blacklist of non-existent symbols to avoid repeated API calls
+            if not hasattr(self, '_symbol_blacklist'):
+                self._symbol_blacklist = set()
+            if symbol in self._symbol_blacklist:
+                return None
+            
             # Validate and clean the symbol
             clean_symbol = symbol.strip().upper()
             
@@ -2037,6 +2045,10 @@ class TVScreenerUsage:
                     console.print(f"[green]✅ Found {clean_symbol} on {fallback_exchange} (fallback from {exchange})[/green]")
                     # Track fallback usage
                     self.exchange_fallbacks[symbol] = fallback_exchange
+                else:
+                    # Add to blacklist if not found on any exchange
+                    self._symbol_blacklist.add(symbol)
+                    console.print(f"[red]❌ Symbol {clean_symbol} not found on NSE or BSE - blacklisting[/red]")
             
             if price is not None:
                 # Update cache
@@ -2071,12 +2083,12 @@ class TVScreenerUsage:
             
             upstox_exchange = exchange_map.get(exchange, 'NSE_EQ')
             
-            # Get latest intraday data (1-minute) to get current price
+            # Get latest intraday data (1-minute) to get current price  
+            # Remove exchange parameter as it causes "instrument key not found" errors
             df = self.upstox_api.fetch_intraday_data_v3(
                 symbol=symbol, 
                 unit='minutes', 
-                interval=1,
-                exchange=upstox_exchange
+                interval=1
             )
             
             if df is not None and not df.empty:
@@ -2669,8 +2681,8 @@ class TVScreenerUsage:
             below_ema20 = current_price < ema20
             ema_bearish = ema20 < ema50  # 20 EMA below 50 EMA
             
-            # Require at least basic downtrend confirmation
-            confirmed_downtrend = price_below_vwap and (bearish_volume or (below_ema20 and ema_bearish))
+            # Relaxed downtrend confirmation for FOMO mode
+            confirmed_downtrend = price_below_vwap or bearish_volume or (below_ema20 and ema_bearish)  # OR instead of AND
             
             if confirmed_downtrend:
                 console.print(f"[dim green]✅ {symbol}: Confirmed downtrend for short - Price<VWAP: {price_below_vwap}, Bearish Vol: {bearish_volume}[/dim green]")

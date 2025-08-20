@@ -60,3 +60,4 @@ config.py
 !config_template.py
 
 TradingView-Screener/
+losing_trades_reports/
