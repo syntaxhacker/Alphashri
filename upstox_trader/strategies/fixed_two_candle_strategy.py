@@ -8,7 +8,7 @@ REAL trading logic with proper exits
 import pandas as pd
 import numpy as np
 from datetime import time
-from .ema_strategy import BaseStrategy
+from ..vectorbt.ema_strategy import BaseStrategy
 
 
 class FixedTwoCandleStrategy(BaseStrategy):
