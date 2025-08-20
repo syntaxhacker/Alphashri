@@ -29,51 +29,7 @@ except ImportError:
     print("⚠️  Official Upstox SDK not found. Install with: pip install upstox-python-sdk")
     print("📉 Will use historical data only (expect 0% P&L updates)")
 
-def fetch_nifty50_stocks():
-    """Fetch current Nifty 50 stocks list dynamically"""
-    try:
-        import requests
-        print("🔍 Fetching current Nifty 50 stocks list...")
-        
-        # NSE official Nifty 50 composition API
-        url = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json'
-        }
-        
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if 'data' in data:
-                # Filter out the index itself and get only individual stocks
-                nifty50_symbols = [stock['symbol'] for stock in data['data'] 
-                                 if stock['symbol'] != 'NIFTY 50' and stock['symbol'] != 'NIFTY']
-                print(f"✅ Successfully fetched {len(nifty50_symbols)} Nifty 50 stocks")
-                return nifty50_symbols
-        
-        # Fallback to static list if API fails
-        print("⚠️  API fetch failed, using static Nifty 50 list...")
-        return get_static_nifty50()
-        
-    except Exception as e:
-        print(f"⚠️  Error fetching Nifty 50: {e}")
-        print("📋 Using static Nifty 50 list as fallback...")
-        return get_static_nifty50()
 
-def get_static_nifty50():
-    """Static Nifty 50 list as fallback"""
-    return [
-        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC", 
-        "SBIN", "BHARTIARTL", "ASIANPAINT", "MARUTI", "BAJFINANCE", "M&M", "LT",
-        "HCLTECH", "SUNPHARMA", "TITAN", "ULTRACEMCO", "ONGC", "NESTLEIND",
-        "KOTAKBANK", "WIPRO", "NTPC", "TECHM", "POWERGRID", "BAJAJFINSV",
-        "DRREDDY", "TATAMOTORS", "COALINDIA", "HDFCLIFE", "SBILIFE", "EICHERMOT",
-        "BRITANNIA", "BPCL", "GRASIM", "CIPLA", "DIVISLAB", "JSWSTEEL",
-        "HEROMOTOCO", "ADANIENT", "TATASTEEL", "HINDALCO", "INDUSINDBK",
-        "BAJAJ-AUTO", "APOLLOHOSP", "UPL", "AXISBANK", "TATACONSUM",
-        "ADANIPORTS", "LTIM"
-    ]
 
 # ANSI Color codes for terminal
 class Colors:
@@ -403,106 +359,23 @@ class UpstoxPaperTradingBot:
             # Find the instrument key for the symbol
             if self.client.instruments:
                 for instrument in self.client.instruments:
-                    if (instrument.get('trading_symbol') == symbol and 
-                        instrument.get('exchange') == 'NSE' and 
+                    if (instrument.get('trading_symbol') == symbol and
+                        instrument.get('exchange') in ['NSE', 'NSE_EQ'] and
                         instrument.get('instrument_type') == 'EQ'):
                         
                         return instrument.get('instrument_key')
             
-            # Fallback: use known instrument keys for common symbols
-            known_symbols = {
-                # Nifty 50 stocks
-                'TATAMOTORS': 'NSE_EQ|INE155A01022',
-                'RELIANCE': 'NSE_EQ|INE002A01018', 
-                'INFY': 'NSE_EQ|INE009A01021',
-                'TCS': 'NSE_EQ|INE467B01029',
-                'HDFCBANK': 'NSE_EQ|INE040A01034',
-                'ICICIBANK': 'NSE_EQ|INE090A01013',
-                'SBIN': 'NSE_EQ|INE062A01020',
-                'BHARTIARTL': 'NSE_EQ|INE397D01024',
-                'ITC': 'NSE_EQ|INE154A01025',
-                'HINDUNILVR': 'NSE_EQ|INE030A01027',
-                'KOTAKBANK': 'NSE_EQ|INE237A01028',
-                'LT': 'NSE_EQ|INE018A01030',
-                'AXISBANK': 'NSE_EQ|INE238A01034',
-                'ASIANPAINT': 'NSE_EQ|INE021A01026',
-                'MARUTI': 'NSE_EQ|INE585B01010',
-                'TITAN': 'NSE_EQ|INE280A01028',
-                'ULTRACEMCO': 'NSE_EQ|INE481G01011',
-                'WIPRO': 'NSE_EQ|INE075A01022',
-                'HCLTECH': 'NSE_EQ|INE860A01027',
-                'NESTLEIND': 'NSE_EQ|INE239A01016',
-                
-                # PSU & Other popular stocks
-                'NTPC': 'NSE_EQ|INE733E01010',
-                'ONGC': 'NSE_EQ|INE213A01029',
-                'POWERGRID': 'NSE_EQ|INE752E01010',
-                'COALINDIA': 'NSE_EQ|INE522F01014',
-                'IOC': 'NSE_EQ|INE242A01010',
-                'BPCL': 'NSE_EQ|INE029A01011',
-                'HINDALCO': 'NSE_EQ|INE038A01020',
-                'TATASTEEL': 'NSE_EQ|INE081A01020',
-                'JSWSTEEL': 'NSE_EQ|INE019A01038',
-                'SAIL': 'NSE_EQ|INE114A01011',
-                
-                # Shipping & Maritime (Popular for trading)
-                'COCHINSHIP': 'NSE_EQ|INE704P01025',
-                'SCI': 'NSE_EQ|INE109A01011',
-                'GREAVESCOT': 'NSE_EQ|INE224A01026',
-                
-                # Auto sector
-                'MAHINDRA': 'NSE_EQ|INE101A01026',
-                'BAJAJ-AUTO': 'NSE_EQ|INE917I01010',
-                'EICHERMOT': 'NSE_EQ|INE066A01021',
-                'HEROMOTOCO': 'NSE_EQ|INE158A01026',
-                'TVSMOTOR': 'NSE_EQ|INE494B01023',
-                
-                # IT sector
-                'TECHM': 'NSE_EQ|INE669C01036',
-                'MINDTREE': 'NSE_EQ|INE018I01017',
-                'MPHASIS': 'NSE_EQ|INE356A01018',
-                
-                # Banking & Finance
-                'PNB': 'NSE_EQ|INE160A01022',
-                'CANBK': 'NSE_EQ|INE476A01014',
-                'BANKBARODA': 'NSE_EQ|INE028A01039',
-                'UNIONBANK': 'NSE_EQ|INE692A01016',
-                'IDFCFIRSTB': 'NSE_EQ|INE092T01019',
-                
-                # Pharma
-                'SUNPHARMA': 'NSE_EQ|INE044A01036',
-                'DRREDDY': 'NSE_EQ|INE089A01023',
-                'CIPLA': 'NSE_EQ|INE059A01026',
-                'BIOCON': 'NSE_EQ|INE376G01013',
-                
-                # Telecom
-                'IDEA': 'NSE_EQ|INE669E01016',
-                'RCOM': 'NSE_EQ|INE330H01018',
-                
-                # Infrastructure  
-                'IRCTC': 'NSE_EQ|INE335Y01020',
-                'GMRINFRA': 'NSE_EQ|INE776C01039',
-                'ADANIPORTS': 'NSE_EQ|INE742F01042',
-                
-                # Popular trading stocks
-                'YESBANK': 'NSE_EQ|INE528G01035',
-                'RPOWER': 'NSE_EQ|INE614G01033',
-                'SUZLON': 'NSE_EQ|INE040H01021',
-                'JETAIRWAYS': 'NSE_EQ|INE802G01018',
-                'BHEL': 'NSE_EQ|INE257A01026'
-            }
+            # Fallback: use generic instrument key without NSE specifics
+            fallback_key = symbol  # Simplified to just the symbol name
+            return fallback_key
             
-            if symbol in known_symbols:
-                fallback_key = known_symbols[symbol]
-                return fallback_key
-            
-            # Final fallback: construct key manually (may not work for all symbols)
-            fallback_key = f"NSE_EQ|{symbol}"
+            # Final fallback: use generic key without NSE specifics
+            fallback_key = symbol  # Simplified to just the symbol name
             return fallback_key
             
         except Exception as e:
             self.log_colored(f"⚠️  Error getting instrument key for {symbol}: {str(e)}", "warning")
-            return f"NSE_EQ|{symbol}"
+            return symbol  # Return just the symbol name without NSE prefix
     
     def get_symbol_from_instrument_key(self, instrument_key):
         """Get symbol from instrument key for message routing"""
@@ -1182,8 +1055,9 @@ if __name__ == "__main__":
     
     # Determine which symbols to use
     if args.nifty50:
-        symbols = fetch_nifty50_stocks()
-        print(f"🎯 Using Nifty 50 stocks: {len(symbols)} symbols")
+        print("⚠️ Nifty 50 functionality has been removed. Please provide custom symbols using --symbols.")
+        symbols = args.symbols if args.symbols else ["TATAMOTORS"]  # Default to a sample symbol
+        print(f"🎯 Using default/custom stocks: {', '.join(symbols)}")
     else:
         symbols = args.symbols
         print(f"🎯 Using custom stocks: {', '.join(symbols)}")
