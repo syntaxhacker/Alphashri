@@ -161,9 +161,17 @@ except ImportError:
         from tv_live_data import LiveDataMonitor
         from tv_display_utils import DisplayUtils
         from symbol_validator import get_symbol_validator, validate_symbol, get_valid_symbol, is_symbol_blacklisted
+        console.print("[green]✅ Successfully imported symbol validator[/green]")
     except ImportError as e:
         console.print(f"⚠️ Could not import separated modules: {e}", style="yellow")
+        console.print("[red]🔧 Using fallback symbol validation[/red]")
         TradingCore = GapAnalysis = TechnicalAnalysis = LiveDataMonitor = DisplayUtils = None
+        # Fallback for symbol validation functions
+        def validate_symbol(symbol):
+            # Simple fallback validation - just remove exchange prefix and return as valid
+            clean_symbol = symbol.replace('NSE:', '').replace('BSE:', '').strip()
+            return True, clean_symbol
+        get_symbol_validator = get_valid_symbol = is_symbol_blacklisted = None
 
 class TVScreenerUsage:
     def __init__(self, market='in', enable_paper_trading=False, config: TVTradingConfig = None):
@@ -3699,16 +3707,26 @@ class TVScreenerUsage:
         try:
             # Validate symbol before trading
             try:
-                is_valid, validation_result = validate_symbol(symbol)
-                if not is_valid:
-                    console.print(f"[red]❌ TRADE BLOCKED: {symbol} - {validation_result}[/red]")
-                    return False
+                # Debug: Check validate_symbol status
+                console.print(f"[dim]Debug: validate_symbol type: {type(validate_symbol)}, callable: {callable(validate_symbol) if validate_symbol else 'N/A'}[/dim]")
                 
-                # Use validated symbol for trading
-                validated_symbol = validation_result
-                if validated_symbol != symbol.replace('NSE:', '').replace('BSE:', ''):
-                    console.print(f"[cyan]📝 Symbol mapped: {symbol} -> {validated_symbol}[/cyan]")
-                    symbol = f"NSE:{validated_symbol}"  # Keep NSE prefix for consistency
+                # Check if validate_symbol function is available and callable
+                if validate_symbol is None or not callable(validate_symbol):
+                    # Fallback validation - just clean the symbol
+                    clean_symbol = symbol.replace('NSE:', '').replace('BSE:', '').strip()
+                    console.print(f"[yellow]⚠️ Symbol validator unavailable - using basic validation for {symbol}[/yellow]")
+                    symbol = f"NSE:{clean_symbol}"  # Keep NSE prefix for consistency
+                else:
+                    is_valid, validation_result = validate_symbol(symbol)
+                    if not is_valid:
+                        console.print(f"[red]❌ TRADE BLOCKED: {symbol} - {validation_result}[/red]")
+                        return False
+                    
+                    # Use validated symbol for trading
+                    validated_symbol = validation_result
+                    if validated_symbol != symbol.replace('NSE:', '').replace('BSE:', ''):
+                        console.print(f"[cyan]📝 Symbol mapped: {symbol} -> {validated_symbol}[/cyan]")
+                        symbol = f"NSE:{validated_symbol}"  # Keep NSE prefix for consistency
                     
             except Exception as e:
                 console.print(f"[red]❌ TRADE BLOCKED: {symbol} - Symbol validation error: {e}[/red]")
@@ -3994,6 +4012,16 @@ class TVScreenerUsage:
     def _fetch_price_from_exchange(self, symbol, exchange):
         """Fetch price from specific exchange with proper error handling"""
         try:
+            # Check if market is open (9:15 AM - 3:30 PM) - different from trading hours
+            from datetime import datetime, time
+            now = datetime.now().time()
+            market_open = time(9, 15)  # 9:15 AM
+            market_close = time(15, 30)  # 3:30 PM
+            
+            if not (market_open <= now <= market_close):
+                # Outside market hours - use last known price from cache
+                return self.current_prices.get(symbol)
+            
             # Map exchange to Upstox format
             exchange_map = {
                 'NSE': 'NSE_EQ',

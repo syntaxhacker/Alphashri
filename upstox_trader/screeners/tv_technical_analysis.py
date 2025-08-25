@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from rich.console import Console
+from .tv_display_utils import Colors
+from .utils.tv_logging_utils import log_colored
 
 console = Console()
 
@@ -30,7 +32,9 @@ class TechnicalAnalysis:
                     unit='days',
                     interval=1,
                     from_date=start_date.strftime('%Y-%m-%d'),
-                    to_date=end_date.strftime('%Y-%m-%d')
+                    to_date=end_date.strftime('%Y-%m-%d'),
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
                 
                 if historical_data and len(historical_data) >= 20:
@@ -106,7 +110,9 @@ class TechnicalAnalysis:
                     unit='days',
                     interval=1,
                     from_date=start_date.strftime('%Y-%m-%d'),
-                    to_date=end_date.strftime('%Y-%m-%d')
+                    to_date=end_date.strftime('%Y-%m-%d'),
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
                 
                 if historical_data and len(historical_data) >= 10:
@@ -238,7 +244,9 @@ class TechnicalAnalysis:
                     unit='days',
                     interval=1,
                     from_date=start_date.strftime('%Y-%m-%d'),
-                    to_date=end_date.strftime('%Y-%m-%d')
+                    to_date=end_date.strftime('%Y-%m-%d'),
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
                 
                 if historical_data and len(historical_data) >= 30:
@@ -568,7 +576,9 @@ class TechnicalAnalysis:
                     unit='days',
                     interval=1,
                     from_date=start_date.strftime('%Y-%m-%d'),
-                    to_date=end_date.strftime('%Y-%m-%d')
+                    to_date=end_date.strftime('%Y-%m-%d'),
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
                 
                 if historical_data and len(historical_data) >= lookback_days:
@@ -638,3 +648,139 @@ class TechnicalAnalysis:
             console.print(f"⚠️ Error getting 15min RSI for {symbol}: {e}", style="yellow")
         
         return None
+
+
+# Standalone Support/Resistance Functions from Paper Trading Bot
+def identify_support_resistance_levels(candle_data, lookback_periods=50, level_threshold=0.5, min_touches=2, bounce_threshold=0.25):
+    """Identify support and resistance levels from candle data"""
+    if len(candle_data) < lookback_periods:
+        return [], []
+        
+    highs = [c['high'] for c in candle_data[-lookback_periods:]]
+    lows = [c['low'] for c in candle_data[-lookback_periods:]]
+    
+    # Find pivot highs and lows
+    resistance_candidates = [h for i, h in enumerate(highs) if i > 1 and i < len(highs) - 2 and h > highs[i-1] and h > highs[i-2] and h > highs[i+1] and h > highs[i+2]]
+    support_candidates = [l for i, l in enumerate(lows) if i > 1 and i < len(lows) - 2 and l < lows[i-1] and l < lows[i-2] and l < lows[i+1] and l < lows[i+2]]
+    
+    # Group nearby levels
+    resistance_levels = group_levels(resistance_candidates, level_threshold)
+    support_levels = group_levels(support_candidates, level_threshold)
+    
+    # Filter by minimum touches
+    resistance_levels = filter_by_touches(resistance_levels, highs, level_threshold, min_touches)
+    support_levels = filter_by_touches(support_levels, lows, level_threshold, min_touches)
+    
+    resistance_levels.sort(reverse=True)
+    support_levels.sort(reverse=True)
+    
+    return support_levels, resistance_levels
+
+
+def group_levels(levels, level_threshold=0.5):
+    """Group nearby price levels together"""
+    if not levels: 
+        return []
+    
+    levels.sort()
+    grouped, current_group = [], [levels[0]]
+    
+    for level in levels[1:]:
+        if abs(level - current_group[0]) / current_group[0] * 100 < level_threshold:
+            current_group.append(level)
+        else:
+            grouped.append(sum(current_group) / len(current_group))
+            current_group = [level]
+    
+    grouped.append(sum(current_group) / len(current_group))
+    return grouped
+
+
+def filter_by_touches(levels, price_data, level_threshold=0.5, min_touches=2):
+    """Filter levels by minimum number of touches"""
+    return [l for l in levels if sum(1 for p in price_data if abs(p - l) / l * 100 < level_threshold) >= min_touches]
+
+
+def calculate_trend_direction(candle_data, ema_period=20, current_price=None):
+    """Calculate trend direction using EMA"""
+    if len(candle_data) < ema_period:
+        return None, None
+        
+    closes = [c['close'] for c in candle_data[-ema_period:]]
+    ema = pd.Series(closes).ewm(span=ema_period, adjust=False).mean().iloc[-1]
+    
+    if not current_price:
+        current_price = candle_data[-1]['close']
+    
+    if current_price > ema * 1.002: 
+        trend_direction = "BULLISH"
+    elif current_price < ema * 0.998: 
+        trend_direction = "BEARISH"
+    else: 
+        trend_direction = "NEUTRAL"
+        
+    return trend_direction, ema
+
+
+def find_nearest_levels(current_price, support_levels, resistance_levels):
+    """Find nearest support and resistance levels"""
+    nearest_support = max([l for l in support_levels if l < current_price] or [None])
+    nearest_resistance = min([l for l in resistance_levels if l > current_price] or [None])
+    
+    return nearest_support, nearest_resistance
+
+
+def check_support_resistance_signals(current_price, support_levels, resistance_levels, trend_direction="NEUTRAL", bounce_threshold=0.25):
+    """Check for trading signals based on support/resistance levels"""
+    signals = []
+    nearest_support, nearest_resistance = find_nearest_levels(current_price, support_levels, resistance_levels)
+    
+    if (nearest_support and trend_direction in ["BULLISH", "NEUTRAL"] and 
+        0 < (current_price - nearest_support) / nearest_support * 100 <= bounce_threshold):
+        signals.append(('BUY', 'support_bounce', 0.8, nearest_support))
+        
+    if (nearest_resistance and trend_direction in ["BEARISH", "NEUTRAL"] and 
+        0 < (nearest_resistance - current_price) / current_price * 100 <= bounce_threshold):
+        signals.append(('SELL', 'resistance_rejection', 0.8, nearest_resistance))
+        
+    return signals
+
+
+def display_support_resistance_levels(symbol, support_levels, resistance_levels, current_price, bounce_threshold=0.25):
+    """Display support and resistance levels with colored output"""
+    support_count = len(support_levels)
+    resistance_count = len(resistance_levels)
+    
+    if support_count > 0 or resistance_count > 0:
+        log_colored(
+            f"{symbol} S&R Update: {support_count} Support, {resistance_count} Resistance levels found",
+            "level"
+        )
+        
+        # Print Support Levels
+        if support_levels:
+            print(f"\n{Colors.GREEN}🛡️  {symbol} SUPPORT LEVELS:{Colors.RESET}")
+            for i, level in enumerate(support_levels, 1):
+                if current_price > 0:
+                    distance = ((current_price - level) / level) * 100
+                    status = "🎯 ACTIVE" if abs(distance) <= bounce_threshold else "⏳ MONITORING"
+                    print(f"  {Colors.GREEN}S{i}: {level:,.2f}{Colors.RESET} | Distance: {distance:+.2f}% | {status}")
+                else:
+                    print(f"  {Colors.GREEN}S{i}: {level:,.2f}{Colors.RESET} | Distance: Waiting for price data | ⏳ MONITORING")
+        
+        # Print Resistance Levels  
+        if resistance_levels:
+            print(f"\n{Colors.RED}🛡️  {symbol} RESISTANCE LEVELS:{Colors.RESET}")
+            for i, level in enumerate(resistance_levels, 1):
+                if current_price > 0:
+                    distance = ((level - current_price) / current_price) * 100
+                    status = "🎯 ACTIVE" if abs(distance) <= bounce_threshold else "⏳ MONITORING"
+                    print(f"  {Colors.RED}R{i}: {level:,.2f}{Colors.RESET} | Distance: {distance:+.2f}% | {status}")
+                else:
+                    print(f"  {Colors.RED}R{i}: {level:,.2f}{Colors.RESET} | Distance: Waiting for price data | ⏳ MONITORING")
+        
+        print(f"\n{Colors.CYAN}💰 {symbol} Current Price: {current_price:,.2f}{Colors.RESET}")
+        print(f"{Colors.YELLOW}📏 Bounce Threshold: ±{bounce_threshold}%{Colors.RESET}")
+        print(f"{Colors.MAGENTA}════════════════════════════════════════{Colors.RESET}")
+    else:
+        log_colored(f"{symbol}: No valid S&R levels found - need more data or lower thresholds", "warning")

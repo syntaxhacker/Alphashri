@@ -243,7 +243,9 @@ class TVScreenerUsage:
                     unit='days',
                     interval=1,
                     to_date=to_date,
-                    from_date=from_date
+                    from_date=from_date,
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
             else:  # hourly for shorter-term trend (limited to 90 days per documentation)
                 # Limit hourly lookback to 90 days max due to API constraints
@@ -254,7 +256,9 @@ class TVScreenerUsage:
                     unit='hours',
                     interval=1,
                     to_date=to_date,
-                    from_date=hourly_from_date
+                    from_date=hourly_from_date,
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
             
             if df is None or df.empty or len(df) < 10:
@@ -356,7 +360,9 @@ class TVScreenerUsage:
                     unit='minutes',
                     interval=15,
                     to_date=to_date,
-                    from_date=from_date
+                    from_date=from_date,
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
                 
                 if df is not None and not df.empty and len(df) >= 10:
@@ -2071,8 +2077,18 @@ class TVScreenerUsage:
     def _fetch_price_from_exchange(self, symbol, exchange):
         """Fetch price from specific exchange with proper error handling"""
         try:
+            # Check if market is open (9:15 AM - 3:30 PM) - fetch live prices during market hours
+            from datetime import datetime, time
+            now = datetime.now().time()
+            market_open = time(9, 15)  # 9:15 AM
+            market_close = time(15, 30)  # 3:30 PM
+            
+            if not (market_open <= now <= market_close):
+                # Outside market hours - return None to use cached prices
+                return None
+            
             if not (hasattr(self, 'upstox_api') and self.upstox_api):
-                console.print(f"[dim]ℹ️ No Upstox API available for {symbol} on {exchange}[/dim]")
+                console.print(f"[red]❌ Upstox API unavailable for {symbol} on {exchange} - TSL monitoring affected[/red]")
                 return None
             
             # Map exchange to Upstox format
@@ -2083,12 +2099,13 @@ class TVScreenerUsage:
             
             upstox_exchange = exchange_map.get(exchange, 'NSE_EQ')
             
-            # Get latest intraday data (1-minute) to get current price  
-            # Remove exchange parameter as it causes "instrument key not found" errors
+            # Get latest intraday data (1-minute) to get current price with proper exchange parameters
             df = self.upstox_api.fetch_intraday_data_v3(
                 symbol=symbol, 
                 unit='minutes', 
-                interval=1
+                interval=1,
+                exchange='NSE_EQ',
+                instrument_type='EQ'
             )
             
             if df is not None and not df.empty:
@@ -2246,8 +2263,10 @@ class TVScreenerUsage:
     
     def start_background_monitoring(self):
         """Start background thread for continuous live price monitoring and risk management"""
-        if not self.paper_trading_enabled or not self.upstox_api:
+        if not self.paper_trading_enabled:
             return
+        
+        # Start monitoring even if Upstox API has issues - display errors instead of stopping
         
         if self.background_monitor_active:
             console.print("[yellow]⚠️ Background monitoring already active[/yellow]")
@@ -2568,7 +2587,9 @@ class TVScreenerUsage:
                 unit='days',
                 interval=1,
                 to_date=to_date,
-                from_date=from_date
+                from_date=from_date,
+                exchange='NSE_EQ',
+                instrument_type='EQ'
             )
             
             if df is None or df.empty or len(df) < 5:
@@ -2619,7 +2640,9 @@ class TVScreenerUsage:
                 unit='days',
                 interval=1,
                 to_date=to_date,
-                from_date=from_date
+                from_date=from_date,
+                exchange='NSE_EQ',
+                instrument_type='EQ'
             )
             
             if df is None or df.empty or len(df) < 14:

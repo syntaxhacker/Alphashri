@@ -45,7 +45,9 @@ class LiveDataMonitor:
                     df = self.parent.upstox_client.fetch_intraday_data_v3(
                         symbol=clean_symbol,
                         unit='minutes',
-                        interval=1
+                        interval=1,
+                        exchange='NSE_EQ',
+                        instrument_type='EQ'
                     )
                     if df is not None and not df.empty:
                         live_price = float(df['close'].iloc[-1])
@@ -67,7 +69,9 @@ class LiveDataMonitor:
                         unit='days',
                         interval=1,
                         to_date=to_date,
-                        from_date=from_date
+                        from_date=from_date,
+                        exchange='NSE_EQ',
+                        instrument_type='EQ'
                     )
                     
                     if historical_data:
@@ -121,7 +125,9 @@ class LiveDataMonitor:
                 df = self.parent.upstox_client.fetch_intraday_data_v3(
                     symbol=clean_symbol,
                     unit='minutes',
-                    interval=1
+                    interval=1,
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
                 if df is not None and not df.empty:
                     return float(df['close'].iloc[-1])

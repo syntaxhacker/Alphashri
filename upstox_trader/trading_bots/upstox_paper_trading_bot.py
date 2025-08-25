@@ -14,10 +14,20 @@ import threading
 from datetime import datetime, timedelta
 import os
 import logging
-import re
 import argparse
 from config_and_utils.free_indian_apis import UpstoxAPI
 from config import UPSTOX_CONFIG
+from screeners.tv_display_utils import Colors, strip_ansi_codes
+from screeners.utils.tv_logging_utils import log_colored, create_daily_trades_summary, save_daily_summary
+from screeners.tv_technical_analysis import (
+    identify_support_resistance_levels,
+    group_levels,
+    filter_by_touches,
+    calculate_trend_direction,
+    find_nearest_levels,
+    check_support_resistance_signals,
+    display_support_resistance_levels
+)
 
 # Add Upstox Official SDK for WebSocket
 try:
@@ -31,21 +41,6 @@ except ImportError:
 
 
 
-# ANSI Color codes for terminal
-class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    MAGENTA = '\033[95m'
-    CYAN = '\033[96m'
-    WHITE = '\033[97m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    RESET = '\033[0m'
-    BG_RED = '\033[101m'
-    BG_GREEN = '\033[102m'
-    BG_YELLOW = '\033[103m'
 
 # --- Main Bot Logger (Console) ---
 console_log_formatter = logging.Formatter('%(message)s')
@@ -57,9 +52,6 @@ paper_trade_logger = logging.getLogger('upstox_paper_trade_logger')
 paper_trade_logger.setLevel(logging.INFO)
 
 
-def strip_ansi_codes(text):
-    """Removes ANSI color codes from a string."""
-    return re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', text)
 
 class UpstoxPaperTradingBot:
     """Paper Trading Support & Resistance Bot for Upstox with REAL-TIME WebSocket data"""
@@ -153,7 +145,7 @@ class UpstoxPaperTradingBot:
         # RUNTIME
         self.running = False
 
-    def log_colored(self, message, level="info"):
+    def log_colored_instance(self, message, level="info"):
         """Enhanced colored logging for console output."""
         timestamp = datetime.now().strftime("%H:%M:%S")
         log_message = f"[{timestamp}] {message}"
@@ -200,7 +192,7 @@ class UpstoxPaperTradingBot:
                 )
                 
                 if df is None or df.empty:
-                    self.log_colored(f"⚠️  Could not fetch {base_interval} candle data for {sym}", "warning")
+                    log_colored(f"⚠️  Could not fetch {base_interval} candle data for {sym}", "warning")
                     continue
 
                 # Resample to the target timeframe
@@ -230,28 +222,28 @@ class UpstoxPaperTradingBot:
                     success_count += 1
                     
             except Exception as e:
-                self.log_colored(f"❌ Error fetching candles for {sym}: {str(e)}", "error")
+                log_colored(f"❌ Error fetching candles for {sym}: {str(e)}", "error")
                 continue
         
         if success_count > 0:
-            self.log_colored(f"✅ Successfully prepared candles for {success_count}/{len(symbols_to_fetch)} symbols", "success")
+            log_colored(f"✅ Successfully prepared candles for {success_count}/{len(symbols_to_fetch)} symbols", "success")
             return True
         else:
-            self.log_colored("❌ Failed to fetch candles for any symbol", "error")
+            log_colored("❌ Failed to fetch candles for any symbol", "error")
             return False
 
     def setup_websocket_streaming(self):
         """Initialize real-time WebSocket streaming for multiple symbols"""
         if not self.websocket_enabled:
-            self.log_colored("❌ WebSocket not available - install upstox-python-sdk", "error")
+            log_colored("❌ WebSocket not available - install upstox-python-sdk", "error")
             return False
             
         try:
             # Get access token from our existing client
             if not self.client.access_token:
-                self.log_colored("🔑 Authenticating for WebSocket access...", "info")
+                log_colored("🔑 Authenticating for WebSocket access...", "info")
                 if not self.client.authenticate():
-                    self.log_colored("❌ Authentication failed for WebSocket", "error")
+                    log_colored("❌ Authentication failed for WebSocket", "error")
                     return False
             
             # Setup Upstox SDK configuration
@@ -265,12 +257,12 @@ class UpstoxPaperTradingBot:
                 if instrument_key:
                     self.instrument_keys[symbol] = instrument_key
                     instrument_keys_list.append(instrument_key)
-                    self.log_colored(f"🔑 {symbol}: {instrument_key}", "info")
+                    log_colored(f"🔑 {symbol}: {instrument_key}", "info")
                 else:
-                    self.log_colored(f"❌ Could not find instrument key for {symbol}", "error")
+                    log_colored(f"❌ Could not find instrument key for {symbol}", "error")
             
             if not instrument_keys_list:
-                self.log_colored("❌ No valid instrument keys found", "error")
+                log_colored("❌ No valid instrument keys found", "error")
                 return False
             
             # Initialize Market Data Streamer with all instrument keys
@@ -287,11 +279,11 @@ class UpstoxPaperTradingBot:
             self.market_streamer.on("error", self.on_websocket_error)
             self.market_streamer.on("close", self.on_websocket_close)
             
-            self.log_colored(f"✅ WebSocket streaming setup complete for {len(instrument_keys_list)} symbols", "success")
+            log_colored(f"✅ WebSocket streaming setup complete for {len(instrument_keys_list)} symbols", "success")
             return True
             
         except Exception as e:
-            self.log_colored(f"❌ WebSocket setup failed: {str(e)}", "error")
+            log_colored(f"❌ WebSocket setup failed: {str(e)}", "error")
             return False
 
     def update_live_prices_from_upstox_v3(self):
@@ -374,7 +366,7 @@ class UpstoxPaperTradingBot:
             return fallback_key
             
         except Exception as e:
-            self.log_colored(f"⚠️  Error getting instrument key for {symbol}: {str(e)}", "warning")
+            log_colored(f"⚠️  Error getting instrument key for {symbol}: {str(e)}", "warning")
             return symbol  # Return just the symbol name without NSE prefix
     
     def get_symbol_from_instrument_key(self, instrument_key):
@@ -412,7 +404,7 @@ class UpstoxPaperTradingBot:
                                 if (self.price_update_counts[symbol] % 100 == 0 or 
                                     abs(new_price - self.last_logged_prices[symbol]) >= 5):
                                     # Log every 100th update OR significant price moves (5rs)
-                                    self.log_colored(
+                                    log_colored(
                                         f"📡 {symbol}: ₹{new_price:,.2f} (Update #{self.price_update_counts[symbol]})", 
                                         "info"
                                     )
@@ -425,21 +417,21 @@ class UpstoxPaperTradingBot:
                                 self.check_position_pnl_realtime_smart(symbol)
                                 
         except Exception as e:
-            self.log_colored(f"❌ Error processing WebSocket message: {str(e)}", "error")
+            log_colored(f"❌ Error processing WebSocket message: {str(e)}", "error")
 
     def on_websocket_open(self):
         """Called when WebSocket connection opens"""
-        self.log_colored("🔗 WebSocket connection established!", "success")
+        log_colored("🔗 WebSocket connection established!", "success")
         symbols_str = ", ".join(self.trading_symbols)
-        self.log_colored(f"📡 Streaming real-time data for: {symbols_str}", "info")
+        log_colored(f"📡 Streaming real-time data for: {symbols_str}", "info")
 
     def on_websocket_error(self, error):
         """Called when WebSocket encounters an error"""
-        self.log_colored(f"❌ WebSocket error: {str(error)}", "error")
+        log_colored(f"❌ WebSocket error: {str(error)}", "error")
 
     def on_websocket_close(self, close_status_code, close_msg):
         """Called when WebSocket connection closes"""
-        self.log_colored(f"🔌 WebSocket connection closed (Code: {close_status_code})", "info")
+        log_colored(f"🔌 WebSocket connection closed (Code: {close_status_code})", "info")
 
     def check_position_pnl_realtime(self, symbol):
         """Check position P&L with real-time price updates for specific symbol"""
@@ -459,7 +451,7 @@ class UpstoxPaperTradingBot:
             
         # Enhanced P&L logging with price source indicator
         price_source = "🔴 Historical" if self.real_time_prices.get(symbol, 0) == 0 else "🟢 Real-time"
-        self.log_colored(
+        log_colored(
             f"💰 {symbol} P&L: {pnl:+.2f}% | Entry: ₹{position['entry_price']:,.2f} | "
             f"Current: ₹{current_price:,.2f} | {price_source}", 
             "profit" if pnl > 0 else "loss"
@@ -498,7 +490,7 @@ class UpstoxPaperTradingBot:
             
         if should_log:
             price_source = "🔴 Historical" if self.real_time_prices.get(symbol, 0) == 0 else "🟢 Real-time"
-            self.log_colored(
+            log_colored(
                 f"💰 {symbol} P&L: {pnl:+.2f}% | Entry: ₹{position['entry_price']:,.2f} | "
                 f"Current: ₹{current_price:,.2f} | {price_source}", 
                 "profit" if pnl > 0 else "loss"
@@ -507,65 +499,23 @@ class UpstoxPaperTradingBot:
             self.last_logged_pnl_percents[symbol] = pnl_rounded
             self.last_profit_check = current_time
 
-    def identify_support_resistance_levels(self, symbol):
+    def identify_support_resistance_levels_instance(self, symbol):
         """Identify support and resistance levels for a specific symbol"""
         if len(self.candle_data.get(symbol, [])) < self.lookback_periods: 
             return
             
-        candles = self.candle_data[symbol]
-        highs = [c['high'] for c in candles[-self.lookback_periods:]]
-        lows = [c['low'] for c in candles[-self.lookback_periods:]]
+        self.support_levels[symbol], self.resistance_levels[symbol] = identify_support_resistance_levels(
+            self.candle_data[symbol], self.lookback_periods, self.level_threshold, self.min_touches, self.bounce_threshold
+        )
         
-        self.resistance_levels[symbol] = self._group_levels([h for i, h in enumerate(highs) if i > 1 and i < len(highs) - 2 and h > highs[i-1] and h > highs[i-2] and h > highs[i+1] and h > highs[i+2]])
-        self.support_levels[symbol] = self._group_levels([l for i, l in enumerate(lows) if i > 1 and i < len(lows) - 2 and l < lows[i-1] and l < lows[i-2] and l < lows[i+1] and l < lows[i+2]])
-        
-        self.resistance_levels[symbol] = self._filter_by_touches(self.resistance_levels[symbol], highs)
-        self.support_levels[symbol] = self._filter_by_touches(self.support_levels[symbol], lows)
-        
-        self.resistance_levels[symbol].sort(reverse=True)
-        self.support_levels[symbol].sort(reverse=True)
-        
-        # DETAILED LOGGING OF FOUND LEVELS
-        support_count = len(self.support_levels[symbol])
-        resistance_count = len(self.resistance_levels[symbol])
-        
-        if support_count > 0 or resistance_count > 0:
-            self.log_colored(
-                f"{symbol} S&R Update: {support_count} Support, {resistance_count} Resistance levels found",
-                "level"
-            )
-            
-            current_price = self.current_prices.get(symbol, 0)
-            
-            # Print Support Levels
-            if self.support_levels[symbol]:
-                print(f"\n{Colors.GREEN}🛡️  {symbol} SUPPORT LEVELS:{Colors.RESET}")
-                for i, level in enumerate(self.support_levels[symbol], 1):
-                    if current_price > 0:
-                        distance = ((current_price - level) / level) * 100
-                        status = "🎯 ACTIVE" if abs(distance) <= self.bounce_threshold else "⏳ MONITORING"
-                        print(f"  {Colors.GREEN}S{i}: {level:,.2f}{Colors.RESET} | Distance: {distance:+.2f}% | {status}")
-                    else:
-                        print(f"  {Colors.GREEN}S{i}: {level:,.2f}{Colors.RESET} | Distance: Waiting for price data | ⏳ MONITORING")
-            
-            # Print Resistance Levels  
-            if self.resistance_levels[symbol]:
-                print(f"\n{Colors.RED}🛡️  {symbol} RESISTANCE LEVELS:{Colors.RESET}")
-                for i, level in enumerate(self.resistance_levels[symbol], 1):
-                    if current_price > 0:
-                        distance = ((level - current_price) / current_price) * 100
-                        status = "🎯 ACTIVE" if abs(distance) <= self.bounce_threshold else "⏳ MONITORING"
-                        print(f"  {Colors.RED}R{i}: {level:,.2f}{Colors.RESET} | Distance: {distance:+.2f}% | {status}")
-                    else:
-                        print(f"  {Colors.RED}R{i}: {level:,.2f}{Colors.RESET} | Distance: Waiting for price data | ⏳ MONITORING")
-            
-            print(f"\n{Colors.CYAN}💰 {symbol} Current Price: {current_price:,.2f}{Colors.RESET}")
-            print(f"{Colors.YELLOW}📏 Bounce Threshold: ±{self.bounce_threshold}%{Colors.RESET}")
-            print(f"{Colors.MAGENTA}════════════════════════════════════════{Colors.RESET}")
-        else:
-            self.log_colored(f"{symbol}: No valid S&R levels found - need more data or lower thresholds", "warning")
+        # Display levels using utility function
+        current_price = self.current_prices.get(symbol, 0)
+        display_support_resistance_levels(
+            symbol, self.support_levels[symbol], self.resistance_levels[symbol], 
+            current_price, self.bounce_threshold
+        )
 
-    def _group_levels(self, levels):
+    def _group_levels_deprecated(self, levels):
         if not levels: return []
         levels.sort()
         grouped, current_group = [], [levels[0]]
@@ -578,7 +528,7 @@ class UpstoxPaperTradingBot:
         grouped.append(sum(current_group) / len(current_group))
         return grouped
 
-    def _filter_by_touches(self, levels, price_data):
+    def _filter_by_touches_deprecated(self, levels, price_data):
         return [l for l in levels if sum(1 for p in price_data if abs(p - l) / l * 100 < self.level_threshold) >= self.min_touches]
 
     def calculate_trend_direction(self, symbol):
@@ -599,7 +549,7 @@ class UpstoxPaperTradingBot:
         else: 
             self.trend_directions[symbol] = "NEUTRAL"
             
-        self.log_colored(
+        log_colored(
             f"📈 {symbol} Trend: {self.trend_directions[symbol]} | EMA: {self.trend_emas[symbol]:,.2f} | Price: {current_price:,.2f}", 
             "level"
         )
@@ -621,7 +571,7 @@ class UpstoxPaperTradingBot:
             return []
             
         signals = []
-        nearest_support, nearest_resistance = self.find_nearest_levels(symbol)
+        nearest_support, nearest_resistance = self.find_nearest_levels_instance(symbol)
         current_price = self.current_prices.get(symbol, 0)
         trend_direction = self.trend_directions.get(symbol, "NEUTRAL")
         
@@ -646,7 +596,7 @@ class UpstoxPaperTradingBot:
         
         trade_log_msg = f"PAPER_TRADE_OPEN: Side={side}, Qty={quantity}, Symbol={symbol}, Price={current_price:.2f}, Reason={reason}, Level={level:.2f}, Confidence={confidence:.2f}"
         paper_trade_logger.info(trade_log_msg)
-        self.log_colored(trade_log_msg, "trade")
+        log_colored(trade_log_msg, "trade")
         
         self.positions[symbol] = {
             'side': side, 
@@ -675,7 +625,7 @@ class UpstoxPaperTradingBot:
         
         trade_log_msg = f"PAPER_TRADE_CLOSE: Symbol={symbol}, Side={position['side']}, PnL={pnl:.2f}%, Reason={reason}, Entry={position['entry_price']:,.2f}, Exit={current_price:,.2f}"
         paper_trade_logger.info(trade_log_msg)
-        self.log_colored(trade_log_msg, "profit" if pnl > 0 else "loss")
+        log_colored(trade_log_msg, "profit" if pnl > 0 else "loss")
         
         self.total_pnl += pnl
         
@@ -737,7 +687,7 @@ class UpstoxPaperTradingBot:
                 
         return False, ""
 
-    def create_daily_trades_summary(self):
+    def create_daily_trades_summary_instance(self):
         """Create a beautiful daily trades summary table"""
         if not self.daily_trades:
             return "No trades executed today."
@@ -788,12 +738,12 @@ class UpstoxPaperTradingBot:
         
         return summary
 
-    def save_daily_summary(self):
+    def save_daily_summary_instance(self):
         """Save daily summary to a dated file"""
         try:
             today = datetime.now().strftime("%d%B%Y")
             filename = f"{today}_trades.log"
-            summary = self.create_daily_trades_summary()
+            summary = create_daily_trades_summary(self.daily_trades)
             
             with open(filename, 'w') as f:
                 f.write(summary)
@@ -808,45 +758,45 @@ class UpstoxPaperTradingBot:
         """Main strategy loop with REAL-TIME WebSocket integration and OBSERVATION PERIOD"""
         self.running = True
         symbols_str = ", ".join(self.trading_symbols)
-        self.log_colored(f"🚀 Starting Enhanced Multi-Symbol Upstox Paper Trading Bot for {symbols_str} on {self.timeframe} timeframe!", "success")
+        log_colored(f"🚀 Starting Enhanced Multi-Symbol Upstox Paper Trading Bot for {symbols_str} on {self.timeframe} timeframe!", "success")
         
         # Authentication
         if not self.client.access_token and not self.client.authenticate():
-            self.log_colored("Authentication failed. Exiting.", "error")
+            log_colored("Authentication failed. Exiting.", "error")
             return
         
         # Get initial historical data
         if not self.get_candles():
-            self.log_colored("Failed to get initial candle data. Exiting.", "error")
+            log_colored("Failed to get initial candle data. Exiting.", "error")
             return
         
         # Use Upstox V3 API for live price updates (no authentication required)
         websocket_connected = False
-        self.log_colored("🔗 Setting up live price updates via Upstox V3 API...", "info")
+        log_colored("🔗 Setting up live price updates via Upstox V3 API...", "info")
         
         # Test V3 API connection with one symbol
         if self.update_live_prices_from_upstox_v3():
             websocket_connected = True
-            self.log_colored("✅ Upstox V3 live data available", "success")
+            log_colored("✅ Upstox V3 live data available", "success")
             
             # Get initial prices for all symbols
             for symbol in self.trading_symbols:
                 price = self.real_time_prices.get(symbol, 0)
                 if price > 0:
-                    self.log_colored(f"📡 {symbol} current price: ₹{price:.2f}", "success")
+                    log_colored(f"📡 {symbol} current price: ₹{price:.2f}", "success")
         else:
-            self.log_colored("⚠️ Upstox V3 API connection failed, using historical prices", "warning")
+            log_colored("⚠️ Upstox V3 API connection failed, using historical prices", "warning")
         
         # Identify initial levels for all symbols (for display only, not immediate trading)
         for symbol in self.trading_symbols:
             if self.candle_data.get(symbol):
-                self.identify_support_resistance_levels(symbol)
-                self.calculate_trend_direction(symbol)
+                self.identify_support_resistance_levels_instance(symbol)
+                self.calculate_trend_direction_instance(symbol)
         
-        self.log_colored(f"📊 Data Source: {'🟢 Real-time WebSocket + Historical' if websocket_connected else '🔴 Historical only'}", "info")
+        log_colored(f"📊 Data Source: {'🟢 Real-time WebSocket + Historical' if websocket_connected else '🔴 Historical only'}", "info")
         
         # OBSERVATION PERIOD - Wait before trading
-        self.log_colored(f"👀 OBSERVATION PERIOD: Monitoring market for {self.observation_period} seconds before trading...", "warning")
+        log_colored(f"👀 OBSERVATION PERIOD: Monitoring market for {self.observation_period} seconds before trading...", "warning")
         
         observation_start = time.time()
         price_updates_received = 0
@@ -860,14 +810,14 @@ class UpstoxPaperTradingBot:
                     # Show we're receiving live data
                     if price_updates_received % 5 == 0:
                         remaining = self.observation_period - (time.time() - observation_start)
-                        self.log_colored(f"📡 V3 API updates: {price_updates_received} | Observation ends in {remaining:.0f}s", "info")
+                        log_colored(f"📡 V3 API updates: {price_updates_received} | Observation ends in {remaining:.0f}s", "info")
             
             time.sleep(5)  # Update every 5 seconds
         
         # End observation period
         observation_status = f"📊 Observation complete! Received {price_updates_received} real-time price updates"
-        self.log_colored(observation_status, "success")
-        self.log_colored("🎯 Now actively monitoring for trading signals...", "success")
+        log_colored(observation_status, "success")
+        log_colored("🎯 Now actively monitoring for trading signals...", "success")
         
         # MAIN TRADING LOOP
         try:
@@ -891,8 +841,8 @@ class UpstoxPaperTradingBot:
                     if self.get_candles():
                         for symbol in self.trading_symbols:
                             if self.candle_data.get(symbol):
-                                self.identify_support_resistance_levels(symbol)
-                                self.calculate_trend_direction(symbol)
+                                self.identify_support_resistance_levels_instance(symbol)
+                                self.calculate_trend_direction_instance(symbol)
                         last_data_update = current_time
                 
                 # Position management for all symbols
@@ -907,7 +857,7 @@ class UpstoxPaperTradingBot:
                                 current_price = self.current_prices.get(symbol, 0)
                                 pnl = (current_price - position['entry_price']) / position['entry_price'] * 100
                                 if position['side'] == 'SELL': pnl *= -1
-                                self.log_colored(f"💰 {symbol} P&L: {pnl:.2f}% (Historical)", "profit" if pnl > 0 else "loss")
+                                log_colored(f"💰 {symbol} P&L: {pnl:.2f}% (Historical)", "profit" if pnl > 0 else "loss")
                                 self.last_profit_check = time.time()
                 
                 # Check for new signals for all symbols (only if no position and not too frequent)
@@ -918,10 +868,10 @@ class UpstoxPaperTradingBot:
                             if signals:
                                 side, reason, confidence, level = signals[0]
                                 if confidence >= self.min_confidence_threshold:
-                                    self.log_colored(f"🚨 {symbol} HIGH CONFIDENCE SIGNAL: {reason} (confidence: {confidence:.1%})", "success")
+                                    log_colored(f"🚨 {symbol} HIGH CONFIDENCE SIGNAL: {reason} (confidence: {confidence:.1%})", "success")
                                     if self.execute_trade(symbol, side, reason, level, confidence):
                                         current_price = self.current_prices.get(symbol, 0)
-                                        self.log_colored(f"✅ {symbol} Trade executed: {side} @ ₹{current_price:.2f}", "trade")
+                                        log_colored(f"✅ {symbol} Trade executed: {side} @ ₹{current_price:.2f}", "trade")
                     
                     last_signal_check = current_time
                 
@@ -931,7 +881,7 @@ class UpstoxPaperTradingBot:
                     
                     for symbol in self.trading_symbols:
                         if not self.positions.get(symbol):  # Only show status if no position
-                            nearest_support, nearest_resistance = self.find_nearest_levels(symbol)
+                            nearest_support, nearest_resistance = self.find_nearest_levels_instance(symbol)
                             current_price = self.current_prices.get(symbol, 0)
                             trend_direction = self.trend_directions.get(symbol, "NEUTRAL")
                             
@@ -946,25 +896,25 @@ class UpstoxPaperTradingBot:
                                 status_parts.append(f"Resistance: ₹{nearest_resistance:,.2f} (+{resistance_dist:.2f}%)")
                             
                             status = " | ".join(status_parts) if status_parts else "No levels detected"
-                            self.log_colored(f"🔍 {symbol} | Price: ₹{current_price:,.2f} ({data_source}) | {status}", "info")
+                            log_colored(f"🔍 {symbol} | Price: ₹{current_price:,.2f} ({data_source}) | {status}", "info")
                 
                 time.sleep(2)  # Main loop delay
                 
         except KeyboardInterrupt:
-            self.log_colored("🛑 Bot stopped by user.", "warning")
+            log_colored("🛑 Bot stopped by user.", "warning")
             # Close all open positions on manual stop
             for symbol in self.trading_symbols:
                 if self.positions.get(symbol):
                     self.close_position(symbol, "Manual stop")
             
             # Generate and save daily summary
-            self.save_daily_summary()
+            save_daily_summary(self.daily_trades)
         finally:
             self.running = False
             if hasattr(self, 'market_streamer') and self.market_streamer:
                 try:
                     self.market_streamer.disconnect()
-                    self.log_colored("🔌 WebSocket connection closed", "info")
+                    log_colored("🔌 WebSocket connection closed", "info")
                 except:
                     pass
 

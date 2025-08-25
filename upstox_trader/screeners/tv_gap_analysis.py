@@ -33,7 +33,9 @@ class GapAnalysis:
                     unit='days',
                     interval=1,
                     from_date=start_date.strftime('%Y-%m-%d'),
-                    to_date=end_date.strftime('%Y-%m-%d')
+                    to_date=end_date.strftime('%Y-%m-%d'),
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
                 
                 if not historical_data or len(historical_data) < 10:
@@ -185,7 +187,9 @@ class GapAnalysis:
                     unit='days',
                     interval=1,
                     from_date=start_date.strftime('%Y-%m-%d'),
-                    to_date=end_date.strftime('%Y-%m-%d')
+                    to_date=end_date.strftime('%Y-%m-%d'),
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
                 
                 if historical_data and len(historical_data) >= 2:

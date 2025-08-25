@@ -71,7 +71,7 @@ class TrailingStopsConfig:
 class TradingHoursConfig:
     """Trading time configuration"""
     trading_start_time: str = "09:17"        # Start trading at 9:17 AM
-    trading_end_time: str = "10:00"          # Stop trading at 10:00 AM
+    trading_end_time: str = "13:00"          # Stop trading at 10:00 AM
 
 
 @dataclass

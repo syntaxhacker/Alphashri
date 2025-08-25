@@ -226,7 +226,9 @@ def check_historical_upside(upstox_api, symbol, current_price):
         df = upstox_api.fetch_intraday_data_v3(
             symbol=symbol,
             unit='days',
-            duration=5  # Last 5 days
+            duration=5,  # Last 5 days
+            exchange='NSE_EQ',
+            instrument_type='EQ'
         )
         
         if df is None or df.empty:
@@ -418,7 +420,9 @@ def get_15min_rsi(upstox_api, symbol):
                 unit='minutes',
                 interval=15,
                 to_date=to_date,
-                from_date=from_date
+                from_date=from_date,
+                exchange='NSE_EQ',
+                instrument_type='EQ'
             )
             
             if df is not None and len(df) >= 14:  # Need at least 14 periods for RSI

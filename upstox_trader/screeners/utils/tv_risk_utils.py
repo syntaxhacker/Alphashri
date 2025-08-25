@@ -30,7 +30,9 @@ def detect_volatility_level(upstox_api, symbol, current_price, config):
             unit='days',
             interval=1,
             to_date=to_date,
-            from_date=from_date
+            from_date=from_date,
+            exchange='NSE_EQ',
+            instrument_type='EQ'
         )
         
         if df is None or df.empty or len(df) < 5:
@@ -82,7 +84,9 @@ def calculate_atr_based_stop(upstox_api, symbol, current_price, config, atr_mult
             unit='days',
             interval=1,
             to_date=to_date,
-            from_date=from_date
+            from_date=from_date,
+            exchange='NSE_EQ',
+            instrument_type='EQ'
         )
         
         if df is None or df.empty or len(df) < 14:
