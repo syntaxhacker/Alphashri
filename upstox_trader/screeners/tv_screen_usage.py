@@ -4518,11 +4518,11 @@ class TVScreenerUsage:
     # =============== DELEGATION METHODS TO TV_MODES ===============
     # These methods delegate to functions in tv_modes.py
     
-    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT'):
+    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT', market_cap_filter=None):
         """Delegate to intraday_watch_mode in tv_modes"""
-        return tv_modes.intraday_watch_mode(self, refresh_interval, volume_threshold, price_threshold, mode)
+        return tv_modes.intraday_watch_mode(self, refresh_interval, volume_threshold, price_threshold, mode, market_cap_filter)
     
-    def run_mode_once(self, mode='PREBREAKOUT'):
+    def run_mode_once(self, mode='PREBREAKOUT', market_cap_filter=None):
         """Run a specific mode once to display current data"""
         mode_titles = {
             'PREBREAKOUT': ("📊 PRE-BREAKOUT MODE - Early Entry Signals", "bold blue"),
@@ -4553,7 +4553,7 @@ class TVScreenerUsage:
         try:
             # Get current data using the same logic as watch mode
             self.watch_mode = mode  # Set the mode for data fetching
-            df = self._get_watch_data()
+            df = self._get_watch_data(market_cap_filter)
             
             if not df.empty:
                 console.print(f"\n[green]✅ Found {len(df)} stocks matching {mode} criteria:[/green]")
@@ -4566,9 +4566,9 @@ class TVScreenerUsage:
             import traceback
             console.print(f"[dim]{traceback.format_exc()}[/dim]")
     
-    def _get_watch_data(self):
+    def _get_watch_data(self, market_cap_filter=None):
         """Delegate to _get_watch_data in tv_modes"""
-        return tv_modes._get_watch_data(self)
+        return tv_modes._get_watch_data(self, market_cap_filter)
     
     # Trading mode delegation methods
     def pre_breakout_accumulation(self):
@@ -4693,6 +4693,9 @@ def main():
     # Paper Trading Bot integration
     parser.add_argument('--enable-trading', action='store_true', help='Enable paper trading bot integration (₹20,000 per trade)')
     
+    # Market cap filtering
+    parser.add_argument('--cap', type=str, choices=['large', 'mid', 'small'], help='Filter by market cap: large (>20,000 Cr), mid (5,000-20,000 Cr), small (<5,000 Cr)')
+    
     args = parser.parse_args()
     
     screener = TVScreenerUsage(market=args.market, enable_paper_trading=args.enable_trading)
@@ -4704,7 +4707,8 @@ def main():
             refresh_interval=args.refresh,
             volume_threshold=args.volume_threshold,
             price_threshold=args.price_threshold,
-            mode=args.mode
+            mode=args.mode,
+            market_cap_filter=args.cap
         )
     elif args.example:
         if args.example == 'intraday_watch':
@@ -4719,7 +4723,7 @@ def main():
     elif args.run_all:
         screener.run_all_examples()
     elif len(sys.argv) > 1 and '--mode' in sys.argv:  # Mode explicitly specified but not in watch mode - run once
-        screener.run_mode_once(args.mode)
+        screener.run_mode_once(args.mode, args.cap)
     else:
         console.print("[bold blue]TradingView Screener Usage Guide[/bold blue]")
         console.print("\nUse --list-examples to see all available examples")

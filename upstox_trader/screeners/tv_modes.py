@@ -12,6 +12,23 @@ import numpy as np
 console = Console()
 
 
+def apply_market_cap_filter(query, market_cap_filter):
+    """Apply market cap filtering based on the specified filter type"""
+    if market_cap_filter == 'large':
+        # Large cap: > 20,000 Cr (200e9)
+        query = query.where(col('market_cap_basic') > 200e9)
+    elif market_cap_filter == 'mid':
+        # Mid cap: 5,000 Cr - 20,000 Cr (50e9 to 200e9)
+        query = query.where(col('market_cap_basic').between(50e9, 200e9))
+    elif market_cap_filter == 'small':
+        # Small cap: < 5,000 Cr (< 50e9), but filter out very small caps
+        query = query.where(
+            col('market_cap_basic') < 50e9,
+            col('market_cap_basic') > 10e9  # Filter out very small caps for relevance
+        )
+    return query
+
+
 # =============== MARKET-SPECIFIC CONSTANTS ===============
 class MarketConstants:
     """Market-specific constants for different trading modes"""
@@ -620,8 +637,11 @@ def research_sector_stocks(self, sector_name=None, limit=20) -> None:
         console.print(f"[red]Error: {e}[/red]")
 
 
-def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT') -> None:
+def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT', market_cap_filter=None) -> None:
     """Watch mode for intraday trading - continuously monitors volume and price changes"""
+    # Store market cap filter for use in _get_watch_data
+    self.market_cap_filter = market_cap_filter
+    
     mode_titles = {
         'PREBREAKOUT': ("📊 PRE-BREAKOUT MODE - Early Entry Signals", "bold blue"),
         'FOMO': ("🔥 FOMO MODE - High Volume Breakouts", "bold red"), 
@@ -714,7 +734,7 @@ def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_t
                 continue
             
             # Get current market data
-            current_data = self._get_watch_data() if hasattr(self, '_get_watch_data') else pd.DataFrame()
+            current_data = self._get_watch_data(market_cap_filter) if hasattr(self, '_get_watch_data') else pd.DataFrame()
             
             if not current_data.empty:
                 # Detect alerts
@@ -1311,7 +1331,7 @@ def research_market_sentiment(self) -> None:
         console.print(f"[red]Error: {e}[/red]")
 
 
-def _get_watch_data(self):
+def _get_watch_data(self, market_cap_filter=None):
     """Get current market data for watch mode based on selected mode"""
     mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
     
@@ -1320,6 +1340,10 @@ def _get_watch_data(self):
             # Original FOMO high volume breakouts - using market-aware helper
             base_query = create_base_query(QueryConfig.FOMO_FIELDS, self.market)
             query = build_market_aware_query(base_query, self.market, 'fomo')
+            
+            # Apply market cap filter AFTER build_market_aware_query to ensure it's not overridden
+            if market_cap_filter:
+                query = apply_market_cap_filter(query, market_cap_filter)
             
             total_rows, df = (
                 query
@@ -1330,7 +1354,7 @@ def _get_watch_data(self):
         
         elif mode == 'ACCUMULATION':
             # Accumulation patterns
-            total_rows, df = (
+            query = (
                 Query()
                 .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
                        'RSI', 'EMA20', 'market_cap_basic', 'update_mode')
@@ -1344,6 +1368,14 @@ def _get_watch_data(self):
                     col('market_cap_basic') > 5e8,  # Min 500 crores
                     col('exchange') == 'NSE'  # NSE only
                 )
+            )
+            
+            # Apply market cap filter if specified
+            if market_cap_filter:
+                query = apply_market_cap_filter(query, market_cap_filter)
+            
+            total_rows, df = (
+                query
                 .order_by('RSI', ascending=False)
                 .limit(25)
                 .get_scanner_data(cookies=self.cookies)
@@ -1351,7 +1383,7 @@ def _get_watch_data(self):
         
         elif mode == 'SMART_FOMO':
             # Enhanced Smart FOMO: Avoid buying at tops using multiple filters
-            total_rows, df = (
+            query = (
                 Query()
                 .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
                        'RSI', 'Volatility.D', 'market_cap_basic', 'price_52_week_high',
@@ -1373,6 +1405,14 @@ def _get_watch_data(self):
                     col('close') > col('EMA20'),  # Above 20 EMA
                     col('EMA20') > col('EMA50')   # 20 EMA above 50 EMA (uptrend)
                 )
+            )
+            
+            # Apply market cap filter if specified
+            if market_cap_filter:
+                query = apply_market_cap_filter(query, market_cap_filter)
+            
+            total_rows, df = (
+                query
                 .order_by('relative_volume_10d_calc', ascending=False)
                 .limit(30)  # Get more to filter
                 .get_scanner_data(cookies=self.cookies)
@@ -1392,7 +1432,7 @@ def _get_watch_data(self):
         
         elif mode == 'MOMENTUM':
             # Early momentum detection
-            total_rows, df = (
+            query = (
                 Query()
                 .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
                        'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
@@ -1408,6 +1448,14 @@ def _get_watch_data(self):
                     col('market_cap_basic') > 2e8,  # Min 200 crores
                     col('exchange') == 'NSE'  # NSE only
                 )
+            )
+            
+            # Apply market cap filter if specified
+            if market_cap_filter:
+                query = apply_market_cap_filter(query, market_cap_filter)
+            
+            total_rows, df = (
+                query
                 .order_by('change', ascending=False)
                 .limit(25)
                 .get_scanner_data(cookies=self.cookies)
@@ -1768,6 +1816,10 @@ def _get_watch_data(self):
             base_query = create_base_query(QueryConfig.MOMENTUM_FIELDS, self.market)
             query = build_market_aware_query(base_query, self.market, 'fomo_momentum')
             
+            # Apply market cap filter AFTER build_market_aware_query to ensure it's not overridden
+            if market_cap_filter:
+                query = apply_market_cap_filter(query, market_cap_filter)
+            
             total_rows, df = (
                 query
                 .order_by('relative_volume_10d_calc', ascending=False)  # Volume surge priority
@@ -1780,6 +1832,10 @@ def _get_watch_data(self):
             # Detects stocks moving consistently in same direction over 1min/3min intervals
             base_query = create_base_query(QueryConfig.REALTIME_MOMENTUM_FIELDS, self.market)
             query = build_market_aware_query(base_query, self.market, 'realtime_momentum')
+            
+            # Apply market cap filter AFTER build_market_aware_query to ensure it's not overridden
+            if market_cap_filter:
+                query = apply_market_cap_filter(query, market_cap_filter)
             
             total_rows, df = (
                 query
@@ -1794,7 +1850,7 @@ def _get_watch_data(self):
         
         else:  # PREBREAKOUT (default)
             # Pre-breakout focus
-            total_rows, df = (
+            query = (
                 Query()
                 .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
                        'RSI', 'RSI[1]', 'EMA20', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
@@ -1808,6 +1864,14 @@ def _get_watch_data(self):
                     col('change').between(-3, 6),  # Not extreme moves
                     col('exchange') == 'NSE'  # NSE only, ignore BSE
                 )
+            )
+            
+            # Apply market cap filter if specified
+            if market_cap_filter:
+                query = apply_market_cap_filter(query, market_cap_filter)
+            
+            total_rows, df = (
+                query
                 .order_by('RSI', ascending=False)  # Momentum building
                 .limit(25)
                 .get_scanner_data(cookies=self.cookies)
@@ -1817,6 +1881,7 @@ def _get_watch_data(self):
         if 'Volatility.D' in df.columns:
             df['volatility_pct'] = df['Volatility.D'] * 100
         df['market_cap_cr'] = df['market_cap_basic'] / 1e7
+        
         
         # Add quality scoring for optimized gap mode
         if mode == 'OPTIMIZED_GAP' and not df.empty:
