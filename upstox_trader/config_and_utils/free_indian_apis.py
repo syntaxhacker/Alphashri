@@ -39,7 +39,7 @@ BASE_URL_V2 = "https://api.upstox.com/v2"
 BASE_URL_V3 = "https://api.upstox.com/v3"
 ORDER_URL = "https://api.upstox.com/v2/order/place"
 INSTRUMENT_LIST_URL = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz"
-INSTRUMENT_CACHE_FILE = Path("nse_instruments.json")
+INSTRUMENT_CACHE_FILE = Path(__file__).parent / "nse_instruments.json"
 
 
 class UpstoxAPI:

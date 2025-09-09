@@ -27,7 +27,7 @@ def _setup_arg_parser():
     # Watch mode specific arguments
     parser.add_argument('--watch', action='store_true', help='Start intraday watch mode')
     parser.add_argument('--mode', type=str, default='PREBREAKOUT',
-                       choices=['PREBREAKOUT', 'FOMO', 'SMART_FOMO', 'ACCUMULATION', 'MOMENTUM', 'OPTIMIZED_GAP', 'GAP_FILL_SR', 'HEAVY_BREAKOUT', 'SCALPING', 'MOMENTUM_SCALPER', 'SECTOR_SCALPER', 'SHORT_SQUEEZE', 'BREAKOUT_FAILURE', 'EXHAUSTION_REVERSAL', 'MORNING_FADE', 'REVERSAL', 'VOLUME_SURGE', 'CHANNEL_PLAY', 'SECTOR_MOMENTUM', 'QUICK_PROFIT', 'FOMO_MOMENTUM', 'REALTIME_MOMENTUM'],
+                       choices=['PREBREAKOUT', 'FOMO', 'SMART_FOMO', 'ACCUMULATION', 'MOMENTUM', 'OPTIMIZED_GAP', 'GAP_FILL_SR', 'HEAVY_BREAKOUT', 'SCALPING', 'MOMENTUM_SCALPER', 'SECTOR_SCALPER', 'SHORT_SQUEEZE', 'BREAKOUT_FAILURE', 'EXHAUSTION_REVERSAL', 'MORNING_FADE', 'REVERSAL', 'VOLUME_SURGE', 'CHANNEL_PLAY', 'SECTOR_MOMENTUM', 'QUICK_PROFIT', 'FOMO_MOMENTUM', 'REALTIME_MOMENTUM', 'SR_LEVELS_BREAK'],
                        help='Watch mode strategy (default: PREBREAKOUT)')
     parser.add_argument('--refresh', type=int, default=30, help='Refresh interval in seconds (default: 30)')
     # Adjusted lighter defaults as requested: Vol 1.2x, Price 1.0%
@@ -39,6 +39,10 @@ def _setup_arg_parser():
     
     # Market cap filtering
     parser.add_argument('--cap', type=str, choices=['large', 'mid', 'small'], help='Filter by market cap: large (>20,000 Cr), mid (5,000-20,000 Cr), small (<5,000 Cr)')
+    
+    # Price filtering
+    parser.add_argument('--max-price', type=float, help='Filter stocks below this price (e.g., 100 for stocks under ₹100)')
+    parser.add_argument('--min-price', type=float, help='Filter stocks above this price (e.g., 50 for stocks over ₹50)')
     
     return parser
 
@@ -54,7 +58,9 @@ def _run_screener_from_args(args):
             volume_threshold=args.volume_threshold,
             price_threshold=args.price_threshold,
             mode=args.mode,
-            market_cap_filter=args.cap
+            market_cap_filter=args.cap,
+            max_price=args.max_price,
+            min_price=args.min_price
         )
     elif args.example:
         if args.example == 'intraday_watch':
@@ -69,7 +75,7 @@ def _run_screener_from_args(args):
     elif args.run_all:
         screener.run_all_examples()
     elif len(sys.argv) > 1 and '--mode' in sys.argv:  # Mode explicitly specified but not in watch mode - run once
-        screener.run_mode_once(args.mode, args.cap)
+        screener.run_mode_once(args.mode, args.cap, args.max_price, args.min_price)
     else:
         console.print("[bold blue]TradingView Screener Usage Guide[/bold blue]")
         console.print("\nUse --list-examples to see all available examples")
@@ -78,6 +84,8 @@ def _run_screener_from_args(args):
         console.print("Use --watch to start intraday watch mode")
         console.print("Use --market <us|in> to select market (default: in)")
         console.print("Use --sector <name> for sector-specific analysis")
+        console.print("Use --max-price <number> to filter stocks below price (e.g., --max-price 100)")
+        console.print("Use --min-price <number> to filter stocks above price (e.g., --min-price 50)")
         console.print("\nExample usage:")
         console.print("  python tv_screen_usage.py --example intraday_breakouts")
         console.print("  python tv_screen_usage.py --market us --example intraday_breakouts")
@@ -103,6 +111,7 @@ def _run_screener_from_args(args):
         console.print("  python tv_screen_usage.py --watch --mode CHANNEL_PLAY --refresh 20  # Range-bound trading")
         console.print("  python tv_screen_usage.py --watch --mode SECTOR_MOMENTUM --refresh 30  # Industry group moves")
         console.print("  python tv_screen_usage.py --watch --mode QUICK_PROFIT --refresh 5 --enable-trading  # Fast 1-2% scalps")
+        console.print("  python tv_screen_usage.py --watch --mode SR_LEVELS_BREAK --refresh 10 --enable-trading  # S/R level breakouts")
         console.print("  python tv_screen_usage.py --example heavy_breakout  # Analyze heavy breakout patterns")
         console.print("  python tv_screen_usage.py --market us --example intraday_watch --refresh 10")
 

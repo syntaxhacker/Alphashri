@@ -122,7 +122,7 @@ class TVScreenerUsage:
         
         # Trading Time Configuration
         self.trading_start_time = "09:17"  # Start trading at 9:20 AM
-        self.trading_end_time = "10:00"    # Stop trading at 10:00 AM (align with newer file)
+        self.trading_end_time = "02:00"    # Stop trading at 10:00 AM (align with newer file)
 
         # Simple Paper Trading integration (without full bot monitoring)
         self.paper_trading_enabled = enable_paper_trading

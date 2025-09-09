@@ -50,6 +50,20 @@ def apply_market_cap_filter(query, market_cap_filter):
     return query
 
 
+def apply_price_filter(query, max_price=None, min_price=None):
+    """Apply price filtering based on specified min and max prices"""
+    conditions = []
+    if max_price is not None:
+        conditions.append(col('close') < max_price)
+    if min_price is not None:
+        conditions.append(col('close') > min_price)
+    
+    if conditions:
+        query = query.where(*conditions)
+    
+    return query
+
+
 # =============== MARKET-SPECIFIC CONSTANTS ===============
 class MarketConstants:
     """Market-specific constants for different trading modes"""
@@ -151,25 +165,37 @@ def get_market_config(market: str) -> dict:
     return MarketConstants.US if market == 'america' else MarketConstants.INDIA
 
 
-def build_market_aware_query(base_query: Query, market: str, mode_type: str = 'fomo') -> Query:
+def build_market_aware_query(base_query: Query, market: str, mode_type: str = 'fomo', custom_min_price=None, custom_max_price=None) -> Query:
     """Build market-aware query with appropriate filters"""
     config = get_market_config(market)
     
+    # Use custom price limits if provided, otherwise use config defaults
+    effective_min_price = custom_min_price if custom_min_price is not None else config['min_price']
+    
     # Common filters based on mode type
     if mode_type == 'fomo':
-        query = base_query.where(
-            col('close') > config['min_price'],
+        conditions = [
+            col('close') > effective_min_price,
             col('volume') > config['min_volume'],
             col('market_cap_basic') > config['min_market_cap'],
             col('relative_volume_10d_calc') > config['fomo_volume_ratio']
-        )
+        ]
+        
+        # Add max price filter if specified
+        if custom_max_price is not None:
+            conditions.append(col('close') < custom_max_price)
+            
+        query = base_query.where(*conditions)
     elif mode_type == 'fomo_momentum':
         momentum_pos = config['momentum_range']['positive']
         momentum_neg = config['momentum_range']['negative'] 
         rsi_range = QueryConfig.MOMENTUM_RSI_RANGE
         
-        query = base_query.where(
-            col('close') > (config['min_price'] * 0.8),  # Slightly lower for momentum
+        # Use custom min price if provided, otherwise use config default * 0.8
+        momentum_min_price = custom_min_price if custom_min_price is not None else (config['min_price'] * 0.8)
+        
+        conditions = [
+            col('close') > momentum_min_price,
             col('volume') > (config['min_volume'] * 0.6),  # Lower volume requirement
             col('market_cap_basic') > (config['min_market_cap'] * 0.5),  # Wider universe
             col('relative_volume_10d_calc') > config['momentum_volume_ratio'],
@@ -178,18 +204,30 @@ def build_market_aware_query(base_query: Query, market: str, mode_type: str = 'f
             (col('change').between(momentum_pos[0], momentum_pos[1])) | 
             (col('change').between(momentum_neg[0], momentum_neg[1])),
             col('Volatility.D') > config['fomo_momentum_volatility']
-        )
+        ]
+        
+        # Add max price filter if specified
+        if custom_max_price is not None:
+            conditions.append(col('close') < custom_max_price)
+            
+        query = base_query.where(*conditions)
     elif mode_type == 'realtime_momentum':
         # Real-time momentum mode - faster-moving stocks with good volatility
-        query = base_query.where(
-            col('close') > config['min_price'],
+        conditions = [
+            col('close') > effective_min_price,
             col('volume') > (config['min_volume'] * 0.8),  # Lower volume for more candidates
             col('market_cap_basic') > (config['min_market_cap'] * 0.3),  # Wider universe
             col('relative_volume_10d_calc') > 1.2,  # Some volume activity
             col('RSI').between(25, 85),  # Very wide RSI range for momentum
             col('Volatility.D') > config['min_volatility'],  # Need volatility for momentum
             (col('change') > 0.5) | (col('change') < -0.5)  # At least 0.5% movement today
-        )
+        ]
+        
+        # Add max price filter if specified
+        if custom_max_price is not None:
+            conditions.append(col('close') < custom_max_price)
+            
+        query = base_query.where(*conditions)
     
     # Add exchange filter for Indian market only
     if market != 'america' and 'exchange_filter' in config:
@@ -688,10 +726,12 @@ def research_sector_stocks(self, sector_name=None, limit=20) -> None:
         console.print(f"[red]Error: {e}[/red]")
 
 
-def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT', market_cap_filter=None) -> None:
+def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT', market_cap_filter=None, max_price=None, min_price=None) -> None:
     """Watch mode for intraday trading - continuously monitors volume and price changes"""
-    # Store market cap filter for use in _get_watch_data
+    # Store filters for use in _get_watch_data
     self.market_cap_filter = market_cap_filter
+    self.max_price = max_price
+    self.min_price = min_price
     
     mode_titles = {
         'PREBREAKOUT': ("📊 PRE-BREAKOUT MODE - Early Entry Signals", "bold blue"),
@@ -785,7 +825,7 @@ def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_t
                 continue
             
             # Get current market data
-            current_data = self._get_watch_data(market_cap_filter) if hasattr(self, '_get_watch_data') else pd.DataFrame()
+            current_data = self._get_watch_data(market_cap_filter, max_price, min_price) if hasattr(self, '_get_watch_data') else pd.DataFrame()
             
             if not current_data.empty:
                 # Detect alerts
@@ -1203,7 +1243,7 @@ def research_market_sentiment(self) -> None:
         console.print(f"[red]Error: {e}[/red]")
 
 
-def _get_watch_data(self, market_cap_filter=None):
+def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None):
     """Get current market data for watch mode based on selected mode"""
     mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
     
@@ -1213,9 +1253,11 @@ def _get_watch_data(self, market_cap_filter=None):
             base_query = create_base_query(QueryConfig.FOMO_FIELDS, self.market)
             query = build_market_aware_query(base_query, self.market, 'fomo')
             
-            # Apply market cap filter AFTER build_market_aware_query to ensure it's not overridden
+            # Apply filters AFTER build_market_aware_query to ensure they're not overridden
             if market_cap_filter:
                 query = apply_market_cap_filter(query, market_cap_filter)
+            # Apply price filtering
+            query = apply_price_filter(query, max_price, min_price)
             
             total_rows, df = (
                 query
@@ -1242,9 +1284,11 @@ def _get_watch_data(self, market_cap_filter=None):
                 )
             )
             
-            # Apply market cap filter if specified
+            # Apply filters if specified
             if market_cap_filter:
                 query = apply_market_cap_filter(query, market_cap_filter)
+            # Apply price filtering
+            query = apply_price_filter(query, max_price, min_price)
             
             total_rows, df = (
                 query
@@ -1279,9 +1323,11 @@ def _get_watch_data(self, market_cap_filter=None):
                 )
             )
             
-            # Apply market cap filter if specified
+            # Apply filters if specified
             if market_cap_filter:
                 query = apply_market_cap_filter(query, market_cap_filter)
+            # Apply price filtering
+            query = apply_price_filter(query, max_price, min_price)
             
             total_rows, df = (
                 query
@@ -1322,9 +1368,11 @@ def _get_watch_data(self, market_cap_filter=None):
                 )
             )
             
-            # Apply market cap filter if specified
+            # Apply filters if specified
             if market_cap_filter:
                 query = apply_market_cap_filter(query, market_cap_filter)
+            # Apply price filtering
+            query = apply_price_filter(query, max_price, min_price)
             
             total_rows, df = (
                 query
@@ -1686,7 +1734,7 @@ def _get_watch_data(self, market_cap_filter=None):
             # Catches momentum 0.8-6.0% (includes gap openings and intraday moves)
             # Perfect for gap continuations and strong intraday momentum
             base_query = create_base_query(QueryConfig.MOMENTUM_FIELDS, self.market)
-            query = build_market_aware_query(base_query, self.market, 'fomo_momentum')
+            query = build_market_aware_query(base_query, self.market, 'fomo_momentum', custom_min_price=min_price, custom_max_price=max_price)
             
             # Apply market cap filter AFTER build_market_aware_query to ensure it's not overridden
             if market_cap_filter:
@@ -1738,9 +1786,11 @@ def _get_watch_data(self, market_cap_filter=None):
                 )
             )
             
-            # Apply market cap filter if specified
+            # Apply filters if specified
             if market_cap_filter:
                 query = apply_market_cap_filter(query, market_cap_filter)
+            # Apply price filtering
+            query = apply_price_filter(query, max_price, min_price)
             
             total_rows, df = (
                 query

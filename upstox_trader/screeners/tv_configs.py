@@ -24,7 +24,8 @@ class RiskManagementConfig:
     atr_max_stop_pct: float = -5.0           # Maximum ATR stop loss: -5%
     atr_fallback_stop_pct: float = -2.0      # ATR fallback stop: -2%
     
-    # Daily limits and cooldowns
+    # Trade limits
+    max_total_trades: int = 10               # Maximum total trades per day
     max_daily_entries_per_stock: int = 2     # Max entries per stock per day
     alert_cooldown_seconds: int = 300        # 5 minutes between alerts per symbol
     stop_loss_cooldown_seconds: int = 1800   # 30 minutes after stop loss

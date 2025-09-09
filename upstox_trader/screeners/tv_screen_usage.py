@@ -28,46 +28,65 @@ import atexit
 
 import pandas as pd
 
-# Import mode functions from tv_modes
-try:
-    from . import tv_modes
-except ImportError:
-    # Fallback for direct script execution
-    import tv_modes
+# --- Robust Import Setup ---
+# This block ensures that modules can be imported correctly whether
+# tv_screen_usage.py is run as a script or as part of a package.
 
-# Robust helper import: supports package, installed, and direct-script execution
-try:
-    # Package context (e.g., python -m upstox_trader.screeners.tv_screen_usage)
-    from .tv_helpers import get_tradingview_cookies, display_table as helpers_display_table, save_results as helpers_save_results
-    from .tv_configs import TVTradingConfig, get_config
-except Exception:
-    try:
-        # Absolute import if package is on sys.path
-        from upstox_trader.screeners.tv_helpers import get_tradingview_cookies, display_table as helpers_display_table, save_results as helpers_save_results
-        from upstox_trader.screeners.tv_configs import TVTradingConfig, get_config
-    except Exception:
-        # Direct script execution fallback:
-        # Add parent directory of this file (i.e., .../upstox_trader) to sys.path, then import tv_helpers
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(current_dir)
-        if parent_dir not in sys.path:
-            sys.path.insert(0, parent_dir)
-        # Now import as a sibling module
-        from tv_helpers import get_tradingview_cookies, display_table as helpers_display_table, save_results as helpers_save_results
-        from tv_configs import TVTradingConfig, get_config
+_current_file_dir = os.path.dirname(os.path.abspath(__file__))
+_screeners_dir = _current_file_dir
+_upstox_trader_dir = os.path.dirname(_screeners_dir)
+_project_root_dir = os.path.dirname(_upstox_trader_dir)
+
+# Add relevant paths to sys.path if not already present
+# For package-relative imports (e.g., from . import tv_modes)
+if _screeners_dir not in sys.path:
+    sys.path.insert(0, _screeners_dir)
+# For absolute imports from upstox_trader (e.g., from upstox_trader.screeners.tv_modes)
+if _upstox_trader_dir not in sys.path:
+    sys.path.insert(0, _upstox_trader_dir)
+# For project-level imports (e.g., from config import ...)
+if _project_root_dir not in sys.path:
+    sys.path.insert(0, _project_root_dir)
+
+# --- End Robust Import Setup ---
+
+# Import mode functions
+from upstox_trader.screeners import tv_modes
+from upstox_trader.screeners import tv_helpers
+from upstox_trader.screeners import tv_configs
+from upstox_trader.screeners.tv_configs import TVTradingConfig # Explicitly import TVTradingConfig
+from upstox_trader.screeners import tv_display
+from upstox_trader.screeners import tv_alerts
+from upstox_trader.screeners import tv_utils
+
+# Import utility modules
+from upstox_trader.screeners.utils import tv_time_utils, tv_system_utils, tv_risk_utils, tv_technical_utils
+from upstox_trader.screeners.utils import tv_price_utils, tv_data_utils, tv_logging_utils
+
+# Import separated functionality modules
+from upstox_trader.screeners.tv_trading_core import TradingCore
+from upstox_trader.screeners.tv_gap_analysis import GapAnalysis
+from upstox_trader.screeners.tv_technical_analysis import TechnicalAnalysis
+from upstox_trader.screeners.tv_live_data import LiveDataMonitor
+from upstox_trader.screeners.tv_display_utils import DisplayUtils
+from upstox_trader.screeners.symbol_validator import get_symbol_validator, validate_symbol, get_valid_symbol, is_symbol_blacklisted
+
+# Alias imported functions for backward compatibility where direct function calls were made
+helpers_display_table = tv_helpers.display_table
+helpers_save_results = tv_helpers.save_results
+get_tradingview_cookies = tv_helpers.get_tradingview_cookies
+get_config = tv_configs.get_config
+
+console = Console()
 
 # Telegram integration and Paper Trading Bot
 try:
     import requests
-    import sys
-    import os
-    # Add parent directory to path to import config
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # Add parent directory to path to import config (already added by robust import setup)
     from config import TELEGRAM_CONFIG, UPSTOX_CONFIG
     
-    # Import paper trading bot
-    sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'trading_bots'))
-    from upstox_paper_trading_bot import UpstoxPaperTradingBot
+    # Import paper trading bot (already added by robust import setup)
+    from upstox_trader.trading_bots.upstox_paper_trading_bot import UpstoxPaperTradingBot
     
     TELEGRAM_AVAILABLE = True
     PAPER_TRADING_AVAILABLE = True
@@ -76,101 +95,6 @@ except ImportError as e:
     PAPER_TRADING_AVAILABLE = False
     print(f"⚠️ Integration not available: {e}")
     print("⚠️ Paper trading and/or Telegram disabled")
-
-console = Console()
-
-# Local display module for Rich table rendering
-# Try multiple strategies to import tv_display reliably across run contexts
-try:
-    from . import tv_display  # Package-relative
-except Exception:
-    try:
-        import upstox_trader.screeners.tv_display as tv_display  # Absolute package path
-    except Exception:
-        # As a last resort, add the parent directory of this file to sys.path and import sibling
-        try:
-            _current_dir = os.path.dirname(os.path.abspath(__file__))
-            _parent_dir = os.path.dirname(_current_dir)
-            if _parent_dir not in sys.path:
-                sys.path.insert(0, _parent_dir)
-            import tv_display as tv_display  # sibling import
-        except Exception:
-            tv_display = None  # Will guard at call sites
-
-# Import utility modules with the same robust import pattern
-try:
-    # Package context imports
-    from .utils import tv_time_utils, tv_system_utils, tv_risk_utils, tv_technical_utils
-    from .utils import tv_price_utils, tv_data_utils, tv_logging_utils
-except Exception:
-    try:
-        # Absolute imports
-        from upstox_trader.screeners.utils import tv_time_utils, tv_system_utils, tv_risk_utils, tv_technical_utils
-        from upstox_trader.screeners.utils import tv_price_utils, tv_data_utils, tv_logging_utils
-    except Exception:
-        # Direct script execution fallback
-        try:
-            import sys
-            import os
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            utils_dir = os.path.join(current_dir, 'utils')
-            if utils_dir not in sys.path:
-                sys.path.insert(0, utils_dir)
-            import tv_time_utils, tv_system_utils, tv_risk_utils, tv_technical_utils
-            import tv_price_utils, tv_data_utils, tv_logging_utils
-        except Exception as e:
-            print(f"⚠️ Could not import utility modules: {e}")
-            # Set to None to handle gracefully
-            tv_time_utils = tv_system_utils = tv_risk_utils = tv_technical_utils = None
-            tv_price_utils = tv_data_utils = tv_logging_utils = None
-
-# Local alerts module for Telegram sending
-try:
-    from . import tv_alerts
-except Exception:
-    try:
-        import upstox_trader.screeners.tv_alerts as tv_alerts
-    except Exception:
-        tv_alerts = None  # Guard at call sites
-
-# get_tradingview_cookies moved to tv_helpers.get_tradingview_cookies
-
-# Local utils module for shared screener helpers
-try:
-    from . import tv_utils
-except Exception:
-    try:
-        import upstox_trader.screeners.tv_utils as tv_utils
-    except Exception:
-        tv_utils = None  # Guard at call sites
-
-# Import separated functionality modules
-try:
-    from .tv_trading_core import TradingCore
-    from .tv_gap_analysis import GapAnalysis
-    from .tv_technical_analysis import TechnicalAnalysis
-    from .tv_live_data import LiveDataMonitor
-    from .tv_display_utils import DisplayUtils
-    from .symbol_validator import get_symbol_validator, validate_symbol, get_valid_symbol, is_symbol_blacklisted
-except ImportError:
-    try:
-        from tv_trading_core import TradingCore
-        from tv_gap_analysis import GapAnalysis
-        from tv_technical_analysis import TechnicalAnalysis
-        from tv_live_data import LiveDataMonitor
-        from tv_display_utils import DisplayUtils
-        from symbol_validator import get_symbol_validator, validate_symbol, get_valid_symbol, is_symbol_blacklisted
-        console.print("[green]✅ Successfully imported symbol validator[/green]")
-    except ImportError as e:
-        console.print(f"⚠️ Could not import separated modules: {e}", style="yellow")
-        console.print("[red]🔧 Using fallback symbol validation[/red]")
-        TradingCore = GapAnalysis = TechnicalAnalysis = LiveDataMonitor = DisplayUtils = None
-        # Fallback for symbol validation functions
-        def validate_symbol(symbol):
-            # Simple fallback validation - just remove exchange prefix and return as valid
-            clean_symbol = symbol.replace('NSE:', '').replace('BSE:', '').strip()
-            return True, clean_symbol
-        get_symbol_validator = get_valid_symbol = is_symbol_blacklisted = None
 
 class TVScreenerUsage:
     def __init__(self, market='in', enable_paper_trading=False, config: TVTradingConfig = None):
@@ -235,6 +159,8 @@ class TVScreenerUsage:
         # Daily entry limits
         self.daily_entry_count = {}  # Track entries per symbol per day: {symbol: {date: count}}
         self.max_daily_entries_per_stock = self.config.risk_management.max_daily_entries_per_stock
+        self.max_total_trades = self.config.risk_management.max_total_trades
+        self.total_trades_today = 0  # Track total trades for the day
         
         # Trading Time Configuration
         self.trading_start_time = self.config.trading_hours.trading_start_time
@@ -1096,8 +1022,8 @@ class TVScreenerUsage:
             )
             
             if df is None or df.empty:
-                console.print(f"[dim yellow]No historical data for {symbol}, using simulated S/R[/dim yellow]")
-                return self._simulate_sr_levels_from_current_data(symbol)
+                console.print(f"[dim yellow]No historical data for {symbol}[/dim yellow]")
+                return {'levels': [], 'data_quality': 'insufficient_data'}
             
             # Get current price for context
             current_price = df['close'].iloc[-1]
@@ -2900,7 +2826,70 @@ class TVScreenerUsage:
                                 }
                                 alerts.append(alert)
                                 self.last_alert_time[f"{ticker}_REALTIME_MOMENTUM"] = datetime.now()
-
+            
+            elif watch_mode == 'SR_LEVELS_BREAK':
+                # SR Levels Break: Detect aggressive breakouts of support/resistance levels
+                current_price = row['close']
+                volume_ratio = row.get('relative_volume_10d_calc', 1.0)
+                change_pct = row.get('change', 0)
+                
+                # Get S/R levels for the symbol
+                sr_analysis = self._detect_support_resistance_levels(ticker, lookback_days=30)
+                
+                if sr_analysis['levels']:
+                    for level_info in sr_analysis['levels']:
+                        level_price = level_info['price']
+                        level_type = level_info['type']
+                        distance_from_level_pct = ((current_price - level_price) / level_price) * 100
+                        
+                        # Aggressive breakout criteria
+                        # Price has moved significantly past the level AND high volume
+                        aggressive_break_threshold_pct = 0.5  # 0.5% break beyond the level
+                        min_volume_for_break = 2.0 # Minimum 2x relative volume for a break
+                        
+                        should_trigger = False
+                        action_type = None
+                        
+                        if level_type == 'resistance' and distance_from_level_pct >= aggressive_break_threshold_pct:
+                            # Aggressive long: Price breaks resistance and stays above
+                            if volume_ratio >= min_volume_for_break:
+                                should_trigger = True
+                                action_type = 'LONG'
+                                console.print(f"[green]📈 {ticker}: AGGRESSIVE LONG - Broke Resistance at ₹{level_price:.2f}[/green]")
+                        elif level_type == 'support' and distance_from_level_pct <= -aggressive_break_threshold_pct:
+                            # Aggressive short: Price breaks support and stays below
+                            if volume_ratio >= min_volume_for_break:
+                                should_trigger = True
+                                action_type = 'SHORT'
+                                console.print(f"[red]📉 {ticker}: AGGRESSIVE SHORT - Broke Support at ₹{level_price:.2f}[/red]")
+                        
+                        if should_trigger:
+                            should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'SR_LEVELS_BREAK')
+                            if not should_skip:
+                                confidence = self._calculate_alert_confidence(
+                                    'SR_LEVELS_BREAK', volume_ratio, change_pct, row.get('RSI', None)
+                                )
+                                # Boost confidence for aggressive breaks
+                                confidence = min(0.95, confidence + 0.15)
+                                
+                                if confidence >= 0.6: # High confidence required for aggressive trades
+                                    alert = {
+                                        'type': 'SR_LEVELS_BREAK',
+                                        'ticker': ticker,
+                                        'name': row['name'],
+                                        'price': current_price,
+                                        'change': change_pct,
+                                        'volume_ratio': volume_ratio,
+                                        'level_broken': level_price,
+                                        'level_type': level_type,
+                                        'action_type': action_type,
+                                        'confidence': confidence
+                                    }
+                                    alerts.append(alert)
+                                    self.last_alert_time[f"{ticker}_SR_LEVELS_BREAK"] = datetime.now()
+                                else:
+                                    console.print(f"[yellow]⚠️ {ticker}: SR Levels Break signal confidence too low ({confidence:.0%})[/yellow]")
+        
         # Universal overbought short detection - available in all modes
         for _, row in current_data.iterrows():
             ticker = row['ticker']
@@ -3736,6 +3725,11 @@ class TVScreenerUsage:
                 console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Outside trading hours ({self.trading_start_time}-{self.trading_end_time})[/yellow]")
                 return False
             
+            # Check total daily trade limit
+            if self.total_trades_today >= self.max_total_trades:
+                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Total daily trade limit reached ({self.total_trades_today}/{self.max_total_trades})[/yellow]")
+                return False
+            
             # Check daily entry limit (max 2 entries per day per stock)
             at_limit, entries_today = self._check_daily_entry_limit(symbol)
             if at_limit:
@@ -3802,6 +3796,9 @@ class TVScreenerUsage:
             
             # Increment daily entry count for this symbol
             self._increment_daily_entry_count(symbol)
+            
+            # Increment total trades counter
+            self.total_trades_today += 1
             
             # Send telegram alert for successful trade entry
             if self.telegram_enabled:
@@ -4517,11 +4514,11 @@ class TVScreenerUsage:
     # =============== DELEGATION METHODS TO TV_MODES ===============
     # These methods delegate to functions in tv_modes.py
     
-    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT', market_cap_filter=None):
+    def intraday_watch_mode(self, refresh_interval=30, volume_threshold=1.5, price_threshold=3.0, mode='PREBREAKOUT', market_cap_filter=None, max_price=None, min_price=None):
         """Delegate to intraday_watch_mode in tv_modes"""
-        return tv_modes.intraday_watch_mode(self, refresh_interval, volume_threshold, price_threshold, mode, market_cap_filter)
+        return tv_modes.intraday_watch_mode(self, refresh_interval, volume_threshold, price_threshold, mode, market_cap_filter, max_price, min_price)
     
-    def run_mode_once(self, mode='PREBREAKOUT', market_cap_filter=None):
+    def run_mode_once(self, mode='PREBREAKOUT', market_cap_filter=None, max_price=None, min_price=None):
         """Run a specific mode once to display current data"""
         mode_titles = {
             'PREBREAKOUT': ("📊 PRE-BREAKOUT MODE - Early Entry Signals", "bold blue"),
@@ -4552,7 +4549,7 @@ class TVScreenerUsage:
         try:
             # Get current data using the same logic as watch mode
             self.watch_mode = mode  # Set the mode for data fetching
-            df = self._get_watch_data(market_cap_filter)
+            df = self._get_watch_data(market_cap_filter, max_price, min_price)
             
             if not df.empty:
                 console.print(f"\n[green]✅ Found {len(df)} stocks matching {mode} criteria:[/green]")
@@ -4565,9 +4562,9 @@ class TVScreenerUsage:
             import traceback
             console.print(f"[dim]{traceback.format_exc()}[/dim]")
     
-    def _get_watch_data(self, market_cap_filter=None):
+    def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None):
         """Delegate to _get_watch_data in tv_modes"""
-        return tv_modes._get_watch_data(self, market_cap_filter)
+        return tv_modes._get_watch_data(self, market_cap_filter, max_price, min_price)
     
     # Trading mode delegation methods
     def pre_breakout_accumulation(self):
