@@ -253,7 +253,7 @@ class LiveDataMonitor:
             
             if volatility == 'high':
                 # Use ATR-based stops for volatile stocks
-                atr_stop_price = self.parent._calculate_atr_based_stop(symbol, live_price)
+                atr_stop_price = self.parent.technical_analysis._calculate_atr_based_stop(symbol, live_price)
                 atr_stop_pct = ((atr_stop_price - entry_price) / entry_price) * 100
                 if position['side'] == 'SELL':
                     atr_stop_pct *= -1
@@ -328,7 +328,7 @@ class LiveDataMonitor:
             
             # Execute exit if needed
             if should_exit:
-                self.parent._execute_exit_trade(symbol, position, live_price, exit_reason)
+                self._execute_exit_trade(symbol, position, live_price, exit_reason)
                 
         except Exception as e:
             console.print(f"[red]❌ Error monitoring {symbol}: {e}[/red]")

@@ -3819,109 +3819,12 @@ class TVScreenerUsage:
             
             # Execute exit if needed
             if should_exit:
-                self._execute_exit_trade(symbol, position, live_price, exit_reason)
+                self.live_data._execute_exit_trade(symbol, position, live_price, exit_reason)
                 
         except Exception as e:
             console.print(f"[red]❌ Error monitoring {symbol}: {e}[/red]")
     
-    def _execute_exit_trade(self, symbol, position, exit_price, reason):
-        """Execute exit trade for risk management"""
-        try:
-            # Calculate exit charges
-            exit_amount = exit_price * position['qty']
-            exit_charges = self._calculate_trading_charges(exit_amount, 'intraday')
-            
-            # Calculate P&L with trading charges
-            gross_pnl = (exit_price - position['entry_price']) * position['qty']
-            if position['side'] == 'SELL':
-                gross_pnl *= -1
-            
-            # Net P&L after all charges
-            total_charges = position.get('entry_charges', 0) + exit_charges
-            net_pnl = gross_pnl - total_charges
-            pnl_amount = net_pnl
-            
-            # Calculate P&L percentage based on net amount
-            entry_value = position['entry_price'] * position['qty']
-            pnl_pct = (net_pnl / entry_value) * 100
-            
-            exit_log = (f"🔥 AUTO EXIT: {symbol} | "
-                       f"{reason} | "
-                       f"Entry: ₹{position['entry_price']:.0f} | "
-                       f"Exit: ₹{exit_price:.0f} | "
-                       f"P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f}) | "
-                       f"Charges: ₹{total_charges:.0f}")
-            
-            console.print(f"[bold red]{exit_log}[/bold red]")
-            
-            # Log to journal
-            amount = exit_price * position['qty']
-            exit_side = 'SELL' if position['side'] == 'BUY' else 'BUY'
-            self.log_trade("EXIT", symbol, exit_price, position['qty'], amount, reason, pnl_pct, pnl_amount, side=exit_side)
-            
-            # Add to stop loss cooldown if this was a stop loss exit
-            if "STOP LOSS" in reason:
-                self.stop_loss_cooldown[symbol] = datetime.now()
-                console.print(f"[dim red]🚫 Added {symbol} to 30-minute stop loss cooldown[/dim red]")
-            
-            # Add to loss cooldown for ANY loss (30+ minutes after loss)
-            if pnl_amount < 0:  # Any loss
-                self.loss_cooldown[symbol] = datetime.now()
-                console.print(f"[dim red]🚫 Added {symbol} to 30-minute loss cooldown (₹{pnl_amount:+,.0f})[/dim red]")
-            
-            # Add to live trades log
-            self.live_trades.append({
-                'timestamp': datetime.now(),
-                'symbol': symbol,
-                'side': 'SELL' if position['side'] == 'BUY' else 'BUY',
-                'price': exit_price,
-                'quantity': position['qty'],
-                'amount': exit_price * position['qty'],
-                'alert_type': 'AUTO_EXIT',
-                'confidence': 1.0,
-                'reason': reason,
-                'pnl_pct': pnl_pct,
-                'pnl_amount': pnl_amount
-            })
-            
-            # Send Telegram alert if enabled
-            if self.telegram_enabled:
-                exit_alert = {
-                    'type': 'TRADE_EXIT',
-                    'ticker': symbol,
-                    'name': symbol,
-                    'price': exit_price,  # Required by telegram function
-                    'side': 'SELL' if position['side'] == 'BUY' else 'BUY',
-                    'entry_price': position['entry_price'],
-                    'exit_price': exit_price,
-                    'quantity': position['qty'],
-                    'amount': exit_price * position['qty'],
-                    'reason': reason,
-                    'pnl_pct': pnl_pct,
-                    'pnl_amount': pnl_amount,
-                    'hold_time_minutes': int((datetime.now() - position['timestamp']).total_seconds() / 60)
-                }
-                self.send_telegram_alert(exit_alert)
-            
-            # Add to closed trades list
-            self.closed_trades.append({
-                'symbol': symbol,
-                'side': position['side'],
-                'entry_time': position.get('timestamp', datetime.now()),
-                'exit_time': datetime.now(),
-                'entry_price': position['entry_price'],
-                'exit_price': exit_price,
-                'quantity': position['qty'],
-                'pnl_pct': pnl_pct,
-                'pnl_amount': pnl_amount,
-                'exit_reason': reason
-            })
-            
-            # Close the position
-            del self.positions[symbol]
-            
-        except Exception as e:
-            console.print(f"[red]❌ Error executing exit for {symbol}: {e}[/red]")
+    
     
     # ==================== UTILITY FUNCTIONS ====================
     
