@@ -19,7 +19,7 @@ from config_and_utils.free_indian_apis import UpstoxAPI
 from config import UPSTOX_CONFIG
 from screeners.tv_display_utils import Colors, strip_ansi_codes
 from screeners.utils.tv_logging_utils import log_colored, create_daily_trades_summary, save_daily_summary
-from screeners.tv_technical_analysis import (
+from screeners.core.technical_analysis import (
     identify_support_resistance_levels,
     group_levels,
     filter_by_touches,

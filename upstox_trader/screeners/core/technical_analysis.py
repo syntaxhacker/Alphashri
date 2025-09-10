@@ -594,145 +594,6 @@ class TechnicalAnalysis:
             console.print(f"[dim red]Historical S/R failed for {symbol}: {e}[/dim red]")
             return {'levels': [], 'data_quality': 'error'}
 
-    def _original_detect_support_resistance_levels(self, symbol, lookback_days=60):
-        """Original historical S/R detection (requires Upstox API)"""
-        try:
-            if not hasattr(self.parent, 'upstox_api') or not self.parent.upstox_api:
-                return {'levels': [], 'data_quality': 'unavailable'}
-            
-            from datetime import datetime, timedelta
-            to_date = datetime.now().strftime('%Y-%m-%d')
-            from_date = (datetime.now() - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
-            
-            # Fetch historical data
-            try:
-                df = self.parent.upstox_api.fetch_historical_data_v3(
-                    symbol=symbol,
-                    unit='days',
-                    interval=1,
-                    to_date=to_date,
-                    from_date=from_date
-                )
-            except:
-                # Fallback to shorter period
-                df = self.parent.upstox_api.fetch_historical_data_v3(
-                    symbol=symbol,
-                    unit='days',
-                    interval=1,
-                    to_date=to_date,
-                    from_date=(datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-                )
-            
-            if df is None or df.empty or len(df) < 10:
-                console.print(f"[dim red]S/R: Insufficient data for {symbol} - got {len(df) if df is not None and not df.empty else 0} records[/dim red]")
-                return {'levels': [], 'data_quality': 'insufficient'}
-            
-            # Handle V3 API data format
-            if isinstance(df, list):
-                columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi']
-                df = pd.DataFrame(df, columns=columns)
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
-                df = df.sort_values('timestamp').reset_index(drop=True)
-            else:
-                timestamp_col = None
-                for col in ['timestamp', 'datetime', 'date', 'time']:
-                    if col in df.columns:
-                        timestamp_col = col
-                        break
-                if timestamp_col:
-                    df = df.sort_values(timestamp_col).reset_index(drop=True)
-                else:
-                    df = df.reset_index(drop=True)
-            
-            # Find pivot highs and lows
-            window = 5  # Look for pivots in 5-day window
-            pivot_highs = []
-            pivot_lows = []
-            
-            for i in range(window, len(df) - window):
-                # Check for pivot high
-                is_pivot_high = True
-                for j in range(i - window, i + window + 1):
-                    if j != i and df.loc[j, 'high'] >= df.loc[i, 'high']:
-                        is_pivot_high = False
-                        break
-                if is_pivot_high:
-                    pivot_highs.append(df.loc[i, 'high'])
-                
-                # Check for pivot low
-                is_pivot_low = True
-                for j in range(i - window, i + window + 1):
-                    if j != i and df.loc[j, 'low'] <= df.loc[i, 'low']:
-                        is_pivot_low = False
-                        break
-                if is_pivot_low:
-                    pivot_lows.append(df.loc[i, 'low'])
-            
-            # Cluster similar levels together (within 1% of each other)
-            def cluster_levels(levels, tolerance=0.01):
-                if not levels:
-                    return []
-                
-                levels = sorted(levels)
-                clusters = []
-                current_cluster = [levels[0]]
-                
-                for level in levels[1:]:
-                    if abs(level - current_cluster[-1]) / current_cluster[-1] <= tolerance:
-                        current_cluster.append(level)
-                    else:
-                        clusters.append(sum(current_cluster) / len(current_cluster))
-                        current_cluster = [level]
-                
-                clusters.append(sum(current_cluster) / len(current_cluster))
-                return clusters
-            
-            # Get clustered resistance and support levels
-            resistance_levels = cluster_levels(pivot_highs)
-            support_levels = cluster_levels(pivot_lows)
-            
-            # Get current price for relative positioning
-            current_price = df['close'].iloc[-1]
-            
-            # Classify levels relative to current price
-            levels = []
-            
-            # Add resistance levels (above current price)
-            for level in resistance_levels:
-                if level > current_price:
-                    distance_pct = ((level - current_price) / current_price * 100)
-                    levels.append({
-                        'type': 'resistance',
-                        'price': round(level, 2),
-                        'distance_pct': round(distance_pct, 2),
-                        'strength': self._calculate_level_strength(level, pivot_highs)
-                    })
-            
-            # Add support levels (below current price)
-            for level in support_levels:
-                if level < current_price:
-                    distance_pct = ((current_price - level) / current_price * 100)
-                    levels.append({
-                        'type': 'support',
-                        'price': round(level, 2),
-                        'distance_pct': round(distance_pct, 2),
-                        'strength': self._calculate_level_strength(level, pivot_lows)
-                    })
-            
-            # Sort by distance from current price
-            levels = sorted(levels, key=lambda x: x['distance_pct'])
-            
-            return {
-                'levels': levels[:8],  # Return top 8 closest levels
-                'current_price': round(current_price, 2),
-                'data_quality': 'available',
-                'lookback_days': lookback_days
-            }
-            
-        except Exception as e:
-            console.print(f"[dim red]⚠️ S/R analysis failed for {symbol}: {e}[/dim red]")
-            return {'levels': [], 'data_quality': 'error'}
-
     def _calculate_level_strength(self, level, all_levels):
         """Calculate strength of a support/resistance level"""
         if hasattr(self.parent, 'tv_utils') and self.parent.tv_utils is None:
@@ -911,3 +772,139 @@ class TechnicalAnalysis:
         except Exception as e:
             # Fallback silently - don't break the main flow
             return None
+
+
+# Standalone Support/Resistance Functions from Paper Trading Bot
+def identify_support_resistance_levels(candle_data, lookback_periods=50, level_threshold=0.5, min_touches=2, bounce_threshold=0.25):
+    """Identify support and resistance levels from candle data"""
+    if len(candle_data) < lookback_periods:
+        return [], []
+        
+    highs = [c['high'] for c in candle_data[-lookback_periods:]]
+    lows = [c['low'] for c in candle_data[-lookback_periods:]]
+    
+    # Find pivot highs and lows
+    resistance_candidates = [h for i, h in enumerate(highs) if i > 1 and i < len(highs) - 2 and h > highs[i-1] and h > highs[i-2] and h > highs[i+1] and h > highs[i+2]]
+    support_candidates = [l for i, l in enumerate(lows) if i > 1 and i < len(lows) - 2 and l < lows[i-1] and l < lows[i-2] and l < lows[i+1] and l < lows[i+2]]
+    
+    # Group nearby levels
+    resistance_levels = group_levels(resistance_candidates, level_threshold)
+    support_levels = group_levels(support_candidates, level_threshold)
+    
+    # Filter by minimum touches
+    resistance_levels = filter_by_touches(resistance_levels, highs, level_threshold, min_touches)
+    support_levels = filter_by_touches(support_levels, lows, level_threshold, min_touches)
+    
+    resistance_levels.sort(reverse=True)
+    support_levels.sort(reverse=True)
+    
+    return support_levels, resistance_levels
+
+
+def group_levels(levels, level_threshold=0.5):
+    """Group nearby price levels together"""
+    if not levels: 
+        return []
+    
+    levels.sort()
+    grouped, current_group = [], [levels[0]]
+    
+    for level in levels[1:]:
+        if abs(level - current_group[0]) / current_group[0] * 100 < level_threshold:
+            current_group.append(level)
+        else:
+            grouped.append(sum(current_group) / len(current_group))
+            current_group = [level]
+    
+    grouped.append(sum(current_group) / len(current_group))
+    return grouped
+
+
+def filter_by_touches(levels, price_data, level_threshold=0.5, min_touches=2):
+    """Filter levels by minimum number of touches"""
+    return [l for l in levels if sum(1 for p in price_data if abs(p - l) / l * 100 < level_threshold) >= min_touches]
+
+
+def calculate_trend_direction(candle_data, ema_period=20, current_price=None):
+    """Calculate trend direction using EMA"""
+    if len(candle_data) < ema_period:
+        return None, None
+        
+    closes = [c['close'] for c in candle_data[-ema_period:]]
+    ema = pd.Series(closes).ewm(span=ema_period, adjust=False).mean().iloc[-1]
+    
+    if not current_price:
+        current_price = candle_data[-1]['close']
+    
+    if current_price > ema * 1.002: 
+        trend_direction = "BULLISH"
+    elif current_price < ema * 0.998: 
+        trend_direction = "BEARISH"
+    else: 
+        trend_direction = "NEUTRAL"
+        
+    return trend_direction, ema
+
+
+def find_nearest_levels(current_price, support_levels, resistance_levels):
+    """Find nearest support and resistance levels"""
+    nearest_support = max([l for l in support_levels if l < current_price] or [None])
+    nearest_resistance = min([l for l in resistance_levels if l > current_price] or [None])
+    
+    return nearest_support, nearest_resistance
+
+
+def check_support_resistance_signals(current_price, support_levels, resistance_levels, trend_direction="NEUTRAL", bounce_threshold=0.25):
+    """Check for trading signals based on support/resistance levels"""
+    signals = []
+    nearest_support, nearest_resistance = find_nearest_levels(current_price, support_levels, resistance_levels)
+    
+    if (nearest_support and trend_direction in ["BULLISH", "NEUTRAL"] and 
+        0 < (current_price - nearest_support) / nearest_support * 100 <= bounce_threshold):
+        signals.append(('BUY', 'support_bounce', 0.8, nearest_support))
+        
+    if (nearest_resistance and trend_direction in ["BEARISH", "NEUTRAL"] and 
+        0 < (nearest_resistance - current_price) / current_price * 100 <= bounce_threshold):
+        signals.append(('SELL', 'resistance_rejection', 0.8, nearest_resistance))
+        
+    return signals
+
+
+def display_support_resistance_levels(symbol, support_levels, resistance_levels, current_price, bounce_threshold=0.25):
+    """Display support and resistance levels with colored output"""
+    support_count = len(support_levels)
+    resistance_count = len(resistance_levels)
+    
+    if support_count > 0 or resistance_count > 0:
+        log_colored(
+            f"{symbol} S&R Update: {support_count} Support, {resistance_count} Resistance levels found",
+            "level"
+        )
+        
+        # Print Support Levels
+        if support_levels:
+            print(f"\n{Colors.GREEN}🛡️  {symbol} SUPPORT LEVELS:{Colors.RESET}")
+            for i, level in enumerate(support_levels, 1):
+                if current_price > 0:
+                    distance = ((current_price - level) / level) * 100
+                    status = "🎯 ACTIVE" if abs(distance) <= bounce_threshold else "⏳ MONITORING"
+                    print(f"  {Colors.GREEN}S{i}: {level:,.2f}{Colors.RESET} | Distance: {distance:+.2f}% | {status}")
+                else:
+                    print(f"  {Colors.GREEN}S{i}: {level:,.2f}{Colors.RESET} | Distance: Waiting for price data | ⏳ MONITORING")
+        
+        # Print Resistance Levels  
+        if resistance_levels:
+            print(f"\n{Colors.RED}🛡️  {symbol} RESISTANCE LEVELS:{Colors.RESET}")
+            for i, level in enumerate(resistance_levels, 1):
+                if current_price > 0:
+                    distance = ((level - current_price) / current_price) * 100
+                    status = "🎯 ACTIVE" if abs(distance) <= bounce_threshold else "⏳ MONITORING"
+                    print(f"  {Colors.RED}R{i}: {level:,.2f}{Colors.RESET} | Distance: {distance:+.2f}% | {status}")
+                else:
+                    print(f"  {Colors.RED}R{i}: {level:,.2f}{Colors.RESET} | Distance: Waiting for price data | ⏳ MONITORING")
+        
+        print(f"\n{Colors.CYAN}💰 {symbol} Current Price: {current_price:,.2f}{Colors.RESET}")
+        print(f"{Colors.YELLOW}📏 Bounce Threshold: ±{bounce_threshold}%{Colors.RESET}")
+        print(f"{Colors.MAGENTA}════════════════════════════════════════{Colors.RESET}")
+    else:
+        log_colored(f"{symbol}: No valid S&R levels found - need more data or lower thresholds", "warning")
