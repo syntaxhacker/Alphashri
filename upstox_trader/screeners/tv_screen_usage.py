@@ -67,7 +67,7 @@ from upstox_trader.screeners.utils import tv_price_utils, tv_data_utils, tv_logg
 from upstox_trader.screeners.tv_trading_core import TradingCore
 from upstox_trader.screeners.tv_gap_analysis import GapAnalysis
 from upstox_trader.screeners.tv_technical_analysis import TechnicalAnalysis
-from upstox_trader.screeners.tv_live_data import LiveDataMonitor
+from upstox_trader.screeners.core.live_data import LiveDataMonitor
 from upstox_trader.screeners.tv_display_utils import DisplayUtils
 from upstox_trader.screeners.symbol_validator import get_symbol_validator, validate_symbol, get_valid_symbol, is_symbol_blacklisted
 
@@ -1269,147 +1269,6 @@ class TVScreenerUsage:
             console.print(f"[dim red]Reversal analysis failed for {symbol}: {e}[/dim red]")
             return {'reversal_strength': 0, 'signals': ['error'], 'recommendation': 'SKIP'}
     
-    # Removed: _simulate_sr_levels_from_current_data (simulation-based S/R) per "remove simulations"
-
-    def _original_detect_support_resistance_levels(self, symbol, lookback_days=60):
-        """Original historical S/R detection (requires Upstox API)"""
-        try:
-            if not hasattr(self, 'upstox_api') or not self.upstox_api:
-                return {'levels': [], 'data_quality': 'unavailable'}
-            
-            from datetime import datetime, timedelta
-            to_date = datetime.now().strftime('%Y-%m-%d')
-            from_date = (datetime.now() - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
-            
-            # Fetch historical data
-            try:
-                df = self.upstox_api.fetch_historical_data_v3(
-                    symbol=symbol,
-                    unit='days',
-                    interval=1,
-                    to_date=to_date,
-                    from_date=from_date
-                )
-            except:
-                # Fallback to shorter period
-                df = self.upstox_api.fetch_historical_data_v3(
-                    symbol=symbol,
-                    unit='days',
-                    interval=1,
-                    to_date=to_date,
-                    from_date=(datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-                )
-            
-            if df is None or df.empty or len(df) < 10:
-                console.print(f"[dim red]S/R: Insufficient data for {symbol} - got {len(df) if df is not None and not df.empty else 0} records[/dim red]")
-                return {'levels': [], 'data_quality': 'insufficient'}
-            
-            # Handle V3 API data format
-            if isinstance(df, list):
-                columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi']
-                df = pd.DataFrame(df, columns=columns)
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
-                df = df.sort_values('timestamp').reset_index(drop=True)
-            else:
-                timestamp_col = None
-                for col in ['timestamp', 'datetime', 'date', 'time']:
-                    if col in df.columns:
-                        timestamp_col = col
-                        break
-                if timestamp_col:
-                    df = df.sort_values(timestamp_col).reset_index(drop=True)
-                else:
-                    df = df.reset_index(drop=True)
-            
-            # Find pivot highs and lows
-            window = 5  # Look for pivots in 5-day window
-            pivot_highs = []
-            pivot_lows = []
-            
-            for i in range(window, len(df) - window):
-                # Check for pivot high
-                is_pivot_high = True
-                for j in range(i - window, i + window + 1):
-                    if j != i and df.loc[j, 'high'] >= df.loc[i, 'high']:
-                        is_pivot_high = False
-                        break
-                if is_pivot_high:
-                    pivot_highs.append(df.loc[i, 'high'])
-                
-                # Check for pivot low
-                is_pivot_low = True
-                for j in range(i - window, i + window + 1):
-                    if j != i and df.loc[j, 'low'] <= df.loc[i, 'low']:
-                        is_pivot_low = False
-                        break
-                if is_pivot_low:
-                    pivot_lows.append(df.loc[i, 'low'])
-            
-            # Cluster similar levels together (within 1% of each other)
-            def cluster_levels(levels, tolerance=0.01):
-                if not levels:
-                    return []
-                
-                levels = sorted(levels)
-                clusters = []
-                current_cluster = [levels[0]]
-                
-                for level in levels[1:]:
-                    if abs(level - current_cluster[-1]) / current_cluster[-1] <= tolerance:
-                        current_cluster.append(level)
-                    else:
-                        clusters.append(sum(current_cluster) / len(current_cluster))
-                        current_cluster = [level]
-                
-                clusters.append(sum(current_cluster) / len(current_cluster))
-                return clusters
-            
-            # Get clustered resistance and support levels
-            resistance_levels = cluster_levels(pivot_highs)
-            support_levels = cluster_levels(pivot_lows)
-            
-            # Get current price for relative positioning
-            current_price = df['close'].iloc[-1]
-            
-            # Classify levels relative to current price
-            levels = []
-            
-            # Add resistance levels (above current price)
-            for level in resistance_levels:
-                if level > current_price:
-                    distance_pct = ((level - current_price) / current_price * 100)
-                    levels.append({
-                        'type': 'resistance',
-                        'price': round(level, 2),
-                        'distance_pct': round(distance_pct, 2),
-                        'strength': self._calculate_level_strength(level, pivot_highs)
-                    })
-            
-            # Add support levels (below current price)
-            for level in support_levels:
-                if level < current_price:
-                    distance_pct = ((current_price - level) / current_price * 100)
-                    levels.append({
-                        'type': 'support',
-                        'price': round(level, 2),
-                        'distance_pct': round(distance_pct, 2),
-                        'strength': self._calculate_level_strength(level, pivot_lows)
-                    })
-            
-            # Sort by distance from current price
-            levels = sorted(levels, key=lambda x: x['distance_pct'])
-            
-            return {
-                'levels': levels[:8],  # Return top 8 closest levels
-                'current_price': round(current_price, 2),
-                'data_quality': 'available',
-                'lookback_days': lookback_days
-            }
-            
-        except Exception as e:
-            console.print(f"[dim red]⚠️ S/R analysis failed for {symbol}: {e}[/dim red]")
-            return {'levels': [], 'data_quality': 'error'}
-    
     def _calculate_level_strength(self, level, all_levels):
         """Delegate to shared utils to calculate level strength."""
         if tv_utils is None:
@@ -1796,7 +1655,7 @@ class TVScreenerUsage:
                 return False
             
             # Get live price validation
-            live_price = self._get_live_price_from_upstox(symbol)
+            live_price = self.live_data._get_live_price_from_upstox(symbol)
             if live_price and abs(live_price - current_price) / current_price > 0.02:
                 console.print(f"[yellow]⚠️ Price moved too much for {symbol}: ₹{current_price:.2f} → ₹{live_price:.2f}[/yellow]")
                 return False
