@@ -22,6 +22,26 @@ import threading
 import urllib.parse
 import gzip
 
+# Import symbol validator for proper symbol cleaning
+try:
+    from ..screeners.symbol_validator import get_valid_symbol
+except ImportError:
+    def get_valid_symbol(symbol):
+        """Fallback symbol cleaning if validator not available"""
+        if not symbol:
+            return None
+        # Remove exchange prefixes
+        cleaned = symbol.upper()
+        if ':' in cleaned:
+            cleaned = cleaned.split(':', 1)[1]
+        # Remove common suffixes
+        suffixes_to_remove = ['.E1', '.EQ', '-EQ', 'EQ', '.NS', '.BO', '-NS', '-BO']
+        for suffix in suffixes_to_remove:
+            if cleaned.endswith(suffix):
+                cleaned = cleaned[:-len(suffix)]
+                break
+        return cleaned.strip()
+
 warnings.filterwarnings('ignore')
 
 # Configuration - Ensure you have a config.py file
@@ -206,6 +226,12 @@ class UpstoxAPI:
 
     def get_instrument_key(self, symbol: str, exchange: str = "NSE_EQ", instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None) -> Optional[str]:
         """Fetches the instrument key from a cached or newly downloaded instrument list."""
+        # Clean symbol to remove exchange prefixes like BSE:, NSE: etc.
+        clean_symbol = get_valid_symbol(symbol)
+        if not clean_symbol:
+            print(f"❌ Invalid symbol after cleaning: {symbol}")
+            return None
+            
         if not self.instruments:
             if INSTRUMENT_CACHE_FILE.exists():
                 print("✅ Loading instruments from local cache...")
@@ -222,7 +248,7 @@ class UpstoxAPI:
             # Equity or Index
             if instrument_type in ['EQ', 'INDEX']:
                 segment = 'NSE_INDEX' if instrument_type == 'INDEX' else exchange
-                if (instrument.get('trading_symbol') == symbol and
+                if (instrument.get('trading_symbol') == clean_symbol and
                     instrument.get('segment') == segment and
                     instrument.get('instrument_type') == instrument_type):
                     return instrument.get('instrument_key')
@@ -234,7 +260,7 @@ class UpstoxAPI:
                     datetime.fromtimestamp(instrument.get('expiry') / 1000).strftime('%Y-%m-%d') == expiry_date):
                     return instrument.get('instrument_key')
 
-        print(f"❌ Instrument key for '{symbol}' not found with the specified criteria.")
+        print(f"❌ Instrument key for '{clean_symbol}' (original: '{symbol}') not found with the specified criteria.")
         return None
 
     def fetch_intraday_data(self, symbol: str, interval: str, to_date: str, instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None, exchange: str = 'NSE_EQ') -> Optional[pd.DataFrame]:
