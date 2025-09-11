@@ -134,6 +134,7 @@ class TVScreenerUsage:
         
         # Initialize trade journaling
         self.journal_file = None
+        self.trade_log_file = None
         # Note: setup_trade_journal() called after module initialization
         
         # Telegram integration
@@ -238,25 +239,10 @@ class TVScreenerUsage:
         self._setup_signal_handlers()
     
     def _is_trading_hours(self):
-        """Check if current time is within trading hours"""
-        if tv_time_utils:
-            return tv_time_utils.is_trading_hours(
-                self.trading_start_time, 
-                self.trading_end_time, 
-                self.paper_trading_enabled
-            )
-        # Fallback if utility not available
-        if not self.paper_trading_enabled:
-            return True
-        try:
-            from datetime import datetime, time
-            now = datetime.now().time()
-            start_time = datetime.strptime(self.trading_start_time, "%H:%M").time()
-            end_time = datetime.strptime(self.trading_end_time, "%H:%M").time()
-            return start_time <= now <= end_time
-        except Exception as e:
-            console.print(f"[yellow]⚠️ Error checking trading hours: {e}. Allowing trade.[/yellow]")
-            return True
+        """Check if current time is within trading hours - delegate to trading_core module"""
+        if self.trading_core:
+            return self.trading_core._is_trading_hours()
+        return True
     
     def _is_market_closed(self):
         """Check if market has closed (after 3:30 PM)"""
@@ -272,16 +258,16 @@ class TVScreenerUsage:
             return False  # If error, assume market is open
     
     def _setup_signal_handlers(self):
-        """Setup signal handlers for graceful shutdown"""
-        signal.signal(signal.SIGINT, self._signal_handler)  # Ctrl+C
-        signal.signal(signal.SIGTERM, self._signal_handler)  # Termination
-        atexit.register(self._cleanup_on_exit)
+        """Setup signal handlers for graceful shutdown - delegate to trading_core module"""
+        if self.trading_core:
+            return self.trading_core._setup_signal_handlers()
+        return None
     
     def _signal_handler(self, signum=None, frame=None):
-        """Handle shutdown signals"""
-        console.print(f"\n[bold yellow]🛑 Signal received: {signal.Signals(signum).name if signum else 'EXIT'}[/bold yellow]")
-        self._exit_all_positions("SCRIPT_STOPPED")
-        sys.exit(0)
+        """Handle shutdown signals - delegate to trading_core module"""
+        if self.trading_core:
+            return self.trading_core._signal_handler(signum, frame)
+        return None
     
     def _cleanup_on_exit(self):
         """Cleanup function called on script exit"""
@@ -289,48 +275,34 @@ class TVScreenerUsage:
             self._exit_all_positions("SCRIPT_EXIT")
     
     def _exit_all_positions(self, reason="MANUAL_EXIT"):
-        """Exit all live positions"""
-        if not hasattr(self, 'positions') or not self.positions:
-            console.print("[dim]No active positions to exit.[/dim]")
-            return
-        
-        console.print(f"\n[bold red]🚨 EXITING ALL POSITIONS - Reason: {reason}[/bold red]")
-        
-        exit_count = 0
-        total_pnl = 0
-        
-        # Create a copy of positions to avoid modification during iteration
-        positions_to_exit = dict(self.positions)
-        
-        for symbol, position in positions_to_exit.items():
-            try:
-                # Get current price for exit
-                current_price = self._get_live_price_from_upstox(symbol)
-                if not current_price:
-                    current_price = self.current_prices.get(symbol, position['entry_price'])
-                
-                # Calculate P&L
-                pnl_pct = (current_price - position['entry_price']) / position['entry_price'] * 100
-                if position['side'] == 'SELL':
-                    pnl_pct *= -1
-                
-                pnl_amount = pnl_pct * position['entry_price'] * position['qty'] / 100
-                total_pnl += pnl_amount
-                
-                # Execute exit
-                self._execute_exit_trade(symbol, position, current_price, f"{reason}: Bulk Exit")
-                exit_count += 1
-                
-            except Exception as e:
-                console.print(f"[red]❌ Failed to exit {symbol}: {e}[/red]")
-        
-        console.print(f"\n[bold green]✅ Exited {exit_count} positions | Total P&L: ₹{total_pnl:+,.0f}[/bold green]")
+        """Exit all live positions - delegate to trading_core module"""
+        if self.trading_core:
+            return self.trading_core._exit_all_positions(reason)
+        return None
+    
+    def _check_historical_trend(self, symbol, timeframe='daily', lookback_days=20):
+        """Check historical trend for a symbol - delegate to technical_analysis module"""
+        if self.technical_analysis:
+            return self.technical_analysis._check_historical_trend(symbol, timeframe, lookback_days)
+        return 'neutral'
+    
+    def _calculate_trading_charges(self, trade_value, trade_type='intraday'):
+        """Calculate trading charges - delegate to trading_core module"""
+        if self.trading_core:
+            return self.trading_core._calculate_trading_charges(trade_value, trade_type)
+        return 0.0
+    
+    def _detect_volatility_level(self, symbol, current_price):
+        """Detect volatility level - delegate to technical_analysis module"""
+        if self.technical_analysis:
+            return self.technical_analysis._detect_volatility_level(symbol, current_price)
+        return 'normal'
     
     def _get_progressive_trailing_buffer(self, profit_pct, volatility_adjustment=0.0):
-        """Delegate to shared utils to calculate trailing buffer."""
-        if tv_utils is None:
-            return 1.0
-        return tv_utils.get_progressive_trailing_buffer(profit_pct, volatility_adjustment)
+        """Calculate progressive trailing buffer - delegate to trading_core module"""
+        if self.trading_core:
+            return self.trading_core._get_progressive_trailing_buffer(profit_pct, volatility_adjustment)
+        return 1.0
     
     def _get_tighter_trailing_buffer(self, profit_pct, is_ultra_quick=False):
         """MUCH TIGHTER trailing buffer for aggressive profit locking"""
@@ -372,30 +344,10 @@ class TVScreenerUsage:
                 f.write("-" * 80 + "\n")
     
     def log_trade(self, action, symbol, price, qty, amount, alert_type, pnl_pct=None, pnl_amount=None, side=None):
-        """Log trade to journal file"""
-        if not self.journal_file:
-            return
-            
-        from datetime import datetime
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Format P&L info
-        pnl_info = ""
-        if pnl_pct is not None:
-            pnl_info = f" | P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})"
-        
-        # Include side information in the action
-        action_with_side = action
-        if side:
-            action_with_side = f"{action}_{side}"
-        
-        log_entry = f"{timestamp} | {action_with_side} | {symbol} | ₹{price:.2f} | {qty} | ₹{amount:,.0f} | {alert_type}{pnl_info}\n"
-        
-        try:
-            with open(self.journal_file, 'a') as f:
-                f.write(log_entry)
-        except Exception as e:
-            console.print(f"[dim red]⚠️ Journal write failed: {e}[/dim red]")
+        """Log trade to journal file - delegate to trading_core module"""
+        if self.trading_core:
+            return self.trading_core.log_trade(action, symbol, price, qty, amount, alert_type, pnl_pct, pnl_amount, side)
+        return None
 
     
     
@@ -1093,11 +1045,10 @@ class TVScreenerUsage:
 
     # Use shared helper to display tables to avoid duplication
     def display_table(self, df, title, max_rows=15):
-        """Display table - delegate to display_utils if available"""
+        """Display table - delegate to display_utils module"""
         if self.display_utils:
             return self.display_utils.display_table(df, title, max_rows)
-        # Original implementation follows below
-        return helpers_display_table(df, title, max_rows, self.currency_symbol)
+        return None
 
     # ==================== PRE-BREAKOUT STRATEGIES (NEW) ====================
     
@@ -2037,7 +1988,7 @@ class TVScreenerUsage:
             # Original FOMO conditions (now as fallback for existing strong signals)
             original_fomo = (row['relative_volume_10d_calc'] > max(volume_threshold, 2.0) and  
                            (row['change'] > 1 or row['change'] < -1) and
-                           self._check_not_buying_at_top(ticker, row))
+                           (self.technical_analysis and self.technical_analysis._check_not_buying_at_top(ticker, row)))
             
             # SMART_FOMO triggers on ANY of these improved timing conditions
             smart_fomo_trigger = (
@@ -2692,13 +2643,9 @@ class TVScreenerUsage:
             return None
     
     def send_telegram_alert(self, alert):
-        """Send a Telegram alert for a new event via shared tv_alerts utility"""
-        if not self.telegram_enabled:
+        """Send a Telegram alert - delegate to tv_alerts module"""
+        if not self.telegram_enabled or tv_alerts is None:
             return
-        if tv_alerts is None:
-            return
-
-        # Delegate to shared alerts module (keeps original formatting/logic)
         tv_alerts.send_telegram_alert(
             alert=alert,
             telegram_config=TELEGRAM_CONFIG,
