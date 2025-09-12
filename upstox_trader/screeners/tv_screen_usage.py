@@ -501,14 +501,9 @@ class TVScreenerUsage:
         # No fallback implementation needed as it's delegated to tv_data_utils
     
     def _has_existing_position(self, ticker):
-        """Check if we already have a position in this base symbol (any exchange)"""
-        base_symbol = self._get_base_symbol(ticker)
-        
-        for existing_ticker in self.positions:
-            if self.positions[existing_ticker]:  # Active position
-                existing_base = self._get_base_symbol(existing_ticker)
-                if base_symbol == existing_base:
-                    return True, existing_ticker
+        """Check if we already have a position in this base symbol (any exchange) - delegate to trading_core module"""
+        if self.trading_core:
+            return self.trading_core._has_existing_position(ticker)
         return False, None
     
     def _process_gap_paper_trading_alert(self, alert):
@@ -520,138 +515,6 @@ class TVScreenerUsage:
         """Process alert for paper trading bot with duplicate prevention - delegate to trading_core module"""
         if self.trading_core:
             return self.trading_core._process_paper_trading_alert(alert)
-    
-    def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence, trend='neutral'):
-        """Execute paper trade via bot"""
-        try:
-            # Validate symbol before trading
-            try:
-                # Debug: Check validate_symbol status
-                console.print(f"[dim]Debug: validate_symbol type: {type(validate_symbol)}, callable: {callable(validate_symbol) if validate_symbol else 'N/A'}[/dim]")
-                
-                # Check if validate_symbol function is available and callable
-                if validate_symbol is None or not callable(validate_symbol):
-                    # Fallback validation - just clean the symbol
-                    clean_symbol = symbol.replace('NSE:', '').replace('BSE:', '').strip()
-                    console.print(f"[yellow]⚠️ Symbol validator unavailable - using basic validation for {symbol}[/yellow]")
-                    symbol = f"NSE:{clean_symbol}"  # Keep NSE prefix for consistency
-                else:
-                    is_valid, validation_result = validate_symbol(symbol)
-                    if not is_valid:
-                        console.print(f"[red]❌ TRADE BLOCKED: {symbol} - {validation_result}[/red]")
-                        return False
-                    
-                    # Use validated symbol for trading
-                    validated_symbol = validation_result
-                    if validated_symbol != symbol.replace('NSE:', '').replace('BSE:', ''):
-                        console.print(f"[cyan]📝 Symbol mapped: {symbol} -> {validated_symbol}[/cyan]")
-                        symbol = f"NSE:{validated_symbol}"  # Keep NSE prefix for consistency
-                    
-            except Exception as e:
-                console.print(f"[red]❌ TRADE BLOCKED: {symbol} - Symbol validation error: {e}[/red]")
-                return False
-            
-            # Check trading hours - prevent new trades outside market hours
-            if not self._is_trading_hours():
-                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Outside trading hours ({self.trading_start_time}-{self.trading_end_time})[/yellow]")
-                return False
-            
-            # Check total daily trade limit
-            if self.total_trades_today >= self.max_total_trades:
-                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Total daily trade limit reached ({self.total_trades_today}/{self.max_total_trades})[/yellow]")
-                return False
-            
-            # Check daily entry limit (max 2 entries per day per stock)
-            at_limit, entries_today = self._check_daily_entry_limit(symbol)
-            if at_limit:
-                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Daily entry limit reached ({entries_today}/{self.max_daily_entries_per_stock})[/yellow]")
-                return False
-            
-            # Check loss-based cooldown (30+ minutes after any loss)
-            in_cooldown, cooldown_left = self._check_loss_cooldown(symbol)
-            if in_cooldown:
-                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Loss cooldown active ({cooldown_left/60:.1f}m left)[/yellow]")
-                return False
-            
-            # Validate price against live Upstox price
-            live_price = self._get_live_price_from_upstox(symbol)
-            if live_price is None:
-                # Instrument key not found - block trade creation
-                console.print(f"[red]❌ TRADE BLOCKED: {symbol} - Instrument key not found in Upstox[/red]")
-                return False
-            elif live_price:
-                price_diff_pct = abs(live_price - price) / price * 100
-                if price_diff_pct > 0.5:  # More than 0.5% difference
-                    console.print(f"[yellow]⚠️ TRADE SKIPPED: {symbol} - Price difference too high: {price_diff_pct:.2f}% (Signal: ₹{price:.2f} vs Live: ₹{live_price:.2f})[/yellow]")
-                    return False
-                
-                # Use live price for execution
-                price = live_price
-            
-            # Create position directly in bot
-            trade_log_msg = f"SCREENER_ALERT_TRADE: Side={side}, Qty={quantity}, Symbol={symbol}, Price={price:.2f}, Alert={alert['type']}, Confidence={confidence:.2f}"
-            
-            # Log the trade (reduce console spam)
-            console.print(f"[dim]📝 Trade: {side} {quantity} {symbol} @ ₹{price:.2f}[/dim]")
-            
-            # Calculate trading charges
-            amount = price * quantity
-            entry_charges = self._calculate_trading_charges(amount, 'intraday')
-            
-            # Log to journal
-            self.log_trade("ENTRY", symbol, price, quantity, amount, f"{alert['type']}|trend:{trend}", side=side)
-            
-            # Detect volatility level for ATR-based stops
-            volatility_level = self._detect_volatility_level(symbol, price)
-            
-            # Create position with entry charges
-            self.positions[symbol] = {
-                'side': side,
-                'qty': quantity,
-                'entry_price': round(price, 2),
-                'entry_charges': entry_charges,
-                'timestamp': datetime.now(),
-                'highest_profit_pct': 0.0,
-                'highest_price': round(price, 2),
-                'trailing_stop_active': False,
-                'trailing_stop_pct': 0.0,
-                'trade_id': self.trade_count + 1,
-                'source': 'TV_SCREENER',
-                'alert_type': alert['type'],
-                'confidence': confidence,
-                'volatility': volatility_level
-            }
-            
-            self.trade_count += 1
-            self.current_prices[symbol] = round(price, 2)
-            
-            # Increment daily entry count for this symbol
-            self._increment_daily_entry_count(symbol)
-            
-            # Increment total trades counter
-            self.total_trades_today += 1
-            
-            # Send telegram alert for successful trade entry
-            if self.telegram_enabled:
-                entry_alert = {
-                    'type': 'TRADE_ENTRY',
-                    'ticker': symbol,
-                    'name': symbol,
-                    'side': side,
-                    'price': price,
-                    'quantity': quantity,
-                    'amount': price * quantity,
-                    'alert_type': alert['type'],
-                    'confidence': confidence,
-                    'trend': trend
-                }
-                self.send_telegram_alert(entry_alert)
-            
-            return True
-            
-        except Exception as e:
-            console.print(f"Trade execution error: {e}")
-            return False
     
     def _get_trading_action(self, alert):
         """Get human readable trading action"""
