@@ -215,8 +215,8 @@ class DisplayUtils:
         else:
             return f"₹{price:.1f}"
     
-    def _add_realtime_momentum_analysis(self, df):
-        """Add realtime momentum analysis columns to DataFrame"""
+    def _add_momentum_score_analysis(self, df):
+        """Add momentum score analysis columns to DataFrame"""
         if df.empty:
             return df
         
@@ -349,7 +349,7 @@ class DisplayUtils:
             return
         
         # Add momentum analysis
-        df_with_momentum = self._add_realtime_momentum_analysis(df)
+        df_with_momentum = self._add_momentum_score_analysis(df)
         
         table = Table(title="👀 Market Watch")
         table.add_column("Symbol", style="cyan")

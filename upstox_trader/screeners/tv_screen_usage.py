@@ -474,42 +474,7 @@ class TVScreenerUsage:
             console.print(f"[dim red]⚠️ Error checking overextension for {symbol}: {e}[/dim red]")
             return False
     
-    def _check_historical_upside(self, symbol, current_price):
-        """Check how much upside is left based on recent historical highs"""
-        try:
-            if not hasattr(self, 'upstox_api') or not self.upstox_api:
-                return True  # No historical data available, allow trade
-                
-            # Get previous day's data (daily timeframe)
-            df = self.upstox_api.fetch_intraday_data_v3(
-                symbol=symbol,
-                unit='days',
-                duration=5  # Last 5 days
-            )
-            
-            if df is None or df.empty:
-                return True  # No data, allow trade
-            
-            # Calculate recent high and average high
-            recent_high = df['high'].max()
-            avg_high = df['high'].rolling(window=3).mean().iloc[-1]
-            
-            # Calculate potential upside
-            upside_to_recent_high = ((recent_high - current_price) / current_price) * 100
-            upside_to_avg_high = ((avg_high - current_price) / current_price) * 100
-            
-            # Only enter if there's at least 2% upside to recent highs
-            min_upside = 2.0
-            has_upside = upside_to_recent_high >= min_upside
-            
-            if not has_upside:
-                console.print(f"[dim yellow]⚠️ {symbol}: Only {upside_to_recent_high:.1f}% upside left (need >{min_upside}%)[/dim yellow]")
-            
-            return has_upside
-            
-        except Exception as e:
-            # If historical check fails, allow trade (failsafe)
-            return True
+    
 
     def _detect_pre_breakout_volume(self, symbol, row):
         """
@@ -816,7 +781,7 @@ class TVScreenerUsage:
                 pre_breakout_detected or           # BEST: Early volume building
                 pullback_entry_detected or         # GOOD: Pullback to support  
                 momentum_cooled or                 # SAFE: Momentum has cooled
-                (original_fomo and self._check_historical_upside(ticker, row['close']))  # FALLBACK: Original logic
+                (original_fomo and self.technical_analysis._check_historical_upside(ticker, row['close']))  # FALLBACK: Original logic
             )
             
             if (smart_fomo_trigger and  
@@ -1432,36 +1397,10 @@ class TVScreenerUsage:
         return min(confidence, 0.95)  # Cap at 95%
     
     def _get_15min_rsi(self, symbol):
-        """Get 15min RSI from Upstox for intraday confirmation"""
-        try:
-            import talib
-            
-            # Fetch 15min data for last 3 days (enough for RSI calculation)
-            to_date = datetime.now().strftime('%Y-%m-%d')
-            from_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
-            
-            # Use the existing Upstox API
-            if hasattr(self, 'upstox_api') and self.upstox_api:
-                df = self.upstox_api.fetch_historical_data_v3(
-                    symbol=symbol,
-                    unit='minutes',
-                    interval=15,
-                    to_date=to_date,
-                    from_date=from_date
-                )
-                
-                if df is not None and len(df) >= 14:  # Need at least 14 periods for RSI
-                    # Calculate 15min RSI
-                    rsi = talib.RSI(df['close'], timeperiod=14)
-                    current_15min_rsi = rsi.iloc[-1]  # Latest RSI value
-                    
-                    return current_15min_rsi
-            
-            return None  # Return None if data unavailable
-            
-        except Exception as e:
-            # Fallback silently - don't break the main flow
-            return None
+        """Get 15min RSI from Upstox - delegate to technical_analysis module"""
+        if self.technical_analysis:
+            return self.technical_analysis._get_15min_rsi(symbol)
+        return None # Default to None if module not available
     
     def send_telegram_alert(self, alert):
         """Send a Telegram alert - delegate to tv_alerts module"""
