@@ -380,7 +380,7 @@ class DisplayUtils:
             
             table.add_row(
                 symbol.replace('NSE:', ''),
-                self.format_price(price),
+                self.parent.format_price(price),
                 f"[{change_color}]{change:+.1f}%[/]",
                 f"{volume_ratio:.1f}x",
                 f"{rsi:.0f}",

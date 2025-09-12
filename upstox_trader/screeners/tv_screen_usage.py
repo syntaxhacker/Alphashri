@@ -508,41 +508,7 @@ class TVScreenerUsage:
             console.print(f"[red]❌ Pre-breakout detection error for {symbol}: {e}[/red]")
             return False
 
-    def _detect_pullback_entry(self, symbol, row):
-        """
-        Detect pullback entry opportunities after initial momentum
-        Returns True if stock is pulling back to good entry level
-        """
-        try:
-            today_change = row.get('change', 0)
-            rsi = row.get('RSI', 50)
-            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
-            
-            # PULLBACK criteria
-            small_pullback = -0.8 <= today_change <= 0.5         # Minor pullback or flat
-            rsi_cooling = 50 <= rsi <= 70                         # RSI cooling from overbought
-            volume_normalizing = 1.2 <= volume_ratio <= 2.0      # Volume normalizing
-            
-            # Check if we're near support (EMA20)
-            ema20 = row.get('EMA20', row['close'])
-            near_ema20 = row['close'] >= ema20 * 0.99             # Very close to EMA20
-            
-            # Check recent strength (weekly performance should be positive)
-            week_perf = row.get('Perf.W', 0)
-            has_recent_strength = week_perf > 2                   # At least 2% weekly gain
-            
-            is_pullback_entry = (small_pullback and rsi_cooling and 
-                               volume_normalizing and near_ema20 and has_recent_strength)
-            
-            if is_pullback_entry:
-                console.print(f"[cyan]🔵 {symbol}: PULLBACK ENTRY detected - Change:{today_change:+.1f}%, "
-                            f"RSI:{rsi:.1f}, near EMA20[/cyan]")
-            
-            return is_pullback_entry
-            
-        except Exception as e:
-            console.print(f"[red]❌ Pullback detection error for {symbol}: {e}[/red]")
-            return False
+    
 
     def _check_momentum_cooling(self, symbol, row):
         """
@@ -767,9 +733,9 @@ class TVScreenerUsage:
             watch_mode = getattr(self, 'watch_mode', 'PREBREAKOUT')
             
             # IMPROVED TIMING: Check for different entry opportunities based on timing
-            pre_breakout_detected = self._detect_pre_breakout_volume(ticker, row)
-            pullback_entry_detected = self._detect_pullback_entry(ticker, row)
-            momentum_cooled = self._check_momentum_cooling(ticker, row)
+            pre_breakout_detected = self.technical_analysis._detect_pre_breakout_volume(ticker, row)
+            pullback_entry_detected = self.technical_analysis._detect_pullback_entry(ticker, row)
+            momentum_cooled = self.technical_analysis._check_momentum_cooling(ticker, row)
             
             # Original FOMO conditions (now as fallback for existing strong signals)
             original_fomo = (row['relative_volume_10d_calc'] > max(volume_threshold, 2.0) and  
@@ -785,7 +751,7 @@ class TVScreenerUsage:
             )
             
             if (smart_fomo_trigger and  
-                self._check_momentum_divergence(ticker, row, previous_data)):  # Quality check
+                self.technical_analysis._check_momentum_divergence(ticker, row, previous_data)):  # Quality check
                 
                 # Check cooldown - REMOVED: No restrictions for SMART_FOMO
                 # should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'SMART_FOMO')
@@ -1396,11 +1362,7 @@ class TVScreenerUsage:
         
         return min(confidence, 0.95)  # Cap at 95%
     
-    def _get_15min_rsi(self, symbol):
-        """Get 15min RSI from Upstox - delegate to technical_analysis module"""
-        if self.technical_analysis:
-            return self.technical_analysis._get_15min_rsi(symbol)
-        return None # Default to None if module not available
+    
     
     def send_telegram_alert(self, alert):
         """Send a Telegram alert - delegate to tv_alerts module"""
@@ -1803,7 +1765,7 @@ class TVScreenerUsage:
                         # Original logic for late entries
                         if change_pct > 1 and trend in ['strong_bullish', 'bullish', 'neutral']:
                             # Positive move - check if overextended for shorting
-                            if self._is_overextended_for_short(symbol):
+                            if self.technical_analysis._is_overextended_for_short(symbol):
                                 trade_side = 'SELL'  # Short overextended stocks
                                 console.print(f"   [red]📉 {symbol} overextended - considering SHORT[/red]")
                             else:
