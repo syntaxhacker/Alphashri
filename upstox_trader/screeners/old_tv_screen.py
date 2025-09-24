@@ -121,8 +121,8 @@ class TVScreenerUsage:
             console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
         
         # Trading Time Configuration
-        self.trading_start_time = "09:17"  # Start trading at 9:20 AM
-        self.trading_end_time = "02:00"    # Stop trading at 10:00 AM (align with newer file)
+        self.trading_start_time = "09:15"
+        self.trading_end_time = "14:00"    # Stop trading at 10:00 AM (align with newer file)
 
         # Simple Paper Trading integration (without full bot monitoring)
         self.paper_trading_enabled = enable_paper_trading
@@ -386,9 +386,6 @@ class TVScreenerUsage:
 
     def _is_trading_hours(self):
         """Check if current time is within trading hours"""
-        if not self.paper_trading_enabled:
-            return True  # Always allow if paper trading is disabled
-
         try:
             from datetime import datetime
             now = datetime.now().time()
@@ -1295,11 +1292,11 @@ class TVScreenerUsage:
     # ==================== INTRADAY WATCH MODE ====================
     
     def wait_until_market_open(self):
-        """Wait until 9:20 AM before starting active monitoring"""
-        target_time = datetime.now().replace(hour=9, minute=17, second=0, microsecond=0)
+        """Wait until 9:15 AM before starting active monitoring"""
+        target_time = datetime.now().replace(hour=9, minute=15, second=0, microsecond=0)
         current_time = datetime.now()
         
-        # If we're past 9:20 AM today, start immediately
+        # If we're past 9:15 AM today, start immediately
         if current_time >= target_time:
             console.print("[green]✅ Market open time reached - starting active monitoring[/green]")
             return
@@ -1309,9 +1306,9 @@ class TVScreenerUsage:
         wait_minutes = int(wait_seconds // 60)
         wait_secs = int(wait_seconds % 60)
         
-        console.print(f"[yellow]⏰ Waiting until 9:20 AM to start active monitoring...[/yellow]")
+        console.print(f"[yellow]⏰ Waiting until time to start active monitoring...[/yellow]")
         console.print(f"[blue]Current time: {current_time.strftime('%H:%M:%S')}[/blue]")
-        console.print(f"[blue]Target time: 9:20:00[/blue]")
+        console.print(f"[blue]Target time: 9:15:00[/blue]")
         console.print(f"[yellow]Time remaining: {wait_minutes}m {wait_secs}s[/yellow]")
         console.print()
         
@@ -1462,11 +1459,11 @@ class TVScreenerUsage:
             return alerts
             
         for _, row in current_data.iterrows():
-            ticker = row['ticker']
+            ticker = row['name']
             
             # Volume spike alert
             if row['relative_volume_10d_calc'] > volume_threshold:
-                prev_vol = previous_data[previous_data['ticker'] == ticker]['relative_volume_10d_calc'].values
+                prev_vol = previous_data[previous_data['name'] == ticker]['relative_volume_10d_calc'].values
                 if len(prev_vol) > 0 and row['relative_volume_10d_calc'] > prev_vol[0] * 1.2:
                     alerts.append({
                         'type': 'VOLUME_SPIKE',
@@ -1480,7 +1477,7 @@ class TVScreenerUsage:
             
             # Price movement alert
             if abs(row['change']) > price_threshold:
-                prev_change = previous_data[previous_data['ticker'] == ticker]['change'].values
+                prev_change = previous_data[previous_data['name'] == ticker]['change'].values
                 if len(prev_change) > 0 and abs(row['change']) > abs(prev_change[0]) * 1.1:
                     alerts.append({
                         'type': 'PRICE_MOVE',
@@ -1842,7 +1839,7 @@ class TVScreenerUsage:
             # Log the trade
             print(trade_log_msg)
             
-            # Detect volatility level for ATR-based stops
+            # Volatility detection retained for other purposes, but stops are now fixed 0.5%
             volatility_level = self._detect_volatility_level(symbol, price)
             
             # Create position
@@ -1926,7 +1923,7 @@ class TVScreenerUsage:
         table.add_column("Alert", style="bold red")
         
         for _, row in df.head(15).iterrows():
-            ticker = row['ticker']
+            ticker = row['name']
             is_alert = ticker in alert_tickers
             
             # Color coding for alerts
@@ -2333,23 +2330,11 @@ class TVScreenerUsage:
             entry_value = entry_price * position['qty']
             pnl_pct = (net_pnl / entry_value) * 100 if entry_value else 0.0
 
-            # Risk Management Rules with ATR-based stops for volatile stocks
-            volatility = position.get('volatility', 'normal')  # Track volatility level
-            
-            if volatility == 'high':
-                # Use ATR-based stops for volatile stocks
-                atr_stop_price = self._calculate_atr_based_stop(symbol, live_price)
-                atr_stop_pct = ((atr_stop_price - entry_price) / entry_price) * 100
-                if position['side'] == 'SELL':
-                    atr_stop_pct *= -1
-                stop_loss_pct = atr_stop_pct
-                console.print(f"[dim]Using ATR-based stop for volatile {symbol}: {stop_loss_pct:.2f}%[/dim]")
-            else:
-                # Regular tight stop loss for normal volatility stocks
-                stop_loss_pct = -0.5  # 0.5% initial stop loss (tightened from -1.5%)
+            # Strict 0.5% stop loss for all stocks (removed ATR-based logic)
+            stop_loss_pct = -1.0
                 
-            take_profit_pct = 0.4  # 0.4% take profit threshold for ULTRA TIGHT trailing (was 1.3%)
-            quick_exit_pct = 0.4   # 0.4% quick exit threshold (was 1.0%)
+            take_profit_pct = 1.5  # 1.5% take profit threshold (1.5:1 reward ratio)
+            quick_exit_pct = 1.0   # 1.0% quick exit threshold (was 0.4%)
 
             # Calculate trade duration for ultra-quick trailing determination
             trade_duration_minutes = (datetime.now() - position.get('timestamp', datetime.now())).total_seconds() / 60
