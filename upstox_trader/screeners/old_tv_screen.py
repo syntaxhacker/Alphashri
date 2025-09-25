@@ -94,8 +94,88 @@ def get_tradingview_cookies():
             console.print("[yellow]💡 Try refreshing the TradingView page and run script again[/yellow]")
             return None
 
+class TVWebhookServer:
+    """Direct webhook server for real-time TV alerts"""
+    def __init__(self, process_callback, log_file=None, port=5001):
+        self.process_callback = process_callback
+        self.log_file = log_file
+        self.port = port
+        self.running = False
+        self.thread = None
+        self.app = None
+        
+    def start(self):
+        """Start the webhook server in a separate thread"""
+        self.running = True
+        self.thread = threading.Thread(target=self._run_server, daemon=True)
+        self.thread.start()
+        console.print(f"[green]📡 Webhook server started on port {self.port}[/green]")
+        
+    def stop(self):
+        """Stop the webhook server"""
+        self.running = False
+        
+    def _run_server(self):
+        """Run the Flask webhook server"""
+        try:
+            from flask import Flask, request, jsonify
+            import json
+            
+            self.app = Flask(__name__)
+            
+            @self.app.route('/webhook', methods=['POST'])
+            def webhook_handler():
+                try:
+                    data = request.json
+                    from datetime import datetime
+                    
+                    # Log every webhook call
+                    if self.log_file:
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        symbol = data.get('symbol', 'UNKNOWN')
+                        action = data.get('action', 'UNKNOWN')
+                        price = data.get('price', '0')
+                        status = 'UNKNOWN'
+                        
+                        with open(self.log_file, 'a') as f:
+                            f.write(f"{timestamp},{symbol},{action},{price},")
+                    
+                    if data and data.get('action', '').upper() in ['BUY', 'LONG']:
+                        # Process immediately with callback
+                        if self.process_callback:
+                            self.process_callback([data])
+                        
+                        # Log success
+                        if self.log_file:
+                            with open(self.log_file, 'a') as f:
+                                f.write(f"SUCCESS\n")
+                        
+                        return jsonify({'status': 'success', 'message': 'Alert processed'})
+                    else:
+                        # Log ignored
+                        if self.log_file:
+                            with open(self.log_file, 'a') as f:
+                                f.write(f"IGNORED\n")
+                        
+                        return jsonify({'status': 'ignored', 'message': 'Not a BUY alert'})
+                except Exception as e:
+                    # Log error
+                    if self.log_file:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        with open(self.log_file, 'a') as f:
+                            f.write(f"ERROR: {str(e)}\n")
+                    
+                    return jsonify({'status': 'error', 'message': str(e)}), 500
+            
+            self.app.run(host='localhost', port=self.port, debug=False, threaded=True)
+        except ImportError:
+            console.print("[yellow]⚠️ Flask not available - webhook server disabled[/yellow]")
+        except Exception as e:
+            console.print(f"[red]Webhook server error: {e}[/red]")
+
 class TVScreenerUsage:
-    def __init__(self, market='in', enable_paper_trading=False):
+    def __init__(self, market='in', enable_paper_trading=False, consider_tv_alerts=False):
         self.cookies = get_tradingview_cookies()
         self.query = Query()
         
@@ -147,9 +227,9 @@ class TVScreenerUsage:
         self.loss_cooldown = {}  # Track symbols that had losses: {symbol: timestamp}
         self.loss_cooldown_duration = 1800  # 30 minutes in seconds (minimum)
         
-        # Daily entry limits - max 2 entries per day per stock
+        # Daily entry limits - max 10 entries per day per stock (increased for TV alerts)
         self.daily_entry_count = {}  # Track entries per symbol per day: {symbol: {date: count}}
-        self.max_daily_entries_per_stock = 2
+        self.max_daily_entries_per_stock = 10
 
         # Setup signal handlers for graceful shutdown (bulk exit)
         self._setup_signal_handlers()
@@ -176,6 +256,44 @@ class TVScreenerUsage:
         # Display trading hours if paper trading is enabled
         if self.paper_trading_enabled:
             console.print(f"[cyan]⏰ Trading Hours: {self.trading_start_time} - {self.trading_end_time} IST[/cyan]")
+        
+        # TV Alert integration
+        self.consider_tv_alerts = consider_tv_alerts
+        self.webhook_server = None
+        
+        # Setup TV alert logging
+        self.tv_alerts_log = None
+        if self.consider_tv_alerts:
+            self._setup_tv_alerts_log()
+        
+        if self.consider_tv_alerts:
+            # Start direct webhook server for real-time alerts
+            self.webhook_server = TVWebhookServer(self._process_tv_alerts, self.tv_alerts_log)
+            self.webhook_server.start()
+            console.print("[green]✅ TV Alert monitoring enabled (Direct Webhook on port 5001)[/green]")
+        else:
+            console.print("[yellow]⚠️ TV Alert monitoring disabled[/yellow]")
+    
+    def _setup_tv_alerts_log(self):
+        """Setup TV alerts log file for daily webhook logging"""
+        from datetime import datetime
+        import os
+        
+        # Create logs directory if it doesn't exist
+        logs_dir = "logs"
+        if not os.path.exists(logs_dir):
+            os.makedirs(logs_dir)
+            
+        # Create log filename with date
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        self.tv_alerts_log = f"{logs_dir}/tv_alerts_{date_str}.log"
+        
+        # Write header if new file
+        if not os.path.exists(self.tv_alerts_log):
+            with open(self.tv_alerts_log, 'w') as f:
+                f.write(f"# TV Alerts Log - {date_str}\n")
+                f.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("# Format: timestamp,symbol,action,price,status\n")
     
     def setup_trade_journal(self):
         """Setup trade journal file with date and mode"""
@@ -1377,6 +1495,8 @@ class TVScreenerUsage:
                 console.print(f"[dim]Refresh: {refresh_interval}s | Vol: {volume_threshold}x | Price: {price_threshold}%[/dim]")
                 console.print()
                 
+                # TV alerts processed directly via webhook callback
+                
                 # Get current market data
                 current_data = self._get_watch_data()
                 
@@ -2119,6 +2239,74 @@ class TVScreenerUsage:
                 
         return None
 
+    def _process_tv_alerts(self, alerts=None):
+        """Process TV alerts and add symbols to active positions"""
+        if not self.consider_tv_alerts:
+            return
+            
+        if alerts is None:
+            # Called from main loop - no queue needed with direct webhook
+            return
+        else:
+            # Process directly (real-time callback)
+            alerts_to_process = alerts
+        
+        for alert in alerts_to_process:
+            symbol = alert.get('symbol', '').strip()
+            if not symbol:
+                continue
+                
+            # Check if already in positions or sent alerts
+            if (symbol in self.positions and self.positions[symbol]):
+                console.print(f"[yellow]⚠️ TV Alert blocked: {symbol} - Already in positions[/yellow]")
+                continue
+            if symbol in self.sent_alerts:
+                console.print(f"[yellow]⚠️ TV Alert blocked: {symbol} - Already in sent alerts[/yellow]")
+                continue
+                
+            try:
+                # Get current price from alert
+                price = float(alert.get('price', 0))
+                if price <= 0:
+                    continue
+                    
+                # Standard position size (₹20,000)
+                position_size = 20000
+                quantity = int(position_size / price)
+                
+                # Create position from TV alert
+                self.positions[symbol] = {
+                    'side': 'BUY',
+                    'qty': quantity,
+                    'entry_price': round(price, 2),
+                    'timestamp': datetime.now(),
+                    'entry_time': datetime.now(),
+                    'highest_profit_pct': 0.0,
+                    'highest_price': round(price, 2),
+                    'trailing_stop_active': False,
+                    'volatility': 'LOW',
+                    'trailing_stop_pct': 0.0,
+                    'trade_id': self.trade_count + 1,
+                    'source': 'TV_ALERT',
+                    'alert_type': 'TV_WEBHOOK',
+                    'confidence': 1.0
+                }
+                
+                self.trade_count += 1
+                self.current_prices[symbol] = round(price, 2)
+                self.sent_alerts.add(symbol)
+                self.last_alert_time[symbol] = time.time()
+                
+                # Log the TV alert position
+                console.print(f"[green]✅ TV Alert Position: {symbol} @ {price} (Qty: {quantity})[/green]")
+                
+                if self.journal_file:
+                    with open(self.journal_file, 'a') as f:
+                        f.write(f"TV_ALERT_ENTRY: {symbol} @ {price} Qty:{quantity} Time:{datetime.now()}\n")
+                        
+            except Exception as e:
+                console.print(f"[red]Error processing TV alert for {symbol}: {e}[/red]")
+
     def _display_active_positions(self):
         """Display active positions with live P&L from Upstox (net after estimated charges)"""
         active_positions = {k: v for k, v in self.positions.items() if v}
@@ -2822,6 +3010,8 @@ class TVScreenerUsage:
         """Handle shutdown signals"""
         console.print(f"\n[bold yellow]🛑 Signal received: {signal.Signals(signum).name if signum else 'EXIT'}[/bold yellow]")
         try:
+            if hasattr(self, 'webhook_server') and self.webhook_server:
+                self.webhook_server.stop()
             self._exit_all_positions("SCRIPT_STOPPED")
         except Exception as e:
             console.print(f"[red]Error during cleanup: {e}[/red]")
@@ -2831,6 +3021,8 @@ class TVScreenerUsage:
 
     def _cleanup_on_exit(self):
         """Cleanup function called on script exit"""
+        if hasattr(self, 'webhook_server') and self.webhook_server:
+            self.webhook_server.stop()
         if hasattr(self, 'positions') and self.positions:
             self._exit_all_positions("SCRIPT_EXIT")
 
@@ -2874,9 +3066,12 @@ def main():
     # Paper Trading Bot integration
     parser.add_argument('--enable-trading', action='store_true', help='Enable paper trading bot integration (₹20,000 per trade)')
     
+    # TV Alert integration
+    parser.add_argument('--consider-tv-alerts', action='store_true', help='Consider TradingView alerts from webhook for active positions')
+    
     args = parser.parse_args()
     
-    screener = TVScreenerUsage(market=args.market, enable_paper_trading=args.enable_trading)
+    screener = TVScreenerUsage(market=args.market, enable_paper_trading=args.enable_trading, consider_tv_alerts=args.consider_tv_alerts)
     
     if args.list_examples:
         screener.show_available_examples()
