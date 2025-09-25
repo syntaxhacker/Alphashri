@@ -150,14 +150,25 @@ class TVWebhookServer:
                             with open(self.log_file, 'a') as f:
                                 f.write(f"SUCCESS\n")
                         
-                        return jsonify({'status': 'success', 'message': 'Alert processed'})
+                        return jsonify({'status': 'success', 'message': 'BUY Alert processed'})
+                    elif data and data.get('action', '').upper() in ['SELL', 'SHORT']:
+                        # Process SELL as short position
+                        if self.process_callback:
+                            self.process_callback([data])
+                        
+                        # Log success
+                        if self.log_file:
+                            with open(self.log_file, 'a') as f:
+                                f.write(f"SUCCESS\n")
+                        
+                        return jsonify({'status': 'success', 'message': 'SELL Alert processed as short position'})
                     else:
                         # Log ignored
                         if self.log_file:
                             with open(self.log_file, 'a') as f:
                                 f.write(f"IGNORED\n")
                         
-                        return jsonify({'status': 'ignored', 'message': 'Not a BUY alert'})
+                        return jsonify({'status': 'ignored', 'message': 'Not a trading signal'})
                 except Exception as e:
                     # Log error
                     if self.log_file:
@@ -2265,18 +2276,21 @@ class TVScreenerUsage:
                 continue
                 
             try:
-                # Get current price from alert
+                # Get current price and action from alert
                 price = float(alert.get('price', 0))
                 if price <= 0:
                     continue
                     
+                action = alert.get('action', '').upper()
+                side = 'BUY' if action in ['BUY', 'LONG'] else 'SELL'
+                
                 # Standard position size (₹20,000)
                 position_size = 20000
                 quantity = int(position_size / price)
                 
                 # Create position from TV alert
                 self.positions[symbol] = {
-                    'side': 'BUY',
+                    'side': side,
                     'qty': quantity,
                     'entry_price': round(price, 2),
                     'timestamp': datetime.now(),
@@ -2298,7 +2312,8 @@ class TVScreenerUsage:
                 self.last_alert_time[symbol] = time.time()
                 
                 # Log the TV alert position
-                console.print(f"[green]✅ TV Alert Position: {symbol} @ {price} (Qty: {quantity})[/green]")
+                side_emoji = "🟢" if side == 'BUY' else "🔴"
+                console.print(f"[green]✅ TV Alert Position: {side_emoji} {symbol} {side} @ {price} (Qty: {quantity})[/green]")
                 
                 if self.journal_file:
                     with open(self.journal_file, 'a') as f:
