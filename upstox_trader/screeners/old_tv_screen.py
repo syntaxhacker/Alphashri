@@ -21,7 +21,7 @@ from rich.columns import Columns
 from datetime import datetime
 import pandas as pd
 import argparse
-import time
+import time as time_module
 import threading
 import os
 from datetime import datetime, timedelta
@@ -362,7 +362,7 @@ class TVScreenerUsage:
                 return 'neutral'  # No historical data available
                 
             # Get historical data with proper date range
-            from datetime import datetime, timedelta
+            from datetime import datetime as dt, time as dt_timedelta
             to_date = datetime.now().strftime('%Y-%m-%d')
             from_date = (datetime.now() - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
             
@@ -480,7 +480,7 @@ class TVScreenerUsage:
             # Try fallback with 15-minute data for 7 days if daily fails
             try:
                 console.print(f"[dim yellow]⚠️ Daily trend analysis failed for {symbol}, trying 15min fallback...[/dim yellow]")
-                from datetime import datetime, timedelta
+                from datetime import datetime as dt, time as dt_timedelta
                 to_date = datetime.now().strftime('%Y-%m-%d')
                 from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
                 
@@ -1459,12 +1459,12 @@ class TVScreenerUsage:
                 console.print(f"[blue]🕘 {mins}m {secs}s until active monitoring starts (9:20 AM)[/blue]")
                 console.print("[dim]Press Ctrl+C to stop[/dim]")
             
-            time.sleep(1)
+            time_module.sleep(1)
         
         # Clear screen and show start message
         os.system('clear' if os.name == 'posix' else 'cls')
         console.print("[green]🚀 9:20 AM reached - starting active monitoring mode![/green]")
-        time.sleep(2)
+        time_module.sleep(2)
     
     def intraday_watch_mode(self, refresh_interval=30, volume_threshold=2.0, price_threshold=3.0):
         """Watch mode for intraday trading - continuously monitors volume and price changes"""
@@ -1495,7 +1495,7 @@ class TVScreenerUsage:
         
         try:
             while True:
-                start_time = time.time()
+                start_time = time_module.time()
                 
                 # Clear screen for fresh update
                 os.system('clear' if os.name == 'posix' else 'cls')
@@ -1524,18 +1524,21 @@ class TVScreenerUsage:
                     # Display current top movers
                     self._display_watch_data(current_data, alerts)
                     
+                    # Display performance metrics (every 30 seconds)
+                    self._display_performance_metrics()
+                    
                     # Store current data for next comparison
                     previous_data = current_data.copy()
                 else:
                     console.print("[red]❌ No data received - checking connection...[/red]")
                 
                 # Wait for next refresh
-                elapsed = time.time() - start_time
+                elapsed = time_module.time() - start_time
                 sleep_time = max(0, refresh_interval - elapsed)
                 
                 if sleep_time > 0:
                     console.print(f"[dim]Next refresh in {sleep_time:.1f}s... (Ctrl+C to stop)[/dim]")
-                    time.sleep(sleep_time)
+                    time_module.sleep(sleep_time)
                     
         except KeyboardInterrupt:
             console.print("\n[yellow]👋 Watch mode stopped by user[/yellow]")
@@ -2131,7 +2134,7 @@ class TVScreenerUsage:
                 return None
                 
             # Check cache freshness (avoid excessive API calls)
-            current_time = time.time()
+            current_time = time_module.time()
             cache_duration = 10  # Cache for 10 seconds
             
             if not force_refresh and symbol in self.price_cache_timestamps:
@@ -2158,10 +2161,7 @@ class TVScreenerUsage:
                     clean_symbol = clean_symbol[:-len(suffix)]
                     break
             
-            # Validate symbol format (should be 3-15 characters for Indian stocks)
-            if not (3 <= len(clean_symbol) <= 15):
-                console.print(f"[yellow]⚠️ Invalid symbol format for {symbol}: {clean_symbol} (length: {len(clean_symbol)})[/yellow]")
-                return None
+            # Symbol validation removed - accept all valid symbol formats
                 
             # Set default exchange if not specified
             if ':' not in symbol.strip().upper():
@@ -2195,7 +2195,7 @@ class TVScreenerUsage:
             if not hasattr(self, '_last_error_time'):
                 self._last_error_time = {}
             
-            current_time = time.time()
+            current_time = time_module.time()
             if symbol not in self._last_error_time or current_time - self._last_error_time[symbol] > 60:
                 console.print(f"[yellow]⚠️ Failed to get live price for {symbol}: {e}[/yellow]")
                 self._last_error_time[symbol] = current_time
@@ -2203,13 +2203,14 @@ class TVScreenerUsage:
         return None
     
     def _fetch_price_from_exchange(self, symbol, exchange):
-        """Fetch price from specific exchange with proper error handling"""
+        """Fetch price from specific exchange with proper error handling and suppressed output"""
         try:
             # Check if market is open (9:15 AM - 3:30 PM) - fetch live prices during market hours
-            from datetime import datetime, time
+            from datetime import datetime as dt, time as dt_time
+            
             now = datetime.now().time()
-            market_open = time(9, 15)  # 9:15 AM
-            market_close = time(15, 30)  # 3:30 PM
+            market_open = dt_time(9, 15)  # 9:15 AM
+            market_close = dt_time(15, 30)  # 3:30 PM
             
             if not (market_open <= now <= market_close):
                 # Outside market hours - return None to use cached prices
@@ -2249,6 +2250,190 @@ class TVScreenerUsage:
                 console.print(f"[dim red]⚠️ {exchange} error for {symbol}: {str(e)[:50]}...[/dim red]")
                 
         return None
+
+    def _get_live_prices_batch(self, symbols):
+        """Fetch live prices for multiple symbols using parallel processing with compact output"""
+        if not symbols:
+            return {}
+            
+        if not (hasattr(self, 'upstox_api') and self.upstox_api):
+            console.print("[yellow]⚠️ Upstox API unavailable - using cached prices[/yellow]")
+            return {}
+        
+        import concurrent.futures
+        from datetime import datetime, time
+        import contextlib
+        import sys
+        import io
+        
+        # Check if market is open
+        now = datetime.now().time()
+        market_open = time(9, 15)
+        market_close = time(15, 30)
+        is_market_hours = market_open <= now <= market_close
+        
+        if not is_market_hours:
+            console.print("[dim]Market closed - using cached prices[/dim]")
+            return {}
+        
+        # Smart caching with adaptive duration based on stress test results
+        current_time = time_module.time()
+        
+        # Adaptive cache duration - longer during off-peak hours
+        import datetime
+        now = datetime.datetime.now().time()
+        is_peak_hours = (datetime.time(9, 15) <= now <= datetime.time(15, 30))
+        cache_duration = 8 if is_peak_hours else 15  # Adaptive caching
+        
+        symbols_to_fetch = []
+        cached_count = 0
+        
+        for symbol in symbols:
+            if (symbol not in self.price_cache_timestamps or 
+                current_time - self.price_cache_timestamps[symbol] >= cache_duration):
+                symbols_to_fetch.append(symbol)
+            else:
+                cached_count += 1
+        
+        if not symbols_to_fetch:
+            # All symbols cached - show cache hit summary
+            if len(symbols) > 1:
+                console.print(f"[dim]🎯 Cache hit: {cached_count}/{len(symbols)} symbols (cached)[/dim]")
+            return {}
+        
+        # Show compact batch summary with performance metrics
+        start_time = time_module.time()
+        console.print(f"[dim]🔄 Batch fetching {len(symbols_to_fetch)} symbols with {min(5, len(symbols_to_fetch))} threads...[/dim]")
+        
+        # Prepare fetch parameters for each symbol
+        fetch_params = []
+        for symbol in symbols_to_fetch:
+            # Determine exchange (use fallback if available)
+            exchange = self.exchange_fallbacks.get(symbol, 'NSE')
+            fetch_params.append((symbol, exchange))
+        
+        results = {}
+        success_count = 0
+        error_count = 0
+        
+        # Use ThreadPoolExecutor for parallel fetching - optimized based on stress test results
+        optimal_threads = min(5, len(symbols_to_fetch))  # Stress test showed 5 threads as optimal
+        with concurrent.futures.ThreadPoolExecutor(max_workers=optimal_threads) as executor:
+            # Submit all fetch tasks
+            future_to_symbol = {
+                executor.submit(self._fetch_price_from_exchange, symbol, exchange): (symbol, exchange)
+                for symbol, exchange in fetch_params
+            }
+            
+            # Collect results as they complete
+            for future in concurrent.futures.as_completed(future_to_symbol):
+                symbol, exchange = future_to_symbol[future]
+                try:
+                    price = future.result()
+                    if price is not None:
+                        results[symbol] = round(price, 2)
+                        # Update cache
+                        self.current_prices[symbol] = round(price, 2)
+                        self.price_cache_timestamps[symbol] = current_time
+                        success_count += 1
+                        
+                        # Track fallback usage
+                        if exchange != self.exchange_fallbacks.get(symbol, 'NSE'):
+                            self.exchange_fallbacks[symbol] = exchange
+                    else:
+                        error_count += 1
+                            
+                except Exception as e:
+                    error_count += 1
+                    # Track error types for better diagnostics
+                    if not hasattr(self, '_batch_error_stats'):
+                        self._batch_error_stats = {}
+                    
+                    error_type = type(e).__name__
+                    if error_type not in self._batch_error_stats:
+                        self._batch_error_stats[error_type] = 0
+                    self._batch_error_stats[error_type] += 1
+        
+        # Show enhanced batch summary with performance metrics and cache efficiency
+        end_time = time_module.time()
+        duration = end_time - start_time
+        throughput = success_count / duration if duration > 0 else 0
+        
+        # Calculate cache efficiency
+        total_symbols = len(symbols)
+        cache_efficiency = (cached_count / total_symbols * 100) if total_symbols > 0 else 0
+        
+        if success_count > 0:
+            console.print(f"[dim]✅ Batch complete: {success_count}/{len(symbols_to_fetch)} symbols ({throughput:.1f} symbols/sec)[/dim]")
+            if cached_count > 0:
+                console.print(f"[dim]🎯 Cache efficiency: {cached_count}/{total_symbols} symbols cached ({cache_efficiency:.0f}%)[/dim]")
+        if error_count > 0:
+            console.print(f"[dim]⚠️ {error_count} symbols had errors[/dim]")
+            # Show error distribution if significant
+            if hasattr(self, '_batch_error_stats') and error_count > 2:
+                error_summary = ", ".join([f"{err}: {count}" for err, count in self._batch_error_stats.items()])
+                console.print(f"[dim]🔍 Error types: {error_summary}[/dim]")
+        
+        # Performance tracking for optimization
+        if not hasattr(self, '_batch_performance_stats'):
+            self._batch_performance_stats = []
+        
+        self._batch_performance_stats.append({
+            'timestamp': end_time,
+            'symbols_requested': len(symbols_to_fetch),
+            'symbols_success': success_count,
+            'duration': duration,
+            'throughput': throughput
+        })
+        
+        return results
+
+    def _get_batch_performance_summary(self):
+        """Get performance summary for batch operations"""
+        if not hasattr(self, '_batch_performance_stats') or not self._batch_performance_stats:
+            return None
+        
+        stats = self._batch_performance_stats
+        if len(stats) < 2:
+            return None
+        
+        # Calculate performance metrics
+        total_requests = sum(s['symbols_requested'] for s in stats)
+        total_success = sum(s['symbols_success'] for s in stats)
+        total_duration = sum(s['duration'] for s in stats)
+        avg_throughput = sum(s['throughput'] for s in stats) / len(stats)
+        
+        # Calculate success rate
+        success_rate = (total_success / total_requests * 100) if total_requests > 0 else 0
+        
+        # Calculate average time per symbol
+        avg_time_per_symbol = total_duration / total_success if total_success > 0 else 0
+        
+        return {
+            'total_batches': len(stats),
+            'total_symbols': total_requests,
+            'success_rate': success_rate,
+            'avg_throughput': avg_throughput,
+            'avg_time_per_symbol': avg_time_per_symbol,
+            'total_duration': total_duration
+        }
+
+    def _display_performance_metrics(self):
+        """Display batch performance metrics"""
+        perf_summary = self._get_batch_performance_summary()
+        if not perf_summary:
+            return
+        
+        # Only show performance metrics every 30 seconds to avoid clutter
+        current_time = time_module.time()
+        if hasattr(self, '_last_perf_display') and current_time - self._last_perf_display < 30:
+            return
+        
+        self._last_perf_display = current_time
+        
+        console.print(f"[dim]📊 Performance: {perf_summary['avg_throughput']:.1f} sym/s | "
+                     f"Success: {perf_summary['success_rate']:.0f}% | "
+                     f"Batches: {perf_summary['total_batches']}[/dim]")
 
     def _process_tv_alerts(self, alerts=None):
         """Process TV alerts and add symbols to active positions"""
@@ -2309,7 +2494,7 @@ class TVScreenerUsage:
                 self.trade_count += 1
                 self.current_prices[symbol] = round(price, 2)
                 self.sent_alerts.add(symbol)
-                self.last_alert_time[symbol] = time.time()
+                self.last_alert_time[symbol] = time_module.time()
                 
                 # Log the TV alert position
                 side_emoji = "🟢" if side == 'BUY' else "🔴"
@@ -2329,6 +2514,10 @@ class TVScreenerUsage:
         if not active_positions:
             return
 
+        # Batch fetch prices for all active positions
+        symbols = list(active_positions.keys())
+        batch_prices = self._get_live_prices_batch(symbols)
+        
         console.print()
         positions_table = Table(title="📊 ACTIVE POSITIONS", show_header=True)
         positions_table.add_column("Symbol", style="bold", no_wrap=True)
@@ -2342,9 +2531,10 @@ class TVScreenerUsage:
         positions_table.add_column("Source", style="dim")
 
         for symbol, position in active_positions.items():
-            # Try to get live price from Upstox first, fallback to cached price
-            live_price = self._get_live_price_from_upstox(symbol)
-            current_price = live_price if live_price else self.current_prices.get(symbol, position['entry_price'])
+            # Use batch price, fallback to individual fetch, then cached price
+            current_price = (batch_prices.get(symbol) or 
+                           self._get_live_price_from_upstox(symbol) or 
+                           self.current_prices.get(symbol, position['entry_price']))
 
             # Charges
             entry_charges = position.get('entry_charges', 0.0)
@@ -2367,6 +2557,7 @@ class TVScreenerUsage:
             side_emoji = "🟢" if position['side'] == 'BUY' else "🔴"
 
             # Price source indicator with exchange info
+            live_price = symbol in batch_prices or hasattr(self, 'upstox_api') and self.upstox_api
             if live_price:
                 price_indicator = "🔄" if symbol in self.exchange_fallbacks else "🟢"
                 current_price_display = f"{price_indicator}₹{current_price:,.2f}"
@@ -2500,18 +2691,23 @@ class TVScreenerUsage:
                 if not active_positions:
                     continue
                 
+                # Batch fetch prices for all active positions first
+                symbols = list(active_positions.keys())
+                batch_prices = self._get_live_prices_batch(symbols)
+                
+                # Monitor each position with batch-fetched prices
                 for symbol, position in active_positions.items():
-                    self._monitor_position_risk(symbol, position)
+                    self._monitor_position_risk(symbol, position, batch_prices.get(symbol))
                     
             except Exception as e:
                 console.print(f"[red]❌ Error in background monitor: {e}[/red]")
                 continue
     
-    def _monitor_position_risk(self, symbol, position):
+    def _monitor_position_risk(self, symbol, position, pre_fetched_price=None):
         """Monitor individual position for risk management with progressive trailing stop and net P&L"""
         try:
-            # Get live price (force refresh for accuracy in risk management)
-            live_price = self._get_live_price_from_upstox(symbol, force_refresh=True)
+            # Use pre-fetched price if available, otherwise fetch individually
+            live_price = pre_fetched_price or self._get_live_price_from_upstox(symbol, force_refresh=True)
             if not live_price:
                 return
 
@@ -2533,11 +2729,19 @@ class TVScreenerUsage:
             entry_value = entry_price * position['qty']
             pnl_pct = (net_pnl / entry_value) * 100 if entry_value else 0.0
 
-            # Strict 0.5% stop loss for all stocks (removed ATR-based logic)
-            stop_loss_pct = -1.0
-                
-            take_profit_pct = 1.5  # 1.5% take profit threshold (1.5:1 reward ratio)
-            quick_exit_pct = 1.0   # 1.0% quick exit threshold (was 0.4%)
+            # Check if this is a TV alert position for scalping
+            is_tv_alert = position.get('source') == 'TV_ALERT'
+            
+            if is_tv_alert:
+                # Use small SL/TP for TV alerts (scalping)
+                stop_loss_pct = -0.5  # 0.5% stop loss
+                take_profit_pct = 0.5  # 0.5% take profit (1:1 reward ratio for scalping)
+            else:
+                # Regular SL/TP for other positions
+                stop_loss_pct = -0.5  # 0.5% stop loss
+                take_profit_pct = 1.5  # 1.5% take profit threshold (1.5:1 reward ratio)
+            # Set quick exit threshold based on position type
+            quick_exit_pct = 0.3 if is_tv_alert else 1.0   # Much lower for TV alerts (scalping)
 
             # Calculate trade duration for ultra-quick trailing determination
             trade_duration_minutes = (datetime.now() - position.get('timestamp', datetime.now())).total_seconds() / 60
@@ -2552,7 +2756,8 @@ class TVScreenerUsage:
                 ultra_quick_trailing = True
 
             # MUCH TIGHTER trailing stop buffer (aggressive profit locking)
-            trailing_stop_buffer = self._get_tighter_trailing_buffer(abs(pnl_pct), is_ultra_quick=ultra_quick_trailing)
+            # Use even tighter buffers for TV alerts (scalping)
+            trailing_stop_buffer = self._get_tighter_trailing_buffer(abs(pnl_pct), is_ultra_quick=ultra_quick_trailing, is_tv_alert=is_tv_alert)
 
             # Update highest profit and price tracking
             if pnl_pct > position.get('highest_profit_pct', 0.0):
@@ -2724,9 +2929,18 @@ class TVScreenerUsage:
         except Exception:
             return 1.0
     
-    def _get_tighter_trailing_buffer(self, profit_pct, is_ultra_quick=False):
+    def _get_tighter_trailing_buffer(self, profit_pct, is_ultra_quick=False, is_tv_alert=False):
         """MUCH TIGHTER trailing buffer for aggressive profit locking"""
         # Ultra-tight trailing stops that lock in profits very quickly
+        
+        # TIGHTEST for TV alerts (scalping) - lock in profits immediately
+        if is_tv_alert:
+            if profit_pct >= 0.5:    # 0.5%+ profit: Lock in 90% (0.05% buffer)
+                return 0.05
+            elif profit_pct >= 0.3:  # 0.3%+ profit: Lock in 80% (0.1% buffer)
+                return 0.1
+            else:                    # < 0.3% profit: Minimal buffer
+                return 0.15
         
         # EVEN TIGHTER for ultra-quick trailing scenarios  
         if is_ultra_quick:
@@ -2763,7 +2977,7 @@ class TVScreenerUsage:
             if not hasattr(self, 'upstox_api') or not self.upstox_api:
                 return 'normal'  # Default to normal volatility
             
-            from datetime import datetime, timedelta
+            from datetime import datetime as dt, time as dt_timedelta
             import numpy as np
             
             # Get recent price data (10 days for volatility calculation)
@@ -2816,7 +3030,7 @@ class TVScreenerUsage:
                 # Fallback to fixed percentage for volatile stocks
                 return current_price * 0.98  # 2% stop loss as fallback
             
-            from datetime import datetime, timedelta
+            from datetime import datetime as dt, time as dt_timedelta
             import numpy as np
             
             # Get historical data for ATR calculation (need at least 14 days)
@@ -3008,7 +3222,7 @@ class TVScreenerUsage:
         
         for example in examples:
             self.run_example(example)
-            time.sleep(1)  # Small delay between examples
+            time_module.sleep(1)  # Small delay between examples
             console.print("\n" + "="*80 + "\n")
 
     # ==================== Signal/Exit Handling & Cleanup ====================
@@ -3050,10 +3264,17 @@ class TVScreenerUsage:
         console.print(f"\n[bold red]🚨 EXITING ALL POSITIONS - Reason: {reason}[/bold red]")
 
         positions_to_exit = dict(self.positions)
+        
+        # Batch fetch prices for all positions to exit
+        symbols = list(positions_to_exit.keys())
+        batch_prices = self._get_live_prices_batch(symbols)
+        
         for symbol, position in positions_to_exit.items():
             try:
-                # Get current price for exit
-                current_price = self._get_live_price_from_upstox(symbol) or self.current_prices.get(symbol, position['entry_price'])
+                # Use batch price, fallback to individual fetch, then cached price
+                current_price = (batch_prices.get(symbol) or 
+                               self._get_live_price_from_upstox(symbol) or 
+                               self.current_prices.get(symbol, position['entry_price']))
                 self._execute_exit_trade(symbol, position, current_price, f"{reason}: Bulk Exit")
                 # Remove from positions after successful exit
                 if symbol in self.positions:
