@@ -107,21 +107,93 @@ def get_historical_earnings_reaction(symbol, earnings_date):
     except Exception:
         return None
 
-def display_upcoming_earnings_calendar(days_ahead=10):
-    """Display upcoming earnings calendar for popular stocks"""
-    # Popular stocks to monitor
-    symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'TSM', 'AMD', 'NFLX', 
-               'BABA', 'UBER', 'DIS', 'INTC', 'PYPL', 'ADBE', 'CRM', 'EBAY', 'SQ', 'SNAP', 
-               'ZM', 'ROKU', 'SHOP', 'BA', 'CAT', 'JPM', 'WMT', 'HD', 'KO', 'PEP']
+def get_us_stock_symbols(limit=100):
+    """Fetch US stock symbols dynamically from multiple sources"""
+    try:
+        symbols = []
+        
+        # Method 1: Always start with major well-known stocks (highest priority)
+        console.print('[blue]📋 Starting with major US stocks...[/blue]')
+        
+        # Major tech and blue-chip stocks (highest importance)
+        major_stocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'NFLX', 'AMD', 'INTC',
+                       'TSM', 'QCOM', 'BABA', 'UBER', 'DIS', 'PYPL', 'ADBE', 'CRM', 'EBAY', 'SQ',
+                       'SNAP', 'ZM', 'ROKU', 'SHOP', 'BIDU', 'NIO', 'PDD', 'JD', 'BILI']
+        
+        # Additional blue-chip stocks from major indices
+        blue_chips = ['JPM', 'BAC', 'WMT', 'HD', 'KO', 'PEP', 'JNJ', 'PFE', 'UNH', 'PG',
+                     'MRK', 'ABBV', 'V', 'MA', 'BA', 'CAT', 'GE', 'MMM', 'HON', 'CSCO',
+                     'ORCL', 'IBM', 'TXN', 'COP', 'CVX', 'XOM', 'T', 'VZ', 'NEE', 'DUK']
+        
+        # Combine major stocks first
+        all_symbols = list(set(major_stocks + blue_chips))
+        
+        # Method 2: Try to supplement with Finnhub API (if we need more symbols)
+        if len(all_symbols) < limit:
+            try:
+                console.print(f'[cyan]🔍 Fetching additional symbols from Finnhub API...[/cyan]')
+                import requests
+                response = requests.get('https://finnhub.io/api/v1/stock/symbol', 
+                                     params={'exchange': 'US', 'token': 'd3mkpb1r01qmso349jk0d3mkpb1r01qmso349jkg'})
+                if response.status_code == 200:
+                    data = response.json()
+                    if data:
+                        api_symbols = [stock['symbol'] for stock in data if stock.get('type') == 'Common Stock']
+                        # Add unique symbols from API that we don't already have
+                        for symbol in api_symbols:
+                            if symbol not in all_symbols and len(all_symbols) < limit:
+                                all_symbols.append(symbol)
+                        console.print(f'[green]✅ Added {len([s for s in api_symbols if s in all_symbols])} symbols from Finnhub API[/green]')
+            except Exception as e:
+                console.print(f'[yellow]⚠️ Finnhub symbols API not available: {str(e)}[/yellow]')
+        
+        # Method 3: Fill up with more indices components if needed
+        if len(all_symbols) < limit:
+            console.print(f'[blue]📊 Adding more S&P 500 and Nasdaq components...[/blue]')
+            
+            sp500_additional = ['BRK.B', 'LLY', 'AVGO', 'COST', 'LIN', 'ACN', 'DHR', 'MCD', 'ABT', 'PLD',
+                               'SCHW', 'UPS', 'RTX', 'LRCX', 'AMGN', 'MU', 'TXN', 'LOW', 'TGT', 'CB',
+                               'ICE', 'BDX', 'FIS', 'REGN', 'CME', 'ISRG', 'MMC', 'GS', 'BLK', 'GWW',
+                               'AON', 'MS', 'CCI', 'EOG', 'PGR', 'USB', 'ADP', 'MDT', 'SYK', 'CVS']
+            
+            nasdaq_additional = ['INTU', 'MU', 'BKNG', 'MDLZ', 'GILD', 'ADSK', 'FISV', 'ORLY', 'LRCX', 'SNPS',
+                                'CDNS', 'KLAC', 'MRVL', 'MCHP', 'ADI', 'MPWR', 'NXPI', 'ON', 'XLNX', 'MRVL']
+            
+            for symbol in sp500_additional + nasdaq_additional:
+                if symbol not in all_symbols and len(all_symbols) < limit:
+                    all_symbols.append(symbol)
+        
+        console.print(f'[green]✅ Using {len(all_symbols)} major US stocks and ETFs[/green]')
+        
+        # Return up to the requested limit
+        return all_symbols[:limit]
+        
+    except Exception as e:
+        console.print(f'[red]❌ Error fetching stock symbols: {str(e)}[/red]')
+        # Ultimate fallback to essential stocks
+        console.print('[yellow]🔄 Using essential tech stocks as fallback[/yellow]')
+        return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'NFLX', 'AMD', 'INTC']
+
+def display_upcoming_earnings_calendar(days_ahead=10, stock_limit=50):
+    """Display upcoming earnings calendar for US stocks"""
     
     console.print(f'📅 [bold cyan]UPCOMING EARNINGS CALENDAR (Next {days_ahead} Days)[/bold cyan]')
+    console.print(f'🔍 Scanning [green]{stock_limit}[/green] major US stocks for earnings...')
     console.print()
+    
+    # Get US stock symbols dynamically
+    symbols = get_us_stock_symbols(stock_limit)
     
     from_date, to_date = get_dynamic_date_range(days_ahead)
     all_upcoming = []
     
-    for symbol in symbols:
+    console.print(f'📊 Checking [yellow]{len(symbols)}[/yellow] stocks for earnings announcements...')
+    
+    for i, symbol in enumerate(symbols, 1):
         try:
+            if i % 10 == 0:
+                console.print(f'📈 Progress: {i}/{len(symbols)} stocks checked...')
+            
             calendar = finnhub_client.earnings_calendar(_from=from_date, to=to_date, symbol=symbol, international=False)
             
             if calendar.get('earningsCalendar'):
@@ -363,10 +435,12 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         if sys.argv[1].lower() == 'calendar':
             # Show upcoming earnings calendar for next 10 days
-            display_upcoming_earnings_calendar(10)
+            # You can optionally specify number of stocks to check: python script.py calendar 100
+            stock_limit = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 50
+            display_upcoming_earnings_calendar(10, stock_limit)
         else:
             symbol = sys.argv[1].upper()
             display_earnings_analysis(symbol)
     else:
-        # Default: show upcoming earnings calendar for next 10 days
-        display_upcoming_earnings_calendar(10)
+        # Default: show upcoming earnings calendar for next 10 days, scanning 50 stocks
+        display_upcoming_earnings_calendar(10, 50)
