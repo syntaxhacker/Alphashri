@@ -127,206 +127,21 @@ class TechnicalAnalysis:
 
     def _check_not_buying_at_top(self, symbol, row):
         """
-        Enhanced logic to avoid buying at tops using TradingView data
-        Returns True if it's safe to buy (not at top), False if too risky
+        DISABLED: Always return True to allow all entries - no top avoidance checks
         """
-        try:
-            # Get current data from the row
-            current_price = row['close']
-            rsi = row.get('RSI', 50)
-            week_perf = row.get('Perf.W', 0)
-            month3_perf = row.get('Perf.3M', 0)
-            price_52w_high = row.get('price_52_week_high', current_price * 1.1)
-            ema20 = row.get('EMA20', current_price)
-            ema50 = row.get('EMA50', current_price)
-            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
-            
-            # Calculate distance from 52-week high
-            distance_from_high = ((price_52w_high - current_price) / current_price) * 100
-            
-            # Check 1: Too close to 52-week high (less than 8% below - more conservative)
-            if distance_from_high < 8.0:
-                console.print(f"[dim yellow]⚠️ {symbol}: Too close to 52W high (only {distance_from_high:.1f}% below)[/dim yellow]")
-                return False
-            
-            # Check 2: RSI too overbought (relaxed for FOMO mode)
-            if rsi > 85:  # Much more aggressive threshold
-                console.print(f"[dim yellow]⚠️ {symbol}: RSI too overbought ({rsi:.1f} > 85)[/dim yellow]")
-                return False
-            
-            # Check 3: TODAY'S move too extreme (relaxed for FOMO mode)
-            today_change = row.get('change', 0)
-            if today_change > 12.0:  # Much more aggressive threshold
-                console.print(f"[dim yellow]⚠️ {symbol}: Today's move too extreme (+{today_change:.1f}% > 12%)[/dim yellow]")
-                return False
-            
-            # Check 4: Intraday momentum divergence (relaxed for FOMO mode)
-            if volume_ratio > 15.0 and today_change < 0.5:  # Much more aggressive thresholds
-                console.print(f"[dim yellow]⚠️ {symbol}: High volume ({volume_ratio:.1f}x) with weak price action - potential distribution[/dim yellow]")
-                return False
-            
-            # Check 5: Weekly performance too extended (above 12% - more conservative)
-            if week_perf > 12:
-                console.print(f"[dim yellow]⚠️ {symbol}: Weekly move too extended (+{week_perf:.1f}% > 12%)[/dim yellow]")
-                return False
-            
-            # Check 6: 3-month performance too extended (above 40% - more conservative)
-            if month3_perf > 40:
-                console.print(f"[dim yellow]⚠️ {symbol}: 3-month move too extended (+{month3_perf:.1f}% > 40%)[/dim yellow]")
-                return False
-            
-            # Check 7: Not above key moving averages (trend weakness)
-            if current_price < ema20:
-                console.print(f"[dim yellow]⚠️ {symbol}: Below 20 EMA - weak trend[/dim yellow]")
-                return False
-            
-            # Check 8: EMA alignment (20 EMA should be above 50 EMA)
-            if ema20 < ema50:
-                console.print(f"[dim yellow]⚠️ {symbol}: 20 EMA below 50 EMA - downtrend[/dim yellow]")
-                return False
-            
-            # Check 9: Price extension from EMA20 (don't chase stocks too far above support)
-            price_above_ema20 = ((current_price - ema20) / ema20) * 100
-            if price_above_ema20 > 8.0:  # More aggressive threshold
-                console.print(f"[dim yellow]⚠️ {symbol}: Too far above EMA20 ({price_above_ema20:.1f}% > 8%) - wait for pullback[/dim yellow]")
-                return False
-            
-            # Check 10: Momentum quality check - RSI vs Price action alignment (relaxed)
-            if rsi > 75 and today_change < 0.5:  # More aggressive thresholds
-                console.print(f"[dim yellow]⚠️ {symbol}: RSI high ({rsi:.1f}) but weak price action - momentum fading[/dim yellow]")
-                return False
-            
-            # If all checks pass, it's safer to enter
-            console.print(f"[dim green]✅ {symbol}: Top-avoidance checks passed - safe entry zone[/dim green]")
-            return True
-            
-        except Exception as e:
-            console.print(f"[dim red]⚠️ Error checking top avoidance for {symbol}: {e}[/dim red]")
-            # If error, be conservative and avoid entry
-            return False
+        return True  # Always allow entries - no top avoidance
 
     def _check_momentum_divergence(self, symbol, row, previous_data=None):
         """
-        Check for momentum divergence - price making higher highs but indicators showing weakness
-        Returns True if momentum is healthy, False if divergence detected
+        DISABLED: Always return True to allow all entries - no momentum divergence checks
         """
-        try:
-            current_price = row['close']
-            rsi = row.get('RSI', 50)
-            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
-            macd = row.get('MACD.macd', 0)
-            macd_signal = row.get('MACD.signal', 0)
-            
-            # Check 1: Price vs RSI divergence (relaxed for FOMO mode)
-            # If price is strong but RSI is weakening, that's bearish divergence
-            today_change = row.get('change', 0)
-            if today_change > 8.0 and rsi < 35:  # Much more aggressive thresholds
-                console.print(f"[dim yellow]⚠️ {symbol}: Potential RSI divergence - strong price (+{today_change:.1f}%) but weak RSI ({rsi:.1f})[/dim yellow]")
-                return False
-            
-            # Check 2: Volume-Price divergence (relaxed for FOMO mode)
-            # Very high volume with small price move suggests institutions selling into strength
-            if volume_ratio > 6.0 and today_change < 1.0:  # More relaxed thresholds
-                console.print(f"[dim yellow]⚠️ {symbol}: Volume-price divergence - high volume ({volume_ratio:.1f}x) with weak move (+{today_change:.1f}%)[/dim yellow]")
-                return False
-            
-            # Check 3: MACD momentum check
-            if macd < macd_signal and today_change > 2.0:
-                console.print(f"[dim yellow]⚠️ {symbol}: MACD bearish divergence - price up but MACD below signal[/dim yellow]")
-                return False
-            
-            # Check 4: Compare with previous data if available
-            if previous_data is not None and not previous_data.empty:
-                prev_row = previous_data[previous_data['ticker'] == symbol]
-                if not prev_row.empty:
-                    prev_rsi = prev_row.iloc[0].get('RSI', 50)
-                    prev_change = prev_row.iloc[0].get('change', 0)
-                    
-                    # Check if price momentum improving but RSI momentum declining
-                    if today_change > prev_change and rsi < prev_rsi - 5:
-                        console.print(f"[dim yellow]⚠️ {symbol}: Momentum divergence - price accelerating but RSI declining[/dim yellow]")
-                        return False
-            
-            return True
-            
-        except Exception as e:
-            console.print(f"[dim red]⚠️ Error checking momentum divergence for {symbol}: {e}[/dim red]")
-            return True  # If error, don't block trade but log
+        return True  # Always allow entries - no momentum divergence checks
 
     def _is_overextended_for_short(self, symbol):
         """
-        Check if a stock is overextended and suitable for SHORT selling
-        More aggressive criteria than the top-avoidance check
+        DISABLED: Always return True to allow all short entries - no overextension checks
         """
-        try:
-            # Get additional data for the symbol from current watch data
-            current_data = self.parent._get_watch_data()
-            if current_data.empty:
-                return False
-            
-            # Find the symbol in current data
-            symbol_row = current_data[current_data['ticker'] == symbol]
-            if symbol_row.empty:
-                return False
-            
-            row = symbol_row.iloc[0]
-            current_price = row['close']
-            rsi = row.get('RSI', 50)
-            week_perf = row.get('Perf.W', 0)
-            month3_perf = row.get('Perf.3M', 0)
-            price_52w_high = row.get('price_52_week_high', current_price * 1.1)
-            change_today = row.get('change', 0)
-            
-            # Calculate distance from 52-week high
-            distance_from_high = ((price_52w_high - current_price) / current_price) * 100
-            
-            # SHORT criteria (more aggressive than long avoidance)
-            short_signals = 0
-            
-            # Signal 1: Very close to 52-week high (within 3%)
-            if distance_from_high < 3.0:
-                short_signals += 2
-                console.print(f"[dim red]🔴 {symbol}: Very close to 52W high ({distance_from_high:.1f}% below)[/dim red]")
-            
-            # Signal 2: RSI extremely overbought (above 80)
-            if rsi > 80:
-                short_signals += 2
-                console.print(f"[dim red]🔴 {symbol}: Extremely overbought RSI ({rsi:.1f})[/dim red]")
-            elif rsi > 75:
-                short_signals += 1
-                console.print(f"[dim red]📉 {symbol}: Overbought RSI ({rsi:.1f})[/dim red]")
-            
-            # Signal 3: Excessive weekly gain (above 20%)
-            if week_perf > 20:
-                short_signals += 2
-                console.print(f"[dim red]🔴 {symbol}: Excessive weekly gain (+{week_perf:.1f}%)[/dim red]")
-            elif week_perf > 15:
-                short_signals += 1
-                console.print(f"[dim red]📉 {symbol}: High weekly gain (+{week_perf:.1f}%)[/dim red]")
-            
-            # Signal 4: Massive daily gain (above 10% in one day)
-            if change_today > 10:
-                short_signals += 2
-                console.print(f"[dim red]🔴 {symbol}: Massive daily gain (+{change_today:.1f}%)[/dim red]")
-            elif change_today > 7:
-                short_signals += 1
-                console.print(f"[dim red]📉 {symbol}: Large daily gain (+{change_today:.1f}%)[/dim red]")
-            
-            # Signal 5: Extended 3-month performance (above 75%)
-            if month3_perf > 75:
-                short_signals += 1
-                console.print(f"[dim red]📉 {symbol}: Extended 3M performance (+{month3_perf:.1f}%)[/dim red]")
-            
-            # Require at least 3 short signals for aggressive shorting
-            if short_signals >= 3:
-                console.print(f"[bold red]🔴 {symbol}: OVEREXTENDED - {short_signals} short signals detected[/bold red]")
-                return True
-            
-            return False
-            
-        except Exception as e:
-            console.print(f"[dim red]⚠️ Error checking overextension for {symbol}: {e}[/dim red]")
-            return False
+        return True  # Always allow short entries - no overextension checks
 
     def _check_historical_upside(self, symbol, current_price):
         """Check how much upside is left based on recent historical highs"""
@@ -334,11 +149,17 @@ class TechnicalAnalysis:
             if not hasattr(self.parent, 'upstox_api') or not self.parent.upstox_api:
                 return True  # No historical data available, allow trade
                 
-            # Get previous day's data (daily timeframe)
-            df = self.parent.upstox_api.fetch_intraday_data_v3(
+            # Get previous day's data (daily timeframe) using historical data API
+            from datetime import datetime, timedelta
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
+            
+            df = self.parent.upstox_api.fetch_historical_data_v3(
                 symbol=symbol,
                 unit='days',
-                duration=5  # Last 5 days
+                interval=1,
+                to_date=to_date,
+                from_date=from_date
             )
             
             if df is None or df.empty:

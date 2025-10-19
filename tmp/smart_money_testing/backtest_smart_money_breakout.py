@@ -302,25 +302,31 @@ def run_smart_money_backtest(ticker: str, num_days: int):
             current_price = row['close']
             current_time = timestamp.time()
 
-            # No multi-day trades: Exit immediately if date changed (at open of next day)
+            # Conditional multi-day hold: Exit next day open only if in loss
             if timestamp.date() > entry_date:
-                exit_reason = 'NO_MULTIDAY'
-                exit_price = row['open']  # Exit at open
-                pnl_pct = ((exit_price - entry_price) / entry_price) * 100 if side == 'LONG' else ((entry_price - exit_price) / entry_price) * 100
-                pnl_amount = (pnl_pct / 100) * CAPITAL_PER_TRADE
-                trades.append({
-                    'entry_time': current_position['entry_time'],
-                    'exit_time': timestamp,
-                    'side': side,
-                    'entry_price': entry_price,
-                    'exit_price': exit_price,
-                    'pnl_pct': pnl_pct,
-                    'pnl_amount': pnl_amount,
-                    'reason': exit_reason
-                })
-                console.print(f"[yellow]🚫 No Multi-Day: Exit ({side}) @ ₹{exit_price:.2f} | P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})[/yellow]")
-                current_position = None
-                continue
+                current_price_for_check = row['open']
+                pnl_pct_check = ((current_price_for_check - entry_price) / entry_price) * 100 if side == 'LONG' else ((entry_price - current_price_for_check) / entry_price) * 100
+                if pnl_pct_check < 0:
+                    exit_reason = 'NO_MULTIDAY_LOSS'
+                    exit_price = current_price_for_check
+                    pnl_amount = (pnl_pct_check / 100) * CAPITAL_PER_TRADE
+                    trades.append({
+                        'entry_time': current_position['entry_time'],
+                        'exit_time': timestamp,
+                        'side': side,
+                        'entry_price': entry_price,
+                        'exit_price': exit_price,
+                        'pnl_pct': pnl_pct_check,
+                        'pnl_amount': pnl_amount,
+                        'reason': exit_reason
+                    })
+                    console.print(f"[yellow]🚫 No Multi-Day Loss Exit ({side}) @ ₹{exit_price:.2f} | P&L: {pnl_pct_check:+.2f}% (₹{pnl_amount:+,.0f})[/yellow]")
+                    current_position = None
+                    continue
+                else:
+                    # Hold position: update highest pnl with open price
+                    if pnl_pct_check > current_position['highest_pnl']:
+                        current_position['highest_pnl'] = pnl_pct_check
 
             # Update highest profit (only same day)
             pnl_pct = ((current_price - entry_price) / entry_price) * 100
@@ -329,8 +335,8 @@ def run_smart_money_backtest(ticker: str, num_days: int):
             if pnl_pct > current_position['highest_pnl']:
                 current_position['highest_pnl'] = pnl_pct
 
-            # Time-based exit after 3:30 PM (EOD on entry day)
-            if current_time >= time(15, 30):
+            # Time-based exit after 3:30 PM only if in loss (EOD on entry day)
+            if current_time >= time(15, 30) and pnl_pct < 0:
                 pnl_amount = (pnl_pct / 100) * CAPITAL_PER_TRADE
                 trades.append({
                     'entry_time': current_position['entry_time'],
@@ -340,9 +346,9 @@ def run_smart_money_backtest(ticker: str, num_days: int):
                     'exit_price': current_price,
                     'pnl_pct': pnl_pct,
                     'pnl_amount': pnl_amount,
-                    'reason': 'EOD_EXIT'
+                    'reason': 'EOD_LOSS_EXIT'
                 })
-                console.print(f"[blue]⏰ EOD Exit (3:30PM) ({side}) @ ₹{current_price:.2f} | P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})[/blue]")
+                console.print(f"[blue]⏰ EOD Loss Exit (3:30PM) ({side}) @ ₹{current_price:.2f} | P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})[/blue]")
                 current_position = None
                 continue  # Next bar
 
@@ -469,7 +475,7 @@ def run_smart_money_backtest(ticker: str, num_days: int):
 
 # Main execution
 if __name__ == "__main__":
-    symbols = ["TATAMOTORS"]
+    symbols = ["TATAMOTORS", "RELIANCE", "HDFCBANK", "INFY", "TCS", "ITC", "BHARTIARTL", "ICICIBANK"]
     num_days = 200  # Backtest period
 
     for ticker in symbols:

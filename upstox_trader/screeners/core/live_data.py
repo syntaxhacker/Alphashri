@@ -154,17 +154,15 @@ class LiveDataMonitor:
             
             upstox_exchange = exchange_map.get(exchange, 'NSE_EQ')
             
-            # Get latest intraday data (1-minute) to get current price
-            # Remove exchange parameter as it causes "instrument key not found" errors
-            df = self.parent.upstox_api.fetch_intraday_data_v3(
-                symbol=symbol, 
-                unit='minutes', 
-                interval=1
+            # Use real-time streaming price API for current price
+            current_price = self.parent.upstox_api.get_current_price_with_streaming(
+                symbol=symbol,
+                instrument_type='EQ',
+                exchange='NSE_EQ'
             )
             
-            if df is not None and not df.empty:
-                # Get the latest close price (most recent data point)
-                return float(df['close'].iloc[-1])
+            if current_price is not None:
+                return float(current_price)
                 
         except Exception as e:
             # Check for specific "instrument key not found" error

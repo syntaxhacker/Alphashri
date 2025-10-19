@@ -10,9 +10,12 @@ The **Tick-By-Tick Data Streamer (TBT)** is a real-time market data streaming ap
 - ✅ **Multi-symbol support** - stream multiple stocks at once
 - ✅ **Uses existing abstraction** - leverages `UpstoxAPI` class from `old_tv_screen.py`
 - ✅ **Automatic authentication** - OAuth2 flow with persistent tokens
+- ✅ **Token refresh handling** - automatically refreshes expired tokens (401 errors)
+- ✅ **Market hours checking** - validates market is open before connecting
 - ✅ **Clean console output** - formatted display with timestamps and changes
 - ✅ **Session statistics** - tracks updates, performance metrics
 - ✅ **Error handling** - graceful connection management and recovery
+- ✅ **Enhanced integration** - works seamlessly with `old_tv_screen.py`
 
 ## Architecture
 
@@ -209,15 +212,27 @@ The TBT streamer uses identical patterns to `old_tv_screen.py`:
    - Ensure Upstox account has API access enabled
    - Clear `.upstox_token.json` and retry
 
-2. **No Data Received**:
+2. **401 Unauthorized Error**:
+   - Access token expired - system will automatically refresh
+   - If refresh fails, clear `.upstox_token.json` and restart
+   - Check if API permissions are still valid in Upstox dashboard
+
+3. **No Data Received**:
    - Verify market is open (9:15 AM - 3:30 PM IST)
    - Check symbol exists and is tradeable
    - Confirm internet connection
+   - WebSocket may not work outside market hours
 
-3. **WebSocket Connection Issues**:
+4. **WebSocket Connection Issues**:
    - Install `upstox-python-sdk`: `pip install upstox-python-sdk`
-   - Check firewall settings
-   - Verify API permissions
+   - Check firewall settings for WebSocket connections (port 443)
+   - Verify API permissions include WebSocket access
+   - System will automatically retry on 401 errors
+
+5. **Token Refresh Issues**:
+   - Delete `.upstox_token.json` file
+   - Restart application to force fresh authentication
+   - Check if Upstox API credentials are still valid
 
 ### Debug Mode
 

@@ -144,9 +144,9 @@ class QueryConfig:
     BASIC_FIELDS = ['name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 'update_mode']
     
     FOMO_FIELDS = BASIC_FIELDS + ['RSI', 'Volatility.D', 'market_cap_basic']
-    
+
     MOMENTUM_FIELDS = BASIC_FIELDS + ['RSI', 'MACD.macd', 'MACD.signal', 'EMA20', 'Volatility.D', 'market_cap_basic']
-    
+
     REALTIME_MOMENTUM_FIELDS = BASIC_FIELDS + ['RSI', 'Volatility.D', 'market_cap_basic', 'price_52_week_high', 'MACD.macd']
     
     # Common limits
@@ -423,12 +423,22 @@ def intraday_high_volume_breakouts(self) -> None:
             .limit(15)
             .get_scanner_data(cookies=self.cookies)
         )
+        
+        # Add trend analysis for each stock
+        if not df.empty:
+            console.print("[dim]Adding trend analysis...[/dim]")
+            trend_data = []
+            for _, row in df.iterrows():
+                ticker = row['name']  # Use 'name' field as it contains the ticker
+                trend = self._check_historical_trend(ticker, timeframe='daily', lookback_days=15)
+                trend_data.append(trend)
+            df['trend'] = trend_data
 
         self.display_table(df, "High Volume Breakouts - Intraday")
 
         console.print("\n[bold yellow]💡 Trading Strategy:[/bold yellow]")
         console.print("• Entry: On breakout above resistance with high volume")
-        console.print("• Stop Loss: Below recent support (0.5%)")
+        console.print("• Stop Loss: Below recent support (2-3%)")
         console.print("• Target: 1:2 risk-reward ratio")
         console.print("• Time Frame: 5-15 minute charts")
     except Exception as e:
@@ -551,9 +561,9 @@ def research_earnings_calendar(self) -> None:
     try:
         total_rows, df = (
             Query()
-            .select('name', 'close', 'earnings_per_share_diluted_yoy_growth_ttm', 
-                   'total_revenue_yoy_growth_ttm', 'price_earnings_ttm',
-                   'return_on_equity', 'market_cap_basic', 'update_mode')
+            .select('name', 'close', 'earnings_per_share_diluted_yoy_growth_ttm',
+                    'total_revenue_yoy_growth_ttm', 'price_earnings_ttm',
+                    'return_on_equity', 'market_cap_basic', 'update_mode')
             .set_markets(self.market)
             .where(
                 col('close') > 100,
@@ -587,9 +597,9 @@ def research_sector_performance(self) -> None:
         # Get sector data
         total_rows, df = (
             Query()
-            .select('name', 'close', 'change', 'volume', 'market_cap_basic', 
-                   'sector', 'industry', 'return_on_equity', 'price_earnings_ttm',
-                   'relative_volume_10d_calc', 'update_mode')
+            .select('name', 'close', 'change', 'volume', 'market_cap_basic',
+                    'sector', 'industry', 'return_on_equity', 'price_earnings_ttm',
+                    'relative_volume_10d_calc', 'update_mode')
             .set_markets(self.market)
             .where(
                 col('close') > 50,
@@ -671,9 +681,9 @@ def research_sector_stocks(self, sector_name=None, limit=20) -> None:
     try:
         query = (
             Query()
-            .select('name', 'close', 'change', 'volume', 'market_cap_basic', 
-                   'sector', 'industry', 'return_on_equity', 'price_earnings_ttm',
-                   'relative_volume_10d_calc', 'RSI', 'update_mode')
+            .select('name', 'close', 'change', 'volume', 'market_cap_basic',
+                    'sector', 'industry', 'return_on_equity', 'price_earnings_ttm',
+                    'relative_volume_10d_calc', 'RSI', 'update_mode')
             .set_markets(self.market)
             .where(
                 col('close') > 25,
@@ -1270,8 +1280,8 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Accumulation patterns
             query = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'EMA20', 'market_cap_basic', 'update_mode')
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'EMA20', 'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 50,  # Above ₹50
@@ -1301,9 +1311,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Enhanced Smart FOMO: Avoid buying at tops using multiple filters
             query = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'Volatility.D', 'market_cap_basic', 'price_52_week_high',
-                       'Perf.W', 'Perf.3M', 'EMA20', 'EMA50', 'MACD.macd', 'MACD.signal', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'Volatility.D', 'market_cap_basic', 'price_52_week_high',
+                        'Perf.W', 'Perf.3M', 'EMA20', 'EMA50', 'MACD.macd', 'MACD.signal', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 50,  # Above ₹50
@@ -1340,7 +1350,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             if not df.empty:
                 smart_fomo_stocks = []
                 for _, row in df.iterrows():
-                    if hasattr(self, '_check_historical_upside') and self._check_historical_upside(row.get('ticker', ''), row.get('close', 0)):
+                    # Use ticker first, fallback to name if ticker is empty or "N/A"
+                    symbol = row.get('ticker', '') or row.get('name', '')
+                    if hasattr(self, '_check_historical_upside') and self._check_historical_upside(symbol, row.get('close', 0)):
                         smart_fomo_stocks.append(row)
                 
                 if smart_fomo_stocks:
@@ -1352,8 +1364,8 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Early momentum detection
             query = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 30,  # Lower threshold
@@ -1385,8 +1397,8 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Optimized gap strategy - 15-minute proven strategy
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'market_cap_basic', 'Volatility.D', 'price_52_week_high', 'update_mode')
+                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'market_cap_basic', 'Volatility.D', 'price_52_week_high', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     # Quality gap criteria (proven in backtesting)
@@ -1417,9 +1429,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Heavy Breakout mode - stocks ready for channel analysis
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'open', 'high', 'low', 'volume', 'change',
-                       'relative_volume_10d_calc', 'RSI', 'Volatility.D', 'ATR', 
-                       'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'open', 'high', 'low', 'volume', 'change',
+                        'relative_volume_10d_calc', 'RSI', 'Volatility.D', 'ATR',
+                        'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 100,
@@ -1440,8 +1452,8 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Scalping mode - Ultra-fast 1-3% moves with high liquidity
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'Volatility.D', 'ATR', 'BB.upper', 'BB.lower', 'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'Volatility.D', 'ATR', 'BB.upper', 'BB.lower', 'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 50,  # Minimum price for scalping
@@ -1462,9 +1474,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # First get candidate stocks with basic momentum criteria
             total_rows, df_candidates = (
                 Query()
-                .select('name', 'close', 'open', 'volume', 'change', 'change_abs', 'relative_volume_10d_calc', 
-                       'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'MACD.hist', 'Mom', 
-                       'Volatility.D', 'ATR', 'BB.upper', 'BB.lower', 'EMA20', 'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'open', 'volume', 'change', 'change_abs', 'relative_volume_10d_calc',
+                        'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal', 'MACD.hist', 'Mom',
+                        'Volatility.D', 'ATR', 'BB.upper', 'BB.lower', 'EMA20', 'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 100,  # Higher price for better spread ratios
@@ -1499,8 +1511,8 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Get all active stocks with sector data
             total_rows, df_all = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'change_abs', 'relative_volume_10d_calc', 
-                       'RSI', 'sector', 'industry', 'market_cap_basic', 'Perf.W', 'Perf.3M', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'change_abs', 'relative_volume_10d_calc',
+                        'RSI', 'sector', 'industry', 'market_cap_basic', 'Perf.W', 'Perf.3M', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 50,  # Minimum price
@@ -1525,9 +1537,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Short Squeeze Hunter - Find over-shorted stocks ready to explode
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'RSI[1]', 'Perf.W', 'Perf.3M', 'price_52_week_low', 
-                       'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'RSI[1]', 'Perf.W', 'Perf.3M', 'price_52_week_low',
+                        'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 30,  # Minimum price
@@ -1549,9 +1561,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Breakout Failure Shorting - Short failed breakouts (high win rate)
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'high', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'price_52_week_high', 'BB.upper', 'MACD.macd', 'MACD.signal',
-                       'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'high', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'price_52_week_high', 'BB.upper', 'MACD.macd', 'MACD.signal',
+                        'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 100,  # Higher prices for better shorting spreads
@@ -1573,9 +1585,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Exhaustion Reversal - Short momentum exhaustion at key levels
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'Perf.W', 'Perf.3M', 'Volatility.D', 'price_52_week_high',
-                       'BB.upper', 'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'Perf.W', 'Perf.3M', 'Volatility.D', 'price_52_week_high',
+                        'BB.upper', 'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 150,  # Higher prices for exhaustion patterns
@@ -1599,8 +1611,8 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Morning Fade - Short gap-ups that fail to hold (classic strategy)
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'open', 'high', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'premarket_change', 'gap', 'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'open', 'high', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'premarket_change', 'gap', 'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 80,  # Minimum price for gap fades
@@ -1622,9 +1634,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Reversal mode - Counter-trend opportunities at key levels
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'Stoch.K', 'BB.upper', 'BB.lower', 'price_52_week_high', 
-                       'price_52_week_low', 'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'Stoch.K', 'BB.upper', 'BB.lower', 'price_52_week_high',
+                        'price_52_week_low', 'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 75,
@@ -1644,9 +1656,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Volume Surge mode - Unusual activity detector
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'average_volume_10d_calc', 'RSI', 'MACD.macd', 'MACD.signal', 
-                       'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'average_volume_10d_calc', 'RSI', 'MACD.macd', 'MACD.signal',
+                        'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 40,
@@ -1665,9 +1677,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Channel Play mode - Range-bound trading opportunities
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'BB.upper', 'BB.lower', 'EMA20', 'EMA50', 'Volatility.D', 
-                       'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'BB.upper', 'BB.lower', 'EMA20', 'EMA50', 'Volatility.D',
+                        'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 60,
@@ -1688,8 +1700,8 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Sector Momentum mode - Industry group moves
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'Perf.W', 'Perf.3M', 'sector', 'industry', 'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'Perf.W', 'Perf.3M', 'sector', 'industry', 'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 50,
@@ -1710,9 +1722,9 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Quick Profit mode - 1-2% fast scalps with momentum
             total_rows, df = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'MACD.macd', 'MACD.signal', 'EMA20', 'Volatility.D', 
-                       'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'MACD.macd', 'MACD.signal', 'EMA20', 'Volatility.D',
+                        'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 40,
@@ -1772,8 +1784,8 @@ def _get_watch_data(self, market_cap_filter=None, max_price=None, min_price=None
             # Pre-breakout focus
             query = (
                 Query()
-                .select('name', 'close', 'volume', 'change', 'relative_volume_10d_calc', 
-                       'RSI', 'RSI[1]', 'EMA20', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
+                .select('name', 'ticker', 'close', 'volume', 'change', 'relative_volume_10d_calc',
+                        'RSI', 'RSI[1]', 'EMA20', 'MACD.macd', 'MACD.signal', 'market_cap_basic', 'update_mode')
                 .set_markets(self.market)
                 .where(
                     col('close') > 30,  # Lower threshold for early detection
@@ -2095,7 +2107,7 @@ def heavy_breakout(self) -> None:
         total_rows, df = (
             Query()
             .select(
-                'name', 'close', 'open', 'high', 'low', 'volume', 'change',
+                'name', 'ticker', 'close', 'open', 'high', 'low', 'volume', 'change',
                 'relative_volume_10d_calc', 'RSI', 'Volatility.D', 'ATR',
                 'market_cap_basic', 'update_mode'
             )

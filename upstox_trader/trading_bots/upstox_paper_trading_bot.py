@@ -33,11 +33,16 @@ from screeners.core.technical_analysis import (
 try:
     import upstox_client
     UPSTOX_SDK_AVAILABLE = True
-    print("✅ Official Upstox SDK available for real-time data")
+    # Only print if not in quiet mode (check environment variable)
+    import os
+    if not os.getenv('UPSTOX_QUIET_MODE', False):
+        print("✅ Official Upstox SDK available for real-time data")
 except ImportError:
     UPSTOX_SDK_AVAILABLE = False
-    print("⚠️  Official Upstox SDK not found. Install with: pip install upstox-python-sdk")
-    print("📉 Will use historical data only (expect 0% P&L updates)")
+    import os
+    if not os.getenv('UPSTOX_QUIET_MODE', False):
+        print("⚠️  Official Upstox SDK not found. Install with: pip install upstox-python-sdk")
+        print("📉 Will use historical data only (expect 0% P&L updates)")
 
 
 

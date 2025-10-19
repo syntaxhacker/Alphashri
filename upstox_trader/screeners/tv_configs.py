@@ -25,7 +25,7 @@ class RiskManagementConfig:
     atr_fallback_stop_pct: float = -2.0      # ATR fallback stop: -2%
     
     # Trade limits
-    max_total_trades: int = 10               # Maximum total trades per day
+    max_total_trades: int = 30               # Maximum total trades per day
     max_daily_entries_per_stock: int = 2     # Max entries per stock per day
     alert_cooldown_seconds: int = 300        # 5 minutes between alerts per symbol
     stop_loss_cooldown_seconds: int = 1800   # 30 minutes after stop loss
@@ -93,19 +93,19 @@ class DowntrendConfig:
 class SignalFilteringConfig:
     """Signal quality and filtering parameters"""
     # Confidence thresholds
-    min_confidence_regular: float = 0.7      # Minimum confidence for regular signals
-    min_confidence_prebreak_pullback: float = 0.7   # Minimum threshold for PRE_BREAKOUT/PULLBACK
-    min_confidence_short: float = 0.6        # 60% minimum for short signals
+    min_confidence_regular: float = 0.3      # Minimum confidence for regular signals (lowered from 70%)
+    min_confidence_prebreak_pullback: float = 0.4   # Minimum threshold for PRE_BREAKOUT/PULLBACK (lowered from 70%)
+    min_confidence_short: float = 0.4        # 40% minimum for short signals (lowered from 60%)
     
     # RSI confirmation thresholds
-    overbought_rsi_threshold: float = 70      # Daily RSI overbought threshold
-    min_15_rsi_confirmation: float = 65       # 15-min RSI confirmation threshold
-    strong_15_rsi_threshold: float = 75       # Strong 15-min RSI threshold for bonus
-    confidence_bonus: float = 0.1             # Bonus for strong confirmations
+    overbought_rsi_threshold: float = 65      # Daily RSI overbought threshold (lowered from 70)
+    min_15_rsi_confirmation: float = 60       # 15-min RSI confirmation threshold (lowered from 65)
+    strong_15_rsi_threshold: float = 70       # Strong 15-min RSI threshold for bonus (lowered from 75)
+    confidence_bonus: float = 0.15           # Bonus for strong confirmations (increased from 0.1)
     
     # Volume and momentum filters
-    min_volume_ratio: float = 1.5             # Minimum volume ratio for signals
-    min_change_overbought: float = 2.0        # Minimum price change for overbought signals
+    min_volume_ratio: float = 1.2             # Minimum volume ratio for signals (lowered from 1.5)
+    min_change_overbought: float = 1.0        # Minimum price change for overbought signals (lowered from 2.0)
 
 
 @dataclass

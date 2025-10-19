@@ -98,8 +98,9 @@ except ImportError as e:
     print("⚠️ Paper trading and/or Telegram disabled")
 
 class TVScreenerUsage:
-    def __init__(self, market='in', enable_paper_trading=False, config: TVTradingConfig = None):
-        self.cookies = get_tradingview_cookies()
+    def __init__(self, market='in', enable_paper_trading=False, config: TVTradingConfig = None, quiet: bool = False):
+        self.quiet = quiet
+        self.cookies = get_tradingview_cookies(quiet=quiet)
         self.query = Query()
         
         # Initialize configuration
@@ -124,7 +125,8 @@ class TVScreenerUsage:
         else:
             self.market = 'india'  # Default to India
             
-        console.print(f"[blue]📊 Market: {self.market.upper()}[/blue]")
+        if not self.quiet:
+            console.print(f"[blue]📊 Market: {self.market.upper()}[/blue]")
         
         # Set currency symbol based on market
         self.currency_symbol = '$' if self.market == 'america' else '₹'
@@ -140,10 +142,11 @@ class TVScreenerUsage:
         
         # Telegram integration
         self.telegram_enabled = TELEGRAM_AVAILABLE and TELEGRAM_CONFIG.get('bot_token') if TELEGRAM_AVAILABLE else False
-        if self.telegram_enabled:
-            console.print("[green]✅ Telegram alerts enabled[/green]")
-        else:
-            console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
+        if not self.quiet:
+            if self.telegram_enabled:
+                console.print("[green]✅ Telegram alerts enabled[/green]")
+            else:
+                console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
         
         # Alert deduplication and cooldown system
         self.sent_alerts = set()  # Track sent alerts to avoid duplicates
@@ -184,23 +187,24 @@ class TVScreenerUsage:
         self.monitor_thread = None
         self.stop_monitoring = threading.Event()
         
-        # Initialize Upstox API for historical data (used for S/R analysis and paper trading)
+        # Initialize Upstox API for historical data (used for S/R analysis and paper trading) - v3 compatible, non-blocking auth
         self.upstox_api = None
         try:
             from config_and_utils.free_indian_apis import UpstoxAPI
             self.upstox_api = UpstoxAPI(
                 api_key=UPSTOX_CONFIG.get('api_key'),
-                api_secret=UPSTOX_CONFIG.get('api_secret')
+                api_secret=UPSTOX_CONFIG.get('api_secret'),
+                quiet=quiet
             )
-            # Try to authenticate
-            if self.upstox_api.authenticate():
-                console.print("[green]✅ Upstox API initialized for historical S/R analysis[/green]")
-            else:
-                console.print("[yellow]⚠️ Upstox authentication failed - using simulated S/R[/yellow]")
-                self.upstox_api = None
+            # No immediate authentication - match old_tv_screen.py (auth on first data fetch if needed)
+            if not self.quiet:
+                console.print("[yellow]⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - using simulated S/R where needed[/yellow]")
         except Exception as e:
-            console.print(f"[yellow]⚠️ Upstox API unavailable - using simulated S/R: {e}[/yellow]")
+            if not self.quiet:
+                console.print(f"[yellow]⚠️ Upstox API (v3) unavailable - using simulated S/R: {e}[/yellow]")
             self.upstox_api = None
+            if self.paper_trading_enabled:
+                self.paper_trading_enabled = False
         
         # Set upstox_client alias for compatibility with separated modules
         self.upstox_client = self.upstox_api
@@ -212,9 +216,11 @@ class TVScreenerUsage:
             self.technical_analysis = TechnicalAnalysis(self)
             self.live_data = LiveDataMonitor(self)
             self.display_utils = DisplayUtils(self)
-            console.print("[green]✅ Separated modules initialized successfully[/green]")
+            if not self.quiet:
+                console.print("[green]✅ Separated modules initialized successfully[/green]")
         else:
-            console.print("[yellow]⚠️ Some separated modules unavailable - using original methods[/yellow]")
+            if not self.quiet:
+                console.print("[yellow]⚠️ Some separated modules unavailable - using original methods[/yellow]")
             self.trading_core = None
             self.gap_analysis = None
             self.technical_analysis = None
@@ -224,13 +230,14 @@ class TVScreenerUsage:
         # Now setup trade journal after modules are initialized
         self.setup_trade_journal()
         
-        if self.paper_trading_enabled:
-            if self.upstox_api:
-                console.print("[green]✅ Paper Trading enabled (₹20,000 per trade) with live Upstox prices[/green]")
+        if not self.quiet:
+            if self.paper_trading_enabled:
+                if self.upstox_api:
+                    console.print("[green]✅ Paper Trading enabled (₹20,000 per trade) with live Upstox prices[/green]")
+                else:
+                    console.print("[yellow]⚠️ Paper Trading enabled (₹20,000 per trade) - Upstox API unavailable[/yellow]")
             else:
-                console.print("[yellow]⚠️ Paper Trading enabled (₹20,000 per trade) - Upstox API unavailable[/yellow]")
-        else:
-            console.print("[yellow]⚠️ Paper Trading disabled[/yellow]")
+                console.print("[yellow]⚠️ Paper Trading disabled[/yellow]")
         
         # Display trading hours if paper trading is enabled
         if self.paper_trading_enabled:
@@ -275,10 +282,124 @@ class TVScreenerUsage:
         return None
     
     def _check_historical_trend(self, symbol, timeframe='daily', lookback_days=20):
-        """Check historical trend for a symbol - delegate to technical_analysis module"""
-        if self.technical_analysis:
+        """Check historical trend for a symbol - use v3 API directly (match old_tv_screen.py) or delegate"""
+        if self.upstox_api:
+            # Direct v3 implementation matching old_tv_screen.py for consistency
+            try:
+                from datetime import datetime, timedelta
+                to_date = datetime.now().strftime('%Y-%m-%d')
+                from_date = (datetime.now() - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
+                
+                if timeframe == 'daily':
+                    df = self.upstox_api.fetch_historical_data_v3(
+                        symbol=symbol,
+                        unit='days',
+                        interval=1,
+                        to_date=to_date,
+                        from_date=from_date,
+                        exchange='NSE_EQ',
+                        instrument_type='EQ'
+                    )
+                else:  # hourly fallback
+                    hourly_lookback = min(lookback_days, 90)
+                    hourly_from_date = (datetime.now() - timedelta(days=hourly_lookback)).strftime('%Y-%m-%d')
+                    df = self.upstox_api.fetch_historical_data_v3(
+                        symbol=symbol,
+                        unit='hours',
+                        interval=1,
+                        to_date=to_date,
+                        from_date=hourly_from_date,
+                        exchange='NSE_EQ',
+                        instrument_type='EQ'
+                    )
+                
+                if df is None or df.empty or len(df) < 10:
+                    return 'neutral'
+                
+                df = df.sort_values('timestamp').reset_index(drop=True)
+                df['sma_5'] = df['close'].rolling(5).mean()
+                df['sma_10'] = df['close'].rolling(10).mean()
+                df['sma_20'] = df['close'].rolling(20).mean() if len(df) >= 20 else df['close'].rolling(len(df)//2).mean()
+                
+                current_price = df['close'].iloc[-1]
+                sma_5 = df['sma_5'].iloc[-1]
+                sma_10 = df['sma_10'].iloc[-1]
+                sma_20 = df['sma_20'].iloc[-1]
+                
+                sma_5_slope = (df['sma_5'].iloc[-1] - df['sma_5'].iloc[-3]) / 3 if len(df) >= 3 else 0
+                sma_10_slope = (df['sma_10'].iloc[-1] - df['sma_10'].iloc[-5]) / 5 if len(df) >= 5 else 0
+                
+                avg_volume = df['volume'].rolling(10).mean().iloc[-1] if len(df) >= 10 else df['volume'].mean()
+                recent_volume = df['volume'].iloc[-3:].mean()
+                volume_strength = recent_volume / avg_volume if avg_volume > 0 else 1
+                
+                price_change_5d = (current_price - df['close'].iloc[-6]) / df['close'].iloc[-6] * 100 if len(df) >= 6 else 0
+                price_change_10d = (current_price - df['close'].iloc[-11]) / df['close'].iloc[-11] * 100 if len(df) >= 11 else 0
+                
+                trend_score = 0
+                
+                if current_price > sma_5 > sma_10 > sma_20:
+                    trend_score += 40
+                elif current_price > sma_5 > sma_10:
+                    trend_score += 25
+                elif current_price > sma_5:
+                    trend_score += 10
+                elif current_price < sma_5 < sma_10 < sma_20:
+                    trend_score -= 40
+                elif current_price < sma_5 < sma_10:
+                    trend_score -= 25
+                elif current_price < sma_5:
+                    trend_score -= 10
+                
+                if sma_5_slope > 0 and sma_10_slope > 0:
+                    trend_score += 20
+                elif sma_5_slope > 0:
+                    trend_score += 10
+                elif sma_5_slope < 0 and sma_10_slope < 0:
+                    trend_score -= 20
+                elif sma_5_slope < 0:
+                    trend_score -= 10
+                
+                if price_change_5d > 2 and price_change_10d > 1:
+                    trend_score += 20
+                elif price_change_5d > 1:
+                    trend_score += 10
+                elif price_change_5d < -2 and price_change_10d < -1:
+                    trend_score -= 20
+                elif price_change_5d < -1:
+                    trend_score -= 10
+                
+                if volume_strength > 1.2:
+                    trend_score += 20
+                elif volume_strength > 1.0:
+                    trend_score += 10
+                elif volume_strength < 0.8:
+                    trend_score -= 10
+                
+                if trend_score >= 40:
+                    return 'strong_bullish'
+                elif trend_score >= 20:
+                    return 'bullish'
+                elif trend_score >= -20:
+                    return 'neutral'
+                elif trend_score >= -40:
+                    return 'bearish'
+                else:
+                    return 'strong_bearish'
+                    
+            except Exception as e:
+                if not self.quiet:
+                    console.print(f"[dim yellow]⚠️ Historical trend analysis failed for {symbol}: {e} - using fallback[/dim yellow]")
+                return 'neutral'
+        elif self.technical_analysis:
             return self.technical_analysis._check_historical_trend(symbol, timeframe, lookback_days)
         return 'neutral'
+    
+    def _check_historical_upside(self, symbol, current_price):
+        """Check historical upside potential - delegate to technical_analysis module"""
+        if self.technical_analysis:
+            return self.technical_analysis._check_historical_upside(symbol, current_price)
+        return True  # Fallback: allow trade if module unavailable
     
     def _calculate_trading_charges(self, trade_value, trade_type='intraday'):
         """Calculate trading charges - delegate to trading_core module"""
@@ -325,20 +446,46 @@ class TVScreenerUsage:
     
     
     def _check_momentum_divergence(self, symbol, row, previous_data=None):
-        """Check for momentum divergence by delegating to fomo module."""
-        return tv_fomo._check_momentum_divergence(self, symbol, row, previous_data)
+        """Check for momentum divergence by delegating to technical_analysis module."""
+        if self.technical_analysis:
+            return self.technical_analysis._check_momentum_divergence(symbol, row, previous_data)
+        return True  # Fallback: assume no divergence if module unavailable
     
     def _is_overextended_for_short(self, symbol):
-        """Check if a stock is overextended and suitable for SHORT selling by delegating to fomo module."""
-        return tv_fomo._is_overextended_for_short(self, symbol)
+        """Check if a stock is overextended and suitable for SHORT selling by delegating to technical_analysis module."""
+        if self.technical_analysis:
+            return self.technical_analysis._is_overextended_for_short(symbol)
+        return False  # Fallback: conservative, no short if unavailable
 
     def _detect_pre_breakout_volume(self, symbol, row):
-        """Detect early volume building before main FOMO spike by delegating to fomo module."""
-        return tv_fomo._detect_pre_breakout_volume(self, symbol, row)
+        """Detect early volume building before main FOMO spike by delegating to technical_analysis module."""
+        if self.technical_analysis:
+            return self.technical_analysis._detect_pre_breakout_volume(symbol, row)
+        return False  # Fallback if module unavailable
+
+    def _detect_pullback_entry(self, symbol, row):
+        """Detect pullback entry opportunities by delegating to technical_analysis module."""
+        if self.technical_analysis:
+            return self.technical_analysis._detect_pullback_entry(symbol, row)
+        return False  # Fallback if module unavailable
+
+    def _check_not_buying_at_top(self, symbol, row):
+        """Check if not buying at a local top by delegating to technical_analysis module."""
+        if self.technical_analysis:
+            return self.technical_analysis._check_not_buying_at_top(symbol, row)
+        return True  # Fallback: assume safe if module unavailable
 
     def _check_momentum_cooling(self, symbol, row):
-        """Check if momentum is cooling down from excessive levels by delegating to fomo module."""
-        return tv_fomo._check_momentum_cooling(self, symbol, row)
+        """Check if momentum is cooling down from excessive levels by delegating to technical_analysis module."""
+        if self.technical_analysis:
+            return self.technical_analysis._check_momentum_cooling(symbol, row)
+        return False  # Fallback if module unavailable
+
+    def _check_momentum_cooling(self, symbol, row):
+        """Check if momentum is cooling down from excessive levels by delegating to technical_analysis module."""
+        if self.technical_analysis:
+            return self.technical_analysis._check_momentum_cooling(symbol, row)
+        return False  # Fallback if module unavailable
 
     def _analyze_gap_fill_probability(self, symbol, current_gap_size, gap_direction, lookback_days=90):
         return self.gap_analysis._analyze_gap_fill_probability(symbol, current_gap_size, gap_direction, lookback_days)
@@ -520,21 +667,21 @@ class TVScreenerUsage:
         """Get human readable trading action"""
         if alert['type'] == 'VOLUME_SPIKE':
             if alert.get('change', 0) > 0:
-                return f"🟢 BUY {alert['ticker']} (Volume Spike + Positive Move)"
+                return f"🟢 BUY {alert['name']} (Volume Spike + Positive Move)"
             elif alert.get('change', 0) < -2:
-                return f"🔴 SELL {alert['ticker']} (Volume Spike + Strong Drop)"
+                return f"🔴 SELL {alert['name']} (Volume Spike + Strong Drop)"
             else:
-                return f"⏳ MONITOR {alert['ticker']} (Volume Spike - Unclear Direction)"
+                return f"⏳ MONITOR {alert['name']} (Volume Spike - Unclear Direction)"
         
         elif alert['type'] == 'PRICE_MOVE':
             if alert.get('current_change', 0) > 2:
-                return f"🟢 BUY {alert['ticker']} (Strong Upward Move)"
+                return f"🟢 BUY {alert['name']} (Strong Upward Move)"
             elif alert.get('current_change', 0) < -2:
-                return f"🔴 SELL {alert['ticker']} (Strong Downward Move)"
+                return f"🔴 SELL {alert['name']} (Strong Downward Move)"
             else:
-                return f"⏳ MONITOR {alert['ticker']} (Price Move - Moderate)"
+                return f"⏳ MONITOR {alert['name']} (Price Move - Moderate)"
         
-        return f"⏳ MONITOR {alert['ticker']}"
+        return f"⏳ MONITOR {alert['name']}"
     
     def _display_watch_data(self, df, alerts=[]):
         """Display current watch data - delegate to display_utils module"""
@@ -602,6 +749,125 @@ class TVScreenerUsage:
     
     # ==================== UTILITY FUNCTIONS ====================
     
+    def display_table(self, df, title, max_rows=15):
+        """Display results in a formatted table - direct implementation matching old_tv_screen.py"""
+        if df.empty:
+            console.print(f"[red]No results found for {title}[/red]")
+            return
+            
+        table = Table(title=title, show_header=True, header_style="bold magenta")
+        
+        # Add columns dynamically based on dataframe
+        for col_name in df.columns:
+            if col_name == 'ticker':
+                table.add_column("Ticker", style="cyan", no_wrap=True)
+            elif col_name == 'name':
+                table.add_column("Name", style="green", max_width=12)
+            elif col_name == 'close':
+                table.add_column("Price", justify="right", style="yellow")
+            elif col_name == 'volume':
+                table.add_column("Volume", justify="right", style="blue")
+            elif col_name == 'change':
+                table.add_column("Change %", justify="right", style="magenta")
+            elif col_name == 'RSI':
+                table.add_column("RSI", justify="right", style="cyan")
+            elif col_name == 'relative_volume_10d_calc':
+                table.add_column("Vol Ratio", justify="right", style="blue")
+            elif col_name == 'Volatility.D':
+                table.add_column("Volatility %", justify="right", style="red")
+            elif col_name == 'market_cap_basic':
+                table.add_column("MCap (₹Cr)", justify="right", style="green")
+            elif col_name == 'price_earnings_ttm':
+                table.add_column("PE", justify="right", style="yellow")
+            elif col_name == 'return_on_equity':
+                table.add_column("ROE %", justify="right", style="green")
+            elif col_name == 'dividends_yield_current':
+                table.add_column("Div Yield", justify="right", style="blue")
+            elif col_name == 'debt_to_equity':
+                table.add_column("D/E", justify="right", style="red")
+            elif col_name == 'update_mode':
+                table.add_column("Data", style="dim")
+            elif col_name == 'trend':
+                table.add_column("Trend", style="bold", justify="center")
+        
+        # Add rows
+        for i, (_, row) in enumerate(df.head(max_rows).iterrows()):
+            row_data = []
+            for col_name in df.columns:
+                if col_name == 'ticker':
+                    row_data.append(row[col_name])
+                elif col_name == 'name':
+                    row_data.append(row[col_name][:12])  # Truncate name
+                elif col_name == 'close':
+                    row_data.append(f"₹{row[col_name]:,.2f}")
+                elif col_name == 'volume':
+                    row_data.append(f"{row[col_name]:,.0f}")
+                elif col_name == 'change':
+                    change_val = row[col_name]
+                    color = "green" if change_val > 0 else "red"
+                    row_data.append(f"[{color}]{change_val:+.2f}%[/{color}]")
+                elif col_name == 'RSI':
+                    rsi_val = row[col_name]
+                    if rsi_val > 70:
+                        row_data.append(f"[red]{rsi_val:.1f}[/red]")
+                    elif rsi_val < 30:
+                        row_data.append(f"[green]{rsi_val:.1f}[/green]")
+                    else:
+                        row_data.append(f"{rsi_val:.1f}")
+                elif col_name == 'relative_volume_10d_calc':
+                    row_data.append(f"{row[col_name]:.2f}x")
+                elif col_name == 'Volatility.D':
+                    row_data.append(f"{row[col_name]*100:.1f}%")
+                elif col_name == 'market_cap_basic':
+                    row_data.append(f"₹{row[col_name]/1e7:,.0f}")
+                elif col_name == 'price_earnings_ttm':
+                    pe_val = row[col_name]
+                    if pd.isna(pe_val):
+                        row_data.append("N/A")
+                    else:
+                        row_data.append(f"{pe_val:.1f}")
+                elif col_name == 'return_on_equity':
+                    roe_val = row[col_name]
+                    if pd.isna(roe_val):
+                        row_data.append("N/A")
+                    else:
+                        row_data.append(f"{roe_val:.1f}%")
+                elif col_name == 'dividends_yield_current':
+                    div_val = row[col_name]
+                    if pd.isna(div_val):
+                        row_data.append("N/A")
+                    else:
+                        row_data.append(f"{div_val:.2f}%")
+                elif col_name == 'debt_to_equity':
+                    de_val = row[col_name]
+                    if pd.isna(de_val):
+                        row_data.append("N/A")
+                    else:
+                        row_data.append(f"{de_val:.2f}")
+                elif col_name == 'update_mode':
+                    row_data.append(row[col_name])
+                elif col_name == 'trend':
+                    trend_val = row[col_name]
+                    if trend_val == 'strong_bullish':
+                        row_data.append("[bold green]🚀 Strong Bull[/bold green]")
+                    elif trend_val == 'bullish':
+                        row_data.append("[green]📈 Bullish[/green]")
+                    elif trend_val == 'neutral':
+                        row_data.append("[yellow]➡️ Neutral[/yellow]")
+                    elif trend_val == 'bearish':
+                        row_data.append("[red]📉 Bearish[/red]")
+                    elif trend_val == 'strong_bearish':
+                        row_data.append("[bold red]💥 Strong Bear[/bold red]")
+                    else:
+                        row_data.append(f"[dim]{trend_val}[/dim]")
+                else:
+                    row_data.append(str(row[col_name]))
+            
+            table.add_row(*row_data)
+        
+        console.print(table)
+        console.print(f"[dim]Showing {min(len(df), max_rows)} of {len(df)} results[/dim]")
+
     def save_results(self, df, filename):
         return helpers_save_results(df, filename)
     

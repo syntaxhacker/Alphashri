@@ -232,9 +232,19 @@ def render_watch_table(df: pd.DataFrame, alerts: List[Dict], mode: str, currency
         trend_val = row.get('trend', None)
         trend_display = _trend_display(trend_val)
 
+        # Extract symbol from ticker field (format: "NSE:SYMBOL" -> "SYMBOL")
+        symbol = str(row.get('ticker', ''))
+        if symbol.startswith('NSE:'):
+            symbol = symbol.replace('NSE:', '')
+        elif symbol.startswith('BSE:'):
+            symbol = symbol.replace('BSE:', '')
+        elif not symbol or symbol == 'N/A':
+            # Fallback to name field if ticker is not available
+            symbol = str(row.get('name', ''))[:12]
+
         table.add_row(
             f"{ticker_style}{ticker}",
-            str(row.get('name', ''))[:12],
+            symbol[:12],  # Limit to 12 characters for display
             f"{currency_symbol}{row.get('close', 0):,.2f}",
             _fmt_change(change_val),
             f"{row.get('volume', 0):,.0f}",

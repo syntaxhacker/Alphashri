@@ -9,38 +9,46 @@ import pandas as pd
 console = Console()
 
 
-def get_tradingview_cookies():
+def get_tradingview_cookies(quiet: bool = False):
     """Get TradingView cookies from browser with Chrome then Firefox fallback."""
     try:
         # Try Chrome first
         cookies_raw = rookiepy.chrome(['.tradingview.com'])
         cookies = rookiepy.to_cookiejar(cookies_raw)
-        console.print("[green]Successfully loaded cookies from Chrome[/green]")
+        if not quiet:
+            console.print("[green]Successfully loaded cookies from Chrome[/green]")
 
         # Check if we have valid cookies
         if cookies_raw:
-            console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
+            if not quiet:
+                console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
         else:
-            console.print("[yellow]⚠️  No cookies found[/yellow]")
+            if not quiet:
+                console.print("[yellow]⚠️  No cookies found[/yellow]")
 
         return cookies
     except Exception:
-        console.print("[yellow]Chrome cookies failed, trying Firefox...[/yellow]")
+        if not quiet:
+            console.print("[yellow]Chrome cookies failed, trying Firefox...[/yellow]")
         try:
             cookies_raw = rookiepy.firefox(['.tradingview.com'])
             cookies = rookiepy.to_cookiejar(cookies_raw)
-            console.print("[green]Successfully loaded cookies from Firefox[/green]")
+            if not quiet:
+                console.print("[green]Successfully loaded cookies from Firefox[/green]")
 
             if cookies_raw:
-                console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
+                if not quiet:
+                    console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
             else:
-                console.print("[yellow]⚠️  No cookies found[/yellow]")
+                if not quiet:
+                    console.print("[yellow]⚠️  No cookies found[/yellow]")
 
             return cookies
         except Exception:
-            console.print("[red]Could not load cookies from any browser.[/red]")
-            console.print("[yellow]💡 Make sure you're logged into TradingView in your browser[/yellow]")
-            console.print("[yellow]💡 Try refreshing the TradingView page and run script again[/yellow]")
+            if not quiet:
+                console.print("[red]Could not load cookies from any browser.[/red]")
+                console.print("[yellow]💡 Make sure you're logged into TradingView in your browser[/yellow]")
+                console.print("[yellow]💡 Try refreshing the TradingView page and run script again[/yellow]")
             return None
 
 

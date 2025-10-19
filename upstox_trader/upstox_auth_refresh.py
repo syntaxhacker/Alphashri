@@ -37,7 +37,7 @@ except ImportError as e:
 
 def check_token_status():
     """Check if we have a valid token already"""
-    token_file = Path(".upstox_token.json")
+    token_file = Path.home() / ".upstox_token.json"
     
     if not token_file.exists():
         return False, "No token file found"
@@ -95,9 +95,9 @@ def main():
     print("\n🚀 Starting authentication process...")
     print("   This will open your browser for Upstox login.")
     print("   Please complete the login and return here.")
-    
+
     try:
-        if api.authenticate():
+        if api.auth_handler.authenticate():
             print("\n✅ Authentication successful!")
             print("   Token saved and ready for use.")
             print("   You can now run your trading scripts.")
@@ -120,10 +120,10 @@ def quick_test():
     
     try:
         api = UpstoxAPI(api_key=UPSTOX_CONFIG['api_key'], api_secret=UPSTOX_CONFIG['api_secret'])
-        
-        if api.access_token:
+
+        if api.auth_handler.access_token:
             print("✅ Token loaded successfully!")
-            
+
             # Try to get instrument key for a common stock as a test
             test_key = api.get_instrument_key("RELIANCE")
             if test_key:

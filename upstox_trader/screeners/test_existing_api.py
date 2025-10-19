@@ -24,21 +24,15 @@ def test_existing_api_call(api, symbol):
     print("="*50)
     
     try:
-        # This is how the existing code calls fetch_intraday_data_v3
-        # Based on the _fetch_price_from_exchange method in tv_screen_usage.py
-        df = api.fetch_intraday_data_v3(
-            symbol=symbol, 
-            unit='minutes', 
-            interval=1
-        )
+        # Test the new streaming API for current price fetching
+        current_price = api.get_current_price_with_streaming(symbol=symbol)
         
-        if df is not None and not df.empty:
-            print(f"✅ SUCCESS: Got {len(df)} candles")
-            print(f"   First close: {df['close'].iloc[0]}")
-            print(f"   Last close: {df['close'].iloc[-1]}")
+        if current_price is not None:
+            print(f"✅ SUCCESS: Got current price")
+            print(f"   Current price: {current_price}")
             return True
         else:
-            print(f"⚠️  NO DATA returned")
+            print(f"⚠️  NO PRICE returned")
             return False
             
     except Exception as e:
@@ -48,6 +42,7 @@ def test_existing_api_call(api, symbol):
 def main():
     """Main function to test the existing API calls"""
     # Initialize Upstox API
+    # Add quiet=True to suppress API output: UpstoxAPI(..., quiet=True)
     try:
         api = UpstoxAPI(
             api_key=UPSTOX_CONFIG.get('api_key'),

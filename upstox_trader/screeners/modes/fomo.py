@@ -8,6 +8,8 @@ This module contains various FOMO-based trading strategies.
 from rich.panel import Panel
 from rich.console import Console
 from tradingview_screener import Query, col
+from .. import tv_utils
+from datetime import datetime
 
 console = Console()
 
@@ -39,7 +41,7 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                 confidence = self._calculate_alert_confidence('VOLUME_SPIKE', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
                 
                 # Only send if confidence is high enough (relaxed for FOMO mode)
-                if confidence >= 0.3:  # 30% minimum confidence
+                if confidence >= 0.15:  # 15% minimum confidence (lowered from 30%)
                     alert = {
                         'type': 'VOLUME_SPIKE',
                         'ticker': ticker,
@@ -75,7 +77,7 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                 confidence = self._calculate_alert_confidence('PRICE_MOVE', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
                 
                 # Only send if confidence is high enough (relaxed for FOMO mode)
-                if confidence >= 0.3:  # 30% minimum confidence
+                if confidence >= 0.15:  # 15% minimum confidence (lowered from 30%)
                     alert = {
                         'type': 'PRICE_MOVE',
                         'ticker': ticker,
@@ -184,7 +186,7 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                 should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'EARLY_MOMENTUM')
                 if not should_skip:
                     confidence = self._calculate_alert_confidence('EARLY_MOMENTUM', row['relative_volume_10d_calc'], row['change'], rsi_current)
-                    if confidence >= 0.25:
+                    if confidence >= 0.15:  # 15% minimum (lowered from 25%)
                         alert = {
                             'type': 'EARLY_MOMENTUM',
                             'ticker': ticker,
@@ -209,7 +211,7 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                 should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'ACCUMULATION')
                 if not should_skip:
                     confidence = self._calculate_alert_confidence('ACCUMULATION', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
-                    if confidence >= 0.25:
+                    if confidence >= 0.15:  # 15% minimum (lowered from 25%)
                         alert = {
                             'type': 'ACCUMULATION',
                             'ticker': ticker,
@@ -233,7 +235,7 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                 should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'PREBREAKOUT')
                 if not should_skip:
                     confidence = self._calculate_alert_confidence('PREBREAKOUT', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
-                    if confidence >= 0.25:
+                    if confidence >= 0.15:  # 15% minimum (lowered from 25%)
                         alert = {
                             'type': 'PREBREAKOUT',
                             'ticker': ticker,
@@ -261,7 +263,7 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                 should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'GAP_BREAKOUT')
                 if not should_skip:
                     confidence = self._calculate_alert_confidence('GAP_BREAKOUT', row['relative_volume_10d_calc'], row['change'], row.get('RSI', None))
-                    if confidence >= 0.25:
+                    if confidence >= 0.15:  # 15% minimum (lowered from 25%)
                         alert = {
                             'type': 'GAP_BREAKOUT',
                             'ticker': ticker,
@@ -412,7 +414,7 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                         
                         confidence = min(0.95, base_confidence + strength_boost + volume_factor)
                         
-                        if confidence >= 0.35:  # Relaxed confidence threshold for real-time momentum
+                        if confidence >= 0.2:  # 20% minimum (lowered from 35%)
                             alert = {
                                 'type': 'REALTIME_MOMENTUM',
                                 'ticker': ticker,
@@ -473,7 +475,7 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                             # Boost confidence for aggressive breaks
                             confidence = min(0.95, confidence + 0.15)
                             
-                            if confidence >= 0.6: # High confidence required for aggressive trades
+                            if confidence >= 0.4: # Lowered from 60% for aggressive trades
                                 alert = {
                                     'type': 'SR_LEVELS_BREAK',
                                     'ticker': ticker,
@@ -503,11 +505,8 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
             volume_ratio >= self.config.signal_filtering.min_volume_ratio and  # Decent volume  
             change_pct > self.config.signal_filtering.min_change_overbought):  # Stock has moved up (potential reversal)
             
-            # RELAXED downtrend requirement for FOMO mode
-            confirmed_downtrend = self._check_confirmed_downtrend_for_short(ticker, row)
-            if not confirmed_downtrend and rsi < 85:  # Only require confirmation for less extreme RSI
-                console.print(f"[yellow]⚠️ {ticker}: Overbought but no confirmed downtrend - skipping short[/yellow]")
-                continue
+            # REMOVED downtrend requirement for FOMO mode - allow all overbought shorts
+            confirmed_downtrend = True  # Always allow short signals
             
             should_skip, time_diff, skip_reason = self._should_skip_alert(ticker, 'OVERBOUGHT_SHORT')
             if not should_skip:
@@ -517,18 +516,13 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                 # Use overextended check for additional confirmation
                 is_overextended = self._is_overextended_for_short(ticker)
                 
-                # Enhanced logic: Require 15min RSI confirmation if available
-                rsi_confirmed = True  # Default to allow signal
-                if rsi_15min is not None:
-                    # 15min RSI should also be overbought for strong confirmation (from config)
-                    rsi_confirmed = rsi_15min >= self.config.signal_filtering.min_15_rsi_confirmation
-                    console.print(f"[dim yellow]📊 {ticker}: Daily RSI {rsi:.1f}, 15min RSI {rsi_15min:.1f}[/dim yellow]")
+                # REMOVED 15min RSI confirmation requirement - always allow overbought shorts
+                rsi_confirmed = True  # Always allow signals
                 
-                if rsi_confirmed:
-                    # Calculate confidence for short signal (boost if 15min confirms)
-                    confidence = self._calculate_short_confidence(rsi, change_pct, volume_ratio, is_overextended)
-                    if rsi_15min is not None and rsi_15min >= self.config.signal_filtering.strong_15_rsi_threshold:
-                        confidence += self.config.signal_filtering.confidence_bonus  # Bonus for strong 15min confirmation
+                # Calculate confidence for short signal (boost if 15min confirms)
+                confidence = self._calculate_short_confidence(rsi, change_pct, volume_ratio, is_overextended)
+                if rsi_15min is not None and rsi_15min >= self.config.signal_filtering.strong_15_rsi_threshold:
+                    confidence += self.config.signal_filtering.confidence_bonus  # Bonus for strong 15min confirmation
                     
                     if confidence >= self.config.signal_filtering.min_confidence_short:
                         alert = {
@@ -555,7 +549,8 @@ def _detect_alerts(self, current_data, previous_data, volume_threshold, price_th
                     else:
                         console.print(f"[yellow]⚠️ {ticker}: Overbought but confidence too low ({confidence:.0%})[/yellow]")
                 else:
-                    console.print(f"[yellow]⚠️ {ticker}: Daily RSI {rsi:.1f} overbought but 15min RSI {rsi_15min:.1f} not confirmed[/yellow]")
+                    rsi_15min_str = f"{rsi_15min:.1f}" if rsi_15min is not None else "N/A"
+                    # console.print(f"[yellow]⚠️ {ticker}: Daily RSI {rsi:.1f} overbought but 15min RSI {rsi_15min_str} not confirmed[/yellow]")
     
     return alerts
 
@@ -674,42 +669,5 @@ def _get_15min_rsi(self, symbol):
         return None
 
 def _check_confirmed_downtrend_for_short(self, symbol, row):
-    """Check if confirmed downtrend exists before allowing short (price < VWAP + bearish volume)"""
-    try:
-        current_price = row['close']
-        
-        # Get VWAP if available, otherwise estimate using volume-weighted price
-        vwap = row.get('VWAP', current_price)  # Fallback to current price if no VWAP
-        
-        # Check if price is below VWAP (bearish condition)
-        price_below_vwap = current_price < vwap
-        
-        # Check for bearish volume (volume above average with negative price action)
-        volume_ratio = row.get('relative_volume_10d_calc', 1.0)
-        change = row.get('change', 0)
-        
-        # Bearish volume: elevated volume with negative or weak positive move (from config)
-        bearish_volume = (volume_ratio > self.config.downtrend.min_volume_ratio_bearish and 
-                         change < self.config.downtrend.max_change_bearish)
-        
-        # Additional trend confirmation
-        ema20 = row.get('EMA20', current_price)
-        ema50 = row.get('EMA50', current_price)
-        
-        # Stronger confirmation: price below moving averages
-        below_ema20 = current_price < ema20
-        ema_bearish = ema20 < ema50  # 20 EMA below 50 EMA
-        
-        # Relaxed downtrend confirmation for FOMO mode
-        confirmed_downtrend = price_below_vwap or bearish_volume or (below_ema20 and ema_bearish)  # OR instead of AND
-        
-        if confirmed_downtrend:
-            console.print(f"[dim green]✅ {symbol}: Confirmed downtrend for short - Price<VWAP: {price_below_vwap}, Bearish Vol: {bearish_volume}[/dim green]")
-        else:
-            console.print(f"[dim yellow]⚠️ {symbol}: No confirmed downtrend - Price<VWAP: {price_below_vwap}, Bearish Vol: {bearish_volume}[/dim yellow]")
-        
-        return confirmed_downtrend
-        
-    except Exception as e:
-        console.print(f"[dim red]⚠️ Error checking downtrend for {symbol}: {e}[/dim red]")
-        return False  # Conservative approach - don't short if can't confirm
+    """REMOVED: Always return True to allow all overbought short signals"""
+    return True  # Always allow short signals - no downtrend confirmation needed

@@ -180,10 +180,10 @@ class DisplayUtils:
             table.add_column("Action", justify="center")
             
             for alert in type_alerts[:10]:  # Limit to 10 per type
-                symbol = alert.get('symbol', 'N/A')
+                symbol = alert.get('ticker', alert.get('symbol', 'N/A'))
                 price = alert.get('price', 0)
-                change = alert.get('change_pct', 0)
-                volume_ratio = alert.get('volume_ratio', 1)
+                change = alert.get('change', alert.get('change_pct', 0))
+                volume_ratio = alert.get('volume_ratio', alert.get('current_volume_ratio', 1))
                 confidence = alert.get('confidence', 0)
                 action = alert.get('action', 'WATCH')
                 

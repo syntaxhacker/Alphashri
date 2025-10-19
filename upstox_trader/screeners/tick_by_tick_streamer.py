@@ -92,9 +92,9 @@ class TickByTickStreamer:
     def authenticate(self) -> bool:
         """Authenticate using existing UpstoxAPI abstraction."""
         try:
-            if not self.upstox_api.access_token:
+            if not self.upstox_api.auth_handler.access_token:
                 print("🔑 Authenticating with Upstox...")
-                if not self.upstox_api.authenticate():
+                if not self.upstox_api.auth_handler.authenticate():
                     print("❌ Authentication failed")
                     return False
 
@@ -127,9 +127,15 @@ class TickByTickStreamer:
             print("❌ WebSocket not available - install upstox-python-sdk")
             return False
 
+        # Check if market is open (9:15 AM - 3:30 PM IST)
+        if not self._is_market_open():
+            print("⚠️ Market is closed - WebSocket streaming may not work")
+            print("💡 NSE trading hours: 9:15 AM - 3:30 PM IST")
+            # Continue anyway, as some data might still be available
+
         try:
             # Get access token from existing API client
-            access_token = self.upstox_api.access_token
+            access_token = self.upstox_api.auth_handler.access_token
             if not access_token:
                 print("❌ No access token available")
                 return False
@@ -166,6 +172,21 @@ class TickByTickStreamer:
         except Exception as e:
             print(f"❌ WebSocket setup failed: {e}")
             return False
+
+    def _is_market_open(self) -> bool:
+        """Check if Indian stock market is currently open."""
+        from datetime import datetime, time
+
+        now = datetime.now().time()
+        market_open = time(9, 15)   # 9:15 AM
+        market_close = time(15, 30) # 3:30 PM
+
+        # Check if it's a weekday (Monday-Friday)
+        current_weekday = datetime.now().weekday()
+        if current_weekday >= 5:  # Saturday or Sunday
+            return False
+
+        return market_open <= now <= market_close
 
     def on_tick_update(self, message):
         """Handle incoming tick data."""
@@ -234,6 +255,73 @@ class TickByTickStreamer:
         """Called when WebSocket encounters an error."""
         print(f"❌ WebSocket error: {error}")
         self.connected = False
+
+        # Handle authentication errors (401)
+        if hasattr(error, 'status_code') and error.status_code == 401:
+            print("🔑 Access token expired or invalid - attempting refresh...")
+            self._handle_token_refresh()
+        elif "401" in str(error):
+            print("🔑 Access token expired or invalid - attempting refresh...")
+            self._handle_token_refresh()
+
+    def _handle_token_refresh(self):
+        """Handle token refresh when WebSocket authentication fails."""
+        try:
+            print("🔐 Re-authenticating with Upstox...")
+
+            # Use the enhanced API's token refresh logic
+            if hasattr(self.upstox_api, 'retry_websocket_connection'):
+                # The API will handle token refresh and retry connection
+                if self.upstox_api.retry_websocket_connection(self.symbols):
+                    print("✅ WebSocket reconnected successfully!")
+                    # Start streaming again
+                    self.upstox_api.start_realtime_streaming()
+                else:
+                    print("❌ WebSocket reconnection failed")
+            else:
+                # Fallback to manual token refresh
+                self._manual_token_refresh()
+
+        except Exception as e:
+            print(f"❌ Token refresh failed: {e}")
+
+    def _manual_token_refresh(self):
+        """Manual token refresh as fallback."""
+        try:
+            # Clear the current token
+            self.upstox_api.auth_handler.access_token = None
+
+            # Remove the cached token file to force fresh authentication
+            token_file = Path.home() / ".upstox_token.json"
+            if token_file.exists():
+                token_file.unlink()
+
+            # Re-authenticate
+            if self.upstox_api.auth_handler.authenticate():
+                print("✅ Re-authentication successful!")
+
+                # Retry WebSocket connection with new token
+                print("🔄 Retrying WebSocket connection...")
+                self._retry_websocket_connection()
+            else:
+                print("❌ Re-authentication failed")
+
+        except Exception as e:
+            print(f"❌ Manual token refresh failed: {e}")
+
+    def _retry_websocket_connection(self):
+        """Retry WebSocket connection with fresh token."""
+        try:
+            # Use the enhanced API's retry method
+            if self.upstox_api.retry_websocket_connection(self.symbols):
+                print("✅ WebSocket reconnected successfully!")
+                # Start streaming again
+                self.upstox_api.start_realtime_streaming()
+            else:
+                print("❌ WebSocket reconnection failed")
+
+        except Exception as e:
+            print(f"❌ WebSocket retry failed: {e}")
 
     def on_websocket_close(self, close_status_code, close_msg):
         """Called when WebSocket connection closes."""
