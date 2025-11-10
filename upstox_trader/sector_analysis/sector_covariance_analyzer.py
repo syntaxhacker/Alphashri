@@ -178,6 +178,11 @@ import warnings
 import webbrowser
 import tempfile
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.patches as mpatches
+import networkx as nx
 warnings.filterwarnings('ignore')
 
 from rich.console import Console
@@ -685,19 +690,257 @@ class SectorCovarianceAnalyzer:
         scored_stocks.sort(key=lambda x: x['prediction_score'], reverse=True)
         return scored_stocks[:10]
     
+    def create_correlation_heatmap(self, correlation_matrix: pd.DataFrame, filename: str = None):
+        """Create correlation matrix heatmap as image file"""
+        if filename is None:
+            filename = f"visualizations/sector_correlation_heatmap_{datetime.now().strftime('%Y%m%d_%H%M')}.png"
+
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(16, 14))
+
+        # Create custom colormap
+        colors = ['#d73027', '#f46d43', '#fdae61', '#fee090', '#e0f3f8', '#abd9e9', '#74add1', '#4575b4']
+        cmap = LinearSegmentedColormap.from_list('correlation', colors, N=256)
+
+        # Create heatmap
+        mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+        sns.heatmap(correlation_matrix,
+                   mask=mask,
+                   annot=True,
+                   cmap=cmap,
+                   center=0,
+                   fmt='.2f',
+                   square=True,
+                   linewidths=0.5,
+                   cbar_kws={"shrink": 0.8, "label": "Correlation Coefficient"},
+                   ax=ax)
+
+        # Customize labels
+        ax.set_title('📊 Sector Correlation Matrix Heatmap', fontsize=20, fontweight='bold', pad=20)
+        ax.set_xticklabels([label[:12] for label in correlation_matrix.columns], rotation=45, ha='right', fontsize=10)
+        ax.set_yticklabels([label[:12] for label in correlation_matrix.index], rotation=0, fontsize=10)
+
+        # Add correlation strength legend
+        legend_elements = [
+            mpatches.Patch(color='#4575b4', label='Strong Positive (>0.5)'),
+            mpatches.Patch(color='#74add1', label='Moderate Positive (0.2-0.5)'),
+            mpatches.Patch(color='#e0f3f8', label='Weak (±0.2)'),
+            mpatches.Patch(color='#fdae61', label='Moderate Negative (-0.5 to -0.2)'),
+            mpatches.Patch(color='#d73027', label='Strong Negative (<-0.5)')
+        ]
+        ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.15, 1))
+
+        plt.tight_layout()
+        plt.savefig(filename, dpi=300, bbox_inches='tight', facecolor='#2d2d2d')
+        plt.close()
+
+        console.print(f"[green]✅ Correlation heatmap saved: {filename}[/green]")
+        return filename
+
+    def create_sector_network_graph(self, correlation_matrix: pd.DataFrame, filename: str = None):
+        """Create sector network graph visualization"""
+        if filename is None:
+            filename = f"visualizations/sector_network_graph_{datetime.now().strftime('%Y%m%d_%H%M')}.png"
+
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(18, 14))
+
+        # Create network graph using spring layout
+        sectors = correlation_matrix.columns.tolist()
+
+        # Filter significant correlations for cleaner graph
+        significant_corr = correlation_matrix.where(np.abs(correlation_matrix) >= 0.3)
+
+        # Create graph positions
+        pos = nx.spring_layout(nx.from_pandas_adjacency(significant_corr.fillna(0)),
+                              k=2, iterations=50, seed=42)
+
+        # Draw nodes
+        node_sizes = []
+        node_colors = []
+
+        for sector in sectors:
+            # Node size based on number of significant correlations
+            connections = significant_corr[sector].count()
+            node_sizes.append(800 + connections * 200)
+
+            # Node color based on average correlation
+            avg_corr = significant_corr[sector].mean()
+            if avg_corr > 0.3:
+                node_colors.append('#91cc75')  # Green for positive
+            elif avg_corr < -0.3:
+                node_colors.append('#ee6666')  # Red for negative
+            else:
+                node_colors.append('#5470c6')  # Blue for neutral
+
+        nx.draw_networkx_nodes(nx.from_pandas_adjacency(significant_corr.fillna(0)),
+                              pos, node_size=node_sizes, node_color=node_colors,
+                              alpha=0.8, ax=ax)
+
+        # Draw edges with different colors and widths
+        edges = []
+        edge_colors = []
+        edge_widths = []
+
+        for i, sector1 in enumerate(sectors):
+            for j, sector2 in enumerate(sectors):
+                if i < j and pd.notna(significant_corr.loc[sector1, sector2]):
+                    corr_val = significant_corr.loc[sector1, sector2]
+                    edges.append((sector1, sector2))
+                    edge_colors.append('#91cc75' if corr_val > 0 else '#ee6666')
+                    edge_widths.append(abs(corr_val) * 3)
+
+        nx.draw_networkx_edges(nx.from_pandas_adjacency(significant_corr.fillna(0)),
+                              pos, edgelist=edges, edge_color=edge_colors,
+                              width=edge_widths, alpha=0.6, ax=ax)
+
+        # Draw labels
+        nx.draw_networkx_labels(nx.from_pandas_adjacency(significant_corr.fillna(0)),
+                               pos, font_size=9, font_weight='bold',
+                               font_color='white', ax=ax)
+
+        ax.set_title('🔗 Sector Correlation Network Graph\n(Node size = Connectivity, Line thickness = Correlation strength)',
+                    fontsize=16, fontweight='bold', pad=20)
+        ax.axis('off')
+
+        # Add legend
+        legend_elements = [
+            plt.Line2D([0], [0], color='#91cc75', lw=3, label='Positive Correlation'),
+            plt.Line2D([0], [0], color='#ee6666', lw=3, label='Negative Correlation'),
+            plt.scatter([0], [0], s=100, color='#5470c6', label='Neutral Sector')
+        ]
+        ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.0, 1.0))
+
+        plt.tight_layout()
+        plt.savefig(filename, dpi=300, bbox_inches='tight', facecolor='#2d2d2d')
+        plt.close()
+
+        console.print(f"[green]✅ Sector network graph saved: {filename}[/green]")
+        return filename
+
+    def create_correlation_distribution_plot(self, correlation_matrix: pd.DataFrame, filename: str = None):
+        """Create correlation distribution histogram"""
+        if filename is None:
+            filename = f"visualizations/correlation_distribution_{datetime.now().strftime('%Y%m%d_%H%M')}.png"
+
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        # Extract upper triangle correlations (excluding diagonal)
+        correlations = []
+        for i in range(len(correlation_matrix.columns)):
+            for j in range(i+1, len(correlation_matrix.columns)):
+                corr_val = correlation_matrix.iloc[i, j]
+                if not pd.isna(corr_val):
+                    correlations.append(corr_val)
+
+        # Create histogram
+        n, bins, patches = ax.hist(correlations, bins=20, alpha=0.7,
+                                  color='#64b5f6', edgecolor='black', linewidth=0.5)
+
+        # Color bars based on correlation strength
+        norm = plt.Normalize(-1, 1)
+        for patch, left, right in zip(patches, bins[:-1], bins[1:]):
+            if left >= -1 and right <= -0.3:
+                patch.set_facecolor('#d73027')  # Strong negative
+            elif left >= -0.3 and right <= 0.3:
+                patch.set_facecolor('#fdae61')  # Weak/neutral
+            elif left >= 0.3 and right <= 1:
+                patch.set_facecolor('#91cc75')  # Strong positive
+
+        # Add vertical lines for key thresholds
+        ax.axvline(x=0.5, color='#91cc75', linestyle='--', linewidth=2, alpha=0.8, label='Strong Positive (0.5)')
+        ax.axvline(x=-0.5, color='#d73027', linestyle='--', linewidth=2, alpha=0.8, label='Strong Negative (-0.5)')
+        ax.axvline(x=0.3, color='#74add1', linestyle=':', linewidth=1, alpha=0.6, label='Moderate (0.3)')
+        ax.axvline(x=-0.3, color='#f46d43', linestyle=':', linewidth=1, alpha=0.6, label='Moderate (-0.3)')
+
+        ax.set_xlabel('Correlation Coefficient', fontsize=12)
+        ax.set_ylabel('Frequency', fontsize=12)
+        ax.set_title('📊 Distribution of Sector Correlations\n(Excluding diagonal - self correlations)',
+                    fontsize=16, fontweight='bold', pad=20)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.legend()
+
+        # Add statistics text
+        stats_text = f"Total Correlations: {len(correlations)}\n" \
+                    f"Mean Correlation: {np.mean(correlations):.3f}\n" \
+                    f"Median Correlation: {np.median(correlations):.3f}\n" \
+                    f"Std Deviation: {np.std(correlations):.3f}"
+
+        ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
+               bbox=dict(boxstyle="round,pad=0.5", facecolor="#2d2d2d", alpha=0.8),
+               verticalalignment='top', fontsize=10, color='white')
+
+        plt.tight_layout()
+        plt.savefig(filename, dpi=300, bbox_inches='tight', facecolor='#2d2d2d')
+        plt.close()
+
+        console.print(f"[green]✅ Correlation distribution plot saved: {filename}[/green]")
+        return filename
+
+    def create_stock_correlation_heatmap(self, sector: str, sector_correlations: Dict, filename: str = None):
+        """Create stock correlation heatmap for specific sector"""
+        if sector not in sector_correlations:
+            console.print(f"[yellow]⚠️ No correlation data for {sector}[/yellow]")
+            return None
+
+        if filename is None:
+            filename = f"visualizations/{sector.replace(' ', '_').lower()}_stock_correlations_{datetime.now().strftime('%Y%m%d_%H%M')}.png"
+
+        corr_matrix = sector_correlations[sector]
+
+        # Limit to top 12 stocks for readability
+        if len(corr_matrix) > 12:
+            # Select stocks with highest average correlation
+            avg_corr = corr_matrix.abs().mean().sort_values(ascending=False)
+            top_stocks = avg_corr.index[:12].tolist()
+            corr_matrix = corr_matrix.loc[top_stocks, top_stocks]
+
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(14, 12))
+
+        # Create heatmap
+        mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+        sns.heatmap(corr_matrix,
+                   mask=mask,
+                   annot=True,
+                   cmap='RdYlBu_r',
+                   center=0,
+                   fmt='.2f',
+                   square=True,
+                   linewidths=0.5,
+                   cbar_kws={"shrink": 0.8, "label": "Correlation"},
+                   ax=ax)
+
+        ax.set_title(f'🔗 {sector} - Stock-to-Stock Correlations\n(Top {len(corr_matrix)} stocks by connectivity)',
+                    fontsize=16, fontweight='bold', pad=20)
+        ax.set_xticklabels([label[:8] for label in corr_matrix.columns], rotation=45, ha='right', fontsize=8)
+        ax.set_yticklabels([label[:8] for label in corr_matrix.index], rotation=0, fontsize=8)
+
+        plt.tight_layout()
+        plt.savefig(filename, dpi=300, bbox_inches='tight', facecolor='#2d2d2d')
+        plt.close()
+
+        console.print(f"[green]✅ {sector} stock correlation heatmap saved: {filename}[/green]")
+        return filename
+
     def display_correlation_matrix(self, correlation_matrix: pd.DataFrame):
-        """Display correlation matrix in a formatted table"""
+        """Display correlation matrix and generate heatmap image"""
         console.print(Panel.fit("📊 Sector Correlation Matrix", style="bold blue"))
-        
+
+        # Generate heatmap image
+        heatmap_file = self.create_correlation_heatmap(correlation_matrix)
+
+        # Also show top correlations in table format (for quick reference)
         table = Table(show_header=True, header_style="bold magenta")
         table.add_column("Sector", style="cyan", no_wrap=True)
-        
+
         # Add column for each sector
         for sector in correlation_matrix.columns:
             table.add_column(sector[:8], justify="center", style="yellow")
-        
-        # Add rows
-        for sector in correlation_matrix.index:
+
+        # Add rows (show only top 8 sectors for brevity)
+        for sector in correlation_matrix.index[:8]:
             row_data = [sector[:15]]  # Truncate long names
             for col_sector in correlation_matrix.columns:
                 corr_val = correlation_matrix.loc[sector, col_sector]
@@ -708,10 +951,11 @@ class SectorCovarianceAnalyzer:
                 else:
                     color = "green" if corr_val > 0.5 else "red" if corr_val < -0.5 else "white"
                     row_data.append(f"[{color}]{corr_val:.2f}[/{color}]")
-            
+
             table.add_row(*row_data)
-        
+
         console.print(table)
+        console.print(f"[dim]💡 Full correlation matrix heatmap saved as image: {heatmap_file}[/dim]")
     
     def calculate_intra_sector_correlations(self, sector_stocks: Dict[str, List[Dict]]) -> Dict[str, pd.DataFrame]:
         """Calculate correlations between stocks within each sector"""
@@ -790,7 +1034,13 @@ class SectorCovarianceAnalyzer:
         
         # Calculate intra-sector correlations
         sector_correlations = self.calculate_intra_sector_correlations(sector_stocks)
-        
+
+        # Generate correlation distribution plot
+        dist_file = self.create_correlation_distribution_plot(correlation_matrix)
+
+        # Generate sector network graph
+        network_file = self.create_sector_network_graph(correlation_matrix)
+
         # Stock candidates for top predictions with correlations
         console.print(Panel.fit("📈 Top Stock Candidates with Intra-Sector Correlations", style="bold yellow"))
         
@@ -830,51 +1080,28 @@ class SectorCovarianceAnalyzer:
                 
                 console.print(stock_table)
                 
-                # Intra-sector correlation matrix for this sector
+                # Generate stock correlation heatmap for this sector
                 if sector in sector_correlations:
                     console.print(f"\n[bold yellow]🔗 {sector} - Stock-to-Stock Correlations[/bold yellow]")
-                    
+
+                    # Generate heatmap image for this sector's stock correlations
+                    stock_heatmap_file = self.create_stock_correlation_heatmap(sector, sector_correlations)
+
                     corr_matrix = sector_correlations[sector]
                     top_stock_symbols = [s['symbol'] for s in top_candidates]
-                    
+
                     # Filter correlation matrix to show only top candidates
                     available_symbols = [s for s in top_stock_symbols if s in corr_matrix.columns]
-                    
+
                     if len(available_symbols) > 1:
                         filtered_corr = corr_matrix.loc[available_symbols, available_symbols]
-                        
-                        # Create correlation table
-                        corr_table = Table(show_header=True, header_style="bold magenta")
-                        corr_table.add_column("Stock", style="cyan", no_wrap=True)
-                        
-                        for symbol in available_symbols:
-                            corr_table.add_column(symbol[:8], justify="center", style="yellow")
-                        
-                        for i, stock1 in enumerate(available_symbols):
-                            row_data = [stock1[:10]]
-                            for j, stock2 in enumerate(available_symbols):
-                                if i == j:
-                                    row_data.append("1.00")
-                                else:
-                                    corr_val = filtered_corr.loc[stock1, stock2]
-                                    try:
-                                        # Handle both scalar and array cases
-                                        val = corr_val.iloc[0] if hasattr(corr_val, 'iloc') else corr_val
-                                        if pd.isna(val):
-                                            row_data.append("-")
-                                        else:
-                                            color = "green" if val > 0.5 else "red" if val < -0.3 else "white"
-                                            row_data.append(f"[{color}]{val:.2f}[/{color}]")
-                                    except:
-                                        row_data.append("-")
-                            
-                            corr_table.add_row(*row_data)
-                        
-                        console.print(corr_table)
-                        
-                        # Highlight strongest correlations
-                        console.print(f"[dim]💡 When one stock in {sector} rises, highly correlated stocks (>0.5) likely to follow[/dim]")
-                        
+
+                        # Show summary table (smaller version for quick reference)
+                        summary_table = Table(show_header=True, header_style="bold magenta", title=f"{sector} - Top Stock Correlations")
+                        summary_table.add_column("Stock Pair", style="cyan")
+                        summary_table.add_column("Correlation", justify="center")
+                        summary_table.add_column("Strength", justify="center")
+
                         # Find and display strongest correlations
                         strong_correlations = []
                         for i, stock1 in enumerate(available_symbols):
@@ -884,17 +1111,25 @@ class SectorCovarianceAnalyzer:
                                         corr_val = filtered_corr.loc[stock1, stock2]
                                         # Handle both scalar and array cases
                                         val = corr_val.iloc[0] if hasattr(corr_val, 'iloc') else corr_val
-                                        if not pd.isna(val) and abs(val) > 0.5:
+                                        if not pd.isna(val) and abs(val) > 0.4:  # Show only strong correlations
                                             strong_correlations.append((stock1, stock2, val))
                                     except:
-                                        continue  # Skip problematic correlations
-                        
+                                        continue
+
                         if strong_correlations:
                             strong_correlations.sort(key=lambda x: abs(x[2]), reverse=True)
-                            console.print(f"[green]🔗 Strongest correlations in {sector}:[/green]")
-                            for stock1, stock2, corr in strong_correlations[:3]:
+                            for stock1, stock2, corr in strong_correlations[:5]:  # Top 5
                                 color = "green" if corr > 0 else "red"
-                                console.print(f"[{color}]  {stock1} ↔ {stock2}: {corr:+.2f}[/{color}]")
+                                strength = "Strong" if abs(corr) > 0.6 else "Moderate"
+                                summary_table.add_row(f"{stock1[:8]} ↔ {stock2[:8]}",
+                                                    f"[{color}]{corr:+.2f}[/{color}]",
+                                                    f"[{color}]{strength}[/{color}]")
+
+                            console.print(summary_table)
+                            console.print(f"[dim]💡 Full stock correlation heatmap saved as image: {stock_heatmap_file}[/dim]")
+                            console.print(f"[dim]🔗 When one stock rises, highly correlated stocks (>0.5) likely to follow[/dim]")
+                        else:
+                            console.print(f"[yellow]⚠️ No strong stock correlations found in {sector}[/yellow]")
                     else:
                         console.print(f"[yellow]⚠️ Insufficient correlation data for {sector}[/yellow]")
                 else:
@@ -1880,34 +2115,46 @@ class SectorCovarianceAnalyzer:
     def run_full_analysis(self):
         """Run complete sector covariance analysis"""
         console.print(Panel.fit("🚀 SECTOR COVARIANCE ANALYSIS", style="bold red"))
-        
+
         # Step 1: Fetch sector stock data
         sector_stocks = self.fetch_sector_stocks()
         if not sector_stocks:
             console.print("[red]❌ Could not fetch sector data[/red]")
             return
-        
+
         # Step 2: Calculate sector returns
         returns_df = self.calculate_sector_returns(sector_stocks)
         if returns_df.empty:
             console.print("[red]❌ Could not calculate sector returns[/red]")
             return
-        
+
         self.sector_returns = returns_df
-        
+
         # Step 3: Calculate correlation matrix
         correlation_matrix, covariance_matrix = self.calculate_correlation_matrix(returns_df)
         self.correlation_matrix = correlation_matrix
-        
+
         # Step 4: Identify lead-lag relationships
         lead_lag = self.identify_lead_lag_relationships(returns_df)
-        
-        # Step 5: Display results
+
+        # Step 5: Generate all visualizations
+        console.print(Panel.fit("🎨 Generating Visualizations", style="bold cyan"))
+
+        # Generate correlation heatmap
+        heatmap_file = self.create_correlation_heatmap(correlation_matrix)
+
+        # Generate sector network graph
+        network_file = self.create_sector_network_graph(correlation_matrix)
+
+        # Generate correlation distribution plot
+        dist_file = self.create_correlation_distribution_plot(correlation_matrix)
+
+        # Step 6: Display results
         self.display_correlation_matrix(correlation_matrix)
-        
+
         # Show top correlations
         console.print(Panel.fit("🔗 Top Sector Correlations", style="bold green"))
-        
+
         # Extract top correlations
         corr_pairs = []
         for i, sector1 in enumerate(correlation_matrix.columns):
@@ -1916,31 +2163,37 @@ class SectorCovarianceAnalyzer:
                     corr_val = correlation_matrix.loc[sector1, sector2]
                     if not pd.isna(corr_val) and abs(corr_val) >= self.min_correlation:
                         corr_pairs.append((sector1, sector2, corr_val))
-        
+
         corr_pairs.sort(key=lambda x: abs(x[2]), reverse=True)
-        
+
         corr_table = Table(show_header=True, header_style="bold magenta")
         corr_table.add_column("Sector 1", style="cyan")
         corr_table.add_column("Sector 2", style="cyan")
         corr_table.add_column("Correlation", justify="center")
         corr_table.add_column("Relationship", justify="center")
-        
+
         for sector1, sector2, corr_val in corr_pairs[:10]:
             corr_color = "green" if corr_val > 0 else "red"
             relationship = "Positive" if corr_val > 0 else "Negative"
-            
+
             corr_table.add_row(
                 sector1,
                 sector2,
                 f"[{corr_color}]{corr_val:+.3f}[/{corr_color}]",
                 f"[{corr_color}]{relationship}[/{corr_color}]"
             )
-        
+
         console.print(corr_table)
-        
+
         # Store data for future predictions
         self.sector_data = sector_stocks
-        
+
+        # Summary of generated files
+        console.print(Panel.fit("📊 Generated Visualizations Summary", style="bold green"))
+        console.print(f"📈 [cyan]Correlation Heatmap:[/cyan] {heatmap_file}")
+        console.print(f"🔗 [cyan]Sector Network Graph:[/cyan] {network_file}")
+        console.print(f"📊 [cyan]Correlation Distribution:[/cyan] {dist_file}")
+
         console.print(Panel.fit("✅ Analysis Complete - Ready for Predictions", style="bold green"))
     
     def predict_from_trigger(self, trigger_sector: str, trigger_movement: float):
@@ -2047,19 +2300,22 @@ def display_help():
     console.print("1. [cyan]python sector_covariance_analyzer.py --analyze-sectors[/cyan]")
     console.print("   └─ Run complete sector correlation analysis")
     console.print("")
-    console.print("2. [cyan]python sector_covariance_analyzer.py --visualize[/cyan]")
-    console.print("   └─ 🎨 Generate interactive ECharts dashboard (opens in browser)")
+    console.print("2. [cyan]python sector_covariance_analyzer.py --generate-images[/cyan]")
+    console.print("   └─ 🎨 Generate matplotlib/seaborn visualizations (heatmaps, networks)")
     console.print("")
-    console.print("3. [cyan]python sector_covariance_analyzer.py --predict-stocks --trigger-sector 'Technology Services' --trigger-movement 3.5[/cyan]")
+    console.print("3. [cyan]python sector_covariance_analyzer.py --visualize[/cyan]")
+    console.print("   └─ 🌐 Generate interactive ECharts dashboard (opens in browser)")
+    console.print("")
+    console.print("4. [cyan]python sector_covariance_analyzer.py --predict-stocks --trigger-sector 'Technology Services' --trigger-movement 3.5[/cyan]")
     console.print("   └─ Predict stock movements when Technology Services rises 3.5%")
     console.print("")
-    console.print("4. [cyan]python sector_covariance_analyzer.py --visualize-with-prediction --trigger-sector 'Finance' --trigger-movement -2.5[/cyan]")
+    console.print("5. [cyan]python sector_covariance_analyzer.py --visualize-with-prediction --trigger-sector 'Finance' --trigger-movement -2.5[/cyan]")
     console.print("   └─ 🌐 Dashboard with prediction overlay for Finance sector drop")
     console.print("")
-    console.print("5. [cyan]python sector_covariance_analyzer.py --watch --watch-interval 45 --movement-threshold 1.2[/cyan]")
+    console.print("6. [cyan]python sector_covariance_analyzer.py --watch --watch-interval 45 --movement-threshold 1.2[/cyan]")
     console.print("   └─ ⏱️ Intraday watch mode - monitor sectors for correlation opportunities")
     console.print("")
-    console.print("6. [cyan]python sector_covariance_analyzer.py --monitor-realtime[/cyan]")
+    console.print("7. [cyan]python sector_covariance_analyzer.py --monitor-realtime[/cyan]")
     console.print("   └─ Monitor sectors in real-time for significant movements")
     
     console.print("\n[bold yellow]KEY PARAMETERS:[/bold yellow]")
@@ -2069,6 +2325,8 @@ def display_help():
     params_table.add_column("Example", style="green")
     
     params_table.add_row("--analyze-sectors", "Run complete analysis", "")
+    params_table.add_row("--generate-images", "Generate matplotlib visualizations", "")
+    params_table.add_row("--image-format", "Image format (png/pdf/svg)", "png")
     params_table.add_row("--predict-stocks", "Generate predictions", "--trigger-sector 'Finance'")
     params_table.add_row("--monitor-realtime", "Real-time monitoring", "--check-interval 180")
     params_table.add_row("--watch", "Intraday sector watch mode", "--watch-interval 45")
@@ -2095,6 +2353,8 @@ def display_help():
     
     console.print("\n[bold yellow]OUTPUT FEATURES:[/bold yellow]")
     console.print("📊 Sector correlation matrix (19x19)")
+    console.print("🎨 High-resolution image visualizations (heatmaps, networks)")
+    console.print("🌐 Interactive ECharts dashboard (opens in browser)")
     console.print("🎯 Movement predictions with confidence levels")
     console.print("📈 Stock candidates with technical scores")
     console.print("🔗 Intra-sector stock correlations")
@@ -2114,6 +2374,8 @@ def main():
     parser.add_argument('--check-interval', type=int, default=300, help='Real-time check interval (seconds)')
     parser.add_argument('--visualize', action='store_true', help='Generate interactive ECharts dashboard')
     parser.add_argument('--visualize-with-prediction', action='store_true', help='Generate dashboard with prediction overlay')
+    parser.add_argument('--generate-images', action='store_true', help='Generate matplotlib/seaborn image visualizations')
+    parser.add_argument('--image-format', type=str, default='png', choices=['png', 'pdf', 'svg'], help='Image format for visualizations')
     parser.add_argument('--watch', action='store_true', help='Watch mode - real-time sector monitoring for intraday')
     parser.add_argument('--watch-interval', type=int, default=60, help='Watch mode refresh interval in seconds (default: 60)')
     parser.add_argument('--movement-threshold', type=float, default=1.5, help='Sector movement threshold for alerts (default: 1.5%)')
@@ -2166,7 +2428,7 @@ def main():
     elif args.visualize_with_prediction and args.trigger_sector:
         # Generate visualization with prediction overlay
         console.print(Panel.fit(f"🎨 DASHBOARD WITH PREDICTION | {args.trigger_sector} ({args.trigger_movement:+.1f}%)", style="bold cyan"))
-        
+
         # Run analysis and prediction
         analyzer.sector_data = analyzer.fetch_sector_stocks()
         if analyzer.sector_data:
@@ -2179,7 +2441,51 @@ def main():
                 console.print("[red]❌ Could not calculate sector returns[/red]")
         else:
             console.print("[red]❌ Could not fetch sector data[/red]")
-    
+
+    elif args.generate_images:
+        # Generate matplotlib/seaborn visualizations
+        console.print(Panel.fit("🎨 GENERATING IMAGE VISUALIZATIONS", style="bold cyan"))
+
+        # Run analysis to get data for visualization
+        analyzer.sector_data = analyzer.fetch_sector_stocks()
+        if analyzer.sector_data:
+            analyzer.sector_returns = analyzer.calculate_sector_returns(analyzer.sector_data)
+            if not analyzer.sector_returns.empty:
+                analyzer.correlation_matrix, _ = analyzer.calculate_correlation_matrix(analyzer.sector_returns)
+
+                # Generate all image types
+                files_generated = []
+
+                # 1. Correlation heatmap
+                heatmap_file = analyzer.create_correlation_heatmap(analyzer.correlation_matrix)
+                files_generated.append(heatmap_file)
+
+                # 2. Sector network graph
+                network_file = analyzer.create_sector_network_graph(analyzer.correlation_matrix)
+                files_generated.append(network_file)
+
+                # 3. Correlation distribution
+                dist_file = analyzer.create_correlation_distribution_plot(analyzer.correlation_matrix)
+                files_generated.append(dist_file)
+
+                # 4. Individual sector stock correlation heatmaps
+                sector_correlations = analyzer.calculate_intra_sector_correlations(analyzer.sector_data)
+                for sector in list(sector_correlations.keys())[:5]:  # Top 5 sectors
+                    stock_file = analyzer.create_stock_correlation_heatmap(sector, sector_correlations)
+                    if stock_file:
+                        files_generated.append(stock_file)
+
+                console.print(f"\n[green]✅ Generated {len(files_generated)} visualization files:[/green]")
+                for file in files_generated:
+                    console.print(f"   📊 {file}")
+
+                console.print("\n[dim]💡 All images saved in high resolution (300 DPI) with dark theme[/dim]")
+                console.print("[dim]🔍 Use image viewer or include in reports/presentations[/dim]")
+            else:
+                console.print("[red]❌ Could not calculate sector returns[/red]")
+        else:
+            console.print("[red]❌ Could not fetch sector data[/red]")
+
     else:
         display_help()
 
