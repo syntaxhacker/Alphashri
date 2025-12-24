@@ -24,9 +24,15 @@ import trending_upside
 
 console = Console()
 
-def verify_stocks():
-    """Verify trending stocks with Upstox data."""
-    
+def verify_stocks(use_intraday=False):
+    """
+    Verify trending stocks with Upstox data.
+
+    Args:
+        use_intraday (bool): If True, use fetch_intraday_data for same-day data.
+                           If False, use fetch_historical_data_v3 (default).
+    """
+
     # 1. Get Trending Stocks from TradingView (via trending_upside.py)
     with console.status("[bold green]Fetching trending stocks from TradingView...[/bold green]"):
         tv_df = trending_upside.fetch_trending_stocks(limit=100)
@@ -38,12 +44,26 @@ def verify_stocks():
     # 2. Initialize Upstox API
     api_key = UPSTOX_CONFIG.get('api_key')
     api_secret = UPSTOX_CONFIG.get('api_secret')
-    
+
     if not api_key or not api_secret:
         console.print("[red]❌ Upstox API credentials missing in config.[/red]")
         return
 
-    upstox_api = UpstoxAPI(api_key, api_secret, quiet=True)
+    # For intraday mode, we need authentication enabled and quiet=False to see auth messages
+    upstox_api = UpstoxAPI(api_key, api_secret, quiet=not use_intraday)
+
+    # Handle authentication for intraday data (V2 API requires auth)
+    if use_intraday:
+        if not upstox_api.auth_handler.access_token:
+            with console.status("[bold yellow]Authenticating with Upstox for intraday data...[/bold yellow]"):
+                if not upstox_api.auth_handler.authenticate():
+                    console.print("[red]❌ Authentication failed. Cannot fetch intraday data.[/red]")
+                    return
+        console.print("[green]✅ Authentication successful[/green]")
+
+    # Display which data method is being used
+    data_method = "[green]intraday (same day)[/green]" if use_intraday else "[blue]historical (5 days)[/blue]"
+    console.print(f"📊 Using {data_method} data method")
     
     # 3. Verify each stock
     # Separate lists for tables
@@ -74,19 +94,39 @@ def verify_stocks():
                 continue
             
             try:
-                # Fetch last 5 days of 1-min data for detailed recent high check
+                # Fetch data based on the use_intraday parameter
                 to_date = datetime.now().strftime('%Y-%m-%d')
-                from_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
-                
-                df_hist = upstox_api.fetch_historical_data_v3(
-                    symbol=symbol,
-                    unit='minutes',
-                    interval=1,
-                    to_date=to_date,
-                    from_date=from_date
-                )
+
+                if use_intraday:
+                    # Use the new fetch_intraday_data_v3 method for true today-only data
+                    df_hist = upstox_api.fetch_intraday_data_v3(
+                        symbol=symbol,
+                        interval='1'
+                    )
+
+                    # If no data for today, skip this symbol (correct behavior for intraday mode)
+                    if df_hist is None or df_hist.empty:
+                        continue
+
+                else:
+                    # Use historical data for last 5 days
+                    from_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
+                    df_hist = upstox_api.fetch_historical_data_v3(
+                        symbol=symbol,
+                        unit='minutes',
+                        interval=1,
+                        to_date=to_date,
+                        from_date=from_date
+                    )
                 
                 if df_hist is not None and not df_hist.empty:
+                    # Debug: Show what dates we're getting
+                    if use_intraday and len(untouched_rows) < 3:  # Only show for first few stocks
+                        first_date = df_hist.index[0].strftime('%Y-%m-%d %H:%M')
+                        last_date = df_hist.index[-1].strftime('%Y-%m-%d %H:%M')
+                        unique_dates = len(df_hist.index.date)
+                        console.print(f"[dim]📊 {symbol}: {len(df_hist)} records, {unique_dates} trading day(s), {first_date} to {last_date}[/dim]")
+
                     upstox_price = df_hist['close'].iloc[-1]
                     start_price = df_hist['close'].iloc[0]
                     
@@ -149,8 +189,8 @@ def verify_stocks():
                     # No data found
                     pass
                     
-            except Exception as e:
-                # console.print(f"[red]Error processing {symbol}: {e}[/red]")
+            except Exception:
+                # console.print(f"[red]Error processing {symbol}[/red]")
                 pass
 
     # Display Untouched Table (Main Focus)
@@ -199,4 +239,15 @@ def verify_stocks():
     console.print("[dim]Note: 'Diff %' might be due to data delay between TV and Upstox or different last traded times.[/dim]")
 
 if __name__ == "__main__":
-    verify_stocks()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Verify trending stocks with Upstox data")
+    parser.add_argument(
+        "--intraday",
+        action="store_true",
+        help="Use intraday data (same day) instead of historical data (5 days)"
+    )
+
+    args = parser.parse_args()
+
+    verify_stocks(use_intraday=args.intraday)
