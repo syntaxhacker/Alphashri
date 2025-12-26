@@ -315,7 +315,7 @@ def run_pdh_5min_backtest(ticker: str, num_days: int):
 if __name__ == "__main__":
     # List of symbols from temp_stock_screener.py (remove NSE: prefix)
     symbols = [
-        "ABFRL", "ATHERENERG", "CUPID", "EXIDEIND", "COFFEEDAY"
+        "ATHERENERG", "CUPID" 
     ]
     num_days = 90  # Backtest period
 

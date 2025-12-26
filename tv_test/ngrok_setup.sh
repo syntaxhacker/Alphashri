@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-PORT=5000
+PORT=5001
 
 echo -e "${GREEN}TradingView Webhook Ngrok Setup${NC}"
 

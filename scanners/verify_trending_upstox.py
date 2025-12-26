@@ -22,6 +22,68 @@ except ImportError:
 # Import the trending scanner
 import trending_upside
 
+def estimate_days_to_52w(current_price, high_52w, adx, atr, recent_return_5d, perf_w):
+    """
+    Estimate days to reach 52-week high based on trend strength and momentum.
+
+    Args:
+        current_price: Current Upstox price
+        high_52w: 52-week high price
+        adx: ADX trend strength (0-100+)
+        atr: Average True Range (volatility)
+        recent_return_5d: 5-day return percentage
+        perf_w: Weekly performance percentage
+
+    Returns:
+        Tuple of (estimated_days, confidence_level)
+    """
+    if current_price >= high_52w:
+        return 0, "HIGH"
+
+    gap_pct = ((high_52w - current_price) / current_price) * 100
+
+    # Skip if gap is too large (>15%)
+    if gap_pct > 15:
+        return None, None
+
+    # Calculate momentum score (combination of 5d and weekly performance)
+    momentum_score = (recent_return_5d + perf_w) / 2
+
+    # Base daily move estimate from ATR
+    daily_move_pct = (atr / current_price) * 100 if atr > 0 else 0
+
+    # Adjust daily move based on ADX (trend strength)
+    # ADX > 40 = strong trend, ADX < 20 = weak/raging
+    trend_multiplier = 1.0
+    if adx >= 40:
+        trend_multiplier = 1.5  # Strong trend - faster movement
+    elif adx >= 25:
+        trend_multiplier = 1.2  # Trending
+    elif adx < 20:
+        trend_multiplier = 0.7  # Weak/ranging - slower movement
+
+    # Use momentum if positive and larger than ATR-based estimate
+    if momentum_score > 0:
+        daily_gain_pct = max(daily_move_pct * trend_multiplier, (momentum_score / 5) * trend_multiplier)
+    else:
+        daily_gain_pct = daily_move_pct * trend_multiplier * 0.5  # Reduce if negative momentum
+
+    # If no meaningful positive movement expected
+    if daily_gain_pct <= 0.01:
+        return None, None
+
+    # Calculate days
+    estimated_days = gap_pct / daily_gain_pct
+
+    # Determine confidence based on ADX and momentum alignment
+    confidence = "LOW"
+    if adx >= 35 and momentum_score > 2:
+        confidence = "HIGH"  # Strong trend + positive momentum
+    elif adx >= 25 or (momentum_score > 1 and perf_w > 0):
+        confidence = "MED"  # Moderate trend or positive momentum
+
+    return round(estimated_days), confidence
+
 console = Console()
 
 def verify_stocks(use_intraday=False):
@@ -140,7 +202,33 @@ def verify_stocks(use_intraday=False):
                     # 52-Week High Check
                     tv_52w_high = row.get('price_52_week_high', 0)
                     recent_high = df_hist['high'].max()
-                    
+
+                    # Calculate diff to 52-week high from Upstox data
+                    high_diff = recent_high - upstox_price
+                    high_diff_pct = (high_diff / recent_high) * 100
+                    high_diff_str = f"{high_diff_pct:+.2f}%" if high_diff != 0 else "0.00%"
+                    if high_diff_pct < 0:
+                        high_diff_str = f"[green]{high_diff_str}[/green]"  # Above 52w high
+                    elif high_diff_pct > 0.5:
+                        high_diff_str = f"[red]{high_diff_str}[/red]"  # Far below 52w high
+
+                    # Estimate days to reach 52-week high
+                    adx = row.get('ADX', 0)
+                    atr = row.get('ATR', 0)
+                    perf_w = row.get('Perf.W', 0)
+                    est_days, confidence = estimate_days_to_52w(
+                        upstox_price, recent_high, adx, atr, recent_return, perf_w
+                    )
+                    if est_days is not None:
+                        conf_icon = {"HIGH": "🔥", "MED": "⚡", "LOW": "📍"}.get(confidence, "")
+                        time_str = f"{est_days}d {conf_icon}"
+                        if confidence == "HIGH":
+                            time_str = f"[bold green]{time_str}[/bold green]"
+                        elif confidence == "MED":
+                            time_str = f"[yellow]{time_str}[/yellow]"
+                    else:
+                        time_str = "-"
+
                     touched_52w = False
                     if tv_52w_high > 0:
                         if recent_high >= tv_52w_high:
@@ -148,11 +236,11 @@ def verify_stocks(use_intraday=False):
                         # Also check if it's very close (within 0.1%)
                         elif (tv_52w_high - recent_high) / tv_52w_high < 0.001:
                             touched_52w = True
-                    
+
                     touched_str = "✅ YES" if touched_52w else f"No (High: {recent_high:.2f})"
                     if touched_52w:
                         touched_str = f"[bold green]{touched_str}[/bold green]"
-                    
+
                     # Status
                     status = "✅ Match" if abs(diff_pct) < 1.0 else "⚠️ Diff"
                     
@@ -171,7 +259,9 @@ def verify_stocks(use_intraday=False):
                         score_str,
                         f"{tv_price:.2f}",
                         f"{upstox_price:.2f}",
-                        f"{diff_pct:+.2f}%",
+                        f"{diff_pct:+.2f}%",  # Broker Diff
+                        high_diff_str,  # To 52w High
+                        time_str,  # Time to 52w
                         f"{trend_icon} {recent_return:+.1f}% (5d)",
                         f"{tv_52w_high:.2f}",
                         touched_str,
@@ -181,7 +271,10 @@ def verify_stocks(use_intraday=False):
                     ]
                     
                     if touched_52w:
-                        touched_rows.append(row_data)
+                        # For touched stocks, remove: Time to 52w (6), 52W High (8), Touched 52W? (9)
+                        # Keep: Symbol, Score, TV Price, Upstox Price, Broker Diff, To 52w High, Recent Ret, Perf.W, Sector, Status
+                        touched_row_data = [v for i, v in enumerate(row_data) if i not in {6, 8, 9}]
+                        touched_rows.append(touched_row_data)
                     else:
                         untouched_rows.append(row_data)
 
@@ -200,7 +293,9 @@ def verify_stocks(use_intraday=False):
         table_untouched.add_column("Score", justify="center", style="bold magenta")
         table_untouched.add_column("TV Price", justify="right")
         table_untouched.add_column("Upstox Price", justify="right")
-        table_untouched.add_column("Diff %", justify="right")
+        table_untouched.add_column("Broker Diff", justify="right")
+        table_untouched.add_column("To 52w High", justify="right")
+        table_untouched.add_column("Time to 52w", justify="center")
         table_untouched.add_column("Recent Ret (5d)", justify="center")
         table_untouched.add_column("52W High", justify="right")
         table_untouched.add_column("Touched 52W?", justify="center")
@@ -223,10 +318,9 @@ def verify_stocks(use_intraday=False):
         table_touched.add_column("Score", justify="center", style="bold magenta")
         table_touched.add_column("TV Price", justify="right")
         table_touched.add_column("Upstox Price", justify="right")
-        table_touched.add_column("Diff %", justify="right")
+        table_touched.add_column("Broker Diff", justify="right")
+        table_touched.add_column("To 52w High", justify="right")
         table_touched.add_column("Recent Ret (5d)", justify="center")
-        table_touched.add_column("52W High", justify="right")
-        table_touched.add_column("Touched 52W?", justify="center")
         table_touched.add_column("Perf.W", justify="right")
         table_touched.add_column("Sector", style="dim")
         table_touched.add_column("Status", justify="center")
@@ -236,7 +330,7 @@ def verify_stocks(use_intraday=False):
             
         console.print(table_touched)
 
-    console.print("[dim]Note: 'Diff %' might be due to data delay between TV and Upstox or different last traded times.[/dim]")
+    console.print("[dim]Note: 'Broker Diff' shows TV vs Upstox price diff. 'To 52w High' shows pullback from 52-week high (negative = above high). 'Time to 52w' estimates days using ADX/ATR/momentum (🔥=High, ⚡=Med, 📍=Low confidence).[/dim]")
 
 if __name__ == "__main__":
     import argparse

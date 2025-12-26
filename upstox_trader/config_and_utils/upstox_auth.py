@@ -17,9 +17,11 @@ import urllib.parse
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Callable
 from pathlib import Path
+import os
 
-# Constants
-TOKEN_FILE = Path.home() / ".upstox_token.json"
+# Constants - Store token in project root for consistency
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+TOKEN_FILE = PROJECT_ROOT / ".upstox_token.json"
 REDIRECT_URI = "http://localhost:5000/callback"
 BASE_URL_V2 = "https://api.upstox.com/v2"
 
@@ -63,21 +65,23 @@ class UpstoxAuthHandler:
                     token_data = json.load(f)
 
                 token_time = datetime.fromisoformat(token_data.get('timestamp', '1970-01-01'))
+                # Token is valid for 24 hours, but check at 23 hours to be safe
                 if datetime.now() - token_time < timedelta(hours=23):
                     self.access_token = token_data.get('access_token')
                     if not self.quiet:
-                        print("✅ Access token loaded successfully from file.")
+                        age_hours = (datetime.now() - token_time).total_seconds() / 3600
+                        print(f"✅ Access token loaded (age: {age_hours:.1f}h)")
                     return True
                 else:
                     if not self.quiet:
-                        print("🟡 Access token found but has expired. Re-authentication is required.")
-                    TOKEN_FILE.unlink()
+                        print("🟡 Access token expired (>23h old)")
+                    # Don't delete yet - let validation confirm it's actually invalid
             except (json.JSONDecodeError, KeyError) as e:
                 if not self.quiet:
-                    print(f"⚠️ Could not read token file: {e}. Re-authentication needed.")
+                    print(f"⚠️ Could not read token file: {e}")
         else:
             if not self.quiet:
-                print("🔑 No local access token found.")
+                print(f"🔑 No token file found at {TOKEN_FILE}")
 
         return False
 
@@ -188,39 +192,54 @@ class UpstoxAuthHandler:
             return False
 
     def validate_token(self) -> bool:
-        """Validate if the current access token is still valid."""
+        """
+        Validate if the current access token is still valid.
+        Returns True if token is valid, False otherwise.
+        Note: This makes an API call, so use sparingly.
+        """
         if not self.access_token:
             return False
 
         try:
-            # Make a simple API call to test token validity
-            # Use the profile endpoint which requires authentication
+            # Use a lightweight endpoint to test token validity
             headers = {
                 'Accept': 'application/json',
                 'Api-Version': '2.0',
                 'Authorization': f'Bearer {self.access_token}'
             }
-            response = requests.get(f"{BASE_URL_V2}/profile", headers=headers, timeout=10)
+            response = requests.get(f"{BASE_URL_V2}/user/profile", headers=headers, timeout=10)
 
             if response.status_code == 200:
+                if not self.quiet:
+                    print("✅ Token is valid")
                 return True
             elif response.status_code == 401:
                 if not self.quiet:
-                    print("🟡 Access token expired (401 Unauthorized)")
+                    print("🟡 Token invalid (401 Unauthorized)")
+                # Only delete token file when confirmed invalid
+                if TOKEN_FILE.exists():
+                    TOKEN_FILE.unlink()
                 return False
+            elif response.status_code == 400:
+                # Sometimes 400 means the endpoint doesn't exist, but token is valid
+                # Try a different endpoint to confirm
+                if not self.quiet:
+                    print("⚠️ Token validation endpoint returned 400, assuming valid")
+                return True
             else:
                 if not self.quiet:
-                    print(f"🟡 Token validation failed with status: {response.status_code}")
+                    print(f"⚠️ Token validation returned {response.status_code}, assuming invalid")
                 return False
 
         except requests.RequestException as e:
             if not self.quiet:
-                print(f"🟡 Token validation request failed: {e}")
-            return False
+                print(f"⚠️ Token validation network error: {e}")
+            # On network error, assume token is still valid (don't force re-auth)
+            return True
         except Exception as e:
             if not self.quiet:
-                print(f"🟡 Token validation error: {e}")
-            return False
+                print(f"⚠️ Token validation error: {e}")
+            return True
 
     def refresh_token(self) -> bool:
         """Refresh the access token by clearing current and re-authenticating."""
@@ -285,7 +304,8 @@ class UpstoxAuthHandler:
             return False
 
 
-def create_upstox_auth(api_key: str, api_secret: str, quiet: bool = False) -> UpstoxAuthHandler:
+def create_upstox_auth(api_key: str, api_secret: str, quiet: bool = False,
+                       validate: bool = False) -> UpstoxAuthHandler:
     """
     Factory function to create and initialize Upstox authentication handler.
 
@@ -293,13 +313,57 @@ def create_upstox_auth(api_key: str, api_secret: str, quiet: bool = False) -> Up
         api_key (str): Your Upstox API key
         api_secret (str): Your Upstox API secret
         quiet (bool): If True, suppresses console output. Default is False.
+        validate (bool): If True, validates token with API call. Default is False.
 
     Returns:
-        UpstoxAuthHandler: Configured authentication handler
+        UpstoxAuthHandler: Configured authentication handler with loaded token
+
+    Usage:
+        # Standard usage - just loads cached token (no API call)
+        auth = create_upstox_auth(api_key, api_secret)
+
+        # If you need to validate token is actually working
+        auth = create_upstox_auth(api_key, api_secret, validate=True)
     """
     auth_handler = UpstoxAuthHandler(api_key, api_secret, quiet)
 
-    # Try to load existing token first
-    auth_handler.load_token()
+    # Try to load existing token first (no API call)
+    token_loaded = auth_handler.load_token()
+
+    # Only validate if explicitly requested
+    if validate and token_loaded:
+        if not auth_handler.validate_token():
+            if not quiet:
+                print("⚠️ Cached token invalid, re-authentication required")
+            auth_handler.authenticate()
+    elif not token_loaded and not quiet:
+        print("⚠️ No cached token found. Call auth.authenticate() when ready.")
 
     return auth_handler
+
+
+def get_authenticated_upstox(api_key: str, api_secret: str, quiet: bool = False) -> UpstoxAuthHandler:
+    """
+    Get a fully authenticated Upstox handler, ready to use.
+    Will authenticate automatically if needed (may open browser).
+
+    Args:
+        api_key (str): Your Upstox API key
+        api_secret (str): Your Upstox API secret
+        quiet (bool): If True, suppresses console output. Default is False.
+
+    Returns:
+        UpstoxAuthHandler: Authenticated handler with valid access token
+
+    Usage:
+        auth = get_authenticated_upstox(api_key, api_secret)
+        # auth.access_token is guaranteed to be set (though may still be expired)
+    """
+    auth = create_upstox_auth(api_key, api_secret, quiet)
+
+    if not auth.access_token:
+        if not quiet:
+            print("🔐 No token available, starting authentication...")
+        auth.authenticate()
+
+    return auth

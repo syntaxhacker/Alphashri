@@ -76,10 +76,11 @@ warnings.filterwarnings('ignore')
 
 # Configuration - Ensure you have a config.py file
 try:
-    from config import UPSTOX_CONFIG
+    from config import UPSTOX_CONFIG, INDMONEY_CONFIG
 except ImportError:
     print("⚠️ config.py not found. Please create it from config_template.py with your Upstox API credentials.")
     UPSTOX_CONFIG = {'api_key': None, 'api_secret': None}
+    INDMONEY_CONFIG = {'access_token': None}
 
 # --- Constants ---
 API_VERSION = "2.0"  # Still used for authentication
@@ -199,56 +200,87 @@ class UpstoxAPI:
             print(f"❌ Instrument key for '{clean_symbol}' (original: '{symbol}') not found with the specified criteria.")
         return None
 
-    def fetch_intraday_data(self, symbol: str, interval: str, to_date: str, instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None, exchange: str = 'NSE_EQ') -> Optional[pd.DataFrame]:
+    def fetch_intraday_data_v3(self, symbol: str, interval: str, instrument_type: str = 'EQ', exchange: str = 'NSE_EQ') -> Optional[pd.DataFrame]:
         """
-        Fetches intraday OHLCV data for the current trading day using the Intraday API.
+        Fetches today's intraday OHLCV data using the Upstox V3 Intraday API.
         
-        Note: The Intraday API supports '1minute', '30minute' for the current trading day only.
+        Args:
+            symbol: Stock symbol (e.g., 'TATAMOTORS', 'RELIANCE')
+            interval: Timeframe interval: 
+                     - minutes: 1, 3, 5, 10, 15, 30, 60
+            instrument_type: 'EQ', 'INDEX', 'CE', 'PE'
+            exchange: Exchange segment (default: 'NSE_EQ')
+            
+        Returns:
+            pandas.DataFrame with OHLCV data for today indexed by datetime
+            
+        Note:
+            V3 Intraday API only returns data for the current trading session.
+            No authentication (access token) is required for the V3 endpoint according to documentation,
+            but headers are included here for consistency.
         """
-        # Authentication is guaranteed to be complete at script startup
-        if not self.auth_handler.access_token:
-            return None
-        
-        instrument_key = self.get_instrument_key(symbol, instrument_type=instrument_type, expiry_date=expiry_date, strike_price=strike_price, option_type=option_type, exchange=exchange)
+        instrument_key = self.get_instrument_key(symbol, instrument_type=instrument_type, exchange=exchange)
         if not instrument_key:
             return None
             
         if not self.quiet:
-            print(f"📊 Fetching intraday data for {symbol}...")
+            console_msg = f"📊 Fetching V3 intraday {interval} data for {symbol}..."
+            # Check if rich console is available (via tv_technical_utils or direct import)
+            try:
+                from rich.console import Console
+                Console().print(f"[dim]{console_msg}[/dim]")
+            except:
+                print(console_msg)
+
+        # URL encode the instrument key to handle characters like |
+        encoded_key = urllib.parse.quote(instrument_key, safe='')
         
-        # Intraday API endpoint - no from_date for same day
-        url = f"{BASE_URL_V2}/historical-candle/{instrument_key}/{interval}/{to_date}"
+        # Determine interval unit for V3 URL format if needed
+        # V3 URL format: /historical-candle/intraday/{instrument_key}/{unit}/{interval}
+        # In this implementation, we assume 'minutes' as the unit for the requested interval.
+        url = f"{BASE_URL_V3}/historical-candle/intraday/{encoded_key}/minutes/{interval.replace('minute', '')}"
+        
+        headers = {
+            'Accept': 'application/json',
+            'Authorization': f"Bearer {self.auth_handler.access_token}" if self.auth_handler.access_token else ""
+        }
         
         try:
-            response = requests.get(url, headers=self._get_headers())
+            response = requests.get(url, headers=headers, timeout=30)
             response.raise_for_status()
             
             data = response.json()
-            if data.get('status') == 'success' and 'data' in data:
-                candles_data = data['data']['candles']
-                if candles_data:
+            if data.get('status') == 'success' and 'data' in data and 'candles' in data['data']:
+                candles = data['data']['candles']
+                if not candles:
                     if not self.quiet:
-                        print(f"✅ Successfully fetched {len(candles_data)} records for {symbol}.")
-                    df = pd.DataFrame(candles_data, columns=['datetime', 'open', 'high', 'low', 'close', 'volume', 'oi'])
-                    df['datetime'] = pd.to_datetime(df['datetime'])
-                    df.set_index('datetime', inplace=True)
-                    return df
-                else:
-                    if not self.quiet:
-                        print(f"⚠️ No candle data available for {symbol}.")
+                        print(f"⚠️ No intraday candles available for {symbol} today.")
                     return None
+                    
+                df = pd.DataFrame(candles, columns=['datetime', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+                df['datetime'] = pd.to_datetime(df['datetime'])
+                df.set_index('datetime', inplace=True)
+                df = df.astype({'open': 'float', 'high': 'float', 'low': 'float', 'close': 'float', 'volume': 'float'})
+                
+                # Sort by index to ensure chronological order
+                df.sort_index(inplace=True)
+                
+                if not self.quiet:
+                    print(f"✅ Successfully fetched {len(df)} V3 intraday records for {symbol}.")
+                return df
             else:
                 if not self.quiet:
-                    print(f"❌ API returned error for {symbol}: {data}")
+                    print(f"❌ V3 Intraday API error for {symbol}: {data}")
                 return None
         except requests.RequestException as e:
             if not self.quiet:
-                print(f"❌ Request failed for {symbol}: {e}")
+                print(f"❌ V3 Intraday request failed for {symbol}: {e}")
             return None
         except Exception as e:
             if not self.quiet:
-                print(f"❌ Error processing data for {symbol}: {e}")
+                print(f"❌ Error processing V3 intraday data for {symbol}: {e}")
             return None
+
 
     def fetch_historical_data(self, symbol: str, interval: str, from_date: str, to_date: str, instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None, exchange: str = 'NSE_EQ') -> Optional[pd.DataFrame]:
         """
@@ -905,21 +937,21 @@ def main():
         print(tatamotors_df.tail())
         print(f"\nAverage volume over 90 days: {tatamotors_df['volume'].mean():,.0f}")
 
-    print("\n--- Example 2: Fetching 1-Minute Intraday Data for RELIANCE ---")
-    today = datetime.now().strftime("%Y-%m-%d")
-    
-    # Note: 1-minute data for a full day might be large.
-    # For V2, the from_date and to_date range is limited for intraday data.
-    reliance_df = api.fetch_historical_data(
+    print("\n--- Example 2: Fetching Today's 1-Minute Intraday Data for RELIANCE ---")
+
+    # Use V3 Intraday API for true today-only data
+    reliance_df = api.fetch_intraday_data_v3(
         symbol="RELIANCE",
-        interval="1minute",
-        from_date=today, # V2 might have limitations on intraday range
-        to_date=today
+        interval='1'
     )
-    
+
     if reliance_df is not None and not reliance_df.empty:
-        print("\n📊 RELIANCE Last 5 Minutes:")
+        print("\n📊 RELIANCE Today's Data:")
+        print(f"Records: {len(reliance_df)}")
+        print("Last 5 records:")
         print(reliance_df.tail())
+    else:
+        print("\n⚠️ No intraday data available for RELIANCE today.")
 
   
     print("\n--- Example 4: Enhanced Features Demo ---")
@@ -979,3 +1011,165 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+class INDMONEYApi:
+    """
+    API client for INDMoney (INDstocks) integration.
+    
+    Provides methods for user profile, funds, and market data.
+    """
+    
+    BASE_URL = "https://api.indstocks.com"
+    INSTRUMENT_CACHE_FILE = Path(__file__).parent / "ind_instruments.csv"
+
+    def __init__(self, access_token: str, quiet: bool = False):
+        """
+        Initialize the INDMoney API client.
+        
+        Args:
+            access_token (str): Your INDMoney access token
+            quiet (bool): If True, suppresses console output.
+        """
+        self.access_token = access_token
+        self.quiet = quiet
+        self.instruments_df = None
+        
+        if not self.quiet:
+            print("💰 INDMoney API Connector Initialized")
+
+    def _get_headers(self) -> Dict[str, str]:
+        """Construct headers for API calls."""
+        # Note: Research suggests INDstocks might use the token directly without 'Bearer ' prefix
+        return {
+            'Authorization': self.access_token,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+
+    def _download_and_cache_instruments(self):
+        """Downloads and caches the INDMoney instruments list."""
+        if not self.quiet:
+            print(f"⬇️ Downloading INDMoney instrument list...")
+        try:
+            url = f"{self.BASE_URL}/market/instruments?source=equity"
+            response = requests.get(url, headers=self._get_headers(), timeout=30)
+            response.raise_for_status()
+            
+            with open(self.INSTRUMENT_CACHE_FILE, 'wb') as f:
+                f.write(response.content)
+            
+            self.instruments_df = pd.read_csv(self.INSTRUMENT_CACHE_FILE)
+            if not self.quiet:
+                print(f"✅ INDMoney instrument list cached at {self.INSTRUMENT_CACHE_FILE}.")
+        except Exception as e:
+            if not self.quiet:
+                print(f"❌ Failed to download INDMoney instruments: {e}")
+
+    def get_instrument_key(self, symbol: str, exchange: str = "NSE") -> Optional[str]:
+        """Finds the instrument key (SEGMENT_ID) for a given symbol."""
+        if self.instruments_df is None:
+            if self.INSTRUMENT_CACHE_FILE.exists():
+                try:
+                    self.instruments_df = pd.read_csv(self.INSTRUMENT_CACHE_FILE)
+                except:
+                    self._download_and_cache_instruments()
+            else:
+                self._download_and_cache_instruments()
+        
+        if self.instruments_df is None or self.instruments_df.empty:
+            return None
+
+        # Standardize exchange
+        exch = "NSE" if "NSE" in exchange.upper() else "BSE"
+        
+        # Filter for matching symbol and exchange
+        match = self.instruments_df[
+            (self.instruments_df['TRADING_SYMBOL'] == symbol.upper()) & 
+            (self.instruments_df['EXCH'] == exch)
+        ]
+        
+        if not match.empty:
+            security_id = match.iloc[0]['SECURITY_ID']
+            return f"{exch}_{security_id}"
+        
+        return None
+
+    def fetch_user_profile(self) -> Optional[Dict]:
+        """Fetch user profile details."""
+        url = f"{self.BASE_URL}/user/profile"
+        try:
+            response = requests.get(url, headers=self._get_headers(), timeout=15)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            if not self.quiet:
+                print(f"❌ INDMoney Profile Error: {e}")
+            return None
+
+    def fetch_funds(self) -> Optional[Dict]:
+        """Fetch available and utilized funds."""
+        url = f"{self.BASE_URL}/funds"
+        try:
+            response = requests.get(url, headers=self._get_headers(), timeout=15)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            if not self.quiet:
+                print(f"❌ INDMoney Funds Error: {e}")
+            return None
+
+    def fetch_ltp(self, symbol: str) -> Optional[float]:
+        """
+        Fetch Last Traded Price (LTP) for a symbol.
+        Automatically handles symbol to scrip-code mapping.
+        """
+        # 1. Try to get scrip code
+        scrip_code = self.get_instrument_key(symbol)
+        if not scrip_code:
+            if not self.quiet:
+                print(f"⚠️ Could not find INDMoney scrip code for {symbol}")
+            return None
+            
+        url = f"{self.BASE_URL}/market/quotes/ltp"
+        params = {'scrip-codes': scrip_code}
+        
+        try:
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Structure: {"status":"success","data":{"NSE_2885":{"live_price":1575.4}}}
+            if data.get('status') == 'success' and 'data' in data:
+                token_data = data['data'].get(scrip_code)
+                if token_data and 'live_price' in token_data:
+                    return float(token_data['live_price'])
+            return None
+        except Exception as e:
+            if not self.quiet:
+                print(f"❌ INDMoney LTP Error for {symbol} ({scrip_code}): {e}")
+            return None
+
+    def fetch_full_quotes(self, symbol: str) -> Optional[Dict]:
+        """
+        Fetch full market quotes for a symbol (OHLC, Depth, Bid/Ask).
+        Automatically handles symbol to scrip-code mapping.
+        """
+        scrip_code = self.get_instrument_key(symbol)
+        if not scrip_code:
+            return None
+            
+        url = f"{self.BASE_URL}/market/quotes/full"
+        params = {'scrip-codes': scrip_code}
+        
+        try:
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('status') == 'success' and 'data' in data:
+                return data['data'].get(scrip_code)
+            return None
+        except Exception as e:
+            if not self.quiet:
+                print(f"❌ INDMoney Full Quote Error for {symbol} ({scrip_code}): {e}")
+            return None

@@ -99,21 +99,21 @@ class TVAlertsOnly:
         self._start_webhook_server()
 
     def _initialize_upstox(self):
-        """Initialize Upstox API for live price validation"""
+        """Initialize Upstox API for live price validation using new auth system"""
         if not UPSTOX_AVAILABLE:
             console.print("[yellow]⚠️ Upstox API not available - price validation disabled[/yellow]")
             return
 
         try:
-            console.print("[dim]🔑 Initializing Upstox API...[/dim]")
+            console.print("[dim]🔑 Initializing Upstox API with cached token...[/dim]")
             self.upstox_api = UpstoxAPI(
                 api_key=UPSTOX_CONFIG.get('api_key'),
                 api_secret=UPSTOX_CONFIG.get('api_secret')
             )
 
-            # Check authentication
+            # Check authentication - new system loads from cache automatically
             if not self.upstox_api.auth_handler.access_token:
-                console.print("[yellow]🔑 No cached token found - starting authentication...[/yellow]")
+                console.print("[yellow]🔑 No cached token - authenticating (browser will open)...[/yellow]")
                 if not self.upstox_api.auth_handler.authenticate():
                     console.print("[red]❌ Upstox authentication failed[/red]")
                     console.print("[red]💡 Please check your UPSTOX_CONFIG credentials[/red]")
@@ -122,25 +122,43 @@ class TVAlertsOnly:
                 else:
                     console.print("[green]✅ Upstox authentication successful[/green]")
             else:
-                console.print("[green]✅ Upstox authentication loaded from cache[/green]")
+                # Token loaded from cache - no browser needed!
+                token_age = self._get_token_age()
+                console.print(f"[green]✅ Token loaded from cache (age: {token_age:.1f}h, no browser needed!)[/green]")
 
-            # Setup real-time streaming for better price accuracy
+            # Setup real-time streaming using working approach from tick_by_tick_streamer.py
             console.print("[dim]📡 Setting up real-time streaming...[/dim]")
-            self.realtime_streaming_enabled = self._setup_realtime_streaming()
+            self.realtime_streaming_enabled = self._setup_realtime_streaming_working()
 
             if self.realtime_streaming_enabled:
                 console.print("[green]✅ Real-time Upstox streaming enabled[/green]")
                 # Start the WebSocket streaming
                 self.start_websocket_streaming()
             else:
-                console.print("[yellow]⚠️ Real-time streaming failed - will use individual API calls[/yellow]")
-                console.print("[green]✅ Upstox live prices enabled (without streaming)[/green]")
+                console.print("[yellow]⚠️ Real-time streaming failed - will use batch API calls[/yellow]")
+                console.print("[green]✅ Upstox batch price API enabled (up to 500 stocks at once)[/green]")
 
         except Exception as e:
             console.print(f"[red]❌ Upstox initialization failed: {e}[/red]")
             console.print("[red]💡 Check your UPSTOX_CONFIG credentials and network connection[/red]")
             self.upstox_api = None
             self.realtime_streaming_enabled = False
+
+    def _get_token_age(self):
+        """Get token age in hours"""
+        try:
+            import json
+            from pathlib import Path
+            token_file = Path(__file__).resolve().parent.parent.parent / ".upstox_token.json"
+            if token_file.exists():
+                with open(token_file) as f:
+                    data = json.load(f)
+                    from datetime import datetime
+                    ts = datetime.fromisoformat(data['timestamp'])
+                    return (datetime.now() - ts).total_seconds() / 3600
+        except:
+            pass
+        return 0.0
 
     def _setup_realtime_streaming(self) -> bool:
         """Setup real-time streaming using working WebSocket approach from tick_by_tick_streamer.py"""
@@ -196,6 +214,88 @@ class TVAlertsOnly:
             console.print(f"[red]❌ WebSocket setup failed: {e}[/red]")
             console.print("[red]💡 This might be due to network issues or API limits[/red]")
             return False
+
+    def _setup_realtime_streaming_working(self) -> bool:
+        """Setup real-time streaming using working approach from tick_by_tick_streamer.py"""
+        if not self.upstox_api:
+            console.print("[red]❌ Cannot setup streaming - Upstox API not initialized[/red]")
+            return False
+
+        if not self.websocket_enabled:
+            console.print("[red]❌ WebSocket not available - install upstox-python-sdk[/red]")
+            return False
+
+        # Check if market is open (9:15 AM - 3:30 PM IST)
+        if not self._is_market_open():
+            console.print("[yellow]⚠️ Market is closed - WebSocket streaming may not work[/yellow]")
+            console.print("[dim]💡 NSE trading hours: 9:15 AM - 3:30 PM IST[/dim]")
+            # Continue anyway, as some data might still be available
+
+        try:
+            console.print("[dim]🔗 Setting up WebSocket streaming...[/dim]")
+
+            # Get access token from existing API client
+            access_token = self.upstox_api.auth_handler.access_token
+            if not access_token:
+                console.print("[red]❌ No access token available[/red]")
+                return False
+
+            # Setup SDK configuration
+            configuration = upstox_client.Configuration()
+            configuration.access_token = access_token
+
+            # Start with empty instrument keys list (will add symbols as positions are created)
+            self.instrument_keys = {}
+            instrument_keys_list = []  # Empty initially, will add symbols dynamically
+
+            # Initialize Market Data Streamer
+            api_client = upstox_client.ApiClient(configuration)
+            self.market_streamer = upstox_client.MarketDataStreamerV3(
+                api_client,
+                instrument_keys_list,
+                "ltpc"  # Last Traded Price mode for fastest updates
+            )
+
+            # Setup event handlers (using working approach from tick streamer)
+            self.market_streamer.on("message", self._on_tick_update_working)
+            self.market_streamer.on("open", self._on_websocket_open)
+            self.market_streamer.on("error", self._on_websocket_error)
+            self.market_streamer.on("close", self._on_websocket_close)
+
+            console.print("[green]✅ WebSocket streaming setup complete (ready for dynamic symbol addition)[/green]")
+            return True
+
+        except Exception as e:
+            console.print(f"[red]❌ WebSocket setup failed: {e}[/red]")
+            console.print("[red]💡 This might be due to network issues or API limits[/red]")
+            return False
+
+    def _on_tick_update_working(self, message):
+        """Handle incoming tick data using working approach from tick streamer."""
+        try:
+            if isinstance(message, dict) and 'feeds' in message:
+                feeds = message['feeds']
+
+                for instrument_key, data in feeds.items():
+                    # Find which symbol this instrument key belongs to
+                    symbol = None
+                    for sym, key in self.instrument_keys.items():
+                        if key == instrument_key:
+                            symbol = sym
+                            break
+
+                    if not symbol:
+                        continue
+
+                    # Extract price from message
+                    if 'ltpc' in data and 'ltp' in data['ltpc']:
+                        new_price = float(data['ltpc']['ltp'])
+
+                        # Update current prices
+                        self.current_prices[symbol] = new_price
+
+        except Exception as e:
+            console.print(f"[red]❌ Error processing tick update: {e}[/red]")
 
     def test_streaming_connection(self):
         """Test if streaming connection is working using WebSocket approach"""
@@ -698,6 +798,42 @@ class TVAlertsOnly:
         self.monitor_thread = threading.Thread(target=self._monitor_positions_loop, daemon=True)
         self.monitor_thread.start()
 
+    def start_live_dashboard(self, refresh_interval=10):
+        """Start a live dashboard that refreshes periodically"""
+        console.print("[green]📊 Starting live dashboard (refresh every {refresh_interval}s)[/green]")
+
+        # Start dashboard thread
+        self.dashboard_thread = threading.Thread(
+            target=self._dashboard_loop,
+            args=(refresh_interval,),
+            daemon=True
+        )
+        self.dashboard_thread.start()
+
+    def _dashboard_loop(self, refresh_interval):
+        """Background loop for refreshing dashboard"""
+        console.print("[dim]📊 Live dashboard started - press Ctrl+C to stop auto-refresh[/dim]")
+
+        while not TVAlertsOnly.shutdown_flag:
+            try:
+                # Clear screen and show updated status
+                import os
+                os.system('clear' if os.name == 'posix' else 'cls')
+
+                self.display_status()
+
+                # Wait for refresh interval
+                for _ in range(refresh_interval):
+                    if TVAlertsOnly.shutdown_flag:
+                        break
+                    time_module.sleep(1)
+
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                console.print(f"[red]❌ Dashboard refresh error: {e}[/red]")
+                time_module.sleep(5)
+
     def _monitor_positions_loop(self):
         """Background loop for monitoring positions"""
         console.print("[dim]🔍 Position monitoring started - checking every 5 seconds[/dim]")
@@ -732,18 +868,70 @@ class TVAlertsOnly:
                 time_module.sleep(5)
 
     def _get_batch_live_prices(self, symbols):
-        """Get live prices for multiple symbols"""
+        """Get live prices for multiple symbols using batch API (up to 500 at once)"""
         if not self.upstox_api or not symbols:
             return {}
 
         try:
-            # Try real-time streaming first
+            # Try real-time streaming first if enabled
             if self.realtime_streaming_enabled:
                 batch_prices = self.upstox_api.get_batch_current_prices_with_streaming(symbols)
                 if batch_prices:
                     return batch_prices
 
-            # Fallback to individual calls
+            # Use batch API with ISIN format (working approach from fetch_live_prices.py)
+            console.print(f"[dim]📊 Fetching batch prices for {len(symbols)} symbols...[/dim]")
+
+            # Map symbols to ISINs
+            symbol_to_isin = {}
+            isins = []
+
+            for symbol in symbols:
+                try:
+                    # Get instrument key (ISIN format)
+                    instrument_key = self.upstox_api.get_instrument_key(symbol)
+                    if instrument_key:
+                        isins.append(instrument_key)
+                        symbol_to_isin[instrument_key] = symbol
+                except Exception as e:
+                    console.print(f"[dim yellow]⚠️ Could not get ISIN for {symbol}: {e}[/dim yellow]")
+
+            if not isins:
+                console.print("[yellow]⚠️ No valid ISINs found for batch fetch[/yellow]")
+                return {}
+
+            # Make batch API call (supports up to 500 symbols)
+            symbols_str = ",".join(isins)
+            url = f"https://api.upstox.com/v2/market-quote/ltp?symbol={symbols_str}"
+            headers = self.upstox_api.auth_handler.get_headers()
+
+            response = requests.get(url, headers=headers, timeout=15)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('status') == 'success':
+                    # Parse response and map back to symbols
+                    prices = {}
+                    for response_key, info in data['data'].items():
+                        instrument_token = info.get('instrument_token', '')
+                        if instrument_token in symbol_to_isin:
+                            symbol = symbol_to_isin[instrument_token]
+                            prices[symbol] = float(info['last_price'])
+
+                    console.print(f"[dim green]✅ Fetched {len(prices)} prices in batch[/dim green]")
+                    return prices
+                else:
+                    console.print(f"[yellow]⚠️ Batch API error: {data.get('message', 'Unknown')}[/yellow]")
+            elif response.status_code == 401:
+                console.print("[yellow]🔑 Token expired, refreshing...[/yellow]")
+                self.upstox_api.auth_handler.refresh_token()
+                # Retry once
+                return self._get_batch_live_prices(symbols)
+            else:
+                console.print(f"[yellow]⚠️ Batch API returned {response.status_code}[/yellow]")
+
+            # Fallback to individual calls if batch failed
+            console.print("[dim]📊 Falling back to individual price fetches...[/dim]")
             prices = {}
             for symbol in symbols:
                 price = self._get_live_price(symbol)
@@ -867,16 +1055,28 @@ class TVAlertsOnly:
             console.print(f"[red]❌ Error sending exit Telegram alert: {str(e)}[/red]")
 
     def display_status(self):
-        """Display current status of positions and server"""
-        console.print(f"\n[bold blue]📡 TV Alerts Only - Status Report[/bold blue]")
+        """Display current status of positions and server with rich tables"""
+        from rich.table import Table
+        from rich.panel import Panel
+        from rich.layout import Layout
+        from rich.columns import Columns
+
+        console.print(f"\n[bold blue]📡 TV Alerts Only - Live Trading Dashboard[/bold blue]")
+
+        # Server Status Panel
         server_alive = self.server_thread.is_alive() if hasattr(self, 'server_thread') else False
-        console.print(f"Server: {'🟢 RUNNING' if server_alive else '🔴 STOPPED'}")
-        console.print(f"Port: {self.port}")
-        console.print(f"Health Check: http://localhost:{self.port}/health")
-        console.print(f"Trading: {'🟢 ENABLED' if self.enable_trading else '🔴 DISABLED'}")
-        console.print(f"Upstox: {'🟢 CONNECTED' if self.upstox_api else '🔴 DISCONNECTED'}")
-        console.print(f"Streaming: {'🟢 ACTIVE' if self.realtime_streaming_enabled else '🔴 INACTIVE'}")
-        console.print(f"Telegram: {'🟢 ENABLED' if self.telegram_enabled else '🔴 DISABLED'}")
+        status_text = f"""
+🌐 Server: {'🟢 RUNNING' if server_alive else '🔴 STOPPED'}
+📡 Port: {self.port}
+🔗 Health: http://localhost:{self.port}/health
+💰 Trading: {'🟢 ENABLED' if self.enable_trading else '🔴 DISABLED'}
+📈 Upstox: {'🟢 CONNECTED' if self.upstox_api else '🔴 DISCONNECTED'}
+📡 Streaming: {'🟢 ACTIVE' if self.realtime_streaming_enabled else '🔴 INACTIVE'}
+📱 Telegram: {'🟢 ENABLED' if self.telegram_enabled else '🔴 DISABLED'}
+📊 Total Trades: {self.trade_count}
+⏰ Uptime: {datetime.now() - self._start_time}
+        """
+        console.print(Panel(status_text.strip(), title="🖥️ System Status", border_style="blue"))
 
         # Show streaming diagnostics if Upstox is connected but streaming is inactive
         if self.upstox_api and not self.realtime_streaming_enabled:
@@ -886,26 +1086,132 @@ class TVAlertsOnly:
             console.print(f"[dim]• Verify API permissions and limits[/dim]")
             console.print(f"[dim]• Try restarting if issue persists[/dim]")
 
-        # Show active positions
+        # Show active positions in a rich table
         active_positions = {k: v for k, v in self.positions.items() if v}
         if active_positions:
-            console.print(f"\n[bold green]📊 Active Positions ({len(active_positions)}):[/bold green]")
+            # Create positions table
+            positions_table = Table(title=f"📊 Active Positions ({len(active_positions)})", show_header=True, header_style="bold magenta")
+            positions_table.add_column("Symbol", style="cyan", no_wrap=True, width=12)
+            positions_table.add_column("Side", style="bold", justify="center", width=6)
+            positions_table.add_column("Entry Price", justify="right", style="yellow", width=12)
+            positions_table.add_column("Current Price", justify="right", style="green", width=12)
+            positions_table.add_column("Quantity", justify="right", style="blue", width=8)
+            positions_table.add_column("P&L %", justify="right", width=8)
+            positions_table.add_column("P&L Amount", justify="right", width=12)
+            positions_table.add_column("Value", justify="right", style="white", width=12)
+            positions_table.add_column("Time", justify="center", style="dim", width=8)
+
             for symbol, position in active_positions.items():
                 current_price = self.current_prices.get(symbol, position['entry_price'])
-                side_emoji = "🟢" if position['side'] == 'BUY' else "🔴"
+                entry_price = position['entry_price']
+                quantity = position['qty']
+                side = position['side']
 
-                console.print(f"  {side_emoji} {symbol}: {position['side']} @ ₹{position['entry_price']:.2f} (Qty: {position['qty']}) | Current: ₹{current_price:.2f}")
+                # Calculate P&L
+                if side == 'BUY':
+                    pnl_pct = (current_price - entry_price) / entry_price * 100
+                    pnl_amount = (current_price - entry_price) * quantity
+                else:  # SELL
+                    pnl_pct = (entry_price - current_price) / entry_price * 100
+                    pnl_amount = (entry_price - current_price) * quantity
+
+                # Format values
+                side_emoji = "🟢" if side == 'BUY' else "🔴"
+                side_display = f"{side_emoji} {side}"
+
+                # Color coding for P&L
+                pnl_color = "green" if pnl_pct >= 0 else "red"
+                pnl_display = f"[{pnl_color}]{pnl_pct:+.2f}%[/{pnl_color}]"
+                pnl_amount_display = f"[{pnl_color}]₹{pnl_amount:+,.0f}[/{pnl_color}]"
+
+                # Entry time
+                entry_time = position['entry_time'].strftime('%H:%M:%S')
+
+                # Current price with color
+                current_color = "green" if current_price >= entry_price else "red"
+                current_display = f"[{current_color}]₹{current_price:.2f}[/{current_color}]"
+
+                # Position value
+                position_value = current_price * quantity
+                value_display = f"₹{position_value:,.0f}"
+
+                positions_table.add_row(
+                    symbol,
+                    side_display,
+                    f"₹{entry_price:.2f}",
+                    current_display,
+                    f"{quantity:,}",
+                    pnl_display,
+                    pnl_amount_display,
+                    value_display,
+                    entry_time
+                )
+
+            console.print(positions_table)
+
+            # Summary stats
+            total_invested = sum(pos['entry_price'] * pos['qty'] for pos in active_positions.values())
+            total_current = sum(self.current_prices.get(sym, pos['entry_price']) * pos['qty']
+                              for sym, pos in active_positions.items())
+            total_pnl = total_current - total_invested
+            total_pnl_pct = (total_pnl / total_invested * 100) if total_invested > 0 else 0
+
+            summary_color = "green" if total_pnl >= 0 else "red"
+            summary_text = f"""
+💰 Total Invested: ₹{total_invested:,.0f}
+📈 Current Value: ₹{total_current:,.0f}
+📊 Total P&L: [{summary_color}]₹{total_pnl:+,.0f} ({total_pnl_pct:+.2f}%)[/{summary_color}]
+            """
+            console.print(Panel(summary_text.strip(), title="📈 Portfolio Summary", border_style=summary_color))
         else:
-            console.print(f"\n[dim]📊 No active positions[/dim]")
+            console.print(Panel("📊 No active positions\n\n[dim]Waiting for TradingView alerts...[/dim]",
+                              title="📊 Active Positions", border_style="yellow"))
 
-        # Show recent closed trades
+        # Show recent closed trades in a table
         if self.closed_trades:
-            recent_trades = self.closed_trades[-5:]  # Last 5 trades
-            console.print(f"\n[bold yellow]📈 Recent Trades ({len(recent_trades)}):[/bold yellow]")
+            recent_trades = self.closed_trades[-10:]  # Last 10 trades
+
+            trades_table = Table(title=f"📈 Recent Trades ({len(recent_trades)})", show_header=True, header_style="bold yellow")
+            trades_table.add_column("Symbol", style="cyan", no_wrap=True, width=10)
+            trades_table.add_column("Side", style="bold", justify="center", width=6)
+            trades_table.add_column("Entry", justify="right", style="yellow", width=10)
+            trades_table.add_column("Exit", justify="right", style="green", width=10)
+            trades_table.add_column("P&L %", justify="right", width=8)
+            trades_table.add_column("P&L Amount", justify="right", width=10)
+            trades_table.add_column("Reason", style="dim", width=15)
+            trades_table.add_column("Hold Time", justify="center", width=10)
+
             for trade in recent_trades:
                 pnl_emoji = "🟢" if trade['pnl_pct'] > 0 else "🔴"
                 side_emoji = "🟢" if trade['entry_side'] == 'BUY' else "🔴"
-                console.print(f"  {pnl_emoji} {trade['symbol']}: {side_emoji} {trade['entry_side']} → ₹{trade['exit_price']:.2f} | P&L: {trade['pnl_pct']:+.2f}%")
+
+                pnl_color = "green" if trade['pnl_pct'] > 0 else "red"
+                pnl_display = f"[{pnl_color}]{trade['pnl_pct']:+.2f}%[/{pnl_color}]"
+                pnl_amount_display = f"[{pnl_color}]₹{trade['pnl_amount']:+,.0f}[/{pnl_color}]"
+
+                # Format hold time
+                hold_time = trade['hold_time']
+                if hold_time.total_seconds() < 3600:  # Less than 1 hour
+                    hold_display = f"{hold_time.total_seconds()/60:.0f}m"
+                else:
+                    hold_display = f"{hold_time.total_seconds()/3600:.1f}h"
+
+                trades_table.add_row(
+                    trade['symbol'],
+                    f"{side_emoji} {trade['entry_side']}",
+                    f"₹{trade['entry_price']:.2f}",
+                    f"₹{trade['exit_price']:.2f}",
+                    pnl_display,
+                    pnl_amount_display,
+                    trade['reason'],
+                    hold_display
+                )
+
+            console.print(trades_table)
+
+        # Show live market status
+        market_status = "🟢 MARKET OPEN" if self._is_market_open() else "🔴 MARKET CLOSED"
+        console.print(f"\n[dim]Market Status: {market_status} | Last Updated: {datetime.now().strftime('%H:%M:%S')}[/dim]")
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
@@ -977,6 +1283,9 @@ def main():
     parser.add_argument('--trading', action='store_true', help='Enable position management and exits')
     parser.add_argument('--position-size', type=float, default=20000, help='Position size in rupees (default: 20000)')
     parser.add_argument('--test-streaming', action='store_true', help='Test Upstox streaming connection and exit')
+    parser.add_argument('--dashboard', action='store_true', help='Start live dashboard with auto-refresh')
+    parser.add_argument('--refresh', type=int, default=10, help='Dashboard refresh interval in seconds (default: 10)')
+    parser.add_argument('--status', action='store_true', help='Show current status and exit')
 
     args = parser.parse_args()
 
@@ -1013,12 +1322,22 @@ def main():
         position_size=args.position_size
     )
 
+    # Show status only and exit
+    if args.status:
+        tv_handler.display_status()
+        import sys
+        sys.exit(0)
+
     # Start live monitoring if trading is enabled
     if args.trading:
         tv_handler.start_live_price_monitoring()
 
-    # Display initial status
-    tv_handler.display_status()
+    # Start live dashboard if requested
+    if args.dashboard:
+        tv_handler.start_live_dashboard(refresh_interval=args.refresh)
+    else:
+        # Display initial status
+        tv_handler.display_status()
 
     # Keep the main thread alive
     try:
