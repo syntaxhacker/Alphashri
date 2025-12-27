@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Verify Trending Stocks with Upstox API
+Verify Trending Stocks with Trading API
+
+Supports multiple providers (Upstox, INDMONEY) via unified interface.
 """
 import sys
 import os
@@ -9,15 +11,18 @@ from rich.console import Console
 from rich.table import Table
 from datetime import datetime, timedelta
 
-# Add path to import upstox_trader modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Add project root to path to import upstox_trader modules
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.abspath(os.path.join(_script_dir, '..'))
+sys.path.insert(0, _project_root)
 
-from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
 try:
-    from upstox_trader.config import UPSTOX_CONFIG
+    from upstox_trader.config import UPSTOX_CONFIG, INDMONEY_CONFIG
 except ImportError:
     print("❌ Config not found. Please ensure config is set up properly.")
     UPSTOX_CONFIG = {}
+    INDMONEY_CONFIG = {}
 
 # Import the trending scanner
 import trending_upside
@@ -86,39 +91,37 @@ def estimate_days_to_52w(current_price, high_52w, adx, atr, recent_return_5d, pe
 
 console = Console()
 
-def verify_stocks(use_intraday=False):
+def verify_stocks(use_intraday=False, provider='upstox'):
     """
-    Verify trending stocks with Upstox data.
+    Verify trending stocks with Trading API.
 
     Args:
         use_intraday (bool): If True, use fetch_intraday_data for same-day data.
                            If False, use fetch_historical_data_v3 (default).
+        provider (str): API provider to use ('upstox' or 'indmoney'). Default: 'upstox'.
     """
 
     # 1. Get Trending Stocks from TradingView (via trending_upside.py)
     with console.status("[bold green]Fetching trending stocks from TradingView...[/bold green]"):
         tv_df = trending_upside.fetch_trending_stocks(limit=100)
-    
+
     if tv_df.empty:
         console.print("[red]No trending stocks found to verify.[/red]")
         return
 
-    # 2. Initialize Upstox API
-    api_key = UPSTOX_CONFIG.get('api_key')
-    api_secret = UPSTOX_CONFIG.get('api_secret')
-
-    if not api_key or not api_secret:
-        console.print("[red]❌ Upstox API credentials missing in config.[/red]")
+    # 2. Initialize Trading API using Factory
+    try:
+        api = TradingAPIFactory.create_from_config(provider, quiet=not use_intraday)
+        console.print(f"[green]✅ Using {provider.upper()} API[/green]")
+    except ValueError as e:
+        console.print(f"[red]❌ {e}[/red]")
         return
 
-    # For intraday mode, we need authentication enabled and quiet=False to see auth messages
-    upstox_api = UpstoxAPI(api_key, api_secret, quiet=not use_intraday)
-
     # Handle authentication for intraday data (V2 API requires auth)
-    if use_intraday:
-        if not upstox_api.auth_handler.access_token:
+    if use_intraday and provider == 'upstox':
+        if not api.auth_handler.access_token:
             with console.status("[bold yellow]Authenticating with Upstox for intraday data...[/bold yellow]"):
-                if not upstox_api.auth_handler.authenticate():
+                if not api.auth_handler.authenticate():
                     console.print("[red]❌ Authentication failed. Cannot fetch intraday data.[/red]")
                     return
         console.print("[green]✅ Authentication successful[/green]")
@@ -144,24 +147,23 @@ def verify_stocks(use_intraday=False):
 
             if symbol in blacklisted_symbols:
                 continue
-                
-            # Get instrument key (this is a new addition, assuming UpstoxAPI has this method)
-            # If not, this part might need adjustment or removal based on actual API capabilities
-            instrument_key = upstox_api.get_instrument_key(symbol)
+
+            # Get instrument key
+            instrument_key = api.get_instrument_key(symbol)
             if not instrument_key:
                 # Try to find it in the full list if not found directly
                 # For now, just skip or mark as not found
                 # console.print(f"[red]❌ Symbol {symbol} not found in NSE instruments - adding to blacklist[/red]")
                 blacklisted_symbols.add(symbol)
                 continue
-            
+
             try:
                 # Fetch data based on the use_intraday parameter
                 to_date = datetime.now().strftime('%Y-%m-%d')
 
                 if use_intraday:
-                    # Use the new fetch_intraday_data_v3 method for true today-only data
-                    df_hist = upstox_api.fetch_intraday_data_v3(
+                    # Use the fetch_intraday_data_v3 method for true today-only data
+                    df_hist = api.fetch_intraday_data_v3(
                         symbol=symbol,
                         interval='1'
                     )
@@ -173,7 +175,7 @@ def verify_stocks(use_intraday=False):
                 else:
                     # Use historical data for last 5 days
                     from_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
-                    df_hist = upstox_api.fetch_historical_data_v3(
+                    df_hist = api.fetch_historical_data_v3(
                         symbol=symbol,
                         unit='minutes',
                         interval=1,
@@ -335,13 +337,20 @@ def verify_stocks(use_intraday=False):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Verify trending stocks with Upstox data")
+    parser = argparse.ArgumentParser(description="Verify trending stocks with Trading API")
     parser.add_argument(
         "--intraday",
         action="store_true",
         help="Use intraday data (same day) instead of historical data (5 days)"
     )
+    parser.add_argument(
+        "--provider",
+        type=str,
+        default='upstox',
+        choices=['upstox', 'indmoney'],
+        help="API provider to use (default: upstox)"
+    )
 
     args = parser.parse_args()
 
-    verify_stocks(use_intraday=args.intraday)
+    verify_stocks(use_intraday=args.intraday, provider=args.provider)

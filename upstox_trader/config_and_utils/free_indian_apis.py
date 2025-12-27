@@ -13,13 +13,16 @@ import pandas as pd
 import requests
 import time
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List, Callable
+from typing import Optional, Dict, List, Callable, Any
 import json
 import warnings
 import os
 from pathlib import Path
 import urllib.parse
 import gzip
+from abc import ABC, abstractmethod
+import threading
+import asyncio
 
 # Try to import Upstox SDK for WebSocket streaming (optional)
 try:
@@ -27,6 +30,19 @@ try:
     UPSTOX_SDK_AVAILABLE = True
 except ImportError:
     UPSTOX_SDK_AVAILABLE = False
+
+# WebSocket libraries
+try:
+    import websockets
+    WEBSOCKETS_AVAILABLE = True
+except ImportError:
+    WEBSOCKETS_AVAILABLE = False
+
+try:
+    import websocket
+    WEBSOCKET_CLIENT_AVAILABLE = True
+except ImportError:
+    WEBSOCKET_CLIENT_AVAILABLE = False
     upstox_client = None
 
 # Import symbol validator for proper symbol cleaning
@@ -74,13 +90,137 @@ create_upstox_auth = _import_upstox_auth()
 
 warnings.filterwarnings('ignore')
 
-# Configuration - Ensure you have a config.py file
-try:
-    from config import UPSTOX_CONFIG, INDMONEY_CONFIG
-except ImportError:
-    print("⚠️ config.py not found. Please create it from config_template.py with your Upstox API credentials.")
-    UPSTOX_CONFIG = {'api_key': None, 'api_secret': None}
-    INDMONEY_CONFIG = {'access_token': None}
+# --- Token Management ---
+
+class TokenManager:
+    """
+    Unified token management for trading APIs.
+
+    Handles token storage, expiration tracking, and validation
+    for both Upstox and INDMONEY APIs.
+    """
+
+    def __init__(self, token_file: Path, expiry_hours: float, quiet: bool = False):
+        """
+        Initialize token manager.
+
+        Args:
+            token_file: Path to token cache file
+            expiry_hours: Token validity period in hours
+            quiet: Suppress console output
+        """
+        self.token_file = token_file
+        self.expiry_hours = expiry_hours
+        self.quiet = quiet
+        self.token_timestamp = datetime.now()
+
+        # Load existing token metadata if available
+        self._load_token_metadata()
+
+    def _load_token_metadata(self):
+        """Load token timestamp from cache file."""
+        if self.token_file.exists():
+            try:
+                with open(self.token_file, 'r') as f:
+                    token_data = json.load(f)
+                    self.token_timestamp = datetime.fromisoformat(
+                        token_data.get('timestamp', datetime.now().isoformat())
+                    )
+            except Exception:
+                pass  # Use default timestamp
+
+    def _save_token_metadata(self, partial_token: str = None):
+        """
+        Save token metadata to cache file.
+
+        Args:
+            partial_token: Optional partial token (first 20 chars) for reference
+        """
+        try:
+            with open(self.token_file, 'w') as f:
+                json.dump({
+                    'timestamp': self.token_timestamp.isoformat(),
+                    'partial_token': partial_token or 'unknown',
+                    'expiry_hours': self.expiry_hours
+                }, f)
+        except Exception:
+            pass
+
+    def is_token_expired(self) -> bool:
+        """
+        Check if token has expired.
+
+        Returns:
+            bool: True if token is expired
+        """
+        if self.token_timestamp is None:
+            return False
+
+        token_age = datetime.now() - self.token_timestamp
+        return token_age.total_seconds() > (self.expiry_hours * 3600)
+
+    def get_token_age_hours(self) -> float:
+        """
+        Get token age in hours.
+
+        Returns:
+            float: Token age in hours
+        """
+        if self.token_timestamp is None:
+            return 0.0
+
+        token_age = datetime.now() - self.token_timestamp
+        return token_age.total_seconds() / 3600
+
+    def check_token_validity(self, provider_name: str, token_url: str):
+        """
+        Check token validity and raise error if expired.
+
+        Args:
+            provider_name: Name of the provider (for error messages)
+            token_url: URL to get new token (for error messages)
+
+        Raises:
+            ValueError: If token is expired
+        """
+        if self.is_token_expired():
+            age = self.get_token_age_hours()
+            self._log_error(f"❌ {provider_name} token expired ({age:.1f} hours old)")
+            self._log_error(f"🔑 Get new token at: {token_url}")
+            raise ValueError(
+                f"{provider_name} access token has expired ({self.expiry_hours:.0f}-hour validity). "
+                f"Please generate a new token from {token_url} "
+                f"and update your config.py"
+            )
+
+        # Warn if token is close to expiration (>80% of validity)
+        token_age = self.get_token_age_hours()
+        warning_threshold = self.expiry_hours * 0.8
+
+        if token_age > warning_threshold and not self.quiet:
+            remaining = self.expiry_hours - token_age
+            self._log(f"⚠️  {provider_name} token is {token_age:.1f}h old "
+                     f"(expires in {remaining:.1f}h)")
+
+    def refresh_token_timestamp(self, partial_token: str = None):
+        """
+        Update token timestamp (call when token is refreshed).
+
+        Args:
+            partial_token: Optional partial token for reference
+        """
+        self.token_timestamp = datetime.now()
+        self._save_token_metadata(partial_token)
+
+    def _log_error(self, message: str):
+        """Log error message (always shown)."""
+        print(message)
+
+    def _log(self, message: str):
+        """Log message if not in quiet mode."""
+        if not self.quiet:
+            print(message)
+
 
 # --- Constants ---
 API_VERSION = "2.0"  # Still used for authentication
@@ -91,7 +231,122 @@ INSTRUMENT_LIST_URL = "https://assets.upstox.com/market-quote/instruments/exchan
 INSTRUMENT_CACHE_FILE = Path(__file__).parent / "nse_instruments.json"
 
 
-class UpstoxAPI:
+class BaseAPIClient(ABC):
+    """
+    Abstract base class for trading API clients.
+
+    Provides common functionality for all API clients including:
+    - Quiet mode for console output suppression
+    - Common error handling patterns
+    - Unified interface for easy provider switching
+    """
+
+    def __init__(self, quiet: bool = False):
+        """
+        Initialize the base API client.
+
+        Args:
+            quiet (bool): If True, suppresses console output. Default is False.
+        """
+        self.quiet = quiet
+        self.instruments = None
+
+    @abstractmethod
+    def _get_headers(self) -> Dict[str, str]:
+        """
+        Construct headers for API calls.
+
+        Returns:
+            Dict[str, str]: Headers dictionary
+        """
+        pass
+
+    @abstractmethod
+    def get_instrument_key(self, symbol: str, **kwargs) -> Optional[str]:
+        """
+        Fetch the instrument key for a given symbol.
+
+        Args:
+            symbol: Stock symbol
+            **kwargs: Additional provider-specific parameters
+
+        Returns:
+            Instrument key or None if not found
+        """
+        pass
+
+    # ==================== UNIFIED INTERFACE METHODS ====================
+    # These methods provide a consistent API across all providers
+
+    @abstractmethod
+    def get_price(self, symbol: str, **kwargs) -> Optional[float]:
+        """
+        Get current/last traded price for a symbol.
+
+        Args:
+            symbol: Stock symbol (e.g., 'RELIANCE', 'TCS')
+            **kwargs: Provider-specific parameters
+
+        Returns:
+            Current price as float or None if unavailable
+        """
+        pass
+
+    @abstractmethod
+    def get_quote(self, symbol: str, **kwargs) -> Optional[Dict]:
+        """
+        Get full market quote for a symbol (OHLC, volume, etc.).
+
+        Args:
+            symbol: Stock symbol
+            **kwargs: Provider-specific parameters
+
+        Returns:
+            Dictionary with quote data or None if unavailable
+        """
+        pass
+
+    def get_historical_data(self, symbol: str, interval: str,
+                           from_date: str, to_date: str, **kwargs) -> Optional[pd.DataFrame]:
+        """
+        Get historical OHLCV data for a symbol.
+
+        Args:
+            symbol: Stock symbol
+            interval: Time interval (e.g., 'day', '1minute', '5minute')
+            from_date: Start date (YYYY-MM-DD)
+            to_date: End date (YYYY-MM-DD)
+            **kwargs: Provider-specific parameters
+
+        Returns:
+            DataFrame with OHLCV data or None if unavailable
+        """
+        # Default implementation - subclasses should override
+        raise NotImplementedError(f"{self.__class__.__name__} does not support historical data")
+
+    # ==================== LOGGING HELPERS ====================
+
+    def _log(self, message: str):
+        """
+        Log a message if quiet mode is disabled.
+
+        Args:
+            message: Message to log
+        """
+        if not self.quiet:
+            print(message)
+
+    def _log_error(self, message: str):
+        """
+        Log an error message (always shown regardless of quiet mode).
+
+        Args:
+            message: Error message to log
+        """
+        print(message)
+
+
+class UpstoxAPI(BaseAPIClient):
     """
     Enhanced Upstox API client with real-time streaming capabilities.
 
@@ -113,14 +368,13 @@ class UpstoxAPI:
             api_secret (str): Your Upstox API secret
             quiet (bool): If True, suppresses console output. Default is False.
         """
+        super().__init__(quiet=quiet)
         self.api_key = api_key
         self.api_secret = api_secret
         self.instruments = []
-        self.quiet = quiet
 
-        if not self.quiet:
-            print("🇮🇳 Upstox API Connector Initialized")
-            print("="*40)
+        self._log("🇮🇳 Upstox API Connector Initialized")
+        self._log("="*40)
 
         # Initialize authentication handler
         if create_upstox_auth is None:
@@ -135,49 +389,42 @@ class UpstoxAPI:
 
     def _download_and_cache_instruments(self):
         """Downloads, decompresses, and caches the NSE instruments list."""
-        if not self.quiet:
-            print(f"⬇️ Downloading instrument list from {INSTRUMENT_LIST_URL}...")
+        self._log(f"⬇️ Downloading instrument list from {INSTRUMENT_LIST_URL}...")
         try:
             response = requests.get(INSTRUMENT_LIST_URL, stream=True)
             response.raise_for_status()
-            
+
             with gzip.open(response.raw, 'rt', encoding='utf-8') as gz_file:
                 instrument_data = json.load(gz_file)
-            
+
             with open(INSTRUMENT_CACHE_FILE, 'w') as f:
                 json.dump(instrument_data, f)
-            
+
             self.instruments = instrument_data
-            if not self.quiet:
-                print(f"✅ Instrument list downloaded and cached at {INSTRUMENT_CACHE_FILE}.")
+            self._log(f"✅ Instrument list downloaded and cached at {INSTRUMENT_CACHE_FILE}.")
         except requests.RequestException as e:
-            if not self.quiet:
-                print(f"❌ Failed to download instrument list: {e}")
+            self._log(f"❌ Failed to download instrument list: {e}")
         except (gzip.BadGzipFile, json.JSONDecodeError) as e:
-            if not self.quiet:
-                print(f"❌ Failed to process instrument list: {e}")
+            self._log(f"❌ Failed to process instrument list: {e}")
 
     def get_instrument_key(self, symbol: str, exchange: str = "NSE_EQ", instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None) -> Optional[str]:
         """Fetches the instrument key from a cached or newly downloaded instrument list."""
         # Clean symbol to remove exchange prefixes like BSE:, NSE: etc.
         clean_symbol = get_valid_symbol(symbol)
         if not clean_symbol:
-            if not self.quiet:
-                print(f"❌ Invalid symbol after cleaning: {symbol}")
+            self._log(f"❌ Invalid symbol after cleaning: {symbol}")
             return None
-            
+
         if not self.instruments:
             if INSTRUMENT_CACHE_FILE.exists():
-                if not self.quiet:
-                    print("✅ Loading instruments from local cache...")
+                self._log("✅ Loading instruments from local cache...")
                 with open(INSTRUMENT_CACHE_FILE, 'r') as f:
                     self.instruments = json.load(f)
             else:
                 self._download_and_cache_instruments()
 
         if not self.instruments:
-            if not self.quiet:
-                print("❌ Instrument list is empty. Cannot find key.")
+            self._log("❌ Instrument list is empty. Cannot find key.")
             return None
 
         for instrument in self.instruments:
@@ -196,9 +443,104 @@ class UpstoxAPI:
                     datetime.fromtimestamp(instrument.get('expiry') / 1000).strftime('%Y-%m-%d') == expiry_date):
                     return instrument.get('instrument_key')
 
-        if not self.quiet:
-            print(f"❌ Instrument key for '{clean_symbol}' (original: '{symbol}') not found with the specified criteria.")
+        self._log(f"❌ Instrument key for '{clean_symbol}' (original: '{symbol}') not found with the specified criteria.")
         return None
+
+    # ==================== UNIFIED INTERFACE IMPLEMENTATION ====================
+
+    def get_price(self, symbol: str, **kwargs) -> Optional[float]:
+        """
+        Get current price for a symbol (unified interface).
+
+        Args:
+            symbol: Stock symbol (e.g., 'RELIANCE', 'TCS')
+            **kwargs: Additional parameters (instrument_type, exchange)
+
+        Returns:
+            Current price as float or None if unavailable
+        """
+        # Try to get from real-time streaming first if available
+        price = self.get_realtime_price(symbol)
+        if price is not None:
+            return price
+
+        # Fallback: fetch today's intraday data and get latest close
+        instrument_type = kwargs.get('instrument_type', 'EQ')
+        exchange = kwargs.get('exchange', 'NSE_EQ')
+
+        df = self.fetch_intraday_data_v3(symbol, interval='1',
+                                        instrument_type=instrument_type,
+                                        exchange=exchange)
+        if df is not None and not df.empty:
+            return float(df['close'].iloc[-1])
+
+        return None
+
+    def get_quote(self, symbol: str, **kwargs) -> Optional[Dict]:
+        """
+        Get full market quote for a symbol (unified interface).
+
+        Args:
+            symbol: Stock symbol
+            **kwargs: Additional parameters (instrument_type, exchange)
+
+        Returns:
+            Dictionary with quote data or None if unavailable
+        """
+        instrument_type = kwargs.get('instrument_type', 'EQ')
+        exchange = kwargs.get('exchange', 'NSE_EQ')
+
+        df = self.fetch_intraday_data_v3(symbol, interval='1',
+                                        instrument_type=instrument_type,
+                                        exchange=exchange)
+
+        if df is not None and not df.empty:
+            latest = df.iloc[-1]
+            return {
+                'symbol': symbol,
+                'price': float(latest['close']),
+                'open': float(latest['open']),
+                'high': float(latest['high']),
+                'low': float(latest['low']),
+                'volume': float(latest['volume']),
+                'timestamp': latest.name.strftime('%Y-%m-%d %H:%M:%S') if hasattr(latest.name, 'strftime') else str(latest.name)
+            }
+
+        return None
+
+    def get_historical_data(self, symbol: str, interval: str,
+                           from_date: str, to_date: str, **kwargs) -> Optional[pd.DataFrame]:
+        """
+        Get historical OHLCV data (unified interface).
+
+        Args:
+            symbol: Stock symbol
+            interval: Time interval ('day', '1minute', '5minute', '30minute', etc.)
+            from_date: Start date (YYYY-MM-DD)
+            to_date: End date (YYYY-MM-DD)
+            **kwargs: Additional parameters (instrument_type, exchange, etc.)
+
+        Returns:
+            DataFrame with OHLCV data or None if unavailable
+        """
+        instrument_type = kwargs.get('instrument_type', 'EQ')
+        exchange = kwargs.get('exchange', 'NSE_EQ')
+        expiry_date = kwargs.get('expiry_date')
+        strike_price = kwargs.get('strike_price')
+        option_type = kwargs.get('option_type')
+
+        # Use V2 API for historical data
+        return self.fetch_historical_data(
+            symbol=symbol,
+            interval=interval,
+            from_date=from_date,
+            to_date=to_date,
+            instrument_type=instrument_type,
+            exchange=exchange,
+            expiry_date=expiry_date,
+            strike_price=strike_price,
+            option_type=option_type
+        )
 
     def fetch_intraday_data_v3(self, symbol: str, interval: str, instrument_type: str = 'EQ', exchange: str = 'NSE_EQ') -> Optional[pd.DataFrame]:
         """
@@ -907,6 +1249,13 @@ class UpstoxAPI:
 
 def main():
     """Example usage of the UpstoxAPI class."""
+    # Import config for the example
+    try:
+        from upstox_trader.config import UPSTOX_CONFIG
+    except ImportError:
+        print("❌ config.py not found. Please create it with your Upstox API credentials.")
+        return
+
     if not (UPSTOX_CONFIG.get('api_key') and UPSTOX_CONFIG.get('api_secret')):
         print("❌ Please set your UPSTOX_CONFIG in config.py")
         return
@@ -1012,34 +1361,71 @@ def main():
 if __name__ == "__main__":
     main()
 
-class INDMONEYApi:
+class INDMONEYApi(BaseAPIClient):
     """
     API client for INDMoney (INDstocks) integration.
-    
+
     Provides methods for user profile, funds, and market data.
+    Tokens expire within 24 hours and must be regenerated manually.
     """
-    
+
     BASE_URL = "https://api.indstocks.com"
-    INSTRUMENT_CACHE_FILE = Path(__file__).parent / "ind_instruments.csv"
+    WS_BASE_URL = "wss://api.indstocks.com"
+    INSTRUMENT_CACHE_FILE = Path(__file__).parent / "ind_instruments.json"
+    TOKEN_FILE = Path(__file__).parent / "indmoney_token.json"
+    TOKEN_URL = "https://www.indstocks.com/app/api-trading"
+    TOKEN_EXPIRY_HOURS = 24
 
     def __init__(self, access_token: str, quiet: bool = False):
         """
         Initialize the INDMoney API client.
-        
+
         Args:
             access_token (str): Your INDMoney access token
             quiet (bool): If True, suppresses console output.
         """
+        super().__init__(quiet=quiet)
         self.access_token = access_token
-        self.quiet = quiet
         self.instruments_df = None
-        
-        if not self.quiet:
-            print("💰 INDMoney API Connector Initialized")
+
+        # Initialize unified token manager
+        self.token_manager = TokenManager(
+            token_file=self.TOKEN_FILE,
+            expiry_hours=self.TOKEN_EXPIRY_HOURS,
+            quiet=quiet
+        )
+
+        # Save token metadata for new tokens
+        self.token_manager._save_token_metadata(
+            partial_token=access_token[:20] + '...' if access_token else None
+        )
+
+        # WebSocket connections
+        self._ws_market_data = None
+        self._ws_order_updates = None
+        self._ws_portfolio = None
+        self._ws_threads = {}
+
+        # Callback handlers
+        self._on_market_data = None
+        self._on_order_update = None
+        self._on_portfolio_update = None
+
+        # Subscription tracking
+        self._market_subscriptions = set()
+        self._order_subscriptions = False
+        self._portfolio_subscriptions = False
+
+        self._log("💰 INDMoney API Connector Initialized")
 
     def _get_headers(self) -> Dict[str, str]:
         """Construct headers for API calls."""
-        # Note: Research suggests INDstocks might use the token directly without 'Bearer ' prefix
+        # Check token validity using unified token manager
+        self.token_manager.check_token_validity(
+            provider_name="INDMoney",
+            token_url=self.TOKEN_URL
+        )
+
         return {
             'Authorization': self.access_token,
             'Content-Type': 'application/json',
@@ -1048,22 +1434,19 @@ class INDMONEYApi:
 
     def _download_and_cache_instruments(self):
         """Downloads and caches the INDMoney instruments list."""
-        if not self.quiet:
-            print(f"⬇️ Downloading INDMoney instrument list...")
+        self._log(f"⬇️ Downloading INDMoney instrument list...")
         try:
             url = f"{self.BASE_URL}/market/instruments?source=equity"
             response = requests.get(url, headers=self._get_headers(), timeout=30)
             response.raise_for_status()
-            
+
             with open(self.INSTRUMENT_CACHE_FILE, 'wb') as f:
                 f.write(response.content)
-            
+
             self.instruments_df = pd.read_csv(self.INSTRUMENT_CACHE_FILE)
-            if not self.quiet:
-                print(f"✅ INDMoney instrument list cached at {self.INSTRUMENT_CACHE_FILE}.")
+            self._log(f"✅ INDMoney instrument list cached at {self.INSTRUMENT_CACHE_FILE}.")
         except Exception as e:
-            if not self.quiet:
-                print(f"❌ Failed to download INDMoney instruments: {e}")
+            self._log(f"❌ Failed to download INDMoney instruments: {e}")
 
     def get_instrument_key(self, symbol: str, exchange: str = "NSE") -> Optional[str]:
         """Finds the instrument key (SEGMENT_ID) for a given symbol."""
@@ -1091,31 +1474,99 @@ class INDMONEYApi:
         if not match.empty:
             security_id = match.iloc[0]['SECURITY_ID']
             return f"{exch}_{security_id}"
-        
+
         return None
+
+    # ==================== UNIFIED INTERFACE IMPLEMENTATION ====================
+
+    def get_price(self, symbol: str, **kwargs) -> Optional[float]:
+        """
+        Get current price for a symbol (unified interface).
+
+        Args:
+            symbol: Stock symbol (e.g., 'RELIANCE', 'TCS')
+            **kwargs: Additional parameters (exchange)
+
+        Returns:
+            Current price as float or None if unavailable
+        """
+        return self.fetch_ltp(symbol)
+
+    def get_quote(self, symbol: str, **kwargs) -> Optional[Dict]:
+        """
+        Get full market quote for a symbol (unified interface).
+
+        Args:
+            symbol: Stock symbol
+            **kwargs: Additional parameters (exchange)
+
+        Returns:
+            Dictionary with quote data or None if unavailable
+        """
+        return self.fetch_full_quotes(symbol)
+
+    def _handle_api_error(self, response, symbol: str = None):
+        """
+        Handle API errors, including token expiration.
+
+        Args:
+            response: Response object from requests
+            symbol: Optional symbol for context
+        """
+        if response.status_code == 401:
+            self._log_error("❌ INDMoney authentication failed (401)")
+            self._log_error(f"🔑 Your token may have expired or is invalid")
+            self._log_error(f"⏰ Token age: {self.token_manager.get_token_age_hours():.1f} hours (24h validity)")
+            self._log_error(f"🔑 Get new token at: {self.TOKEN_URL}")
+            raise ValueError(
+                "INDMoney authentication failed. Your access token may be invalid or expired. "
+                f"Please generate a new token from {self.TOKEN_URL} "
+                "and update your config.py"
+            )
+        elif response.status_code == 403:
+            self._log_error("❌ INDMoney access forbidden (403)")
+            self._log_error("🌐 Your IP may not be whitelisted. Configure static IP in INDMoney settings.")
+            raise ValueError(
+                "INDMoney access forbidden. Please ensure your IP is whitelisted at "
+                f"{self.TOKEN_URL} (click hexagon icon next to 'New Token')"
+            )
 
     def fetch_user_profile(self) -> Optional[Dict]:
         """Fetch user profile details."""
         url = f"{self.BASE_URL}/user/profile"
         try:
-            response = requests.get(url, headers=self._get_headers(), timeout=15)
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, timeout=15)
+
+            # Check for auth errors
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
             response.raise_for_status()
             return response.json()
+        except ValueError:
+            raise  # Re-raise our custom errors
         except Exception as e:
-            if not self.quiet:
-                print(f"❌ INDMoney Profile Error: {e}")
+            self._log(f"❌ INDMoney Profile Error: {e}")
             return None
 
     def fetch_funds(self) -> Optional[Dict]:
         """Fetch available and utilized funds."""
         url = f"{self.BASE_URL}/funds"
         try:
-            response = requests.get(url, headers=self._get_headers(), timeout=15)
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, timeout=15)
+
+            # Check for auth errors
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
             response.raise_for_status()
             return response.json()
+        except ValueError:
+            raise  # Re-raise our custom errors
         except Exception as e:
-            if not self.quiet:
-                print(f"❌ INDMoney Funds Error: {e}")
+            self._log(f"❌ INDMoney Funds Error: {e}")
             return None
 
     def fetch_ltp(self, symbol: str) -> Optional[float]:
@@ -1126,50 +1577,1248 @@ class INDMONEYApi:
         # 1. Try to get scrip code
         scrip_code = self.get_instrument_key(symbol)
         if not scrip_code:
-            if not self.quiet:
-                print(f"⚠️ Could not find INDMoney scrip code for {symbol}")
+            self._log(f"⚠️ Could not find INDMoney scrip code for {symbol}")
             return None
-            
+
         url = f"{self.BASE_URL}/market/quotes/ltp"
         params = {'scrip-codes': scrip_code}
-        
+
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params, timeout=15)
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+
+            # Check for auth errors
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response, symbol)
+
             response.raise_for_status()
             data = response.json()
-            
+
             # Structure: {"status":"success","data":{"NSE_2885":{"live_price":1575.4}}}
             if data.get('status') == 'success' and 'data' in data:
                 token_data = data['data'].get(scrip_code)
                 if token_data and 'live_price' in token_data:
                     return float(token_data['live_price'])
             return None
+        except ValueError:
+            raise  # Re-raise our custom errors
         except Exception as e:
-            if not self.quiet:
-                print(f"❌ INDMoney LTP Error for {symbol} ({scrip_code}): {e}")
+            self._log(f"❌ INDMoney LTP Error for {symbol} ({scrip_code}): {e}")
             return None
 
-    def fetch_full_quotes(self, symbol: str) -> Optional[Dict]:
+    def fetch_full_quotes(self, symbols) -> Optional[Dict]:
         """
-        Fetch full market quotes for a symbol (OHLC, Depth, Bid/Ask).
+        Fetch full market quotes for symbol(s) (OHLC, Depth, Bid/Ask).
         Automatically handles symbol to scrip-code mapping.
+
+        Args:
+            symbols: Single symbol (str) or list of symbols
+
+        Returns:
+            Dict of quotes if single symbol, or dict of all quotes if list
+        """
+        # Handle both single symbol and list of symbols
+        single_symbol = isinstance(symbols, str)
+        if single_symbol:
+            symbols = [symbols]
+
+        # Convert all symbols to scrip codes
+        scrip_codes = []
+        for symbol in symbols:
+            scrip_code = self.get_instrument_key(symbol)
+            if scrip_code:
+                scrip_codes.append(scrip_code)
+
+        if not scrip_codes:
+            return None
+
+        url = f"{self.BASE_URL}/market/quotes/full"
+        params = {'scrip-codes': ','.join(scrip_codes)}
+
+        try:
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+
+            # Check for auth errors
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response, symbols[0] if single_symbol else ','.join(symbols))
+
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('status') == 'success' and 'data' in data:
+                all_quotes = data['data']
+                # Return single quote if single symbol requested
+                if single_symbol and len(scrip_codes) == 1:
+                    return all_quotes.get(scrip_codes[0])
+                return all_quotes
+            return None
+        except ValueError:
+            raise  # Re-raise our custom errors
+        except Exception as e:
+            self._log(f"❌ INDMoney Full Quote Error for {symbols}: {e}")
+            return None
+
+    # ==================== ORDER MANAGEMENT METHODS ====================
+
+    def place_order(self, symbol: str, transaction_type: str, quantity: int,
+                   order_type: str = "MARKET", price: float = 0,
+                   product: str = "CNC", validity: str = "DAY",
+                   exchange: str = "NSE", segment: str = "EQUITY") -> Optional[Dict]:
+        """
+        Place a new order with INDMoney.
+
+        Args:
+            symbol: Stock symbol (e.g., 'RELIANCE', 'TCS')
+            transaction_type: 'BUY' or 'SELL'
+            quantity: Number of shares
+            order_type: 'MARKET' or 'LIMIT'
+            price: Limit price (required for LIMIT orders, ignored for MARKET)
+            product: 'CNC' (Delivery) or 'MIS' (Intraday)
+            validity: 'DAY' or 'IOC' (Immediate or Cancel)
+            exchange: 'NSE' or 'BSE'
+            segment: 'EQUITY', 'DERIVATIVE', etc.
+
+        Returns:
+            Order confirmation dict with order_id
+
+        Raises:
+            ValueError: If token expired or authentication fails
         """
         scrip_code = self.get_instrument_key(symbol)
         if not scrip_code:
+            self._log(f"❌ Could not find scrip code for {symbol}")
             return None
-            
-        url = f"{self.BASE_URL}/market/quotes/full"
-        params = {'scrip-codes': scrip_code}
-        
+
+        # Extract security ID from scrip_code (format: NSE_2885)
+        security_id = scrip_code.split('_')[1] if '_' in scrip_code else scrip_code
+
+        url = f"{self.BASE_URL}/order"
+
+        data = {
+            'txn_type': transaction_type.upper(),
+            'exchange': exchange.upper(),
+            'segment': segment.upper(),
+            'security_id': security_id,
+            'qty': quantity,
+            'order_type': order_type.upper(),
+            'limit_price': price if order_type.upper() == 'LIMIT' else 0,
+            'validity': validity.upper(),
+            'product': product.upper(),
+            'is_amo': False
+        }
+
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params, timeout=15)
+            headers = self._get_headers()
+            response = requests.post(url, headers=headers, json=data, timeout=15)
+
+            # Check for auth errors
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response, symbol)
+
+            response.raise_for_status()
+            result = response.json()
+
+            self._log(f"✅ Order placed: {transaction_type} {quantity} {symbol} @ {order_type}")
+            return result
+
+        except ValueError:
+            raise  # Re-raise our custom errors
+        except Exception as e:
+            self._log(f"❌ Order placement failed for {symbol}: {e}")
+            return None
+
+    def modify_order(self, order_id: str, new_price: float = None,
+                     new_quantity: int = None) -> Optional[Dict]:
+        """
+        Modify a pending order.
+
+        Args:
+            order_id: Order ID to modify
+            new_price: New limit price (optional)
+            new_quantity: New quantity (optional)
+
+        Returns:
+            Modified order confirmation
+        """
+        url = f"{self.BASE_URL}/order/modify"
+
+        data = {'order_id': order_id}
+        if new_price is not None:
+            data['limit_price'] = new_price
+        if new_quantity is not None:
+            data['qty'] = new_quantity
+
+        try:
+            headers = self._get_headers()
+            response = requests.post(url, headers=headers, json=data, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
+            response.raise_for_status()
+            result = response.json()
+
+            self._log(f"✅ Order modified: {order_id}")
+            return result
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Order modification failed: {e}")
+            return None
+
+    def cancel_order(self, order_id: str) -> Optional[Dict]:
+        """
+        Cancel a pending order.
+
+        Args:
+            order_id: Order ID to cancel
+
+        Returns:
+            Cancellation confirmation
+        """
+        url = f"{self.BASE_URL}/order/cancel"
+
+        data = {'order_id': order_id}
+
+        try:
+            headers = self._get_headers()
+            response = requests.post(url, headers=headers, json=data, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
+            response.raise_for_status()
+            result = response.json()
+
+            self._log(f"✅ Order cancelled: {order_id}")
+            return result
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Order cancellation failed: {e}")
+            return None
+
+    def fetch_order_book(self, from_date: str = None, to_date: str = None) -> Optional[pd.DataFrame]:
+        """
+        Get order book (order history).
+
+        Args:
+            from_date: Start date (YYYY-MM-DD format)
+            to_date: End date (YYYY-MM-DD format)
+
+        Returns:
+            DataFrame with order history
+        """
+        url = f"{self.BASE_URL}/order-book"
+
+        params = {}
+        if from_date:
+            params['from_date'] = from_date
+        if to_date:
+            params['to_date'] = to_date
+
+        try:
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
             response.raise_for_status()
             data = response.json()
-            
+
+            if data.get('status') == 'success' and 'data' in data:
+                orders = data['data']
+                if isinstance(orders, list) and len(orders) > 0:
+                    df = pd.DataFrame(orders)
+                    self._log(f"✅ Fetched {len(df)} order records")
+                    return df
+
+            return pd.DataFrame()
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Failed to fetch order book: {e}")
+            return pd.DataFrame()
+
+    # ==================== PORTFOLIO MANAGEMENT METHODS ====================
+
+    def fetch_holdings(self) -> Optional[pd.DataFrame]:
+        """
+        Get equity holdings in Demat account.
+
+        Returns:
+            DataFrame with holdings data including symbol, quantity, average price, etc.
+        """
+        url = f"{self.BASE_URL}/portfolio/holdings"
+
+        try:
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('status') == 'success' and 'data' in data:
+                holdings = data['data']
+                if isinstance(holdings, list) and len(holdings) > 0:
+                    df = pd.DataFrame(holdings)
+                    self._log(f"✅ Fetched {len(df)} holdings")
+                    return df
+
+            self._log("ℹ️  No holdings found")
+            return pd.DataFrame()
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Failed to fetch holdings: {e}")
+            return pd.DataFrame()
+
+    def fetch_positions(self) -> Optional[pd.DataFrame]:
+        """
+        Get open derivative positions.
+
+        Returns:
+            DataFrame with positions data
+        """
+        url = f"{self.BASE_URL}/portfolio/positions"
+
+        try:
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('status') == 'success' and 'data' in data:
+                positions = data['data']
+                if isinstance(positions, list) and len(positions) > 0:
+                    df = pd.DataFrame(positions)
+                    self._log(f"✅ Fetched {len(df)} positions")
+                    return df
+
+            self._log("ℹ️  No open positions found")
+            return pd.DataFrame()
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Failed to fetch positions: {e}")
+            return pd.DataFrame()
+
+    # ==================== MARKET DATA EXTENSIONS ====================
+
+    def fetch_market_depth(self, symbol: str) -> Optional[Dict]:
+        """
+        Get market depth (order book) for a symbol.
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            Dictionary with bid/ask levels
+        """
+        scrip_code = self.get_instrument_key(symbol)
+        if not scrip_code:
+            self._log(f"⚠️ Could not find scrip code for {symbol}")
+            return None
+
+        url = f"{self.BASE_URL}/market/quotes/mkt"
+        params = {'scrip-codes': scrip_code}
+
+        try:
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response, symbol)
+
+            response.raise_for_status()
+            data = response.json()
+
             if data.get('status') == 'success' and 'data' in data:
                 return data['data'].get(scrip_code)
             return None
+
+        except ValueError:
+            raise
         except Exception as e:
-            if not self.quiet:
-                print(f"❌ INDMoney Full Quote Error for {symbol} ({scrip_code}): {e}")
+            self._log(f"❌ Market Depth Error for {symbol}: {e}")
             return None
+
+    # ==================== TRADE CONFIRMATION METHODS ====================
+
+    def fetch_trade_details(self, order_id: str) -> Optional[Dict]:
+        """
+        Get trade execution details for an order.
+
+        Args:
+            order_id: Order ID
+
+        Returns:
+            Trade details dict with execution information
+        """
+        url = f"{self.BASE_URL}/trades/{order_id}"
+
+        try:
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
+            response.raise_for_status()
+            return response.json()
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Failed to fetch trade details: {e}")
+            return None
+
+    def fetch_trade_book(self, segment: str = "NSE") -> Optional[pd.DataFrame]:
+        """
+        Get trade book for segment.
+
+        Args:
+            segment: 'NSE' or 'BSE'
+
+        Returns:
+            DataFrame with trade book data
+        """
+        url = f"{self.BASE_URL}/trade-book"
+
+        params = {'segment': segment.upper()}
+
+        try:
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('status') == 'success' and 'data' in data:
+                trades = data['data']
+                if isinstance(trades, list) and len(trades) > 0:
+                    df = pd.DataFrame(trades)
+                    self._log(f"✅ Fetched {len(df)} trade records")
+                    return df
+
+            self._log("ℹ️  No trades found")
+            return pd.DataFrame()
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Failed to fetch trade book: {e}")
+            return pd.DataFrame()
+
+    # ==================== SMART ORDERS (GTT) METHODS ====================
+
+    def place_smart_order(self, symbol: str, order_type: str, quantity: int,
+                         trigger_price: float, price: float = 0,
+                         exchange: str = "NSE", segment: str = "EQUITY",
+                         validity: str = "DAY", product: str = "CNC") -> Optional[Dict]:
+        """
+        Place a GTT (Good Till Triggered) smart order.
+
+        A GTT order allows you to set trigger conditions. When the trigger price
+        is hit, a regular order is placed automatically.
+
+        Args:
+            symbol: Stock symbol
+            order_type: 'BUY' or 'SELL'
+            quantity: Number of shares
+            trigger_price: Price at which order gets triggered
+            price: Limit price (0 for MARKET after trigger)
+            exchange: 'NSE' or 'BSE'
+            segment: 'EQUITY', 'DERIVATIVE', etc.
+            validity: 'DAY' or 'IOC'
+            product: 'CNC' (Delivery) or 'MIS' (Intraday)
+
+        Returns:
+            Smart order confirmation dict with smart_order_id
+        """
+        scrip_code = self.get_instrument_key(symbol)
+        if not scrip_code:
+            self._log(f"❌ Could not find scrip code for {symbol}")
+            return None
+
+        # Extract security ID from scrip_code (format: NSE_2885)
+        security_id = scrip_code.split('_')[1] if '_' in scrip_code else scrip_code
+
+        url = f"{self.BASE_URL}/smart/order"
+
+        data = {
+            'txn_type': order_type.upper(),
+            'exchange': exchange.upper(),
+            'segment': segment.upper(),
+            'security_id': security_id,
+            'qty': quantity,
+            'trigger_price': trigger_price,
+            'limit_price': price if price > 0 else 0,
+            'validity': validity.upper(),
+            'product': product.upper(),
+            'is_amo': False
+        }
+
+        try:
+            headers = self._get_headers()
+            response = requests.post(url, headers=headers, json=data, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response, symbol)
+
+            response.raise_for_status()
+            result = response.json()
+
+            self._log(f"✅ Smart order placed: {order_type} {quantity} {symbol} @ trigger {trigger_price}")
+            return result
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Smart order placement failed for {symbol}: {e}")
+            return None
+
+    def modify_smart_order(self, smart_order_id: str, new_trigger_price: float = None,
+                          new_price: float = None, new_quantity: int = None) -> Optional[Dict]:
+        """
+        Modify a pending GTT (smart order).
+
+        Args:
+            smart_order_id: Smart order ID to modify
+            new_trigger_price: New trigger price (optional)
+            new_price: New limit price (optional)
+            new_quantity: New quantity (optional)
+
+        Returns:
+            Modified smart order confirmation
+        """
+        url = f"{self.BASE_URL}/smart/order/modify"
+
+        data = {'smart_order_id': smart_order_id}
+        if new_trigger_price is not None:
+            data['trigger_price'] = new_trigger_price
+        if new_price is not None:
+            data['limit_price'] = new_price
+        if new_quantity is not None:
+            data['qty'] = new_quantity
+
+        try:
+            headers = self._get_headers()
+            response = requests.post(url, headers=headers, json=data, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
+            response.raise_for_status()
+            result = response.json()
+
+            self._log(f"✅ Smart order modified: {smart_order_id}")
+            return result
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Smart order modification failed: {e}")
+            return None
+
+    def cancel_smart_order(self, smart_order_id: str) -> Optional[Dict]:
+        """
+        Cancel a pending GTT (smart order).
+
+        Args:
+            smart_order_id: Smart order ID to cancel
+
+        Returns:
+            Cancellation confirmation
+        """
+        url = f"{self.BASE_URL}/smart/order/cancel"
+
+        data = {'smart_order_id': smart_order_id}
+
+        try:
+            headers = self._get_headers()
+            response = requests.post(url, headers=headers, json=data, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
+            response.raise_for_status()
+            result = response.json()
+
+            self._log(f"✅ Smart order cancelled: {smart_order_id}")
+            return result
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Smart order cancellation failed: {e}")
+            return None
+
+    # ==================== OPTIONS TRADING METHODS ====================
+
+    def fetch_option_chain(self, symbol: str, expiry_date: str = None) -> Optional[pd.DataFrame]:
+        """
+        Get option chain for a symbol.
+
+        Args:
+            symbol: Stock symbol (e.g., 'NIFTY', 'BANKNIFTY')
+            expiry_date: Expiry date (YYYY-MM-DD format), optional
+
+        Returns:
+            DataFrame with option chain data (calls and puts)
+        """
+        scrip_code = self.get_instrument_key(symbol)
+        if not scrip_code:
+            self._log(f"❌ Could not find scrip code for {symbol}")
+            return None
+
+        url = f"{self.BASE_URL}/option-chain"
+
+        params = {'scrip-code': scrip_code}
+        if expiry_date:
+            params['expiry_date'] = expiry_date
+
+        try:
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response, symbol)
+
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('status') == 'success' and 'data' in data:
+                options = data['data']
+                if isinstance(options, dict) and 'options' in options:
+                    df = pd.DataFrame(options['options'])
+                    self._log(f"✅ Fetched option chain for {symbol} ({len(df)} strikes)")
+                    return df
+                elif isinstance(options, list) and len(options) > 0:
+                    df = pd.DataFrame(options)
+                    self._log(f"✅ Fetched option chain for {symbol} ({len(df)} strikes)")
+                    return df
+
+            self._log(f"ℹ️  No option chain data found for {symbol}")
+            return pd.DataFrame()
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Failed to fetch option chain for {symbol}: {e}")
+            return None
+
+    def fetch_option_symbols(self) -> Optional[pd.DataFrame]:
+        """
+        Get list of symbols available for options trading along with expiry dates.
+
+        Returns:
+            DataFrame with option symbols and their expiry dates
+        """
+        url = f"{self.BASE_URL}/option-chain-symbols"
+
+        try:
+            headers = self._get_headers()
+            response = requests.get(url, headers=headers, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response)
+
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('status') == 'success' and 'data' in data:
+                symbols = data['data']
+                if isinstance(symbols, list) and len(symbols) > 0:
+                    df = pd.DataFrame(symbols)
+                    self._log(f"✅ Fetched {len(df)} option symbols")
+                    return df
+
+            self._log("ℹ️  No option symbols found")
+            return pd.DataFrame()
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Failed to fetch option symbols: {e}")
+            return None
+
+    def calculate_greeks(self, symbol: str, strike_price: float,
+                        option_type: str, expiry_date: str,
+                        spot_price: float = None, volatility: float = None,
+                        interest_rate: float = None) -> Optional[Dict]:
+        """
+        Calculate option Greeks (Delta, Gamma, Theta, Vega, Rho).
+
+        Args:
+            symbol: Underlying symbol (e.g., 'NIFTY')
+            strike_price: Strike price
+            option_type: 'CE' (Call) or 'PE' (Put)
+            expiry_date: Expiry date (YYYY-MM-DD)
+            spot_price: Current spot price (optional, will fetch if not provided)
+            volatility: Implied volatility (optional)
+            interest_rate: Risk-free rate (optional)
+
+        Returns:
+            Dictionary with Greeks values
+        """
+        scrip_code = self.get_instrument_key(symbol)
+        if not scrip_code:
+            self._log(f"❌ Could not find scrip code for {symbol}")
+            return None
+
+        # Extract security ID
+        security_id = scrip_code.split('_')[1] if '_' in scrip_code else scrip_code
+
+        url = f"{self.BASE_URL}/greeks"
+
+        data = {
+            'security_id': security_id,
+            'strike_price': strike_price,
+            'option_type': option_type.upper(),
+            'expiry_date': expiry_date
+        }
+
+        # Optional parameters
+        if spot_price is not None:
+            data['spot_price'] = spot_price
+        if volatility is not None:
+            data['volatility'] = volatility
+        if interest_rate is not None:
+            data['interest_rate'] = interest_rate
+
+        try:
+            headers = self._get_headers()
+            response = requests.post(url, headers=headers, json=data, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response, symbol)
+
+            response.raise_for_status()
+            result = response.json()
+
+            if result.get('status') == 'success' and 'data' in result:
+                self._log(f"✅ Greeks calculated for {symbol} {strike_price} {option_type}")
+                return result['data']
+
+            return result
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Greeks calculation failed for {symbol}: {e}")
+            return None
+
+    def fetch_margin(self, symbol: str, transaction_type: str, quantity: int,
+                    order_type: str = "MARKET", price: float = 0,
+                    exchange: str = "NSE", segment: str = "EQUITY") -> Optional[Dict]:
+        """
+        Calculate margin requirements for an order before placing it.
+
+        Args:
+            symbol: Stock symbol
+            transaction_type: 'BUY' or 'SELL'
+            quantity: Number of shares
+            order_type: 'MARKET' or 'LIMIT'
+            price: Limit price (for LIMIT orders)
+            exchange: 'NSE' or 'BSE'
+            segment: 'EQUITY', 'DERIVATIVE', etc.
+
+        Returns:
+            Dictionary with margin details (required margin, available margin, etc.)
+        """
+        scrip_code = self.get_instrument_key(symbol)
+        if not scrip_code:
+            self._log(f"❌ Could not find scrip code for {symbol}")
+            return None
+
+        # Extract security ID
+        security_id = scrip_code.split('_')[1] if '_' in scrip_code else scrip_code
+
+        url = f"{self.BASE_URL}/margin"
+
+        data = {
+            'txn_type': transaction_type.upper(),
+            'exchange': exchange.upper(),
+            'segment': segment.upper(),
+            'security_id': security_id,
+            'qty': quantity,
+            'order_type': order_type.upper(),
+            'limit_price': price if order_type.upper() == 'LIMIT' else 0
+        }
+
+        try:
+            headers = self._get_headers()
+            response = requests.post(url, headers=headers, json=data, timeout=15)
+
+            if response.status_code in [401, 403]:
+                self._handle_api_error(response, symbol)
+
+            response.raise_for_status()
+            result = response.json()
+
+            if result.get('status') == 'success' and 'data' in result:
+                self._log(f"✅ Margin calculated for {transaction_type} {quantity} {symbol}")
+                return result['data']
+
+            return result
+
+        except ValueError:
+            raise
+        except Exception as e:
+            self._log(f"❌ Margin calculation failed for {symbol}: {e}")
+            return None
+
+    # ==================== WEBSOCKET STREAMING METHODS ====================
+
+    def connect_market_data_websocket(self, on_message: Callable[[Dict], None],
+                                     symbols: List[str] = None) -> bool:
+        """
+        Connect to market data WebSocket for real-time price updates.
+
+        Args:
+            on_message: Callback function to handle incoming market data
+                       Function signature: on_message(data: Dict)
+            symbols: List of symbols to subscribe (optional, can subscribe later)
+
+        Returns:
+            True if connection successful, False otherwise
+        """
+        if not WEBSOCKETS_AVAILABLE and not WEBSOCKET_CLIENT_AVAILABLE:
+            self._log("❌ WebSocket library not available. Install: pip install websocket-client")
+            return False
+
+        self._on_market_data = on_message
+
+        try:
+            # Use websocket-client library (synchronous)
+            if WEBSOCKET_CLIENT_AVAILABLE:
+                ws_url = f"{self.WS_BASE_URL}/market-data"
+                self._ws_market_data = websocket.WebSocketApp(
+                    ws_url,
+                    on_open=self._on_market_ws_open,
+                    on_message=self._on_market_ws_message,
+                    on_error=self._on_market_ws_error,
+                    on_close=self._on_market_ws_close
+                )
+
+                # Run WebSocket in background thread
+                ws_thread = threading.Thread(
+                    target=self._ws_market_data.run_forever,
+                    daemon=True
+                )
+                ws_thread.start()
+                self._ws_threads['market_data'] = ws_thread
+
+                self._log("✅ Market data WebSocket connecting...")
+                return True
+
+            return False
+
+        except Exception as e:
+            self._log(f"❌ Failed to connect market data WebSocket: {e}")
+            return False
+
+    def _on_market_ws_open(self, ws):
+        """Market data WebSocket connection opened."""
+        self._log("✅ Market data WebSocket connected")
+
+        # Subscribe to initial symbols if provided
+        if self._market_subscriptions:
+            self.subscribe_market_data(list(self._market_subscriptions))
+
+    def _on_market_ws_message(self, ws, message):
+        """Handle incoming market data WebSocket message."""
+        try:
+            data = json.loads(message)
+
+            # Call user callback if registered
+            if self._on_market_data:
+                self._on_market_data(data)
+
+        except Exception as e:
+            self._log(f"❌ Error parsing market data message: {e}")
+
+    def _on_market_ws_error(self, ws, error):
+        """Market data WebSocket error."""
+        self._log(f"❌ Market data WebSocket error: {error}")
+
+    def _on_market_ws_close(self, ws, close_status_code, close_msg):
+        """Market data WebSocket connection closed."""
+        self._log("ℹ️  Market data WebSocket connection closed")
+
+    def subscribe_market_data(self, symbols: List[str]) -> bool:
+        """
+        Subscribe to real-time market data for symbols.
+
+        Args:
+            symbols: List of stock symbols to subscribe
+
+        Returns:
+            True if subscription successful
+        """
+        if not self._ws_market_data:
+            self._log("❌ Market data WebSocket not connected. Call connect_market_data_websocket() first")
+            return False
+
+        try:
+            # Track subscriptions
+            self._market_subscriptions.update(symbols)
+
+            # Send subscription message
+            subscription_data = {
+                "action": "subscribe",
+                "symbols": symbols,
+                "token": self.access_token
+            }
+
+            self._ws_market_data.send(json.dumps(subscription_data))
+            self._log(f"✅ Subscribed to market data: {', '.join(symbols)}")
+            return True
+
+        except Exception as e:
+            self._log(f"❌ Failed to subscribe to market data: {e}")
+            return False
+
+    def unsubscribe_market_data(self, symbols: List[str]) -> bool:
+        """
+        Unsubscribe from real-time market data.
+
+        Args:
+            symbols: List of stock symbols to unsubscribe
+
+        Returns:
+            True if unsubscription successful
+        """
+        if not self._ws_market_data:
+            return False
+
+        try:
+            # Remove from tracking
+            self._market_subscriptions.difference_update(symbols)
+
+            # Send unsubscription message
+            subscription_data = {
+                "action": "unsubscribe",
+                "symbols": symbols
+            }
+
+            self._ws_market_data.send(json.dumps(subscription_data))
+            self._log(f"✅ Unsubscribed from market data: {', '.join(symbols)}")
+            return True
+
+        except Exception as e:
+            self._log(f"❌ Failed to unsubscribe from market data: {e}")
+            return False
+
+    def disconnect_market_data_websocket(self):
+        """Disconnect market data WebSocket."""
+        if self._ws_market_data:
+            self._ws_market_data.close()
+            self._ws_market_data = None
+            self._market_subscriptions.clear()
+            self._log("✅ Market data WebSocket disconnected")
+
+    def connect_order_updates_websocket(self, on_message: Callable[[Dict], None]) -> bool:
+        """
+        Connect to order updates WebSocket for real-time order status.
+
+        Args:
+            on_message: Callback function to handle order update messages
+                       Function signature: on_message(data: Dict)
+
+        Returns:
+            True if connection successful, False otherwise
+        """
+        if not WEBSOCKETS_AVAILABLE and not WEBSOCKET_CLIENT_AVAILABLE:
+            self._log("❌ WebSocket library not available. Install: pip install websocket-client")
+            return False
+
+        self._on_order_update = on_message
+        self._order_subscriptions = True
+
+        try:
+            if WEBSOCKET_CLIENT_AVAILABLE:
+                ws_url = f"{self.WS_BASE_URL}/order-updates"
+                self._ws_order_updates = websocket.WebSocketApp(
+                    ws_url,
+                    header={"Authorization": self.access_token},
+                    on_open=lambda ws: self._log("✅ Order updates WebSocket connected"),
+                    on_message=self._on_order_ws_message,
+                    on_error=lambda ws, err: self._log(f"❌ Order updates WebSocket error: {err}"),
+                    on_close=lambda ws, *args: self._log("ℹ️  Order updates WebSocket closed")
+                )
+
+                # Run in background thread
+                ws_thread = threading.Thread(
+                    target=self._ws_order_updates.run_forever,
+                    daemon=True
+                )
+                ws_thread.start()
+                self._ws_threads['order_updates'] = ws_thread
+
+                self._log("✅ Order updates WebSocket connecting...")
+                return True
+
+            return False
+
+        except Exception as e:
+            self._log(f"❌ Failed to connect order updates WebSocket: {e}")
+            return False
+
+    def _on_order_ws_message(self, ws, message):
+        """Handle incoming order update message."""
+        try:
+            data = json.loads(message)
+
+            if self._on_order_update:
+                self._on_order_update(data)
+
+        except Exception as e:
+            self._log(f"❌ Error parsing order update message: {e}")
+
+    def disconnect_order_updates_websocket(self):
+        """Disconnect order updates WebSocket."""
+        if self._ws_order_updates:
+            self._ws_order_updates.close()
+            self._ws_order_updates = None
+            self._order_subscriptions = False
+            self._log("✅ Order updates WebSocket disconnected")
+
+    def connect_portfolio_websocket(self, on_message: Callable[[Dict], None]) -> bool:
+        """
+        Connect to portfolio WebSocket for real-time position/holding updates.
+
+        Args:
+            on_message: Callback function to handle portfolio update messages
+                       Function signature: on_message(data: Dict)
+
+        Returns:
+            True if connection successful, False otherwise
+        """
+        if not WEBSOCKETS_AVAILABLE and not WEBSOCKET_CLIENT_AVAILABLE:
+            self._log("❌ WebSocket library not available. Install: pip install websocket-client")
+            return False
+
+        self._on_portfolio_update = on_message
+        self._portfolio_subscriptions = True
+
+        try:
+            if WEBSOCKET_CLIENT_AVAILABLE:
+                ws_url = f"{self.WS_BASE_URL}/portfolio-updates"
+                self._ws_portfolio = websocket.WebSocketApp(
+                    ws_url,
+                    header={"Authorization": self.access_token},
+                    on_open=lambda ws: self._log("✅ Portfolio WebSocket connected"),
+                    on_message=self._on_portfolio_ws_message,
+                    on_error=lambda ws, err: self._log(f"❌ Portfolio WebSocket error: {err}"),
+                    on_close=lambda ws, *args: self._log("ℹ️  Portfolio WebSocket closed")
+                )
+
+                # Run in background thread
+                ws_thread = threading.Thread(
+                    target=self._ws_portfolio.run_forever,
+                    daemon=True
+                )
+                ws_thread.start()
+                self._ws_threads['portfolio'] = ws_thread
+
+                self._log("✅ Portfolio WebSocket connecting...")
+                return True
+
+            return False
+
+        except Exception as e:
+            self._log(f"❌ Failed to connect portfolio WebSocket: {e}")
+            return False
+
+    def _on_portfolio_ws_message(self, ws, message):
+        """Handle incoming portfolio update message."""
+        try:
+            data = json.loads(message)
+
+            if self._on_portfolio_update:
+                self._on_portfolio_update(data)
+
+        except Exception as e:
+            self._log(f"❌ Error parsing portfolio update message: {e}")
+
+    def disconnect_portfolio_websocket(self):
+        """Disconnect portfolio WebSocket."""
+        if self._ws_portfolio:
+            self._ws_portfolio.close()
+            self._ws_portfolio = None
+            self._portfolio_subscriptions = False
+            self._log("✅ Portfolio WebSocket disconnected")
+
+    def disconnect_all_websockets(self):
+        """Disconnect all active WebSocket connections."""
+        self.disconnect_market_data_websocket()
+        self.disconnect_order_updates_websocket()
+        self.disconnect_portfolio_websocket()
+        self._log("✅ All WebSocket connections disconnected")
+
+
+class TradingAPIFactory:
+    """
+    Factory class for creating trading API client instances.
+
+    Implements the Factory Pattern to provide a unified interface for creating
+    different API client instances (Upstox, INDMoney, etc.) based on configuration.
+
+    Usage:
+        # Create Upstox API client
+        upstox_api = TradingAPIFactory.create_client('upstox',
+            api_key='your_key', api_secret='your_secret')
+
+        # Create INDMoney API client
+        indmoney_api = TradingAPIFactory.create_client('indmoney',
+            access_token='your_token')
+
+        # Create with quiet mode
+        api = TradingAPIFactory.create_client('upstox',
+            api_key='key', api_secret='secret', quiet=True)
+    """
+
+    SUPPORTED_PROVIDERS = ['upstox', 'indmoney']
+
+    @classmethod
+    def create_client(cls, provider: str, **kwargs) -> BaseAPIClient:
+        """
+        Create an API client instance for the specified provider.
+
+        Args:
+            provider (str): The API provider name ('upstox' or 'indmoney')
+            **kwargs: Provider-specific credentials:
+                - For 'upstox': api_key (str), api_secret (str), quiet (bool, optional)
+                - For 'indmoney': access_token (str), quiet (bool, optional)
+
+        Returns:
+            BaseAPIClient: An instance of the appropriate API client
+
+        Raises:
+            ValueError: If provider is not supported or required credentials are missing
+
+        Examples:
+            >>> # Upstox client
+            >>> upstox = TradingAPIFactory.create_client('upstox',
+            ...     api_key='key', api_secret='secret')
+            >>> # INDMoney client
+            >>> indmoney = TradingAPIFactory.create_client('indmoney',
+            ...     access_token='token')
+        """
+        provider_lower = provider.lower()
+
+        if provider_lower not in cls.SUPPORTED_PROVIDERS:
+            raise ValueError(
+                f"Unsupported provider '{provider}'. "
+                f"Supported providers: {', '.join(cls.SUPPORTED_PROVIDERS)}"
+            )
+
+        # Extract common parameters
+        quiet = kwargs.get('quiet', False)
+
+        # Create Upstox client
+        if provider_lower == 'upstox':
+            api_key = kwargs.get('api_key')
+            api_secret = kwargs.get('api_secret')
+
+            if not api_key or not api_secret:
+                raise ValueError(
+                    "Upstox client requires 'api_key' and 'api_secret' parameters"
+                )
+
+            return UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=quiet)
+
+        # Create INDMoney client
+        elif provider_lower == 'indmoney':
+            access_token = kwargs.get('access_token')
+
+            if not access_token:
+                raise ValueError(
+                    "INDMoney client requires 'access_token' parameter"
+                )
+
+            return INDMONEYApi(access_token=access_token, quiet=quiet)
+
+    @classmethod
+    def create_from_config(cls, provider: str, quiet: bool = False) -> BaseAPIClient:
+        """
+        Create an API client using credentials from the global config.
+
+        This is a convenience method that reads credentials from UPSTOX_CONFIG
+        and INDMONEY_CONFIG defined in config.py.
+
+        Args:
+            provider (str): The API provider name ('upstox' or 'indmoney')
+            quiet (bool): If True, suppresses console output. Default is False.
+
+        Returns:
+            BaseAPIClient: An instance of the appropriate API client
+
+        Raises:
+            ValueError: If provider is not supported or config is missing
+
+        Examples:
+            >>> # Load from config.py
+            >>> upstox = TradingAPIFactory.create_from_config('upstox')
+            >>> indmoney = TradingAPIFactory.create_from_config('indmoney', quiet=True)
+        """
+        # Import config here to avoid module-level import issues
+        try:
+            from upstox_trader.config import UPSTOX_CONFIG, INDMONEY_CONFIG
+        except ImportError:
+            raise ValueError(
+                "config.py not found in upstox_trader module. "
+                "Please create it with your API credentials."
+            )
+
+        provider_lower = provider.lower()
+
+        if provider_lower == 'upstox':
+            if not UPSTOX_CONFIG.get('api_key') or not UPSTOX_CONFIG.get('api_secret'):
+                raise ValueError(
+                    "UPSTOX_CONFIG not properly configured. "
+                    "Please set 'api_key' and 'api_secret' in config.py"
+                )
+
+            return UpstoxAPI(
+                api_key=UPSTOX_CONFIG['api_key'],
+                api_secret=UPSTOX_CONFIG['api_secret'],
+                quiet=quiet
+            )
+
+        elif provider_lower == 'indmoney':
+            if not INDMONEY_CONFIG.get('access_token'):
+                raise ValueError(
+                    "INDMONEY_CONFIG not properly configured. "
+                    "Please set 'access_token' in config.py"
+                )
+
+            return INDMONEYApi(
+                access_token=INDMONEY_CONFIG['access_token'],
+                quiet=quiet
+            )
+
+        else:
+            raise ValueError(
+                f"Unsupported provider '{provider}'. "
+                f"Supported providers: {', '.join(cls.SUPPORTED_PROVIDERS)}"
+            )
