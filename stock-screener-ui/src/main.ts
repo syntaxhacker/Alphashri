@@ -35,6 +35,8 @@ let isLoading = false
 let error: string | null = null
 let autoRefreshInterval: number | null = null
 let filters: Filters = { minScore: 0, maxPrice: 7000, minReturn: -100, sector: '' }
+let sortColumn: string | null = null
+let sortDirection: 'asc' | 'desc' = 'desc'
 
 const API_URL = 'http://localhost:8765/api/screener'
 
@@ -81,6 +83,55 @@ function applyFilters(stocks: Stock[]): Stock[] {
   )
 }
 
+function sortStocks(stocks: Stock[]): Stock[] {
+  if (!sortColumn) return stocks
+
+  return [...stocks].sort((a, b) => {
+    let aVal: any, bVal: any
+
+    switch (sortColumn) {
+      case 'symbol': aVal = a.symbol; bVal = b.symbol; break
+      case 'score': aVal = a.score; bVal = b.score; break
+      case 'tv_price': aVal = a.tv_price; bVal = b.tv_price; break
+      case 'upstox_price': aVal = a.upstox_price; bVal = b.upstox_price; break
+      case 'broker_diff': aVal = a.broker_diff; bVal = b.broker_diff; break
+      case 'to_52w_high': aVal = a.to_52w_high; bVal = b.to_52w_high; break
+      case 'time_to_52w': aVal = a.time_to_52w?.days ?? 999; bVal = b.time_to_52w?.days ?? 999; break
+      case 'recent_return_5d': aVal = a.recent_return_5d; bVal = b.recent_return_5d; break
+      case 'perf_w': aVal = a.perf_w; bVal = b.perf_w; break
+      case 'sector': aVal = a.sector; bVal = b.sector; break
+      default: return 0
+    }
+
+    if (typeof aVal === 'string') {
+      return sortDirection === 'asc'
+        ? aVal.localeCompare(bVal)
+        : bVal.localeCompare(aVal)
+    }
+
+    return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+  })
+}
+
+function handleSort(column: string) {
+  if (sortColumn === column) {
+    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortColumn = column
+    sortDirection = 'desc'
+  }
+  render()
+}
+
+function renderSortIndicator(column: string): string {
+  if (sortColumn !== column) return '<span class="sort-indicator"></span>'
+  return `<span class="sort-indicator ${sortDirection}">${sortDirection === 'asc' ? '↑' : '↓'}</span>`
+}
+
+function renderSortableHeader(label: string, column: string, className = ''): string {
+  return `<th class="${className} sortable" data-column="${column}" onclick="window.handleSort('${column}')">${label} ${renderSortIndicator(column)}</th>`
+}
+
 function getUniqueSectors(stocks: Stock[]): string[] {
   const sectors = new Set(stocks.map(s => s.sector).filter(s => s && s !== '-'))
   return Array.from(sectors).sort()
@@ -109,8 +160,8 @@ function render() {
 
   const allStocks = [...(data?.approaching || []), ...(data?.touched || [])]
   const sectors = getUniqueSectors(allStocks)
-  const approaching = applyFilters(data?.approaching || [])
-  const touched = applyFilters(data?.touched || [])
+  const approaching = sortStocks(applyFilters(data?.approaching || []))
+  const touched = sortStocks(applyFilters(data?.touched || []))
 
   const demoBadge = data?.demo_mode ? '<span class="badge">DEMO</span>' : ''
 
@@ -149,16 +200,16 @@ function render() {
       <table>
         <thead>
           <tr>
-            <th>Symbol</th>
-            <th class="num">Score</th>
-            <th class="num">TV Price</th>
-            <th class="num">Upstox</th>
-            <th class="num">Broker Diff</th>
-            <th class="num">To 52W High</th>
-            <th class="num">Time to 52W</th>
-            <th class="num">5D Return</th>
-            <th>Perf.W</th>
-            <th>Sector</th>
+            ${renderSortableHeader('Symbol', 'symbol')}
+            ${renderSortableHeader('Score', 'score', 'num')}
+            ${renderSortableHeader('TV Price', 'tv_price', 'num')}
+            ${renderSortableHeader('Upstox', 'upstox_price', 'num')}
+            ${renderSortableHeader('Broker Diff', 'broker_diff', 'num')}
+            ${renderSortableHeader('To 52W High', 'to_52w_high', 'num')}
+            ${renderSortableHeader('Time to 52W', 'time_to_52w', 'num')}
+            ${renderSortableHeader('5D Return', 'recent_return_5d', 'num')}
+            ${renderSortableHeader('Perf.W', 'perf_w', 'num')}
+            ${renderSortableHeader('Sector', 'sector')}
           </tr>
         </thead>
         <tbody>
@@ -172,15 +223,15 @@ function render() {
       <table>
         <thead>
           <tr>
-            <th>Symbol</th>
-            <th class="num">Score</th>
-            <th class="num">TV Price</th>
-            <th class="num">Upstox</th>
-            <th class="num">Broker Diff</th>
-            <th class="num">To 52W High</th>
-            <th class="num">5D Return</th>
-            <th>Perf.W</th>
-            <th>Sector</th>
+            ${renderSortableHeader('Symbol', 'symbol')}
+            ${renderSortableHeader('Score', 'score', 'num')}
+            ${renderSortableHeader('TV Price', 'tv_price', 'num')}
+            ${renderSortableHeader('Upstox', 'upstox_price', 'num')}
+            ${renderSortableHeader('Broker Diff', 'broker_diff', 'num')}
+            ${renderSortableHeader('To 52W High', 'to_52w_high', 'num')}
+            ${renderSortableHeader('5D Return', 'recent_return_5d', 'num')}
+            ${renderSortableHeader('Perf.W', 'perf_w', 'num')}
+            ${renderSortableHeader('Sector', 'sector')}
           </tr>
         </thead>
         <tbody>
@@ -266,6 +317,7 @@ async function fetchData(provider = 'upstox', mode = 'historical') {
   filters = { minScore: 0, maxPrice: 7000, minReturn: -100, sector: '' }
   render()
 }
+;(window as any).handleSort = (column: string) => handleSort(column)
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {

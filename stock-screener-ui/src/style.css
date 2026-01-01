@@ -23,6 +23,10 @@ table{width:100%;border-collapse:collapse;margin-bottom:16px}
 .section-title.touched{border-left-color:#ff6b35}
 thead{background:#111;position:sticky;top:0}
 th{font:10px monospace;text-align:left;padding:4px 6px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+th.sortable{cursor:pointer;user-select:none;position:relative;transition:color 0.15s}
+th.sortable:hover{color:#00ff9d;background:#0a0a0a}
+.sort-indicator{display:inline-block;margin-left:4px;opacity:0.3;width:8px;text-align:center}
+.sort-indicator.asc,.sort-indicator.desc{opacity:1}
 td{padding:3px 6px;border-bottom:1px solid #1a1a1a}
 tr:hover{background:#0f0f0f}
 .green{color:#00ff9d}
