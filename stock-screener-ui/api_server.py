@@ -12,10 +12,12 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import threading
 
-# Add project root to path
+# Add project root and scanners to path
 _script_dir = Path(__file__).parent.absolute()
 _project_root = _script_dir.parent
+_scanners_dir = _project_root / 'scanners'
 sys.path.insert(0, str(_project_root))
+sys.path.insert(0, str(_scanners_dir))
 
 from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
 import trending_upside
