@@ -20,14 +20,37 @@ interface ScreenerData {
   last_updated: string
   provider: string
   mode: string
+  demo_mode?: boolean
+}
+
+interface Filters {
+  minScore: number
+  maxPrice: number
+  minReturn: number
+  sector: string
 }
 
 let data: ScreenerData | null = null
 let isLoading = false
 let error: string | null = null
 let autoRefreshInterval: number | null = null
+let filters: Filters = { minScore: 0, maxPrice: 7000, minReturn: -100, sector: '' }
 
 const API_URL = 'http://localhost:8765/api/screener'
+
+function formatTimestamp(isoString: string): string {
+  const d = new Date(isoString)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  const mins = Math.floor(diff / 60000)
+  const secs = Math.floor((diff % 60000) / 1000)
+
+  if (mins < 1) return `${secs}s ago`
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ${mins % 60}m ago`
+  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
 function showOverlay(message: string = 'Loading...') {
   const existing = document.querySelector('.loading-overlay')
@@ -47,6 +70,20 @@ function showOverlay(message: string = 'Loading...') {
 function hideOverlay() {
   const overlay = document.querySelector('.loading-overlay')
   if (overlay) overlay.remove()
+}
+
+function applyFilters(stocks: Stock[]): Stock[] {
+  return stocks.filter(s =>
+    s.score >= filters.minScore &&
+    s.tv_price <= filters.maxPrice &&
+    s.recent_return_5d >= filters.minReturn &&
+    (filters.sector === '' || s.sector === filters.sector)
+  )
+}
+
+function getUniqueSectors(stocks: Stock[]): string[] {
+  const sectors = new Set(stocks.map(s => s.sector).filter(s => s && s !== '-'))
+  return Array.from(sectors).sort()
 }
 
 function render() {
@@ -70,30 +107,45 @@ function render() {
     return
   }
 
-  const approaching = data?.approaching || []
-  const touched = data?.touched || []
+  const allStocks = [...(data?.approaching || []), ...(data?.touched || [])]
+  const sectors = getUniqueSectors(allStocks)
+  const approaching = applyFilters(data?.approaching || [])
+  const touched = applyFilters(data?.touched || [])
+
+  const demoBadge = data?.demo_mode ? '<span class="badge">DEMO</span>' : ''
 
   app.innerHTML = `
     <div class="header">
       <div>
-        <div class="title">🚀 Trending Stock Screener</div>
-        <div class="status">${data?.last_updated || ''} | ${data?.provider || ''} | ${data?.mode || ''}</div>
+        <div class="title">🚀 Trending Stock Screener ${demoBadge}</div>
+        <div class="status">${data?.last_updated ? formatTimestamp(data.last_updated) : ''} | ${data?.provider?.toUpperCase() || ''} | ${data?.mode === 'intraday' ? 'Intraday' : '5D'}</div>
       </div>
       <div class="controls">
-        <button id="refreshBtn" class="${isLoading ? 'refreshing' : ''}" onclick="window.refresh()">🔄 Refresh</button>
-        <select id="providerSelect" onchange="window.changeProvider(this.value)" style="background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:4px;font:11px monospace;" ${isLoading ? 'disabled' : ''}>
+        <button id="refreshBtn" class="${isLoading ? 'refreshing' : ''}" onclick="window.refresh()">🔄</button>
+        <select id="providerSelect" onchange="window.changeProvider(this.value)" ${isLoading ? 'disabled' : ''}>
           <option value="upstox" ${data?.provider === 'upstox' ? 'selected' : ''}>Upstox</option>
           <option value="indmoney" ${data?.provider === 'indmoney' ? 'selected' : ''}>INDMONEY</option>
         </select>
-        <select id="modeSelect" onchange="window.changeMode(this.value)" style="background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:4px;font:11px monospace;" ${isLoading ? 'disabled' : ''}>
+        <select id="modeSelect" onchange="window.changeMode(this.value)" ${isLoading ? 'disabled' : ''}>
           <option value="historical" ${data?.mode === 'historical' ? 'selected' : ''}>5D</option>
           <option value="intraday" ${data?.mode === 'intraday' ? 'selected' : ''}>Intraday</option>
         </select>
       </div>
     </div>
 
+    <div class="filters">
+      <label>Score ≥ <input type="number" id="minScore" value="${filters.minScore}" min="0" max="100" step="5" onchange="window.updateFilter('minScore', this.value)"></label>
+      <label>Price ≤ <input type="number" id="maxPrice" value="${filters.maxPrice}" min="100" max="10000" step="100" onchange="window.updateFilter('maxPrice', this.value)"></label>
+      <label>Return ≥ <input type="number" id="minReturn" value="${filters.minReturn}" min="-50" max="50" step="1" onchange="window.updateFilter('minReturn', this.value)"></label>
+      <label>Sector <select id="sectorFilter" onchange="window.updateFilter('sector', this.value)">
+        <option value="">All</option>
+        ${sectors.map(s => `<option value="${s}" ${filters.sector === s ? 'selected' : ''}>${s}</option>`).join('')}
+      </select></label>
+      <button onclick="window.resetFilters()" style="padding:2px 8px;font-size:10px">Reset</button>
+    </div>
+
     ${approaching.length > 0 ? `
-      <div class="section-title">🎯 APPROACHING 52W HIGH (${approaching.length} stocks, &lt; ₹7000)</div>
+      <div class="section-title">🎯 APPROACHING 52W HIGH (${approaching.length}${approaching.length < (data?.approaching?.length || 0) ? ` of ${data?.approaching?.length}` : ''})</div>
       <table>
         <thead>
           <tr>
@@ -113,10 +165,10 @@ function render() {
           ${approaching.map(s => renderStockRow(s)).join('')}
         </tbody>
       </table>
-    ` : '<div class="empty">No stocks approaching 52W high</div>'}
+    ` : '<div class="empty">No stocks matching filters</div>'}
 
     ${touched.length > 0 ? `
-      <div class="section-title touched">✅ ALREADY TOUCHED 52W HIGH (${touched.length} stocks)</div>
+      <div class="section-title touched">✅ ALREADY TOUCHED 52W HIGH (${touched.length}${touched.length < (data?.touched?.length || 0) ? ` of ${data?.touched?.length}` : ''})</div>
       <table>
         <thead>
           <tr>
@@ -138,7 +190,7 @@ function render() {
     ` : ''}
 
     <div class="footer">
-      <div><kbd>R</kbd> Refresh <kbd>S</kbd> Sort <kbd>M</kbd> Mode <kbd>P</kbd> Provider</div>
+      <div><kbd>R</kbd> Refresh <kbd>M</kbd> Mode <kbd>P</kbd> Provider</div>
       <div>Auto-refresh: ${autoRefreshInterval ? 'ON (30s)' : 'OFF'}</div>
     </div>
   `
@@ -202,6 +254,18 @@ async function fetchData(provider = 'upstox', mode = 'historical') {
 ;(window as any).refresh = () => fetchData(data?.provider || 'upstox', data?.mode || 'historical')
 ;(window as any).changeProvider = (p: string) => fetchData(p, data?.mode || 'historical')
 ;(window as any).changeMode = (m: string) => fetchData(data?.provider || 'upstox', m)
+;(window as any).updateFilter = (key: string, value: string) => {
+  if (key === 'sector') {
+    filters[key] = value
+  } else {
+    filters[key as keyof Filters] = parseFloat(value)
+  }
+  render()
+}
+;(window as any).resetFilters = () => {
+  filters = { minScore: 0, maxPrice: 7000, minReturn: -100, sector: '' }
+  render()
+}
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {

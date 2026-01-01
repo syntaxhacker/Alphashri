@@ -13,6 +13,11 @@ button:hover{background:#252525;border-color:#00ff9d}
 button:active{background:#00ff9d;color:#0a0a0a}
 .refreshing{opacity:0.5;pointer-events:none}
 .status{font-size:10px;color:#666;margin-top:4px}
+.filters{display:flex;gap:12px;flex-wrap:wrap;padding:8px;background:#0f0f0f;border:1px solid #222;margin-bottom:8px;align-items:center}
+.filters label{font-size:10px;color:#888;display:flex;align-items:center;gap:4px}
+.filters input{background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:2px 6px;width:60px;font:10px monospace;text-align:right}
+.filters input:focus{outline:none;border-color:#00ff9d}
+.filters select{background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:2px;font:10px monospace}
 table{width:100%;border-collapse:collapse;margin-bottom:16px}
 .section-title{font-size:12px;font-weight:700;margin:12px 0 4px;padding:4px 8px;background:#111;border-left:3px solid #00ff9d}
 .section-title.touched{border-left-color:#ff6b35}
