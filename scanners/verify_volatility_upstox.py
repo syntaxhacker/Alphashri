@@ -8,7 +8,8 @@ import time
 
 # Import existing modules
 import high_volatility_scanner
-from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI, UPSTOX_CONFIG
+from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+from upstox_trader.config import UPSTOX_CONFIG
 
 console = Console()
 
@@ -68,7 +69,7 @@ def verify_trends(limit=20):
         for _, row in df_volatile.iterrows():
             symbol = row['name']
             atr_pct = row['atr_pct']
-            
+
             # Fetch Weekly
             df_week = upstox_api.fetch_historical_data_v3(
                 symbol=symbol,
@@ -77,7 +78,7 @@ def verify_trends(limit=20):
                 to_date=to_date,
                 from_date=from_date_weekly
             )
-            
+
             # Fetch Monthly
             df_month = upstox_api.fetch_historical_data_v3(
                 symbol=symbol,
@@ -86,22 +87,27 @@ def verify_trends(limit=20):
                 to_date=to_date,
                 from_date=from_date_monthly
             )
-            
+
+            # Skip if data not available
+            if df_week is None or df_month is None:
+                console.print(f"[dim]⚠️ Skipping {symbol} - Data not available[/dim]")
+                continue
+
             # Analyze Trends
             week_status, week_bullish = get_trend_status(df_week)
             month_status, month_bullish = get_trend_status(df_month)
-            
+
             # Determine Rating
             rating = "⭐" # Base rating (C Setup)
             setup_type = "C (Scalp)"
-            
+
             if week_bullish and month_bullish:
                 rating = "⭐⭐⭐"
                 setup_type = "A+ (Swing)"
             elif week_bullish:
                 rating = "⭐⭐"
                 setup_type = "B (Momtm)"
-            
+
             results.append({
                 'Symbol': symbol,
                 'Price': row['close'],
@@ -111,7 +117,7 @@ def verify_trends(limit=20):
                 'Rating': rating,
                 'Setup': setup_type
             })
-            
+
             # Rate limit
             # time.sleep(0.2) 
 
