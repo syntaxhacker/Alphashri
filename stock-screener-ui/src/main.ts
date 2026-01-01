@@ -29,6 +29,26 @@ let autoRefreshInterval: number | null = null
 
 const API_URL = 'http://localhost:8765/api/screener'
 
+function showOverlay(message: string = 'Loading...') {
+  const existing = document.querySelector('.loading-overlay')
+  if (existing) existing.remove()
+
+  const overlay = document.createElement('div')
+  overlay.className = 'loading-overlay overlay'
+  overlay.innerHTML = `
+    <div style="display:flex;align-items:center">
+      <div class="spinner"></div>
+      <span class="loading-text">${message}</span>
+    </div>
+  `
+  document.body.appendChild(overlay)
+}
+
+function hideOverlay() {
+  const overlay = document.querySelector('.loading-overlay')
+  if (overlay) overlay.remove()
+}
+
 function render() {
   const app = document.querySelector<HTMLDivElement>('#app')!
 
@@ -61,11 +81,11 @@ function render() {
       </div>
       <div class="controls">
         <button id="refreshBtn" class="${isLoading ? 'refreshing' : ''}" onclick="window.refresh()">🔄 Refresh</button>
-        <select id="providerSelect" onchange="window.changeProvider(this.value)" style="background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:4px;font:11px monospace;">
+        <select id="providerSelect" onchange="window.changeProvider(this.value)" style="background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:4px;font:11px monospace;" ${isLoading ? 'disabled' : ''}>
           <option value="upstox" ${data?.provider === 'upstox' ? 'selected' : ''}>Upstox</option>
           <option value="indmoney" ${data?.provider === 'indmoney' ? 'selected' : ''}>INDMONEY</option>
         </select>
-        <select id="modeSelect" onchange="window.changeMode(this.value)" style="background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:4px;font:11px monospace;">
+        <select id="modeSelect" onchange="window.changeMode(this.value)" style="background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:4px;font:11px monospace;" ${isLoading ? 'disabled' : ''}>
           <option value="historical" ${data?.mode === 'historical' ? 'selected' : ''}>5D</option>
           <option value="intraday" ${data?.mode === 'intraday' ? 'selected' : ''}>Intraday</option>
         </select>
@@ -158,7 +178,13 @@ function renderStockRow(s: Stock, touched: boolean = false): string {
 async function fetchData(provider = 'upstox', mode = 'historical') {
   isLoading = true
   error = null
-  render()
+
+  // Show overlay if we have existing data (refresh scenario)
+  if (data) {
+    showOverlay('Fetching latest data...')
+  } else {
+    render()
+  }
 
   try {
     const res = await fetch(`${API_URL}?provider=${provider}&mode=${mode}`)
@@ -168,6 +194,7 @@ async function fetchData(provider = 'upstox', mode = 'historical') {
     error = e instanceof Error ? e.message : 'Failed to fetch'
   } finally {
     isLoading = false
+    hideOverlay()
     render()
   }
 }
@@ -179,6 +206,7 @@ async function fetchData(provider = 'upstox', mode = 'historical') {
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
+  if (isLoading) return
   switch(e.key.toLowerCase()) {
     case 'r': (window as any).refresh(); break
     case 'p': {
