@@ -1,0 +1,35 @@
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh}
+#app{max-width:1400px;margin:0 auto;padding:8px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid #333;padding-bottom:8px}
+.title{font-size:14px;font-weight:700;color:#00ff9d}
+.controls{display:flex;gap:8px}
+button{background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:4px 12px;font:11px monospace;cursor:pointer}
+button:hover{background:#252525;border-color:#00ff9d}
+button:active{background:#00ff9d;color:#0a0a0a}
+.refreshing{opacity:0.5;pointer-events:none}
+.status{font-size:10px;color:#666;margin-top:4px}
+table{width:100%;border-collapse:collapse;margin-bottom:16px}
+.section-title{font-size:12px;font-weight:700;margin:12px 0 4px;padding:4px 8px;background:#111;border-left:3px solid #00ff9d}
+.section-title.touched{border-left-color:#ff6b35}
+thead{background:#111;position:sticky;top:0}
+th{font:10px monospace;text-align:left;padding:4px 6px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+td{padding:3px 6px;border-bottom:1px solid #1a1a1a}
+tr:hover{background:#0f0f0f}
+.green{color:#00ff9d}
+.red{color:#ff4757}
+.yellow{color:#ffa502}
+.dim{color:#555}
+.score-high{color:#00ff9d;font-weight:700}
+.score-med{color:#ffa502}
+.conf-high{color:#ff6b35}
+.conf-med{color:#ffa502}
+.num{text-align:right}
+.sym{font-weight:700;color:#70a1ff}
+.icon{font-size:10px}
+.loading{text-align:center;padding:40px;color:#666}
+.error{color:#ff4757;padding:16px;background:#1a0a0a;border:1px solid #ff4757;margin:16px 0}
+.empty{color:#666;padding:16px;text-align:center}
+.badge{display:inline-block;padding:1px 6px;font-size:9px;border-radius:2px;background:#222}
+.footer{font-size:10px;color:#444;border-top:1px solid #222;padding-top:8px;margin-top:16px;display:flex;justify-content:space-between}
+kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
