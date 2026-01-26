@@ -1275,8 +1275,40 @@ async function initializeAdvancedView(data) {
     charts.relativeStrength.render(data.timeSeries, sectors, currentRange);
 }
 
-// Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', initializeDashboard);
+// Setup event listeners once DOM is ready
+let debounceTimer;
+
+function setupRangeSelectors() {
+    const rangeValueInput = document.getElementById('custom-range-value');
+    const rangeUnitSelect = document.getElementById('custom-range-unit');
+
+    if (rangeValueInput) {
+        rangeValueInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                applyCustomRange();
+            }, 500); // 500ms debounce
+        });
+    }
+
+    if (rangeUnitSelect) {
+        rangeUnitSelect.addEventListener('change', () => {
+            applyCustomRange();
+        });
+    }
+}
+
+// Initialize immediately or on DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        setupRangeSelectors();
+        initializeDashboard();
+    });
+} else {
+    // DOM is already ready, initialize immediately
+    setupRangeSelectors();
+    initializeDashboard();
+}
 
 // Handle window resize
 let resizeTimer;

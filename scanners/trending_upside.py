@@ -38,7 +38,7 @@ def fetch_trending_stocks(limit=50):
                 Column('EMA20') > Column('EMA50'),
                 Column('RSI') > 50,
                 Column('ADX') > 20,
-                Column('relative_volume_10d_calc') > 1.0,
+                Column('relative_volume_10d_calc') > 0.5,  # Relaxed from >1.0 to allow more candidates
                 Column('market_cap_basic') > 50_000_000_000,  # > 5000 Cr (Mid/Large Cap)
                 Column('return_on_equity') > 10               # Quality Check
             )

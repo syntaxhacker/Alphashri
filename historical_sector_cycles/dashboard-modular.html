@@ -78,16 +78,14 @@
                 <div style="display: flex; gap: 5px; align-items: center;">
                     <label style="color: #8b949e; font-size: 0.85em;">Last:</label>
                     <input type="number" id="custom-range-value" value="5" min="1" max="10"
-                           onkeypress="if(event.key==='Enter') applyCustomRange()"
                            style="width: 60px; padding: 6px 10px; font-size: 0.85em; background: #21262d; color: #e0e0e0; border: 1px solid #30363d; border-radius: 6px;">
-                    <select id="custom-range-unit" onchange="applyCustomRange()"
+                    <select id="custom-range-unit"
                             style="padding: 6px 12px; font-size: 0.85em; background: #21262d; color: #e0e0e0; border: 1px solid #30363d; border-radius: 6px;">
                         <option value="d">Days</option>
                         <option value="w">Weeks</option>
                         <option value="m" selected>Months</option>
                         <option value="y">Years</option>
                     </select>
-                    <button onclick="applyCustomRange()" style="padding: 6px 12px; font-size: 0.85em;">Go</button>
                     <button onclick="filterByRange('ytd')" style="padding: 6px 12px; font-size: 0.85em;">YTD</button>
                 </div>
 
@@ -293,6 +291,6 @@
     <script src="charts/volume-price-divergence-chart.js"></script>
     <script src="charts/relative-strength-chart.js"></script>
     <script src="charts/correlation-dendrogram-chart.js"></script>
-    <script src="dashboard-ui.js"></script>
+    <script src="dashboard-ui.js?v=4"></script>
 </body>
 </html>

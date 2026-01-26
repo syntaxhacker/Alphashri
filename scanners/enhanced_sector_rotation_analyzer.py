@@ -157,6 +157,105 @@ def calculate_sector_rankings(monthly_data):
     return pd.DataFrame(rankings)
 
 
+def calculate_weekly_rankings(sector_data):
+    """
+    Calculate sector rankings for each week.
+    Returns list of weekly ranking entries.
+    """
+    weekly_rankings = []
+
+    # Get all unique weeks across all sectors
+    all_weeks = set()
+    for sector, df in sector_data.items():
+        # Resample to weekly
+        weekly = df.resample('W').last()
+        all_weeks.update(weekly.index)
+
+    all_weeks = sorted(all_weeks)
+
+    for week in all_weeks:
+        week_returns = {}
+
+        for sector, df in sector_data.items():
+            # Get the week's data
+            week_data = df.resample('W').last()
+            if week in week_data.index and not pd.isna(week_data.loc[week, 'cumulative_return']):
+                # Calculate return for this week
+                week_start = week - timedelta(days=6)
+                week_data_range = df[(df.index >= week_start) & (df.index <= week)]
+
+                if len(week_data_range) > 0:
+                    week_return = ((week_data_range['cumulative_return'].iloc[-1] - week_data_range['cumulative_return'].iloc[0]) /
+                                abs(week_data_range['cumulative_return'].iloc[0])) * 100 if week_data_range['cumulative_return'].iloc[0] != 0 else 0
+                    week_returns[sector] = week_return
+
+        if week_returns:
+            # Rank sectors by weekly return (1 = best)
+            ranked = sorted(week_returns.items(), key=lambda x: x[1], reverse=True)
+            for rank, (sector, ret) in enumerate(ranked, 1):
+                weekly_rankings.append({
+                    'date': week,
+                    'sector': sector,
+                    'rank': rank,
+                    'return': ret
+                })
+
+    return weekly_rankings
+
+
+def calculate_daily_rankings(sector_data):
+    """
+    Calculate rolling daily sector rankings using 7-day returns.
+    This shows which sectors are performing best over a rolling window.
+    """
+    daily_rankings = []
+
+    # Get common dates across all sectors
+    all_dates = set()
+    for sector, df in sector_data.items():
+        all_dates.update(df.index)
+
+    all_dates = sorted(all_dates)
+
+    # Skip first 30 days to have enough data for 7-day rolling
+    start_idx = 30
+    for i in range(start_idx, len(all_dates)):
+        current_date = all_dates[i]
+
+        # Calculate 7-day return for each sector up to this date
+        daily_returns = {}
+
+        for sector, df in sector_data.items():
+            # Get data for 7-day window ending at current_date
+            window_start = current_date - timedelta(days=7)
+            window_data = df[(df.index >= window_start) & (df.index <= current_date)]
+
+            if len(window_data) >= 5:  # Need at least 5 days of data
+                start_val = window_data['cumulative_return'].iloc[0]
+                end_val = window_data['cumulative_return'].iloc[-1]
+
+                if start_val != 0:
+                    daily_return = ((end_val - start_val) / abs(start_val)) * 100
+                else:
+                    daily_return = end_val * 100
+
+                if not pd.isna(daily_return):
+                    daily_returns[sector] = daily_return
+
+        if daily_returns:
+            # Rank sectors by 7-day return (1 = best)
+            ranked = sorted(daily_returns.items(), key=lambda x: x[1], reverse=True)
+            for rank, (sector, ret) in enumerate(ranked, 1):
+                daily_rankings.append({
+                    'date': current_date,
+                    'sector': sector,
+                    'rank': rank,
+                    'return': ret
+                })
+
+    return daily_rankings
+
+
 def calculate_quarterly_returns(sector_data):
     """Calculate quarterly returns for rotation analysis."""
     quarterly_data = {}
@@ -198,8 +297,10 @@ def create_dashboard_data(sector_data, rankings, quarterly_data):
                 'daily_return': round(row['daily_return'], 2) if not pd.isna(row['daily_return']) else 0
             })
 
-    # 2. Monthly rankings heatmap
+    # 2. Rankings heatmap with multiple granularities (monthly, weekly, daily)
     rankings_pivot = rankings.pivot(index='sector', columns='date', values='rank')
+
+    # Monthly rankings
     rankings_heatmap = []
     for sector in rankings_pivot.index:
         for date in rankings_pivot.columns:
@@ -208,6 +309,26 @@ def create_dashboard_data(sector_data, rankings, quarterly_data):
                 'sector': sector,
                 'rank': int(rankings_pivot.loc[sector, date]) if not pd.isna(rankings_pivot.loc[sector, date]) else None
             })
+
+    # Weekly rankings - Calculate weekly sector rankings
+    weekly_rankings = calculate_weekly_rankings(sector_data)
+    weekly_heatmap = []
+    for entry in weekly_rankings:
+        weekly_heatmap.append({
+            'date': entry['date'].strftime('%Y-W%W'),  # Year-Week format
+            'sector': entry['sector'],
+            'rank': entry['rank']
+        })
+
+    # Daily rankings - Calculate rolling daily rankings (using 7-day return)
+    daily_rankings = calculate_daily_rankings(sector_data)
+    daily_heatmap = []
+    for entry in daily_rankings:
+        daily_heatmap.append({
+            'date': entry['date'].strftime('%Y-%m-%d'),
+            'sector': entry['sector'],
+            'rank': entry['rank']
+        })
 
     # 3. Quarterly returns for rotation analysis
     quarterly_list = []
@@ -279,10 +400,13 @@ def create_dashboard_data(sector_data, rankings, quarterly_data):
             'data_start': min([df.index.min() for df in sector_data.values()]).strftime('%Y-%m-%d'),
             'data_end': max([df.index.max() for df in sector_data.values()]).strftime('%Y-%m-%d'),
             'sectors': len(sector_data),
-            'total_days': len(list(sector_data.values())[0])
+            'total_days': len(list(sector_data.values())[0]),
+            'available_granularities': ['daily', 'weekly', 'monthly']
         },
         'time_series': time_series,
-        'rankings_heatmap': rankings_heatmap,
+        'rankings_heatmap': rankings_heatmap,  # Monthly
+        'weekly_rankings_heatmap': weekly_heatmap,  # Weekly
+        'daily_rankings_heatmap': daily_heatmap,  # Daily (7-day rolling)
         'quarterly_returns': quarterly_list,
         'correlations': correlation_list,
         'current_stats': current_stats

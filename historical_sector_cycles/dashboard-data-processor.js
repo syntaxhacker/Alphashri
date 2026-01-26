@@ -54,21 +54,45 @@ class DashboardDataProcessor {
             });
         });
 
-        // Build heatmap data
+        // Build heatmap data for multiple granularities
         this.heatmapData = {};
+        this.weeklyHeatmapData = {};
+        this.dailyHeatmapData = {};
+
+        // Monthly rankings
         dashboardData.rankings_heatmap.forEach(d => {
             const key = `${d.date}-${d.sector}`;
             this.heatmapData[key] = d;
         });
 
+        // Weekly rankings (if available)
+        if (dashboardData.weekly_rankings_heatmap) {
+            dashboardData.weekly_rankings_heatmap.forEach(d => {
+                const key = `${d.date}-${d.sector}`;
+                this.weeklyHeatmapData[key] = d;
+            });
+        }
+
+        // Daily rankings (if available)
+        if (dashboardData.daily_rankings_heatmap) {
+            dashboardData.daily_rankings_heatmap.forEach(d => {
+                const key = `${d.date}-${d.sector}`;
+                this.dailyHeatmapData[key] = d;
+            });
+        }
+
         // Initialize filtered data with full data
         this.filteredTimeSeries = this.timeSeriesBySector;
         this.filteredHeatmapData = this.heatmapData;
+        this.filteredWeeklyHeatmapData = this.weeklyHeatmapData;
+        this.filteredDailyHeatmapData = this.dailyHeatmapData;
         this.filteredQuarterlyData = dashboardData.quarterly_returns;
 
         return {
             sectors: Object.keys(this.timeSeriesBySector).length,
             heatmapPoints: Object.keys(this.heatmapData).length,
+            weeklyHeatmapPoints: Object.keys(this.weeklyHeatmapData).length,
+            dailyHeatmapPoints: Object.keys(this.dailyHeatmapData).length,
             dateRange: `${dashboardData.metadata.data_start} to ${dashboardData.metadata.data_end}`
         };
     }
@@ -134,13 +158,38 @@ class DashboardDataProcessor {
         // Recalculate correlations
         this.correlations = this.calculateCorrelations(this.filteredTimeSeries);
 
-        // Filter heatmap data
+        // Filter heatmap data based on range - auto-select granularity
         this.filteredHeatmapData = {};
-        Object.keys(this.heatmapData).forEach(key => {
-            const data = this.heatmapData[key];
-            const [year, month] = data.date.split('-').map(Number);
-            const date = new Date(year, month - 1, 1);
-            if (date >= startDate) {
+        this.selectedGranularity = this.selectGranularity(range);
+
+        const dataSource = this.selectedGranularity === 'weekly' ? this.weeklyHeatmapData :
+                          this.selectedGranularity === 'daily' ? this.dailyHeatmapData :
+                          this.heatmapData;
+
+        Object.keys(dataSource).forEach(key => {
+            const data = dataSource[key];
+            let dataDate;
+
+            // Parse date based on granularity
+            if (this.selectedGranularity === 'daily') {
+                // Format: YYYY-MM-DD
+                dataDate = new Date(data.date);
+            } else if (this.selectedGranularity === 'weekly') {
+                // Format: YYYY-WWW
+                const parts = data.date.split('-');
+                const year = parseInt(parts[0]);
+                const weekNum = parseInt(parts[1]);
+                // Calculate date from week number
+                const firstDayOfYear = new Date(year, 0, 1);
+                const daysToAdd = (weekNum - 1) * 7;
+                dataDate = new Date(firstDayOfYear.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+            } else {
+                // Monthly: Format: YYYY-MM
+                const [year, month] = data.date.split('-').map(Number);
+                dataDate = new Date(year, month - 1, 1);
+            }
+
+            if (dataDate >= startDate) {
                 this.filteredHeatmapData[key] = data;
             }
         });
@@ -161,9 +210,50 @@ class DashboardDataProcessor {
                 s => `${s}: ${this.filteredTimeSeries[s].length}`
             ).join(', '),
             heatmapPoints: Object.keys(this.filteredHeatmapData).length,
+            weeklyHeatmapPoints: Object.keys(this.weeklyHeatmapData).length,
+            dailyHeatmapPoints: Object.keys(this.dailyHeatmapData).length,
             quarterlyPoints: this.filteredQuarterlyData.length,
-            momentum: this.momentumData.map(m => `${m.sector}: ${m.m3.toFixed(1)}%`)
+            momentum: this.momentumData.map(m => `${m.sector}: ${m.m3.toFixed(1)}%`),
+            selectedGranularity: this.selectedGranularity
         };
+    }
+
+    /**
+     * Select the best granularity based on the time range
+     */
+    selectGranularity(range) {
+        const rangeDays = this.convertRangeToDays(range);
+
+        // Daily: for ranges <= 30 days (1 month)
+        // Weekly: for ranges > 30 days and <= 90 days (3 months)
+        // Monthly: for ranges > 90 days
+
+        if (rangeDays <= 30) {
+            return 'daily';
+        } else if (rangeDays <= 90) {
+            return 'weekly';
+        } else {
+            return 'monthly';
+        }
+    }
+
+    /**
+     * Convert range string to approximate number of days
+     */
+    convertRangeToDays(range) {
+        const match = range.match(/^(\d+)([dwmy])$/);
+        if (!match) return 365; // Default to 1 year
+
+        const value = parseInt(match[1]);
+        const unit = match[2];
+
+        switch(unit) {
+            case 'd': return value;
+            case 'w': return value * 7;
+            case 'm': return value * 30;  // Approximate
+            case 'y': return value * 365;
+            default: return 365;
+        }
     }
 
     /**

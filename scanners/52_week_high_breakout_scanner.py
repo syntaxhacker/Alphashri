@@ -72,7 +72,7 @@ def get_yfinance_data(symbol):
     except Exception:
         return None
 
-def find_near_52_week_high(market='america'):
+def find_near_52_week_high(market='america', limit=20):
     currency = '$' if market == 'america' else '₹'
     console.print(Panel.fit('🚀 52-WEEK HIGH BREAKOUT SCANNER', style='bold blue'))
     
@@ -142,8 +142,8 @@ def find_near_52_week_high(market='america'):
                 # Sort by breakout score and distance to high
                 near_high_stocks = near_high_stocks.sort_values(['breakout_score', 'distance_to_high_pct'], ascending=[False, True])
                 
-                # Deduplicate and take top 20 for yfinance verification
-                top_candidates = near_high_stocks.drop_duplicates(subset=['name']).head(20).copy()
+                # Deduplicate and take top candidates for yfinance verification
+                top_candidates = near_high_stocks.drop_duplicates(subset=['name']).head(limit).copy()
                 
                 console.print(f'[bold green]🎯 Found {len(near_high_stocks)} initial candidates. Verifying top {len(top_candidates)} with yfinance...[/bold green]')
                 console.print()
@@ -308,13 +308,23 @@ def find_near_52_week_high(market='america'):
                     )
                 
                 console.print(table)
-                
+
+                # TradingView-compatible CSV output for copy-paste
+                console.print()
+                console.print(Panel.fit('📋 TradingView CSV (copy below)', style='bold cyan'))
+                tv_csv_data = []
+                for _, stock in top_candidates.iterrows():
+                    tv_csv_data.append(f"{stock['name']}")
+                tv_csv = ",".join(tv_csv_data)
+                console.print(tv_csv)
+                console.print(Panel.fit('─────────────────────────────', style='dim'))
+
                 # Export to CSV
                 filename = f'52_week_high_breakout_{pd.Timestamp.now().strftime("%Y%m%d_%H%M")}.csv'
                 # Add calculated columns to export
                 top_candidates['stop_loss'] = top_candidates['close'] * 0.95
                 top_candidates['target_price'] = top_candidates.apply(lambda x: x['close'] * 1.10 if x['touched_52w_high'] else x['price_52_week_high'] * 1.05, axis=1)
-                
+
                 top_candidates.to_csv(filename, index=False)
                 console.print(f'[dim]💾 Data saved to: {filename}[/dim]')
                 
@@ -332,6 +342,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='52-Week High Breakout Scanner')
     parser.add_argument('--market', choices=['us', 'india'], default='us',
                         help='Market to scan: us (america) or india')
+    parser.add_argument('--limit', type=int, default=20,
+                        help='Number of results to show (default: 20, max: 100)')
     args = parser.parse_args()
     market = 'america' if args.market == 'us' else 'india'
-    find_near_52_week_high(market)
+    limit = min(args.limit, 100)  # Cap at 100 to avoid excessive API calls
+    find_near_52_week_high(market, limit)
