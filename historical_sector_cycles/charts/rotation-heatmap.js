@@ -105,13 +105,24 @@ class RotationHeatmapChart {
                 .text(s);
         });
 
-        // Month labels - show ALL months, not just every 3rd
+        // Month/Week labels - show ALL dates, not just every 3rd
         allMonths.forEach((m, i) => {
-            // Parse the date to get month name
-            const [year, month] = m.split('-');
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const monthName = monthNames[parseInt(month) - 1];
-            const yearShort = year.substring(2);
+            // Parse the date to get display label
+            let label;
+            if (m.includes('-W')) {
+                // Weekly format: YYYY-WWW
+                const parts = m.split('-W');
+                const year = parts[0].substring(2); // Get last 2 digits of year
+                const week = parts[1];
+                label = `${year}-W${week}`;
+            } else {
+                // Monthly format: YYYY-MM
+                const [year, month] = m.split('-');
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const monthName = monthNames[parseInt(month) - 1];
+                const yearShort = year.substring(2);
+                label = `${monthName}${yearShort}`;
+            }
 
             svg.append('text')
                 .attr('x', i * cellWidth + cellWidth / 2)
@@ -120,7 +131,7 @@ class RotationHeatmapChart {
                 .style('fill', '#58a6ff')
                 .style('font-size', '9px')
                 .style('font-weight', '500')
-                .text(`${monthName}${yearShort}`);
+                .text(label);
         });
 
         // Enhanced legend

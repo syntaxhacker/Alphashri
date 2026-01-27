@@ -1,0 +1,24 @@
+✅ Official Upstox SDK available for real-time data
+
+🚀 Daily + Hourly 52-Week High Chaser for RELIANCE
+Period: 2025-10-28 to 2026-01-26 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 10.0h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 333 days of daily data
+✅ Fetched 427 hours of hourly data
+Analyzing daily trends...
+Finding hourly entry opportunities...
+Found 98 potential entries
+📈 ENTRY: RELIANCE @ ₹1532.57 | Time: 2025-11-20 09:15:00+05:30 | RSI: 67.1
+Running Daily + Hourly backtests...                                           0%

@@ -175,14 +175,20 @@ class DashboardDataProcessor {
                 // Format: YYYY-MM-DD
                 dataDate = new Date(data.date);
             } else if (this.selectedGranularity === 'weekly') {
-                // Format: YYYY-WWW
-                const parts = data.date.split('-');
-                const year = parseInt(parts[0]);
-                const weekNum = parseInt(parts[1]);
-                // Calculate date from week number
-                const firstDayOfYear = new Date(year, 0, 1);
-                const daysToAdd = (weekNum - 1) * 7;
-                dataDate = new Date(firstDayOfYear.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+                // Format: YYYY-WWW (ISO week format)
+                const match = data.date.match(/(\d+)-W(\d+)/);
+                if (match) {
+                    const year = parseInt(match[1]);
+                    const weekNum = parseInt(match[2]);
+                    // Calculate approximate date from ISO week number
+                    // January 4th is always in week 1, so use that as reference
+                    const jan4 = new Date(year, 0, 4);
+                    const daysToAdd = (weekNum - 1) * 7;
+                    dataDate = new Date(jan4.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+                } else {
+                    // Fallback if format doesn't match
+                    dataDate = new Date('2021-01-01');
+                }
             } else {
                 // Monthly: Format: YYYY-MM
                 const [year, month] = data.date.split('-').map(Number);

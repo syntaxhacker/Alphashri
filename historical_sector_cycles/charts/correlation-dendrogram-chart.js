@@ -1,12 +1,14 @@
 /**
- * Correlation Cluster Dendrogram Chart
- * Visualizes sector relationships using hierarchical clustering
- * Helps identify sector families and diversification opportunities
+ * Correlation Cluster Network Chart (ECharts)
+ * Interactive force-directed graph showing sector families
+ * Sectors with high correlation cluster together
  */
 
 class CorrelationDendrogramChart {
     constructor(containerId) {
         this.containerId = containerId;
+        this.chart = null;
+        this.resizeHandler = null;
     }
 
     render(correlations, sectors, currentRange) {
@@ -16,15 +18,217 @@ class CorrelationDendrogramChart {
             return;
         }
 
-        container.innerHTML = '';
+        console.log('CorrelationDendrogramChart.render called with:', {
+            correlationsCount: correlations?.length,
+            sectorsCount: sectors?.length,
+            currentRange
+        });
+
+        // Dispose existing chart
+        if (this.chart) {
+            this.chart.dispose();
+        }
+
+        // Initialize chart
+        this.chart = echarts.init(container, null, {
+            renderer: 'canvas',
+            useDirtyRect: true
+        });
 
         // Build correlation matrix
         const corrMatrix = this.buildCorrelationMatrix(correlations, sectors);
 
-        // Perform hierarchical clustering
-        const clusters = this.hierarchicalClustering(corrMatrix, sectors);
+        // Identify sector families (high correlation groups)
+        const sectorFamilies = this.identifySectorFamilies(corrMatrix, sectors);
 
-        this.renderDendrogram(container, clusters, corrMatrix, sectors);
+        console.log('Sector families:', sectorFamilies.map(f => ({ size: f.length, sectors: f })));
+
+        // Create network graph data
+        const { nodes, links } = this.createNetworkData(corrMatrix, sectorFamilies);
+
+        console.log('Network data:', { nodesCount: nodes.length, linksCount: links.length });
+
+        // Color palette for families
+        const familyColors = [
+            '#388bfd', // Blue
+            '#8b5cf6', // Purple
+            '#ec4899', // Pink
+            '#f59e0b', // Orange
+            '#22c55e', // Green
+            '#14b8a6', // Teal
+            '#ef4444', // Red
+            '#06b6d4'  // Cyan
+        ];
+
+        // Assign colors to nodes based on family
+        const nodeColors = nodes.map(node => {
+            const familyIndex = sectorFamilies.findIndex(family =>
+                family.some(s => s.name === node.name)
+            );
+            return familyColors[familyIndex % familyColors.length];
+        });
+
+        // Create circular layout positions
+        const radius = 150;
+        const angleStep = (2 * Math.PI) / nodes.length;
+        nodes.forEach((node, i) => {
+            node.x = Math.cos(i * angleStep) * radius;
+            node.y = Math.sin(i * angleStep) * radius;
+            node.fixed = true; // Fix positions for circular layout
+        });
+
+        const option = {
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicOut',
+
+            title: {
+                text: '🔗 Sector Families (High Correlation Groups)',
+                left: 'center',
+                top: 10,
+                textStyle: {
+                    color: '#58a6ff',
+                    fontSize: 14,
+                    fontWeight: 'bold'
+                }
+            },
+
+            tooltip: {
+                backgroundColor: '#161b22',
+                borderColor: '#30363d',
+                textStyle: {
+                    color: '#c9d1d9',
+                    fontSize: 11
+                },
+                formatter: function(params) {
+                    if (params.dataType === 'node') {
+                        const data = params.data;
+                        const family = data.family || 'Independent';
+                        return `
+                            <div style="padding: 8px;">
+                                <div style="color: #58a6ff; font-weight: 600; margin-bottom: 6px;">${data.name}</div>
+                                <div style="font-size: 10px; color: #8b949e;">
+                                    <div>Family: <strong style="color: ${nodeColors[params.dataIndex]};">${family}</strong></div>
+                                    <div>Connections: <strong>${data.value}</strong></div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (params.dataType === 'edge') {
+                        const source = nodes[params.data.source].name;
+                        const target = nodes[params.data.target].name;
+                        const correlation = params.data.value;
+                        const color = correlation > 0.7 ? '#22c55e' :
+                                      correlation > 0.4 ? '#f59e0b' : '#ef4444';
+                        return `
+                            <div style="padding: 8px;">
+                                <div style="color: #58a6ff; font-weight: 600; margin-bottom: 6px;">
+                                    ${source} ↔ ${target}
+                                </div>
+                                <div style="font-size: 10px; color: #8b949e;">
+                                    Correlation: <strong style="color: ${color};">${correlation.toFixed(2)}</strong>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            },
+
+            legend: {
+                show: true,
+                data: sectorFamilies.map((family, i) => `Family ${i + 1}`),
+                top: 40,
+                textStyle: {
+                    color: '#8b949e',
+                    fontSize: 10
+                },
+                selectedMode: false
+            },
+
+            series: [{
+                type: 'graph',
+                layout: 'none', // Use fixed positions instead of force
+                data: nodes.map((node, i) => ({
+                    ...node,
+                    itemStyle: {
+                        color: nodeColors[i],
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    },
+                    label: {
+                        show: true,
+                        position: 'right',
+                        formatter: '{b}',
+                        fontSize: 10,
+                        color: '#c9d1d9'
+                    }
+                })),
+                links: links.map(link => ({
+                    ...link,
+                    lineStyle: {
+                        color: link.value > 0.7 ? '#22c55e' :
+                               link.value > 0.4 ? '#f59e0b' : '#ef4444',
+                        width: Math.max(1, link.value * 4),
+                        opacity: 0.6,
+                        curveness: 0.2
+                    }
+                })),
+                roam: true,
+                draggable: true,
+                focusNodeAdjacency: true,
+                itemStyle: {
+                    borderColor: '#fff',
+                    borderWidth: 1,
+                    shadowColor: 'rgba(0, 0, 0, 0.3)',
+                    shadowBlur: 10
+                },
+                lineStyle: {
+                    opacity: 0.4,
+                    curveness: 0.3
+                },
+                label: {
+                    show: true,
+                    fontSize: 10,
+                    color: '#c9d1d9'
+                },
+                emphasis: {
+                    focus: 'adjacency',
+                    lineStyle: {
+                        width: 3,
+                        opacity: 1
+                    },
+                    itemStyle: {
+                        shadowColor: 'rgba(88, 166, 255, 0.8)',
+                        shadowBlur: 20,
+                        borderWidth: 3
+                    }
+                }
+            }]
+        };
+
+        this.chart.setOption(option, { notMerge: true });
+
+        // Force a resize after a short delay
+        setTimeout(() => {
+            if (this.chart) {
+                this.chart.resize();
+            }
+        }, 100);
+
+        // Add legend for families below chart
+        this.addFamilyLegend(container, sectorFamilies, familyColors, corrMatrix);
+
+        // Handle resize
+        if (this.resizeHandler) {
+            window.removeEventListener('resize', this.resizeHandler);
+        }
+
+        this.resizeHandler = () => {
+            if (this.chart) {
+                this.chart.resize();
+            }
+        };
+
+        window.addEventListener('resize', this.resizeHandler);
     }
 
     buildCorrelationMatrix(correlations, sectors) {
@@ -46,119 +250,163 @@ class CorrelationDendrogramChart {
         return matrix;
     }
 
-    hierarchicalClustering(corrMatrix, sectors) {
-        // Initialize each sector as its own cluster
-        let clusters = sectors.map(s => ({
-            sectors: [s],
-            height: 0,
-            left: null,
-            right: null
-        }));
+    identifySectorFamilies(corrMatrix, sectors, minCorrelation = 0.5) {
+        const families = [];
+        const visited = new Set();
 
-        // Store merge history for dendrogram
-        const mergeHistory = [];
+        sectors.forEach(sector => {
+            if (visited.has(sector)) return;
 
-        // Iteratively merge closest clusters
-        while (clusters.length > 1) {
-            let minDist = Infinity;
-            let mergeI = -1;
-            let mergeJ = -1;
+            const family = [sector];
+            visited.add(sector);
 
-            // Find two closest clusters
-            for (let i = 0; i < clusters.length; i++) {
-                for (let j = i + 1; j < clusters.length; j++) {
-                    const dist = this.clusterDistance(clusters[i], clusters[j], corrMatrix);
-                    if (dist < minDist) {
-                        minDist = dist;
-                        mergeI = i;
-                        mergeJ = j;
+            // Find highly correlated sectors
+            sectors.forEach(otherSector => {
+                if (sector !== otherSector && !visited.has(otherSector)) {
+                    const correlation = Math.abs(corrMatrix[sector][otherSector]);
+                    if (correlation >= minCorrelation) {
+                        family.push(otherSector);
+                        visited.add(otherSector);
                     }
                 }
+            });
+
+            // Sort family by internal correlation strength
+            if (family.length > 1) {
+                family.sort((a, b) => {
+                    const avgCorrA = this.getAvgFamilyCorrelation(a, family, corrMatrix);
+                    const avgCorrB = this.getAvgFamilyCorrelation(b, family, corrMatrix);
+                    return avgCorrB - avgCorrA;
+                });
             }
 
-            if (mergeI === -1) break;
+            families.push(family);
+        });
 
-            // Merge clusters
-            const newCluster = {
-                sectors: [...clusters[mergeI].sectors, ...clusters[mergeJ].sectors],
-                height: minDist,
-                left: clusters[mergeI],
-                right: clusters[mergeJ]
-            };
-
-            mergeHistory.push(newCluster);
-
-            // Remove old clusters and add new one
-            const newClusters = clusters.filter((_, i) => i !== mergeI && i !== mergeJ);
-            newClusters.push(newCluster);
-            clusters = newClusters;
-        }
-
-        return mergeHistory.length > 0 ? mergeHistory[mergeHistory.length - 1] : null;
+        // Sort families by size (largest first)
+        return families.sort((a, b) => b.length - a.length);
     }
 
-    clusterDistance(cluster1, cluster2, corrMatrix) {
-        // Use average linkage
-        let totalDist = 0;
+    getAvgFamilyCorrelation(sector, family, corrMatrix) {
+        let total = 0;
         let count = 0;
 
-        cluster1.sectors.forEach(s1 => {
-            cluster2.sectors.forEach(s2 => {
-                // Distance = 1 - correlation (so high correlation = low distance)
-                const dist = 1 - Math.abs(corrMatrix[s1][s2]);
-                totalDist += dist;
+        family.forEach(other => {
+            if (sector !== other) {
+                total += Math.abs(corrMatrix[sector][other]);
                 count++;
+            }
+        });
+
+        return count > 0 ? total / count : 0;
+    }
+
+    createNetworkData(corrMatrix, sectorFamilies) {
+        const nodes = [];
+        const links = [];
+        const minCorrelation = 0.3; // Only show edges above this threshold
+
+        const sectors = Object.keys(corrMatrix);
+
+        // Create nodes
+        sectors.forEach((sector, i) => {
+            const familyIndex = sectorFamilies.findIndex(family =>
+                family.includes(sector)
+            );
+
+            // Count strong connections
+            let connections = 0;
+            sectors.forEach(other => {
+                if (sector !== other && Math.abs(corrMatrix[sector][other]) > minCorrelation) {
+                    connections++;
+                }
+            });
+
+            nodes.push({
+                id: i,
+                name: sector,
+                value: connections,
+                symbolSize: Math.max(20, Math.min(50, connections * 5 + 20)),
+                family: familyIndex >= 0 ? `Family ${familyIndex + 1}` : 'Independent',
+                familyIndex: familyIndex,
+                category: familyIndex
             });
         });
 
-        return count > 0 ? totalDist / count : 1;
-    }
-
-    renderDendrogram(container, rootCluster, corrMatrix, sectors) {
-        if (!rootCluster) {
-            container.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; color: #8b949e;">
-                    <p style="font-size: 14px;">📊 Unable to build cluster tree</p>
-                </div>
-            `;
-            return;
+        // Create links (only show significant correlations)
+        for (let i = 0; i < sectors.length; i++) {
+            for (let j = i + 1; j < sectors.length; j++) {
+                const correlation = Math.abs(corrMatrix[sectors[i]][sectors[j]]);
+                if (correlation >= minCorrelation) {
+                    links.push({
+                        source: i,
+                        target: j,
+                        value: correlation,
+                        lineStyle: {
+                            width: correlation * 3
+                        }
+                    });
+                }
+            }
         }
 
+        return { nodes, links };
+    }
+
+    addFamilyLegend(container, sectorFamilies, familyColors, corrMatrix) {
+        // Remove existing legend
+        const existingLegend = container.querySelector('.family-legend');
+        if (existingLegend) {
+            existingLegend.remove();
+        }
+
+        const legend = document.createElement('div');
+        legend.className = 'family-legend';
+        legend.style.cssText = `
+            margin-top: 20px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 15px;
+        `;
+
         let html = `
-            <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-                <div style="color: #58a6ff; font-size: 13px; font-weight: 600; margin-bottom: 10px;">
-                    🔗 Sector Correlation Clusters
-                </div>
-                <div style="color: #8b949e; font-size: 11px; line-height: 1.6;">
-                    💡 Sectors closer together move in sync (high correlation)<br>
-                    💡 Use for pair trading, diversification, and rotation strategies<br>
-                    💡 Sectors in different clusters provide better diversification
-                </div>
+            <div style="color: #58a6ff; font-size: 12px; font-weight: 600; margin-bottom: 12px;">
+                📊 Sector Families Details
             </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
         `;
 
-        // Identify clusters (groups of sectors with high correlation)
-        const sectorGroups = this.identifySectorGroups(rootCluster);
+        sectorFamilies.forEach((family, idx) => {
+            if (family.length === 0) return;
 
-        // Render sector groups
-        html += `
-            <div style="margin-bottom: 20px;">
-                <div style="color: #58a6ff; font-size: 12px; font-weight: 600; margin-bottom: 12px;">📊 Sector Families (High Correlation Groups)</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 12px;">
-        `;
+            const color = familyColors[idx % familyColors.length];
 
-        const colors = ['#388bfd', '#8b5cf6', '#ec4899', '#f59e0b', '#22c55e', '#14b8a6'];
+            // Calculate family internal correlation
+            const internalCorr = this.calculateFamilyInternalCorrelation(family, corrMatrix);
 
-        sectorGroups.forEach((group, idx) => {
-            const color = colors[idx % colors.length];
             html += `
-                <div style="background: ${color}22; border: 1px solid ${color}; border-radius: 8px; padding: 12px;">
-                    <div style="color: ${color}; font-size: 11px; font-weight: 600; margin-bottom: 8px;">
-                        Group ${idx + 1} (${group.length} sectors)
+                <div style="background: ${color}11; border: 1px solid ${color}44; border-radius: 6px; padding: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="color: ${color}; font-size: 11px; font-weight: 600;">
+                            Family ${idx + 1}
+                        </div>
+                        <div style="color: #8b949e; font-size: 10px;">
+                            ${family.length} sectors • Avg corr: <strong style="color: ${internalCorr > 0.5 ? '#22c55e' : '#f59e0b'};">${internalCorr.toFixed(2)}</strong>
+                        </div>
                     </div>
                     <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-                        ${group.map(s => `
-                            <span style="background: ${color}; color: #0d1117; padding: 3px 8px; border-radius: 10px; font-size: 10px; cursor: pointer;" onclick="showSectorStocks('${s}')">${s}</span>
+                        ${family.map(s => `
+                            <span style="
+                                background: ${color}22;
+                                color: ${color};
+                                border: 1px solid ${color}44;
+                                padding: 3px 8px;
+                                border-radius: 10px;
+                                font-size: 10px;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                            " onmouseover="this.style.background='${color}44'" onmouseout="this.style.background='${color}22'" onclick="showSectorStocks('${s}')">${s}</span>
                         `).join('')}
                     </div>
                 </div>
@@ -166,142 +414,54 @@ class CorrelationDendrogramChart {
         });
 
         html += `
+            </div>
+            <div style="margin-top: 12px; padding: 10px; background: #21262d; border-radius: 6px;">
+                <div style="color: #8b949e; font-size: 10px; line-height: 1.6;">
+                    💡 <strong>Interpretation</strong>: Sectors in the same family move together (high correlation)<br>
+                    💡 <strong>Diversification</strong>: Pick sectors from different families to reduce risk<br>
+                    💡 <strong>Momentum</strong>: Focus on strongest family for sector rotation plays<br>
+                    💡 <strong>Thick lines</strong> = High correlation (>0.7), <strong>Thin lines</strong> = Lower correlation
                 </div>
             </div>
         `;
 
-        // Render simplified dendrogram as HTML structure
-        html += `
-            <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 15px;">
-                <div style="color: #58a6ff; font-size: 12px; font-weight: 600; margin-bottom: 15px;">🌳 Cluster Hierarchy</div>
-                <div style="max-height: 400px; overflow-y: auto;">
-                    ${this.renderClusterTree(rootCluster, 0)}
-                </div>
-            </div>
-        `;
-
-        // Diversification insights
-        html += `
-            <div style="margin-top: 20px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 15px;">
-                <div style="color: #58a6ff; font-size: 12px; font-weight: 600; margin-bottom: 12px;">💡 Diversification Insights</div>
-                ${this.generateDiversificationInsights(sectorGroups, corrMatrix)}
-            </div>
-        `;
-
-        container.innerHTML = html;
+        legend.innerHTML = html;
+        container.appendChild(legend);
     }
 
-    identifySectorGroups(cluster, minCorrelation = 0.5) {
-        const groups = [];
-        const visited = new Set();
+    calculateFamilyInternalCorrelation(family, corrMatrix) {
+        if (family.length < 2) return 0;
 
-        const traverse = (node, currentGroup) => {
-            if (!node) return;
+        let total = 0;
+        let count = 0;
 
-            if (!node.left && !node.right) {
-                // Leaf node (single sector)
-                currentGroup.push(node.sectors[0]);
-                visited.add(node.sectors[0]);
-            } else {
-                // Check if this is a tight cluster (low height = high correlation)
-                if ((1 - node.height) >= minCorrelation) {
-                    const newGroup = [];
-                    traverse(node.left, newGroup);
-                    traverse(node.right, newGroup);
-                    if (newGroup.length > 1) {
-                        groups.push(newGroup);
-                    }
-                } else {
-                    traverse(node.left, currentGroup);
-                    traverse(node.right, currentGroup);
-                }
-            }
-        };
-
-        traverse(cluster, []);
-
-        // Add remaining unvisited sectors as individual groups
-        return groups;
-    }
-
-    renderClusterTree(node, depth, maxDepth = 5) {
-        if (!node || depth > maxDepth) return '';
-
-        const indent = depth * 20;
-        const correlation = 1 - node.height;
-
-        if (!node.left && !node.right) {
-            // Leaf node
-            return `
-                <div style="padding-left: ${indent}px; padding: 4px 0;">
-                    <span style="color: #c9d1d9; font-size: 11px;">📁 ${node.sectors[0]}</span>
-                </div>
-            `;
-        }
-
-        // Internal node
-        const color = correlation > 0.7 ? '#22c55e' : correlation > 0.4 ? '#f59e0b' : '#ef4444';
-
-        return `
-            <div style="padding-left: ${indent}px; padding: 4px 0;">
-                <div style="color: ${color}; font-size: 10px; margin-bottom: 4px;">
-                    🔗 Correlation: <strong>${correlation.toFixed(2)}</strong> (${node.sectors.length} sectors)
-                </div>
-                <div style="border-left: 1px solid #30363d; margin-left: 4px;">
-                    ${this.renderClusterTree(node.left, depth + 1, maxDepth)}
-                    ${this.renderClusterTree(node.right, depth + 1, maxDepth)}
-                </div>
-            </div>
-        `;
-    }
-
-    generateDiversificationInsights(groups, corrMatrix) {
-        let insights = '<div style="font-size: 11px; color: #8b949e; line-height: 1.8;">';
-
-        if (groups.length >= 2) {
-            // Find least correlated groups
-            let minInterCorr = Infinity;
-            let bestPair = null;
-
-            for (let i = 0; i < groups.length; i++) {
-                for (let j = i + 1; j < groups.length; j++) {
-                    let totalCorr = 0;
-                    let count = 0;
-
-                    groups[i].forEach(s1 => {
-                        groups[j].forEach(s2 => {
-                            totalCorr += Math.abs(corrMatrix[s1][s2]);
-                            count++;
-                        });
-                    });
-
-                    const avgCorr = count > 0 ? totalCorr / count : 0;
-                    if (avgCorr < minInterCorr) {
-                        minInterCorr = avgCorr;
-                        bestPair = [i, j];
-                    }
-                }
-            }
-
-            if (bestPair && minInterCorr < 0.3) {
-                insights += `
-                    <div style="margin-bottom: 8px;">
-                        ✅ <strong>Best Diversification</strong>: Combine Group ${bestPair[0] + 1} with Group ${bestPair[1] + 1}
-                        (correlation: ${minInterCorr.toFixed(2)})
-                    </div>
-                `;
+        for (let i = 0; i < family.length; i++) {
+            for (let j = i + 1; j < family.length; j++) {
+                total += Math.abs(corrMatrix[family[i]][family[j]]);
+                count++;
             }
         }
 
-        insights += `
-            <div style="margin-top: 8px; padding: 8px; background: #21262d; border-radius: 4px;">
-                💡 <strong>Tip</strong>: For diversification, pick sectors from different groups.
-                For momentum strategies, focus on the strongest group.
-            </div>
-        `;
+        return count > 0 ? total / count : 0;
+    }
 
-        insights += '</div>';
-        return insights;
+    dispose() {
+        if (this.resizeHandler) {
+            window.removeEventListener('resize', this.resizeHandler);
+        }
+        if (this.chart) {
+            this.chart.dispose();
+            this.chart = null;
+        }
+
+        // Remove legend
+        const container = document.getElementById(this.containerId);
+        if (container) {
+            const legend = container.querySelector('.family-legend');
+            if (legend) {
+                legend.remove();
+            }
+        }
     }
 }
 

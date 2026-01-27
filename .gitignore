@@ -64,3 +64,4 @@ losing_trades_reports/
 
 ai_agents/
 venv/
+.playwright-mcp/

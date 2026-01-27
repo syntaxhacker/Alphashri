@@ -1,0 +1,1845 @@
+✅ Official Upstox SDK available for real-time data
+
+🚀 Daily + 1-Minute 52-Week High Chaser for RELIANCE
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for RELIANCE (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for RELIANCE using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 192 potential entries
+📈 ENTRY: RELIANCE @ ₹1535.77 | Pos: ₹100,000 | Vol: 2.3% | RSI: 73.4
+🛑 EXIT: RELIANCE @ ₹1530.39 | P&L: -0.35% (₹-450) | Days: 1 | Reason: TIME_EXIT
+                          Detailed Trades for RELIANCE                          
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹153… │ ₹153… │ ₹153… │ ₹153… │     1 │ -0.3… │  -450 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for RELIANCE:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-450
+Average P&L per Trade: ₹-450
+
+🚀 Daily + 1-Minute 52-Week High Chaser for TCS
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for TCS (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for TCS using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for HDFCBANK
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for HDFCBANK (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for HDFCBANK using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 180 potential entries
+📈 ENTRY: HDFCBANK @ ₹1003.95 | Pos: ₹100,000 | Vol: 2.6% | RSI: 69.9
+🛑 EXIT: HDFCBANK @ ₹1004.45 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                          Detailed Trades for HDFCBANK                          
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹100… │ ₹100… │ ₹100… │ ₹100… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for HDFCBANK:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for INFY
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for INFY (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for INFY using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for HINDUNILVR
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for HINDUNILVR (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22455 historical records for HINDUNILVR using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22455 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for ICICIBANK
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for ICICIBANK (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for ICICIBANK using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for HDFC
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+❌ Instrument key for 'HDFC' (original: 'HDFC') not found with the specified criteria.
+❌ Could not fetch daily data for HDFC
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for AXISBANK
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for AXISBANK (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for AXISBANK using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 229 potential entries
+📈 ENTRY: AXISBANK @ ₹1253.43 | Pos: ₹100,000 | Vol: 2.7% | RSI: 71.3
+🛑 EXIT: AXISBANK @ ₹1249.04 | P&L: -0.35% (₹-450) | Days: 1 | Reason: TIME_EXIT
+                          Detailed Trades for AXISBANK                          
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹125… │ ₹125… │ ₹125… │ ₹124… │     1 │ -0.3… │  -450 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for AXISBANK:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-450
+Average P&L per Trade: ₹-450
+
+🚀 Daily + 1-Minute 52-Week High Chaser for BHARTIARTL
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for BHARTIARTL (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for BHARTIARTL using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 151 potential entries
+📈 ENTRY: BHARTIARTL @ ₹2057.93 | Pos: ₹100,000 | Vol: 1.7% | RSI: 63.1
+🛑 EXIT: BHARTIARTL @ ₹2058.96 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                         Detailed Trades for BHARTIARTL                         
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹205… │ ₹205… │ ₹205… │ ₹205… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for BHARTIARTL:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for ITC
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for ITC (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for ITC using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for KOTAKBANK
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+❌ V3 Historical API Error for KOTAKBANK: 400 Client Error: Bad Request for url: https://api.upstox.com/v3/historical-candle/NSE_EQ%7CINE237A01028/days/1/2026-01-27/2024-09-24
+❌ Could not fetch daily data for KOTAKBANK
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for SBIN
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for SBIN (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for SBIN using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 159 potential entries
+📈 ENTRY: SBIN @ ₹960.78 | Pos: ₹100,000 | Vol: 2.1% | RSI: 57.7
+🛑 EXIT: SBIN @ ₹961.26 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                            Detailed Trades for SBIN                            
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹959… │ ₹959… │ ₹960… │ ₹961… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for SBIN:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for BAJFINANCE
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for BAJFINANCE (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for BAJFINANCE using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 27 potential entries
+📈 ENTRY: BAJFINANCE @ ₹1072.14 | Pos: ₹100,000 | Vol: 3.0% | RSI: 72.2
+🛑 EXIT: BAJFINANCE @ ₹1068.39 | P&L: -0.35% (₹-450) | Days: 1 | Reason: 
+TIME_EXIT
+                         Detailed Trades for BAJFINANCE                         
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹106… │ ₹106… │ ₹107… │ ₹106… │     1 │ -0.3… │  -450 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for BAJFINANCE:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-450
+Average P&L per Trade: ₹-450
+
+🚀 Daily + 1-Minute 52-Week High Chaser for LT
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for LT (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for LT using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 344 potential entries
+📈 ENTRY: LT @ ₹3957.58 | Pos: ₹100,000 | Vol: 1.7% | RSI: 59.2
+🛑 EXIT: LT @ ₹3959.56 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                             Detailed Trades for LT                             
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹395… │ ₹395… │ ₹395… │ ₹395… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for LT:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for LTTS
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for LTTS (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for LTTS using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for MARUTI
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for MARUTI (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for MARUTI using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 169 potential entries
+📈 ENTRY: MARUTI @ ₹16333.16 | Pos: ₹100,000 | Vol: 1.1% | RSI: 62.5
+🛑 EXIT: MARUTI @ ₹16341.32 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                           Detailed Trades for MARUTI                           
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹163… │ ₹163… │ ₹163… │ ₹163… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for MARUTI:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for ASIANPAINT
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for ASIANPAINT (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for ASIANPAINT using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 52 potential entries
+📈 ENTRY: ASIANPAINT @ ₹2946.07 | Pos: ₹100,000 | Vol: 2.7% | RSI: 67.9
+🛑 EXIT: ASIANPAINT @ ₹2947.54 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                         Detailed Trades for ASIANPAINT                         
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹294… │ ₹294… │ ₹294… │ ₹294… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for ASIANPAINT:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for SUNPHARMA
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for SUNPHARMA (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for SUNPHARMA using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for NTPC
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for NTPC (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for NTPC using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for TITAN
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for TITAN (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for TITAN using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 397 potential entries
+📈 ENTRY: TITAN @ ₹3725.76 | Pos: ₹100,000 | Vol: 1.3% | RSI: 56.5
+🛑 EXIT: TITAN @ ₹3727.62 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                           Detailed Trades for TITAN                            
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹372… │ ₹372… │ ₹372… │ ₹372… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for TITAN:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for ADANIPORTS
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for ADANIPORTS (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for ADANIPORTS using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 145 potential entries
+📈 ENTRY: ADANIPORTS @ ₹1449.32 | Pos: ₹100,000 | Vol: 1.2% | RSI: 61.3
+🛑 EXIT: ADANIPORTS @ ₹1450.05 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                         Detailed Trades for ADANIPORTS                         
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹144… │ ₹144… │ ₹144… │ ₹145… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for ADANIPORTS:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for NESTLEIND
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for NESTLEIND (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for NESTLEIND using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 96 potential entries
+📈 ENTRY: NESTLEIND @ ₹1298.85 | Pos: ₹100,000 | Vol: 1.3% | RSI: 63.7
+🛑 EXIT: NESTLEIND @ ₹1299.50 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                         Detailed Trades for NESTLEIND                          
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2026… │ 2026… │ ₹130… │ ₹130… │ ₹129… │ ₹129… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for NESTLEIND:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for POWERGRID
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for POWERGRID (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for POWERGRID using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for WIPRO
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for WIPRO (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for WIPRO using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for BAJAJFINSV
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for BAJAJFINSV (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for BAJAJFINSV using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for ONGC
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for ONGC (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for ONGC using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for TATASTEEL
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for TATASTEEL (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for TATASTEEL using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 56 potential entries
+📈 ENTRY: TATASTEEL @ ₹183.15 | Pos: ₹100,000 | Vol: 2.0% | RSI: 41.3
+🛑 EXIT: TATASTEEL @ ₹183.24 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                         Detailed Trades for TATASTEEL                          
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹183… │ ₹183… │ ₹183… │ ₹183… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for TATASTEEL:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for ULTRACEMCO
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for ULTRACEMCO (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for ULTRACEMCO using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for TATAMOTORS
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+❌ Instrument key for 'TATAMOTORS' (original: 'TATAMOTORS') not found with the specified criteria.
+❌ Could not fetch daily data for TATAMOTORS
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for COALINDIA
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for COALINDIA (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for COALINDIA using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 21 potential entries
+📈 ENTRY: COALINDIA @ ₹431.47 | Pos: ₹100,000 | Vol: 1.1% | RSI: 62.9
+🛑 EXIT: COALINDIA @ ₹431.68 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                         Detailed Trades for COALINDIA                          
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2026… │ 2026… │ ₹431… │ ₹431… │ ₹431… │ ₹431… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for COALINDIA:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for BAJAJ-AUTO
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for BAJAJ-AUTO (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for BAJAJ-AUTO using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 56 potential entries
+📈 ENTRY: BAJAJ-AUTO @ ₹9333.66 | Pos: ₹100,000 | Vol: 2.7% | RSI: 65.9
+🛑 EXIT: BAJAJ-AUTO @ ₹9338.33 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                         Detailed Trades for BAJAJ-AUTO                         
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2026… │ ₹934… │ ₹934… │ ₹933… │ ₹933… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for BAJAJ-AUTO:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for DRREDDY
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for DRREDDY (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for DRREDDY using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for TECHM
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for TECHM (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for TECHM using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 13 potential entries
+📈 ENTRY: TECHM @ ₹1726.36 | Pos: ₹100,000 | Vol: 1.5% | RSI: 59.0
+🛑 EXIT: TECHM @ ₹1727.23 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                           Detailed Trades for TECHM                            
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2026… │ 2026… │ ₹173… │ ₹173… │ ₹172… │ ₹172… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for TECHM:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for GRASIM
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for GRASIM (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for GRASIM using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 16 potential entries
+📈 ENTRY: GRASIM @ ₹2938.37 | Pos: ₹100,000 | Vol: 2.4% | RSI: 62.6
+🛑 EXIT: GRASIM @ ₹2939.84 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                           Detailed Trades for GRASIM                           
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹293… │ ₹293… │ ₹293… │ ₹293… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for GRASIM:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for HCLTECH
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for HCLTECH (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for HCLTECH using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for HEROMOTOCO
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for HEROMOTOCO (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for HEROMOTOCO using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 45 potential entries
+📈 ENTRY: HEROMOTOCO @ ₹5821.41 | Pos: ₹100,000 | Vol: 1.0% | RSI: 70.6
+🛑 EXIT: HEROMOTOCO @ ₹5801.04 | P&L: -0.35% (₹-450) | Days: 1 | Reason: 
+TIME_EXIT
+                         Detailed Trades for HEROMOTOCO                         
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹581… │ ₹581… │ ₹582… │ ₹580… │     1 │ -0.3… │  -450 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for HEROMOTOCO:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-450
+Average P&L per Trade: ₹-450
+
+🚀 Daily + 1-Minute 52-Week High Chaser for JSWSTEEL
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for JSWSTEEL (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for JSWSTEEL using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 34 potential entries
+📈 ENTRY: JSWSTEEL @ ₹1204.70 | Pos: ₹100,000 | Vol: 2.8% | RSI: 56.2
+🛑 EXIT: JSWSTEEL @ ₹1205.30 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                          Detailed Trades for JSWSTEEL                          
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹120… │ ₹120… │ ₹120… │ ₹120… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for JSWSTEEL:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for HINDALCO
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for HINDALCO (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for HINDALCO using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 114 potential entries
+📈 ENTRY: HINDALCO @ ₹845.42 | Pos: ₹100,000 | Vol: 1.3% | RSI: 72.6
+🛑 EXIT: HINDALCO @ ₹842.47 | P&L: -0.35% (₹-450) | Days: 1 | Reason: TIME_EXIT
+                          Detailed Trades for HINDALCO                          
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹838… │ ₹838… │ ₹845… │ ₹842… │     1 │ -0.3… │  -450 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for HINDALCO:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-450
+Average P&L per Trade: ₹-450
+
+🚀 Daily + 1-Minute 52-Week High Chaser for SBILIFE
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for SBILIFE (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for SBILIFE using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 196 potential entries
+📈 ENTRY: SBILIFE @ ₹1999.40 | Pos: ₹100,000 | Vol: 2.5% | RSI: 61.6
+🛑 EXIT: SBILIFE @ ₹2000.40 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                          Detailed Trades for SBILIFE                           
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹200… │ ₹200… │ ₹199… │ ₹200… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for SBILIFE:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for ADANIGREEN
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for ADANIGREEN (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for ADANIGREEN using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for TVSMOTORS
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+❌ Instrument key for 'TVSMOTORS' (original: 'TVSMOTORS') not found with the specified criteria.
+❌ Could not fetch daily data for TVSMOTORS
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for CIPLA
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for CIPLA (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for CIPLA using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for BPCL
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for BPCL (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for BPCL using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 99 potential entries
+📈 ENTRY: BPCL @ ₹348.97 | Pos: ₹100,000 | Vol: 1.2% | RSI: 68.1
+🛑 EXIT: BPCL @ ₹349.15 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                            Detailed Trades for BPCL                            
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹348… │ ₹348… │ ₹348… │ ₹349… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for BPCL:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for INDUSINDBANK
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+❌ Instrument key for 'INDUSINDBANK' (original: 'INDUSINDBANK') not found with the specified criteria.
+❌ Could not fetch daily data for INDUSINDBANK
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for M&M
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for M&M (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for M&M using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 145 potential entries
+📈 ENTRY: M&M @ ₹3598.80 | Pos: ₹100,000 | Vol: 2.2% | RSI: 62.4
+🛑 EXIT: M&M @ ₹3600.60 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                            Detailed Trades for M&M                             
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹360… │ ₹360… │ ₹359… │ ₹360… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for M&M:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for SHREECEM
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for SHREECEM (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for SHREECEM using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for IOC
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for IOC (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for IOC using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 23 potential entries
+📈 ENTRY: IOC @ ₹165.15 | Pos: ₹100,000 | Vol: 2.2% | RSI: 71.6
+🛑 EXIT: IOC @ ₹164.57 | P&L: -0.35% (₹-450) | Days: 1 | Reason: TIME_EXIT
+                            Detailed Trades for IOC                             
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹165… │ ₹165… │ ₹165… │ ₹164… │     1 │ -0.3… │  -450 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for IOC:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-450
+Average P&L per Trade: ₹-450
+
+🚀 Daily + 1-Minute 52-Week High Chaser for BANKBARODA
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for BANKBARODA (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for BANKBARODA using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 177 potential entries
+📈 ENTRY: BANKBARODA @ ₹277.54 | Pos: ₹100,000 | Vol: 1.1% | RSI: 69.6
+🛑 EXIT: BANKBARODA @ ₹277.68 | P&L: 0.05% (₹-50) | Days: 1 | Reason: TIME_EXIT
+                         Detailed Trades for BANKBARODA                         
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Entry ┃ Exit  ┃ Entry ┃  Exit ┃ Entry ┃  Exit ┃  Days ┃       ┃       ┃      ┃
+┃ Date  ┃ Date  ┃ 52w-… ┃ 52w-… ┃ Price ┃ Price ┃  Held ┃ P&L % ┃ P&L ₹ ┃ Rea… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│ 2025… │ 2025… │ ₹276… │ ₹276… │ ₹277… │ ₹277… │     1 │ 0.05% │   -50 │ TIM… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+Summary for BANKBARODA:
+Total Trades: 1
+Winning Trades: 0 (0.0%)
+Losing Trades: 1
+Total Net P&L: ₹-50
+Average P&L per Trade: ₹-50
+
+🚀 Daily + 1-Minute 52-Week High Chaser for DELTACORP
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for DELTACORP (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for DELTACORP using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for AUROPHARMA
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for AUROPHARMA (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for AUROPHARMA using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+
+🚀 Daily + 1-Minute 52-Week High Chaser for KPITTECH
+Period: 2025-10-29 to 2026-01-27 | Capital: ₹100,000
+Successfully loaded cookies from Chrome
+✅ Found TradingView cookies - expecting live data
+📊 Market: INDIA
+✅ Telegram alerts enabled
+🇮🇳 Upstox API Connector Initialized
+========================================
+🔐 Upstox Authentication Handler Initialized
+✅ Access token loaded (age: 11.7h)
+⚠️ Upstox API (v3) initialized without auth (lazy auth on first data fetch) - 
+using simulated S/R where needed
+✅ Separated modules initialized successfully
+⚠️ Paper Trading disabled
+✅ Loading instruments from local cache...
+✅ Fetched 332 days of daily data
+📊 Fetching V3 historical data for KPITTECH (1 minutes) from 2025-10-29 to 2026-01-27...
+🔄 Large date range detected (90 days). Using chunking with 30-day chunks...
+  📥 Fetching chunk: 2025-12-28 to 2026-01-27
+  📥 Fetching chunk: 2025-11-27 to 2025-12-27
+  📥 Fetching chunk: 2025-10-29 to 2025-11-26
+✅ Successfully fetched 22500 historical records for KPITTECH using V3 API (chunked).
+📅 Data range: 2025-10-29 09:15:00+05:30 to 2026-01-23 15:29:00+05:30
+✅ Fetched 22500 1-minute candles
+Analyzing daily trends...
+Finding 1-minute entry opportunities...
+Found 0 potential entries
+No trades generated during the period.
+Running Daily + Hourly backtests... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100%
+
+📈 Daily + Hourly Performance Summary:
+                   All Symbols Performance                    
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
+┃ Symbol     ┃ Total Trades ┃ Win Rate ┃           Avg P&L ₹ ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━┩
+│ RELIANCE   │            1 │     0.0% │  -449.8250874562683 │
+│ HDFCBANK   │            1 │     0.0% │  -50.02498750625037 │
+│ AXISBANK   │            1 │     0.0% │  -449.8250874562571 │
+│ BHARTIARTL │            1 │     0.0% │  -50.02498750625692 │
+│ SBIN       │            1 │     0.0% │ -50.024987506260736 │
+│ BAJFINANCE │            1 │     0.0% │ -449.82508745625785 │
+│ LT         │            1 │     0.0% │  -50.02498750624395 │
+│ MARUTI     │            1 │     0.0% │  -50.02498750624464 │
+│ ASIANPAINT │            1 │     0.0% │ -50.024987506250106 │
+│ TITAN      │            1 │     0.0% │  -50.02498750625965 │
+│ ADANIPORTS │            1 │     0.0% │ -50.024987506241025 │
+│ NESTLEIND  │            1 │     0.0% │  -50.02498750623998 │
+│ TATASTEEL  │            1 │     0.0% │  -50.02498750624366 │
+│ COALINDIA  │            1 │     0.0% │  -50.02498750624951 │
+│ BAJAJ-AUTO │            1 │     0.0% │   -50.0249875062386 │
+│ TECHM      │            1 │     0.0% │  -50.02498750625973 │
+│ GRASIM     │            1 │     0.0% │  -50.02498750625205 │
+│ HEROMOTOCO │            1 │     0.0% │  -449.8250874562673 │
+│ JSWSTEEL   │            1 │     0.0% │  -50.02498750624995 │
+│ HINDALCO   │            1 │     0.0% │  -449.8250874562563 │
+│ SBILIFE    │            1 │     0.0% │  -50.02498750625958 │
+│ BPCL       │            1 │     0.0% │  -50.02498750624933 │
+│ M&M        │            1 │     0.0% │  -50.02498750625031 │
+│ IOC        │            1 │     0.0% │ -449.82508745626774 │
+│ BANKBARODA │            1 │     0.0% │  -50.02498750625709 │
+└────────────┴──────────────┴──────────┴─────────────────────┘
+
+Overall Results:
+Total Symbols Tested: 25
+Total Trades: 25
+Total P&L: ₹-3,649.4252873563323

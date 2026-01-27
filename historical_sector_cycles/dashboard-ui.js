@@ -114,6 +114,20 @@ function showView(view, event) {
     document.getElementById('forecast-panel').style.display = view === 'forecast' ? 'block' : 'none';
 
     renderDashboard();
+
+    // Initialize and render charts after panel becomes visible
+    setTimeout(() => {
+        const data = processor.getFilteredData();
+        if (view === 'correlation') {
+            if (!charts.correlationDendrogram) {
+                charts.correlationDendrogram = new CorrelationDendrogramChart('correlation-dendrogram-chart');
+            }
+            const sectors = Object.keys(data.timeSeries);
+            charts.correlationDendrogram.render(data.correlations, sectors, currentRange);
+        } else if (view === 'overview' && charts.timeline?.chart) {
+            charts.timeline.chart.resize();
+        }
+    }, 100);
 }
 
 /**
@@ -131,13 +145,14 @@ function renderDashboard() {
         charts.momentumRank.render(data.momentum, currentRange);
         charts.timeline.render(data.timeSeries, sectorColors, currentRange);
     } else if (currentView === 'rotation') {
+        console.log('Rotation heatmap data:', Object.values(data.heatmap).length, Object.values(data.heatmap)[0]);
         charts.rotationHeatmap.render(Object.values(data.heatmap), currentRange);
         charts.rotationTimeline.render(data.quarterly, sectorColors, Object.keys(processor.getRawData().timeSeries), currentRange);
     } else if (currentView === 'correlation') {
         charts.correlation.render(data.correlations, currentRange);
         charts.rotationPairs.render(data.correlations, data.momentum);
         updateCorrelationInsights(data.correlations, data.momentum);
-        initializeCorrelationDendrogram(data);
+        // Don't render dendrogram here - it will be rendered after panel is visible
     } else if (currentView === 'momentum') {
         charts.momentumDetail.render(data.momentum, currentRange);
     } else if (currentView === 'volume') {
