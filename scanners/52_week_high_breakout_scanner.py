@@ -17,6 +17,7 @@ import threading
 import requests
 import warnings
 from queue import Queue
+from scanner_utils import display_tradingview_csv
 
 console = Console()
 
@@ -310,14 +311,7 @@ def find_near_52_week_high(market='america', limit=20):
                 console.print(table)
 
                 # TradingView-compatible CSV output for copy-paste
-                console.print()
-                console.print(Panel.fit('📋 TradingView CSV (copy below)', style='bold cyan'))
-                tv_csv_data = []
-                for _, stock in top_candidates.iterrows():
-                    tv_csv_data.append(f"{stock['name']}")
-                tv_csv = ",".join(tv_csv_data)
-                console.print(tv_csv)
-                console.print(Panel.fit('─────────────────────────────', style='dim'))
+                display_tradingview_csv(top_candidates)
 
                 # Export to CSV
                 filename = f'52_week_high_breakout_{pd.Timestamp.now().strftime("%Y%m%d_%H%M")}.csv'

@@ -1,13 +1,30 @@
 import argparse
+import sys
+from pathlib import Path
 import pandas as pd
-import pandas_ta as ta
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from datetime import datetime, timedelta
-from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI, UPSTOX_CONFIG
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+from upstox_trader.config import UPSTOX_CONFIG
 
 console = Console()
+
+def _calculate_rsi(close_series, length=14):
+    """Calculate RSI using Wilder's smoothing (RMA)."""
+    delta = close_series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1 / length, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / length, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0, pd.NA)
+    return 100 - (100 / (1 + rs))
 
 def get_stock_analysis(symbol, api_instance=None):
     """
@@ -20,17 +37,18 @@ def get_stock_analysis(symbol, api_instance=None):
             api_key = UPSTOX_CONFIG.get('api_key')
             api_secret = UPSTOX_CONFIG.get('api_secret')
             api_instance = UpstoxAPI(api_key, api_secret, quiet=True)
-            
-            if not api_instance.auth_handler.access_token:
-                # console.print("[yellow]Authenticating Upstox...[/yellow]")
-                api_instance.auth_handler.authenticate()
         except Exception as e:
             print(f"Failed to initialize Upstox API: {e}")
             return None
 
-    # 2. Fetch Data (Today's 1-min data)
+    # 2. Validate symbol and fetch data
+    instrument_key = api_instance.get_instrument_key(symbol)
+    if not instrument_key:
+        return {'error': f"Symbol '{symbol}' not found in Upstox instruments"}
+
+    # Use a wider lookback to survive weekends/holidays.
     to_date = datetime.now().strftime('%Y-%m-%d')
-    from_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+    from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
     
     df = api_instance.fetch_historical_data_v3(
         symbol=symbol,
@@ -39,26 +57,30 @@ def get_stock_analysis(symbol, api_instance=None):
         to_date=to_date,
         from_date=from_date
     )
-    
+
     if df is None or df.empty:
-        return None
+        # Fallback to intraday endpoint in case historical window yields no candles.
+        df = api_instance.fetch_intraday_data_v3(symbol=symbol, interval='1')
+
+    if df is None or df.empty:
+        return {'error': f"No candles returned for {symbol} (lookback: {from_date} to {to_date})"}
 
     # 3. Calculate Indicators
     if len(df) < 50:
         return {'error': 'Not enough data'}
     
     # EMA 20 & 50
-    df.ta.ema(length=20, append=True)
-    df.ta.ema(length=50, append=True)
-    
+    df['EMA_20'] = df['close'].ewm(span=20, adjust=False).mean()
+    df['EMA_50'] = df['close'].ewm(span=50, adjust=False).mean()
+
     # RSI 14
-    df.ta.rsi(length=14, append=True)
-    
-    # VWAP
-    try:
-        df.ta.vwap(append=True)
-    except:
-        pass
+    df['RSI_14'] = _calculate_rsi(df['close'], length=14)
+
+    # VWAP (session cumulative)
+    typical_price = (df['high'] + df['low'] + df['close']) / 3
+    cumulative_pv = (typical_price * df['volume']).cumsum()
+    cumulative_volume = df['volume'].cumsum().replace(0, pd.NA)
+    df['VWAP_D'] = cumulative_pv / cumulative_volume
 
     # Get latest candle
     last_row = df.iloc[-1]
@@ -209,7 +231,9 @@ def analyze_stock(symbol):
     """Entry point for CLI."""
     console.print(f"[cyan]Fetching 1-min data for {symbol}...[/cyan]")
     data = get_stock_analysis(symbol)
-    if data:
+    if data and data.get('error'):
+        console.print(f"[red]{data['error']}[/red]")
+    elif data:
         display_analysis(data)
     else:
         console.print(f"[red]No data found for {symbol}.[/red]")

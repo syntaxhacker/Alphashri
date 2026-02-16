@@ -47,10 +47,7 @@ def verify_trends(limit=20):
         api_key = UPSTOX_CONFIG.get('api_key')
         api_secret = UPSTOX_CONFIG.get('api_secret')
         upstox_api = UpstoxAPI(api_key, api_secret, quiet=True)
-        
-        if not upstox_api.auth_handler.access_token:
-            console.print("[yellow]Authenticating Upstox...[/yellow]")
-            upstox_api.auth_handler.authenticate()
+        console.print("[green]Using Upstox V3 historical data (no interactive auth required)[/green]")
     except Exception as e:
         console.print(f"[red]Failed to initialize Upstox API: {e}[/red]")
         return

@@ -150,14 +150,9 @@ def verify_stocks(use_intraday=False, provider='upstox', filter_52w_range=None, 
         console.print(f"[red]❌ {e}[/red]")
         return
 
-    # Handle authentication for intraday data (V2 API requires auth)
+    # Upstox V3 intraday endpoint works without interactive OAuth for market data.
     if use_intraday and provider == 'upstox':
-        if not api.auth_handler.access_token:
-            with console.status("[bold yellow]Authenticating with Upstox for intraday data...[/bold yellow]"):
-                if not api.auth_handler.authenticate():
-                    console.print("[red]❌ Authentication failed. Cannot fetch intraday data.[/red]")
-                    return
-        console.print("[green]✅ Authentication successful[/green]")
+        console.print("[green]✅ Using Upstox V3 intraday data (no interactive auth required)[/green]")
 
     # Display which data method is being used
     data_method = "[green]intraday (same day)[/green]" if use_intraday else "[blue]historical (5 days)[/blue]"

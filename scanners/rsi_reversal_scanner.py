@@ -10,6 +10,7 @@ from rich.table import Table
 from rich.panel import Panel
 import pandas as pd
 import argparse
+from scanner_utils import display_tradingview_csv
 
 console = Console()
 
@@ -90,10 +91,19 @@ def scan_rsi_reversal(market='america'):
                     f"{row['Stoch.K']:.1f}"
                 )
             console.print(table)
-            
+
         if bullish.empty and bearish.empty:
             console.print('[yellow]No reversal setups found matching strict criteria.[/yellow]')
-            
+
+        # TradingView-compatible CSV output
+        if not bullish.empty or not bearish.empty:
+            all_stocks = []
+            if not bullish.empty:
+                all_stocks.extend(bullish['name'].tolist())
+            if not bearish.empty:
+                all_stocks.extend(bearish['name'].tolist())
+            display_tradingview_csv(all_stocks)
+
     except Exception as e:
         console.print(f'[red]Error: {e}[/red]')
 

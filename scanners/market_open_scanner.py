@@ -3,6 +3,7 @@ from tradingview_screener import Query, Column
 from rich.console import Console
 from rich.table import Table
 import pandas as pd
+from scanner_utils import display_tradingview_csv
 
 console = Console()
 
@@ -93,6 +94,10 @@ def display_gappers(df, market):
         )
 
     console.print(table)
+
+    # TradingView-compatible CSV output
+    if not df.empty:
+        display_tradingview_csv(df)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Market Open Gap Scanner')

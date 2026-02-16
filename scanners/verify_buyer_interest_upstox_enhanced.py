@@ -675,15 +675,11 @@ def verify_stocks(use_intraday=False, provider='upstox', min_score=50,
         console.print(f"[red]❌ {e}[/red]")
         return
 
-    # Authentication for intraday
+    # Upstox V3 intraday endpoint works without interactive OAuth for market data.
     if use_intraday and provider == 'upstox':
-        if not api.auth_handler.access_token:
-            if not api.auth_handler.authenticate():
-                console.print("[red]❌ Authentication failed[/red]")
-                return
-        console.print("[green]✅ Authenticated[/green]")
+        console.print("[green]✅ Using Upstox V3 intraday data (no interactive auth required)[/green]")
 
-    data_method = "intraday (30min)" if use_intraday else "daily (30 days)"
+    data_method = "[green]intraday (1min)[/green]" if use_intraday else "[blue]daily (30 days)[/blue]"
     console.print(f"[blue] Using {data_method} data[/blue]\n")
 
     # 3. Analyze each stock
@@ -712,7 +708,15 @@ def verify_stocks(use_intraday=False, provider='upstox', min_score=50,
                 to_date = datetime.now().strftime('%Y-%m-%d')
 
                 if use_intraday:
-                    df_hist = api.fetch_intraday_data_v3(symbol=symbol, interval='30')
+                    # Use the fetch_intraday_data_v3 method for true today-only data (1-minute interval)
+                    df_hist = api.fetch_intraday_data_v3(
+                        symbol=symbol,
+                        interval='1'
+                    )
+
+                    # If no data for today, skip this symbol (correct behavior for intraday mode)
+                    if df_hist is None or df_hist.empty:
+                        continue
                 else:
                     from_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
                     df_hist = api.fetch_historical_data_v3(
@@ -981,7 +985,7 @@ if __name__ == "__main__":
         description="Enhanced Buyer/Seller Interest Scanner with Quant-Optimized Filters"
     )
     parser.add_argument("--intraday", action="store_true",
-                        help="Use intraday data (30min)")
+                        help="Use intraday data (1-minute same-day)")
     parser.add_argument("--provider", type=str, default='upstox',
                         choices=['upstox', 'indmoney'],
                         help="API provider (default: upstox)")
@@ -999,5 +1003,5 @@ if __name__ == "__main__":
         provider=args.provider,
         min_score=args.min_score,
         show_bullish=args.bullish,
-        show_bearish=args.bearish if 'bearish' in args else True
+        show_bearish=args.bearish
     )
