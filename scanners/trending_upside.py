@@ -13,101 +13,545 @@ from utils.tv_utils import clean_and_deduplicate, format_change, format_rsi
 
 console = Console()
 
-def fetch_trending_stocks(limit=50):
-    """Fetch stocks matching 'trending upside' criteria."""
+SCREENER_PROFILES = {
+    'trending': {'label': 'Trending', 'description': 'Balanced trend + momentum candidates'},
+    'high_momentum': {'label': 'High Momentum', 'description': 'Momentum scanner logic (RSI/MACD/volume)'},
+    'buyer_interest': {'label': 'Buyer Interest', 'description': 'Wick close + volume surge buyer pressure'},
+    'buyer_interest_enhanced': {'label': 'Buyer Interest+', 'description': 'Enhanced buyer/seller pattern setup'},
+    'volatility_trend': {'label': 'Volatility Trend', 'description': 'Volatility with trend confirmation'},
+    'nifty50_activity': {'label': 'Nifty50 Activity', 'description': 'Nifty-style activity scoring'},
+    'near_52w_breakout': {'label': 'Near 52W', 'description': '52-week high breakout candidate logic'},
+    'rsi_reversal': {'label': 'RSI Reversal', 'description': 'Oversold/overbought reversal logic'},
+    'market_open_gap': {'label': 'Gap Open', 'description': 'Market open gap scanner logic'},
+    'nifty_movers': {'label': 'Nifty Movers', 'description': 'Weighted impact (market-cap × move) logic'},
+}
+
+
+def get_screener_profiles():
+    return [
+        {'id': key, 'label': value['label'], 'description': value['description']}
+        for key, value in SCREENER_PROFILES.items()
+    ]
+
+
+def _safe_float(row, key, default=0.0):
     try:
-        # Criteria:
-        # 1. Trend: Price > EMA20 > EMA50
-        # 2. Momentum: RSI > 50
-        # 3. Strength: ADX > 20
-        # 4. Volume: Relative Volume > 1.0
-        
-        query = (
+        val = row.get(key, default)
+        if pd.isna(val):
+            return float(default)
+        return float(val)
+    except Exception:
+        return float(default)
+
+
+def _query_by_profile(profile, limit):
+    fetch_limit = max(limit * 4, 120)
+
+    if profile == 'high_momentum':
+        return (
             Query()
             .select(
-                'name', 'close', 'change', 'volume',
-                'RSI', 'ADX', 'EMA20', 'EMA50', 'Mom',
-                'relative_volume_10d_calc', 'sector', 'market_cap_basic',
-                'price_52_week_high', 'Perf.W', 'Volatility.D',
-                'return_on_equity', 'debt_to_equity',
-                'MACD.macd', 'MACD.signal', 'Perf.1M', 'earnings_release_next_date',
-                'ATR'  # Added for volatility-based time estimates
+                'name', 'close', 'high', 'low', 'change', 'volume',
+                'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal',
+                'sector', 'description', 'update_mode', 'market_cap_basic',
+                'price_52_week_high', 'Perf.W', 'ATR', 'ADX', 'relative_volume_10d_calc'
             )
             .set_markets('india')
             .where(
-                Column('close') > Column('EMA20'),
-                Column('EMA20') > Column('EMA50'),
-                Column('RSI') > 50,
-                Column('ADX') > 20,
-                Column('relative_volume_10d_calc') > 0.5,  # Relaxed from >1.0 to allow more candidates
-                Column('market_cap_basic') > 50_000_000_000,  # > 5000 Cr (Mid/Large Cap)
-                Column('return_on_equity') > 10               # Quality Check
+                Column('close') >= 10,
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 500_000,
+                Column('RSI').between(50, 80),
+                Column('change') >= -5
             )
-            .order_by('Mom', ascending=False)
-            .limit(limit)
+            .order_by('RSI', ascending=False)
+            .limit(fetch_limit)
         )
-        
+
+    if profile == 'buyer_interest':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'open', 'high', 'low', 'change', 'volume',
+                'RSI', 'ADX', 'relative_volume_10d_calc',
+                'sector', 'market_cap_basic', 'price_52_week_high',
+                'Perf.W', 'ATR'
+            )
+            .set_markets('india')
+            .where(
+                Column('market_cap_basic') >= 2_000_000_000,
+                Column('volume') > 100_000,
+                Column('close') > 10,
+                Column('RSI') > 40
+            )
+            .order_by('volume', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    if profile == 'buyer_interest_enhanced':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'open', 'high', 'low', 'change', 'volume',
+                'gap', 'RSI', 'ADX', 'relative_volume_10d_calc', 'Volatility.D',
+                'sector', 'market_cap_basic', 'price_52_week_high',
+                'Perf.W', 'ATR'
+            )
+            .set_markets('india')
+            .where(
+                Column('market_cap_basic') >= 2_000_000_000,
+                Column('volume') > 150_000,
+                Column('close') > 10
+            )
+            .order_by('relative_volume_10d_calc', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    if profile == 'volatility_trend':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'Volatility.D', 'ATR', 'Perf.W',
+                'relative_volume_10d_calc', 'sector', 'market_cap_basic',
+                'price_52_week_high'
+            )
+            .set_markets('india')
+            .where(
+                Column('market_cap_basic') >= 2_000_000_000,
+                Column('volume') > 200_000,
+                Column('close') > 10,
+                Column('Volatility.D') > 1.0
+            )
+            .order_by('Volatility.D', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    if profile == 'nifty50_activity':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'market_cap_basic', 'sector',
+                'price_52_week_high', 'Perf.W', 'ATR', 'relative_volume_10d_calc'
+            )
+            .set_markets('india')
+            .where(
+                Column('market_cap_basic') > 0,
+                Column('close') > 0
+            )
+            .order_by('market_cap_basic', ascending=False)
+            .limit(80)
+        )
+
+    if profile == 'near_52w_breakout':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'high', 'low', 'change', 'volume',
+                'price_52_week_high', 'price_52_week_low', 'market_cap_basic',
+                'RSI', 'sector', 'description', 'update_mode',
+                'average_volume_10d_calc', 'SMA50', 'SMA200', 'Perf.W', 'ATR', 'ADX'
+            )
+            .set_markets('india')
+            .where(
+                Column('close') >= 10,
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 1_000_000,
+                Column('RSI').between(45, 75),
+                Column('change') >= 0.5,
+                Column('close') > Column('SMA50'),
+                Column('SMA50') > Column('SMA200')
+            )
+            .order_by('RSI', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    if profile == 'rsi_reversal':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'change', 'volume', 'RSI', 'Stoch.K', 'Stoch.D',
+                'market_cap_basic', 'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX'
+            )
+            .set_markets('india')
+            .where(
+                Column('market_cap_basic') > 100_000_000,
+                Column('volume') > 100_000,
+                Column('close') > 5
+            )
+            .order_by('volume', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    if profile == 'market_open_gap':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'open', 'gap', 'volume', 'premarket_change',
+                'change', 'change_abs', 'market_cap_basic',
+                'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX', 'relative_volume_10d_calc'
+            )
+            .set_markets('india')
+            .where(
+                Column('volume') > 10_000,
+                Column('open') > 10,
+                Column('market_cap_basic') > 1_000_000_000
+            )
+            .order_by('volume', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    if profile == 'nifty_movers':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'change', 'market_cap_basic', 'volume',
+                'description', 'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX'
+            )
+            .set_markets('india')
+            .where(Column('market_cap_basic') > 0, Column('close') > 0)
+            .order_by('market_cap_basic', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    return (
+        Query()
+        .select(
+            'name', 'close', 'change', 'volume',
+            'RSI', 'ADX', 'EMA20', 'EMA50', 'Mom',
+            'relative_volume_10d_calc', 'sector', 'market_cap_basic',
+            'price_52_week_high', 'Perf.W', 'Volatility.D',
+            'return_on_equity', 'debt_to_equity',
+            'MACD.macd', 'MACD.signal', 'Perf.1M', 'earnings_release_next_date',
+            'ATR'
+        )
+        .set_markets('india')
+        .where(
+            Column('close') > Column('EMA20'),
+            Column('EMA20') > Column('EMA50'),
+            Column('RSI') > 50,
+            Column('ADX') > 20,
+            Column('relative_volume_10d_calc') > 0.5,
+            Column('market_cap_basic') > 50_000_000_000,
+            Column('return_on_equity') > 10
+        )
+        .order_by('Mom', ascending=False)
+        .limit(fetch_limit)
+    )
+
+
+def _score_trending(df):
+    df['dist_52w'] = ((df['price_52_week_high'] - df['close']) / df['price_52_week_high']) * 100
+
+    def calculate_score(row):
+        score = 0
+        rsi = _safe_float(row, 'RSI', 50)
+        adx = _safe_float(row, 'ADX', 20)
+        rvol = _safe_float(row, 'relative_volume_10d_calc', 0.5)
+        dist = _safe_float(row, 'dist_52w', 10)
+
+        if 50 <= rsi <= 70:
+            score += 30
+        elif 70 < rsi <= 80:
+            score += 25
+        else:
+            score += 10
+
+        if adx > 30:
+            score += 20
+        elif adx > 25:
+            score += 15
+        elif adx > 20:
+            score += 10
+
+        if rvol > 2.0:
+            score += 20
+        elif rvol > 1.5:
+            score += 15
+        else:
+            score += 10
+
+        if dist < 2:
+            score += 30
+        elif dist < 5:
+            score += 25
+        elif dist < 10:
+            score += 15
+        else:
+            score += 5
+
+        if _safe_float(row, 'MACD.macd', 0) > _safe_float(row, 'MACD.signal', 0):
+            score += 10
+        if _safe_float(row, 'Perf.1M', 0) > 5:
+            score += 10
+
+        if pd.notnull(row.get('earnings_release_next_date')):
+            days_to_earnings = (_safe_float(row, 'earnings_release_next_date', 0) - time.time()) / 86400
+            if 0 <= days_to_earnings < 3:
+                score -= 50
+        return score
+
+    df['swing_score'] = df.apply(calculate_score, axis=1)
+    return df.sort_values('swing_score', ascending=False)
+
+
+def _score_high_momentum(df):
+    def calculate_momentum(row):
+        score = 0
+        rsi = _safe_float(row, 'RSI', 50)
+        rsi_prev = _safe_float(row, 'RSI[1]', rsi)
+        macd = _safe_float(row, 'MACD.macd', 0)
+        signal = _safe_float(row, 'MACD.signal', 0)
+        change = _safe_float(row, 'change', 0)
+        vol_m = _safe_float(row, 'volume', 0) / 1_000_000
+
+        if rsi > 70:
+            score += 20
+        elif rsi > 60:
+            score += 15
+        elif rsi > 50:
+            score += 10
+        elif rsi > 40:
+            score += 5
+
+        if macd > signal and macd > 0:
+            score += 15
+        elif macd > signal:
+            score += 10
+
+        if rsi > rsi_prev and rsi > 50:
+            score += 10
+        elif rsi > 50:
+            score += 5
+
+        if vol_m > 10:
+            score += 15
+        elif vol_m > 5:
+            score += 12
+        elif vol_m > 2:
+            score += 8
+        elif vol_m > 1:
+            score += 4
+
+        if change > 0:
+            score += 5
+        if 55 <= rsi <= 70:
+            score += 10
+        elif 50 <= rsi <= 75:
+            score += 5
+        elif rsi > 75:
+            score -= 5
+
+        abs_change = abs(change)
+        if abs_change < 3:
+            score += 5
+        elif abs_change > 8:
+            score -= 5
+
+        score += 10
+        return min(score, 100)
+
+    df['swing_score'] = df.apply(calculate_momentum, axis=1)
+    return df.sort_values(['swing_score', 'RSI'], ascending=[False, False])
+
+
+def _score_buyer_interest(df):
+    out = df.copy()
+    day_range = (out['high'] - out['low']).replace(0, pd.NA)
+    out['wick_close_pct'] = (((out['close'] - out['low']) / day_range) * 100).fillna(50).clip(0, 100)
+    out['volume_surge'] = out['relative_volume_10d_calc'].fillna(1).clip(lower=0)
+    out = out[out['wick_close_pct'] >= 60].copy()
+    if out.empty:
+        return out
+
+    out['swing_score'] = (
+        (out['wick_close_pct'] * 0.55)
+        + (out['volume_surge'].clip(upper=5) * 12)
+        + (out['ADX'].fillna(20).clip(lower=0, upper=50) * 0.5)
+        + (out['change'].fillna(0).clip(lower=-10, upper=10) * 1.2)
+    ).clip(lower=0, upper=99)
+    return out.sort_values(['swing_score', 'wick_close_pct', 'volume'], ascending=[False, False, False])
+
+
+def _score_buyer_interest_enhanced(df):
+    out = _score_buyer_interest(df)
+    if out.empty:
+        return out
+
+    body = (out['close'] - out['open']).abs()
+    rng = (out['high'] - out['low']).replace(0, pd.NA)
+    out['body_pct'] = ((body / rng) * 100).fillna(20)
+    out['upper_shadow_pct'] = ((out['high'] - out[['open', 'close']].max(axis=1)) / rng * 100).fillna(0)
+    out['pattern_signal'] = 'NEUTRAL'
+    out.loc[(out['body_pct'] >= 55) & (out['wick_close_pct'] >= 75), 'pattern_signal'] = 'STRONG_BULL'
+    out.loc[(out['upper_shadow_pct'] >= 40) & (out['wick_close_pct'] <= 35), 'pattern_signal'] = 'STRONG_BEAR'
+    out['swing_score'] += out['pattern_signal'].map({'STRONG_BULL': 15, 'STRONG_BEAR': -8, 'NEUTRAL': 0}).fillna(0)
+    gap_series = out['gap'] if 'gap' in out.columns else pd.Series([0] * len(out), index=out.index)
+    out['swing_score'] += (gap_series.fillna(0).abs().clip(upper=5) * 1.5)
+    out['swing_score'] = out['swing_score'].clip(lower=0, upper=99)
+    return out.sort_values(['swing_score', 'wick_close_pct', 'volume'], ascending=[False, False, False])
+
+
+def _score_volatility_trend(df):
+    out = df.copy()
+    out['volatility_d'] = out['Volatility.D'].fillna(0)
+    out['volume_surge'] = out['relative_volume_10d_calc'].fillna(1).clip(lower=0)
+    out['trend_bias'] = ((out['ADX'].fillna(0) >= 20).astype(int) + (out['RSI'].fillna(50) >= 50).astype(int))
+    out = out[(out['volatility_d'] >= 1.5) & (out['trend_bias'] >= 1)].copy()
+    if out.empty:
+        return out
+    out['swing_score'] = (
+        out['volatility_d'].clip(upper=12) * 7
+        + out['ADX'].fillna(0).clip(upper=45) * 0.9
+        + out['volume_surge'].clip(upper=5) * 6
+        + out['Perf.W'].fillna(0).clip(lower=-20, upper=20) * 0.8
+    ).clip(lower=0, upper=99)
+    return out.sort_values(['swing_score', 'volatility_d'], ascending=[False, False])
+
+
+def _score_nifty50_activity(df):
+    out = df.copy()
+    out = out.sort_values('market_cap_basic', ascending=False).head(50).copy()
+    out['volume_m'] = out['volume'].fillna(0) / 1_000_000
+    out['volume_surge'] = out['relative_volume_10d_calc'].fillna(1).clip(lower=0)
+    out['interest_score'] = 0
+    out.loc[out['volume_surge'] >= 2.0, 'interest_score'] += 100
+    out.loc[out['volume_surge'] >= 1.2, 'interest_score'] += 20
+    out.loc[(out['RSI'].fillna(50) >= 65) | (out['RSI'].fillna(50) <= 35), 'interest_score'] += 10
+    out.loc[out['ADX'].fillna(0) >= 25, 'interest_score'] += 10
+    out['swing_score'] = (
+        out['interest_score']
+        + out['change'].fillna(0).abs().clip(upper=8) * 3
+        + out['volume_m'].clip(upper=20) * 1.2
+    ).clip(lower=0, upper=99)
+    return out.sort_values(['swing_score', 'market_cap_basic'], ascending=[False, False])
+
+
+def _score_near_52w_breakout(df):
+    out = df.copy()
+    out['distance_to_high_pct'] = ((out['price_52_week_high'] - out['close']) / out['price_52_week_high']) * 100
+    out = out[out['distance_to_high_pct'] <= 10].copy()
+    if out.empty:
+        return out
+
+    out['volume_in_millions'] = (out['volume'] / 1_000_000).round(2)
+    out['market_cap_billions'] = (out['market_cap_basic'] / 1_000_000_000).round(2)
+    out['average_volume_10d_calc'] = out['average_volume_10d_calc'].fillna(out['volume'])
+    out['rvol'] = (out['volume'] / out['average_volume_10d_calc']).round(2)
+    out['swing_score'] = 0
+    out.loc[out['distance_to_high_pct'] <= 3, 'swing_score'] += 50
+    out['swing_score'] += (out['volume_in_millions'] * 2).astype(int)
+    out.loc[out['rvol'] > 1.5, 'swing_score'] += 25
+    out.loc[out['rvol'] > 2.0, 'swing_score'] += 15
+    out['swing_score'] += (out['market_cap_billions'] * 3).astype(int)
+    out.loc[out['RSI'] >= 60, 'swing_score'] += 30
+    out.loc[out['change'] >= 2, 'swing_score'] += 20
+    out['dist_52w'] = out['distance_to_high_pct']
+    return out.sort_values(['swing_score', 'distance_to_high_pct'], ascending=[False, True])
+
+
+def _score_rsi_reversal(df):
+    bullish = df[(df['RSI'] < 35) & (df['Stoch.K'] < 25) & (df['change'] > 0)].copy()
+    bearish = df[(df['RSI'] > 65) & (df['Stoch.K'] > 75) & (df['change'] < 0)].copy()
+    if not bullish.empty:
+        bullish['reversal_signal'] = 'BULLISH'
+    if not bearish.empty:
+        bearish['reversal_signal'] = 'BEARISH'
+    out = pd.concat([bullish, bearish], ignore_index=True)
+    if out.empty:
+        return out
+    out['dist_52w'] = ((out['price_52_week_high'] - out['close']) / out['price_52_week_high']) * 100
+    out['swing_score'] = (
+        (100 - (out['RSI'] - 50).abs() * 1.2)
+        + out['change'].abs() * 2
+    ).clip(lower=40, upper=95)
+    return out.sort_values(['swing_score', 'volume'], ascending=[False, False])
+
+
+def _score_market_open_gap(df):
+    out = df.copy()
+    out = out[out['gap'].abs() >= 1.0].copy()
+    if out.empty:
+        return out
+    out['abs_gap'] = out['gap'].abs()
+    out['dist_52w'] = ((out['price_52_week_high'] - out['close']) / out['price_52_week_high']) * 100
+    out['swing_score'] = (
+        out['abs_gap'] * 15
+        + out['volume'].clip(lower=0) / 1_000_000
+        + out['relative_volume_10d_calc'].fillna(1) * 8
+    ).clip(upper=99)
+    return out.sort_values(['abs_gap', 'volume'], ascending=[False, False])
+
+
+def _score_nifty_movers(df):
+    out = df.copy()
+    out['market_cap_B'] = out['market_cap_basic'] / 1_000_000_000
+    out['impact_score'] = (out['market_cap_basic'] * out['change']) / 100_000_000_000
+    out['abs_impact'] = out['impact_score'].abs()
+    out['dist_52w'] = ((out['price_52_week_high'] - out['close']) / out['price_52_week_high']) * 100
+    out['swing_score'] = (out['abs_impact'] * 12).clip(lower=10, upper=99)
+    return out.sort_values(['abs_impact', 'market_cap_basic'], ascending=[False, False])
+
+
+def _normalize_for_verifier(df):
+    if df.empty:
+        return df
+
+    out = df.copy()
+    defaults = {
+        'sector': '-',
+        'price_52_week_high': out['close'] * 1.1,
+        'ADX': out.get('RSI', pd.Series([25] * len(out), index=out.index)).fillna(25) * 0.5,
+        'ATR': out['close'] * 0.012,
+        'Perf.W': out.get('change', pd.Series([0] * len(out), index=out.index)).fillna(0),
+        'change': out.get('change', pd.Series([0] * len(out), index=out.index)).fillna(0),
+    }
+    for key, val in defaults.items():
+        if key not in out.columns:
+            out[key] = val
+        out[key] = out[key].fillna(val)
+    return out
+
+
+def _score_by_profile(df, profile):
+    if profile == 'high_momentum':
+        return _score_high_momentum(df)
+    if profile == 'buyer_interest':
+        return _score_buyer_interest(df)
+    if profile == 'buyer_interest_enhanced':
+        return _score_buyer_interest_enhanced(df)
+    if profile == 'volatility_trend':
+        return _score_volatility_trend(df)
+    if profile == 'nifty50_activity':
+        return _score_nifty50_activity(df)
+    if profile == 'near_52w_breakout':
+        return _score_near_52w_breakout(df)
+    if profile == 'rsi_reversal':
+        return _score_rsi_reversal(df)
+    if profile == 'market_open_gap':
+        return _score_market_open_gap(df)
+    if profile == 'nifty_movers':
+        return _score_nifty_movers(df)
+    return _score_trending(df)
+
+
+def fetch_trending_stocks(limit=50, profile='trending'):
+    """Unified query engine for all screener profiles."""
+    try:
+        profile = profile if profile in SCREENER_PROFILES else 'trending'
+        query = _query_by_profile(profile, limit)
         _, df = query.get_scanner_data()
-        
         if df.empty:
             return df
 
-        # Deduplicate using helper
         df = clean_and_deduplicate(df)
+        df = _score_by_profile(df, profile)
+        if df.empty:
+            return df
 
-        # Calculate Swing Score
-        df['dist_52w'] = ((df['price_52_week_high'] - df['close']) / df['price_52_week_high']) * 100
-        
-        def calculate_score(row):
-            score = 0
-            
-            # 1. RSI (30 pts) - Momentum
-            rsi = row['RSI']
-            if 50 <= rsi <= 70: score += 30
-            elif 70 < rsi <= 80: score += 25
-            else: score += 10
-            
-            # 2. ADX (20 pts) - Trend Strength
-            adx = row['ADX']
-            if adx > 30: score += 20
-            elif adx > 25: score += 15
-            elif adx > 20: score += 10
-            
-            # 3. Volume (20 pts) - Participation
-            rvol = row['relative_volume_10d_calc']
-            if rvol > 2.0: score += 20
-            elif rvol > 1.5: score += 15
-            else: score += 10
-            
-            # 4. 52W High (30 pts) - Breakout Potential
-            dist = row['dist_52w']
-            if dist < 2: score += 30      # At or very near high (Breakout)
-            elif dist < 5: score += 25    # Near high
-            elif dist < 10: score += 15   # Within striking distance
-            else: score += 5
-
-            # 5. MACD (10 pts) - Trend Confirmation
-            if row['MACD.macd'] > row['MACD.signal']:
-                score += 10
-
-            # 6. Monthly Momentum (10 pts)
-            if row['Perf.1M'] > 5:
-                score += 10
-            
-            # 7. Earnings Penalty (Avoid binary events)
-            # earnings_release_next_date is unix timestamp
-            if pd.notnull(row['earnings_release_next_date']):
-                import time
-                days_to_earnings = (row['earnings_release_next_date'] - time.time()) / 86400
-                if 0 <= days_to_earnings < 3:
-                    score -= 50 # Heavy penalty for imminent earnings
-            
-            return score
-
-        df['swing_score'] = df.apply(calculate_score, axis=1)
-        df = df.sort_values('swing_score', ascending=False)
-        
-        return df
+        df = _normalize_for_verifier(df)
+        return df.head(limit)
     except Exception as e:
         console.print(f"[red]Error fetching data: {e}[/red]")
         return pd.DataFrame()
