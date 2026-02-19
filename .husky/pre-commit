@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "Running pre-commit checks..."
+
+cd stock-screener-ui
+
+# Check if dev server is running, start it if not
+DEV_PID=""
+if ! curl -s http://localhost:5173 > /dev/null 2>&1; then
+  echo "Starting dev server..."
+  bun run dev > /tmp/dev_server.log 2>&1 &
+  DEV_PID=$!
+  sleep 5
+fi
+
+# Run the tests (using mocked API responses)
+echo "Running Playwright tests..."
+bun run test --reporter=list
+
+# Capture exit code
+TEST_EXIT_CODE=$?
+
+# Kill dev server if we started it
+if [ ! -z "$DEV_PID" ]; then
+  kill $DEV_PID 2>/dev/null
+fi
+
+if [ $TEST_EXIT_CODE -ne 0 ]; then
+  echo "Tests failed! Commit aborted."
+  exit 1
+fi
+
+echo "All tests passed!"
+exit 0

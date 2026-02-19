@@ -5,6 +5,17 @@ API_PORT="${API_PORT:-8765}"
 UI_HOST="${UI_HOST:-127.0.0.1}"
 UI_PORT="${UI_PORT:-5173}"
 
+kill_port() {
+  local port=$1
+  local pid
+  pid=$(lsof -ti:"$port" 2>/dev/null || true)
+  if [[ -n "$pid" ]]; then
+    echo "Killing existing process on port $port (PID: $pid)..."
+    kill "$pid" 2>/dev/null || true
+    sleep 1
+  fi
+}
+
 cleanup() {
   echo
   echo "Stopping services..."
@@ -17,6 +28,10 @@ cleanup() {
 }
 
 trap cleanup INT TERM EXIT
+
+# Kill existing processes on ports
+kill_port "$API_PORT"
+kill_port "$UI_PORT"
 
 echo "Starting API on http://localhost:${API_PORT} ..."
 python3 -u api_server.py --port "${API_PORT}" &

@@ -52,7 +52,8 @@ PROFILE_META = {
     'buyer_interest_enhanced': {
         'section_labels': {'primary': '🟢 BUYER/SELLER INTEREST+', 'secondary': '✅ TOP CONVICTION SETUPS'},
         'filters': [
-            {'key': 'min_wick_pct', 'label': 'Wick % ≥', 'type': 'number', 'min': 0, 'max': 100, 'step': 1, 'default': 65},
+            {'key': 'direction', 'label': 'Direction', 'type': 'select', 'options': ['both', 'bullish', 'bearish'], 'default': 'both'},
+            {'key': 'min_score', 'label': 'Score ≥', 'type': 'number', 'min': 0, 'max': 100, 'step': 5, 'default': 50},
             {'key': 'min_vol_surge', 'label': 'Vol Surge ≥', 'type': 'number', 'min': 0, 'max': 10, 'step': 0.1, 'default': 1.0}
         ],
         'default_sort': {'column': 'score', 'direction': 'desc'}
@@ -143,8 +144,27 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
         return abs(_to_float(stock_data.get('gap_pct'), 0)) >= num('min_gap_pct', 1) and _to_float(stock_data.get('volume_m'), 0) >= num('min_volume_m', 0)
     if screener == 'high_momentum':
         return _to_float(stock_data.get('rsi'), 0) >= num('min_rsi', 0) and _to_float(stock_data.get('volume_m'), 0) >= num('min_volume_m', 0)
-    if screener == 'buyer_interest' or screener == 'buyer_interest_enhanced':
+    if screener == 'buyer_interest':
         return _to_float(stock_data.get('wick_close_pct'), 0) >= num('min_wick_pct', 0) and _to_float(stock_data.get('volume_surge'), 0) >= num('min_vol_surge', 0)
+    if screener == 'buyer_interest_enhanced':
+        # Direction filter based on wick position (where stock closed in day's range)
+        # Bullish: wick >= 60% (closed in upper portion = buyers in control)
+        # Bearish: wick <= 40% (closed in lower portion = sellers in control)
+        direction = profile_filters.get('direction', 'both')
+        wick_pct = _to_float(stock_data.get('wick_close_pct'), 50)
+
+        is_bullish_sentiment = wick_pct >= 60
+        is_bearish_sentiment = wick_pct <= 40
+
+        if direction == 'bullish' and not is_bullish_sentiment:
+            return False
+        if direction == 'bearish' and not is_bearish_sentiment:
+            return False
+        # Score filter
+        if _to_float(stock_data.get('score'), 0) < num('min_score', 0):
+            return False
+        # Volume filter only
+        return _to_float(stock_data.get('volume_surge'), 0) >= num('min_vol_surge', 0)
     if screener == 'volatility_trend':
         return _to_float(stock_data.get('volatility_d'), 0) >= num('min_volatility_d', 0) and _to_float(stock_data.get('rsi'), 0) >= num('min_rsi', 0)
     if screener == 'nifty50_activity':
@@ -336,10 +356,8 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
     use_intraday = (mode == 'intraday')
     use_52w_buckets = screener in PROFILES_WITH_52W_BUCKETS
 
-    if use_api and use_intraday and provider == 'upstox':
-        if not api.auth_handler.access_token:
-            if not api.auth_handler.authenticate():
-                use_api = False
+    # Note: v3 intraday/historical APIs don't require authentication
+    # Auth is only needed for trading operations, not market data
 
     tv_df = trending_upside.fetch_trending_stocks(limit=120, profile=screener)
     if tv_df.empty:
@@ -400,6 +418,22 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
 
                 touched_52w = to_52w_high < 0.1
 
+                # Determine if bullish (close > open)
+                is_bullish = tv_price >= tv_open
+
+                # Determine sentiment based on wick position (more intuitive than candle direction)
+                # wick_close_pct: 0 = closed at LOW, 100 = closed at HIGH
+                if wick_close_pct >= 70:
+                    sentiment = 'bullish'  # Strong buyer control
+                elif wick_close_pct >= 55:
+                    sentiment = 'lean_bull'  # Slight buyer control
+                elif wick_close_pct <= 30:
+                    sentiment = 'bearish'  # Strong seller control
+                elif wick_close_pct <= 45:
+                    sentiment = 'lean_bear'  # Slight seller control
+                else:
+                    sentiment = 'neutral'  # No clear direction
+
                 stock_data = {
                     'symbol': symbol,
                     'score': min(99, int(adx + (recent_return if recent_return > 0 else 0) * 2)),
@@ -425,6 +459,8 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
                     'market_cap_b': round(_to_float(row.get('market_cap_basic'), 0) / 1_000_000_000, 2),
                     'volume_m': round(_to_float(row.get('volume'), 0) / 1_000_000, 2),
                     'reversal_signal': str(row.get('reversal_signal', '')),
+                    'is_bullish': is_bullish,
+                    'sentiment': sentiment,
                 }
                 stock_data['rationale'] = _build_rationale(screener, stock_data)
 
@@ -497,6 +533,23 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
                     elif (tv_52w_high - recent_high) / tv_52w_high < 0.001:
                         touched_52w = True
 
+                # Determine if bullish (close > open)
+                c_open = _to_float(current_candle.get('open'), c_close)
+                is_bullish = c_close >= c_open
+
+                # Determine sentiment based on wick position (more intuitive than candle direction)
+                # wick_close_pct: 0 = closed at LOW, 100 = closed at HIGH
+                if wick_close_pct >= 70:
+                    sentiment = 'bullish'  # Strong buyer control
+                elif wick_close_pct >= 55:
+                    sentiment = 'lean_bull'  # Slight buyer control
+                elif wick_close_pct <= 30:
+                    sentiment = 'bearish'  # Strong seller control
+                elif wick_close_pct <= 45:
+                    sentiment = 'lean_bear'  # Slight seller control
+                else:
+                    sentiment = 'neutral'  # No clear direction
+
                 stock_data = {
                     'symbol': symbol,
                     'score': int(row.get('swing_score', 0)),
@@ -522,6 +575,8 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
                     'market_cap_b': round(_to_float(row.get('market_cap_basic'), 0) / 1_000_000_000, 2),
                     'volume_m': round(_to_float(row.get('volume'), 0) / 1_000_000, 2),
                     'reversal_signal': str(row.get('reversal_signal', '')),
+                    'is_bullish': is_bullish,
+                    'sentiment': sentiment,
                 }
                 stock_data['rationale'] = _build_rationale(screener, stock_data)
 

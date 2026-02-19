@@ -22,6 +22,7 @@ export type ColumnKey =
   | 'impact_score'
   | 'market_cap_b'
   | 'volume_m'
+  | 'is_bullish'
 
 export const COLUMN_LABELS: Record<ColumnKey, string> = {
   symbol: 'Symbol',
@@ -47,6 +48,7 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
   impact_score: 'Impact',
   market_cap_b: 'Cap B',
   volume_m: 'Volume M',
+  is_bullish: 'Sentiment',
 }
 
 export const NUMERIC_COLUMNS = new Set<ColumnKey>([
@@ -73,7 +75,7 @@ export function getColumnKeysForProfile(screener: string, touched: boolean): Col
     return ['symbol', 'score', 'wick_close_pct', 'volume_surge', 'rsi', 'day_change', 'volume_m', 'sector']
   }
   if (screener === 'buyer_interest_enhanced') {
-    return ['symbol', 'score', 'wick_close_pct', 'volume_surge', 'gap_pct', 'rsi', 'day_change', 'sector']
+    return ['symbol', 'score', 'is_bullish', 'wick_close_pct', 'volume_surge', 'gap_pct', 'rsi', 'day_change', 'sector']
   }
   if (screener === 'volatility_trend') {
     return ['symbol', 'score', 'volatility_d', 'adx', 'rsi', 'day_change', 'perf_w', 'sector']

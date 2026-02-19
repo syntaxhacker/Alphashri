@@ -33,6 +33,7 @@ except ImportError:
     INDMONEY_CONFIG = {}
 
 # Import the trending scanner
+sys.path.insert(0, _script_dir)
 import trending_upside
 
 

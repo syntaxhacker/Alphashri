@@ -29,6 +29,8 @@ interface Stock {
   volume_m?: number
   reversal_signal?: string
   rationale?: string
+  is_bullish?: boolean
+  sentiment?: 'bullish' | 'lean_bull' | 'neutral' | 'lean_bear' | 'bearish'
 }
 
 interface SummaryItem {
@@ -44,6 +46,7 @@ interface ProfileFilter {
   max?: number
   step?: number
   default?: number | string
+  options?: string[]
 }
 
 interface ProfileMeta {
@@ -416,14 +419,20 @@ function render() {
         ${sectors.map(s => `<option value="${s}" ${filters.sector === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select></label>
       ${profileFilterDefs.map(f => `
-        <label>${f.label} <input
-          type="${f.type === 'number' ? 'number' : 'text'}"
-          value="${profileFilterValues[f.key] ?? f.default ?? ''}"
-          ${f.min !== undefined ? `min="${f.min}"` : ''}
-          ${f.max !== undefined ? `max="${f.max}"` : ''}
-          ${f.step !== undefined ? `step="${f.step}"` : ''}
-          onchange="window.updateProfileFilter('${f.key}', this.value)"
-        ></label>
+        <label>${f.label} ${f.type === 'select' ? `
+          <select onchange="window.updateProfileFilter('${f.key}', this.value)">
+            ${(f.options || []).map(opt => `<option value="${opt}" ${profileFilterValues[f.key] === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+          </select>
+        ` : `
+          <input
+            type="${f.type === 'number' ? 'number' : 'text'}"
+            value="${profileFilterValues[f.key] ?? f.default ?? ''}"
+            ${f.min !== undefined ? `min="${f.min}"` : ''}
+            ${f.max !== undefined ? `max="${f.max}"` : ''}
+            ${f.step !== undefined ? `step="${f.step}"` : ''}
+            onchange="window.updateProfileFilter('${f.key}', this.value)"
+          >
+        `}</label>
       `).join('')}
       <button onclick="window.resetFilters()" style="padding:2px 8px;font-size:10px">Reset</button>
     </div>
@@ -571,10 +580,20 @@ function renderStockRow(s: Stock, touched: boolean = false, screener: string = '
   if (screener === 'buyer_interest_enhanced') {
     const day = s.day_change ?? 0
     const gap = s.gap_pct ?? 0
+    const sentiment = s.sentiment ?? 'neutral'
+    const sentimentDisplay: Record<string, { icon: string; label: string; cls: string }> = {
+      'bullish': { icon: '🟢', label: 'Bull', cls: 'green' },
+      'lean_bull': { icon: '📈', label: 'Bull+', cls: 'green' },
+      'neutral': { icon: '⚪', label: 'Neutral', cls: '' },
+      'lean_bear': { icon: '📉', label: 'Bear+', cls: 'red' },
+      'bearish': { icon: '🔴', label: 'Bear', cls: 'red' },
+    }
+    const { icon, label, cls: dirClass } = sentimentDisplay[sentiment]
     return `
       <tr class="${rowClass}" title="${rowHint}">
         <td class="sym">${s.symbol}</td>
         <td class="num ${scoreClass}">${s.score}</td>
+        <td class="num ${dirClass}" title="${sentiment}">${icon}</td>
         <td class="num">${(s.wick_close_pct ?? 0).toFixed(1)}%</td>
         <td class="num">${(s.volume_surge ?? 0).toFixed(2)}x</td>
         <td class="num ${gap >= 0 ? 'green' : 'red'}">${gap >= 0 ? '+' : ''}${gap.toFixed(2)}%</td>

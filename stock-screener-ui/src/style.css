@@ -31,7 +31,8 @@ button:active{background:#00ff9d;color:#0a0a0a}
 .filters label{font-size:10px;color:#888;display:flex;align-items:center;gap:4px}
 .filters input{background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:2px 6px;width:60px;font:10px monospace;text-align:right}
 .filters input:focus{outline:none;border-color:#00ff9d}
-.filters select{background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:2px;font:10px monospace}
+.filters select,.controls select,.controls input[type="number"]{background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:2px;font:10px monospace}
+.controls select:focus,.controls input[type="number"]:focus{outline:none;border-color:#00ff9d}
 .summary-strip{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px}
 .summary-item{background:#101010;border:1px solid #222;padding:4px 8px;display:flex;gap:6px;align-items:center}
 .summary-label{font-size:10px;color:#777}
