@@ -1,1 +1,0 @@
-../converted_ui/scanners/nifty_movers.py

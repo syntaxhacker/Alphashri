@@ -223,10 +223,9 @@ class TokenManager:
 
 
 # --- Constants ---
-API_VERSION = "2.0"  # Still used for authentication
-BASE_URL_V2 = "https://api.upstox.com/v2"
-BASE_URL_V3 = "https://api.upstox.com/v3"
-ORDER_URL = "https://api.upstox.com/v2/order/place"
+API_VERSION = "3.0"
+BASE_URL = "https://api.upstox.com/v3"
+ORDER_URL = "https://api.upstox.com/v3/order/place"
 INSTRUMENT_LIST_URL = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz"
 INSTRUMENT_CACHE_FILE = Path(__file__).parent / "nse_instruments.json"
 
@@ -372,6 +371,8 @@ class UpstoxAPI(BaseAPIClient):
         self.api_key = api_key
         self.api_secret = api_secret
         self.instruments = []
+        self._last_v3_error_status: Optional[int] = None
+        self._last_v3_error_text: str = ""
 
         self._log("🇮🇳 Upstox API Connector Initialized")
         self._log("="*40)
@@ -407,7 +408,7 @@ class UpstoxAPI(BaseAPIClient):
         except (gzip.BadGzipFile, json.JSONDecodeError) as e:
             self._log(f"❌ Failed to process instrument list: {e}")
 
-    def get_instrument_key(self, symbol: str, exchange: str = "NSE_EQ", instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None) -> Optional[str]:
+    def get_instrument_key(self, symbol: str, exchange: str = "NSE_EQ", instrument_type: str = 'EQ', expiry_date: Optional[str] = None, strike_price: Optional[float] = None, option_type: Optional[str] = None, force_refresh: bool = False) -> Optional[str]:
         """Fetches the instrument key from a cached or newly downloaded instrument list."""
         # Clean symbol to remove exchange prefixes like BSE:, NSE: etc.
         clean_symbol = get_valid_symbol(symbol)
@@ -415,7 +416,10 @@ class UpstoxAPI(BaseAPIClient):
             self._log(f"❌ Invalid symbol after cleaning: {symbol}")
             return None
 
-        if not self.instruments:
+        if force_refresh:
+            self.instruments = []
+            self._download_and_cache_instruments()
+        elif not self.instruments:
             if INSTRUMENT_CACHE_FILE.exists():
                 self._log("✅ Loading instruments from local cache...")
                 with open(INSTRUMENT_CACHE_FILE, 'r') as f:
@@ -580,11 +584,10 @@ class UpstoxAPI(BaseAPIClient):
         # Determine interval unit for V3 URL format if needed
         # V3 URL format: /historical-candle/intraday/{instrument_key}/{unit}/{interval}
         # In this implementation, we assume 'minutes' as the unit for the requested interval.
-        url = f"{BASE_URL_V3}/historical-candle/intraday/{encoded_key}/minutes/{interval.replace('minute', '')}"
+        url = f"{BASE_URL}/historical-candle/intraday/{encoded_key}/minutes/{interval.replace('minute', '')}"
         
         headers = {
-            'Accept': 'application/json',
-            'Authorization': f"Bearer {self.auth_handler.access_token}" if self.auth_handler.access_token else ""
+            'Accept': 'application/json'
         }
         
         try:
@@ -643,7 +646,7 @@ class UpstoxAPI(BaseAPIClient):
             print(f"📊 Fetching {interval} historical data for {symbol}...")
         
         # Historical API endpoint - includes from_date in URL path
-        url = f"{BASE_URL_V2}/historical-candle/{instrument_key}/{interval}/{to_date}/{from_date}"
+        url = f"{BASE_URL}/historical-candle/{instrument_key}/{interval}/{to_date}/{from_date}"
         
         try:
             response = requests.get(url, headers=self._get_headers())
@@ -699,7 +702,14 @@ class UpstoxAPI(BaseAPIClient):
             Historical data available from Jan 2022 for minutes/hours, Jan 2000 for days/weeks/months.
         """
         # V3 API doesn't require authentication, but we need instrument key
-        instrument_key = self.get_instrument_key(symbol, instrument_type=instrument_type, expiry_date=expiry_date, strike_price=strike_price, option_type=option_type, exchange=exchange)
+        instrument_key = self.get_instrument_key(
+            symbol,
+            instrument_type=instrument_type,
+            expiry_date=expiry_date,
+            strike_price=strike_price,
+            option_type=option_type,
+            exchange=exchange,
+        )
         if not instrument_key:
             return None
             
@@ -736,8 +746,37 @@ class UpstoxAPI(BaseAPIClient):
             chunk_days = None  # No limit
         
         # If no from_date or chunking not needed, make single API call
+        def fetch_single_with_retry(chunk_to: str, chunk_from: Optional[str]) -> Optional[pd.DataFrame]:
+            df = self._fetch_single_chunk_v3(symbol, unit, interval, chunk_to, chunk_from, instrument_key)
+            # Handle stale instrument key: refresh instrument list and retry once.
+            if (
+                df is None
+                and self._last_v3_error_status == 400
+                and instrument_type in ['EQ', 'INDEX']
+            ):
+                stale_key = instrument_key
+                if not self.quiet:
+                    print(
+                        f"🔄 V3 returned 400 for {symbol} ({stale_key}). "
+                        "Refreshing instrument cache and retrying once..."
+                    )
+                refreshed_key = self.get_instrument_key(
+                    symbol,
+                    instrument_type=instrument_type,
+                    expiry_date=expiry_date,
+                    strike_price=strike_price,
+                    option_type=option_type,
+                    exchange=exchange,
+                    force_refresh=True,
+                )
+                if refreshed_key and refreshed_key != stale_key:
+                    if not self.quiet:
+                        print(f"✅ Refreshed instrument key for {symbol}: {stale_key} -> {refreshed_key}")
+                    return self._fetch_single_chunk_v3(symbol, unit, interval, chunk_to, chunk_from, refreshed_key)
+            return df
+
         if not from_date or not chunk_days:
-            return self._fetch_single_chunk_v3(symbol, unit, interval, to_date, from_date, instrument_key)
+            return fetch_single_with_retry(to_date, from_date)
         
         # Parse dates for chunking
         from datetime import datetime
@@ -747,7 +786,7 @@ class UpstoxAPI(BaseAPIClient):
         
         # If within limits, make single call
         if total_days <= chunk_days:
-            return self._fetch_single_chunk_v3(symbol, unit, interval, to_date, from_date, instrument_key)
+            return fetch_single_with_retry(to_date, from_date)
         
         # Chunking required
         if not self.quiet:
@@ -766,7 +805,7 @@ class UpstoxAPI(BaseAPIClient):
             if not self.quiet:
                 print(f"  📥 Fetching chunk: {chunk_from} to {chunk_to}")
             
-            chunk_df = self._fetch_single_chunk_v3(symbol, unit, interval, chunk_to, chunk_from, instrument_key)
+            chunk_df = fetch_single_with_retry(chunk_to, chunk_from)
             
             if chunk_df is not None and not chunk_df.empty:
                 all_data.append(chunk_df)
@@ -790,14 +829,17 @@ class UpstoxAPI(BaseAPIClient):
 
     def _fetch_single_chunk_v3(self, symbol: str, unit: str, interval: int, to_date: str, from_date: Optional[str], instrument_key: str) -> Optional[pd.DataFrame]:
         """Helper method to fetch a single chunk of V3 historical data."""
+        self._last_v3_error_status = None
+        self._last_v3_error_text = ""
+
         # URL encode the instrument key to handle special characters like |
         encoded_instrument_key = urllib.parse.quote(instrument_key, safe='')
         
         # Build URL - from_date is optional
         if from_date:
-            url = f"{BASE_URL_V3}/historical-candle/{encoded_instrument_key}/{unit}/{interval}/{to_date}/{from_date}"
+            url = f"{BASE_URL}/historical-candle/{encoded_instrument_key}/{unit}/{interval}/{to_date}/{from_date}"
         else:
-            url = f"{BASE_URL_V3}/historical-candle/{encoded_instrument_key}/{unit}/{interval}/{to_date}"
+            url = f"{BASE_URL}/historical-candle/{encoded_instrument_key}/{unit}/{interval}/{to_date}"
         
         # V3 API doesn't require authorization - just Accept header
         headers = {
@@ -830,6 +872,8 @@ class UpstoxAPI(BaseAPIClient):
             return df
 
         except requests.RequestException as e:
+            self._last_v3_error_status = e.response.status_code if e.response is not None else None
+            self._last_v3_error_text = e.response.text if e.response is not None else str(e)
             if not self.quiet:
                 print(f"❌ V3 Historical API Error for {symbol}: {e.response.text if e.response else e}")
             return None

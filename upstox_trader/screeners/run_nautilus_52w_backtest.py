@@ -151,7 +151,12 @@ def fetch_data_from_upstox(symbol: str, num_days: int, instrument: Equity) -> li
 
 
 
-def run_backtest_with_csv_data(csv_path: str, symbol: str):
+def run_backtest_with_csv_data(
+    csv_path: str,
+    symbol: str,
+    trend_filter: bool = False,
+    min_trend_score: float = 55.0,
+):
     """
     Run a backtest using historical data from a CSV file.
 
@@ -216,6 +221,8 @@ def run_backtest_with_csv_data(csv_path: str, symbol: str):
         cooldown_bars=30,
         max_holding_bars=30,
         trade_size=Decimal("500"),  # Max 500 shares (will be limited by risk)
+        enable_trend_filter=trend_filter,
+        min_trend_score=min_trend_score,
         order_id_tag=f"{symbol}_001",
     )
 
@@ -239,7 +246,12 @@ def run_backtest_with_csv_data(csv_path: str, symbol: str):
     engine.dispose()
 
 
-def run_backtest_with_upstox_data(symbol: str, num_days: int = 365 * 3):
+def run_backtest_with_upstox_data(
+    symbol: str,
+    num_days: int = 365 * 3,
+    trend_filter: bool = False,
+    min_trend_score: float = 55.0,
+):
     """
     Run a backtest using real data from Upstox API.
 
@@ -300,6 +312,8 @@ def run_backtest_with_upstox_data(symbol: str, num_days: int = 365 * 3):
         cooldown_bars=30,
         max_holding_bars=30,
         trade_size=Decimal("500"),  # Max 500 shares (will be limited by risk)
+        enable_trend_filter=trend_filter,
+        min_trend_score=min_trend_score,
         order_id_tag=f"{symbol}_001",
     )
 
@@ -447,6 +461,15 @@ def run_backtest_with_upstox_data(symbol: str, num_days: int = 365 * 3):
     config_table.add_row("Max Consec Losses", str(strategy_config.max_consecutive_losses))
     config_table.add_row("Cooldown Bars", str(strategy_config.cooldown_bars))
     config_table.add_row("Max Holding Bars", str(strategy_config.max_holding_bars))
+    config_table.add_row("Trend Filter", "ON" if strategy_config.enable_trend_filter else "OFF")
+    if strategy_config.enable_trend_filter:
+        config_table.add_row("Min Trend Score", f"{strategy_config.min_trend_score:.1f}")
+        config_table.add_row(
+            "Trend EMA Periods",
+            f"{strategy_config.trend_fast_ema_period}/{strategy_config.trend_slow_ema_period}",
+        )
+        config_table.add_row("Trend Slope Lookback", str(strategy_config.trend_slope_lookback))
+        config_table.add_row("Trend Momentum Lookback", str(strategy_config.trend_momentum_lookback))
 
     console.print(config_table)
 
@@ -472,6 +495,8 @@ def run_backtest_with_upstox_data(symbol: str, num_days: int = 365 * 3):
         'pnl_amount': total_pnl,
         'max_win': max((t['pnl_amount'] for t in trades), default=0),
         'max_loss': min((t['pnl_amount'] for t in trades), default=0),
+        'signals_seen': strategy.signals_seen,
+        'signals_filtered_by_trend': strategy.signals_filtered_by_trend,
         'trading_stopped': strategy.trading_stopped,
         'stop_reason': strategy.stop_reason,
     }
@@ -514,6 +539,17 @@ Examples:
         action="store_true",
         help="Run backtest on top 20 NSE stocks"
     )
+    parser.add_argument(
+        "--trend-filter",
+        action="store_true",
+        help="Enable trend-strength filter for entries"
+    )
+    parser.add_argument(
+        "--min-trend-score",
+        type=float,
+        default=55.0,
+        help="Minimum trend score (0-100) required when trend filter is enabled (default: 55)"
+    )
 
     args = parser.parse_args()
 
@@ -528,13 +564,22 @@ Examples:
 
         console.print(f"[bold cyan]Running batch backtest on {len(TOP_20_STOCKS)} NSE stocks...[/bold cyan]")
         console.print(f"[dim]Days: {args.days}[/dim]")
+        if args.trend_filter:
+            console.print(f"[dim]Trend filter: ON (min score {args.min_trend_score:.1f})[/dim]")
+        else:
+            console.print("[dim]Trend filter: OFF[/dim]")
         console.print()
 
         results = []
         for symbol in TOP_20_STOCKS:
             try:
                 console.print(f"[bold yellow]>>> Backtesting {symbol}...[/bold yellow]")
-                result = run_backtest_with_upstox_data(symbol, num_days=args.days)
+                result = run_backtest_with_upstox_data(
+                    symbol,
+                    num_days=args.days,
+                    trend_filter=args.trend_filter,
+                    min_trend_score=args.min_trend_score,
+                )
                 if result:
                     results.append(result)
             except Exception as e:
@@ -555,6 +600,8 @@ Examples:
             summary_table.add_column("PnL ₹", justify="right")
             summary_table.add_column("Max Win", justify="right", style="green")
             summary_table.add_column("Max Loss", justify="right", style="red")
+            if args.trend_filter:
+                summary_table.add_column("Signals Filtered", justify="right", style="magenta")
 
             total_pnl = 0
             total_trades = 0
@@ -570,6 +617,10 @@ Examples:
                     f"[{pnl_style}]₹{r['pnl_amount']:,.0f}[/{pnl_style}]",
                     f"₹{r['max_win']:,.0f}",
                     f"₹{r['max_loss']:,.0f}",
+                    *(
+                        [f"{r['signals_filtered_by_trend']}/{r['signals_seen']}"]
+                        if args.trend_filter else []
+                    ),
                 )
                 total_pnl += r['pnl_amount']
                 total_trades += r['total_trades']
@@ -584,7 +635,21 @@ Examples:
 
     elif args.csv:
         console.print(f"[bold cyan]Running with CSV data from {args.csv}...[/bold cyan]")
-        run_backtest_with_csv_data(args.csv, args.symbol)
+        run_backtest_with_csv_data(
+            args.csv,
+            args.symbol,
+            trend_filter=args.trend_filter,
+            min_trend_score=args.min_trend_score,
+        )
     else:
         console.print(f"[bold cyan]Running backtest for {args.symbol} ({args.days} days)...[/bold cyan]")
-        run_backtest_with_upstox_data(args.symbol, num_days=args.days)
+        if args.trend_filter:
+            console.print(f"[dim]Trend filter: ON (min score {args.min_trend_score:.1f})[/dim]")
+        else:
+            console.print("[dim]Trend filter: OFF[/dim]")
+        run_backtest_with_upstox_data(
+            args.symbol,
+            num_days=args.days,
+            trend_filter=args.trend_filter,
+            min_trend_score=args.min_trend_score,
+        )

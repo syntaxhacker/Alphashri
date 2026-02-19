@@ -96,6 +96,12 @@ class FiftyTwoWeekHighChaserConfig(StrategyConfig, kw_only=True):
     max_risk_per_trade_pct: float = 1.0  # Max 1% of capital at risk per trade
     max_total_loss_pct: float = 5.0  # Stop trading if total loss exceeds this % of capital
     max_consecutive_losses: int = 3  # Stop trading after this many consecutive losses
+    enable_trend_filter: bool = False  # Require minimum trend strength for entries
+    min_trend_score: float = 55.0  # 0-100 score threshold when trend filter is enabled
+    trend_fast_ema_period: int = 20
+    trend_slow_ema_period: int = 50
+    trend_slope_lookback: int = 5
+    trend_momentum_lookback: int = 10
     order_id_tag: str = "52W_HIGH"
 
 
@@ -123,6 +129,12 @@ class FiftyTwoWeekHighChaser(Strategy):
         self.max_risk_per_trade_pct = config.max_risk_per_trade_pct
         self.max_total_loss_pct = config.max_total_loss_pct
         self.max_consecutive_losses = config.max_consecutive_losses
+        self.enable_trend_filter = config.enable_trend_filter
+        self.min_trend_score = config.min_trend_score
+        self.trend_fast_ema_period = config.trend_fast_ema_period
+        self.trend_slow_ema_period = config.trend_slow_ema_period
+        self.trend_slope_lookback = config.trend_slope_lookback
+        self.trend_momentum_lookback = config.trend_momentum_lookback
 
         # Custom indicator for 52-week high
         self.high_52w = FiftyTwoWeekHighIndicator(period=252)
@@ -137,6 +149,10 @@ class FiftyTwoWeekHighChaser(Strategy):
         self.in_position: bool = False
         self.trailing_stop_active: bool = False
         self.current_trade_size: int = 0  # Actual size for current trade
+        self.entry_trend_score: Optional[float] = None
+        self.close_history: list[float] = []
+        self.signals_seen: int = 0
+        self.signals_filtered_by_trend: int = 0
 
         # Trade history for reporting
         self.trades: list = []  # List of trade dictionaries
@@ -168,13 +184,30 @@ class FiftyTwoWeekHighChaser(Strategy):
         self.log.info(f"52-Week High Chaser strategy started for {self.config.instrument_id}")
         self.log.info(f"Config: Entry threshold={self.entry_threshold_pct}%, Stop loss={self.stop_loss_pct}%, "
                       f"Trailing stop activation={self.trailing_stop_activation_pct}%, Trailing stop={self.trailing_stop_pct}%")
+        if self.enable_trend_filter:
+            self.log.info(
+                f"Trend filter ON: min score={self.min_trend_score:.1f}, "
+                f"EMA={self.trend_fast_ema_period}/{self.trend_slow_ema_period}, "
+                f"slope lookback={self.trend_slope_lookback}, momentum lookback={self.trend_momentum_lookback}"
+            )
+        else:
+            self.log.info("Trend filter OFF")
 
     def on_stop(self) -> None:
         """Actions to perform when strategy stops."""
+        if self.signals_seen > 0:
+            trend_filtered_pct = (self.signals_filtered_by_trend / self.signals_seen) * 100
+            self.log.info(
+                f"Signal stats: seen={self.signals_seen}, "
+                f"filtered_by_trend={self.signals_filtered_by_trend} ({trend_filtered_pct:.1f}%)"
+            )
         self.log.info("52-Week High Chaser strategy stopped")
 
     def on_bar(self, bar: Bar) -> None:
         """Handle incoming bar data."""
+        current_price = float(bar.close)
+        self.close_history.append(current_price)
+
         # Wait for indicator to initialize
         if not self.high_52w.is_initialized():
             return
@@ -183,7 +216,6 @@ class FiftyTwoWeekHighChaser(Strategy):
         if self.trading_stopped:
             return
 
-        current_price = float(bar.close)
         current_high = float(bar.high)  # Use high for trailing stop calculation
         high_52w_value = self.high_52w.value
 
@@ -217,7 +249,13 @@ class FiftyTwoWeekHighChaser(Strategy):
                 return
 
             if 0 < distance_to_52w_pct <= self.entry_threshold_pct:
-                self._enter_long(current_price, high_52w_value, bar)
+                self.signals_seen += 1
+                trend_score = self._calculate_trend_score()
+                if self.enable_trend_filter:
+                    if trend_score is None or trend_score < self.min_trend_score:
+                        self.signals_filtered_by_trend += 1
+                        return
+                self._enter_long(current_price, high_52w_value, bar, trend_score)
 
         # EXIT CONDITIONS (if in position)
         if self.in_position:
@@ -262,7 +300,47 @@ class FiftyTwoWeekHighChaser(Strategy):
             if exit_reason:
                 self._exit_long(current_price, exit_reason, bar)
 
-    def _enter_long(self, price: float, high_52w: float, bar: Bar) -> None:
+    def _calculate_trend_score(self) -> Optional[float]:
+        """Calculate simple trend strength score (0-100) from close history."""
+        min_history = max(
+            self.trend_slow_ema_period + self.trend_slope_lookback,
+            self.trend_momentum_lookback + 1,
+        )
+        if len(self.close_history) < min_history:
+            return None
+
+        closes = pd.Series(self.close_history, dtype=float)
+        fast_ema = closes.ewm(span=self.trend_fast_ema_period, adjust=False).mean()
+        slow_ema = closes.ewm(span=self.trend_slow_ema_period, adjust=False).mean()
+
+        close_now = float(closes.iloc[-1])
+        fast_now = float(fast_ema.iloc[-1])
+        slow_now = float(slow_ema.iloc[-1])
+        fast_prev = float(fast_ema.iloc[-(self.trend_slope_lookback + 1)])
+        momentum_ref = float(closes.iloc[-(self.trend_momentum_lookback + 1)])
+
+        score = 0.0
+
+        # Trend structure: price above fast EMA and fast EMA above slow EMA.
+        if close_now > fast_now:
+            score += 25.0
+        if fast_now > slow_now:
+            score += 35.0
+
+        # EMA slope rewards persistent uptrend.
+        slope_pct = ((fast_now - fast_prev) / fast_prev) * 100 if fast_prev > 0 else 0.0
+        if slope_pct > 1.0:
+            score += 25.0
+        elif slope_pct > 0.0:
+            score += 15.0
+
+        # Medium-term price momentum.
+        if close_now > momentum_ref:
+            score += 15.0
+
+        return min(100.0, score)
+
+    def _enter_long(self, price: float, high_52w: float, bar: Bar, trend_score: Optional[float]) -> None:
         """Enter a long position with risk-based position sizing."""
         # Calculate position size based on risk
         # Risk = (entry_price - stop_loss_price) per share
@@ -301,6 +379,7 @@ class FiftyTwoWeekHighChaser(Strategy):
         self.in_position = True
         self.trailing_stop_active = False
         self.entry_time = bar.ts_event  # Track entry time
+        self.entry_trend_score = trend_score
 
         # Calculate actual risk with this position size
         actual_risk = risk_per_share * self.current_trade_size
@@ -310,12 +389,15 @@ class FiftyTwoWeekHighChaser(Strategy):
         potential_profit_pct = ((high_52w - price) / price) * 100
         risk_reward_ratio = potential_profit_pct / self.stop_loss_pct if self.stop_loss_pct > 0 else 0
 
+        trend_display = f"{trend_score:.1f}" if trend_score is not None else "NA"
+
         self.log.info(
             f"LONG ENTRY @ {price:.2f} | 52w-High: {high_52w:.2f} | "
             f"Distance: {((high_52w - price) / price) * 100:.2f}% | "
             f"Shares: {self.current_trade_size} | "
             f"Risk: ₹{actual_risk:,.0f} ({actual_risk_pct:.1f}%) | "
             f"R:R = 1:{risk_reward_ratio:.1f} | "
+            f"TrendScore: {trend_display} | "
             f"Date: {bar.ts_event}"
         )
 
@@ -357,6 +439,7 @@ class FiftyTwoWeekHighChaser(Strategy):
             'risk_reward': risk_reward_ratio,
             'reason': reason,
             'trailing_active': self.trailing_stop_active,
+            'trend_score': self.entry_trend_score,
         }
         self.trades.append(trade_record)
 
@@ -376,6 +459,7 @@ class FiftyTwoWeekHighChaser(Strategy):
         self.in_position = False
         self.trailing_stop_active = False
         self.entry_time = None
+        self.entry_trend_score = None
 
     def on_order_filled(self, event) -> None:
         """Handle order fill events."""
