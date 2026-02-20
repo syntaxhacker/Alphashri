@@ -1,1 +1,0 @@
-../converted_ui/scanners/scan_nifty50.py

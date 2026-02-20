@@ -14,7 +14,7 @@ export type ColumnKey =
   | 'stoch_k'
   | 'wick_close_pct'
   | 'volume_surge'
-  | 'volatility_d'
+  | 'atr_pct'
   | 'adx'
   | 'interest_score'
   | 'gap_pct'
@@ -40,7 +40,7 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
   stoch_k: 'Stoch K',
   wick_close_pct: 'Wick %',
   volume_surge: 'Vol Surge',
-  volatility_d: 'Vol.D',
+  atr_pct: 'ATR%',
   adx: 'ADX',
   interest_score: 'Interest',
   gap_pct: 'Gap %',
@@ -55,7 +55,7 @@ export const NUMERIC_COLUMNS = new Set<ColumnKey>([
   'score', 'tv_price', 'upstox_price', 'broker_diff', 'to_52w_high', 'time_to_52w',
   'recent_return_5d', 'perf_w', 'day_change', 'rsi', 'stoch_k', 'gap_pct',
   'premarket_change', 'impact_score', 'market_cap_b', 'volume_m',
-  'wick_close_pct', 'volume_surge', 'volatility_d', 'adx', 'interest_score'
+  'wick_close_pct', 'volume_surge', 'atr_pct', 'adx', 'interest_score'
 ])
 
 export function getColumnKeysForProfile(screener: string, touched: boolean): ColumnKey[] {
@@ -78,7 +78,7 @@ export function getColumnKeysForProfile(screener: string, touched: boolean): Col
     return ['symbol', 'score', 'is_bullish', 'wick_close_pct', 'volume_surge', 'gap_pct', 'rsi', 'day_change', 'sector']
   }
   if (screener === 'volatility_trend') {
-    return ['symbol', 'score', 'volatility_d', 'adx', 'rsi', 'day_change', 'perf_w', 'sector']
+    return ['symbol', 'score', 'atr_pct', 'adx', 'rsi', 'day_change', 'perf_w', 'sector']
   }
   if (screener === 'nifty50_activity') {
     return ['symbol', 'score', 'interest_score', 'volume_surge', 'rsi', 'day_change', 'volume_m', 'sector']

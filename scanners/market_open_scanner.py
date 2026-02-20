@@ -1,1 +1,0 @@
-../converted_ui/scanners/market_open_scanner.py

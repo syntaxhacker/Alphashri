@@ -10,7 +10,7 @@ from rich.table import Table
 from rich.panel import Panel
 import pandas as pd
 import argparse
-from scanner_utils import display_tradingview_csv
+from .scanner_utils import display_tradingview_csv
 
 console = Console()
 

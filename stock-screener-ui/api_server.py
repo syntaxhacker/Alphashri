@@ -61,10 +61,11 @@ PROFILE_META = {
     'volatility_trend': {
         'section_labels': {'primary': '⚡ VOLATILITY TREND', 'secondary': '✅ HIGH QUALITY VOLATILITY SETUPS'},
         'filters': [
-            {'key': 'min_volatility_d', 'label': 'Vol.D ≥', 'type': 'number', 'min': 0, 'max': 20, 'step': 0.1, 'default': 1.5},
+            {'key': 'trend', 'label': 'Trend', 'type': 'select', 'options': ['all', 'bullish', 'bearish', 'strong_trend'], 'default': 'all'},
+            {'key': 'min_atr_pct', 'label': 'ATR% ≥', 'type': 'number', 'min': 0, 'max': 20, 'step': 0.1, 'default': 2.0},
             {'key': 'min_rsi', 'label': 'RSI ≥', 'type': 'number', 'min': 0, 'max': 100, 'step': 1, 'default': 45}
         ],
-        'default_sort': {'column': 'volatility_d', 'direction': 'desc'}
+        'default_sort': {'column': 'atr_pct', 'direction': 'desc'}
     },
     'nifty50_activity': {
         'section_labels': {'primary': '🔥 NIFTY50 ACTIVITY', 'secondary': '✅ MOST ACTIVE NIFTY SETUPS'},
@@ -166,7 +167,36 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
         # Volume filter only
         return _to_float(stock_data.get('volume_surge'), 0) >= num('min_vol_surge', 0)
     if screener == 'volatility_trend':
-        return _to_float(stock_data.get('volatility_d'), 0) >= num('min_volatility_d', 0) and _to_float(stock_data.get('rsi'), 0) >= num('min_rsi', 0)
+        # Basic ATR% and RSI filters
+        if _to_float(stock_data.get('atr_pct'), 0) < num('min_atr_pct', 0):
+            return False
+        if _to_float(stock_data.get('rsi'), 0) < num('min_rsi', 0):
+            return False
+        # Trend filter
+        trend = profile_filters.get('trend', 'all')
+        is_bullish = stock_data.get('is_bullish', False)
+        sentiment = stock_data.get('sentiment', '')
+        adx = _to_float(stock_data.get('adx'), 0)
+        perfw = _to_float(stock_data.get('perf_w'), 0)
+
+        if trend == 'bullish':
+            # Bullish: bullish candle AND (bullish sentiment OR positive weekly performance)
+            if not is_bullish:
+                return False
+            if sentiment not in ['bullish', 'lean_bull'] and perfw <= 0:
+                return False
+        elif trend == 'bearish':
+            # Bearish: bearish candle AND (bearish sentiment OR negative weekly performance)
+            if is_bullish:
+                return False
+            if sentiment not in ['bearish', 'lean_bear'] and perfw >= 0:
+                return False
+        elif trend == 'strong_trend':
+            # Strong trend: high ADX (>25) indicates trending market
+            if adx < 25:
+                return False
+        # 'all' passes through
+        return True
     if screener == 'nifty50_activity':
         return _to_float(stock_data.get('interest_score'), 0) >= num('min_interest_score', 0)
     if screener == 'near_52w_breakout':
@@ -206,7 +236,7 @@ def _build_rationale(screener, stock_data):
         surge = _to_float(stock_data.get('volume_surge'), 0)
         return f"Wick {wick:.0f}% | VolSurge {surge:.2f}x | RSI {rsi:.1f} | ADX {_to_float(stock_data.get('adx'), 0):.1f}"
     if screener == 'volatility_trend':
-        return f"Vol.D {_to_float(stock_data.get('volatility_d'), 0):.2f} | ADX {_to_float(stock_data.get('adx'), 0):.1f} | RSI {rsi:.1f} | PerfW {perfw:+.1f}%"
+        return f"ATR% {_to_float(stock_data.get('atr_pct'), 0):.2f}% | ADX {_to_float(stock_data.get('adx'), 0):.1f} | RSI {rsi:.1f} | PerfW {perfw:+.1f}%"
     if screener == 'nifty50_activity':
         return f"Interest {_to_float(stock_data.get('interest_score'), 0):.0f} | VolSurge {_to_float(stock_data.get('volume_surge'), 0):.2f}x | RSI {rsi:.1f} | Day {day:+.2f}%"
     return f"Score {int(score)} | 52W gap {gap52:+.2f}% | 5D {ret5d:+.1f}% | PerfW {perfw:+.1f}%"
@@ -271,7 +301,7 @@ def _summary_items_for(screener, approaching, touched):
 
     if screener == 'volatility_trend':
         return [
-            {'label': 'Avg Vol.D', 'value': f"{avg('volatility_d'):.2f}"},
+            {'label': 'Avg ATR%', 'value': f"{avg('atr_pct'):.2f}%"},
             {'label': 'Avg ADX', 'value': f"{avg('adx'):.1f}"},
             {'label': 'Avg Perf.W', 'value': f"{avg('perf_w'):+.1f}%"}
         ]
@@ -407,7 +437,8 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
                 day_range = tv_high - tv_low
                 wick_close_pct = (((tv_price - tv_low) / day_range) * 100) if day_range > 0 else 50.0
                 volume_surge = _to_float(row.get('relative_volume_10d_calc'), 1.0)
-                volatility_d = _to_float(row.get('Volatility.D'), 0.0)
+                atr = _to_float(row.get('ATR'), 0.0)
+                atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
                 adx_val = _to_float(row.get('ADX'), adx)
                 interest_score = _to_float(row.get('interest_score'), row.get('swing_score', adx))
 
@@ -450,7 +481,7 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
                     'stoch_k': round(_to_float(row.get('Stoch.K'), 0), 1),
                     'wick_close_pct': round(_to_float(wick_close_pct, 50), 1),
                     'volume_surge': round(_to_float(volume_surge, 1), 2),
-                    'volatility_d': round(_to_float(volatility_d, 0), 2),
+                    'atr_pct': round(_to_float(atr_pct, 0), 2),
                     'adx': round(_to_float(adx_val, 0), 1),
                     'interest_score': round(_to_float(interest_score, 0), 1),
                     'gap_pct': round(_to_float(row.get('gap'), 0), 2),
@@ -520,8 +551,8 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
 
                 adx = float(row.get('ADX', 0))
                 atr = float(row.get('ATR', 0))
+                atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
                 perf_w = float(row.get('Perf.W', 0))
-                volatility_d = _to_float(row.get('Volatility.D'), 0)
                 interest_score = _to_float(row.get('interest_score'), row.get('swing_score', 0))
 
                 est_days, confidence = estimate_days_to_52w(upstox_price, recent_high, adx, atr, recent_return, perf_w)
@@ -566,7 +597,7 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
                     'stoch_k': round(_to_float(row.get('Stoch.K'), 0), 1),
                     'wick_close_pct': round(_to_float(wick_close_pct, 50), 1),
                     'volume_surge': round(_to_float(volume_surge, 1), 2),
-                    'volatility_d': round(_to_float(volatility_d, 0), 2),
+                    'atr_pct': round(_to_float(atr_pct, 0), 2),
                     'adx': round(_to_float(adx, 0), 1),
                     'interest_score': round(_to_float(interest_score, 0), 1),
                     'gap_pct': round(_to_float(row.get('gap'), 0), 2),
@@ -614,7 +645,13 @@ class ScreenerHandler(BaseHTTPRequestHandler):
             provider = params.get('provider', ['upstox'])[0]
             mode = params.get('mode', ['intraday'])[0]
             screener = params.get('screener', ['trending'])[0]
+            # Accept filters with pf_ prefix OR direct filter names (for convenience)
             profile_filters = {k[3:]: v[0] for k, v in params.items() if k.startswith('pf_')}
+            # Also accept direct filter names like 'trend', 'direction', etc.
+            direct_filter_keys = ['trend', 'direction', 'min_atr_pct', 'min_rsi', 'min_score', 'min_vol_surge', 'max_52w_gap', 'max_rsi', 'min_stoch_k', 'min_gap_pct', 'min_volume_m', 'min_wick_pct', 'min_interest_score', 'min_impact', 'min_cap_b']
+            for key in direct_filter_keys:
+                if key in params and key not in profile_filters:
+                    profile_filters[key] = params[key][0]
 
             # Check cache (10 second TTL)
             with _cache_lock:

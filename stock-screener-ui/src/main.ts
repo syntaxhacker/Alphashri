@@ -19,7 +19,7 @@ interface Stock {
   stoch_k?: number
   wick_close_pct?: number
   volume_surge?: number
-  volatility_d?: number
+  atr_pct?: number
   adx?: number
   interest_score?: number
   gap_pct?: number
@@ -213,7 +213,7 @@ function sortStocks(stocks: Stock[]): Stock[] {
       case 'stoch_k': aVal = a.stoch_k ?? 0; bVal = b.stoch_k ?? 0; break
       case 'wick_close_pct': aVal = a.wick_close_pct ?? 0; bVal = b.wick_close_pct ?? 0; break
       case 'volume_surge': aVal = a.volume_surge ?? 0; bVal = b.volume_surge ?? 0; break
-      case 'volatility_d': aVal = a.volatility_d ?? 0; bVal = b.volatility_d ?? 0; break
+      case 'atr_pct': aVal = a.atr_pct ?? 0; bVal = b.atr_pct ?? 0; break
       case 'adx': aVal = a.adx ?? 0; bVal = b.adx ?? 0; break
       case 'interest_score': aVal = a.interest_score ?? 0; bVal = b.interest_score ?? 0; break
       case 'gap_pct': aVal = a.gap_pct ?? 0; bVal = b.gap_pct ?? 0; break
@@ -291,12 +291,12 @@ function getTableHeaders(screener: string, touched: boolean): string {
 function renderTradingListBlock(id: string, stocks: Stock[]): string {
   const list = getTradingList(stocks)
   return `
-    <div class="tradinglist-wrap">
+    <div class="tradinglist-wrap" data-testid="tradinglist-wrap">
       <div class="tradinglist-head">
-        <span>TradingList View (copy)</span>
-        <button onclick="window.copyTradingList('${id}')">Copy</button>
+        <span data-testid="tradinglist-label">TradingList View (copy)</span>
+        <button data-testid="tradinglist-copy-btn" onclick="window.copyTradingList('${id}')">Copy</button>
       </div>
-      <textarea id="${id}" class="tradinglist-box" readonly>${list}</textarea>
+      <textarea id="${id}" data-testid="tradinglist-textarea" class="tradinglist-box" readonly>${list}</textarea>
     </div>
   `
 }
@@ -366,6 +366,8 @@ function render() {
     ? screenerOptions.map(s => `
       <button
         class="screener-chip ${activeScreener === s.id ? 'active' : ''}"
+        data-testid="screener-tab"
+        data-screener="${s.id}"
         title="${s.description}"
         onclick="window.changeScreener('${s.id}')"
       >
@@ -376,21 +378,22 @@ function render() {
 
   app.innerHTML = `
     ${notificationsHtml}
-    <div class="screener-nav">
+    <div class="screener-nav" data-testid="screener-nav">
       ${screenerChips}
     </div>
 
-    <div class="header">
+    <div class="header" data-testid="header">
       <div>
-        <div class="title">🚀 ${(screenerOptions.find(s => s.id === activeScreener)?.label || 'Trending')} Stock Screener ${demoBadge}</div>
-        <div class="status">${data?.last_updated ? formatTimestamp(data.last_updated) : ''} | ${data?.provider?.toUpperCase() || ''} | ${data?.mode === 'intraday' ? 'Intraday' : '5D'} | ${(screenerOptions.find(s => s.id === activeScreener)?.label || activeScreener).toUpperCase()} ${isLoading ? '<span class="inline-refresh">Refreshing...</span>' : ''}</div>
+        <div class="title" data-testid="screener-title">🚀 ${(screenerOptions.find(s => s.id === activeScreener)?.label || 'Trending')} Stock Screener ${demoBadge}</div>
+        <div class="status" data-testid="status">${data?.last_updated ? formatTimestamp(data.last_updated) : ''} | ${data?.provider?.toUpperCase() || ''} | ${data?.mode === 'intraday' ? 'Intraday' : '5D'} | ${(screenerOptions.find(s => s.id === activeScreener)?.label || activeScreener).toUpperCase()} ${isLoading ? '<span class="inline-refresh">Refreshing...</span>' : ''}</div>
       </div>
       <div class="controls">
-        <button id="refreshBtn" class="${isLoading ? 'refreshing' : ''}" onclick="window.refresh()">🔄</button>
+        <button id="refreshBtn" data-testid="refresh-btn" class="${isLoading ? 'refreshing' : ''}" onclick="window.refresh()">🔄</button>
         <label style="font-size:10px;color:#888;display:flex;align-items:center;gap:4px">
           Auto(s)
           <input
             type="number"
+            data-testid="auto-refresh-input"
             min="0"
             max="3600"
             step="5"
@@ -399,33 +402,34 @@ function render() {
             onchange="window.changeAutoRefresh(this.value)"
           >
         </label>
-        <select id="providerSelect" onchange="window.changeProvider(this.value)">
+        <select id="providerSelect" data-testid="provider-select" onchange="window.changeProvider(this.value)">
           <option value="upstox" ${data?.provider === 'upstox' ? 'selected' : ''}>Upstox</option>
           <option value="indmoney" ${data?.provider === 'indmoney' ? 'selected' : ''}>INDMONEY</option>
         </select>
-        <select id="modeSelect" onchange="window.changeMode(this.value)">
+        <select id="modeSelect" data-testid="mode-select" onchange="window.changeMode(this.value)">
           <option value="intraday" ${data?.mode === 'intraday' ? 'selected' : ''}>Intraday</option>
           <option value="historical" ${data?.mode === 'historical' ? 'selected' : ''}>5D</option>
         </select>
       </div>
     </div>
 
-    <div class="filters">
-      <label>Score ≥ <input type="number" id="minScore" value="${filters.minScore}" min="0" max="100" step="5" onchange="window.updateFilter('minScore', this.value)"></label>
-      <label>Price ≤ <input type="number" id="maxPrice" value="${filters.maxPrice}" min="100" max="10000" step="100" onchange="window.updateFilter('maxPrice', this.value)"></label>
-      <label>Return ≥ <input type="number" id="minReturn" value="${filters.minReturn}" min="-50" max="50" step="1" onchange="window.updateFilter('minReturn', this.value)"></label>
-      <label>Sector <select id="sectorFilter" onchange="window.updateFilter('sector', this.value)">
+    <div class="filters" data-testid="filters">
+      <label>Score ≥ <input type="number" id="minScore" data-testid="min-score-input" value="${filters.minScore}" min="0" max="100" step="5" onchange="window.updateFilter('minScore', this.value)"></label>
+      <label>Price ≤ <input type="number" id="maxPrice" data-testid="max-price-input" value="${filters.maxPrice}" min="100" max="10000" step="100" onchange="window.updateFilter('maxPrice', this.value)"></label>
+      <label>Return ≥ <input type="number" id="minReturn" data-testid="min-return-input" value="${filters.minReturn}" min="-50" max="50" step="1" onchange="window.updateFilter('minReturn', this.value)"></label>
+      <label>Sector <select id="sectorFilter" data-testid="sector-select" onchange="window.updateFilter('sector', this.value)">
         <option value="">All</option>
         ${sectors.map(s => `<option value="${s}" ${filters.sector === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select></label>
       ${profileFilterDefs.map(f => `
         <label>${f.label} ${f.type === 'select' ? `
-          <select onchange="window.updateProfileFilter('${f.key}', this.value)">
+          <select data-testid="profile-filter-${f.key}" onchange="window.updateProfileFilter('${f.key}', this.value)">
             ${(f.options || []).map(opt => `<option value="${opt}" ${profileFilterValues[f.key] === opt ? 'selected' : ''}>${opt}</option>`).join('')}
           </select>
         ` : `
           <input
             type="${f.type === 'number' ? 'number' : 'text'}"
+            data-testid="profile-filter-${f.key}"
             value="${profileFilterValues[f.key] ?? f.default ?? ''}"
             ${f.min !== undefined ? `min="${f.min}"` : ''}
             ${f.max !== undefined ? `max="${f.max}"` : ''}
@@ -434,48 +438,48 @@ function render() {
           >
         `}</label>
       `).join('')}
-      <button onclick="window.resetFilters()" style="padding:2px 8px;font-size:10px">Reset</button>
+      <button data-testid="reset-filters-btn" onclick="window.resetFilters()" style="padding:2px 8px;font-size:10px">Reset</button>
     </div>
 
     ${data?.summary && data.summary.length > 0 ? `
-      <div class="summary-strip">
-        ${data.summary.map(item => `<div class="summary-item"><span class="summary-label">${item.label}</span><span class="summary-value">${item.value}</span></div>`).join('')}
+      <div class="summary-strip" data-testid="summary-strip">
+        ${data.summary.map(item => `<div class="summary-item" data-testid="summary-item"><span class="summary-label" data-testid="summary-label">${item.label}</span><span class="summary-value" data-testid="summary-value">${item.value}</span></div>`).join('')}
       </div>
     ` : ''}
 
     ${approaching.length > 0 ? `
-      <div class="section-title">${sectionLabels.primary} (${approaching.length}${approaching.length < (data?.approaching?.length || 0) ? ` of ${data?.approaching?.length}` : ''})</div>
-      <table>
+      <div class="section-title" data-testid="primary-section-title">${sectionLabels.primary} (${approaching.length}${approaching.length < (data?.approaching?.length || 0) ? ` of ${data?.approaching?.length}` : ''})</div>
+      <table data-testid="stocks-table">
         <thead>
           <tr>
             ${getTableHeaders(activeScreener, false)}
           </tr>
         </thead>
-        <tbody>
+        <tbody data-testid="stocks-tbody">
           ${approaching.map(s => renderStockRow(s, false, activeScreener)).join('')}
         </tbody>
       </table>
       ${renderTradingListBlock('tradingListPrimary', approaching)}
-    ` : '<div class="empty">No stocks matching filters</div>'}
+    ` : '<div class="empty" data-testid="empty-state">No stocks matching filters</div>'}
 
     ${touched.length > 0 ? `
-      <div class="section-title touched">${sectionLabels.secondary} (${touched.length}${touched.length < (data?.touched?.length || 0) ? ` of ${data?.touched?.length}` : ''})</div>
-      <table>
+      <div class="section-title touched" data-testid="secondary-section-title">${sectionLabels.secondary} (${touched.length}${touched.length < (data?.touched?.length || 0) ? ` of ${data?.touched?.length}` : ''})</div>
+      <table data-testid="touched-table">
         <thead>
           <tr>
             ${getTableHeaders(activeScreener, true)}
           </tr>
         </thead>
-        <tbody>
+        <tbody data-testid="touched-tbody">
           ${touched.map(s => renderStockRow(s, true, activeScreener)).join('')}
         </tbody>
       </table>
       ${renderTradingListBlock('tradingListSecondary', touched)}
     ` : ''}
 
-    <div class="footer">
+    <div class="footer" data-testid="footer">
       <div><kbd>R</kbd> Refresh <kbd>M</kbd> Mode <kbd>P</kbd> Provider | Hover row for rationale</div>
-      <div>Auto-refresh: ${autoRefreshInterval ? `ON (${autoRefreshSeconds}s)` : 'OFF'}</div>
+      <div data-testid="auto-refresh-status">Auto-refresh: ${autoRefreshInterval ? `ON (${autoRefreshSeconds}s)` : 'OFF'}</div>
     </div>
   `
 }
@@ -607,15 +611,15 @@ function renderStockRow(s: Stock, touched: boolean = false, screener: string = '
   if (screener === 'volatility_trend') {
     const day = s.day_change ?? 0
     return `
-      <tr class="${rowClass}" title="${rowHint}">
-        <td class="sym">${s.symbol}</td>
-        <td class="num ${scoreClass}">${s.score}</td>
-        <td class="num">${(s.volatility_d ?? 0).toFixed(2)}</td>
-        <td class="num">${(s.adx ?? 0).toFixed(1)}</td>
-        <td class="num">${(s.rsi ?? 0).toFixed(1)}</td>
-        <td class="num ${day >= 0 ? 'green' : 'red'}">${day >= 0 ? '+' : ''}${day.toFixed(2)}%</td>
-        <td class="num ${perfClass}">${s.perf_w > 0 ? '+' : ''}${s.perf_w.toFixed(1)}%</td>
-        <td class="dim">${s.sector}</td>
+      <tr class="${rowClass}" data-testid="stock-row" data-symbol="${s.symbol}" title="${rowHint}">
+        <td class="sym" data-testid="stock-symbol">${s.symbol}</td>
+        <td class="num ${scoreClass}" data-testid="stock-score">${s.score}</td>
+        <td class="num" data-testid="stock-atr-pct">${(s.atr_pct ?? 0).toFixed(2)}%</td>
+        <td class="num" data-testid="stock-adx">${(s.adx ?? 0).toFixed(1)}</td>
+        <td class="num" data-testid="stock-rsi">${(s.rsi ?? 0).toFixed(1)}</td>
+        <td class="num ${day >= 0 ? 'green' : 'red'}" data-testid="stock-day-change">${day >= 0 ? '+' : ''}${day.toFixed(2)}%</td>
+        <td class="num ${perfClass}" data-testid="stock-perf-w">${s.perf_w > 0 ? '+' : ''}${s.perf_w.toFixed(1)}%</td>
+        <td class="dim" data-testid="stock-sector">${s.sector}</td>
       </tr>
     `
   }

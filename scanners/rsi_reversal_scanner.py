@@ -1,1 +1,0 @@
-../converted_ui/scanners/rsi_reversal_scanner.py

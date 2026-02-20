@@ -17,7 +17,7 @@ import threading
 import requests
 import warnings
 from queue import Queue
-from scanner_utils import display_tradingview_csv
+from .scanner_utils import display_tradingview_csv
 
 console = Console()
 
