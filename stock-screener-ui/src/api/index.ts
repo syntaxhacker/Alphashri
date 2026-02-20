@@ -7,6 +7,7 @@ import { API_URL, SCREENERS_URL } from '../constants'
 import * as state from '../state'
 import { buildProfileFilterQueryParams, detectAddedSymbols } from '../runtime_utils'
 import { pushNotification, markNewSymbols } from '../utils/notifications'
+import { abortPendingRequest, isAbortError } from '../hooks/useFetch'
 
 // Render callback - set by notifications module
 let renderCallback: () => void = () => {}
@@ -60,6 +61,9 @@ export async function fetchData(
   screener = state.activeScreener,
   source: FetchSource = 'manual'
 ) {
+  // Abort any pending request before starting a new one
+  const abortController = abortPendingRequest()
+
   state.setIsLoading(true)
   state.setError(null)
   const prevData = state.data
@@ -70,7 +74,9 @@ export async function fetchData(
   try {
     const pfQuery = buildProfileFilterQueryParams(state.profileFilterValues)
     const suffix = pfQuery ? `&${pfQuery}` : ''
-    const res = await fetch(`${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}${suffix}`)
+    const res = await fetch(`${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}${suffix}`, {
+      signal: abortController.signal
+    })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     state.setData(data)
@@ -84,6 +90,10 @@ export async function fetchData(
 
     if (source === 'auto') detectAutoRefreshChanges(prevData, data)
   } catch (e) {
+    // Don't set error if request was aborted (user switched screeners)
+    if (isAbortError(e)) {
+      return
+    }
     state.setError(e instanceof Error ? e.message : 'Failed to fetch')
   } finally {
     state.setIsLoading(false)
