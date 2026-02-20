@@ -50,24 +50,16 @@ function render() {
     return
   }
 
-  if (state.isLoading && !state.data) {
-    app.innerHTML = `<div class="loading">🔄 Loading screener data...</div>`
-    return
-  }
-
   const allStocks = [...(state.data?.approaching || []), ...(state.data?.touched || [])]
   const sectors = getUniqueSectors(allStocks)
   const approaching = sortStocks(applyProfileFilters(applyFilters(state.data?.approaching || [])))
   const touched = sortStocks(applyProfileFilters(applyFilters(state.data?.touched || [])))
   const sectionLabels = getSectionLabels()
 
-  app.innerHTML = `
-    ${renderNotificationsHtml()}
-    ${renderScreenerNav()}
-    ${renderHeader()}
-    ${renderFilters(sectors)}
-    ${state.data?.summary && state.data.summary.length > 0 ? renderSummaryStrip(state.data.summary) : ''}
-    ${approaching.length > 0 ? `
+  // Show loading indicator in table area when loading (not full screen)
+  const tableContent = state.isLoading
+    ? `<div class="loading" data-testid="table-loading">🔄 Loading ${state.activeScreener} data...</div>`
+    : `${approaching.length > 0 ? `
       <div class="section-title" data-testid="primary-section-title">${sectionLabels.primary} (${approaching.length}${approaching.length < (state.data?.approaching?.length || 0) ? ` of ${state.data?.approaching?.length}` : ''})</div>
       <table data-testid="stocks-table">
         <thead>
@@ -94,7 +86,15 @@ function render() {
         </tbody>
       </table>
       ${renderTradingListBlock('tradingListSecondary', touched)}
-    ` : ''}
+    ` : ''}`
+
+  app.innerHTML = `
+    ${renderNotificationsHtml()}
+    ${renderScreenerNav()}
+    ${renderHeader()}
+    ${renderFilters(sectors)}
+    ${state.data?.summary && state.data.summary.length > 0 ? renderSummaryStrip(state.data.summary) : ''}
+    ${tableContent}
     ${renderFooter()}
   `
 }

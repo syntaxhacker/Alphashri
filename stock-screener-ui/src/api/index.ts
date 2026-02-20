@@ -64,13 +64,21 @@ export async function fetchData(
   // Abort any pending request before starting a new one
   const abortController = abortPendingRequest()
 
+  // Clear data when switching to a different screener (but not on refresh or auto-refresh)
+  const isScreenerSwitch = screener !== state.data?.screener
+
   state.setIsLoading(true)
   state.setError(null)
-  const prevData = state.data
 
-  // Non-blocking refresh: keep existing table visible and just show inline status.
+  // Clear table data when switching screeners
+  if (isScreenerSwitch) {
+    state.setData(null)
+  }
+
+  const prevData = state.data
   renderCallback()
 
+  let wasAborted = false
   try {
     const pfQuery = buildProfileFilterQueryParams(state.profileFilterValues)
     const suffix = pfQuery ? `&${pfQuery}` : ''
@@ -92,12 +100,17 @@ export async function fetchData(
   } catch (e) {
     // Don't set error if request was aborted (user switched screeners)
     if (isAbortError(e)) {
+      wasAborted = true
       return
     }
     state.setError(e instanceof Error ? e.message : 'Failed to fetch')
   } finally {
-    state.setIsLoading(false)
-    renderCallback()
+    // Only update loading state if this request wasn't aborted
+    // (another request is now in charge of the loading state)
+    if (!wasAborted) {
+      state.setIsLoading(false)
+      renderCallback()
+    }
   }
 }
 

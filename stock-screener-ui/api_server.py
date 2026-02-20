@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add project root and scanners to path
 _script_dir = Path(__file__).parent.absolute()
@@ -23,9 +23,9 @@ sys.path.insert(0, str(_scanners_dir))
 from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
 import trending_upside
 
-# Cache for screener data
-_cache = {'data': None, 'timestamp': None}
-_cache_lock = threading.Lock()
+# Thread pool for parallel API calls
+MAX_WORKERS = 10  # Concurrent API calls for stock data
+
 PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout'}
 PROFILE_META = {
     'trending': {
@@ -320,20 +320,6 @@ def _summary_items_for(screener, approaching, touched):
     ]
 
 
-def _should_use_cached_data(cache_data, cache_timestamp, provider, mode, screener, profile_filters):
-    if not cache_data or not cache_timestamp:
-        return False
-    age = (datetime.now() - cache_timestamp).total_seconds()
-    if age >= 10:
-        return False
-    return (
-        cache_data.get('provider') == provider
-        and cache_data.get('mode') == mode
-        and cache_data.get('screener') == screener
-        and cache_data.get('applied_profile_filters') == profile_filters
-    )
-
-
 def estimate_days_to_52w(current_price, high_52w, adx, atr, recent_return_5d, perf_w):
     """Estimate days to reach 52-week high based on trend strength and momentum."""
     if current_price >= high_52w:
@@ -373,6 +359,216 @@ def estimate_days_to_52w(current_price, high_52w, adx, atr, recent_return_5d, pe
     return round(estimated_days), confidence
 
 
+def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters):
+    """Process a single stock row and return stock_data or None."""
+    symbol = row_data['name']
+    tv_price = row_data['close']
+
+    # Skip expensive stocks
+    if tv_price >= 7000:
+        return None
+
+    # Demo mode - use TradingView data only
+    if not use_api:
+        try:
+            tv_52w_high = float(row_data.get('price_52_week_high', tv_price * 1.1))
+            adx = float(row_data.get('ADX', 25))
+            atr = float(row_data.get('ATR', tv_price * 0.01))
+            perf_w = float(row_data.get('Perf.W', 2))
+            change = float(row_data.get('change', 0))
+            recent_return = change
+
+            # Simulate broker diff as small random value
+            import random
+            broker_diff = round(random.uniform(-0.5, 0.5), 2)
+
+            upstox_price = tv_price * (1 + broker_diff / 100)
+            tv_open = _to_float(row_data.get('open'), tv_price)
+            tv_high = _to_float(row_data.get('high'), max(tv_price, tv_open))
+            tv_low = _to_float(row_data.get('low'), min(tv_price, tv_open))
+            day_range = tv_high - tv_low
+            wick_close_pct = (((tv_price - tv_low) / day_range) * 100) if day_range > 0 else 50.0
+            volume_surge = _to_float(row_data.get('relative_volume_10d_calc'), 1.0)
+            atr = _to_float(row_data.get('ATR'), 0.0)
+            atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
+            adx_val = _to_float(row_data.get('ADX'), adx)
+            interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', adx))
+
+            # Estimate if near 52W high based on TV data
+            to_52w_high = ((tv_52w_high - upstox_price) / tv_52w_high) * 100
+
+            est_days, confidence = estimate_days_to_52w(upstox_price, tv_52w_high, adx, atr, recent_return, perf_w)
+
+            touched_52w = to_52w_high < 0.1
+
+            # Determine if bullish (close > open)
+            is_bullish = tv_price >= tv_open
+
+            # Determine sentiment based on wick position
+            if wick_close_pct >= 70:
+                sentiment = 'bullish'
+            elif wick_close_pct >= 55:
+                sentiment = 'lean_bull'
+            elif wick_close_pct <= 30:
+                sentiment = 'bearish'
+            elif wick_close_pct <= 45:
+                sentiment = 'lean_bear'
+            else:
+                sentiment = 'neutral'
+
+            stock_data = {
+                'symbol': symbol,
+                'score': min(99, int(adx + (recent_return if recent_return > 0 else 0) * 2)),
+                'tv_price': round(tv_price, 2),
+                'upstox_price': round(upstox_price, 2),
+                'broker_diff': broker_diff,
+                'to_52w_high': round(to_52w_high, 2),
+                'recent_return_5d': round(recent_return, 1),
+                'perf_w': round(perf_w, 1),
+                'sector': str(row_data.get('sector', '-')),
+                'touched_52w': touched_52w,
+                'day_change': round(_to_float(row_data.get('change'), 0), 2),
+                'rsi': round(_to_float(row_data.get('RSI'), 0), 1),
+                'stoch_k': round(_to_float(row_data.get('Stoch.K'), 0), 1),
+                'wick_close_pct': round(_to_float(wick_close_pct, 50), 1),
+                'volume_surge': round(_to_float(volume_surge, 1), 2),
+                'atr_pct': round(_to_float(atr_pct, 0), 2),
+                'adx': round(_to_float(adx_val, 0), 1),
+                'interest_score': round(_to_float(interest_score, 0), 1),
+                'gap_pct': round(_to_float(row_data.get('gap'), 0), 2),
+                'premarket_change': round(_to_float(row_data.get('premarket_change'), 0), 2),
+                'impact_score': round(_to_float(row_data.get('impact_score'), 0), 2),
+                'market_cap_b': round(_to_float(row_data.get('market_cap_basic'), 0) / 1_000_000_000, 2),
+                'volume_m': round(_to_float(row_data.get('volume'), 0) / 1_000_000, 2),
+                'reversal_signal': str(row_data.get('reversal_signal', '')),
+                'is_bullish': is_bullish,
+                'sentiment': sentiment,
+            }
+            stock_data['rationale'] = _build_rationale(screener, stock_data)
+
+            if not touched_52w and est_days is not None:
+                stock_data['time_to_52w'] = {'days': est_days, 'confidence': confidence}
+
+            if _passes_profile_filters(screener, stock_data, profile_filters):
+                return (stock_data, 'touched' if (use_52w_buckets and touched_52w) else 'approaching')
+            return None
+
+        except Exception:
+            return None
+
+    # Full API mode - requires API client
+    instrument_key = api.get_instrument_key(symbol)
+    if not instrument_key:
+        return ('blacklist', symbol)
+
+    try:
+        if use_intraday:
+            df_hist = api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+            if df_hist is None or df_hist.empty:
+                return None
+        else:
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - __import__('datetime').timedelta(days=5)).strftime('%Y-%m-%d')
+            df_hist = api.fetch_historical_data_v3(
+                symbol=symbol, unit='minutes', interval=1,
+                to_date=to_date, from_date=from_date
+            )
+
+        if df_hist is not None and not df_hist.empty:
+            upstox_price = float(df_hist['close'].iloc[-1])
+            start_price = float(df_hist['close'].iloc[0])
+            current_candle = df_hist.iloc[-1]
+            c_high = _to_float(current_candle.get('high'), upstox_price)
+            c_low = _to_float(current_candle.get('low'), upstox_price)
+            c_close = _to_float(current_candle.get('close'), upstox_price)
+            c_range = c_high - c_low
+            wick_close_pct = (((c_close - c_low) / c_range) * 100) if c_range > 0 else 50.0
+            avg_vol = _to_float(df_hist['volume'].tail(10).mean(), 0)
+            cur_vol = _to_float(current_candle.get('volume'), 0)
+            volume_surge = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
+
+            diff_pct = ((upstox_price - tv_price) / tv_price) * 100
+            recent_return = ((upstox_price - start_price) / start_price) * 100
+
+            tv_52w_high = float(row_data.get('price_52_week_high', 0))
+            recent_high = float(df_hist['high'].max())
+
+            high_diff_pct = ((recent_high - upstox_price) / recent_high) * 100
+
+            adx = float(row_data.get('ADX', 0))
+            atr = float(row_data.get('ATR', 0))
+            atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
+            perf_w = float(row_data.get('Perf.W', 0))
+            interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', 0))
+
+            est_days, confidence = estimate_days_to_52w(upstox_price, recent_high, adx, atr, recent_return, perf_w)
+
+            touched_52w = False
+            if tv_52w_high > 0:
+                if recent_high >= tv_52w_high:
+                    touched_52w = True
+                elif (tv_52w_high - recent_high) / tv_52w_high < 0.001:
+                    touched_52w = True
+
+            # Determine if bullish (close > open)
+            c_open = _to_float(current_candle.get('open'), c_close)
+            is_bullish = c_close >= c_open
+
+            # Determine sentiment based on wick position
+            if wick_close_pct >= 70:
+                sentiment = 'bullish'
+            elif wick_close_pct >= 55:
+                sentiment = 'lean_bull'
+            elif wick_close_pct <= 30:
+                sentiment = 'bearish'
+            elif wick_close_pct <= 45:
+                sentiment = 'lean_bear'
+            else:
+                sentiment = 'neutral'
+
+            stock_data = {
+                'symbol': symbol,
+                'score': int(row_data.get('swing_score', 0)),
+                'tv_price': round(tv_price, 2),
+                'upstox_price': round(upstox_price, 2),
+                'broker_diff': round(diff_pct, 2),
+                'to_52w_high': round(high_diff_pct, 2),
+                'recent_return_5d': round(recent_return, 1),
+                'perf_w': round(perf_w, 1),
+                'sector': str(row_data.get('sector', '-')),
+                'touched_52w': touched_52w,
+                'day_change': round(_to_float(row_data.get('change'), 0), 2),
+                'rsi': round(_to_float(row_data.get('RSI'), 0), 1),
+                'stoch_k': round(_to_float(row_data.get('Stoch.K'), 0), 1),
+                'wick_close_pct': round(_to_float(wick_close_pct, 50), 1),
+                'volume_surge': round(_to_float(volume_surge, 1), 2),
+                'atr_pct': round(_to_float(atr_pct, 0), 2),
+                'adx': round(_to_float(adx, 0), 1),
+                'interest_score': round(_to_float(interest_score, 0), 1),
+                'gap_pct': round(_to_float(row_data.get('gap'), 0), 2),
+                'premarket_change': round(_to_float(row_data.get('premarket_change'), 0), 2),
+                'impact_score': round(_to_float(row_data.get('impact_score'), 0), 2),
+                'market_cap_b': round(_to_float(row_data.get('market_cap_basic'), 0) / 1_000_000_000, 2),
+                'volume_m': round(_to_float(row_data.get('volume'), 0) / 1_000_000, 2),
+                'reversal_signal': str(row_data.get('reversal_signal', '')),
+                'is_bullish': is_bullish,
+                'sentiment': sentiment,
+            }
+            stock_data['rationale'] = _build_rationale(screener, stock_data)
+
+            if not touched_52w and est_days is not None:
+                stock_data['time_to_52w'] = {'days': est_days, 'confidence': confidence}
+
+            if _passes_profile_filters(screener, stock_data, profile_filters):
+                return (stock_data, 'touched' if (use_52w_buckets and touched_52w) else 'approaching')
+            return None
+
+    except Exception:
+        return None
+
+    return None
+
+
 def fetch_screener_data(provider='upstox', mode='historical', screener='trending', profile_filters=None):
     """Fetch screener data - similar to verify_stocks() but returns JSON."""
     # Try to get API client, fall back to demo mode if config missing
@@ -406,222 +602,35 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
     touched = []
     blacklisted_symbols = set()
 
-    for _, row in tv_df.iterrows():
-        symbol = row['name']
-        tv_price = row['close']
+    # Prepare row data for parallel processing
+    rows_data = [row.to_dict() for _, row in tv_df.iterrows()]
 
-        if tv_price >= 7000:
-            continue
+    # Process stocks in parallel using ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Submit all tasks
+        futures = {
+            executor.submit(
+                _process_single_stock,
+                row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters
+            ): row_data
+            for row_data in rows_data
+        }
 
-        if symbol in blacklisted_symbols:
-            continue
-
-        # If API not available, use TradingView data only (demo mode)
-        if not use_api:
+        # Collect results as they complete
+        for future in as_completed(futures):
             try:
-                tv_52w_high = float(row.get('price_52_week_high', tv_price * 1.1))
-                adx = float(row.get('ADX', 25))
-                atr = float(row.get('ATR', tv_price * 0.01))
-                perf_w = float(row.get('Perf.W', 2))
-                change = float(row.get('change', 0))
-                recent_return = change
-
-                # Simulate broker diff as small random value
-                import random
-                broker_diff = round(random.uniform(-0.5, 0.5), 2)
-
-                upstox_price = tv_price * (1 + broker_diff / 100)
-                tv_open = _to_float(row.get('open'), tv_price)
-                tv_high = _to_float(row.get('high'), max(tv_price, tv_open))
-                tv_low = _to_float(row.get('low'), min(tv_price, tv_open))
-                day_range = tv_high - tv_low
-                wick_close_pct = (((tv_price - tv_low) / day_range) * 100) if day_range > 0 else 50.0
-                volume_surge = _to_float(row.get('relative_volume_10d_calc'), 1.0)
-                atr = _to_float(row.get('ATR'), 0.0)
-                atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
-                adx_val = _to_float(row.get('ADX'), adx)
-                interest_score = _to_float(row.get('interest_score'), row.get('swing_score', adx))
-
-                # Estimate if near 52W high based on TV data
-                to_52w_high = ((tv_52w_high - upstox_price) / tv_52w_high) * 100
-
-                est_days, confidence = estimate_days_to_52w(upstox_price, tv_52w_high, adx, atr, recent_return, perf_w)
-
-                touched_52w = to_52w_high < 0.1
-
-                # Determine if bullish (close > open)
-                is_bullish = tv_price >= tv_open
-
-                # Determine sentiment based on wick position (more intuitive than candle direction)
-                # wick_close_pct: 0 = closed at LOW, 100 = closed at HIGH
-                if wick_close_pct >= 70:
-                    sentiment = 'bullish'  # Strong buyer control
-                elif wick_close_pct >= 55:
-                    sentiment = 'lean_bull'  # Slight buyer control
-                elif wick_close_pct <= 30:
-                    sentiment = 'bearish'  # Strong seller control
-                elif wick_close_pct <= 45:
-                    sentiment = 'lean_bear'  # Slight seller control
-                else:
-                    sentiment = 'neutral'  # No clear direction
-
-                stock_data = {
-                    'symbol': symbol,
-                    'score': min(99, int(adx + (recent_return if recent_return > 0 else 0) * 2)),
-                    'tv_price': round(tv_price, 2),
-                    'upstox_price': round(upstox_price, 2),
-                    'broker_diff': broker_diff,
-                    'to_52w_high': round(to_52w_high, 2),
-                    'recent_return_5d': round(recent_return, 1),
-                    'perf_w': round(perf_w, 1),
-                    'sector': str(row.get('sector', '-')),
-                    'touched_52w': touched_52w,
-                    'day_change': round(_to_float(row.get('change'), 0), 2),
-                    'rsi': round(_to_float(row.get('RSI'), 0), 1),
-                    'stoch_k': round(_to_float(row.get('Stoch.K'), 0), 1),
-                    'wick_close_pct': round(_to_float(wick_close_pct, 50), 1),
-                    'volume_surge': round(_to_float(volume_surge, 1), 2),
-                    'atr_pct': round(_to_float(atr_pct, 0), 2),
-                    'adx': round(_to_float(adx_val, 0), 1),
-                    'interest_score': round(_to_float(interest_score, 0), 1),
-                    'gap_pct': round(_to_float(row.get('gap'), 0), 2),
-                    'premarket_change': round(_to_float(row.get('premarket_change'), 0), 2),
-                    'impact_score': round(_to_float(row.get('impact_score'), 0), 2),
-                    'market_cap_b': round(_to_float(row.get('market_cap_basic'), 0) / 1_000_000_000, 2),
-                    'volume_m': round(_to_float(row.get('volume'), 0) / 1_000_000, 2),
-                    'reversal_signal': str(row.get('reversal_signal', '')),
-                    'is_bullish': is_bullish,
-                    'sentiment': sentiment,
-                }
-                stock_data['rationale'] = _build_rationale(screener, stock_data)
-
-                if not touched_52w and est_days is not None:
-                    stock_data['time_to_52w'] = {'days': est_days, 'confidence': confidence}
-
-                if _passes_profile_filters(screener, stock_data, profile_filters):
-                    if use_52w_buckets and touched_52w:
-                        touched.append(stock_data)
-                    else:
-                        approaching.append(stock_data)
-
+                result = future.result()
+                if result is None:
+                    continue
+                elif isinstance(result, tuple):
+                    if result[0] == 'blacklist':
+                        blacklisted_symbols.add(result[1])
+                    elif result[1] == 'touched':
+                        touched.append(result[0])
+                    elif result[1] == 'approaching':
+                        approaching.append(result[0])
             except Exception:
                 pass
-
-            continue
-
-        # Full API mode
-        instrument_key = api.get_instrument_key(symbol)
-        if not instrument_key:
-            blacklisted_symbols.add(symbol)
-            continue
-
-        try:
-            if use_intraday:
-                df_hist = api.fetch_intraday_data_v3(symbol=symbol, interval='1')
-                if df_hist is None or df_hist.empty:
-                    continue
-            else:
-                to_date = datetime.now().strftime('%Y-%m-%d')
-                from_date = (datetime.now() - __import__('datetime').timedelta(days=5)).strftime('%Y-%m-%d')
-                df_hist = api.fetch_historical_data_v3(
-                    symbol=symbol, unit='minutes', interval=1,
-                    to_date=to_date, from_date=from_date
-                )
-
-            if df_hist is not None and not df_hist.empty:
-                upstox_price = float(df_hist['close'].iloc[-1])
-                start_price = float(df_hist['close'].iloc[0])
-                current_candle = df_hist.iloc[-1]
-                c_high = _to_float(current_candle.get('high'), upstox_price)
-                c_low = _to_float(current_candle.get('low'), upstox_price)
-                c_close = _to_float(current_candle.get('close'), upstox_price)
-                c_range = c_high - c_low
-                wick_close_pct = (((c_close - c_low) / c_range) * 100) if c_range > 0 else 50.0
-                avg_vol = _to_float(df_hist['volume'].tail(10).mean(), 0)
-                cur_vol = _to_float(current_candle.get('volume'), 0)
-                volume_surge = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
-
-                diff_pct = ((upstox_price - tv_price) / tv_price) * 100
-                recent_return = ((upstox_price - start_price) / start_price) * 100
-
-                tv_52w_high = float(row.get('price_52_week_high', 0))
-                recent_high = float(df_hist['high'].max())
-
-                high_diff_pct = ((recent_high - upstox_price) / recent_high) * 100
-
-                adx = float(row.get('ADX', 0))
-                atr = float(row.get('ATR', 0))
-                atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
-                perf_w = float(row.get('Perf.W', 0))
-                interest_score = _to_float(row.get('interest_score'), row.get('swing_score', 0))
-
-                est_days, confidence = estimate_days_to_52w(upstox_price, recent_high, adx, atr, recent_return, perf_w)
-
-                touched_52w = False
-                if tv_52w_high > 0:
-                    if recent_high >= tv_52w_high:
-                        touched_52w = True
-                    elif (tv_52w_high - recent_high) / tv_52w_high < 0.001:
-                        touched_52w = True
-
-                # Determine if bullish (close > open)
-                c_open = _to_float(current_candle.get('open'), c_close)
-                is_bullish = c_close >= c_open
-
-                # Determine sentiment based on wick position (more intuitive than candle direction)
-                # wick_close_pct: 0 = closed at LOW, 100 = closed at HIGH
-                if wick_close_pct >= 70:
-                    sentiment = 'bullish'  # Strong buyer control
-                elif wick_close_pct >= 55:
-                    sentiment = 'lean_bull'  # Slight buyer control
-                elif wick_close_pct <= 30:
-                    sentiment = 'bearish'  # Strong seller control
-                elif wick_close_pct <= 45:
-                    sentiment = 'lean_bear'  # Slight seller control
-                else:
-                    sentiment = 'neutral'  # No clear direction
-
-                stock_data = {
-                    'symbol': symbol,
-                    'score': int(row.get('swing_score', 0)),
-                    'tv_price': round(tv_price, 2),
-                    'upstox_price': round(upstox_price, 2),
-                    'broker_diff': round(diff_pct, 2),
-                    'to_52w_high': round(high_diff_pct, 2),
-                    'recent_return_5d': round(recent_return, 1),
-                    'perf_w': round(perf_w, 1),
-                    'sector': str(row.get('sector', '-')),
-                    'touched_52w': touched_52w,
-                    'day_change': round(_to_float(row.get('change'), 0), 2),
-                    'rsi': round(_to_float(row.get('RSI'), 0), 1),
-                    'stoch_k': round(_to_float(row.get('Stoch.K'), 0), 1),
-                    'wick_close_pct': round(_to_float(wick_close_pct, 50), 1),
-                    'volume_surge': round(_to_float(volume_surge, 1), 2),
-                    'atr_pct': round(_to_float(atr_pct, 0), 2),
-                    'adx': round(_to_float(adx, 0), 1),
-                    'interest_score': round(_to_float(interest_score, 0), 1),
-                    'gap_pct': round(_to_float(row.get('gap'), 0), 2),
-                    'premarket_change': round(_to_float(row.get('premarket_change'), 0), 2),
-                    'impact_score': round(_to_float(row.get('impact_score'), 0), 2),
-                    'market_cap_b': round(_to_float(row.get('market_cap_basic'), 0) / 1_000_000_000, 2),
-                    'volume_m': round(_to_float(row.get('volume'), 0) / 1_000_000, 2),
-                    'reversal_signal': str(row.get('reversal_signal', '')),
-                    'is_bullish': is_bullish,
-                    'sentiment': sentiment,
-                }
-                stock_data['rationale'] = _build_rationale(screener, stock_data)
-
-                if not touched_52w and est_days is not None:
-                    stock_data['time_to_52w'] = {'days': est_days, 'confidence': confidence}
-
-                if _passes_profile_filters(screener, stock_data, profile_filters):
-                    if use_52w_buckets and touched_52w:
-                        touched.append(stock_data)
-                    else:
-                        approaching.append(stock_data)
-
-        except Exception:
-            pass
 
     return {
         'approaching': approaching,
@@ -653,19 +662,9 @@ class ScreenerHandler(BaseHTTPRequestHandler):
                 if key in params and key not in profile_filters:
                     profile_filters[key] = params[key][0]
 
-            # Check cache (10 second TTL)
-            with _cache_lock:
-                if _should_use_cached_data(_cache['data'], _cache['timestamp'], provider, mode, screener, profile_filters):
-                    self.send_json(_cache['data'])
-                    return
-
-            # Fetch new data
+            # Fetch new data (no caching)
             data = fetch_screener_data(provider, mode, screener, profile_filters)
             data['applied_profile_filters'] = profile_filters
-
-            with _cache_lock:
-                _cache['data'] = data
-                _cache['timestamp'] = datetime.now()
 
             self.send_json(data)
         elif parsed.path == '/api/screeners':
