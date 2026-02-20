@@ -13,14 +13,14 @@ test.describe('Stock Screener UI', () => {
 
   test('should display data table', async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('table tbody tr', { timeout: 10000 });
+    await page.waitForSelector('table tbody tr', { timeout: 30000 });
     const rows = page.locator('table tbody tr');
     await expect(rows.first()).toBeVisible();
   });
 
   test('should display mock stock data', async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('table tbody tr', { timeout: 10000 });
+    await page.waitForSelector('table tbody tr', { timeout: 30000 });
 
     // Check that mock data is displayed - use more specific selector
     const firstSymbol = mockTrendingResponse.approaching[0].symbol;

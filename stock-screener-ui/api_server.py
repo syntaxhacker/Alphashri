@@ -422,6 +422,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
                 'tv_price': round(tv_price, 2),
                 'upstox_price': round(upstox_price, 2),
                 'broker_diff': broker_diff,
+                'high_52w': round(tv_52w_high, 2),
                 'to_52w_high': round(to_52w_high, 2),
                 'recent_return_5d': round(recent_return, 1),
                 'perf_w': round(perf_w, 1),
@@ -532,6 +533,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
                 'tv_price': round(tv_price, 2),
                 'upstox_price': round(upstox_price, 2),
                 'broker_diff': round(diff_pct, 2),
+                'high_52w': round(tv_52w_high, 2),
                 'to_52w_high': round(high_diff_pct, 2),
                 'recent_return_5d': round(recent_return, 1),
                 'perf_w': round(perf_w, 1),
@@ -683,12 +685,19 @@ class ScreenerHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'Not Found')
 
     def send_json(self, data):
-        safe_data = _sanitize_for_json(data)
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        self.wfile.write(json.dumps(safe_data, allow_nan=False).encode())
+        try:
+            safe_data = _sanitize_for_json(data)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(safe_data, allow_nan=False).encode())
+        except BrokenPipeError:
+            # Client closed connection before response was sent (e.g., switched screeners)
+            pass
+        except ConnectionResetError:
+            # Client reset the connection
+            pass
 
     def log_message(self, format, *args):
         pass  # Silence logs

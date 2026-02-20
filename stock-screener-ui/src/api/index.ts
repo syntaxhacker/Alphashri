@@ -64,14 +64,15 @@ export async function fetchData(
   // Abort any pending request before starting a new one
   const abortController = abortPendingRequest()
 
-  // Clear data when switching to a different screener (but not on refresh or auto-refresh)
-  const isScreenerSwitch = screener !== state.data?.screener
+  // Only clear data when user manually switches to a different screener
+  // Don't clear on auto-refresh or filter changes
+  const isManualScreenerSwitch = source === 'manual' && screener !== state.data?.screener
 
   state.setIsLoading(true)
   state.setError(null)
 
-  // Clear table data when switching screeners
-  if (isScreenerSwitch) {
+  // Clear table data ONLY when manually switching to a different screener
+  if (isManualScreenerSwitch) {
     state.setData(null)
   }
 
@@ -112,6 +113,12 @@ export async function fetchData(
       renderCallback()
     }
   }
+}
+
+// Force reset loading state (useful for debugging/recovery)
+export function resetLoadingState() {
+  state.setIsLoading(false)
+  renderCallback()
 }
 
 export async function loadScreeners(initProfileFilters: (screener: string) => void) {

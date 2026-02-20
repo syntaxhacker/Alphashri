@@ -27,6 +27,7 @@ export const mockTrendingResponse = {
       tv_price: 100.50,
       upstox_price: 100.45,
       broker_diff: -0.05,
+      high_52w: 103.25,
       to_52w_high: 2.73,
       recent_return_5d: -1.6,
       perf_w: 4.8,
@@ -48,8 +49,7 @@ export const mockTrendingResponse = {
       reversal_signal: '',
       is_bullish: true,
       sentiment: 'bullish',
-      rationale: 'Score 105 | 52W gap +2.73% | 5D -1.6% | PerfW +4.8%',
-      time_to_52w: { days: 1, confidence: 'MED' }
+      rationale: 'Score 105 | 52W gap +2.73% | 5D -1.6% | PerfW +4.8%'
     },
     {
       symbol: 'MOCK2',
@@ -57,6 +57,7 @@ export const mockTrendingResponse = {
       tv_price: 200.00,
       upstox_price: 200.05,
       broker_diff: 0.02,
+      high_52w: 200.80,
       to_52w_high: 0.4,
       recent_return_5d: 0.3,
       perf_w: 6.5,
@@ -78,8 +79,7 @@ export const mockTrendingResponse = {
       reversal_signal: '',
       is_bullish: false,
       sentiment: 'bearish',
-      rationale: 'Score 90 | 52W gap +0.40% | 5D +0.3% | PerfW +6.5%',
-      time_to_52w: { days: 0, confidence: 'HIGH' }
+      rationale: 'Score 90 | 52W gap +0.40% | 5D +0.3% | PerfW +6.5%'
     }
   ],
   touched: [
@@ -89,6 +89,7 @@ export const mockTrendingResponse = {
       tv_price: 150.00,
       upstox_price: 150.10,
       broker_diff: 0.07,
+      high_52w: 150.00,
       to_52w_high: 0,
       recent_return_5d: 2.5,
       perf_w: 8.0,
@@ -110,8 +111,7 @@ export const mockTrendingResponse = {
       reversal_signal: '',
       is_bullish: true,
       sentiment: 'bullish',
-      rationale: 'Score 115 | Touched 52W | 5D +2.5% | PerfW +8.0%',
-      time_to_52w: { days: 0, confidence: 'HIGH' }
+      rationale: 'Score 115 | Touched 52W | 5D +2.5% | PerfW +8.0%'
     }
   ],
   last_updated: new Date().toISOString(),
@@ -306,7 +306,7 @@ export const mockBuyerInterestCounts = {
 // IMPORTANT: This must be called BEFORE page.goto()
 export async function setupApiMocks(page: import('@playwright/test').Page) {
   // Mock screeners list - use full URL pattern
-  await page.route('http://localhost:8765/api/screeners', async route => {
+  await page.route('**/api/screeners', async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -315,7 +315,7 @@ export async function setupApiMocks(page: import('@playwright/test').Page) {
   });
 
   // Mock screener data endpoint with query parameters
-  await page.route('http://localhost:8765/api/screener**', async route => {
+  await page.route('**/api/screener*', async route => {
     const url = route.request().url();
 
     // Check if it's buyer_interest_enhanced

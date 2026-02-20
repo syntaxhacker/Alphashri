@@ -4,6 +4,7 @@ export type ColumnKey =
   | 'tv_price'
   | 'upstox_price'
   | 'broker_diff'
+  | 'high_52w'
   | 'to_52w_high'
   | 'time_to_52w'
   | 'recent_return_5d'
@@ -30,7 +31,8 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
   tv_price: 'TV Price',
   upstox_price: 'Upstox',
   broker_diff: 'Broker Diff',
-  to_52w_high: 'To 52W High',
+  high_52w: '52W High',
+  to_52w_high: 'To 52W',
   time_to_52w: 'Time to 52W',
   recent_return_5d: '5D Return',
   perf_w: 'Perf.W',
@@ -51,8 +53,36 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
   is_bullish: 'Sentiment',
 }
 
+export const COLUMN_TOOLTIPS: Record<ColumnKey, string> = {
+  symbol: 'Stock symbol',
+  score: 'Composite score based on RSI (30pts), ADX (20pts), Relative Volume (20pts), and Distance to 52W High (30pts). Higher = stronger trend candidate.',
+  tv_price: 'TradingView price',
+  upstox_price: 'Upstox broker price',
+  broker_diff: 'Price difference between TV and broker',
+  high_52w: '52-week high price',
+  to_52w_high: 'Percentage distance to 52-week high',
+  time_to_52w: 'Estimated days to reach 52W high',
+  recent_return_5d: '5-day return percentage',
+  perf_w: 'Weekly performance percentage',
+  sector: 'Industry sector',
+  day_change: 'Intraday change percentage',
+  rsi: 'Relative Strength Index (14)',
+  stoch_k: 'Stochastic K indicator',
+  wick_close_pct: 'Where price closed in day\'s range (0=low, 100=high)',
+  volume_surge: 'Volume relative to 10-day average',
+  atr_pct: 'Average True Range as % of price',
+  adx: 'Average Directional Index (trend strength)',
+  interest_score: 'Buying interest score',
+  gap_pct: 'Gap opening percentage',
+  premarket_change: 'Pre-market change percentage',
+  impact_score: 'Market impact score (cap × move)',
+  market_cap_b: 'Market capitalization in billions',
+  volume_m: 'Volume in millions',
+  is_bullish: 'Market sentiment direction',
+}
+
 export const NUMERIC_COLUMNS = new Set<ColumnKey>([
-  'score', 'tv_price', 'upstox_price', 'broker_diff', 'to_52w_high', 'time_to_52w',
+  'score', 'tv_price', 'upstox_price', 'broker_diff', 'high_52w', 'to_52w_high', 'time_to_52w',
   'recent_return_5d', 'perf_w', 'day_change', 'rsi', 'stoch_k', 'gap_pct',
   'premarket_change', 'impact_score', 'market_cap_b', 'volume_m',
   'wick_close_pct', 'volume_surge', 'atr_pct', 'adx', 'interest_score'
@@ -84,8 +114,7 @@ export function getColumnKeysForProfile(screener: string, touched: boolean): Col
     return ['symbol', 'score', 'interest_score', 'volume_surge', 'rsi', 'day_change', 'volume_m', 'sector']
   }
 
-  const cols: ColumnKey[] = ['symbol', 'score', 'tv_price', 'upstox_price', 'broker_diff', 'to_52w_high']
-  if (!touched) cols.push('time_to_52w')
+  const cols: ColumnKey[] = ['symbol', 'score', 'tv_price', 'upstox_price', 'broker_diff', 'high_52w', 'to_52w_high']
   cols.push('recent_return_5d', 'perf_w', 'sector')
   return cols
 }

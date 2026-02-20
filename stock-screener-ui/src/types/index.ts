@@ -8,6 +8,7 @@ export interface Stock {
   tv_price: number
   upstox_price: number
   broker_diff: number
+  high_52w: number
   to_52w_high: number
   time_to_52w?: { days: number; confidence: 'HIGH' | 'MED' | 'LOW' }
   recent_return_5d: number

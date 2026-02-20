@@ -26,6 +26,7 @@ export function sortStocks(stocks: Stock[]): Stock[] {
       case 'tv_price': aVal = a.tv_price; bVal = b.tv_price; break
       case 'upstox_price': aVal = a.upstox_price; bVal = b.upstox_price; break
       case 'broker_diff': aVal = a.broker_diff; bVal = b.broker_diff; break
+      case 'high_52w': aVal = a.high_52w; bVal = b.high_52w; break
       case 'to_52w_high': aVal = a.to_52w_high; bVal = b.to_52w_high; break
       case 'time_to_52w': aVal = a.time_to_52w?.days ?? 999; bVal = b.time_to_52w?.days ?? 999; break
       case 'recent_return_5d': aVal = a.recent_return_5d; bVal = b.recent_return_5d; break
@@ -71,8 +72,9 @@ export function renderSortIndicator(column: string): string {
   return `<span class="sort-indicator ${state.sortDirection}">${state.sortDirection === 'asc' ? '↑' : '↓'}</span>`
 }
 
-export function renderSortableHeader(label: string, column: string, className = ''): string {
-  return `<th class="${className} sortable" data-column="${column}" onclick="window.handleSort('${column}')">${label} ${renderSortIndicator(column)}</th>`
+export function renderSortableHeader(label: string, column: string, className = '', tooltip = ''): string {
+  const tooltipAttr = tooltip ? ` title="${tooltip}"` : ''
+  return `<th class="${className} sortable" data-column="${column}"${tooltipAttr} onclick="window.handleSort('${column}')">${label} ${renderSortIndicator(column)}</th>`
 }
 
 export function getUniqueSectors(stocks: Stock[]): string[] {

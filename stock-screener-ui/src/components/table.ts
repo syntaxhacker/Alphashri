@@ -14,14 +14,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
   const returnClass = s.recent_return_5d > 0 ? 'green' : 'red'
   const perfClass = s.perf_w > 0 ? 'green' : 'red'
   const rowClass = isRecentlyAdded(s.symbol) ? 'row-new' : ''
-
-  let timeTo52w = '-'
   const rowHint = escapeAttr(s.rationale || '')
-  if (!touched && s.time_to_52w) {
-    const confIcon = s.time_to_52w.confidence === 'HIGH' ? '🔥' : s.time_to_52w.confidence === 'MED' ? '⚡' : '📍'
-    const confClass = s.time_to_52w.confidence === 'HIGH' ? 'conf-high' : s.time_to_52w.confidence === 'MED' ? 'conf-med' : ''
-    timeTo52w = `<span class="${confClass}">${s.time_to_52w.days}d ${confIcon}</span>`
-  }
 
   if (screener === 'market_open_gap') {
     const gap = s.gap_pct ?? 0
@@ -170,8 +163,8 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
       <td class="num">₹${s.tv_price.toFixed(2)}</td>
       <td class="num">₹${s.upstox_price.toFixed(2)}</td>
       <td class="num ${brokerClass}">${s.broker_diff > 0 ? '+' : ''}${s.broker_diff.toFixed(2)}%</td>
+      <td class="num">₹${(s.high_52w ?? 0).toFixed(2)}</td>
       <td class="num ${to52wClass}">${s.to_52w_high > 0 ? '+' : ''}${s.to_52w_high.toFixed(2)}%</td>
-      ${!touched ? `<td class="num">${timeTo52w}</td>` : ''}
       <td class="num ${returnClass}">${returnIcon} ${s.recent_return_5d > 0 ? '+' : ''}${s.recent_return_5d.toFixed(1)}%</td>
       <td class="num ${perfClass}">${s.perf_w > 0 ? '+' : ''}${s.perf_w.toFixed(1)}%</td>
       <td class="dim">${s.sector}</td>

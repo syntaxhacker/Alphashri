@@ -3,7 +3,7 @@
  */
 
 import './style.css'
-import { COLUMN_LABELS, NUMERIC_COLUMNS, getColumnKeysForProfile } from './ui_schema'
+import { COLUMN_LABELS, COLUMN_TOOLTIPS, NUMERIC_COLUMNS, getColumnKeysForProfile } from './ui_schema'
 
 // State management
 import * as state from './state'
@@ -30,7 +30,7 @@ import {
 
 function getTableHeaders(screener: string, touched: boolean): string {
   return getColumnKeysForProfile(screener, touched)
-    .map((key) => renderSortableHeader(COLUMN_LABELS[key], key, NUMERIC_COLUMNS.has(key) ? 'num' : ''))
+    .map((key) => renderSortableHeader(COLUMN_LABELS[key], key, NUMERIC_COLUMNS.has(key) ? 'num' : '', COLUMN_TOOLTIPS[key] || ''))
     .join('')
 }
 
@@ -56,8 +56,11 @@ function render() {
   const touched = sortStocks(applyProfileFilters(applyFilters(state.data?.touched || [])))
   const sectionLabels = getSectionLabels()
 
-  // Show loading indicator in table area when loading (not full screen)
-  const tableContent = state.isLoading
+  // Show loading indicator only when loading AND no data exists (i.e., screener switch)
+  // When refreshing same screener, keep showing existing table
+  const showLoading = state.isLoading && !state.data
+
+  const tableContent = showLoading
     ? `<div class="loading" data-testid="table-loading">🔄 Loading ${state.activeScreener} data...</div>`
     : `${approaching.length > 0 ? `
       <div class="section-title" data-testid="primary-section-title">${sectionLabels.primary} (${approaching.length}${approaching.length < (state.data?.approaching?.length || 0) ? ` of ${state.data?.approaching?.length}` : ''})</div>
