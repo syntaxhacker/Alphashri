@@ -19,12 +19,19 @@ _project_root = _script_dir.parent
 _scanners_dir = _project_root / 'scanners'
 sys.path.insert(0, str(_project_root))
 sys.path.insert(0, str(_scanners_dir))
+sys.path.insert(0, str(_script_dir))  # For backtest module
 
 from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
 import trending_upside
 
+# Import backtest module
+from backtest.api import BacktestRequestHandler
+
 # Thread pool for parallel API calls
 MAX_WORKERS = 10  # Concurrent API calls for stock data
+
+# Backtest request handler (global instance for caching)
+_backtest_handler = BacktestRequestHandler()
 
 PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout'}
 PROFILE_META = {
@@ -651,6 +658,13 @@ class ScreenerHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
+        path = parsed.path.rstrip('/')
+
+        # Backtest API routes
+        if path.startswith('/api/backtest'):
+            response = _backtest_handler.handle_request('GET', path, params)
+            self.send_json(response)
+            return
 
         if parsed.path == '/api/screener':
             provider = params.get('provider', ['upstox'])[0]
@@ -684,6 +698,40 @@ class ScreenerHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b'Not Found')
 
+    def do_OPTIONS(self):
+        """Handle OPTIONS preflight requests for CORS."""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+    def do_POST(self):
+        """Handle POST requests."""
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip('/')
+
+        # Only handle backtest routes
+        if not path.startswith('/api/backtest'):
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b'Not Found')
+            return
+
+        # Read request body
+        content_length = int(self.headers.get('Content-Length', 0))
+        body_data = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else '{}'
+
+        try:
+            body = json.loads(body_data)
+        except json.JSONDecodeError:
+            self.send_json({'error': 'Invalid JSON body'})
+            return
+
+        # Handle backtest request
+        response = _backtest_handler.handle_request('POST', path, {}, body)
+        self.send_json(response)
+
     def send_json(self, data):
         try:
             safe_data = _sanitize_for_json(data)
@@ -706,7 +754,8 @@ class ScreenerHandler(BaseHTTPRequestHandler):
 def run_server(port=8765):
     server = HTTPServer(('localhost', port), ScreenerHandler)
     print(f'🚀 Stock Screener API running on http://localhost:{port}')
-    print(f'   API endpoint: http://localhost:{port}/api/screener')
+    print(f'   Screener API: http://localhost:{port}/api/screener')
+    print(f'   Backtest API: http://localhost:{port}/api/backtest/strategies')
     print(f'   UI should be served from: bun run dev')
     server.serve_forever()
 

@@ -5,6 +5,7 @@
 import type { ScreenerData, ScreenerOption } from '../types'
 import { API_URL, SCREENERS_URL } from '../constants'
 import * as state from '../state'
+import { getBacktestState } from '../state/backtest'
 import { buildProfileFilterQueryParams, detectAddedSymbols } from '../runtime_utils'
 import { pushNotification, markNewSymbols } from '../utils/notifications'
 import { abortPendingRequest, isAbortError } from '../hooks/useFetch'
@@ -148,6 +149,10 @@ export function setupAutoRefresh() {
     return
   }
   const interval = setInterval(() => {
+    // Only auto-refresh if on screener view (not backtest)
+    if (getBacktestState().currentView === 'backtest') {
+      return
+    }
     if (state.data && !state.isLoading) {
       fetchData(state.data.provider, state.data.mode, state.activeScreener, 'auto')
     }

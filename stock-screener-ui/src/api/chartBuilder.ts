@@ -1,0 +1,333 @@
+/**
+ * Chart Data Builder
+ *
+ * Converts raw backtest data to ECharts format.
+ *
+ * DATA FORMATS FROM API:
+ * - Candles: index is UTC ISO format "2025-10-24T03:45:00+00:00"
+ * - Trades: entry_time/exit_time are IST without timezone "2025-10-27T11:25:00"
+ *
+ * We convert everything to a simple comparable format for matching.
+ */
+
+import type { SymbolChartData, CandleData, ChartTrade, ORBZone, Trade } from '../types/backtest'
+
+interface RawCandle {
+  index: string[]  // UTC ISO strings like "2025-10-24T03:45:00+00:00"
+  open: number[]
+  high: number[]
+  low: number[]
+  close: number[]
+  volume: number[]
+}
+
+interface RawTrade {
+  entry_price: number
+  exit_price: number
+  entry_time: string  // IST without timezone like "2025-10-27T11:25:00"
+  exit_time: string
+  quantity: number
+  gross_pnl: number
+  gross_pnl_pct: number
+  trading_costs: number
+  net_pnl: number
+  net_pnl_pct: number
+  exit_reason: 'TP' | 'SL' | 'EOD'
+  hold_duration_minutes: number
+  date: string  // YYYY-MM-DD
+  or_high: number
+  or_low: number
+}
+
+export function buildChartData(
+  symbol: string,
+  rawCandles: RawCandle,
+  rawTrades: RawTrade[],
+  orMinutes: number = 45
+): SymbolChartData {
+  const candles = formatCandleData(rawCandles)
+
+  // Get unique trade dates to filter ORB zones
+  const tradeDates = new Set(rawTrades.map(t => t.date))
+
+  // Only calculate ORB zones for days with trades
+  const orbZones = formatORBZones(candles, orMinutes).filter(z => tradeDates.has(z.date_raw))
+
+  const trades = formatTradeMarkers(rawTrades, candles)
+
+  const startDates = candles.map(c => c.date_raw).filter(d => d)
+  const startDate = startDates[0] || null
+  const endDate = startDates[startDates.length - 1] || null
+
+  console.log(`buildChartData: ${candles.length} candles, ${orbZones.length} ORB zones, ${trades.length} trade markers`)
+
+  return {
+    symbol,
+    candles,
+    orb_zones: orbZones,
+    trades,
+    date_range: {
+      start: startDate,
+      end: endDate,
+    },
+    total_candles: candles.length,
+    total_trades: rawTrades.length,
+  }
+}
+
+/**
+ * Convert UTC candle time to IST and extract parts
+ * Input: "2025-10-24T03:45:00+00:00" (UTC)
+ * Output: IST time parts
+ */
+function formatCandleData(raw: RawCandle): CandleData[] {
+  const candles: CandleData[] = []
+  const indices = raw.index || []
+  const opens = raw.open || []
+  const highs = raw.high || []
+  const lows = raw.low || []
+  const closes = raw.close || []
+  const volumes = raw.volume || []
+
+  console.log(`formatCandleData: ${indices.length} raw candles`)
+
+  for (let i = 0; i < indices.length; i++) {
+    try {
+      const utcTime = indices[i]
+      // Parse UTC time and convert to IST
+      const utcDate = new Date(utcTime)
+      const istDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000))
+
+      const year = istDate.getUTCFullYear()
+      const month = String(istDate.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(istDate.getUTCDate()).padStart(2, '0')
+      const hours = String(istDate.getUTCHours()).padStart(2, '0')
+      const minutes = String(istDate.getUTCMinutes()).padStart(2, '0')
+
+      const dateRaw = `${year}-${month}-${day}`  // YYYY-MM-DD for matching
+      const timeStr = `${hours}:${minutes}`       // HH:MM for display
+      const comparableTime = `${dateRaw}T${timeStr}` // For matching with trades
+
+      candles.push({
+        time: comparableTime,
+        date: dateRaw,
+        time_str: timeStr,
+        open: opens[i] || 0,
+        high: highs[i] || 0,
+        low: lows[i] || 0,
+        close: closes[i] || 0,
+        volume: volumes[i] || 0,
+      })
+    } catch (e) {
+      console.error('Error parsing candle:', indices[i], e)
+    }
+  }
+
+  if (candles.length > 0) {
+    console.log(`Candles: ${candles[0].time} to ${candles[candles.length - 1].time}`)
+  }
+
+  return candles
+}
+
+function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
+  const zones: ORBZone[] = []
+  let currentDate: string | null = null
+  let orCandles: CandleData[] = []
+
+  const marketOpenMinutes = 9 * 60 + 15 // 9:15 AM
+  const orEndMinutes = marketOpenMinutes + orMinutes
+
+  for (const candle of candles) {
+    const timeParts = candle.time_str.split(':')
+    const candleMinutes = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1])
+
+    // New day
+    if (candle.date !== currentDate) {
+      // Process previous day's OR
+      if (orCandles.length > 0 && currentDate) {
+        const orHigh = Math.max(...orCandles.map(c => c.high))
+        const orLow = Math.min(...orCandles.map(c => c.low))
+        zones.push({
+          date: currentDate,
+          date_raw: currentDate,
+          or_high: Math.round(orHigh * 100) / 100,
+          or_low: Math.round(orLow * 100) / 100,
+          or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, '0')}:${String(orEndMinutes % 60).padStart(2, '0')}`,
+        })
+      }
+
+      currentDate = candle.date
+      orCandles = []
+    }
+
+    // Collect OR candles (before 10:00 for 45-min OR)
+    if (candleMinutes < orEndMinutes) {
+      orCandles.push(candle)
+    }
+  }
+
+  // Process last day
+  if (orCandles.length > 0 && currentDate) {
+    const orHigh = Math.max(...orCandles.map(c => c.high))
+    const orLow = Math.min(...orCandles.map(c => c.low))
+    zones.push({
+      date: currentDate,
+      date_raw: currentDate,
+      or_high: Math.round(orHigh * 100) / 100,
+      or_low: Math.round(orLow * 100) / 100,
+      or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, '0')}:${String(orEndMinutes % 60).padStart(2, '0')}`,
+    })
+  }
+
+  return zones
+}
+
+/**
+ * Format trade markers. Match trade times to candle times.
+ * Trade times are IST without timezone: "2025-10-27T11:25:00"
+ * Candle times are already converted to IST comparable format
+ */
+function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTrade[] {
+  const markers: ChartTrade[] = []
+
+  // Build lookup map for candle times
+  const candleTimeMap = new Map<string, number>()
+  candles.forEach((c, i) => candleTimeMap.set(c.time, i))
+
+  console.log(`Sample candle times for matching:`, candles.slice(0, 3).map(c => c.time))
+
+  trades.forEach((trade, idx) => {
+    // Trade time format: "2025-10-27T11:25:00" or "2025-10-27T11:25:00+00:00"
+    // Normalize to "YYYY-MM-DDTHH:MM"
+    const entryNormalized = normalizeTradeTime(trade.entry_time)
+    const exitNormalized = normalizeTradeTime(trade.exit_time)
+
+    if (idx < 3) {
+      console.log(`Trade ${idx + 1}: ${trade.entry_time} -> ${entryNormalized}`)
+    }
+
+    // Find candle index
+    const entryCandleIdx = candleTimeMap.get(entryNormalized)
+    const exitCandleIdx = candleTimeMap.get(exitNormalized)
+
+    if (entryCandleIdx === undefined) {
+      console.warn(`Entry time not found: ${entryNormalized}`)
+    }
+    if (exitCandleIdx === undefined) {
+      console.warn(`Exit time not found: ${exitNormalized}`)
+    }
+
+    // Entry marker
+    markers.push({
+      trade_id: idx + 1,
+      type: 'entry',
+      time: entryNormalized,
+      candle_idx: entryCandleIdx,
+      date: trade.date,
+      price: trade.entry_price,
+      marker: {
+        symbol: 'triangle',
+        color: '#00BFFF',
+        size: 16,
+      },
+      trade: {
+        entry_price: trade.entry_price,
+        exit_price: trade.exit_price,
+        entry_time: trade.entry_time,
+        exit_time: trade.exit_time,
+        quantity: trade.quantity,
+        gross_pnl: trade.gross_pnl,
+        trading_costs: trade.trading_costs,
+        net_pnl: trade.net_pnl,
+        net_pnl_pct: trade.net_pnl_pct,
+        exit_reason: trade.exit_reason,
+        hold_duration_minutes: trade.hold_duration_minutes,
+        or_high: trade.or_high,
+        or_low: trade.or_low,
+      },
+    })
+
+    // Exit marker
+    const exitColors: Record<string, string> = {
+      TP: '#00E676',
+      SL: '#FF1744',
+      EOD: '#FFEA00',
+    }
+
+    markers.push({
+      trade_id: idx + 1,
+      type: 'exit',
+      time: exitNormalized,
+      candle_idx: exitCandleIdx,
+      date: trade.date,
+      price: trade.exit_price,
+      marker: {
+        symbol: 'circle',
+        color: exitColors[trade.exit_reason] || '#FFEA00',
+        size: 14,
+      },
+      trade: {
+        entry_price: trade.entry_price,
+        exit_price: trade.exit_price,
+        entry_time: trade.entry_time,
+        exit_time: trade.exit_time,
+        quantity: trade.quantity,
+        gross_pnl: trade.gross_pnl,
+        trading_costs: trade.trading_costs,
+        net_pnl: trade.net_pnl,
+        net_pnl_pct: trade.net_pnl_pct,
+        exit_reason: trade.exit_reason,
+        hold_duration_minutes: trade.hold_duration_minutes,
+        or_high: trade.or_high,
+        or_low: trade.or_low,
+      },
+    })
+  })
+
+  return markers
+}
+
+/**
+ * Normalize trade time to comparable format
+ * Input: "2025-10-27T11:25:00" or "2025-10-27T11:25:00+00:00"
+ * Output: "2025-10-27T11:25"
+ */
+function normalizeTradeTime(time: string): string {
+  if (!time) return ''
+  // Remove timezone suffix and seconds if present
+  return time
+    .replace(/\+00:00$/, '')
+    .replace(/\+05:30$/, '')
+    .replace(/Z$/, '')
+    .substring(0, 16) // "YYYY-MM-DDTHH:MM"
+}
+
+// Helper to convert chart trades to Trade[] for modal
+export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
+  const trades: Trade[] = []
+
+  chartTrades
+    .filter(ct => ct.type === 'entry')
+    .forEach(ct => {
+      trades.push({
+        entry_price: ct.trade.entry_price,
+        exit_price: ct.trade.exit_price,
+        entry_time: ct.trade.entry_time,
+        exit_time: ct.trade.exit_time,
+        quantity: ct.trade.quantity,
+        gross_pnl: ct.trade.gross_pnl,
+        gross_pnl_pct: ct.trade.gross_pnl_pct || 0,
+        trading_costs: ct.trade.trading_costs,
+        net_pnl: ct.trade.net_pnl,
+        net_pnl_pct: ct.trade.net_pnl_pct,
+        exit_reason: ct.trade.exit_reason,
+        hold_duration_minutes: ct.trade.hold_duration_minutes,
+        date: ct.date,
+        or_high: ct.trade.or_high,
+        or_low: ct.trade.or_low,
+      })
+    })
+
+  return trades
+}

@@ -8,6 +8,16 @@ import { COLUMN_LABELS, COLUMN_TOOLTIPS, NUMERIC_COLUMNS, getColumnKeysForProfil
 // State management
 import * as state from './state'
 
+// Backtest state and components
+import {
+  subscribe as subscribeBacktest,
+  getBacktestState,
+  setCurrentView,
+} from './state/backtest'
+import { renderSidemenu, initSidemenu } from './components/sidemenu'
+import { renderBacktestView, initBacktestHandlers, initBacktestCharts } from './components/backtest'
+import { fetchStrategies, fetchCosts } from './api/backtest'
+
 // Utilities
 import { setRenderCallback } from './utils/notifications'
 
@@ -36,9 +46,32 @@ function getTableHeaders(screener: string, touched: boolean): string {
 
 function render() {
   const app = document.querySelector<HTMLDivElement>('#app')!
+  const backtestState = getBacktestState()
+  const currentView = backtestState.currentView
 
+  // Render with sidemenu
+  const mainContent = currentView === 'backtest'
+    ? renderBacktestView()
+    : renderScreenerView()
+
+  app.innerHTML = `
+    <div class="app-layout">
+      ${renderSidemenu()}
+      <div class="app-main">
+        ${mainContent}
+      </div>
+    </div>
+  `
+
+  // Initialize charts after render if in backtest view
+  if (currentView === 'backtest') {
+    initBacktestCharts()
+  }
+}
+
+function renderScreenerView(): string {
   if (state.error) {
-    app.innerHTML = `
+    return `
       <div class="header">
         <div class="title">🚀 Stock Screener</div>
         <div class="controls">
@@ -47,7 +80,6 @@ function render() {
       </div>
       <div class="error">${state.error}</div>
     `
-    return
   }
 
   const allStocks = [...(state.data?.approaching || []), ...(state.data?.touched || [])]
@@ -91,7 +123,7 @@ function render() {
       ${renderTradingListBlock('tradingListSecondary', touched)}
     ` : ''}`
 
-  app.innerHTML = `
+  return `
     ${renderNotificationsHtml()}
     ${renderScreenerNav()}
     ${renderHeader()}
@@ -105,6 +137,9 @@ function render() {
 // Set render callback for modules that need to trigger re-renders
 setRenderCallback(render)
 setApiRenderCallback(render)
+
+// Subscribe to backtest state changes
+subscribeBacktest(render)
 
 // Window-exposed functions for onclick handlers
 ;(window as any).refresh = () => fetchData(state.data?.provider || 'upstox', state.data?.mode || 'intraday', state.activeScreener)
@@ -188,7 +223,18 @@ document.addEventListener('keydown', (e) => {
 
 // Initial load
 loadScreeners(initProfileFilters).then(() => {
-  fetchData(state.data?.provider || 'upstox', state.data?.mode || 'intraday', state.activeScreener)
-  setupAutoRefresh()
+  // Initialize backtest module first
+  initSidemenu()
+  initBacktestHandlers()
+  fetchStrategies()
+  fetchCosts()
+
+  // Only fetch screener data if not on backtest view
+  const backtestState = getBacktestState()
+  if (backtestState.currentView !== 'backtest') {
+    fetchData(state.data?.provider || 'upstox', state.data?.mode || 'intraday', state.activeScreener)
+    setupAutoRefresh()
+  }
+
   render()
 })
