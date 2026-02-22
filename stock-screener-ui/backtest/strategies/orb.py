@@ -1,12 +1,18 @@
 """
 ORB Strategy - Opening Range Breakout
 
-Intraday strategy that trades breakouts above the opening range.
+Intraday strategy that trades breakouts above/below the opening range.
+
+Features:
+- Long: Breakout above OR High
+- Short: Breakdown below OR Low
+- Trend filter: Only trade in direction of trend (EMA-based)
+- Trend is determined by price position relative to EMA
 
 Best performing parameters:
 - Timeframe: 5 minutes
 - OR Period: 45 minutes
-- Entry: Breakout above OR High + 0.1% of range
+- Entry: Breakout above OR High + 0.1% of range (long) / breakdown below OR Low - 0.1% (short)
 - Stop Loss: 0.5%
 - Take Profit: 1.0%
 - Exit by: 14:45 IST (EOD)
@@ -54,7 +60,7 @@ def get_ist_time(ts_ns: int) -> tuple:
 
 
 class ORBNautilusStrategy(Strategy):
-    """NautilusTrader implementation of ORB strategy."""
+    """NautilusTrader implementation of ORB strategy with trend filter and short support."""
 
     def __init__(self, config: 'ORBConfig'):
         super().__init__(config)
@@ -64,6 +70,9 @@ class ORBNautilusStrategy(Strategy):
         self._sl_pct = config.sl_pct
         self._tp_pct = config.tp_pct
         self._trade_size = config.trade_size
+        self._enable_shorts = config.enable_shorts
+        self._trend_filter = config.trend_filter
+        self._ema_period = config.ema_period
 
         self._current_date = None
         self._or_high = None
@@ -73,6 +82,15 @@ class ORBNautilusStrategy(Strategy):
         self._or_end = 0
         self._entry_price = None
         self._position_side = None
+
+        # EMA tracking for trend filter
+        self._ema = None
+        self._ema_multiplier = 2 / (self._ema_period + 1)
+        self._bars_count = 0
+
+        # Previous day OR levels for trend context
+        self._prev_or_high = None
+        self._prev_or_low = None
 
         # Store trade data with timestamps for chart visualization
         self.trades = []
@@ -92,8 +110,17 @@ class ORBNautilusStrategy(Strategy):
         bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
         bar_time_ist = bar_time + timedelta(hours=5, minutes=30)
 
+        # Update EMA for trend filter
+        if self._trend_filter:
+            self._update_ema(close_f)
+
         # New day - reset OR
         if self._current_date != date:
+            # Store previous day's OR for context
+            if self._or_defined and self._or_high and self._or_low:
+                self._prev_or_high = self._or_high
+                self._prev_or_low = self._or_low
+
             self._current_date = date
             self._or_high = None
             self._or_low = None
@@ -141,15 +168,49 @@ class ORBNautilusStrategy(Strategy):
         # Check entry
         self._check_entry(bar, close_f, bar_time_ist)
 
+    def _update_ema(self, close: float):
+        """Update EMA for trend detection."""
+        self._bars_count += 1
+        if self._ema is None:
+            self._ema = close
+        else:
+            self._ema = (close - self._ema) * self._ema_multiplier + self._ema
+
+    def _get_trend(self, close: float) -> str:
+        """Determine trend direction based on EMA and OR position."""
+        if not self._trend_filter or self._ema is None:
+            return "NEUTRAL"
+
+        # Uptrend: price above EMA and OR High above EMA
+        # Downtrend: price below EMA and OR Low below EMA
+        if close > self._ema and self._or_high > self._ema:
+            return "UP"
+        elif close < self._ema and self._or_low < self._ema:
+            return "DOWN"
+        else:
+            return "NEUTRAL"
+
     def _check_entry(self, bar, close_f, bar_time_ist):
         if self._or_high is None or self._or_low is None:
             return
 
         or_range = self._or_high - self._or_low
-        breakout = self._or_high + or_range * 0.001
+        breakout_threshold = or_range * 0.001
 
-        # LONG ONLY
-        if close_f > breakout:
+        # Get trend if filter enabled
+        trend = self._get_trend(close_f)
+
+        # LONG: Breakout above OR High
+        long_entry = close_f > self._or_high + breakout_threshold
+        # SHORT: Breakdown below OR Low
+        short_entry = close_f < self._or_low - breakout_threshold
+
+        # Apply trend filter
+        if self._trend_filter:
+            long_entry = long_entry and trend == "UP"
+            short_entry = short_entry and trend == "DOWN"
+
+        if long_entry:
             order = self.order_factory.market(
                 instrument_id=self._instrument_id,
                 order_side=OrderSide.BUY,
@@ -160,9 +221,25 @@ class ORBNautilusStrategy(Strategy):
             self._entry_price = close_f
             self._current_entry_time = bar_time_ist
 
+        elif short_entry and self._enable_shorts:
+            order = self.order_factory.market(
+                instrument_id=self._instrument_id,
+                order_side=OrderSide.SELL,
+                quantity=Quantity.from_str(str(self._trade_size)),
+            )
+            self.submit_order(order)
+            self._position_side = "SHORT"
+            self._entry_price = close_f
+            self._current_entry_time = bar_time_ist
+
     def _manage(self, bar, position, bar_time_ist):
         cur_price = float(bar.close)
-        pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
+
+        # Calculate PnL based on position side
+        if self._position_side == "SHORT":
+            pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
+        else:
+            pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
 
         # Take Profit
         if pnl_pct >= self._tp_pct:
@@ -175,9 +252,13 @@ class ORBNautilusStrategy(Strategy):
         cur_price = float(bar.close)
         pos_qty = int(float(position.quantity)) if position.quantity else 0
 
-        # Calculate gross PnL
-        gross_pnl = (cur_price - self._entry_price) * abs(pos_qty)
-        gross_pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
+        # Calculate gross PnL based on position side
+        if self._position_side == "SHORT":
+            gross_pnl = (self._entry_price - cur_price) * abs(pos_qty)
+            gross_pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
+        else:
+            gross_pnl = (cur_price - self._entry_price) * abs(pos_qty)
+            gross_pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
 
         # Calculate trading costs
         costs = calculate_trading_costs(self._entry_price, cur_price, abs(pos_qty))
@@ -208,6 +289,7 @@ class ORBNautilusStrategy(Strategy):
             'date': self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None,
             'or_high': self._or_high,
             'or_low': self._or_low,
+            'side': self._position_side,  # LONG or SHORT
         })
 
         self.close_all_positions(self._instrument_id)
@@ -225,6 +307,8 @@ class ORBNautilusStrategy(Strategy):
         self._or_defined = False
         self._position_side = None
         self._entry_price = None
+        self._ema = None
+        self._bars_count = 0
 
 
 class ORBConfig(StrategyConfig, kw_only=True):
@@ -235,6 +319,9 @@ class ORBConfig(StrategyConfig, kw_only=True):
     sl_pct: float = 0.5
     tp_pct: float = 1.0
     trade_size: int = 100
+    enable_shorts: bool = False
+    trend_filter: bool = False
+    ema_period: int = 20
 
 
 class ORBStrategy(BaseStrategy):
@@ -247,8 +334,9 @@ class ORBStrategy(BaseStrategy):
     @classmethod
     def get_description(cls) -> str:
         return (
-            "Intraday strategy that enters long positions when price breaks "
-            "above the opening range high. Uses fixed stop loss and take profit."
+            "Intraday strategy that enters positions when price breaks "
+            "above (long) or below (short) the opening range. "
+            "Optional trend filter using EMA to trade only in trend direction."
         )
 
     @classmethod
@@ -297,6 +385,27 @@ class ORBStrategy(BaseStrategy):
                 default='5',
                 options=['1', '5', '15']
             ),
+            StrategyParam(
+                key='enable_shorts',
+                label='Enable Shorts',
+                type='boolean',
+                default=False
+            ),
+            StrategyParam(
+                key='trend_filter',
+                label='Trend Filter',
+                type='boolean',
+                default=False
+            ),
+            StrategyParam(
+                key='ema_period',
+                label='EMA Period',
+                type='number',
+                default=20,
+                min=5,
+                max=50,
+                step=1
+            ),
         ]
 
     def validate_params(self, params: Dict) -> List[str]:
@@ -334,6 +443,9 @@ class ORBStrategy(BaseStrategy):
         trade_size = params.get('trade_size', 100)
         timeframe = int(params.get('timeframe', '5'))
         include_costs = params.get('include_costs', True)
+        enable_shorts = params.get('enable_shorts', False)
+        trend_filter = params.get('trend_filter', False)
+        ema_period = params.get('ema_period', 20)
 
         results = []
         chart_data = {}
@@ -411,6 +523,9 @@ class ORBStrategy(BaseStrategy):
                     sl_pct=sl_pct,
                     tp_pct=tp_pct,
                     trade_size=trade_size,
+                    enable_shorts=enable_shorts,
+                    trend_filter=trend_filter,
+                    ema_period=ema_period,
                 )
 
                 engine = BacktestEngine(

@@ -111,6 +111,10 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
                   onclick="window.sortTrades('entry_time')">
                 Time${sortIndicator('entry_time')}
               </th>
+              <th class="sortable ${tradeSortColumn === 'side' ? 'sorted ' + tradeSortDirection : ''}"
+                  onclick="window.sortTrades('side')">
+                Side${sortIndicator('side')}
+              </th>
               <th class="sortable ${tradeSortColumn === 'quantity' ? 'sorted ' + tradeSortDirection : ''}"
                   onclick="window.sortTrades('quantity')">
                 Qty${sortIndicator('quantity')}
@@ -147,12 +151,14 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
               const originalIndex = trades.indexOf(t)
               const capital = t.entry_price * t.quantity
               const pnlPct = t.net_pnl_pct || ((t.net_pnl / capital) * 100)
+              const side = t.side || 'LONG'  // Default to LONG for backwards compatibility
               return `
                 <tr class="${t.net_pnl >= 0 ? 'trade-win' : 'trade-loss'}"
                     onclick="window.zoomToTrade(${originalIndex})"
                     style="cursor:pointer"
                     title="Click to zoom to this trade">
                   <td class="time-cell">${formatDateHuman(t.entry_time)}</td>
+                  <td class="side-${side.toLowerCase()}">${side === 'LONG' ? '▲' : '▼'}</td>
                   <td>${t.quantity}</td>
                   <td>₹${t.entry_price.toFixed(0)}</td>
                   <td>₹${t.exit_price.toFixed(0)}</td>
@@ -183,6 +189,10 @@ function sortTrades(trades: any[], column: string, direction: 'asc' | 'desc'): a
       case 'entry_time':
         aVal = a.entry_time || ''
         bVal = b.entry_time || ''
+        break
+      case 'side':
+        aVal = a.side || 'LONG'
+        bVal = b.side || 'LONG'
         break
       case 'quantity':
         aVal = a.quantity

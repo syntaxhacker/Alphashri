@@ -261,6 +261,8 @@ kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
 .trade-history-table .exit-tp{color:#00ff9d;font-weight:700}
 .trade-history-table .exit-sl{color:#ff4757;font-weight:700}
 .trade-history-table .exit-eod{color:#FFC107;font-weight:700}
+.trade-history-table .side-long{color:#00ff9d;font-weight:700}
+.trade-history-table .side-short{color:#ff4757;font-weight:700}
 .trade-history-table tr.trade-win{background:rgba(0,255,157,0.03)}
 .trade-history-table tr.trade-loss{background:rgba(255,71,87,0.03)}
 .trade-history-table tbody tr:hover{background:#1a1a1a !important}
