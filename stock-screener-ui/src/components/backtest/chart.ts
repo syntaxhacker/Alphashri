@@ -14,17 +14,20 @@ const chartInstances: Map<string, any> = new Map()
 export function renderChartContainer(): string {
   const state = getBacktestState()
 
-  if (!state.showCharts) {
-    return ''
+  if (!state.showCharts || !state.results || state.results.length === 0) {
+    return `
+      <div class="chart-container chart-placeholder-full" data-testid="chart-container">
+        <p>Select a symbol to view chart</p>
+      </div>
+    `
   }
 
-  const symbols = state.results?.map(r => r.symbol) || []
+  const symbols = state.results.map(r => r.symbol)
   const selectedSymbol = state.selectedChartSymbol || symbols[0] || null
 
   return `
     <div class="chart-container" data-testid="chart-container">
       <div class="chart-header">
-        <h4>📈 Charts</h4>
         <div class="chart-tabs" data-testid="chart-tabs">
           ${symbols.map(s => `
             <button
@@ -36,32 +39,30 @@ export function renderChartContainer(): string {
             </button>
           `).join('')}
         </div>
-        <div class="chart-controls">
-          <select
-            class="chart-zoom-select"
-            onchange="window.setChartZoom(this.value)"
-          >
-            <option value="all">All</option>
-            <option value="30d">30D</option>
-            <option value="7d">7D</option>
-            <option value="1d">1D</option>
-          </select>
-        </div>
+        <select
+          class="chart-zoom-select"
+          onchange="window.setChartZoom(this.value)"
+        >
+          <option value="all">All</option>
+          <option value="30d">30D</option>
+          <option value="7d">7D</option>
+          <option value="1d">1D</option>
+        </select>
       </div>
 
       <div class="chart-body">
         ${selectedSymbol ? renderChart(selectedSymbol, state.chartData.get(selectedSymbol)) : `
           <div class="chart-placeholder">
-            <p>Run a backtest to see charts</p>
+            <p>Loading...</p>
           </div>
         `}
       </div>
 
       <div class="chart-legend">
         <span class="legend-item"><span class="legend-marker entry"></span> Entry</span>
-        <span class="legend-item"><span class="legend-marker tp"></span> TP Exit</span>
-        <span class="legend-item"><span class="legend-marker sl"></span> SL Exit</span>
-        <span class="legend-item"><span class="legend-marker eod"></span> EOD Exit</span>
+        <span class="legend-item"><span class="legend-marker tp"></span> TP</span>
+        <span class="legend-item"><span class="legend-marker sl"></span> SL</span>
+        <span class="legend-item"><span class="legend-marker eod"></span> EOD</span>
       </div>
     </div>
   `
@@ -71,7 +72,7 @@ function renderChart(symbol: string, chartData: SymbolChartData | undefined): st
   if (!chartData) {
     return `
       <div class="chart-loading" data-testid="chart-loading">
-        <p>Loading chart data for ${symbol}...</p>
+        <p>Loading ${symbol}...</p>
       </div>
     `
   }
@@ -82,7 +83,7 @@ function renderChart(symbol: string, chartData: SymbolChartData | undefined): st
       class="echarts-container"
       data-testid="echarts-container"
       data-symbol="${symbol}"
-      style="width: 100%; height: 400px;"
+      style="width: 100%; height: 100%;"
     ></div>
   `
 }
@@ -91,19 +92,29 @@ function renderChart(symbol: string, chartData: SymbolChartData | undefined): st
 export function initCharts() {
   const state = getBacktestState()
 
-  if (!state.showCharts) return
+  if (!state.showCharts || !state.results) return
 
-  state.results?.forEach(result => {
-    const chartData = state.chartData.get(result.symbol)
-    if (chartData) {
-      renderECharts(result.symbol, chartData)
-    }
-  })
+  // Only render the selected symbol's chart
+  const selectedSymbol = state.selectedChartSymbol || state.results[0]?.symbol
+  if (!selectedSymbol) return
+
+  const chartData = state.chartData.get(selectedSymbol)
+  if (chartData) {
+    console.log('initCharts: Rendering chart for', selectedSymbol)
+    renderECharts(selectedSymbol, chartData)
+  } else {
+    console.log('initCharts: No chart data for', selectedSymbol)
+  }
 }
 
 function renderECharts(symbol: string, chartData: SymbolChartData) {
   const container = document.getElementById(`echarts-${symbol}`)
-  if (!container) return
+  console.log('renderECharts:', symbol, 'container:', !!container, 'candles:', chartData.candles.length)
+
+  if (!container) {
+    console.warn('Container not found for', symbol)
+    return
+  }
 
   // Check if echarts is available
   if (!(window as any).echarts) {
@@ -443,5 +454,61 @@ export function initChartHandlers() {
 
   ;(window as any).setChartZoom = (zoom: string) => {
     setChartOptions({ date_range: zoom as any })
+  }
+
+  // Zoom chart to a specific trade
+  ;(window as any).zoomToTrade = (tradeIndex: number) => {
+    const state = getBacktestState()
+    const symbol = state.selectedChartSymbol
+    if (!symbol) return
+
+    const chartData = state.chartData.get(symbol)
+    if (!chartData) return
+
+    // Get the entry and exit markers for this trade (tradeIndex is 0-based, trades are 1-based in trade_id)
+    const entryMarker = chartData.trades.find(t => t.type === 'entry' && t.trade_id === tradeIndex + 1)
+    const exitMarker = chartData.trades.find(t => t.type === 'exit' && t.trade_id === tradeIndex + 1)
+
+    if (!entryMarker || entryMarker.candle_idx === undefined) {
+      console.warn('Entry marker not found for trade', tradeIndex + 1)
+      return
+    }
+
+    const chart = chartInstances.get(symbol)
+    if (!chart) {
+      console.warn('Chart instance not found for', symbol)
+      return
+    }
+
+    const entryIdx = entryMarker.candle_idx
+    const exitIdx = exitMarker?.candle_idx ?? entryIdx
+
+    // Calculate zoom range with some padding (5 candles on each side)
+    const padding = 5
+    const totalCandles = chartData.candles.length
+    const startIdx = Math.max(0, entryIdx - padding)
+    const endIdx = Math.min(totalCandles - 1, exitIdx + padding)
+
+    // Convert to percentage for dataZoom
+    const startPercent = (startIdx / totalCandles) * 100
+    const endPercent = ((endIdx + 1) / totalCandles) * 100
+
+    console.log(`Zooming to trade ${tradeIndex + 1}: candles ${startIdx} to ${endIdx} (${startPercent.toFixed(1)}% - ${endPercent.toFixed(1)}%)`)
+
+    // Apply zoom to the chart
+    chart.dispatchAction({
+      type: 'dataZoom',
+      dataZoomIndex: 0,
+      start: startPercent,
+      end: endPercent,
+    })
+
+    // Also update the slider
+    chart.dispatchAction({
+      type: 'dataZoom',
+      dataZoomIndex: 1,
+      start: startPercent,
+      end: endPercent,
+    })
   }
 }

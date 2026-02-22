@@ -1,7 +1,7 @@
 /**
  * Strategy Config Component
  *
- * Form for configuring backtest parameters.
+ * Horizontal form for configuring backtest parameters.
  */
 
 import { getBacktestState, setSelectedStrategy, setParam, setDays, setIncludeCosts, addSymbol, removeSymbol, resetBacktestState } from '../../state/backtest'
@@ -19,109 +19,97 @@ export function renderStrategyConfig(): string {
   const strategy = strategies.find(s => s.id === selectedStrategy)
 
   return `
-    <div class="strategy-config" data-testid="strategy-config">
-      <div class="config-header">
-        <h3>⚙️ Strategy Configuration</h3>
+    <div class="strategy-config-horizontal" data-testid="strategy-config">
+      <div class="config-section">
+        <label>Strategy</label>
+        <select
+          class="config-select-small"
+          data-testid="strategy-select"
+          onchange="window.setStrategy(this.value)"
+        >
+          ${strategies.map(s => `
+            <option value="${s.id}" ${s.id === selectedStrategy ? 'selected' : ''}>
+              ${s.name}
+            </option>
+          `).join('')}
+        </select>
       </div>
 
-      <div class="config-body">
-        <!-- Strategy Selector -->
-        <div class="config-row">
-          <label class="config-label">Strategy</label>
-          <select
-            class="config-select"
-            data-testid="strategy-select"
-            onchange="window.setStrategy(this.value)"
-          >
-            ${strategies.map(s => `
-              <option value="${s.id}" ${s.id === selectedStrategy ? 'selected' : ''}>
-                ${s.name}
-              </option>
-            `).join('')}
-          </select>
-        </div>
+      ${strategy ? renderParamsHorizontal(strategy.params, params) : ''}
 
-        ${strategy ? renderParams(strategy.params, params) : ''}
-
-        <!-- Symbols -->
-        <div class="config-row symbols-row">
-          <label class="config-label">Stocks</label>
-          <div class="symbols-input">
-            <div class="symbols-tags" data-testid="symbols-tags">
-              ${selectedSymbols.map(s => `
-                <span class="symbol-tag">
-                  ${s}
-                  <button class="symbol-remove" onclick="window.removeSymbol('${s}')" title="Remove">×</button>
-                </span>
-              `).join('')}
-            </div>
-            <input
-              type="text"
-              class="symbol-add-input"
-              data-testid="symbol-add-input"
-              placeholder="Add symbol..."
-              onkeydown="if(event.key==='Enter')window.addSymbolFromInput(this)"
-            />
-          </div>
-        </div>
-
-        <!-- Days -->
-        <div class="config-row">
-          <label class="config-label">Days</label>
+      <div class="config-section">
+        <label>Stocks</label>
+        <div class="symbols-input-inline">
+          ${selectedSymbols.map(s => `
+            <span class="symbol-tag-small">
+              ${s}
+              <button class="symbol-remove-small" onclick="window.removeSymbol('${s}')" title="Remove">×</button>
+            </span>
+          `).join('')}
           <input
-            type="number"
-            class="config-input"
-            data-testid="days-input"
-            value="${state.days}"
-            min="30"
-            max="365"
-            step="30"
-            onchange="window.setDays(parseInt(this.value))"
+            type="text"
+            class="symbol-add-input-small"
+            data-testid="symbol-add-input"
+            placeholder="+"
+            onkeydown="if(event.key==='Enter')window.addSymbolFromInput(this)"
           />
         </div>
-
-        <!-- Include Costs -->
-        <div class="config-row checkbox-row">
-          <label class="checkbox-label">
-            <input
-              type="checkbox"
-              data-testid="include-costs-checkbox"
-              ${state.includeCosts ? 'checked' : ''}
-              onchange="window.setIncludeCosts(this.checked)"
-            />
-            Include Trading Costs (Brokerage, STT, GST, etc.)
-          </label>
-        </div>
       </div>
 
-      <div class="config-footer">
+      <div class="config-section">
+        <label>Days</label>
+        <input
+          type="number"
+          class="config-input-small"
+          data-testid="days-input"
+          value="${state.days}"
+          min="30"
+          max="365"
+          step="30"
+          onchange="window.setDays(parseInt(this.value))"
+        />
+      </div>
+
+      <div class="config-section checkbox-section">
+        <label class="checkbox-label-inline">
+          <input
+            type="checkbox"
+            data-testid="include-costs-checkbox"
+            ${state.includeCosts ? 'checked' : ''}
+            onchange="window.setIncludeCosts(this.checked)"
+          />
+          <span>Costs</span>
+        </label>
+      </div>
+
+      <div class="config-section config-actions">
         <button
-          class="btn btn-secondary"
+          class="btn btn-secondary btn-small"
           data-testid="reset-btn"
           onclick="window.resetConfig()"
         >
           Reset
         </button>
         <button
-          class="btn btn-primary"
+          class="btn btn-primary btn-small"
           data-testid="run-backtest-btn"
           onclick="window.runBacktest()"
           ${state.isRunning ? 'disabled' : ''}
         >
-          ${state.isRunning ? '⏳ Running...' : '▶ Run Backtest'}
+          ${state.isRunning ? '⏳' : '▶ Run'}
         </button>
       </div>
     </div>
   `
 }
 
-function renderParams(paramDefs: StrategyParam[], currentParams: Record<string, any>): string {
+function renderParamsHorizontal(paramDefs: StrategyParam[], currentParams: Record<string, any>): string {
   return paramDefs.map(param => `
-    <div class="config-row">
-      <label class="config-label">${param.label}</label>
+    <div class="config-section">
+      <label>${param.label}</label>
       ${param.type === 'select' ? `
         <select
-          class="config-select"
+          class="config-select-small"
           data-testid="param-${param.key}"
           onchange="window.setParam('${param.key}', this.value)"
         >
@@ -134,7 +122,7 @@ function renderParams(paramDefs: StrategyParam[], currentParams: Record<string, 
       ` : param.type === 'boolean' ? `
         <input
           type="checkbox"
-          class="config-checkbox"
+          class="config-checkbox-small"
           data-testid="param-${param.key}"
           ${currentParams[param.key] ? 'checked' : ''}
           onchange="window.setParam('${param.key}', this.checked)"
@@ -142,7 +130,7 @@ function renderParams(paramDefs: StrategyParam[], currentParams: Record<string, 
       ` : `
         <input
           type="number"
-          class="config-input"
+          class="config-input-small"
           data-testid="param-${param.key}"
           value="${currentParams[param.key] ?? param.default}"
           min="${param.min ?? ''}"
