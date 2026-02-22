@@ -267,3 +267,8 @@ export function resetBacktestState() {
 export function getBacktestState(): Readonly<BacktestState> {
   return state
 }
+
+// Force a re-render (used for sorting without changing state)
+export function triggerRerender() {
+  notify()
+}

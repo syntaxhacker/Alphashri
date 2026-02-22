@@ -2,12 +2,17 @@
  * Results Table Component
  *
  * Displays backtest results in a compact table for the left panel.
+ * Supports sorting by clicking column headers.
  */
 
-import { getBacktestState, setSelectedChartSymbol, setShowCharts, setTradeHistory } from '../../state/backtest'
+import { getBacktestState, setSelectedChartSymbol, setShowCharts, setTradeHistory, triggerRerender } from '../../state/backtest'
 import { fetchChartData } from '../../api/backtest'
 import { chartTradesToTrades } from '../../api/chartBuilder'
 import type { BacktestResult, BacktestTotals } from '../../types/backtest'
+
+// Sort state
+let sortColumn: string = 'net_pnl'
+let sortDirection: 'asc' | 'desc' = 'desc'
 
 export function renderResults(): string {
   const state = getBacktestState()
@@ -24,29 +29,85 @@ export function renderResults(): string {
     `
   }
 
+  // Sort results
+  const sortedResults = sortResults([...state.results], sortColumn, sortDirection)
+
   return `
     <div class="results-container" data-testid="results-container">
       ${renderSummaryCompact(state.totals)}
 
       <div class="results-table-wrapper">
-        <table class="results-table" data-testid="results-table">
+        <table class="results-table sortable" data-testid="results-table">
           <thead>
             <tr>
-              <th>Symbol</th>
-              <th>Net PnL</th>
-              <th>Trades</th>
-              <th>WR%</th>
-              <th>PF</th>
+              <th class="sortable ${sortColumn === 'symbol' ? 'sorted ' + sortDirection : ''}"
+                  onclick="window.sortResults('symbol')">
+                Symbol ${sortColumn === 'symbol' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th class="sortable ${sortColumn === 'net_pnl' ? 'sorted ' + sortDirection : ''}"
+                  onclick="window.sortResults('net_pnl')">
+                Net PnL ${sortColumn === 'net_pnl' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th class="sortable ${sortColumn === 'trades' ? 'sorted ' + sortDirection : ''}"
+                  onclick="window.sortResults('trades')">
+                Trades ${sortColumn === 'trades' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th class="sortable ${sortColumn === 'win_rate' ? 'sorted ' + sortDirection : ''}"
+                  onclick="window.sortResults('win_rate')">
+                WR% ${sortColumn === 'win_rate' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th class="sortable ${sortColumn === 'pf' ? 'sorted ' + sortDirection : ''}"
+                  onclick="window.sortResults('pf')">
+                PF ${sortColumn === 'pf' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              </th>
               <th>TP/SL</th>
             </tr>
           </thead>
           <tbody>
-            ${state.results.map(r => renderResultRow(r)).join('')}
+            ${sortedResults.map(r => renderResultRow(r)).join('')}
           </tbody>
         </table>
       </div>
     </div>
   `
+}
+
+function sortResults(results: BacktestResult[], column: string, direction: 'asc' | 'desc'): BacktestResult[] {
+  return results.sort((a, b) => {
+    let aVal: number | string = 0
+    let bVal: number | string = 0
+
+    switch (column) {
+      case 'symbol':
+        aVal = a.symbol
+        bVal = b.symbol
+        break
+      case 'net_pnl':
+        aVal = a.net_pnl
+        bVal = b.net_pnl
+        break
+      case 'trades':
+        aVal = a.trades
+        bVal = b.trades
+        break
+      case 'win_rate':
+        aVal = a.win_rate
+        bVal = b.win_rate
+        break
+      case 'pf':
+        aVal = a.pf
+        bVal = b.pf
+        break
+      default:
+        return 0
+    }
+
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+    }
+
+    return direction === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
+  })
 }
 
 function renderSummaryCompact(totals: BacktestTotals | null): string {
@@ -146,6 +207,16 @@ export function initResultsHandlers() {
       console.log('Fetching chart data')
       fetchChartData(symbol)
     }
+  }
+
+  ;(window as any).sortResults = (column: string) => {
+    if (sortColumn === column) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'
+    } else {
+      sortColumn = column
+      sortDirection = 'desc'
+    }
+    triggerRerender()
   }
 
   ;(window as any).exportResultsCSV = () => {

@@ -154,14 +154,15 @@ function buildChartOption(data: SymbolChartData): any {
 
   // Build trade markers using pre-computed candle_idx from chartBuilder
   // chartBuilder already matches trade times to candle indices
+  // Use bright popping colors that don't match candle colors (green/red)
   const entryMarkers = trades
     .filter(t => t.type === 'entry' && t.candle_idx !== undefined)
     .map(t => ({
       value: [t.candle_idx!, t.price],
-      itemStyle: { color: '#00BFFF' },
+      itemStyle: { color: '#00FFFF', borderColor: '#FFFFFF', borderWidth: 2 },  // Bright cyan with white border
       symbol: 'triangle',
       symbolRotate: 180,
-      symbolSize: 16,
+      symbolSize: 18,
       trade: t.trade,
       trade_id: t.trade_id,
     }))
@@ -170,9 +171,9 @@ function buildChartOption(data: SymbolChartData): any {
     .filter(t => t.type === 'exit' && t.trade.exit_reason === 'TP' && t.candle_idx !== undefined)
     .map(t => ({
       value: [t.candle_idx!, t.price],
-      itemStyle: { color: '#00E676' },
+      itemStyle: { color: '#FFFF00', borderColor: '#FFFFFF', borderWidth: 2 },  // Bright yellow with white border
       symbol: 'circle',
-      symbolSize: 14,
+      symbolSize: 16,
       trade: t.trade,
       trade_id: t.trade_id,
     }))
@@ -181,9 +182,9 @@ function buildChartOption(data: SymbolChartData): any {
     .filter(t => t.type === 'exit' && t.trade.exit_reason === 'SL' && t.candle_idx !== undefined)
     .map(t => ({
       value: [t.candle_idx!, t.price],
-      itemStyle: { color: '#FF1744' },
+      itemStyle: { color: '#FF00FF', borderColor: '#FFFFFF', borderWidth: 2 },  // Magenta with white border
       symbol: 'circle',
-      symbolSize: 14,
+      symbolSize: 16,
       trade: t.trade,
       trade_id: t.trade_id,
     }))
@@ -192,9 +193,9 @@ function buildChartOption(data: SymbolChartData): any {
     .filter(t => t.type === 'exit' && t.trade.exit_reason === 'EOD' && t.candle_idx !== undefined)
     .map(t => ({
       value: [t.candle_idx!, t.price],
-      itemStyle: { color: '#FFEA00' },
+      itemStyle: { color: '#FFA500', borderColor: '#FFFFFF', borderWidth: 2 },  // Bright orange with white border
       symbol: 'diamond',
-      symbolSize: 14,
+      symbolSize: 16,
       trade: t.trade,
       trade_id: t.trade_id,
     }))
@@ -219,32 +220,20 @@ function buildChartOption(data: SymbolChartData): any {
       backgroundColor: 'rgba(20, 20, 20, 0.95)',
       borderColor: '#333',
       borderWidth: 1,
-      textStyle: { color: '#e0e0e0' },
+      textStyle: { color: '#e0e0e0', fontSize: 10 },
       formatter: function(params: any) {
-        // Helper function to format date human-readable: "12th Thu Jan 2025"
-        const formatDateHuman = (dateStr: string) => {
-          // dateStr is YYYY-MM-DD
-          const [year, month, day] = dateStr.split('-')
-          const d = parseInt(day)
-          const m = parseInt(month) - 1
-          const y = parseInt(year)
-
-          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-          const date = new Date(y, m, d)
-          const dayName = days[date.getDay()]
-          const monthName = months[m]
-          const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th'
-          return `${d}${suffix} ${dayName} ${monthName} ${y}`
-        }
-
-        // Format time from ISO string to human readable
-        const formatTime = (isoStr: string) => {
+        // Helper function to format date compact: "12th Jan 10:30"
+        const formatDateTimeCompact = (isoStr: string) => {
           if (!isoStr) return '-'
           const parts = isoStr.split('T')
-          const datePart = parts[0] // YYYY-MM-DD
+          const datePart = parts[0]
           const timePart = parts[1]?.replace('Z', '').replace(/\+00:00/g, '').replace(/\+05:30/g, '').substring(0, 5)
-          return `${formatDateHuman(datePart)} ${timePart}`
+          const [year, month, day] = datePart.split('-')
+          const d = parseInt(day)
+          const m = parseInt(month) - 1
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+          const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th'
+          return `${d}${suffix} ${months[m]} ${timePart}`
         }
 
         // Find if this is a trade marker
@@ -257,45 +246,33 @@ function buildChartOption(data: SymbolChartData): any {
             const pnlColor = t.net_pnl >= 0 ? '#00E676' : '#FF1744'
             const exitColor = t.exit_reason === 'TP' ? '#00E676' : t.exit_reason === 'SL' ? '#FF1744' : '#FFEA00'
 
+            // Compact horizontal layout
             return `
-              <div style="padding: 10px; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; line-height: 1.5;">
-                <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px; color: #00BFFF;">
-                  📊 Trade #${p.data.trade_id || ''}
+              <div style="padding: 6px 8px; font-family: 'SF Mono', Monaco, monospace; font-size: 10px; line-height: 1.4;">
+                <div style="color: #00BFFF; font-weight: bold; margin-bottom: 4px;">
+                  Trade #${p.data.trade_id} | ${t.exit_reason}
                 </div>
-                <div style="color: #888; margin-bottom: 4px;">
-                  Entry: ${formatTime(t.entry_time)}<br/>
-                  Exit: ${formatTime(t.exit_time)}
+                <div style="color: #888; margin-bottom: 4px; font-size: 9px;">
+                  ${formatDateTimeCompact(t.entry_time)} → ${formatDateTimeCompact(t.exit_time)} (${holdStr})
                 </div>
-                <hr style="border-color: #333; margin: 6px 0;"/>
-                <table style="width: 100%;">
-                  <tr><td style="color: #888;">Entry:</td><td style="text-align: right;">₹${t.entry_price.toFixed(2)}</td></tr>
-                  <tr><td style="color: #888;">Exit:</td><td style="text-align: right;">₹${t.exit_price.toFixed(2)}</td></tr>
-                  <tr><td style="color: #888;">Qty:</td><td style="text-align: right;">${t.quantity}</td></tr>
-                </table>
-                <hr style="border-color: #333; margin: 6px 0;"/>
-                <table style="width: 100%;">
-                  <tr><td style="color: #888;">Gross P&L:</td><td style="text-align: right;">₹${t.gross_pnl.toFixed(0)}</td></tr>
-                  <tr><td style="color: #888;">Costs:</td><td style="text-align: right;">₹${t.trading_costs.toFixed(0)}</td></tr>
-                  <tr>
-                    <td style="color: #888;">Net P&L:</td>
-                    <td style="text-align: right; color: ${pnlColor}; font-weight: bold;">
-                      ₹${t.net_pnl.toFixed(0)} (${t.net_pnl_pct >= 0 ? '+' : ''}${t.net_pnl_pct.toFixed(2)}%)
-                    </td>
-                  </tr>
-                </table>
-                <hr style="border-color: #333; margin: 6px 0;"/>
-                <table style="width: 100%;">
-                  <tr><td style="color: #888;">Exit:</td><td style="text-align: right; color: ${exitColor}; font-weight: bold;">${t.exit_reason}</td></tr>
-                  <tr><td style="color: #888;">Hold:</td><td style="text-align: right;">${holdStr}</td></tr>
-                  <tr><td style="color: #00E676;">ORB High:</td><td style="text-align: right;">₹${t.or_high?.toFixed(2) || '-'}</td></tr>
-                  <tr><td style="color: #FF1744;">ORB Low:</td><td style="text-align: right;">₹${t.or_low?.toFixed(2) || '-'}</td></tr>
-                </table>
+                <div style="display: flex; gap: 12px; margin-bottom: 2px;">
+                  <span>Entry: <b>₹${t.entry_price.toFixed(0)}</b></span>
+                  <span>Exit: <b>₹${t.exit_price.toFixed(0)}</b></span>
+                  <span>Qty: ${t.quantity}</span>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                  <span>Gross: ₹${t.gross_pnl.toFixed(0)}</span>
+                  <span>Cost: ₹${t.trading_costs.toFixed(0)}</span>
+                  <span style="color: ${pnlColor}; font-weight: bold;">
+                    Net: ₹${t.net_pnl.toFixed(0)} (${t.net_pnl_pct >= 0 ? '+' : ''}${t.net_pnl_pct.toFixed(1)}%)
+                  </span>
+                </div>
               </div>
             `
           }
         }
 
-        // Candlestick tooltip
+        // Candlestick tooltip - compact
         const candle = params.find((p: any) => p.seriesType === 'candlestick')
         if (candle) {
           const idx = candle.dataIndex
@@ -304,22 +281,18 @@ function buildChartOption(data: SymbolChartData): any {
           const changeColor = c.close >= c.open ? '#00E676' : '#FF1744'
 
           return `
-            <div style="padding: 10px; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; line-height: 1.5;">
-              <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">
-                📅 ${formatDateHuman(c.date)} ${c.time_str}
+            <div style="padding: 6px 8px; font-family: 'SF Mono', Monaco, monospace; font-size: 10px; line-height: 1.4;">
+              <div style="font-weight: bold; margin-bottom: 4px;">${c.date} ${c.time_str}</div>
+              <div style="display: flex; gap: 12px;">
+                <span>O: ₹${c.open.toFixed(0)}</span>
+                <span>H: ₹${c.high.toFixed(0)}</span>
+                <span>L: ₹${c.low.toFixed(0)}</span>
+                <span>C: ₹${c.close.toFixed(0)}</span>
               </div>
-              <hr style="border-color: #333; margin: 6px 0;"/>
-              <table style="width: 100%;">
-                <tr><td style="color: #888;">Open:</td><td style="text-align: right;">₹${c.open.toFixed(2)}</td></tr>
-                <tr><td style="color: #888;">High:</td><td style="text-align: right;">₹${c.high.toFixed(2)}</td></tr>
-                <tr><td style="color: #888;">Low:</td><td style="text-align: right;">₹${c.low.toFixed(2)}</td></tr>
-                <tr><td style="color: #888;">Close:</td><td style="text-align: right;">₹${c.close.toFixed(2)}</td></tr>
-                <tr>
-                  <td style="color: #888;">Change:</td>
-                  <td style="text-align: right; color: ${changeColor};">${c.close >= c.open ? '+' : ''}${change}%</td>
-                </tr>
-                <tr><td style="color: #888;">Volume:</td><td style="text-align: right;">${(c.volume / 1000).toFixed(0)}K</td></tr>
-              </table>
+              <div style="display: flex; gap: 12px; color: #888;">
+                <span style="color: ${changeColor}; font-weight: bold;">${c.close >= c.open ? '+' : ''}${change}%</span>
+                <span>Vol: ${(c.volume / 1000).toFixed(0)}K</span>
+              </div>
             </div>
           `
         }

@@ -135,7 +135,7 @@ kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
 .symbol-tag-small{background:#1a1a1a;border:1px solid #333;padding:1px 6px;font-size:10px;display:flex;align-items:center;gap:2px}
 .symbol-remove-small{background:none;border:none;color:#666;cursor:pointer;padding:0;font-size:10px;line-height:1}
 .symbol-remove-small:hover{color:#ff4757}
-.symbol-add-input-small{width:50px;background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:3px 6px;font:10px monospace}
+.symbol-add-input-small{width:70px;min-width:70px;background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:3px 6px;font:10px monospace}
 
 /* Strategy Config (fallback) */
 .strategy-config{background:#0f0f0f;border:1px solid #222;padding:12px}
@@ -185,6 +185,9 @@ kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
 .results-table{width:100%;border-collapse:collapse}
 .results-table th,.results-table td{padding:3px 6px;text-align:right;border-bottom:1px solid #1a1a1a}
 .results-table th{background:#111;font-size:9px;color:#666;text-transform:uppercase;position:sticky;top:0}
+.results-table th.sortable{cursor:pointer;user-select:none}
+.results-table th.sortable:hover{color:#00ff9d}
+.results-table th.sorted{color:#00ff9d}
 .results-table .symbol-cell{text-align:left;font-weight:700;color:#70a1ff;font-size:10px}
 .results-table .pnl-cell{font-size:10px}
 .results-table .pnl-cell.positive{color:#00ff9d}
@@ -233,11 +236,11 @@ kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
 .legend-line{width:16px;height:2px}
 .legend-line.orb-high{background:#4CAF50;border-style:dashed}
 .legend-line.orb-low{background:#F44336;border-style:dashed}
-.legend-marker{width:8px;height:8px;border-radius:50%}
-.legend-marker.entry{background:#2196F3;transform:rotate(180deg);clip-path:polygon(50% 0%,0% 100%,100% 100%)}
-.legend-marker.tp{background:#4CAF50}
-.legend-marker.sl{background:#F44336}
-.legend-marker.eod{background:#FFC107}
+.legend-marker{width:10px;height:10px;border-radius:50%;border:1px solid #fff}
+.legend-marker.entry{background:#00FFFF;transform:rotate(180deg);clip-path:polygon(50% 0%,0% 100%,100% 100%)}
+.legend-marker.tp{background:#FFFF00}
+.legend-marker.sl{background:#FF00FF}
+.legend-marker.eod{background:#FFA500}
 .echarts-container{width:100%;height:100%;min-height:300px}
 
 /* Trade History Panel */
@@ -249,6 +252,10 @@ kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
 .trade-history-table{width:100%;border-collapse:collapse;font-size:9px}
 .trade-history-table th,.trade-history-table td{padding:3px 6px;text-align:right;border-bottom:1px solid #1a1a1a}
 .trade-history-table th{background:#111;color:#666;position:sticky;top:0}
+.trade-history-table th.sortable{cursor:pointer;user-select:none}
+.trade-history-table th.sortable:hover{color:#00ff9d}
+.trade-history-table th.sorted{color:#00ff9d}
+.trade-history-table .time-cell{text-align:left;white-space:nowrap}
 .trade-history-table .positive{color:#00ff9d}
 .trade-history-table .negative{color:#ff4757}
 .trade-history-table .exit-tp{color:#00ff9d;font-weight:700}
