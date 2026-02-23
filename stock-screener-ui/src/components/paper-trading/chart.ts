@@ -265,6 +265,22 @@ function buildChartOption(data: PaperChartData) {
     })
   }
 
+  // Add ORB level lines if available
+  if (orb_levels) {
+    markLines.push({
+      name: 'OR High',
+      yAxis: orb_levels.or_high,
+      lineStyle: { color: '#2196F3', type: 'dashed', width: 1 },
+      label: { formatter: 'OR High', position: 'start', color: '#2196F3', fontSize: 10 },
+    })
+    markLines.push({
+      name: 'OR Low',
+      yAxis: orb_levels.or_low,
+      lineStyle: { color: '#2196F3', type: 'dashed', width: 1 },
+      label: { formatter: 'OR Low', position: 'start', color: '#2196F3', fontSize: 10 },
+    })
+  }
+
   console.log('Paper trading markers built:', {
     entry: entryMarkers.length,
     tp: tpMarkers.length,
