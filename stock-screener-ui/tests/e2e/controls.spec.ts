@@ -51,24 +51,19 @@ test.describe('UI Controls', () => {
     await page.goto('/');
     await page.waitForSelector('table tbody tr', { timeout: 10000 });
 
-    // Find auto-refresh input
-    const autoRefreshInput = page.locator('input[type="number"]').filter({ hasText: '' }).nth(0);
-    const autoRefreshLabel = page.locator('label').filter({ hasText: 'Auto' });
+    // Find auto-refresh input by test id
+    const input = page.locator('[data-testid="auto-refresh-input"]');
 
-    if (await autoRefreshLabel.count() > 0) {
-      // Find the input within or near the label
-      const input = page.locator('input[type="number"]').nth(0);
-      if (await input.count() > 0) {
-        const currentValue = await input.inputValue();
+    if (await input.count() > 0) {
+      const currentValue = await input.inputValue();
 
-        // Change value
-        await input.fill('60');
-        await page.waitForTimeout(300);
+      // Change value
+      await input.fill('60');
+      await page.waitForTimeout(300);
 
-        // Verify value changed
-        const newValue = await input.inputValue();
-        expect(newValue).toBe('60');
-      }
+      // Verify value changed
+      const newValue = await input.inputValue();
+      expect(newValue).toBe('60');
     }
   });
 
