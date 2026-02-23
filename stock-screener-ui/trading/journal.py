@@ -355,10 +355,18 @@ _journal: Optional[TradeJournal] = None
 
 
 def get_journal() -> TradeJournal:
-    """Get singleton journal instance."""
+    """Get singleton journal instance, loading today's journal if it exists."""
     global _journal
     if _journal is None:
         _journal = TradeJournal()
+        # Try to load today's journal file
+        today = datetime.now().strftime('%Y%m%d')
+        journal_file = _journal.journal_dir / f"journal_{today}.json"
+        if journal_file.exists():
+            try:
+                _journal.load_journal(str(journal_file))
+            except Exception as e:
+                console.print(f"[yellow]Could not load journal: {e}[/yellow]")
     return _journal
 
 

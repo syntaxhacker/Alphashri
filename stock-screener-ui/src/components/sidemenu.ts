@@ -1,7 +1,7 @@
 /**
  * Sidemenu Component
  *
- * Navigation between Screener and Backtest views.
+ * Navigation between Screener, Backtest, and Paper Trading views.
  */
 
 import { getBacktestState, setCurrentView } from '../state/backtest'
@@ -37,10 +37,20 @@ export function renderSidemenu(): string {
           <span class="sidemenu-label">Backtest</span>
           <span class="sidemenu-desc">Strategy testing</span>
         </button>
+
+        <button
+          class="sidemenu-item ${currentView === 'paper' ? 'active' : ''}"
+          data-testid="nav-paper"
+          onclick="window.setAppView('paper')"
+        >
+          <span class="sidemenu-icon">💹</span>
+          <span class="sidemenu-label">Paper Trading</span>
+          <span class="sidemenu-desc">Live & completed trades</span>
+        </button>
       </nav>
 
       <div class="sidemenu-footer">
-        <div class="sidemenu-version">v1.0.0</div>
+        <div class="sidemenu-version">v1.1.0</div>
       </div>
     </div>
   `

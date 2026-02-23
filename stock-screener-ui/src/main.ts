@@ -18,6 +18,11 @@ import { renderSidemenu, initSidemenu } from './components/sidemenu'
 import { renderBacktestView, initBacktestHandlers, initBacktestCharts } from './components/backtest'
 import { fetchStrategies, fetchCosts } from './api/backtest'
 
+// Paper Trading state and components
+import { subscribe as subscribePaperTrading } from './state/paperTrading'
+import { renderPaperTradingView, initPaperTradingHandlers, cleanupPaperTrading } from './components/paper-trading'
+import { initPaperChart } from './components/paper-trading/chart'
+
 // Utilities
 import { setRenderCallback } from './utils/notifications'
 
@@ -50,9 +55,14 @@ function render() {
   const currentView = backtestState.currentView
 
   // Render with sidemenu
-  const mainContent = currentView === 'backtest'
-    ? renderBacktestView()
-    : renderScreenerView()
+  let mainContent: string
+  if (currentView === 'backtest') {
+    mainContent = renderBacktestView()
+  } else if (currentView === 'paper') {
+    mainContent = renderPaperTradingView()
+  } else {
+    mainContent = renderScreenerView()
+  }
 
   app.innerHTML = `
     <div class="app-layout">
@@ -63,9 +73,12 @@ function render() {
     </div>
   `
 
-  // Initialize charts after render if in backtest view
+  // Initialize charts after render
   if (currentView === 'backtest') {
     initBacktestCharts()
+  } else if (currentView === 'paper') {
+    // Small delay to ensure DOM is ready
+    setTimeout(() => initPaperChart(), 100)
   }
 }
 
@@ -140,6 +153,9 @@ setApiRenderCallback(render)
 
 // Subscribe to backtest state changes
 subscribeBacktest(render)
+
+// Subscribe to paper trading state changes
+subscribePaperTrading(render)
 
 // Window-exposed functions for onclick handlers
 ;(window as any).refresh = () => fetchData(state.data?.provider || 'upstox', state.data?.mode || 'intraday', state.activeScreener)
@@ -223,15 +239,16 @@ document.addEventListener('keydown', (e) => {
 
 // Initial load
 loadScreeners(initProfileFilters).then(() => {
-  // Initialize backtest module first
+  // Initialize navigation and handlers
   initSidemenu()
   initBacktestHandlers()
+  initPaperTradingHandlers()
   fetchStrategies()
   fetchCosts()
 
-  // Only fetch screener data if not on backtest view
+  // Only fetch screener data if not on backtest or paper view
   const backtestState = getBacktestState()
-  if (backtestState.currentView !== 'backtest') {
+  if (backtestState.currentView !== 'backtest' && backtestState.currentView !== 'paper') {
     fetchData(state.data?.provider || 'upstox', state.data?.mode || 'intraday', state.activeScreener)
     setupAutoRefresh()
   }

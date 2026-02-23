@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
+from dataclasses import asdict
 
 # Add project paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -89,12 +90,69 @@ async def get_positions():
 
 
 @router.get("/trades")
-async def get_trades(limit: int = 50):
-    """Get trade history."""
-    trader = get_paper_trader()
+async def get_trades(
+    limit: int = 50,
+    date: Optional[str] = None,
+    symbol: Optional[str] = None,
+    strategy: Optional[str] = None,
+):
+    """Get trade history from journal with filters."""
+    from trading.journal import TradeJournal
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    journal_dir = Path(__file__).parent.parent / "journals"
+
+    all_trades = []
+
+    if date:
+        # Load specific date's journal
+        date_str = date.replace('-', '')
+        journal_file = journal_dir / f"journal_{date_str}.json"
+        if journal_file.exists():
+            temp_journal = TradeJournal()
+            try:
+                temp_journal.load_journal(str(journal_file))
+                all_trades = [asdict(t) for t in temp_journal.trades]
+            except Exception as e:
+                console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
+    else:
+        # No date filter - load today + all available journals
+        # First, load today's journal (may include live trades)
+        journal = get_journal()
+        all_trades = [asdict(t) for t in journal.trades]
+
+        # Also load recent journal files (last 7 days)
+        for i in range(1, 8):
+            past_date = (datetime.now() - __import__('datetime').timedelta(days=i)).strftime('%Y%m%d')
+            past_file = journal_dir / f"journal_{past_date}.json"
+            if past_file.exists():
+                try:
+                    temp_journal = TradeJournal()
+                    temp_journal.load_journal(str(past_file))
+                    all_trades.extend([asdict(t) for t in temp_journal.trades])
+                except Exception:
+                    pass
+
+    # Apply filters
+    filtered_trades = all_trades
+
+    if symbol:
+        filtered_trades = [t for t in filtered_trades if t.get('symbol', '').upper() == symbol.upper()]
+
+    if strategy:
+        # Filter by strategy if stored in notes
+        filtered_trades = [t for t in filtered_trades if strategy.lower() in (t.get('notes') or '').lower()]
+
+    # Sort by exit time descending
+    filtered_trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
+
+    # Apply limit
+    filtered_trades = filtered_trades[:limit]
+
     return {
-        "total_trades": len(trader.trades),
-        "trades": trader.get_trades(limit=limit)
+        "total_trades": len(all_trades),
+        "filtered_trades": len(filtered_trades),
+        "trades": filtered_trades
     }
 
 
@@ -373,3 +431,167 @@ async def health_check():
         "total_trades": len(trader.trades),
         "timestamp": datetime.now().isoformat(),
     }
+
+
+# ============== Chart Data Endpoint ==============
+
+@router.get("/chart/{symbol}")
+async def get_paper_chart(symbol: str, date: Optional[str] = None):
+    """
+    Get intraday chart data with paper trade markers.
+
+    Returns:
+    - candles: 5-min OHLCV data for the day
+    - trades: List of trades for this symbol on this date
+    - orb_levels: OR High, OR Low for the day
+    - current_position: If there's an open position
+    """
+    try:
+        # Import required modules
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+        from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
+
+        # Get date to fetch
+        today = datetime.now().strftime('%Y-%m-%d')
+        if date is None:
+            date = today
+
+        screener = TVScreenerUsage(enable_paper_trading=False)
+
+        # Use historical API for past dates, intraday for today
+        if date == today:
+            # Fetch today's intraday data
+            df = screener.upstox_api.fetch_intraday_data_v3(
+                symbol=symbol.upper(),
+                interval='5'
+            )
+        else:
+            # Fetch historical minute data for past dates
+            # Use a range since same-day from/to doesn't work reliably
+            from datetime import timedelta
+            from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
+            df_full = screener.upstox_api.fetch_historical_data_v3(
+                symbol=symbol.upper(),
+                unit='minutes',
+                interval=5,
+                to_date=date,
+                from_date=from_date,
+            )
+            # Filter to only the requested date
+            if df_full is not None and not df_full.empty:
+                date_start = f"{date}T00:00:00"
+                date_end = f"{date}T23:59:59"
+                df = df_full[df_full.index >= date_start]
+                df = df[df.index <= date_end]
+            else:
+                df = None
+
+        if df is None or df.empty:
+            return {"error": f"No data for {symbol} on {date}", "symbol": symbol, "date": date}
+
+        # Build candle data
+        candles = []
+        for idx, row in df.iterrows():
+            time_str = idx.isoformat() if hasattr(idx, 'isoformat') else str(idx)
+            candles.append({
+                "time": time_str,
+                "open": float(row['open']),
+                "high": float(row['high']),
+                "low": float(row['low']),
+                "close": float(row['close']),
+                "volume": int(row.get('volume', 0)),
+            })
+
+        # Calculate ORB levels (first 45 mins = 9 candles)
+        or_candles = candles[:9] if len(candles) >= 9 else candles
+        orb_levels = None
+        if or_candles:
+            or_high = max(c['high'] for c in or_candles)
+            or_low = min(c['low'] for c in or_candles)
+            or_open = or_candles[0]['open'] if or_candles else 0
+            orb_levels = {
+                "or_high": or_high,
+                "or_low": or_low,
+                "or_open": or_open,
+                "or_range": or_high - or_low,
+                "or_range_pct": ((or_high - or_low) / or_open * 100) if or_open > 0 else 0,
+            }
+
+        # Get trades from journal for this symbol and date
+        # Load the journal file for the specific date
+        from trading.journal import TradeJournal
+        journal_dir = Path(__file__).parent.parent / "journals"
+        date_str = date.replace('-', '')  # 2026-02-23 -> 20260223
+        journal_file = journal_dir / f"journal_{date_str}.json"
+
+        symbol_trades = []
+        if journal_file.exists():
+            temp_journal = TradeJournal()
+            try:
+                temp_journal.load_journal(str(journal_file))
+                symbol_trades = [
+                    t for t in temp_journal.trades
+                    if t.symbol == symbol.upper()
+                ]
+            except Exception as e:
+                console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
+        else:
+            # Fallback to global journal for today
+            journal = get_journal()
+            symbol_trades = [
+                t for t in journal.trades
+                if t.symbol == symbol.upper() and t.exit_time.startswith(date)
+            ]
+
+        # Convert trades to dict format
+        trades_data = [{
+            "trade_id": t.trade_id,
+            "symbol": t.symbol,
+            "side": t.side,
+            "quantity": t.quantity,
+            "entry_price": t.entry_price,
+            "exit_price": t.exit_price,
+            "entry_time": t.entry_time,
+            "exit_time": t.exit_time,
+            "pnl": t.pnl,
+            "pnl_pct": t.pnl_pct,
+            "exit_reason": t.exit_reason,
+            "costs": t.costs,
+            "net_pnl": t.net_pnl,
+            "sl_price": t.sl_price,
+            "tp_price": t.tp_price,
+        } for t in symbol_trades]
+
+        # Check for current position
+        trader = get_paper_trader()
+        current_position = None
+        if symbol.upper() in trader.positions:
+            pos = trader.positions[symbol.upper()]
+            current_position = {
+                "symbol": pos.symbol,
+                "side": pos.side.value,
+                "quantity": pos.quantity,
+                "entry_price": pos.entry_price,
+                "current_price": pos.current_price,
+                "entry_time": pos.entry_time.isoformat(),
+                "stop_loss": pos.stop_loss,
+                "take_profit": pos.take_profit,
+                "pnl": pos.pnl,
+                "pnl_pct": pos.pnl_pct,
+                "margin_used": pos.margin_used,
+                "order_id": pos.order_id,
+            }
+
+        return {
+            "symbol": symbol.upper(),
+            "date": date,
+            "candles": candles,
+            "trades": trades_data,
+            "orb_levels": orb_levels,
+            "current_position": current_position,
+        }
+
+    except Exception as e:
+        console.print(f"[red]Error fetching chart data: {e}[/red]")
+        return {"error": str(e), "symbol": symbol, "date": date}
