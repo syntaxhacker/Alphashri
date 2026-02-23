@@ -126,6 +126,8 @@ export async function fetchPaperChart(symbol: string, date?: string): Promise<Pa
 
     if (data.error) {
       console.error('Chart data error:', data.error)
+      // Clear chart data to show error state instead of stale data
+      setChartData(null)
       setChartLoading(false)
       return null
     }
@@ -134,6 +136,8 @@ export async function fetchPaperChart(symbol: string, date?: string): Promise<Pa
     return data
   } catch (error) {
     console.error('Failed to fetch chart data:', error)
+    // Clear chart data on error
+    setChartData(null)
     setChartLoading(false)
     return null
   }

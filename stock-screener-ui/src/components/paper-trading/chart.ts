@@ -42,7 +42,22 @@ export function renderChartContainer(): string {
     return `
       <div class="paper-chart-container" data-testid="paper-chart-container">
         <div class="chart-error">
-          <p>No chart data available for ${state.selectedSymbol}</p>
+          <span class="error-icon">⚠️</span>
+          <p>No data available for ${state.selectedSymbol}</p>
+          <p class="error-hint">Stock data may not be available or symbol is invalid</p>
+        </div>
+      </div>
+    `
+  }
+
+  // Check if chartData has actual candles
+  if (!state.chartData.candles || state.chartData.candles.length === 0) {
+    return `
+      <div class="paper-chart-container" data-testid="paper-chart-container">
+        <div class="chart-error">
+          <span class="error-icon">⚠️</span>
+          <p>No candle data for ${state.selectedSymbol}</p>
+          <p class="error-hint">Market may be closed or data unavailable for this date</p>
         </div>
       </div>
     `
