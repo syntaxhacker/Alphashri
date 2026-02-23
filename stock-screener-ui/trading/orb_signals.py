@@ -1,0 +1,476 @@
+"""
+ORB Signal Generator - Generate live trading signals for ORB strategy.
+
+This module generates real-time trading signals based on:
+1. ORB stock screener results
+2. Live 5-minute candle data
+3. Opening range breakout detection
+"""
+
+import sys
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+from dataclasses import dataclass
+from enum import Enum
+
+# Add project paths
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / 'scanners'))
+
+from rich.console import Console
+from rich.table import Table
+
+console = Console()
+
+
+class SignalType(Enum):
+    LONG_ENTRY = "LONG_ENTRY"
+    SHORT_ENTRY = "SHORT_ENTRY"
+    LONG_EXIT = "LONG_EXIT"
+    SHORT_EXIT = "SHORT_EXIT"
+
+
+@dataclass
+class ORBSignal:
+    """ORB trading signal."""
+    symbol: str
+    signal_type: SignalType
+    price: float
+    stop_loss: float
+    take_profit: float
+    or_high: float
+    or_low: float
+    or_range: float
+    or_range_pct: float
+    timestamp: datetime
+    atr_pct: float = 0.0
+    adx: float = 0.0
+    rsi: float = 0.0
+    score: float = 0.0
+    notes: str = ""
+
+
+class ORBSignalGenerator:
+    """
+    Generate live ORB trading signals.
+
+    Workflow:
+    1. Get ORB-ready stocks from screener
+    2. Fetch 5-minute data for each stock
+    3. Calculate opening range (9:15-10:00)
+    4. Detect breakouts above/below OR
+    5. Generate signals with SL/TP
+    """
+
+    # Market timings (IST)
+    MARKET_OPEN = (9, 15)
+    OR_END = (10, 0)
+    MARKET_CLOSE = (15, 30)
+    FORCE_EXIT = (14, 45)
+
+    def __init__(
+        self,
+        or_minutes: int = 45,
+        sl_pct: float = 0.4,
+        tp_pct: float = 1.2,
+        min_or_range_pct: float = 0.5,
+        max_or_range_pct: float = 3.0,
+    ):
+        """
+        Initialize signal generator.
+
+        Args:
+            or_minutes: Opening range duration in minutes
+            sl_pct: Stop loss percentage
+            tp_pct: Take profit percentage
+            min_or_range_pct: Minimum OR range % for valid signal
+            max_or_range_pct: Maximum OR range % for valid signal
+        """
+        self.or_minutes = or_minutes
+        self.sl_pct = sl_pct
+        self.tp_pct = tp_pct
+        self.min_or_range_pct = min_or_range_pct
+        self.max_or_range_pct = max_or_range_pct
+
+        # OR levels cache
+        self.or_levels: Dict[str, dict] = {}
+        self.active_signals: Dict[str, ORBSignal] = {}
+
+    def calculate_or_levels(self, candles: List[dict]) -> Optional[dict]:
+        """
+        Calculate opening range levels from candles.
+
+        Args:
+            candles: List of 5-min candles with 'time', 'high', 'low', 'close'
+
+        Returns:
+            Dict with OR levels or None if insufficient data
+        """
+        if not candles:
+            return None
+
+        # Filter OR period candles (first 45 mins = 9 candles of 5 min)
+        or_candles = []
+        for candle in candles:
+            candle_time = candle.get('time', '')
+            if isinstance(candle_time, str):
+                try:
+                    dt = datetime.fromisoformat(candle_time)
+                except:
+                    continue
+            else:
+                dt = candle_time
+
+            # Handle timezone-aware datetimes
+            if dt.tzinfo is not None:
+                # Convert to naive for comparison
+                dt = dt.replace(tzinfo=None)
+
+            # Check if within OR period
+            market_open = datetime(dt.year, dt.month, dt.day, *self.MARKET_OPEN)
+            or_end = market_open + timedelta(minutes=self.or_minutes)
+
+            if market_open <= dt <= or_end:
+                or_candles.append(candle)
+
+        if len(or_candles) < 5:  # Need at least 5 candles
+            return None
+
+        # Calculate OR levels
+        or_high = max(c['high'] for c in or_candles)
+        or_low = min(c['low'] for c in or_candles)
+        or_open = or_candles[0]['open'] if or_candles else 0  # Day's open
+        or_range = or_high - or_low
+        or_close = or_candles[-1]['close']
+        or_range_pct = (or_range / or_close) * 100 if or_close > 0 else 0
+
+        return {
+            'or_high': or_high,
+            'or_low': or_low,
+            'or_open': or_open,  # Day's open price
+            'or_range': or_range,
+            'or_range_pct': or_range_pct,
+            'or_close': or_close,
+            'or_candles': len(or_candles),
+        }
+
+    def check_breakout(
+        self,
+        symbol: str,
+        current_price: float,
+        or_levels: dict,
+        atr_pct: float = 0.0,
+        adx: float = 0.0,
+        rsi: float = 0.0,
+        score: float = 0.0,
+    ) -> Optional[ORBSignal]:
+        """
+        Check for ORB breakout and generate signal.
+
+        Args:
+            symbol: Stock symbol
+            current_price: Current price
+            or_levels: OR levels dict
+            atr_pct: ATR percentage
+            adx: ADX value
+            rsi: RSI value
+            score: Screener score
+
+        Returns:
+            ORBSignal if breakout detected, None otherwise
+        """
+        or_high = or_levels['or_high']
+        or_low = or_levels['or_low']
+        or_range = or_levels['or_range']
+        or_range_pct = or_levels['or_range_pct']
+
+        # Validate OR range
+        if or_range_pct < self.min_or_range_pct or or_range_pct > self.max_or_range_pct:
+            return None
+
+        # Check for long breakout (above OR high)
+        if current_price > or_high:
+            # Calculate SL and TP
+            sl = current_price * (1 - self.sl_pct / 100)
+            tp = current_price * (1 + self.tp_pct / 100)
+
+            return ORBSignal(
+                symbol=symbol,
+                signal_type=SignalType.LONG_ENTRY,
+                price=current_price,
+                stop_loss=round(sl, 2),
+                take_profit=round(tp, 2),
+                or_high=or_high,
+                or_low=or_low,
+                or_range=or_range,
+                or_range_pct=round(or_range_pct, 2),
+                timestamp=datetime.now(),
+                atr_pct=atr_pct,
+                adx=adx,
+                rsi=rsi,
+                score=score,
+                notes=f"Breakout above OR high ₹{or_high:.2f}",
+            )
+
+        # Check for short breakout (below OR low)
+        if current_price < or_low:
+            # Calculate SL and TP for short
+            sl = current_price * (1 + self.sl_pct / 100)
+            tp = current_price * (1 - self.tp_pct / 100)
+
+            return ORBSignal(
+                symbol=symbol,
+                signal_type=SignalType.SHORT_ENTRY,
+                price=current_price,
+                stop_loss=round(sl, 2),
+                take_profit=round(tp, 2),
+                or_high=or_high,
+                or_low=or_low,
+                or_range=or_range,
+                or_range_pct=round(or_range_pct, 2),
+                timestamp=datetime.now(),
+                atr_pct=atr_pct,
+                adx=adx,
+                rsi=rsi,
+                score=score,
+                notes=f"Breakdown below OR low ₹{or_low:.2f}",
+            )
+
+        return None
+
+    def check_exit(
+        self,
+        symbol: str,
+        position_side: str,
+        entry_price: float,
+        stop_loss: float,
+        take_profit: float,
+        current_price: float,
+    ) -> Optional[ORBSignal]:
+        """
+        Check if position should be exited.
+
+        Args:
+            symbol: Stock symbol
+            position_side: 'BUY' or 'SELL'
+            entry_price: Entry price
+            stop_loss: Stop loss price
+            take_profit: Take profit price
+            current_price: Current price
+
+        Returns:
+            ORBSignal for exit if triggered, None otherwise
+        """
+        now = datetime.now()
+
+        # Check force exit time (14:45)
+        if now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]:
+            return ORBSignal(
+                symbol=symbol,
+                signal_type=SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT,
+                price=current_price,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+                or_high=0,
+                or_low=0,
+                or_range=0,
+                or_range_pct=0,
+                timestamp=now,
+                notes="EOD force exit (14:45)",
+            )
+
+        # Check SL/TP for long position
+        if position_side == "BUY":
+            if current_price <= stop_loss:
+                return ORBSignal(
+                    symbol=symbol,
+                    signal_type=SignalType.LONG_EXIT,
+                    price=current_price,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    or_high=0,
+                    or_low=0,
+                    or_range=0,
+                    or_range_pct=0,
+                    timestamp=now,
+                    notes="Stop loss hit",
+                )
+            if current_price >= take_profit:
+                return ORBSignal(
+                    symbol=symbol,
+                    signal_type=SignalType.LONG_EXIT,
+                    price=current_price,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    or_high=0,
+                    or_low=0,
+                    or_range=0,
+                    or_range_pct=0,
+                    timestamp=now,
+                    notes="Take profit hit",
+                )
+
+        # Check SL/TP for short position
+        if position_side == "SELL":
+            if current_price >= stop_loss:
+                return ORBSignal(
+                    symbol=symbol,
+                    signal_type=SignalType.SHORT_EXIT,
+                    price=current_price,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    or_high=0,
+                    or_low=0,
+                    or_range=0,
+                    or_range_pct=0,
+                    timestamp=now,
+                    notes="Stop loss hit",
+                )
+            if current_price <= take_profit:
+                return ORBSignal(
+                    symbol=symbol,
+                    signal_type=SignalType.SHORT_EXIT,
+                    price=current_price,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    or_high=0,
+                    or_low=0,
+                    or_range=0,
+                    or_range_pct=0,
+                    timestamp=now,
+                    notes="Take profit hit",
+                )
+
+        return None
+
+    def display_signals(self, signals: List[ORBSignal]):
+        """Display signals in a table."""
+        if not signals:
+            console.print("[yellow]No signals to display[/yellow]")
+            return
+
+        console.print(f"\n[bold cyan]═══ ORB Signals ({len(signals)}) ═══[/bold cyan]")
+
+        table = Table()
+        table.add_column("Symbol", style="cyan")
+        table.add_column("Type", style="yellow")
+        table.add_column("Price", justify="right")
+        table.add_column("SL", justify="right")
+        table.add_column("TP", justify="right")
+        table.add_column("OR Range%", justify="right")
+        table.add_column("Notes")
+
+        for signal in signals:
+            signal_color = "green" if "LONG" in signal.signal_type.value else "red"
+            table.add_row(
+                signal.symbol,
+                f"[{signal_color}]{signal.signal_type.value}[/{signal_color}]",
+                f"₹{signal.price:.2f}",
+                f"₹{signal.stop_loss:.2f}",
+                f"₹{signal.take_profit:.2f}",
+                f"{signal.or_range_pct:.2f}%",
+                signal.notes[:30],
+            )
+
+        console.print(table)
+
+
+def create_entry_signal(
+    symbol: str,
+    price: float,
+    or_high: float,
+    or_low: float,
+    sl_pct: float = 0.4,
+    tp_pct: float = 1.2,
+    side: str = "LONG",
+) -> ORBSignal:
+    """
+    Convenience function to create an entry signal.
+
+    Args:
+        symbol: Stock symbol
+        price: Entry price
+        or_high: Opening range high
+        or_low: Opening range low
+        sl_pct: Stop loss percentage
+        tp_pct: Take profit percentage
+        side: 'LONG' or 'SHORT'
+
+    Returns:
+        ORBSignal
+    """
+    or_range = or_high - or_low
+    or_range_pct = (or_range / price) * 100
+
+    if side == "LONG":
+        signal_type = SignalType.LONG_ENTRY
+        sl = price * (1 - sl_pct / 100)
+        tp = price * (1 + tp_pct / 100)
+    else:
+        signal_type = SignalType.SHORT_ENTRY
+        sl = price * (1 + sl_pct / 100)
+        tp = price * (1 - tp_pct / 100)
+
+    return ORBSignal(
+        symbol=symbol,
+        signal_type=signal_type,
+        price=price,
+        stop_loss=round(sl, 2),
+        take_profit=round(tp, 2),
+        or_high=or_high,
+        or_low=or_low,
+        or_range=or_range,
+        or_range_pct=round(or_range_pct, 2),
+        timestamp=datetime.now(),
+    )
+
+
+if __name__ == '__main__':
+    # Demo
+    generator = ORBSignalGenerator()
+
+    # Sample candles for OR calculation
+    sample_candles = [
+        {'time': '2024-01-15T09:15:00', 'high': 3500, 'low': 3490, 'close': 3495},
+        {'time': '2024-01-15T09:20:00', 'high': 3505, 'low': 3492, 'close': 3500},
+        {'time': '2024-01-15T09:25:00', 'high': 3510, 'low': 3495, 'close': 3505},
+        {'time': '2024-01-15T09:30:00', 'high': 3508, 'low': 3500, 'close': 3503},
+        {'time': '2024-01-15T09:35:00', 'high': 3515, 'low': 3505, 'close': 3510},
+        {'time': '2024-01-15T09:40:00', 'high': 3520, 'low': 3510, 'close': 3515},
+        {'time': '2024-01-15T09:45:00', 'high': 3518, 'low': 3512, 'close': 3515},
+        {'time': '2024-01-15T09:50:00', 'high': 3525, 'low': 3515, 'close': 3520},
+        {'time': '2024-01-15T09:55:00', 'high': 3522, 'low': 3518, 'close': 3520},
+        {'time': '2024-01-15T10:00:00', 'high': 3525, 'low': 3520, 'close': 3522},
+    ]
+
+    # Calculate OR levels
+    or_levels = generator.calculate_or_levels(sample_candles)
+    print(f"OR Levels: {or_levels}")
+
+    # Check for breakout (price above OR high)
+    signal = generator.check_breakout(
+        symbol="NETWEB",
+        current_price=3530,  # Above OR high
+        or_levels=or_levels,
+        atr_pct=5.0,
+        adx=30,
+        rsi=65,
+        score=50,
+    )
+
+    if signal:
+        generator.display_signals([signal])
+
+    # Create entry signal manually
+    manual_signal = create_entry_signal(
+        symbol="APEX",
+        price=440,
+        or_high=438,
+        or_low=430,
+        sl_pct=0.4,
+        tp_pct=1.2,
+        side="LONG",
+    )
+
+    generator.display_signals([manual_signal])

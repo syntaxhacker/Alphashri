@@ -70,7 +70,7 @@ export async function runBacktest(): Promise<BacktestResponse | null> {
   setProgress({ current: 0, total: state.selectedSymbols.length, message: 'Starting...' })
 
   try {
-    const response = await fetch(`${API_BASE}/api/backtest/run`, {
+    const response = await fetch(`${API_BASE}/api/backtest/run?include_chart_data=true`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

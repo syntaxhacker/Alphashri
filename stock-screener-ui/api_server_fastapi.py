@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Fast API server for stock screener UI.
-Serves screener data as JSON.
+FastAPI server for stock screener UI with auto-reload.
+Serves screener data and backtest API as JSON.
+
+Run with: uvicorn api_server_fastapi:app --reload --port 8765
 """
 import sys
 import os
-import json
 import math
 from datetime import datetime
 from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional, Dict, Any, List
+from contextlib import asynccontextmanager
 
 # Add project root and scanners to path
 _script_dir = Path(__file__).parent.absolute()
@@ -19,16 +19,21 @@ _project_root = _script_dir.parent
 _scanners_dir = _project_root / 'scanners'
 sys.path.insert(0, str(_project_root))
 sys.path.insert(0, str(_scanners_dir))
-sys.path.insert(0, str(_script_dir))  # For backtest module
+sys.path.insert(0, str(_script_dir))
+
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import uvicorn
 
 from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
 import trending_upside
 
 # Import backtest module
-from backtest.api import BacktestRequestHandler
+from backtest.api import BacktestRequestHandler, handle_get_strategies, handle_get_costs, handle_run_backtest
 
 # Thread pool for parallel API calls
-MAX_WORKERS = 10  # Concurrent API calls for stock data
+MAX_WORKERS = 10
 
 # Backtest request handler (global instance for caching)
 _backtest_handler = BacktestRequestHandler()
@@ -155,54 +160,40 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
     if screener == 'buyer_interest':
         return _to_float(stock_data.get('wick_close_pct'), 0) >= num('min_wick_pct', 0) and _to_float(stock_data.get('volume_surge'), 0) >= num('min_vol_surge', 0)
     if screener == 'buyer_interest_enhanced':
-        # Direction filter based on wick position (where stock closed in day's range)
-        # Bullish: wick >= 60% (closed in upper portion = buyers in control)
-        # Bearish: wick <= 40% (closed in lower portion = sellers in control)
         direction = profile_filters.get('direction', 'both')
         wick_pct = _to_float(stock_data.get('wick_close_pct'), 50)
-
         is_bullish_sentiment = wick_pct >= 60
         is_bearish_sentiment = wick_pct <= 40
-
         if direction == 'bullish' and not is_bullish_sentiment:
             return False
         if direction == 'bearish' and not is_bearish_sentiment:
             return False
-        # Score filter
         if _to_float(stock_data.get('score'), 0) < num('min_score', 0):
             return False
-        # Volume filter only
         return _to_float(stock_data.get('volume_surge'), 0) >= num('min_vol_surge', 0)
     if screener == 'volatility_trend':
-        # Basic ATR% and RSI filters
         if _to_float(stock_data.get('atr_pct'), 0) < num('min_atr_pct', 0):
             return False
         if _to_float(stock_data.get('rsi'), 0) < num('min_rsi', 0):
             return False
-        # Trend filter
         trend = profile_filters.get('trend', 'all')
         is_bullish = stock_data.get('is_bullish', False)
         sentiment = stock_data.get('sentiment', '')
         adx = _to_float(stock_data.get('adx'), 0)
         perfw = _to_float(stock_data.get('perf_w'), 0)
-
         if trend == 'bullish':
-            # Bullish: bullish candle AND (bullish sentiment OR positive weekly performance)
             if not is_bullish:
                 return False
             if sentiment not in ['bullish', 'lean_bull'] and perfw <= 0:
                 return False
         elif trend == 'bearish':
-            # Bearish: bearish candle AND (bearish sentiment OR negative weekly performance)
             if is_bullish:
                 return False
             if sentiment not in ['bearish', 'lean_bear'] and perfw >= 0:
                 return False
         elif trend == 'strong_trend':
-            # Strong trend: high ADX (>25) indicates trending market
             if adx < 25:
                 return False
-        # 'all' passes through
         return True
     if screener == 'nifty50_activity':
         return _to_float(stock_data.get('interest_score'), 0) >= num('min_interest_score', 0)
@@ -368,14 +359,15 @@ def estimate_days_to_52w(current_price, high_52w, adx, atr, recent_return_5d, pe
 
 def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters):
     """Process a single stock row and return stock_data or None."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import random
+
     symbol = row_data['name']
     tv_price = row_data['close']
 
-    # Skip expensive stocks
     if tv_price >= 7000:
         return None
 
-    # Demo mode - use TradingView data only
     if not use_api:
         try:
             tv_52w_high = float(row_data.get('price_52_week_high', tv_price * 1.1))
@@ -384,11 +376,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             perf_w = float(row_data.get('Perf.W', 2))
             change = float(row_data.get('change', 0))
             recent_return = change
-
-            # Simulate broker diff as small random value
-            import random
             broker_diff = round(random.uniform(-0.5, 0.5), 2)
-
             upstox_price = tv_price * (1 + broker_diff / 100)
             tv_open = _to_float(row_data.get('open'), tv_price)
             tv_high = _to_float(row_data.get('high'), max(tv_price, tv_open))
@@ -400,18 +388,11 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
             adx_val = _to_float(row_data.get('ADX'), adx)
             interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', adx))
-
-            # Estimate if near 52W high based on TV data
             to_52w_high = ((tv_52w_high - upstox_price) / tv_52w_high) * 100
-
             est_days, confidence = estimate_days_to_52w(upstox_price, tv_52w_high, adx, atr, recent_return, perf_w)
-
             touched_52w = to_52w_high < 0.1
-
-            # Determine if bullish (close > open)
             is_bullish = tv_price >= tv_open
 
-            # Determine sentiment based on wick position
             if wick_close_pct >= 70:
                 sentiment = 'bullish'
             elif wick_close_pct >= 55:
@@ -464,7 +445,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
         except Exception:
             return None
 
-    # Full API mode - requires API client
+    # Full API mode
     instrument_key = api.get_instrument_key(symbol)
     if not instrument_key:
         return ('blacklist', symbol)
@@ -494,35 +475,26 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             avg_vol = _to_float(df_hist['volume'].tail(10).mean(), 0)
             cur_vol = _to_float(current_candle.get('volume'), 0)
             volume_surge = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
-
             diff_pct = ((upstox_price - tv_price) / tv_price) * 100
             recent_return = ((upstox_price - start_price) / start_price) * 100
-
             tv_52w_high = float(row_data.get('price_52_week_high', 0))
             recent_high = float(df_hist['high'].max())
-
             high_diff_pct = ((recent_high - upstox_price) / recent_high) * 100
-
             adx = float(row_data.get('ADX', 0))
             atr = float(row_data.get('ATR', 0))
             atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
             perf_w = float(row_data.get('Perf.W', 0))
             interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', 0))
-
             est_days, confidence = estimate_days_to_52w(upstox_price, recent_high, adx, atr, recent_return, perf_w)
-
             touched_52w = False
             if tv_52w_high > 0:
                 if recent_high >= tv_52w_high:
                     touched_52w = True
                 elif (tv_52w_high - recent_high) / tv_52w_high < 0.001:
                     touched_52w = True
-
-            # Determine if bullish (close > open)
             c_open = _to_float(current_candle.get('open'), c_close)
             is_bullish = c_close >= c_open
 
-            # Determine sentiment based on wick position
             if wick_close_pct >= 70:
                 sentiment = 'bullish'
             elif wick_close_pct >= 55:
@@ -579,20 +551,17 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 
 
 def fetch_screener_data(provider='upstox', mode='historical', screener='trending', profile_filters=None):
-    """Fetch screener data - similar to verify_stocks() but returns JSON."""
-    # Try to get API client, fall back to demo mode if config missing
+    """Fetch screener data."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     try:
         api = TradingAPIFactory.create_from_config(provider, quiet=True)
         use_api = True
     except ValueError:
-        # No config - use demo mode with TradingView data only
         use_api = False
 
     use_intraday = (mode == 'intraday')
     use_52w_buckets = screener in PROFILES_WITH_52W_BUCKETS
-
-    # Note: v3 intraday/historical APIs don't require authentication
-    # Auth is only needed for trading operations, not market data
 
     tv_df = trending_upside.fetch_trending_stocks(limit=120, profile=screener)
     if tv_df.empty:
@@ -610,13 +579,9 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
     approaching = []
     touched = []
     blacklisted_symbols = set()
-
-    # Prepare row data for parallel processing
     rows_data = [row.to_dict() for _, row in tv_df.iterrows()]
 
-    # Process stocks in parallel using ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # Submit all tasks
         futures = {
             executor.submit(
                 _process_single_stock,
@@ -625,7 +590,6 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
             for row_data in rows_data
         }
 
-        # Collect results as they complete
         for future in as_completed(futures):
             try:
                 result = future.result()
@@ -654,115 +618,205 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
     }
 
 
-class ScreenerHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        parsed = urlparse(self.path)
-        params = parse_qs(parsed.query)
-        path = parsed.path.rstrip('/')
-
-        # Backtest API routes
-        if path.startswith('/api/backtest'):
-            response = _backtest_handler.handle_request('GET', path, params)
-            self.send_json(response)
-            return
-
-        if parsed.path == '/api/screener':
-            provider = params.get('provider', ['upstox'])[0]
-            mode = params.get('mode', ['intraday'])[0]
-            screener = params.get('screener', ['trending'])[0]
-            # Accept filters with pf_ prefix OR direct filter names (for convenience)
-            profile_filters = {k[3:]: v[0] for k, v in params.items() if k.startswith('pf_')}
-            # Also accept direct filter names like 'trend', 'direction', etc.
-            direct_filter_keys = ['trend', 'direction', 'min_atr_pct', 'min_rsi', 'min_score', 'min_vol_surge', 'max_52w_gap', 'max_rsi', 'min_stoch_k', 'min_gap_pct', 'min_volume_m', 'min_wick_pct', 'min_interest_score', 'min_impact', 'min_cap_b']
-            for key in direct_filter_keys:
-                if key in params and key not in profile_filters:
-                    profile_filters[key] = params[key][0]
-
-            # Fetch new data (no caching)
-            data = fetch_screener_data(provider, mode, screener, profile_filters)
-            data['applied_profile_filters'] = profile_filters
-
-            self.send_json(data)
-        elif parsed.path == '/api/screeners':
-            self.send_json({
-                'default': 'trending',
-                'screeners': trending_upside.get_screener_profiles(),
-                'meta_by_id': PROFILE_META
-            })
-
-        elif parsed.path == '/health':
-            self.send_json({'status': 'ok', 'timestamp': datetime.now().isoformat()})
-
-        else:
-            self.send_response(404)
-            self.end_headers()
-            self.wfile.write(b'Not Found')
-
-    def do_OPTIONS(self):
-        """Handle OPTIONS preflight requests for CORS."""
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
-
-    def do_POST(self):
-        """Handle POST requests."""
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip('/')
-
-        # Only handle backtest routes
-        if not path.startswith('/api/backtest'):
-            self.send_response(404)
-            self.end_headers()
-            self.wfile.write(b'Not Found')
-            return
-
-        # Read request body
-        content_length = int(self.headers.get('Content-Length', 0))
-        body_data = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else '{}'
-
-        try:
-            body = json.loads(body_data)
-        except json.JSONDecodeError:
-            self.send_json({'error': 'Invalid JSON body'})
-            return
-
-        # Handle backtest request
-        response = _backtest_handler.handle_request('POST', path, {}, body)
-        self.send_json(response)
-
-    def send_json(self, data):
-        try:
-            safe_data = _sanitize_for_json(data)
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps(safe_data, allow_nan=False).encode())
-        except BrokenPipeError:
-            # Client closed connection before response was sent (e.g., switched screeners)
-            pass
-        except ConnectionResetError:
-            # Client reset the connection
-            pass
-
-    def log_message(self, format, *args):
-        pass  # Silence logs
+# Pydantic models for backtest API
+class BacktestRunRequest(BaseModel):
+    strategy: str = 'orb'
+    symbols: List[str]
+    params: Dict[str, Any] = {}
+    days: int = 90
+    include_costs: bool = True
 
 
-def run_server(port=8765):
-    server = HTTPServer(('localhost', port), ScreenerHandler)
-    print(f'🚀 Stock Screener API running on http://localhost:{port}')
-    print(f'   Screener API: http://localhost:{port}/api/screener')
-    print(f'   Backtest API: http://localhost:{port}/api/backtest/strategies')
-    print(f'   UI should be served from: bun run dev')
-    server.serve_forever()
+# FastAPI app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print(f'🚀 Stock Screener API starting...')
+    yield
+
+app = FastAPI(title="Stock Screener API", lifespan=lifespan)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+async def health():
+    return {'status': 'ok', 'timestamp': datetime.now().isoformat()}
+
+
+@app.get("/api/screeners")
+async def get_screeners():
+    return {
+        'default': 'trending',
+        'screeners': trending_upside.get_screener_profiles(),
+        'meta_by_id': PROFILE_META
+    }
+
+
+@app.get("/api/screener")
+async def get_screener_data(
+    provider: str = Query(default='upstox'),
+    mode: str = Query(default='intraday'),
+    screener: str = Query(default='trending'),
+    trend: Optional[str] = Query(default=None),
+    direction: Optional[str] = Query(default=None),
+    min_atr_pct: Optional[float] = Query(default=None),
+    min_rsi: Optional[float] = Query(default=None),
+    min_score: Optional[float] = Query(default=None),
+    min_vol_surge: Optional[float] = Query(default=None),
+    max_52w_gap: Optional[float] = Query(default=None),
+    max_rsi: Optional[float] = Query(default=None),
+    min_stoch_k: Optional[float] = Query(default=None),
+    min_gap_pct: Optional[float] = Query(default=None),
+    min_volume_m: Optional[float] = Query(default=None),
+    min_wick_pct: Optional[float] = Query(default=None),
+    min_interest_score: Optional[float] = Query(default=None),
+    min_impact: Optional[float] = Query(default=None),
+    min_cap_b: Optional[float] = Query(default=None),
+):
+    profile_filters = {}
+    if trend is not None:
+        profile_filters['trend'] = trend
+    if direction is not None:
+        profile_filters['direction'] = direction
+    if min_atr_pct is not None:
+        profile_filters['min_atr_pct'] = min_atr_pct
+    if min_rsi is not None:
+        profile_filters['min_rsi'] = min_rsi
+    if min_score is not None:
+        profile_filters['min_score'] = min_score
+    if min_vol_surge is not None:
+        profile_filters['min_vol_surge'] = min_vol_surge
+    if max_52w_gap is not None:
+        profile_filters['max_52w_gap'] = max_52w_gap
+    if max_rsi is not None:
+        profile_filters['max_rsi'] = max_rsi
+    if min_stoch_k is not None:
+        profile_filters['min_stoch_k'] = min_stoch_k
+    if min_gap_pct is not None:
+        profile_filters['min_gap_pct'] = min_gap_pct
+    if min_volume_m is not None:
+        profile_filters['min_volume_m'] = min_volume_m
+    if min_wick_pct is not None:
+        profile_filters['min_wick_pct'] = min_wick_pct
+    if min_interest_score is not None:
+        profile_filters['min_interest_score'] = min_interest_score
+    if min_impact is not None:
+        profile_filters['min_impact'] = min_impact
+    if min_cap_b is not None:
+        profile_filters['min_cap_b'] = min_cap_b
+
+    data = fetch_screener_data(provider, mode, screener, profile_filters)
+    data['applied_profile_filters'] = profile_filters
+    return _sanitize_for_json(data)
+
+
+# Backtest API routes
+@app.get("/api/backtest/strategies")
+async def get_strategies():
+    return handle_get_strategies()
+
+
+@app.get("/api/backtest/costs")
+async def get_costs():
+    return handle_get_costs()
+
+
+@app.get("/api/backtest/progress")
+async def get_progress():
+    return _backtest_handler.progress_state
+
+
+@app.post("/api/backtest/run")
+async def run_backtest(
+    request: BacktestRunRequest,
+    include_chart_data: bool = Query(False, description="Include candle/chart data in response (default: False for smaller responses)")
+):
+    body = request.model_dump()
+    _backtest_handler.progress_state['running'] = True
+    _backtest_handler.progress_state['current'] = 0
+    _backtest_handler.progress_state['total'] = len(body.get('symbols', []))
+    _backtest_handler.progress_state['message'] = 'Starting...'
+
+    result = handle_run_backtest(body, _backtest_handler.progress_state)
+
+    if 'error' not in result:
+        # Always cache data for chart endpoint
+        _backtest_handler.backtest_cache = {
+            'candles': result.get('candles', {}),
+            'chart_data': result.get('chart_data', {}),
+            'config': result.get('config', {}),
+            'results': result.get('results', []),
+        }
+
+    _backtest_handler.progress_state['running'] = False
+
+    # Build response - exclude large data by default
+    response = {
+        'strategy': result.get('strategy'),
+        'config': result.get('config'),
+        'results': result.get('results'),
+        'totals': result.get('totals'),
+        'skipped_stocks': result.get('skipped_stocks', []),
+        'run_time': result.get('run_time'),
+    }
+
+    # Only include chart data if explicitly requested
+    if include_chart_data:
+        response['candles'] = result.get('candles', {})
+        response['chart_data'] = result.get('chart_data', {})
+
+    return _sanitize_for_json(response)
+
+
+@app.get("/api/backtest/chart/{symbol}")
+async def get_chart_data(symbol: str):
+    from backtest.chart_data import build_chart_data_for_symbol
+
+    if symbol not in _backtest_handler.backtest_cache.get('candles', {}):
+        raise HTTPException(status_code=404, detail=f'No chart data for {symbol}')
+
+    if symbol not in _backtest_handler.backtest_cache.get('chart_data', {}):
+        raise HTTPException(status_code=404, detail=f'No trade data for {symbol}')
+
+    try:
+        candles_df = _backtest_handler.backtest_cache['candles'][symbol]
+        trades = _backtest_handler.backtest_cache['chart_data'][symbol]['trades']
+        or_minutes = _backtest_handler.backtest_cache.get('config', {}).get('params', {}).get('or_minutes', 45)
+
+        chart_data = build_chart_data_for_symbol(symbol, candles_df, trades, or_minutes)
+        return _sanitize_for_json(chart_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/backtest/results")
+async def get_results():
+    return {
+        'results': _backtest_handler.backtest_cache.get('results', []),
+        'config': _backtest_handler.backtest_cache.get('config', {}),
+    }
+
+
+# Include paper trading router
+try:
+    from api.paper_trading import router as paper_trading_router
+    app.include_router(paper_trading_router)
+    print("✅ Paper trading API loaded at /api/paper")
+except Exception as e:
+    print(f"⚠️ Could not load paper trading API: {e}")
 
 
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--port', type=int, default=8765)
-    args = parser.parse_args()
-    run_server(args.port)
+    print(f'🚀 Stock Screener FastAPI running on http://localhost:8765')
+    print(f'   API docs: http://localhost:8765/docs')
+    print(f'   Screener API: http://localhost:8765/api/screener')
+    print(f'   Backtest API: http://localhost:8765/api/backtest/strategies')
+    print(f'   Paper Trading API: http://localhost:8765/api/paper/portfolio')
+    uvicorn.run(app, host="localhost", port=8765, reload=True)

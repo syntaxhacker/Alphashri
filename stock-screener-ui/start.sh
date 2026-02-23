@@ -4,6 +4,7 @@ set -euo pipefail
 API_PORT="${API_PORT:-8765}"
 UI_HOST="${UI_HOST:-127.0.0.1}"
 UI_PORT="${UI_PORT:-5173}"
+LOG_FILE="${LOG_FILE:-/tmp/stock-screener.log}"
 
 kill_port() {
   local port=$1
@@ -33,16 +34,21 @@ trap cleanup INT TERM EXIT
 kill_port "$API_PORT"
 kill_port "$UI_PORT"
 
+# Fresh log file on each start
+: > "$LOG_FILE"
+echo "Logging to: $LOG_FILE"
+
 echo "Starting API on http://localhost:${API_PORT} ..."
-python3 -u api_server.py --port "${API_PORT}" &
+uvicorn api_server_fastapi:app --host localhost --port "${API_PORT}" --reload >> "$LOG_FILE" 2>&1 &
 API_PID=$!
 
 echo "Starting UI on http://${UI_HOST}:${UI_PORT} ..."
-bun run dev --host "${UI_HOST}" --port "${UI_PORT}" &
+bun run dev --host "${UI_HOST}" --port "${UI_PORT}" >> "$LOG_FILE" 2>&1 &
 UI_PID=$!
 
 echo "API PID: ${API_PID}"
 echo "UI PID: ${UI_PID}"
 echo "Press Ctrl+C to stop both."
+echo "Tail logs: tail -f $LOG_FILE"
 
 wait "$API_PID" "$UI_PID"
