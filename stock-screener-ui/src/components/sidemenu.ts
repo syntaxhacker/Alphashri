@@ -60,5 +60,8 @@ export function renderSidemenu(): string {
 export function initSidemenu() {
   ;(window as any).setAppView = (view: AppView) => {
     setCurrentView(view)
+    if (typeof (window as any).navigateToRoute === 'function') {
+      ;(window as any).navigateToRoute(view)
+    }
   }
 }

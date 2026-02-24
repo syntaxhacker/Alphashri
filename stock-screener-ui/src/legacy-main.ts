@@ -50,7 +50,7 @@ function getTableHeaders(screener: string, touched: boolean): string {
 }
 
 function render() {
-  const app = document.querySelector<HTMLDivElement>('#app')!
+  const app = document.querySelector<HTMLDivElement>('#legacy-root')!
   const backtestState = getBacktestState()
   const currentView = backtestState.currentView
 

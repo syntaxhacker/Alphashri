@@ -42,7 +42,9 @@ function renderWatchlistScan(snapshot: ReturnType<typeof getPaperTradingState>['
   }
 
   const scanTime = snapshot.timestamp ? new Date(snapshot.timestamp).toLocaleTimeString() : '-'
-  const rows = snapshot.scan_items.slice(0, 12)
+  const rows = [...snapshot.scan_items]
+    .sort((a, b) => nearBreakoutPct(a) - nearBreakoutPct(b))
+    .slice(0, 12)
 
   return `
     <div class="scan-card">
@@ -57,6 +59,7 @@ function renderWatchlistScan(snapshot: ReturnType<typeof getPaperTradingState>['
             <th>Status</th>
             <th>Price</th>
             <th>OR H/L</th>
+            <th>Near</th>
             <th>Reason</th>
           </tr>
         </thead>
@@ -71,6 +74,7 @@ function renderWatchlistScan(snapshot: ReturnType<typeof getPaperTradingState>['
               <td class="scan-status scan-${item.status}">${item.status}${item.side ? ` ${item.side}` : ''}</td>
               <td>${item.price ? `₹${item.price.toFixed(2)}` : '-'}</td>
               <td>${(item.or_high && item.or_low) ? `₹${item.or_high.toFixed(2)} / ₹${item.or_low.toFixed(2)}` : '-'}</td>
+              <td>${formatNear(item)}</td>
               <td>${item.reason || '-'}</td>
             </tr>
           `).join('')}
@@ -78,6 +82,30 @@ function renderWatchlistScan(snapshot: ReturnType<typeof getPaperTradingState>['
       </table>
     </div>
   `
+}
+
+function nearBreakoutPct(item: NonNullable<ReturnType<typeof getPaperTradingState>['botSnapshot']>['scan_items'][number]): number {
+  const price = item.price
+  const orHigh = item.or_high
+  const orLow = item.or_low
+  if (price == null || orHigh == null || orLow == null || orHigh <= 0 || orLow <= 0) return 9999
+
+  // If inside opening range, use nearest boundary distance.
+  if (price <= orHigh && price >= orLow) {
+    const toHigh = ((orHigh - price) / orHigh) * 100
+    const toLow = ((price - orLow) / orLow) * 100
+    return Math.max(0, Math.min(toHigh, toLow))
+  }
+
+  // If already outside range, distance from crossed boundary.
+  if (price > orHigh) return ((price - orHigh) / orHigh) * 100
+  return ((orLow - price) / orLow) * 100
+}
+
+function formatNear(item: NonNullable<ReturnType<typeof getPaperTradingState>['botSnapshot']>['scan_items'][number]): string {
+  const v = nearBreakoutPct(item)
+  if (!Number.isFinite(v) || v >= 9999) return '-'
+  return `${v.toFixed(2)}%`
 }
 
 function renderPortfolioSummary(portfolio: ReturnType<typeof getPaperTradingState>['portfolio']): string {

@@ -10,6 +10,9 @@ This module provides REST API endpoints for:
 
 import sys
 import subprocess
+import json
+import os
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
@@ -39,6 +42,63 @@ _paper_bot_process: Optional[subprocess.Popen] = None
 _paper_bot_log_file = Path("/tmp/paper-trading-runner.log")
 _paper_bot_log_handle = None
 _paper_bot_snapshot_file = Path("/tmp/paper-trading-snapshot.json")
+_paper_bot_pid_file = Path("/tmp/paper-trading-runner.pid")
+
+
+def _load_fresh_bot_snapshot(max_age_seconds: int = 300) -> Optional[dict]:
+    """Load bot snapshot only when it is recent enough to represent live state."""
+    if not _paper_bot_snapshot_file.exists():
+        return None
+
+    try:
+        data = json.loads(_paper_bot_snapshot_file.read_text())
+        ts = data.get("timestamp")
+        if ts:
+            try:
+                age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+                if age > max_age_seconds:
+                    return None
+            except Exception:
+                # If timestamp parsing fails, still allow using snapshot payload.
+                pass
+        return data
+    except Exception:
+        return None
+
+
+def _read_runner_pid_file() -> Optional[int]:
+    """Read persisted runner PID from disk."""
+    try:
+        if not _paper_bot_pid_file.exists():
+            return None
+        return int(_paper_bot_pid_file.read_text().strip())
+    except Exception:
+        return None
+
+
+def _write_runner_pid_file(pid: int) -> None:
+    """Persist runner PID so API reloads can still track the process."""
+    try:
+        _paper_bot_pid_file.write_text(str(pid))
+    except Exception:
+        pass
+
+
+def _clear_runner_pid_file() -> None:
+    """Remove persisted runner PID file."""
+    try:
+        if _paper_bot_pid_file.exists():
+            _paper_bot_pid_file.unlink()
+    except Exception:
+        pass
+
+
+def _is_pid_alive(pid: int) -> bool:
+    """Check if a PID exists."""
+    try:
+        return subprocess.run(["kill", "-0", str(pid)], check=False).returncode == 0
+    except Exception:
+        return False
 
 
 # ============== Request/Response Models ==============
@@ -72,7 +132,40 @@ class UpdatePricesRequest(BaseModel):
 async def get_portfolio():
     """Get current paper trading portfolio status."""
     trader = get_paper_trader()
-    return trader.get_portfolio_status()
+    status = trader.get_portfolio_status()
+
+    # If bot runs in a separate process, in-memory portfolio here may be stale.
+    # Recompute key live fields from snapshot open positions when available.
+    snap = _load_fresh_bot_snapshot()
+    if snap:
+        snap_positions = snap.get("open_positions_data") or []
+        if isinstance(snap_positions, list) and len(snap_positions) > 0:
+            margin_used = sum(float(p.get("entry_price", 0)) * int(p.get("quantity", 0)) for p in snap_positions)
+            position_value = sum(float(p.get("current_price", 0)) * int(p.get("quantity", 0)) for p in snap_positions)
+            unrealized_pnl = sum(float(p.get("pnl", 0)) for p in snap_positions)
+
+            cash = status.get("initial_capital", 0) - margin_used
+            total_value = cash + position_value
+            total_pnl = total_value - status.get("initial_capital", 0)
+            total_pnl_pct = (total_pnl / status.get("initial_capital", 1) * 100) if status.get("initial_capital", 0) else 0
+
+            status.update({
+                "cash": round(cash, 2),
+                "margin_used": round(margin_used, 2),
+                "position_value": round(position_value, 2),
+                "unrealized_pnl": round(unrealized_pnl, 2),
+                "total_value": round(total_value, 2),
+                "total_pnl": round(total_pnl, 2),
+                "total_pnl_pct": round(total_pnl_pct, 2),
+                "positions": len(snap_positions),
+                "open_positions": len(snap_positions),
+            })
+    if "daily_pnl_pct" not in status:
+        base = status.get("initial_capital", 0) or 0
+        daily_pnl = status.get("daily_pnl", 0) or 0
+        status["daily_pnl_pct"] = (daily_pnl / base * 100) if base else 0.0
+
+    return status
 
 
 @router.post("/reset")
@@ -92,17 +185,13 @@ async def get_positions():
     trader = get_paper_trader()
     positions = trader.get_positions()
 
-    # If bot runs in a separate process, in-memory positions here may be empty.
-    # Fallback to snapshot positions produced by the runner.
-    if len(positions) == 0 and _paper_bot_snapshot_file.exists():
-        try:
-            import json
-            snap = json.loads(_paper_bot_snapshot_file.read_text())
-            snap_positions = snap.get("open_positions_data") or []
-            if isinstance(snap_positions, list):
-                positions = snap_positions
-        except Exception:
-            pass
+    # If bot runs in a separate process, in-memory positions in API process can be stale.
+    # Prefer fresh snapshot positions when available so live table and summary stay in sync.
+    snap = _load_fresh_bot_snapshot()
+    if snap:
+        snap_positions = snap.get("open_positions_data") or []
+        if isinstance(snap_positions, list) and len(snap_positions) > 0:
+            positions = snap_positions
 
     return {
         "count": len(positions),
@@ -473,6 +562,25 @@ def _get_bot_status() -> dict:
     """Get current paper trading runner process status."""
     global _paper_bot_process
 
+    def _runner_script_path() -> Path:
+        return Path(__file__).parent.parent / "run_daily_trading.py"
+
+    def _list_runner_pids() -> List[int]:
+        script_name = _runner_script_path().name
+        try:
+            out = subprocess.check_output(["pgrep", "-f", script_name], text=True)
+        except Exception:
+            return []
+        pids: List[int] = []
+        for line in out.splitlines():
+            try:
+                pid = int(line.strip())
+            except Exception:
+                continue
+            if pid != os.getpid():
+                pids.append(pid)
+        return sorted(set(pids))
+
     running = False
     pid = None
     return_code = None
@@ -486,11 +594,34 @@ def _get_bot_status() -> dict:
             # Process exited; clear handle so next start works cleanly
             _paper_bot_process = None
 
+    runner_pids = _list_runner_pids()
+    pid_from_file = _read_runner_pid_file()
+    if pid_from_file is not None:
+        if _is_pid_alive(pid_from_file):
+            if pid_from_file not in runner_pids:
+                runner_pids.append(pid_from_file)
+                runner_pids = sorted(set(runner_pids))
+        else:
+            _clear_runner_pid_file()
+
+    if not running and runner_pids:
+        # API process may have restarted and lost local handle; recover status from OS.
+        running = True
+        if pid_from_file in runner_pids:
+            pid = pid_from_file
+        else:
+            pid = runner_pids[0]
+        return_code = None
+        if pid is not None:
+            _write_runner_pid_file(pid)
+
     return {
         "running": running,
         "pid": pid,
+        "runner_pids": runner_pids,
         "return_code": return_code,
         "log_file": str(_paper_bot_log_file),
+        "pid_file": str(_paper_bot_pid_file),
     }
 
 
@@ -527,7 +658,7 @@ async def start_paper_bot():
     if status["running"]:
         return {
             "status": "already_running",
-            "message": "Paper trading runner is already running",
+            "message": f"Paper trading runner is already running (pids={status.get('runner_pids', [])})",
             **status,
         }
 
@@ -548,6 +679,7 @@ async def start_paper_bot():
         stderr=_paper_bot_log_handle,
         start_new_session=True,
     )
+    _write_runner_pid_file(_paper_bot_process.pid)
 
     new_status = _get_bot_status()
     return {
@@ -563,22 +695,41 @@ async def stop_paper_bot():
     global _paper_bot_process, _paper_bot_log_handle
 
     status = _get_bot_status()
-    if not status["running"] or _paper_bot_process is None:
+    pids_to_stop = set(status.get("runner_pids") or [])
+    if _paper_bot_process is not None and _paper_bot_process.poll() is None:
+        pids_to_stop.add(_paper_bot_process.pid)
+
+    if not pids_to_stop:
         return {
             "status": "not_running",
             "message": "Paper trading runner is not running",
             **status,
         }
 
-    proc = _paper_bot_process
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except Exception:
-        proc.kill()
-        proc.wait(timeout=5)
+    stopped = []
+    still_running = []
+    for pid in sorted(pids_to_stop):
+        try:
+            subprocess.run(["kill", str(pid)], check=False)
+            for _ in range(10):
+                probe = subprocess.run(["kill", "-0", str(pid)], check=False)
+                if probe.returncode != 0:
+                    break
+                time.sleep(0.2)
+            probe = subprocess.run(["kill", "-0", str(pid)], check=False)
+            if probe.returncode == 0:
+                subprocess.run(["kill", "-9", str(pid)], check=False)
+                time.sleep(0.1)
+                probe = subprocess.run(["kill", "-0", str(pid)], check=False)
+            if probe.returncode != 0:
+                stopped.append(pid)
+            else:
+                still_running.append(pid)
+        except Exception:
+            still_running.append(pid)
 
     _paper_bot_process = None
+    _clear_runner_pid_file()
     if _paper_bot_log_handle:
         try:
             _paper_bot_log_handle.close()
@@ -588,7 +739,9 @@ async def stop_paper_bot():
     new_status = _get_bot_status()
     return {
         "status": "stopped",
-        "message": "Paper trading runner stopped",
+        "message": f"Stopped runner(s): {stopped}" + (f"; still running: {still_running}" if still_running else ""),
+        "stopped_pids": stopped,
+        "still_running_pids": still_running,
         **new_status,
     }
 

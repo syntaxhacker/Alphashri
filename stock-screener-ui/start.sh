@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 API_PORT="${API_PORT:-8765}"
 UI_HOST="${UI_HOST:-127.0.0.1}"
 UI_PORT="${UI_PORT:-5173}"
@@ -8,12 +11,22 @@ LOG_FILE="${LOG_FILE:-/tmp/stock-screener.log}"
 
 kill_port() {
   local port=$1
-  local pid
-  pid=$(lsof -ti:"$port" 2>/dev/null || true)
-  if [[ -n "$pid" ]]; then
-    echo "Killing existing process on port $port (PID: $pid)..."
-    kill "$pid" 2>/dev/null || true
+  local pids
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  if [[ -n "$pids" ]]; then
+    echo "Killing existing listener(s) on port $port: $pids"
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
     sleep 1
+
+    local remaining
+    remaining="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    if [[ -n "$remaining" ]]; then
+      echo "Force killing stubborn listener(s) on port $port: $remaining"
+      # shellcheck disable=SC2086
+      kill -9 $remaining 2>/dev/null || true
+      sleep 1
+    fi
   fi
 }
 
@@ -39,7 +52,11 @@ kill_port "$UI_PORT"
 echo "Logging to: $LOG_FILE"
 
 echo "Starting API on http://localhost:${API_PORT} ..."
-uvicorn api_server_fastapi:app --host localhost --port "${API_PORT}" --reload >> "$LOG_FILE" 2>&1 &
+uvicorn api_server_fastapi:app \
+  --host 127.0.0.1 \
+  --port "${API_PORT}" \
+  --reload \
+  --reload-dir "$SCRIPT_DIR" >> "$LOG_FILE" 2>&1 &
 API_PID=$!
 
 echo "Starting UI on http://${UI_HOST}:${UI_PORT} ..."
