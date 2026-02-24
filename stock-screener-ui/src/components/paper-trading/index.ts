@@ -10,11 +10,20 @@ import { renderChartContainer, initChartHandlers } from './chart'
 import {
   getPaperTradingState,
   setPaperTradingView,
-  setFilterDate,
+  setFilterFromDate,
+  setFilterToDate,
   setFilterSymbol,
   setError,
 } from '../../state/paperTrading'
-import { refreshLiveData, refreshHistoryData, initLiveAutoRefresh, stopLiveAutoRefresh } from '../../api/paperTrading'
+import {
+  refreshLiveData,
+  refreshHistoryData,
+  initLiveAutoRefresh,
+  stopLiveAutoRefresh,
+  startPaperBot,
+  stopPaperBot,
+  fetchPaperBotStatus,
+} from '../../api/paperTrading'
 import type { PaperTradingView } from '../../types/paperTrading'
 
 export function renderPaperTradingView(): string {
@@ -87,6 +96,17 @@ function renderFilters(state: ReturnType<typeof getPaperTradingState>): string {
           Auto-refresh (20s)
         </label>
       </div>
+      <div class="filter-group">
+        <span class="paper-bot-status ${state.botRunning ? 'running' : 'stopped'}">
+          Bot: ${state.botRunning ? `Running${state.botPid ? ` (PID ${state.botPid})` : ''}` : 'Stopped'}
+        </span>
+        <button
+          class="btn btn-secondary btn-small"
+          onclick="window.togglePaperBot()"
+        >
+          ${state.botRunning ? 'Stop Paper Trading' : 'Start Paper Trading'}
+        </button>
+      </div>
     `
   }
 
@@ -96,13 +116,22 @@ function renderFilters(state: ReturnType<typeof getPaperTradingState>): string {
 
   return `
     <div class="filter-group">
-      <label>Date:</label>
-      <select onchange="window.setPaperDateFilter(this.value)" class="filter-select">
-        <option value="">Today</option>
-        <option value="yesterday">Yesterday</option>
-        <option value="week">This Week</option>
-        <option value="all">All Time</option>
-      </select>
+      <label>From:</label>
+      <input
+        type="date"
+        class="filter-select"
+        value="${state.filterFromDate || ''}"
+        onchange="window.setPaperFromDate(this.value)"
+      />
+    </div>
+    <div class="filter-group">
+      <label>To:</label>
+      <input
+        type="date"
+        class="filter-select"
+        value="${state.filterToDate || ''}"
+        onchange="window.setPaperToDate(this.value)"
+      />
     </div>
     <div class="filter-group">
       <label>Symbol:</label>
@@ -135,8 +164,13 @@ export function initPaperTradingHandlers() {
   }
 
   // Filter handlers
-  ;(window as any).setPaperDateFilter = (value: string) => {
-    setFilterDate(value || null)
+  ;(window as any).setPaperFromDate = (value: string) => {
+    setFilterFromDate(value || null)
+    refreshHistoryData()
+  }
+
+  ;(window as any).setPaperToDate = (value: string) => {
+    setFilterToDate(value || null)
     refreshHistoryData()
   }
 
@@ -152,12 +186,22 @@ export function initPaperTradingHandlers() {
     }
   }
 
+  ;(window as any).togglePaperBot = async () => {
+    const state = getPaperTradingState()
+    if (state.botRunning) {
+      await stopPaperBot()
+    } else {
+      await startPaperBot()
+    }
+  }
+
   ;(window as any).clearPaperError = () => {
     setError(null)
   }
 
   // Initial data load
   refreshLiveData()
+  fetchPaperBotStatus()
   initLiveAutoRefresh()
 }
 

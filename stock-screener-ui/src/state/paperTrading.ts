@@ -27,6 +27,8 @@ export const initialPaperTradingState: PaperTradingState = {
   symbolPerformance: [],
 
   filterDate: null,
+  filterFromDate: null,
+  filterToDate: null,
   filterSymbol: null,
 
   selectedSymbol: null,
@@ -37,6 +39,10 @@ export const initialPaperTradingState: PaperTradingState = {
   error: null,
 
   autoRefreshEnabled: true,
+  botRunning: false,
+  botPid: null,
+  botLogFile: null,
+  botSnapshot: null,
 }
 
 // Additional type for the view state
@@ -111,6 +117,16 @@ export function setFilterDate(date: string | null) {
   notify()
 }
 
+export function setFilterFromDate(date: string | null) {
+  state = { ...state, filterFromDate: date }
+  notify()
+}
+
+export function setFilterToDate(date: string | null) {
+  state = { ...state, filterToDate: date }
+  notify()
+}
+
 export function setFilterSymbol(symbol: string | null) {
   state = { ...state, filterSymbol: symbol }
   notify()
@@ -150,6 +166,16 @@ export function setAutoRefresh(enabled: boolean) {
     clearInterval(refreshTimer)
     refreshTimer = null
   }
+  notify()
+}
+
+export function setBotStatus(botRunning: boolean, botPid: number | null, botLogFile: string | null) {
+  state = { ...state, botRunning, botPid, botLogFile }
+  notify()
+}
+
+export function setBotSnapshot(snapshot: PaperTradingState['botSnapshot']) {
+  state = { ...state, botSnapshot: snapshot }
   notify()
 }
 

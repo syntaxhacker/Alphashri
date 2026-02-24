@@ -21,7 +21,61 @@ export function renderPositionsPanel(): string {
   return `
     <div class="positions-panel" data-testid="positions-panel">
       ${renderPortfolioSummary(state.portfolio)}
+      ${renderWatchlistScan(state.botSnapshot)}
       ${renderPositionsTable(state.positions, state.selectedSymbol)}
+    </div>
+  `
+}
+
+function renderWatchlistScan(snapshot: ReturnType<typeof getPaperTradingState>['botSnapshot']): string {
+  const state = getPaperTradingState()
+
+  if (!snapshot || !snapshot.scan_items || snapshot.scan_items.length === 0) {
+    return `
+      <div class="scan-card">
+        <div class="scan-header">
+          <h3>Watchlist Scan</h3>
+          <span class="scan-time">No scan data yet</span>
+        </div>
+      </div>
+    `
+  }
+
+  const scanTime = snapshot.timestamp ? new Date(snapshot.timestamp).toLocaleTimeString() : '-'
+  const rows = snapshot.scan_items.slice(0, 12)
+
+  return `
+    <div class="scan-card">
+      <div class="scan-header">
+        <h3>Watchlist Scan</h3>
+        <span class="scan-time">${scanTime}</span>
+      </div>
+      <table class="scan-table">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Status</th>
+            <th>Price</th>
+            <th>OR H/L</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(item => `
+            <tr
+              class="scan-row ${state.selectedSymbol === item.symbol ? 'selected' : ''}"
+              onclick="window.selectWatchlistSymbol('${item.symbol}')"
+              data-symbol="${item.symbol}"
+            >
+              <td><strong>${item.symbol}</strong></td>
+              <td class="scan-status scan-${item.status}">${item.status}${item.side ? ` ${item.side}` : ''}</td>
+              <td>${item.price ? `₹${item.price.toFixed(2)}` : '-'}</td>
+              <td>${(item.or_high && item.or_low) ? `₹${item.or_high.toFixed(2)} / ₹${item.or_low.toFixed(2)}` : '-'}</td>
+              <td>${item.reason || '-'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
     </div>
   `
 }
@@ -179,6 +233,11 @@ function formatDuration(entryTime: string): string {
 
 export function initPositionsHandlers() {
   ;(window as any).selectPosition = async (symbol: string) => {
+    setSelectedSymbol(symbol)
+    await fetchPaperChart(symbol)
+  }
+
+  ;(window as any).selectWatchlistSymbol = async (symbol: string) => {
     setSelectedSymbol(symbol)
     await fetchPaperChart(symbol)
   }

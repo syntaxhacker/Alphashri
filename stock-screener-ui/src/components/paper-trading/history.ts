@@ -28,95 +28,31 @@ export function renderHistoryPanel(): string {
   if (state.filterSymbol) {
     filteredTrades = filteredTrades.filter(t => t.symbol === state.filterSymbol)
   }
-  if (state.filterDate) {
-    filteredTrades = filterByDate(filteredTrades, state.filterDate)
+  if (state.filterFromDate || state.filterToDate) {
+    filteredTrades = filterByRange(filteredTrades, state.filterFromDate, state.filterToDate)
   }
 
   return `
     <div class="history-panel" data-testid="history-panel">
-      ${renderDailySummary(state.dailySummary, filteredTrades.length)}
       ${renderTradesTable(filteredTrades, state.selectedSymbol)}
     </div>
   `
 }
 
-function filterByDate(trades: PaperTrade[], filter: string): PaperTrade[] {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+function filterByRange(
+  trades: PaperTrade[],
+  fromDate: string | null,
+  toDate: string | null
+): PaperTrade[] {
+  const from = fromDate ? new Date(`${fromDate}T00:00:00`) : null
+  const to = toDate ? new Date(`${toDate}T23:59:59`) : null
 
-  switch (filter) {
-    case 'yesterday': {
-      const yesterday = new Date(today)
-      yesterday.setDate(yesterday.getDate() - 1)
-      return trades.filter(t => {
-        const tradeDate = new Date(t.exit_time)
-        tradeDate.setHours(0, 0, 0, 0)
-        return tradeDate.getTime() === yesterday.getTime()
-      })
-    }
-    case 'week': {
-      const weekAgo = new Date(today)
-      weekAgo.setDate(weekAgo.getDate() - 7)
-      return trades.filter(t => new Date(t.exit_time) >= weekAgo)
-    }
-    case 'all':
-      return trades
-    default:
-      // Today
-      return trades.filter(t => {
-        const tradeDate = new Date(t.exit_time)
-        tradeDate.setHours(0, 0, 0, 0)
-        return tradeDate.getTime() === today.getTime()
-      })
-  }
-}
-
-function renderDailySummary(
-  summary: ReturnType<typeof getPaperTradingState>['dailySummary'],
-  tradeCount: number
-): string {
-  if (!summary || summary.trades === 0) {
-    return `
-      <div class="daily-summary-card">
-        <p class="no-trades">No trades for selected period</p>
-      </div>
-    `
-  }
-
-  const pnlClass = summary.net_pnl >= 0 ? 'positive' : 'negative'
-  const pnlSign = summary.net_pnl >= 0 ? '+' : ''
-  const winRate = summary.trades > 0 ? ((summary.winners / summary.trades) * 100).toFixed(1) : '0'
-
-  return `
-    <div class="daily-summary-card" data-testid="daily-summary">
-      <div class="summary-row">
-        <div class="summary-item">
-          <span class="summary-label">Trades</span>
-          <span class="summary-value">${tradeCount}</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-label">Win Rate</span>
-          <span class="summary-value">${winRate}%</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-label">W/L</span>
-          <span class="summary-value">
-            <span class="wins">${summary.winners}</span>/<span class="losses">${summary.losers}</span>
-          </span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-label">Net P&L</span>
-          <span class="summary-value ${pnlClass}">
-            <strong>${pnlSign}₹${formatNumber(summary.net_pnl)}</strong>
-          </span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-label">Costs</span>
-          <span class="summary-value">₹${formatNumber(summary.total_costs)}</span>
-        </div>
-      </div>
-    </div>
-  `
+  return trades.filter(t => {
+    const tradeDate = new Date(t.exit_time)
+    if (from && tradeDate < from) return false
+    if (to && tradeDate > to) return false
+    return true
+  })
 }
 
 function renderTradesTable(
@@ -292,9 +228,18 @@ function formatNumber(num: number | undefined | null): string {
 function formatTradeTime(isoStr: string): string {
   if (!isoStr) return '-'
   const date = new Date(isoStr)
-  const hours = date.getHours().toString().padStart(2, '0')
-  const mins = date.getMinutes().toString().padStart(2, '0')
-  return `${hours}:${mins}`
+  if (Number.isNaN(date.getTime())) return isoStr
+
+  // Human-readable: 24 Feb 2026, 10:38:36
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date).replace(',', '')
 }
 
 export function initHistoryHandlers() {

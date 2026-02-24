@@ -9,6 +9,7 @@ This module provides REST API endpoints for:
 """
 
 import sys
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
@@ -32,6 +33,12 @@ console = Console()
 
 # Create router
 router = APIRouter(prefix="/api/paper", tags=["Paper Trading"])
+
+# Background runner process state
+_paper_bot_process: Optional[subprocess.Popen] = None
+_paper_bot_log_file = Path("/tmp/paper-trading-runner.log")
+_paper_bot_log_handle = None
+_paper_bot_snapshot_file = Path("/tmp/paper-trading-snapshot.json")
 
 
 # ============== Request/Response Models ==============
@@ -83,9 +90,23 @@ async def reset_portfolio(request: ResetRequest):
 async def get_positions():
     """Get all open positions."""
     trader = get_paper_trader()
+    positions = trader.get_positions()
+
+    # If bot runs in a separate process, in-memory positions here may be empty.
+    # Fallback to snapshot positions produced by the runner.
+    if len(positions) == 0 and _paper_bot_snapshot_file.exists():
+        try:
+            import json
+            snap = json.loads(_paper_bot_snapshot_file.read_text())
+            snap_positions = snap.get("open_positions_data") or []
+            if isinstance(snap_positions, list):
+                positions = snap_positions
+        except Exception:
+            pass
+
     return {
-        "count": len(trader.positions),
-        "positions": trader.get_positions()
+        "count": len(positions),
+        "positions": positions
     }
 
 
@@ -99,7 +120,6 @@ async def get_trades(
     """Get trade history from journal with filters."""
     from trading.journal import TradeJournal
 
-    today = datetime.now().strftime('%Y-%m-%d')
     journal_dir = Path(__file__).parent.parent / "journals"
 
     all_trades = []
@@ -116,22 +136,38 @@ async def get_trades(
             except Exception as e:
                 console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
     else:
-        # No date filter - load today + all available journals
-        # First, load today's journal (may include live trades)
+        # No date filter - merge in-memory journal + journal files (including today)
+        # In-memory journal can be stale when runner writes from another process,
+        # so we always load today's file as source of truth and dedupe.
         journal = get_journal()
         all_trades = [asdict(t) for t in journal.trades]
 
-        # Also load recent journal files (last 7 days)
-        for i in range(1, 8):
-            past_date = (datetime.now() - __import__('datetime').timedelta(days=i)).strftime('%Y%m%d')
-            past_file = journal_dir / f"journal_{past_date}.json"
-            if past_file.exists():
-                try:
-                    temp_journal = TradeJournal()
-                    temp_journal.load_journal(str(past_file))
-                    all_trades.extend([asdict(t) for t in temp_journal.trades])
-                except Exception:
-                    pass
+        # Load recent journal files (today + previous 7 days)
+        for i in range(0, 8):
+            day_str = (datetime.now() - __import__('datetime').timedelta(days=i)).strftime('%Y%m%d')
+            journal_file = journal_dir / f"journal_{day_str}.json"
+            if not journal_file.exists():
+                continue
+            try:
+                temp_journal = TradeJournal()
+                temp_journal.load_journal(str(journal_file))
+                all_trades.extend([asdict(t) for t in temp_journal.trades])
+            except Exception:
+                pass
+
+        # Deduplicate merged trades across memory/file sources.
+        # trade_id can repeat across runner restarts, so include times/symbol/qty.
+        deduped = {}
+        for t in all_trades:
+            key = (
+                t.get('symbol'),
+                t.get('side'),
+                t.get('quantity'),
+                t.get('entry_time'),
+                t.get('exit_time'),
+            )
+            deduped[key] = t
+        all_trades = list(deduped.values())
 
     # Apply filters
     filtered_trades = all_trades
@@ -433,6 +469,130 @@ async def health_check():
     }
 
 
+def _get_bot_status() -> dict:
+    """Get current paper trading runner process status."""
+    global _paper_bot_process
+
+    running = False
+    pid = None
+    return_code = None
+
+    if _paper_bot_process is not None:
+        return_code = _paper_bot_process.poll()
+        if return_code is None:
+            running = True
+            pid = _paper_bot_process.pid
+        else:
+            # Process exited; clear handle so next start works cleanly
+            _paper_bot_process = None
+
+    return {
+        "running": running,
+        "pid": pid,
+        "return_code": return_code,
+        "log_file": str(_paper_bot_log_file),
+    }
+
+
+@router.get("/bot/status")
+async def get_paper_bot_status():
+    """Get background paper trading runner status."""
+    return _get_bot_status()
+
+
+@router.get("/bot/snapshot")
+async def get_paper_bot_snapshot():
+    """Get latest scan/watchlist snapshot produced by runner."""
+    if not _paper_bot_snapshot_file.exists():
+        return {
+            "timestamp": None,
+            "watchlist": [],
+            "open_positions": [],
+            "scan_items": [],
+            "signals": [],
+        }
+    try:
+        import json
+        return json.loads(_paper_bot_snapshot_file.read_text())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read snapshot: {e}")
+
+
+@router.post("/bot/start")
+async def start_paper_bot():
+    """Start background paper trading runner process."""
+    global _paper_bot_process
+
+    status = _get_bot_status()
+    if status["running"]:
+        return {
+            "status": "already_running",
+            "message": "Paper trading runner is already running",
+            **status,
+        }
+
+    script_path = Path(__file__).parent.parent / "run_daily_trading.py"
+    if not script_path.exists():
+        raise HTTPException(status_code=500, detail=f"Runner script not found: {script_path}")
+
+    # Keep logs for debugging runner behavior
+    _paper_bot_log_file.parent.mkdir(parents=True, exist_ok=True)
+    global _paper_bot_log_handle
+    _paper_bot_log_handle = open(_paper_bot_log_file, "a", buffering=1)
+
+    cmd = [sys.executable, "-u", str(script_path)]
+    _paper_bot_process = subprocess.Popen(
+        cmd,
+        cwd=str(Path(__file__).parent.parent),
+        stdout=_paper_bot_log_handle,
+        stderr=_paper_bot_log_handle,
+        start_new_session=True,
+    )
+
+    new_status = _get_bot_status()
+    return {
+        "status": "started",
+        "message": "Paper trading runner started",
+        **new_status,
+    }
+
+
+@router.post("/bot/stop")
+async def stop_paper_bot():
+    """Stop background paper trading runner process."""
+    global _paper_bot_process, _paper_bot_log_handle
+
+    status = _get_bot_status()
+    if not status["running"] or _paper_bot_process is None:
+        return {
+            "status": "not_running",
+            "message": "Paper trading runner is not running",
+            **status,
+        }
+
+    proc = _paper_bot_process
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+        proc.wait(timeout=5)
+
+    _paper_bot_process = None
+    if _paper_bot_log_handle:
+        try:
+            _paper_bot_log_handle.close()
+        except Exception:
+            pass
+        _paper_bot_log_handle = None
+    new_status = _get_bot_status()
+    return {
+        "status": "stopped",
+        "message": "Paper trading runner stopped",
+        **new_status,
+    }
+
+
 # ============== Chart Data Endpoint ==============
 
 @router.get("/chart/{symbol}")
@@ -449,8 +609,42 @@ async def get_paper_chart(symbol: str, date: Optional[str] = None):
     try:
         # Import required modules
         import sys
+        import pandas as pd
         sys.path.insert(0, str(Path(__file__).parent.parent.parent))
         from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
+
+        def _resample_to_5m(df_1m):
+            """Resample 1-minute OHLCV to 5-minute OHLCV."""
+            if df_1m is None or df_1m.empty:
+                return None
+
+            df_work = df_1m.copy()
+
+            if not isinstance(df_work.index, pd.DatetimeIndex):
+                df_work.index = pd.to_datetime(df_work.index)
+
+            df_work = df_work.sort_index()
+
+            # Keep only columns needed by the chart response
+            agg_map = {
+                'open': 'first',
+                'high': 'max',
+                'low': 'min',
+                'close': 'last',
+                'volume': 'sum',
+            }
+            available_agg = {k: v for k, v in agg_map.items() if k in df_work.columns}
+            if {'open', 'high', 'low', 'close'} - set(available_agg.keys()):
+                return None
+
+            resampled = (
+                df_work
+                .resample('5min', label='left', closed='left')
+                .agg(available_agg)
+                .dropna(subset=['open', 'high', 'low', 'close'])
+            )
+
+            return resampled if not resampled.empty else None
 
         # Get date to fetch
         today = datetime.now().strftime('%Y-%m-%d')
@@ -466,6 +660,13 @@ async def get_paper_chart(symbol: str, date: Optional[str] = None):
                 symbol=symbol.upper(),
                 interval='5'
             )
+            # Fallback: if 5-min data is unavailable, fetch 1-min and resample
+            if df is None or df.empty:
+                df_1m = screener.upstox_api.fetch_intraday_data_v3(
+                    symbol=symbol.upper(),
+                    interval='1'
+                )
+                df = _resample_to_5m(df_1m)
         else:
             # Fetch historical minute data for past dates
             # Use a range since same-day from/to doesn't work reliably
@@ -486,6 +687,45 @@ async def get_paper_chart(symbol: str, date: Optional[str] = None):
                 df = df[df.index <= date_end]
             else:
                 df = None
+
+            # Fallback: if 5-min historical data is unavailable, fetch 1-min and resample
+            if df is None or df.empty:
+                df_1m_full = screener.upstox_api.fetch_historical_data_v3(
+                    symbol=symbol.upper(),
+                    unit='minutes',
+                    interval=1,
+                    to_date=date,
+                    from_date=from_date,
+                )
+                # Upstox can return empty minute candles for multi-day ranges on some symbols.
+                # Retry with same-day window before failing.
+                if (df_1m_full is None or df_1m_full.empty) and from_date != date:
+                    df_1m_full = screener.upstox_api.fetch_historical_data_v3(
+                        symbol=symbol.upper(),
+                        unit='minutes',
+                        interval=1,
+                        to_date=date,
+                        from_date=date,
+                    )
+                # Additional fallback for symbols where narrow windows miss latest minutes.
+                # Query a broader range, then filter the requested date.
+                if df_1m_full is None or df_1m_full.empty:
+                    broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
+                    df_1m_full = screener.upstox_api.fetch_historical_data_v3(
+                        symbol=symbol.upper(),
+                        unit='minutes',
+                        interval=1,
+                        to_date=date,
+                        from_date=broad_from_date,
+                    )
+                if df_1m_full is not None and not df_1m_full.empty:
+                    date_start = f"{date}T00:00:00"
+                    date_end = f"{date}T23:59:59"
+                    df_1m = df_1m_full[df_1m_full.index >= date_start]
+                    df_1m = df_1m[df_1m.index <= date_end]
+                else:
+                    df_1m = None
+                df = _resample_to_5m(df_1m)
 
         if df is None or df.empty:
             return {"error": f"No data for {symbol} on {date}", "symbol": symbol, "date": date}

@@ -19,6 +19,7 @@ Usage:
 import sys
 import time
 import argparse
+import json
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List
@@ -92,6 +93,7 @@ class DailyTradingRunner:
         self.watchlist = []
         self.signals_generated = []
         self.cooldown_stocks = {}  # {symbol: exit_time} - stocks in cooldown
+        self.snapshot_file = Path("/tmp/paper-trading-snapshot.json")
 
         # Data fetcher
         self._screener = None
@@ -105,6 +107,46 @@ class DailyTradingRunner:
         """Handle shutdown signals."""
         console.print("\n[yellow]Shutdown signal received. Closing positions...[/yellow]")
         self.running = False
+
+    def _write_scan_snapshot(self, scan_items: List[dict], signals: List = None):
+        """Persist latest scan/watchlist state for UI consumption."""
+        try:
+            open_positions_data = []
+            for symbol, pos in self.trader.positions.items():
+                open_positions_data.append({
+                    "symbol": symbol,
+                    "side": pos.side.value,
+                    "quantity": pos.quantity,
+                    "entry_price": round(float(pos.entry_price), 2),
+                    "current_price": round(float(pos.current_price), 2),
+                    "entry_time": pos.entry_time.isoformat() if hasattr(pos.entry_time, "isoformat") else str(pos.entry_time),
+                    "stop_loss": round(float(pos.stop_loss), 2),
+                    "take_profit": round(float(pos.take_profit), 2),
+                    "pnl": round(float(pos.unrealized_pnl), 2),
+                    "pnl_pct": round(float(pos.unrealized_pnl_pct), 2),
+                    "margin_used": round(float(pos.entry_price * pos.quantity), 2),
+                    "order_id": f"LIVE-{symbol}",
+                })
+
+            payload = {
+                "timestamp": datetime.now().isoformat(),
+                "watchlist": self.watchlist,
+                "open_positions": list(self.trader.positions.keys()),
+                "open_positions_data": open_positions_data,
+                "scan_items": scan_items,
+                "signals": [
+                    {
+                        "symbol": s.symbol,
+                        "side": "LONG" if s.signal_type == SignalType.LONG_ENTRY else "SHORT",
+                        "price": round(float(s.price), 2),
+                        "notes": s.notes,
+                    }
+                    for s in (signals or [])
+                ],
+            }
+            self.snapshot_file.write_text(json.dumps(payload))
+        except Exception as e:
+            console.print(f"[dim red]Failed to write scan snapshot: {e}[/dim red]")
 
     def _get_screener(self):
         """Lazy load screener."""
@@ -152,6 +194,14 @@ class DailyTradingRunner:
 
         self.watchlist = df['name'].tolist()[:20]  # Top 20 stocks
         console.print(f"[green]Watchlist updated: {len(self.watchlist)} stocks[/green]")
+        self._write_scan_snapshot([
+            {
+                "symbol": symbol,
+                "status": "watching",
+                "reason": "In watchlist, waiting for next scan",
+            }
+            for symbol in self.watchlist
+        ], [])
 
         # Display watchlist
         table = Table(title="Today's ORB Watchlist")
@@ -243,8 +293,15 @@ class DailyTradingRunner:
 
     def scan_for_signals(self):
         """Scan watchlist for ORB signals."""
+        scan_items: List[dict] = []
+
         if not self.is_trading_hours():
             console.print("[dim]Outside trading hours, skipping signal scan[/dim]")
+            self._write_scan_snapshot([{
+                "symbol": "*",
+                "status": "outside_trading_hours",
+                "reason": "Outside OR scan window",
+            }], [])
             return []
 
         new_signals = []
@@ -283,8 +340,18 @@ class DailyTradingRunner:
                     )
                     signal.notes = f"[TEST] Synthetic breakout above OR high ₹{or_high:.2f}"
                     new_signals.append(signal)
+                    scan_items.append({
+                        "symbol": symbol,
+                        "status": "signal",
+                        "side": "LONG",
+                        "price": round(price, 2),
+                        "or_high": round(or_high, 2),
+                        "or_low": round(or_low, 2),
+                        "reason": "Force-signal test mode",
+                    })
                     console.print(f"[green]Generated test signal for {symbol}[/green]")
 
+            self._write_scan_snapshot(scan_items, new_signals)
             return new_signals
 
         # NORMAL MODE: Real signal detection with parallel data fetching
@@ -293,6 +360,11 @@ class DailyTradingRunner:
         for symbol in self.watchlist:
             # Skip if already have position
             if symbol in self.trader.positions:
+                scan_items.append({
+                    "symbol": symbol,
+                    "status": "skipped",
+                    "reason": "Already in position",
+                })
                 continue
 
             # Skip if in cooldown period (recently exited)
@@ -302,6 +374,11 @@ class DailyTradingRunner:
                 if datetime.now() < cooldown_end:
                     remaining = (cooldown_end - datetime.now()).seconds // 60
                     console.print(f"[dim yellow]  {symbol}: In cooldown ({remaining}m remaining)[/dim yellow]")
+                    scan_items.append({
+                        "symbol": symbol,
+                        "status": "cooldown",
+                        "reason": f"In cooldown ({remaining}m remaining)",
+                    })
                     continue
                 else:
                     # Cooldown expired, remove from list
@@ -314,6 +391,11 @@ class DailyTradingRunner:
             # Fetch OR data
             or_levels = self.fetch_or_data(symbol)
             if not or_levels:
+                scan_items.append({
+                    "symbol": symbol,
+                    "status": "no_data",
+                    "reason": "No intraday OR data",
+                })
                 continue
 
             # Store OR levels
@@ -347,16 +429,43 @@ class DailyTradingRunner:
                 # FILTER: Don't enter if too far from OR high (already overextended)
                 if distance_from_or_high > MAX_DISTANCE_FROM_OR:
                     console.print(f"[yellow]  ⚠️ {symbol}: Skip LONG - too far from OR high ({distance_from_or_high:.2f}%)[/yellow]")
+                    scan_items.append({
+                        "symbol": symbol,
+                        "status": "blocked",
+                        "side": "LONG",
+                        "price": round(current_price, 2),
+                        "or_high": round(or_high, 2),
+                        "or_low": round(or_low, 2),
+                        "reason": f"Too far above OR high ({distance_from_or_high:.2f}%)",
+                    })
                     continue
 
                 # FILTER: Don't buy if day already up too much (buying at top)
                 if day_change_pct > 2.0:
                     console.print(f"[yellow]  ⚠️ {symbol}: Skip LONG - day already up {day_change_pct:.1f}%[/yellow]")
+                    scan_items.append({
+                        "symbol": symbol,
+                        "status": "blocked",
+                        "side": "LONG",
+                        "price": round(current_price, 2),
+                        "or_high": round(or_high, 2),
+                        "or_low": round(or_low, 2),
+                        "reason": f"Day already up {day_change_pct:.1f}%",
+                    })
                     continue
 
                 # FILTER: Need enough volatility for TP to be reached
                 if or_range_pct < 2.0:
                     console.print(f"[yellow]  ⚠️ {symbol}: Skip LONG - low volatility (OR range {or_range_pct:.1f}%)[/yellow]")
+                    scan_items.append({
+                        "symbol": symbol,
+                        "status": "blocked",
+                        "side": "LONG",
+                        "price": round(current_price, 2),
+                        "or_high": round(or_high, 2),
+                        "or_low": round(or_low, 2),
+                        "reason": f"Low volatility (OR range {or_range_pct:.1f}%)",
+                    })
                     continue
 
                 signal = create_entry_signal(
@@ -370,6 +479,15 @@ class DailyTradingRunner:
                 )
                 signal.notes = f"Breakout above OR high ₹{or_high:.2f} (+{distance_from_or_high:.2f}%)"
                 new_signals.append(signal)
+                scan_items.append({
+                    "symbol": symbol,
+                    "status": "signal",
+                    "side": "LONG",
+                    "price": round(current_price, 2),
+                    "or_high": round(or_high, 2),
+                    "or_low": round(or_low, 2),
+                    "reason": f"Breakout +{distance_from_or_high:.2f}%",
+                })
                 console.print(f"[green]✓ Breakout detected: {symbol} @ ₹{current_price:.2f} (OR High: ₹{or_high:.2f}, +{distance_from_or_high:.2f}%)[/green]")
 
             # Check for breakdown (price below OR low)
@@ -377,16 +495,43 @@ class DailyTradingRunner:
                 # FILTER: Don't enter if too far from OR low (already overextended down)
                 if distance_from_or_low > MAX_DISTANCE_FROM_OR:
                     console.print(f"[yellow]  ⚠️ {symbol}: Skip SHORT - too far from OR low ({distance_from_or_low:.2f}%)[/yellow]")
+                    scan_items.append({
+                        "symbol": symbol,
+                        "status": "blocked",
+                        "side": "SHORT",
+                        "price": round(current_price, 2),
+                        "or_high": round(or_high, 2),
+                        "or_low": round(or_low, 2),
+                        "reason": f"Too far below OR low ({distance_from_or_low:.2f}%)",
+                    })
                     continue
 
                 # FILTER: Don't SHORT if stock is in uptrend (day positive)
                 if day_change_pct > 1.0:
                     console.print(f"[yellow]  ⚠️ {symbol}: Skip SHORT - uptrend (day +{day_change_pct:.1f}%)[/yellow]")
+                    scan_items.append({
+                        "symbol": symbol,
+                        "status": "blocked",
+                        "side": "SHORT",
+                        "price": round(current_price, 2),
+                        "or_high": round(or_high, 2),
+                        "or_low": round(or_low, 2),
+                        "reason": f"Uptrend day +{day_change_pct:.1f}%",
+                    })
                     continue
 
                 # FILTER: Need enough volatility for TP to be reached
                 if or_range_pct < 2.0:
                     console.print(f"[yellow]  ⚠️ {symbol}: Skip SHORT - low volatility (OR range {or_range_pct:.1f}%)[/yellow]")
+                    scan_items.append({
+                        "symbol": symbol,
+                        "status": "blocked",
+                        "side": "SHORT",
+                        "price": round(current_price, 2),
+                        "or_high": round(or_high, 2),
+                        "or_low": round(or_low, 2),
+                        "reason": f"Low volatility (OR range {or_range_pct:.1f}%)",
+                    })
                     continue
 
                 signal = create_entry_signal(
@@ -400,8 +545,27 @@ class DailyTradingRunner:
                 )
                 signal.notes = f"Breakdown below OR low ₹{or_low:.2f} (-{distance_from_or_low:.2f}%)"
                 new_signals.append(signal)
+                scan_items.append({
+                    "symbol": symbol,
+                    "status": "signal",
+                    "side": "SHORT",
+                    "price": round(current_price, 2),
+                    "or_high": round(or_high, 2),
+                    "or_low": round(or_low, 2),
+                    "reason": f"Breakdown -{distance_from_or_low:.2f}%",
+                })
                 console.print(f"[red]✓ Breakdown detected: {symbol} @ ₹{current_price:.2f} (OR Low: ₹{or_low:.2f}, -{distance_from_or_low:.2f}%)[/red]")
+            else:
+                scan_items.append({
+                    "symbol": symbol,
+                    "status": "watching",
+                    "price": round(current_price, 2),
+                    "or_high": round(or_high, 2),
+                    "or_low": round(or_low, 2),
+                    "reason": "Waiting for OR breakout",
+                })
 
+        self._write_scan_snapshot(scan_items, new_signals)
         return new_signals
 
     def execute_signal(self, signal):

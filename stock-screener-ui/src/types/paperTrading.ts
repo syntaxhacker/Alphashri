@@ -121,6 +121,29 @@ export interface ORBLevels {
   or_range_pct: number
 }
 
+export interface PaperScanItem {
+  symbol: string
+  status: string
+  side?: 'LONG' | 'SHORT'
+  price?: number
+  or_high?: number
+  or_low?: number
+  reason?: string
+}
+
+export interface PaperBotSnapshot {
+  timestamp: string | null
+  watchlist: string[]
+  open_positions: string[]
+  scan_items: PaperScanItem[]
+  signals: Array<{
+    symbol: string
+    side: 'LONG' | 'SHORT'
+    price: number
+    notes?: string
+  }>
+}
+
 // View type for paper trading
 export type PaperTradingView = 'live' | 'history'
 
@@ -139,7 +162,9 @@ export interface PaperTradingState {
   symbolPerformance: SymbolPerformance[]
 
   // Filters
-  filterDate: string | null  // null = today
+  filterDate: string | null  // Legacy quick filter (unused by UI)
+  filterFromDate: string | null
+  filterToDate: string | null
   filterSymbol: string | null
 
   // Chart state
@@ -153,6 +178,12 @@ export interface PaperTradingState {
 
   // Auto-refresh
   autoRefreshEnabled: boolean
+
+  // Paper runner status
+  botRunning: boolean
+  botPid: number | null
+  botLogFile: string | null
+  botSnapshot: PaperBotSnapshot | null
 }
 
 // View type for paper trading (match the state)
