@@ -26,6 +26,8 @@ import {
 } from '../../api/paperTrading'
 import type { PaperTradingView } from '../../types/paperTrading'
 
+let paperTradingActive = false
+
 export function renderPaperTradingView(): string {
   const state = getPaperTradingState()
 
@@ -198,8 +200,12 @@ export function initPaperTradingHandlers() {
   ;(window as any).clearPaperError = () => {
     setError(null)
   }
+}
 
-  // Initial data load
+export function activatePaperTrading() {
+  if (paperTradingActive) return
+  paperTradingActive = true
+
   refreshLiveData()
   fetchPaperBotStatus()
   initLiveAutoRefresh()
@@ -207,5 +213,6 @@ export function initPaperTradingHandlers() {
 
 // Clean up when switching views
 export function cleanupPaperTrading() {
+  paperTradingActive = false
   stopLiveAutoRefresh()
 }

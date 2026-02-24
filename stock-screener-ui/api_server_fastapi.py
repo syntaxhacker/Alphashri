@@ -23,6 +23,7 @@ sys.path.insert(0, str(_script_dir))
 
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
@@ -643,6 +644,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount historical sector dashboard static files.
+_sector_dashboard_dir = _project_root / 'historical_sector_cycles'
+if _sector_dashboard_dir.exists():
+    app.mount("/sector", StaticFiles(directory=str(_sector_dashboard_dir), html=True), name="sector_dashboard")
 
 
 @app.get("/health")

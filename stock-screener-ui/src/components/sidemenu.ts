@@ -47,6 +47,16 @@ export function renderSidemenu(): string {
           <span class="sidemenu-label">Paper Trading</span>
           <span class="sidemenu-desc">Live & completed trades</span>
         </button>
+
+        <button
+          class="sidemenu-item ${currentView === 'sector' ? 'active' : ''}"
+          data-testid="nav-sector"
+          onclick="window.setAppView('sector')"
+        >
+          <span class="sidemenu-icon">🏭</span>
+          <span class="sidemenu-label">Sector Analysis</span>
+          <span class="sidemenu-desc">Rotation & cycles dashboard</span>
+        </button>
       </nav>
 
       <div class="sidemenu-footer">

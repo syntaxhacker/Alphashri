@@ -123,6 +123,14 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
                   onclick="window.sortTrades('entry_price')">
                 Entry${sortIndicator('entry_price')}
               </th>
+              <th class="sortable ${tradeSortColumn === 'or_high' ? 'sorted ' + tradeSortDirection : ''}"
+                  onclick="window.sortTrades('or_high')">
+                OR High${sortIndicator('or_high')}
+              </th>
+              <th class="sortable ${tradeSortColumn === 'or_low' ? 'sorted ' + tradeSortDirection : ''}"
+                  onclick="window.sortTrades('or_low')">
+                OR Low${sortIndicator('or_low')}
+              </th>
               <th class="sortable ${tradeSortColumn === 'exit_price' ? 'sorted ' + tradeSortDirection : ''}"
                   onclick="window.sortTrades('exit_price')">
                 Exit${sortIndicator('exit_price')}
@@ -161,6 +169,8 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
                   <td class="side-${side.toLowerCase()}">${side === 'LONG' ? '▲' : '▼'}</td>
                   <td>${t.quantity}</td>
                   <td>₹${t.entry_price.toFixed(0)}</td>
+                  <td>₹${(t.or_high ?? 0).toFixed(2)}</td>
+                  <td>₹${(t.or_low ?? 0).toFixed(2)}</td>
                   <td>₹${t.exit_price.toFixed(0)}</td>
                   <td class="${t.net_pnl >= 0 ? 'positive' : 'negative'}">
                     <strong>₹${t.net_pnl.toFixed(0)}</strong>
@@ -205,6 +215,14 @@ function sortTrades(trades: any[], column: string, direction: 'asc' | 'desc'): a
       case 'exit_price':
         aVal = a.exit_price
         bVal = b.exit_price
+        break
+      case 'or_high':
+        aVal = a.or_high ?? 0
+        bVal = b.or_high ?? 0
+        break
+      case 'or_low':
+        aVal = a.or_low ?? 0
+        bVal = b.or_low ?? 0
         break
       case 'net_pnl':
         aVal = a.net_pnl

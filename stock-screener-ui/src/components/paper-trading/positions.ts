@@ -125,26 +125,26 @@ function renderPortfolioSummary(portfolio: ReturnType<typeof getPaperTradingStat
       <div class="portfolio-row">
         <div class="portfolio-item">
           <span class="portfolio-label">Capital</span>
-          <span class="portfolio-value">₹${formatNum(portfolio.initial_capital ?? 0)}</span>
+          <span class="portfolio-value">₹${formatCurrency(portfolio.initial_capital ?? 0)}</span>
         </div>
         <div class="portfolio-item">
           <span class="portfolio-label">Cash</span>
-          <span class="portfolio-value">₹${formatNum(portfolio.cash ?? 0)}</span>
+          <span class="portfolio-value">₹${formatCurrency(portfolio.cash ?? 0)}</span>
         </div>
         <div class="portfolio-item">
           <span class="portfolio-label">Margin Used</span>
-          <span class="portfolio-value">₹${formatNum(portfolio.margin_used ?? 0)}</span>
+          <span class="portfolio-value">₹${formatCurrency(portfolio.margin_used ?? 0)}</span>
         </div>
       </div>
       <div class="portfolio-row portfolio-highlight">
         <div class="portfolio-item">
           <span class="portfolio-label">Total Value</span>
-          <span class="portfolio-value">₹${formatNum(portfolio.total_value ?? 0)}</span>
+          <span class="portfolio-value">₹${formatCurrency(portfolio.total_value ?? 0)}</span>
         </div>
         <div class="portfolio-item">
           <span class="portfolio-label">Day P&L</span>
           <span class="portfolio-value ${pnlClass}">
-            ${pnlSign}₹${formatNum(portfolio.daily_pnl ?? 0)}
+            ${pnlSign}₹${formatCurrency(portfolio.daily_pnl ?? 0)}
             <span class="pnl-pct">(${pnlSign}${(portfolio.daily_pnl_pct ?? 0).toFixed(2)}%)</span>
           </span>
         </div>
@@ -225,6 +225,13 @@ function renderPositionsTable(
       </table>
     </div>
   `
+}
+
+function formatCurrency(num: number | undefined | null): string {
+  if (num === undefined || num === null || isNaN(num)) {
+    return '0'
+  }
+  return num.toLocaleString('en-IN', { maximumFractionDigits: 2 })
 }
 
 function formatNum(num: number | undefined | null): string {

@@ -455,18 +455,40 @@ export function initChartHandlers() {
 
     const entryIdx = entryMarker.candle_idx
     const exitIdx = exitMarker?.candle_idx ?? entryIdx
+    const selectedTrade = entryMarker.trade
+    const selectedDate = (selectedTrade?.entry_time || '').split('T')[0]
 
-    // Calculate zoom range with some padding (5 candles on each side)
-    const padding = 5
     const totalCandles = chartData.candles.length
-    const startIdx = Math.max(0, entryIdx - padding)
-    const endIdx = Math.min(totalCandles - 1, exitIdx + padding)
+
+    // Zoom to full day for the selected trade.
+    // Fallback to entry/exit padded range if day boundaries aren't found.
+    let startIdx = entryIdx
+    let endIdx = exitIdx
+    if (selectedDate) {
+      const dayIndices = chartData.candles
+        .map((c, idx) => ({ date: c.date, idx }))
+        .filter(item => item.date === selectedDate)
+        .map(item => item.idx)
+
+      if (dayIndices.length > 0) {
+        startIdx = dayIndices[0]
+        endIdx = dayIndices[dayIndices.length - 1]
+      } else {
+        const padding = 5
+        startIdx = Math.max(0, entryIdx - padding)
+        endIdx = Math.min(totalCandles - 1, exitIdx + padding)
+      }
+    } else {
+      const padding = 5
+      startIdx = Math.max(0, entryIdx - padding)
+      endIdx = Math.min(totalCandles - 1, exitIdx + padding)
+    }
 
     // Convert to percentage for dataZoom
     const startPercent = (startIdx / totalCandles) * 100
     const endPercent = ((endIdx + 1) / totalCandles) * 100
 
-    console.log(`Zooming to trade ${tradeIndex + 1}: candles ${startIdx} to ${endIdx} (${startPercent.toFixed(1)}% - ${endPercent.toFixed(1)}%)`)
+    console.log(`Zooming to trade ${tradeIndex + 1} day: candles ${startIdx} to ${endIdx} (${startPercent.toFixed(1)}% - ${endPercent.toFixed(1)}%)`)
 
     // Apply zoom to the chart
     chart.dispatchAction({
@@ -483,5 +505,52 @@ export function initChartHandlers() {
       start: startPercent,
       end: endPercent,
     })
+
+    // Show OR lines only for the selected trade day.
+    // Build sparse line series: value on selected date candles, null elsewhere.
+    if (selectedTrade && selectedDate) {
+      const orHigh = selectedTrade.or_high
+      const orLow = selectedTrade.or_low
+
+      const orHighData = chartData.candles.map(c => (c.date === selectedDate ? orHigh : null))
+      const orLowData = chartData.candles.map(c => (c.date === selectedDate ? orLow : null))
+
+      chart.setOption({
+        series: [
+          {
+            id: 'selected-or-high',
+            name: 'Selected OR High',
+            type: 'line',
+            data: orHighData,
+            showSymbol: false,
+            connectNulls: false,
+            silent: true,
+            z: 6,
+            lineStyle: {
+              color: '#42A5F5',
+              width: 2,
+              type: 'dashed',
+            },
+            tooltip: { show: false },
+          },
+          {
+            id: 'selected-or-low',
+            name: 'Selected OR Low',
+            type: 'line',
+            data: orLowData,
+            showSymbol: false,
+            connectNulls: false,
+            silent: true,
+            z: 6,
+            lineStyle: {
+              color: '#1E88E5',
+              width: 2,
+              type: 'dashed',
+            },
+            tooltip: { show: false },
+          },
+        ],
+      })
+    }
   }
 }

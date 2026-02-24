@@ -22,7 +22,14 @@ function LegacyShell({ view }: { view: AppRouteView }) {
 
   useEffect(() => {
     ;(window as any).navigateToRoute = (nextView: AppRouteView) => {
-      const path = nextView === 'backtest' ? '/backtest' : nextView === 'paper' ? '/paper' : '/'
+      const path =
+        nextView === 'backtest'
+          ? '/backtest'
+          : nextView === 'paper'
+            ? '/paper'
+            : nextView === 'sector'
+              ? '/sector'
+              : '/'
       if (location.pathname !== path) {
         navigate(path)
       }
@@ -41,6 +48,7 @@ export default function App() {
       <Route path="/" element={<LegacyShell view="screener" />} />
       <Route path="/backtest" element={<LegacyShell view="backtest" />} />
       <Route path="/paper" element={<LegacyShell view="paper" />} />
+      <Route path="/sector" element={<LegacyShell view="sector" />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -148,6 +148,8 @@ async def get_portfolio():
             total_value = cash + position_value
             total_pnl = total_value - status.get("initial_capital", 0)
             total_pnl_pct = (total_pnl / status.get("initial_capital", 1) * 100) if status.get("initial_capital", 0) else 0
+            daily_pnl = unrealized_pnl
+            daily_pnl_pct = (daily_pnl / status.get("initial_capital", 1) * 100) if status.get("initial_capital", 0) else 0
 
             status.update({
                 "cash": round(cash, 2),
@@ -157,6 +159,8 @@ async def get_portfolio():
                 "total_value": round(total_value, 2),
                 "total_pnl": round(total_pnl, 2),
                 "total_pnl_pct": round(total_pnl_pct, 2),
+                "daily_pnl": round(daily_pnl, 2),
+                "daily_pnl_pct": round(daily_pnl_pct, 2),
                 "positions": len(snap_positions),
                 "open_positions": len(snap_positions),
             })

@@ -20,8 +20,10 @@ import { fetchStrategies, fetchCosts } from './api/backtest'
 
 // Paper Trading state and components
 import { subscribe as subscribePaperTrading } from './state/paperTrading'
-import { renderPaperTradingView, initPaperTradingHandlers, cleanupPaperTrading } from './components/paper-trading'
+import { renderPaperTradingView, initPaperTradingHandlers, cleanupPaperTrading, activatePaperTrading } from './components/paper-trading'
 import { initPaperChart } from './components/paper-trading/chart'
+import { renderSectorAnalysisView } from './components/sector-analysis'
+import type { AppView } from './types/backtest'
 
 // Utilities
 import { setRenderCallback } from './utils/notifications'
@@ -49,6 +51,8 @@ function getTableHeaders(screener: string, touched: boolean): string {
     .join('')
 }
 
+let lastRenderedView: AppView | null = null
+
 function render() {
   const app = document.querySelector<HTMLDivElement>('#legacy-root')!
   const backtestState = getBacktestState()
@@ -60,6 +64,8 @@ function render() {
     mainContent = renderBacktestView()
   } else if (currentView === 'paper') {
     mainContent = renderPaperTradingView()
+  } else if (currentView === 'sector') {
+    mainContent = renderSectorAnalysisView()
   } else {
     mainContent = renderScreenerView()
   }
@@ -80,6 +86,14 @@ function render() {
     // Small delay to ensure DOM is ready
     setTimeout(() => initPaperChart(), 100)
   }
+
+  // Activate/deactivate paper polling based on active route/view
+  if (currentView === 'paper' && lastRenderedView !== 'paper') {
+    activatePaperTrading()
+  } else if (currentView !== 'paper' && lastRenderedView === 'paper') {
+    cleanupPaperTrading()
+  }
+  lastRenderedView = currentView
 }
 
 function renderScreenerView(): string {
@@ -248,7 +262,11 @@ loadScreeners(initProfileFilters).then(() => {
 
   // Only fetch screener data if not on backtest or paper view
   const backtestState = getBacktestState()
-  if (backtestState.currentView !== 'backtest' && backtestState.currentView !== 'paper') {
+  if (
+    backtestState.currentView !== 'backtest' &&
+    backtestState.currentView !== 'paper' &&
+    backtestState.currentView !== 'sector'
+  ) {
     fetchData(state.data?.provider || 'upstox', state.data?.mode || 'intraday', state.activeScreener)
     setupAutoRefresh()
   }

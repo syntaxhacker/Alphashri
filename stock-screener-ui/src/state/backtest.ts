@@ -65,19 +65,12 @@ export const initialBacktestState: BacktestState = {
   selectedSymbols: ['NETWEB', 'SBILIFE'],
   params: {
     or_minutes: 45,
-    stop_loss_pct: 0.4,   // Updated: 1:3 risk/reward ratio
-    take_profit_pct: 1.2, // Updated: 1:3 risk/reward ratio
-    trade_size: 100,
     timeframe: '5',
-    enable_shorts: false,
-    trend_filter: false,
-    ema_period: 20,
-    adx_period: 14,
-    adx_threshold: 25.0,
+    stop_loss_pct: 0.4,
+    take_profit_pct: 1.2,
+    trade_size: 100,
     cooldown_bars: 3,
-    skip_range_bound: true,
-    min_atr_pct: 0.5,
-    min_adx_avg: 15.0,
+    enable_shorts: false,
   },
   days: 180,
   includeCosts: true,
