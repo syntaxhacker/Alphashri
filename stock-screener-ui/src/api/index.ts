@@ -28,7 +28,8 @@ const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
   { id: 'near_52w_breakout', label: 'Near 52W', description: '52-week high breakout candidate logic' },
   { id: 'rsi_reversal', label: 'RSI Reversal', description: 'Oversold/overbought reversal logic' },
   { id: 'market_open_gap', label: 'Gap Open', description: 'Market open gap scanner logic' },
-  { id: 'nifty_movers', label: 'Nifty Movers', description: 'Weighted impact (market-cap × move) logic' }
+  { id: 'nifty_movers', label: 'Nifty Movers', description: 'Weighted impact (market-cap × move) logic' },
+  { id: 'intraday_momentum', label: 'Intraday Momentum', description: 'Stocks with rapid price runs in last 5/15/30 mins' }
 ]
 
 function detectAutoRefreshChanges(prev: ScreenerData | null, next: ScreenerData | null) {

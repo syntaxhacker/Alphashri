@@ -155,6 +155,24 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     `
   }
 
+  if (screener === 'intraday_momentum') {
+    const move = s.move_pct ?? 0
+    const day = s.day_change ?? 0
+    return `
+      <tr class="${rowClass}" title="${rowHint}">
+        <td class="sym">${s.symbol}</td>
+        <td class="num ${move >= 0 ? 'green' : 'red'}">${move >= 0 ? '+' : ''}${move.toFixed(2)}%</td>
+        <td class="num ${scoreClass}">${s.score}</td>
+        <td class="num">${(s.volume_surge ?? 0).toFixed(2)}x</td>
+        <td class="num">${(s.rsi ?? 0).toFixed(1)}</td>
+        <td class="num">₹${(s.upstox_price ?? 0).toFixed(2)}</td>
+        <td class="num ${day >= 0 ? 'green' : 'red'}">${day >= 0 ? '+' : ''}${day.toFixed(2)}%</td>
+        <td class="num">${(s.volume_m ?? 0).toFixed(2)}</td>
+        <td class="dim">${s.sector}</td>
+      </tr>
+    `
+  }
+
   // Default row (trending / near_52w)
   return `
     <tr class="${rowClass}" title="${rowHint}">

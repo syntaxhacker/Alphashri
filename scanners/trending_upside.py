@@ -24,6 +24,7 @@ SCREENER_PROFILES = {
     'rsi_reversal': {'label': 'RSI Reversal', 'description': 'Oversold/overbought reversal logic'},
     'market_open_gap': {'label': 'Gap Open', 'description': 'Market open gap scanner logic'},
     'nifty_movers': {'label': 'Nifty Movers', 'description': 'Weighted impact (market-cap × move) logic'},
+    'intraday_momentum': {'label': 'Intraday Momentum', 'description': 'Stocks with rapid price runs in last 5/15/30 mins'},
 }
 
 
@@ -212,6 +213,25 @@ def _query_by_profile(profile, limit):
             .set_markets('india')
             .where(Column('market_cap_basic') > 0, Column('close') > 0)
             .order_by('market_cap_basic', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    if profile == 'intraday_momentum':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'market_cap_basic', 'sector',
+                'relative_volume_10d_calc', 'ATR'
+            )
+            .set_markets('india')
+            .where(
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 500_000,
+                Column('close') > 20,
+                Column('relative_volume_10d_calc') > 0.5
+            )
+            .order_by('volume', ascending=False)
             .limit(fetch_limit)
         )
 
@@ -514,7 +534,23 @@ def _normalize_for_verifier(df):
     return out
 
 
+def _score_intraday_momentum(df):
+    """Score for intraday momentum - base scoring, actual momentum calculated via API."""
+    out = df.copy()
+    out['volume_m'] = out['volume'].fillna(0) / 1_000_000
+    out['volume_surge'] = out['relative_volume_10d_calc'].fillna(1).clip(lower=0)
+    # Base score from TradingView data; real momentum calculated in API server
+    out['swing_score'] = (
+        out['volume_surge'].clip(upper=5) * 10
+        + out['change'].fillna(0).abs().clip(upper=10) * 3
+        + out['volume_m'].clip(upper=50) * 0.5
+    ).clip(lower=0, upper=50).astype(int)
+    return out.sort_values(['swing_score', 'volume'], ascending=[False, False])
+
+
 def _score_by_profile(df, profile):
+    if profile == 'intraday_momentum':
+        return _score_intraday_momentum(df)
     if profile == 'high_momentum':
         return _score_high_momentum(df)
     if profile == 'buyer_interest':

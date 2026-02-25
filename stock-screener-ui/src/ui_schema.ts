@@ -24,6 +24,7 @@ export type ColumnKey =
   | 'market_cap_b'
   | 'volume_m'
   | 'is_bullish'
+  | 'move_pct'
 
 export const COLUMN_LABELS: Record<ColumnKey, string> = {
   symbol: 'Symbol',
@@ -51,6 +52,7 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
   market_cap_b: 'Cap B',
   volume_m: 'Volume M',
   is_bullish: 'Sentiment',
+  move_pct: 'Move %',
 }
 
 export const COLUMN_TOOLTIPS: Record<ColumnKey, string> = {
@@ -79,13 +81,14 @@ export const COLUMN_TOOLTIPS: Record<ColumnKey, string> = {
   market_cap_b: 'Market capitalization in billions',
   volume_m: 'Volume in millions',
   is_bullish: 'Market sentiment direction',
+  move_pct: 'Price change % over lookback period (5/15/30 min)',
 }
 
 export const NUMERIC_COLUMNS = new Set<ColumnKey>([
   'score', 'tv_price', 'upstox_price', 'broker_diff', 'high_52w', 'to_52w_high', 'time_to_52w',
   'recent_return_5d', 'perf_w', 'day_change', 'rsi', 'stoch_k', 'gap_pct',
   'premarket_change', 'impact_score', 'market_cap_b', 'volume_m',
-  'wick_close_pct', 'volume_surge', 'atr_pct', 'adx', 'interest_score'
+  'wick_close_pct', 'volume_surge', 'atr_pct', 'adx', 'interest_score', 'move_pct'
 ])
 
 export function getColumnKeysForProfile(screener: string, touched: boolean): ColumnKey[] {
@@ -112,6 +115,9 @@ export function getColumnKeysForProfile(screener: string, touched: boolean): Col
   }
   if (screener === 'nifty50_activity') {
     return ['symbol', 'score', 'interest_score', 'volume_surge', 'rsi', 'day_change', 'volume_m', 'sector']
+  }
+  if (screener === 'intraday_momentum') {
+    return ['symbol', 'move_pct', 'score', 'volume_surge', 'rsi', 'upstox_price', 'day_change', 'volume_m', 'sector']
   }
 
   const cols: ColumnKey[] = ['symbol', 'score', 'tv_price', 'upstox_price', 'broker_diff', 'high_52w', 'to_52w_high']

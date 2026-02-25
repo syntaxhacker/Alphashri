@@ -117,6 +117,14 @@ PROFILE_META = {
             {'key': 'min_cap_b', 'label': 'Cap B ≥', 'type': 'number', 'min': 0, 'max': 5000, 'step': 1, 'default': 50}
         ],
         'default_sort': {'column': 'impact_score', 'direction': 'desc'}
+    },
+    'intraday_momentum': {
+        'section_labels': {'primary': '⚡ INTRADAY MOMENTUM', 'secondary': '✅ TOP MOMENTUM RUNS'},
+        'filters': [
+            {'key': 'lookback_minutes', 'label': 'Lookback', 'type': 'select', 'options': [5, 10, 15, 30], 'default': 15},
+            {'key': 'min_move_pct', 'label': 'Move % ≥', 'type': 'number', 'min': 0, 'max': 20, 'step': 0.1, 'default': 0.5}
+        ],
+        'default_sort': {'column': 'move_pct', 'direction': 'desc'}
     }
 }
 
@@ -204,6 +212,8 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
         return _to_float(stock_data.get('rsi'), 100) <= num('max_rsi', 100) and _to_float(stock_data.get('stoch_k'), 0) >= num('min_stoch_k', 0)
     if screener == 'nifty_movers':
         return abs(_to_float(stock_data.get('impact_score'), 0)) >= num('min_impact', 0) and _to_float(stock_data.get('market_cap_b'), 0) >= num('min_cap_b', 0)
+    if screener == 'intraday_momentum':
+        return abs(_to_float(stock_data.get('move_pct'), 0)) >= num('min_move_pct', 0)
     return True
 
 
@@ -238,6 +248,10 @@ def _build_rationale(screener, stock_data):
         return f"ATR% {_to_float(stock_data.get('atr_pct'), 0):.2f}% | ADX {_to_float(stock_data.get('adx'), 0):.1f} | RSI {rsi:.1f} | PerfW {perfw:+.1f}%"
     if screener == 'nifty50_activity':
         return f"Interest {_to_float(stock_data.get('interest_score'), 0):.0f} | VolSurge {_to_float(stock_data.get('volume_surge'), 0):.2f}x | RSI {rsi:.1f} | Day {day:+.2f}%"
+    if screener == 'intraday_momentum':
+        move = _to_float(stock_data.get('move_pct'), 0)
+        lookback = stock_data.get('lookback_minutes', 15)
+        return f"Move {move:+.2f}% ({lookback}m) | VolSurge {_to_float(stock_data.get('volume_surge'), 0):.2f}x | RSI {rsi:.1f}"
     return f"Score {int(score)} | 52W gap {gap52:+.2f}% | 5D {ret5d:+.1f}% | PerfW {perfw:+.1f}%"
 
 
@@ -310,6 +324,14 @@ def _summary_items_for(screener, approaching, touched):
             {'label': 'Avg Interest', 'value': f"{avg('interest_score'):.1f}"},
             {'label': 'Avg Vol Surge', 'value': f"{avg('volume_surge'):.2f}x"},
             {'label': 'Avg Day %', 'value': f"{avg('day_change'):+.2f}%"}
+        ]
+
+    if screener == 'intraday_momentum':
+        max_move = max((_to_float(r.get('move_pct'), 0) for r in rows), default=0.0)
+        return [
+            {'label': 'Avg Move', 'value': f"{avg('move_pct'):+.2f}%"},
+            {'label': 'Max Move', 'value': f"{max_move:+.2f}%"},
+            {'label': 'Avg Vol Surge', 'value': f"{avg('volume_surge'):.2f}x"}
         ]
 
     return [
@@ -535,7 +557,31 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
                 'reversal_signal': str(row_data.get('reversal_signal', '')),
                 'is_bullish': is_bullish,
                 'sentiment': sentiment,
+                'move_pct': 0.0,
+                'lookback_minutes': 15,
             }
+
+            # Calculate intraday momentum for intraday_momentum screener
+            if screener == 'intraday_momentum':
+                lookback_minutes = int(profile_filters.get('lookback_minutes', 15)) if profile_filters else 15
+                stock_data['lookback_minutes'] = lookback_minutes
+                try:
+                    df_5m = api.fetch_intraday_data_v3(symbol=symbol, interval='5')
+                    if df_5m is not None and len(df_5m) >= 2:
+                        candles_back = max(1, lookback_minutes // 5)
+                        if len(df_5m) > candles_back:
+                            current = float(df_5m['close'].iloc[-1])
+                            past = float(df_5m['close'].iloc[-(candles_back + 1)])
+                            move_pct = ((current - past) / past) * 100 if past > 0 else 0.0
+                            stock_data['move_pct'] = round(move_pct, 2)
+                            stock_data['score'] = min(99, int(
+                                abs(move_pct) * 15 +
+                                volume_surge * 5 +
+                                max(0, _to_float(row_data.get('RSI'), 50) - 50)
+                            ))
+                except Exception:
+                    pass
+
             stock_data['rationale'] = _build_rationale(screener, stock_data)
 
             if not touched_52w and est_days is not None:
