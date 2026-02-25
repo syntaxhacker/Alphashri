@@ -86,6 +86,18 @@ export interface ORBZone {
   or_end_time: string
 }
 
+export interface PivotLevels {
+  date: string
+  date_raw: string
+  pp: number    // Pivot Point
+  r1: number    // Resistance 1
+  s1: number    // Support 1
+  r2?: number   // Resistance 2
+  s2?: number   // Support 2
+  r3?: number   // Resistance 3
+  s3?: number   // Support 3
+}
+
 export interface ChartTrade {
   trade_id: number
   type: 'entry' | 'exit'
@@ -110,8 +122,15 @@ export interface ChartTrade {
     net_pnl_pct: number
     exit_reason: 'TP' | 'SL' | 'EOD'
     hold_duration_minutes: number
-    or_high: number
-    or_low: number
+    // ORB strategy fields
+    or_high?: number
+    or_low?: number
+    // S/R Breakout strategy fields
+    pp?: number   // Pivot Point
+    r1?: number   // Resistance 1
+    s1?: number   // Support 1
+    r2?: number   // Resistance 2
+    s2?: number   // Support 2
   }
 }
 
@@ -119,6 +138,7 @@ export interface SymbolChartData {
   symbol: string
   candles: CandleData[]
   orb_zones: ORBZone[]
+  pivot_levels: PivotLevels[]  // S/R Breakout pivot levels
   trades: ChartTrade[]
   date_range: {
     start: string
@@ -172,8 +192,15 @@ export interface Trade {
   exit_reason: 'TP' | 'SL' | 'EOD'
   hold_duration_minutes: number
   date: string
-  or_high: number
-  or_low: number
+  // ORB strategy fields
+  or_high?: number
+  or_low?: number
+  // S/R Breakout strategy fields
+  pp?: number   // Pivot Point
+  r1?: number   // Resistance 1
+  s1?: number   // Support 1
+  r2?: number   // Resistance 2
+  s2?: number   // Support 2
 }
 
 // Chart options

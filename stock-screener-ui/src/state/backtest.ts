@@ -13,6 +13,7 @@ import type {
   Trade,
   CostBreakdown,
 } from '../types/backtest'
+import { chartTradesToTrades } from '../api/chartBuilder'
 
 // State interface
 export interface BacktestState {
@@ -233,7 +234,22 @@ export function setSelectedChartSymbol(symbol: string | null) {
 export function setChartData(symbol: string, data: SymbolChartData) {
   const newChartData = new Map(state.chartData)
   newChartData.set(symbol, data)
-  state = { ...state, chartData: newChartData, chartLoading: false }
+
+  // Also set trade history if trades exist
+  let tradeHistory = state.tradeHistory
+  let tradeHistorySymbol = state.tradeHistorySymbol
+  if (data.trades && data.trades.length > 0) {
+    tradeHistory = chartTradesToTrades(data.trades)
+    tradeHistorySymbol = symbol
+  }
+
+  state = {
+    ...state,
+    chartData: newChartData,
+    chartLoading: false,
+    tradeHistory,
+    tradeHistorySymbol,
+  }
   notify()
 }
 

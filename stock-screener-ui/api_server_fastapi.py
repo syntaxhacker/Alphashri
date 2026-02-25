@@ -775,8 +775,21 @@ async def run_backtest(
 
     # Only include chart data if explicitly requested
     if include_chart_data:
-        response['candles'] = result.get('candles', {})
-        response['chart_data'] = result.get('chart_data', {})
+        # Build full chart data using chart_data module (includes pivot_levels, orb_zones, etc.)
+        from backtest.chart_data import build_chart_data_for_symbol
+        candles = result.get('candles', {})
+        chart_data_raw = result.get('chart_data', {})
+        or_minutes = result.get('config', {}).get('params', {}).get('or_minutes', 45)
+
+        full_chart_data = {}
+        for symbol, trades_data in chart_data_raw.items():
+            if symbol in candles and trades_data.get('trades'):
+                full_chart_data[symbol] = build_chart_data_for_symbol(
+                    symbol, candles[symbol], trades_data['trades'], or_minutes
+                )
+
+        response['candles'] = candles
+        response['chart_data'] = full_chart_data
 
     return _sanitize_for_json(response)
 

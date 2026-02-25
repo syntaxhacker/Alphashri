@@ -10,7 +10,7 @@
  * We convert everything to a simple comparable format for matching.
  */
 
-import type { SymbolChartData, CandleData, ChartTrade, ORBZone, Trade } from '../types/backtest'
+import type { SymbolChartData, CandleData, ChartTrade, ORBZone, PivotLevels, Trade } from '../types/backtest'
 
 interface RawCandle {
   index: string[]  // UTC ISO strings like "2025-10-24T03:45:00+00:00"
@@ -35,8 +35,15 @@ interface RawTrade {
   exit_reason: 'TP' | 'SL' | 'EOD'
   hold_duration_minutes: number
   date: string  // YYYY-MM-DD
-  or_high: number
-  or_low: number
+  // ORB strategy fields
+  or_high?: number
+  or_low?: number
+  // S/R Breakout strategy fields
+  pp?: number   // Pivot Point
+  r1?: number   // Resistance 1
+  s1?: number   // Support 1
+  r2?: number   // Resistance 2
+  s2?: number   // Support 2
 }
 
 export function buildChartData(
@@ -53,18 +60,22 @@ export function buildChartData(
   // Only calculate ORB zones for days with trades
   const orbZones = formatORBZones(candles, orMinutes).filter(z => tradeDates.has(z.date_raw))
 
+  // Extract pivot levels from trades (for S/R Breakout strategy)
+  const pivotLevels = extractPivotLevels(rawTrades)
+
   const trades = formatTradeMarkers(rawTrades, candles)
 
   const startDates = candles.map(c => c.date_raw).filter(d => d)
   const startDate = startDates[0] || null
   const endDate = startDates[startDates.length - 1] || null
 
-  console.log(`buildChartData: ${candles.length} candles, ${orbZones.length} ORB zones, ${trades.length} trade markers`)
+  console.log(`buildChartData: ${candles.length} candles, ${orbZones.length} ORB zones, ${pivotLevels.length} pivot levels, ${trades.length} trade markers`)
 
   return {
     symbol,
     candles,
     orb_zones: orbZones,
+    pivot_levels: pivotLevels,
     trades,
     date_range: {
       start: startDate,
@@ -184,6 +195,33 @@ function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
 }
 
 /**
+ * Extract pivot levels from trades (for S/R Breakout strategy).
+ * Pivot levels are the same for all trades on the same day.
+ */
+function extractPivotLevels(trades: RawTrade[]): PivotLevels[] {
+  const levelsByDate = new Map<string, PivotLevels>()
+
+  for (const trade of trades) {
+    if (trade.pp && trade.r1 && trade.s1) {
+      // Only add if not already added for this date
+      if (!levelsByDate.has(trade.date)) {
+        levelsByDate.set(trade.date, {
+          date: trade.date,
+          date_raw: trade.date,
+          pp: trade.pp,
+          r1: trade.r1,
+          s1: trade.s1,
+          r2: trade.r2,
+          s2: trade.s2,
+        })
+      }
+    }
+  }
+
+  return Array.from(levelsByDate.values())
+}
+
+/**
  * Format trade markers. Match trade times to candle times.
  * Trade times are IST without timezone: "2025-10-27T11:25:00"
  * Candle times are already converted to IST comparable format
@@ -245,6 +283,11 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
         hold_duration_minutes: trade.hold_duration_minutes,
         or_high: trade.or_high,
         or_low: trade.or_low,
+        pp: trade.pp,
+        r1: trade.r1,
+        s1: trade.s1,
+        r2: trade.r2,
+        s2: trade.s2,
       },
     })
 
@@ -281,6 +324,11 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
         hold_duration_minutes: trade.hold_duration_minutes,
         or_high: trade.or_high,
         or_low: trade.or_low,
+        pp: trade.pp,
+        r1: trade.r1,
+        s1: trade.s1,
+        r2: trade.r2,
+        s2: trade.s2,
       },
     })
   })
@@ -326,6 +374,11 @@ export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
         date: ct.date,
         or_high: ct.trade.or_high,
         or_low: ct.trade.or_low,
+        pp: ct.trade.pp,
+        r1: ct.trade.r1,
+        s1: ct.trade.s1,
+        r2: ct.trade.r2,
+        s2: ct.trade.s2,
       })
     })
 

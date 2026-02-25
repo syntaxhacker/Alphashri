@@ -163,6 +163,8 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
             'trade': {
                 'entry_price': trade['entry_price'],
                 'exit_price': trade['exit_price'],
+                'entry_time': trade.get('entry_time'),
+                'exit_time': trade.get('exit_time'),
                 'quantity': trade['quantity'],
                 'gross_pnl': trade['gross_pnl'],
                 'trading_costs': trade['trading_costs'],
@@ -170,8 +172,15 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
                 'net_pnl_pct': trade['net_pnl_pct'],
                 'exit_reason': trade['exit_reason'],
                 'hold_duration_minutes': trade.get('hold_duration_minutes', 0),
+                # ORB strategy fields
                 'or_high': trade.get('or_high'),
                 'or_low': trade.get('or_low'),
+                # S/R Breakout pivot fields
+                'pp': trade.get('pp'),
+                'r1': trade.get('r1'),
+                's1': trade.get('s1'),
+                'r2': trade.get('r2'),
+                's2': trade.get('s2'),
             }
         })
 
@@ -196,6 +205,8 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
             'trade': {
                 'entry_price': trade['entry_price'],
                 'exit_price': trade['exit_price'],
+                'entry_time': trade.get('entry_time'),
+                'exit_time': trade.get('exit_time'),
                 'quantity': trade['quantity'],
                 'gross_pnl': trade['gross_pnl'],
                 'trading_costs': trade['trading_costs'],
@@ -203,12 +214,54 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
                 'net_pnl_pct': trade['net_pnl_pct'],
                 'exit_reason': trade['exit_reason'],
                 'hold_duration_minutes': trade.get('hold_duration_minutes', 0),
+                # ORB strategy fields
                 'or_high': trade.get('or_high'),
                 'or_low': trade.get('or_low'),
+                # S/R Breakout pivot fields
+                'pp': trade.get('pp'),
+                'r1': trade.get('r1'),
+                's1': trade.get('s1'),
+                'r2': trade.get('r2'),
+                's2': trade.get('s2'),
             }
         })
 
     return markers
+
+
+def extract_pivot_levels(trades: List[Dict]) -> List[Dict]:
+    """
+    Extract pivot levels from trades (for S/R Breakout strategy).
+    Pivot levels are the same for all trades on the same day.
+
+    Args:
+        trades: List of trade dicts from backtest
+
+    Returns:
+        List of pivot level dicts per day
+    """
+    levels_by_date = {}
+
+    for trade in trades:
+        date = trade.get('date')
+        pp = trade.get('pp')
+        r1 = trade.get('r1')
+        s1 = trade.get('s1')
+
+        # Only process if pivot data exists
+        if date and pp is not None and r1 is not None and s1 is not None:
+            if date not in levels_by_date:
+                levels_by_date[date] = {
+                    'date': date,
+                    'date_raw': date,
+                    'pp': round(pp, 2),
+                    'r1': round(r1, 2),
+                    's1': round(s1, 2),
+                    'r2': round(trade.get('r2'), 2) if trade.get('r2') else None,
+                    's2': round(trade.get('s2'), 2) if trade.get('s2') else None,
+                }
+
+    return list(levels_by_date.values())
 
 
 def build_chart_data_for_symbol(
@@ -227,11 +280,12 @@ def build_chart_data_for_symbol(
         or_minutes: OR period in minutes
 
     Returns:
-        Dict with candles, orb_zones, and trades for charting
+        Dict with candles, orb_zones, pivot_levels, and trades for charting
     """
     candles = format_candle_data(candles_df)
     orb_zones = format_orb_zones(candles, or_minutes)
     trade_markers = format_trade_markers(trades)
+    pivot_levels = extract_pivot_levels(trades)
 
     # Determine date range
     if candles:
@@ -245,6 +299,7 @@ def build_chart_data_for_symbol(
         'symbol': symbol,
         'candles': candles,
         'orb_zones': orb_zones,
+        'pivot_levels': pivot_levels,
         'trades': trade_markers,
         'date_range': {
             'start': start_date,

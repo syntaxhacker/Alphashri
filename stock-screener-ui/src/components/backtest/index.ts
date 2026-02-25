@@ -123,13 +123,13 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
                   onclick="window.sortTrades('entry_price')">
                 Entry${sortIndicator('entry_price')}
               </th>
-              <th class="sortable ${tradeSortColumn === 'or_high' ? 'sorted ' + tradeSortDirection : ''}"
-                  onclick="window.sortTrades('or_high')">
-                OR High${sortIndicator('or_high')}
+              <th class="sortable ${tradeSortColumn === 'level_high' ? 'sorted ' + tradeSortDirection : ''}"
+                  onclick="window.sortTrades('level_high')">
+                Level Hi${sortIndicator('level_high')}
               </th>
-              <th class="sortable ${tradeSortColumn === 'or_low' ? 'sorted ' + tradeSortDirection : ''}"
-                  onclick="window.sortTrades('or_low')">
-                OR Low${sortIndicator('or_low')}
+              <th class="sortable ${tradeSortColumn === 'level_low' ? 'sorted ' + tradeSortDirection : ''}"
+                  onclick="window.sortTrades('level_low')">
+                Level Lo${sortIndicator('level_low')}
               </th>
               <th class="sortable ${tradeSortColumn === 'exit_price' ? 'sorted ' + tradeSortDirection : ''}"
                   onclick="window.sortTrades('exit_price')">
@@ -160,26 +160,29 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
               const capital = t.entry_price * t.quantity
               const pnlPct = t.net_pnl_pct || ((t.net_pnl / capital) * 100)
               const side = t.side || 'LONG'  // Default to LONG for backwards compatibility
+              // Get level high/low from ORB (or_high/or_low) or S/R (r1/s1)
+              const levelHigh = t.or_high ?? t.r1 ?? 0
+              const levelLow = t.or_low ?? t.s1 ?? 0
               return `
-                <tr class="${t.net_pnl >= 0 ? 'trade-win' : 'trade-loss'}"
+                <tr class="${(t.net_pnl ?? 0) >= 0 ? 'trade-win' : 'trade-loss'}"
                     onclick="window.zoomToTrade(${originalIndex})"
                     style="cursor:pointer"
                     title="Click to zoom to this trade">
                   <td class="time-cell">${formatDateHuman(t.entry_time)}</td>
                   <td class="side-${side.toLowerCase()}">${side === 'LONG' ? '▲' : '▼'}</td>
-                  <td>${t.quantity}</td>
-                  <td>₹${t.entry_price.toFixed(0)}</td>
-                  <td>₹${(t.or_high ?? 0).toFixed(2)}</td>
-                  <td>₹${(t.or_low ?? 0).toFixed(2)}</td>
-                  <td>₹${t.exit_price.toFixed(0)}</td>
-                  <td class="${t.net_pnl >= 0 ? 'positive' : 'negative'}">
-                    <strong>₹${t.net_pnl.toFixed(0)}</strong>
+                  <td>${t.quantity ?? 0}</td>
+                  <td>₹${(t.entry_price ?? 0).toFixed(0)}</td>
+                  <td>₹${levelHigh.toFixed(2)}</td>
+                  <td>₹${levelLow.toFixed(2)}</td>
+                  <td>₹${(t.exit_price ?? 0).toFixed(0)}</td>
+                  <td class="${(t.net_pnl ?? 0) >= 0 ? 'positive' : 'negative'}">
+                    <strong>₹${(t.net_pnl ?? 0).toFixed(0)}</strong>
                   </td>
                   <td class="${pnlPct >= 0 ? 'positive' : 'negative'}">
                     ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%
                   </td>
-                  <td>${formatDuration(t.hold_duration_minutes)}</td>
-                  <td class="exit-${t.exit_reason.toLowerCase()}">${t.exit_reason}</td>
+                  <td>${formatDuration(t.hold_duration_minutes ?? 0)}</td>
+                  <td class="exit-${(t.exit_reason ?? 'EOD').toLowerCase()}">${t.exit_reason ?? 'EOD'}</td>
                 </tr>
               `
             }).join('')}
@@ -216,13 +219,21 @@ function sortTrades(trades: any[], column: string, direction: 'asc' | 'desc'): a
         aVal = a.exit_price
         bVal = b.exit_price
         break
-      case 'or_high':
-        aVal = a.or_high ?? 0
-        bVal = b.or_high ?? 0
+      case 'level_high':
+        aVal = a.or_high ?? a.r1 ?? 0
+        bVal = b.or_high ?? b.r1 ?? 0
         break
-      case 'or_low':
-        aVal = a.or_low ?? 0
-        bVal = b.or_low ?? 0
+      case 'level_low':
+        aVal = a.or_low ?? a.s1 ?? 0
+        bVal = b.or_low ?? b.s1 ?? 0
+        break
+      case 'or_high':  // Keep for backwards compatibility
+        aVal = a.or_high ?? a.r1 ?? 0
+        bVal = b.or_high ?? b.r1 ?? 0
+        break
+      case 'or_low':  // Keep for backwards compatibility
+        aVal = a.or_low ?? a.s1 ?? 0
+        bVal = b.or_low ?? b.s1 ?? 0
         break
       case 'net_pnl':
         aVal = a.net_pnl

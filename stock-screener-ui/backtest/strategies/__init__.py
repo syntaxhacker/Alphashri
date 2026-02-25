@@ -3,16 +3,19 @@ Trading Strategies for Backtesting
 
 Available strategies:
 - ORB: Opening Range Breakout
+- SR Breakout: Support & Resistance Breakout using Pivot Points
 - VWAP: Volume Weighted Average Price (future)
 - Momentum: Momentum-based entries (future)
 """
 
 from .base import BaseStrategy, StrategyParam
 from .orb import ORBStrategy
+from .sr_breakout import SRBreakoutStrategy
 
 # Strategy registry
 STRATEGIES = {
     'orb': ORBStrategy,
+    'sr_breakout': SRBreakoutStrategy,
 }
 
 
@@ -38,6 +41,7 @@ __all__ = [
     'BaseStrategy',
     'StrategyParam',
     'ORBStrategy',
+    'SRBreakoutStrategy',
     'STRATEGIES',
     'get_strategy',
     'list_strategies',

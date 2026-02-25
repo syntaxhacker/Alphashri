@@ -95,19 +95,28 @@ export async function runBacktest(): Promise<BacktestResponse | null> {
       setResults(data.results, data.totals)
 
       // Process chart data from response
-      if (data.chart_data && data.candles) {
+      if (data.chart_data) {
         console.log('Processing chart data for symbols:', Object.keys(data.chart_data))
         for (const symbol of Object.keys(data.chart_data)) {
-          const symbolTrades = data.chart_data[symbol]?.trades || []
-          console.log(`Symbol ${symbol}: ${symbolTrades.length} trades`)
-          const chartData = buildChartData(
-            symbol,
-            data.candles[symbol],
-            symbolTrades,
-            state.params.or_minutes || 45
-          )
-          console.log(`Built chart data for ${symbol}:`, chartData.candles.length, 'candles,', chartData.orb_zones.length, 'zones,', chartData.trades.length, 'trade markers')
-          setChartData(symbol, chartData)
+          const symbolChartData = data.chart_data[symbol]
+
+          // Check if API already built full chart data (has pivot_levels, orb_zones, etc.)
+          if (symbolChartData.pivot_levels || symbolChartData.orb_zones) {
+            // API already built the chart data, use it directly
+            console.log(`Using pre-built chart data for ${symbol}:`, symbolChartData.candles?.length || 0, 'candles,', symbolChartData.trades?.length || 0, 'trades')
+            setChartData(symbol, symbolChartData)
+          } else if (data.candles && symbolChartData.trades) {
+            // Legacy: API returned raw trades, build chart data on frontend
+            console.log(`Building chart data for ${symbol}:`, symbolChartData.trades.length, 'trades')
+            const chartData = buildChartData(
+              symbol,
+              data.candles[symbol],
+              symbolChartData.trades,
+              state.params.or_minutes || 45
+            )
+            console.log(`Built chart data for ${symbol}:`, chartData.candles.length, 'candles,', chartData.orb_zones.length, 'zones,', chartData.trades.length, 'trade markers')
+            setChartData(symbol, chartData)
+          }
         }
       }
 

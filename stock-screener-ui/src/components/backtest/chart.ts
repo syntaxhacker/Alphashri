@@ -6,7 +6,7 @@
 
 import { getBacktestState, setSelectedChartSymbol, setChartOptions } from '../../state/backtest'
 import { fetchChartData } from '../../api/backtest'
-import type { SymbolChartData, CandleData, ChartTrade, ORBZone } from '../../types/backtest'
+import type { SymbolChartData, CandleData, ChartTrade, ORBZone, PivotLevels } from '../../types/backtest'
 
 // Chart instances storage
 const chartInstances: Map<string, any> = new Map()
@@ -140,11 +140,12 @@ function renderECharts(symbol: string, chartData: SymbolChartData) {
 }
 
 function buildChartOption(data: SymbolChartData): any {
-  const { candles, orb_zones, trades } = data
+  const { candles, orb_zones, pivot_levels, trades } = data
 
   console.log('buildChartOption for', data.symbol, {
     candleCount: candles.length,
     orbZoneCount: orb_zones.length,
+    pivotLevelCount: pivot_levels?.length || 0,
     tradeCount: trades.length
   })
 
@@ -152,13 +153,23 @@ function buildChartOption(data: SymbolChartData): any {
   const candleData = candles.map(c => [c.open, c.close, c.low, c.high])
   const timeData = candles.map(c => c.time)
 
-  // Build trade markers using pre-computed candle_idx from chartBuilder
-  // chartBuilder already matches trade times to candle indices
+  // Build candle time to index map for matching trades
+  const candleTimeMap = new Map(candles.map((c, i) => [normalizeTime(c.time), i]))
+
+  // Helper to get candle index for a trade
+  const getCandleIdx = (trade: ChartTrade): number | undefined => {
+    if (trade.candle_idx !== undefined) return trade.candle_idx
+    return candleTimeMap.get(normalizeTime(trade.time))
+  }
+
+  // Build trade markers - compute candle_idx if not provided
   // Use bright popping colors that don't match candle colors (green/red)
   const entryMarkers = trades
-    .filter(t => t.type === 'entry' && t.candle_idx !== undefined)
+    .filter(t => t.type === 'entry')
+    .map(t => ({ ...t, computedIdx: getCandleIdx(t) }))
+    .filter(t => t.computedIdx !== undefined)
     .map(t => ({
-      value: [t.candle_idx!, t.price],
+      value: [t.computedIdx!, t.price],
       itemStyle: { color: '#00FFFF', borderColor: '#FFFFFF', borderWidth: 2 },  // Bright cyan with white border
       symbol: 'triangle',
       symbolRotate: 180,
@@ -168,9 +179,11 @@ function buildChartOption(data: SymbolChartData): any {
     }))
 
   const tpMarkers = trades
-    .filter(t => t.type === 'exit' && t.trade.exit_reason === 'TP' && t.candle_idx !== undefined)
+    .filter(t => t.type === 'exit' && t.trade.exit_reason === 'TP')
+    .map(t => ({ ...t, computedIdx: getCandleIdx(t) }))
+    .filter(t => t.computedIdx !== undefined)
     .map(t => ({
-      value: [t.candle_idx!, t.price],
+      value: [t.computedIdx!, t.price],
       itemStyle: { color: '#FFFF00', borderColor: '#FFFFFF', borderWidth: 2 },  // Bright yellow with white border
       symbol: 'circle',
       symbolSize: 16,
@@ -179,9 +192,11 @@ function buildChartOption(data: SymbolChartData): any {
     }))
 
   const slMarkers = trades
-    .filter(t => t.type === 'exit' && t.trade.exit_reason === 'SL' && t.candle_idx !== undefined)
+    .filter(t => t.type === 'exit' && t.trade.exit_reason === 'SL')
+    .map(t => ({ ...t, computedIdx: getCandleIdx(t) }))
+    .filter(t => t.computedIdx !== undefined)
     .map(t => ({
-      value: [t.candle_idx!, t.price],
+      value: [t.computedIdx!, t.price],
       itemStyle: { color: '#FF00FF', borderColor: '#FFFFFF', borderWidth: 2 },  // Magenta with white border
       symbol: 'circle',
       symbolSize: 16,
@@ -190,9 +205,11 @@ function buildChartOption(data: SymbolChartData): any {
     }))
 
   const eodMarkers = trades
-    .filter(t => t.type === 'exit' && t.trade.exit_reason === 'EOD' && t.candle_idx !== undefined)
+    .filter(t => t.type === 'exit' && t.trade.exit_reason === 'EOD')
+    .map(t => ({ ...t, computedIdx: getCandleIdx(t) }))
+    .filter(t => t.computedIdx !== undefined)
     .map(t => ({
-      value: [t.candle_idx!, t.price],
+      value: [t.computedIdx!, t.price],
       itemStyle: { color: '#FFA500', borderColor: '#FFFFFF', borderWidth: 2 },  // Bright orange with white border
       symbol: 'diamond',
       symbolSize: 16,
@@ -300,14 +317,27 @@ function buildChartOption(data: SymbolChartData): any {
       },
     },
     legend: {
-      data: ['Price', 'Entry', 'TP Exit', 'SL Exit', 'EOD Exit'],
-      bottom: 10,
-      textStyle: { color: '#888' },
+      data: [
+        'Price', 'Entry', 'TP', 'SL', 'EOD',
+        // Add pivot levels for S/R Breakout strategy
+        ...(pivot_levels && pivot_levels.length > 0 ? ['R1', 'PP', 'S1'] : []),
+        // Add ORB zones for ORB strategy
+        ...(orb_zones && orb_zones.length > 0 ? ['OR High', 'OR Low'] : []),
+      ],
+      bottom: 5,
+      itemWidth: 14,
+      itemHeight: 10,
+      itemGap: 8,
+      textStyle: { color: '#888', fontSize: 10 },
+      type: 'scroll',
+      pageIconColor: '#888',
+      pageIconInactiveColor: '#333',
+      pageTextStyle: { color: '#888', fontSize: 10 },
     },
     grid: {
       left: '8%',
       right: '8%',
-      bottom: '18%',
+      bottom: '22%',
       top: '15%',
     },
     xAxis: {
@@ -389,31 +419,230 @@ function buildChartOption(data: SymbolChartData): any {
         z: 10,
       },
       {
-        name: 'TP Exit',
+        name: 'TP',
         type: 'scatter',
         data: tpMarkers,
         symbolSize: 14,
         z: 10,
       },
       {
-        name: 'SL Exit',
+        name: 'SL',
         type: 'scatter',
         data: slMarkers,
         symbolSize: 14,
         z: 10,
       },
       {
-        name: 'EOD Exit',
+        name: 'EOD',
         type: 'scatter',
         data: eodMarkers,
         symbolSize: 14,
         z: 10,
       },
+      // Pivot level lines (R1, S1, PP) for S/R Breakout strategy
+      ...(buildPivotLevelSeries(candles, pivot_levels) || []),
+      // ORB zone lines (OR High, OR Low) for ORB strategy
+      ...(buildORBZoneSeries(candles, orb_zones) || []),
     ],
   }
 }
 
+/**
+ * Build ECharts line series for ORB zones.
+ * Each zone (OR High, OR Low) is shown as a horizontal line for its day.
+ */
+function buildORBZoneSeries(candles: CandleData[], orbZones?: ORBZone[]): any[] {
+  if (!orbZones || orbZones.length === 0) {
+    return []
+  }
+
+  // Build sparse data arrays: value on the zone's date, null elsewhere
+  const orHighData = candles.map(c => {
+    const zone = orbZones.find(z => z.date_raw === c.date || z.date === c.date)
+    return zone ? zone.or_high : null
+  })
+
+  const orLowData = candles.map(c => {
+    const zone = orbZones.find(z => z.date_raw === c.date || z.date === c.date)
+    return zone ? zone.or_low : null
+  })
+
+  return [
+    {
+      id: 'orb-high',
+      name: 'OR High',
+      type: 'line',
+      data: orHighData,
+      showSymbol: false,
+      connectNulls: false,
+      silent: true,
+      z: 5,
+      lineStyle: {
+        color: '#4CAF50',  // Green for OR high
+        width: 1,
+        type: 'dashed',
+      },
+      tooltip: {
+        show: true,
+        formatter: (params: any) => {
+          if (params.value === null) return ''
+          return `<span style="color:#4CAF50">OR High: ₹${params.value.toFixed(2)}</span>`
+        }
+      },
+    },
+    {
+      id: 'orb-low',
+      name: 'OR Low',
+      type: 'line',
+      data: orLowData,
+      showSymbol: false,
+      connectNulls: false,
+      silent: true,
+      z: 5,
+      lineStyle: {
+        color: '#F44336',  // Red for OR low
+        width: 1,
+        type: 'dashed',
+      },
+      tooltip: {
+        show: true,
+        formatter: (params: any) => {
+          if (params.value === null) return ''
+          return `<span style="color:#F44336">OR Low: ₹${params.value.toFixed(2)}</span>`
+        }
+      },
+    },
+  ]
+}
+
+/**
+ * Build ECharts line series for pivot levels.
+ * Each level (R1, PP, S1) is shown as a horizontal line for its day.
+ */
+function buildPivotLevelSeries(candles: CandleData[], pivotLevels?: PivotLevels[]): any[] {
+  if (!pivotLevels || pivotLevels.length === 0) {
+    return []
+  }
+
+  // Build sparse data arrays: value on the level's date, null elsewhere
+  const r1Data = candles.map(c => {
+    const level = pivotLevels.find(p => p.date_raw === c.date)
+    return level ? level.r1 : null
+  })
+
+  const s1Data = candles.map(c => {
+    const level = pivotLevels.find(p => p.date_raw === c.date)
+    return level ? level.s1 : null
+  })
+
+  const ppData = candles.map(c => {
+    const level = pivotLevels.find(p => p.date_raw === c.date)
+    return level ? level.pp : null
+  })
+
+  return [
+    {
+      id: 'pivot-r1',
+      name: 'R1',
+      type: 'line',
+      data: r1Data,
+      showSymbol: false,
+      connectNulls: false,
+      silent: true,
+      z: 5,
+      lineStyle: {
+        color: '#EF5350',  // Red for resistance
+        width: 1,
+        type: 'dashed',
+      },
+      tooltip: {
+        show: true,
+        formatter: (params: any) => {
+          if (params.value === null) return ''
+          return `<span style="color:#EF5350">R1 (Resistance): ₹${params.value.toFixed(2)}</span>`
+        }
+      },
+    },
+    {
+      id: 'pivot-pp',
+      name: 'PP',
+      type: 'line',
+      data: ppData,
+      showSymbol: false,
+      connectNulls: false,
+      silent: true,
+      z: 5,
+      lineStyle: {
+        color: '#AB47BC',  // Purple for pivot
+        width: 1,
+        type: 'dotted',
+      },
+      tooltip: {
+        show: true,
+        formatter: (params: any) => {
+          if (params.value === null) return ''
+          return `<span style="color:#AB47BC">PP (Pivot): ₹${params.value.toFixed(2)}</span>`
+        }
+      },
+    },
+    {
+      id: 'pivot-s1',
+      name: 'S1',
+      type: 'line',
+      data: s1Data,
+      showSymbol: false,
+      connectNulls: false,
+      silent: true,
+      z: 5,
+      lineStyle: {
+        color: '#26A69A',  // Teal for support
+        width: 1,
+        type: 'dashed',
+      },
+      tooltip: {
+        show: true,
+        formatter: (params: any) => {
+          if (params.value === null) return ''
+          return `<span style="color:#26A69A">S1 (Support): ₹${params.value.toFixed(2)}</span>`
+        }
+      },
+    },
+  ]
+}
+
 // Register window handlers
+/**
+ * Normalize time string for matching
+ * Handles various formats and converts all times to IST for consistent matching
+ */
+function normalizeTime(time: string): string {
+  if (!time) return ''
+
+  try {
+    // Parse the time string as UTC timestamp
+    const date = new Date(time)
+
+    // Get the UTC timestamp and convert to IST (add 5h 30m)
+    const istTime = new Date(date.getTime() + (5.5 * 60 * 60 * 1000))
+
+    // Format as YYYY-MM-DDTHH:MM in IST
+    const year = istTime.getUTCFullYear()
+    const month = String(istTime.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(istTime.getUTCDate()).padStart(2, '0')
+    const hours = String(istTime.getUTCHours()).padStart(2, '0')
+    const minutes = String(istTime.getUTCMinutes()).padStart(2, '0')
+
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  } catch (e) {
+    // Fallback to simple normalization
+    return time
+      .replace(/\+00:00$/, '')
+      .replace(/\+05:30$/, '')
+      .replace(/Z$/, '')
+      .substring(0, 16)
+  }
+}
+
 export function initChartHandlers() {
   ;(window as any).selectChartSymbol = (symbol: string) => {
     setSelectedChartSymbol(symbol)
@@ -442,7 +671,7 @@ export function initChartHandlers() {
     const entryMarker = chartData.trades.find(t => t.type === 'entry' && t.trade_id === tradeIndex + 1)
     const exitMarker = chartData.trades.find(t => t.type === 'exit' && t.trade_id === tradeIndex + 1)
 
-    if (!entryMarker || entryMarker.candle_idx === undefined) {
+    if (!entryMarker) {
       console.warn('Entry marker not found for trade', tradeIndex + 1)
       return
     }
@@ -453,10 +682,35 @@ export function initChartHandlers() {
       return
     }
 
-    const entryIdx = entryMarker.candle_idx
-    const exitIdx = exitMarker?.candle_idx ?? entryIdx
+    // Find candle index - either from pre-computed candle_idx or by matching time
+    let entryIdx = entryMarker.candle_idx
+    let exitIdx = exitMarker?.candle_idx
+
+    if (entryIdx === undefined) {
+      // Find candle by matching time
+      const entryTime = normalizeTime(entryMarker.time)
+      const candleIndexMap = new Map(chartData.candles.map((c, i) => [normalizeTime(c.time), i]))
+      entryIdx = candleIndexMap.get(entryTime)
+    }
+
+    if (exitIdx === undefined && exitMarker) {
+      const exitTime = normalizeTime(exitMarker.time)
+      const candleIndexMap = new Map(chartData.candles.map((c, i) => [normalizeTime(c.time), i]))
+      exitIdx = candleIndexMap.get(exitTime)
+    }
+
+    if (entryIdx === undefined) {
+      console.warn('Could not find candle index for trade', tradeIndex + 1)
+      return
+    }
+
+    exitIdx = exitIdx ?? entryIdx
     const selectedTrade = entryMarker.trade
-    const selectedDate = (selectedTrade?.entry_time || '').split('T')[0]
+
+    // Extract date from the normalized time (which is in IST) instead of raw entry_time (which is in UTC)
+    // This ensures we match the candle's date field correctly
+    const normalizedEntryTime = normalizeTime(entryMarker.time)
+    const selectedDate = normalizedEntryTime.split('T')[0]
 
     const totalCandles = chartData.candles.length
 
@@ -506,22 +760,23 @@ export function initChartHandlers() {
       end: endPercent,
     })
 
-    // Show OR lines only for the selected trade day.
+    // Show level lines only for the selected trade day.
     // Build sparse line series: value on selected date candles, null elsewhere.
+    // Works for both ORB (or_high/or_low) and S/R Breakout (r1/s1)
     if (selectedTrade && selectedDate) {
-      const orHigh = selectedTrade.or_high
-      const orLow = selectedTrade.or_low
+      const levelHigh = selectedTrade.or_high ?? selectedTrade.r1
+      const levelLow = selectedTrade.or_low ?? selectedTrade.s1
 
-      const orHighData = chartData.candles.map(c => (c.date === selectedDate ? orHigh : null))
-      const orLowData = chartData.candles.map(c => (c.date === selectedDate ? orLow : null))
+      const levelHighData = chartData.candles.map(c => (c.date === selectedDate ? levelHigh : null))
+      const levelLowData = chartData.candles.map(c => (c.date === selectedDate ? levelLow : null))
 
       chart.setOption({
         series: [
           {
             id: 'selected-or-high',
-            name: 'Selected OR High',
+            name: 'Selected Level High',
             type: 'line',
-            data: orHighData,
+            data: levelHighData,
             showSymbol: false,
             connectNulls: false,
             silent: true,
@@ -535,9 +790,9 @@ export function initChartHandlers() {
           },
           {
             id: 'selected-or-low',
-            name: 'Selected OR Low',
+            name: 'Selected Level Low',
             type: 'line',
-            data: orLowData,
+            data: levelLowData,
             showSymbol: false,
             connectNulls: false,
             silent: true,
