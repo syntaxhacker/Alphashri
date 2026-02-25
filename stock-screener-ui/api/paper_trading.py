@@ -960,25 +960,35 @@ async def get_paper_chart(symbol: str, date: Optional[str] = None):
             "tp_price": t.tp_price,
         } for t in symbol_trades]
 
-        # Check for current position
-        trader = get_paper_trader()
+        # Check for current position - prefer bot snapshot (for cross-process sync)
         current_position = None
-        if symbol.upper() in trader.positions:
-            pos = trader.positions[symbol.upper()]
-            current_position = {
-                "symbol": pos.symbol,
-                "side": pos.side.value,
-                "quantity": pos.quantity,
-                "entry_price": pos.entry_price,
-                "current_price": pos.current_price,
-                "entry_time": pos.entry_time.isoformat(),
-                "stop_loss": pos.stop_loss,
-                "take_profit": pos.take_profit,
-                "pnl": pos.pnl,
-                "pnl_pct": pos.pnl_pct,
-                "margin_used": pos.margin_used,
-                "order_id": pos.order_id,
-            }
+        snap = _load_fresh_bot_snapshot()
+        if snap:
+            snap_positions = snap.get("open_positions_data") or []
+            for pos in snap_positions:
+                if pos.get("symbol", "").upper() == symbol.upper():
+                    current_position = pos
+                    break
+
+        # Fallback to in-memory trader positions if no snapshot
+        if not current_position:
+            trader = get_paper_trader()
+            if symbol.upper() in trader.positions:
+                pos = trader.positions[symbol.upper()]
+                current_position = {
+                    "symbol": pos.symbol,
+                    "side": pos.side.value,
+                    "quantity": pos.quantity,
+                    "entry_price": pos.entry_price,
+                    "current_price": pos.current_price,
+                    "entry_time": pos.entry_time.isoformat(),
+                    "stop_loss": pos.stop_loss,
+                    "take_profit": pos.take_profit,
+                    "pnl": pos.pnl,
+                    "pnl_pct": pos.pnl_pct,
+                    "margin_used": pos.margin_used,
+                    "order_id": pos.order_id,
+                }
 
         return {
             "symbol": symbol.upper(),
