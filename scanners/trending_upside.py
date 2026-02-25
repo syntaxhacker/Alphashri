@@ -138,8 +138,8 @@ def _query_by_profile(profile, limit):
             )
             .set_markets('india')
             .where(
-                Column('market_cap_basic') > 0,
-                Column('close') > 0
+                Column('market_cap_basic') >= 500_000_000,
+                Column('close') > 20
             )
             .order_by('market_cap_basic', ascending=False)
             .limit(80)
@@ -177,9 +177,9 @@ def _query_by_profile(profile, limit):
             )
             .set_markets('india')
             .where(
-                Column('market_cap_basic') > 100_000_000,
+                Column('market_cap_basic') >= 500_000_000,
                 Column('volume') > 100_000,
-                Column('close') > 5
+                Column('close') > 20
             )
             .order_by('volume', ascending=False)
             .limit(fetch_limit)
@@ -211,7 +211,10 @@ def _query_by_profile(profile, limit):
                 'description', 'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX'
             )
             .set_markets('india')
-            .where(Column('market_cap_basic') > 0, Column('close') > 0)
+            .where(
+                Column('market_cap_basic') >= 500_000_000,
+                Column('close') > 20
+            )
             .order_by('market_cap_basic', ascending=False)
             .limit(fetch_limit)
         )
@@ -248,6 +251,7 @@ def _query_by_profile(profile, limit):
         )
         .set_markets('india')
         .where(
+            Column('close') > 20,
             Column('close') > Column('EMA20'),
             Column('EMA20') > Column('EMA50'),
             Column('RSI') > 50,
