@@ -8,7 +8,6 @@ between TradingView symbols and Upstox instrument keys.
 """
 
 import json
-import os
 from pathlib import Path
 from rich.console import Console
 
@@ -16,34 +15,38 @@ console = Console()
 
 class SymbolValidator:
     """Validates and maps symbols for Upstox API compatibility"""
-    
+
     def __init__(self, instrument_file_name="nse_instruments.json"):
         # Construct path relative to the current file's directory
         self.instrument_file = Path(__file__).parent / instrument_file_name
         self.valid_symbols = set()
         self.symbol_mapping = {}
         self.blacklist = set()
+        self.validation_enabled = True  # Track if validation is actually enabled
         self.load_instruments()
         self.setup_known_mappings()
-    
+
     def load_instruments(self):
         """Load NSE instruments and build valid symbols set"""
         try:
             if self.instrument_file.exists():
                 with open(self.instrument_file, 'r') as f:
                     instruments = json.load(f)
-                    
+
                 for instrument in instruments:
                     if instrument.get('segment') == 'NSE_EQ':
                         trading_symbol = instrument.get('trading_symbol', '').upper()
                         if trading_symbol:
                             self.valid_symbols.add(trading_symbol)
-                
+
                 console.print(f"[green]✅ Loaded {len(self.valid_symbols)} valid NSE symbols[/green]")
+                self.validation_enabled = True
             else:
-                console.print("[yellow]⚠️ NSE instruments file not found - validation disabled[/yellow]")
+                self.validation_enabled = False
+                console.print("[yellow]⚠️ NSE instruments file not found - validation disabled (all symbols will pass)[/yellow]")
         except Exception as e:
-            console.print(f"[red]❌ Error loading instruments: {e}[/red]")
+            self.validation_enabled = False
+            console.print(f"[red]❌ Error loading instruments: {e} - validation disabled[/red]")
     
     def setup_known_mappings(self):
         """Setup known symbol mappings for common TradingView -> Upstox conversions"""
@@ -87,33 +90,37 @@ class SymbolValidator:
     def validate_symbol(self, symbol):
         """
         Validate if a symbol exists in NSE instruments
-        
+
         Returns:
         - (True, cleaned_symbol) if valid
         - (False, reason) if invalid
         """
         if not symbol:
             return False, "Empty symbol"
-        
+
         cleaned = self.clean_symbol(symbol)
         if not cleaned:
             return False, "Symbol became empty after cleaning"
-        
+
         # Check blacklist first
         if cleaned in self.blacklist:
             return False, f"Symbol {cleaned} is blacklisted (doesn't exist in NSE)"
-        
+
         # Check known mappings
         if cleaned in self.symbol_mapping:
             mapped = self.symbol_mapping[cleaned]
             if mapped is None:
                 return False, f"Symbol {cleaned} is mapped to None (doesn't exist)"
             return True, mapped
-        
+
+        # If validation is disabled (no instruments file), allow all symbols
+        if not self.validation_enabled:
+            return True, cleaned
+
         # Check if symbol exists in NSE instruments
         if cleaned in self.valid_symbols:
             return True, cleaned
-        
+
         # Symbol not found - add to blacklist
         self.blacklist.add(cleaned)
         console.print(f"[red]❌ Symbol {cleaned} not found in NSE instruments - adding to blacklist[/red]")
@@ -148,7 +155,8 @@ class SymbolValidator:
         return {
             'valid_symbols': len(self.valid_symbols),
             'blacklisted_symbols': len(self.blacklist),
-            'symbol_mappings': len([m for m in self.symbol_mapping.values() if m is not None])
+            'symbol_mappings': len([m for m in self.symbol_mapping.values() if m is not None]),
+            'validation_enabled': self.validation_enabled
         }
 
 # Global validator instance
