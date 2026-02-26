@@ -213,7 +213,8 @@ def run_single_stock_backtest(args):
         except Exception:
             pass
 
-        # Normalize bars
+        # Normalize bars for nautilus (requires UTC)
+        # Data from Upstox is in IST, we localize to UTC so nautilus treats 9:15 as 9:15
         df_copy = df[['open', 'high', 'low', 'close', 'volume']].copy()
         if not isinstance(df_copy.index, pd.DatetimeIndex):
             df_copy.index = pd.to_datetime(df_copy.index)
@@ -259,8 +260,25 @@ def run_single_stock_backtest(args):
         trades = strategy.trades
         engine.dispose()
 
+        # Output candles with IST times (from original df, not UTC-localized df_copy)
+        candle_data = {
+            'index': [idx.strftime('%Y-%m-%dT%H:%M:%S') if hasattr(idx, 'strftime') else str(idx)[:19] for idx in df.index],
+            'open': df['open'].tolist(),
+            'high': df['high'].tolist(),
+            'low': df['low'].tolist(),
+            'close': df['close'].tolist(),
+            'volume': df['volume'].tolist() if 'volume' in df.columns else [0] * len(df),
+        }
+
         if not trades:
-            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None}
+            return {
+                'symbol': symbol,
+                'success': True,
+                'trades': 0,
+                'result': None,
+                'candles': candle_data,
+                'trade_list': [],
+            }
 
         gross_pnl = sum(t['gross_pnl'] for t in trades)
         total_costs = sum(t['trading_costs'] for t in trades) if include_costs else 0
@@ -292,15 +310,6 @@ def run_single_stock_backtest(args):
             'tp_exits': tp_exits,
             'sl_exits': sl_exits,
             'eod_exits': eod_exits,
-        }
-
-        candle_data = {
-            'index': [idx.isoformat() for idx in df.index],
-            'open': df['open'].tolist(),
-            'high': df['high'].tolist(),
-            'low': df['low'].tolist(),
-            'close': df['close'].tolist(),
-            'volume': df['volume'].tolist() if 'volume' in df.columns else [0] * len(df),
         }
 
         return {
@@ -505,8 +514,8 @@ class SRBreakoutNautilusStrategy(Strategy):
         self.trades.append({
             'entry_price': self._entry_price,
             'exit_price': cur_price,
-            'entry_time': self._current_entry_time.isoformat() if self._current_entry_time else None,
-            'exit_time': bar_time_ist.isoformat() if bar_time_ist else None,
+            'entry_time': self._current_entry_time.strftime('%Y-%m-%dT%H:%M') if self._current_entry_time else None,
+            'exit_time': bar_time_ist.strftime('%Y-%m-%dT%H:%M') if bar_time_ist else None,
             'quantity': abs(pos_qty),
             'gross_pnl': gross_pnl,
             'gross_pnl_pct': gross_pnl_pct,

@@ -6,6 +6,7 @@
 
 import { getBacktestState, setSelectedChartSymbol, setChartOptions } from '../../state/backtest'
 import { fetchChartData } from '../../api/backtest'
+import { normalizeTime } from '../../utils/ui-helpers'
 import type { SymbolChartData, CandleData, ChartTrade, ORBZone, PivotLevels } from '../../types/backtest'
 
 // Chart instances storage
@@ -156,10 +157,30 @@ function buildChartOption(data: SymbolChartData): any {
   // Build candle time to index map for matching trades
   const candleTimeMap = new Map(candles.map((c, i) => [normalizeTime(c.time), i]))
 
+  // Also build a date-only map for daily candles (fallback when times don't align)
+  const candleDateMap = new Map(candles.map((c, i) => [c.date, i]))
+
+  // Debug: Log sample data
+  if (trades.length > 0) {
+    console.log('DEBUG: Sample candle dates:', candles.slice(0, 3).map(c => c.date))
+    console.log('DEBUG: Sample trade:', { time: trades[0].time, date: trades[0].date, normalizedTime: normalizeTime(trades[0].time) })
+    console.log('DEBUG: Candle date map has date:', candleDateMap.has(trades[0].date), 'for date:', trades[0].date)
+  }
+
   // Helper to get candle index for a trade
   const getCandleIdx = (trade: ChartTrade): number | undefined => {
     if (trade.candle_idx !== undefined) return trade.candle_idx
-    return candleTimeMap.get(normalizeTime(trade.time))
+
+    // First try exact time match
+    const normalized = normalizeTime(trade.time)
+    let idx = candleTimeMap.get(normalized)
+
+    // If not found, try matching by date only (for daily candles)
+    if (idx === undefined && trade.date) {
+      idx = candleDateMap.get(trade.date)
+    }
+
+    return idx
   }
 
   // Build trade markers - compute candle_idx if not provided
@@ -217,11 +238,56 @@ function buildChartOption(data: SymbolChartData): any {
       trade_id: t.trade_id,
     }))
 
+  // 52W Chaser: Trailing Stop exits
+  const trailingMarkers = trades
+    .filter(t => t.type === 'exit' && t.trade.exit_reason === 'TRAILING_STOP')
+    .map(t => ({ ...t, computedIdx: getCandleIdx(t) }))
+    .filter(t => t.computedIdx !== undefined)
+    .map(t => ({
+      value: [t.computedIdx!, t.price],
+      itemStyle: { color: '#9C27B0', borderColor: '#FFFFFF', borderWidth: 2 },  // Purple
+      symbol: 'circle',
+      symbolSize: 16,
+      trade: t.trade,
+      trade_id: t.trade_id,
+    }))
+
+  // 52W Chaser: Max Holding exits
+  const maxHoldMarkers = trades
+    .filter(t => t.type === 'exit' && t.trade.exit_reason === 'MAX_HOLDING')
+    .map(t => ({ ...t, computedIdx: getCandleIdx(t) }))
+    .filter(t => t.computedIdx !== undefined)
+    .map(t => ({
+      value: [t.computedIdx!, t.price],
+      itemStyle: { color: '#FF9800', borderColor: '#FFFFFF', borderWidth: 2 },  // Orange
+      symbol: 'diamond',
+      symbolSize: 16,
+      trade: t.trade,
+      trade_id: t.trade_id,
+    }))
+
+  // 52W Chaser: New 52W High exits
+  const new52wMarkers = trades
+    .filter(t => t.type === 'exit' && t.trade.exit_reason === 'NEW_52W_HIGH')
+    .map(t => ({ ...t, computedIdx: getCandleIdx(t) }))
+    .filter(t => t.computedIdx !== undefined)
+    .map(t => ({
+      value: [t.computedIdx!, t.price],
+      itemStyle: { color: '#00BCD4', borderColor: '#FFFFFF', borderWidth: 2 },  // Cyan
+      symbol: 'circle',
+      symbolSize: 16,
+      trade: t.trade,
+      trade_id: t.trade_id,
+    }))
+
   console.log('Markers built:', {
     entry: entryMarkers.length,
     tp: tpMarkers.length,
     sl: slMarkers.length,
-    eod: eodMarkers.length
+    eod: eodMarkers.length,
+    trailing: trailingMarkers.length,
+    maxHold: maxHoldMarkers.length,
+    new52w: new52wMarkers.length
   })
 
   return {
@@ -239,17 +305,21 @@ function buildChartOption(data: SymbolChartData): any {
       borderWidth: 1,
       textStyle: { color: '#e0e0e0', fontSize: 10 },
       formatter: function(params: any) {
-        // Helper function to format date compact: "12th Jan 10:30"
+        // Helper function to format date compact: "12th Jan 10:30" or "12th Jan" for daily
         const formatDateTimeCompact = (isoStr: string) => {
           if (!isoStr) return '-'
           const parts = isoStr.split('T')
           const datePart = parts[0]
-          const timePart = parts[1]?.replace('Z', '').replace(/\+00:00/g, '').replace(/\+05:30/g, '').substring(0, 5)
+          const timePart = parts[1]?.replace(/Z|\+00:00|\+05:30/g, '').substring(0, 5) || ''
           const [year, month, day] = datePart.split('-')
           const d = parseInt(day)
           const m = parseInt(month) - 1
           const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
           const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th'
+          // If no time part or time is 00:00, show date only (daily candles)
+          if (!timePart || timePart === '00:00') {
+            return `${d}${suffix} ${months[m]}`
+          }
           return `${d}${suffix} ${months[m]} ${timePart}`
         }
 
@@ -441,78 +511,8 @@ function buildChartOption(data: SymbolChartData): any {
       },
       // Pivot level lines (R1, S1, PP) for S/R Breakout strategy
       ...(buildPivotLevelSeries(candles, pivot_levels) || []),
-      // ORB zone lines (OR High, OR Low) for ORB strategy
-      ...(buildORBZoneSeries(candles, orb_zones) || []),
     ],
   }
-}
-
-/**
- * Build ECharts line series for ORB zones.
- * Each zone (OR High, OR Low) is shown as a horizontal line for its day.
- */
-function buildORBZoneSeries(candles: CandleData[], orbZones?: ORBZone[]): any[] {
-  if (!orbZones || orbZones.length === 0) {
-    return []
-  }
-
-  // Build sparse data arrays: value on the zone's date, null elsewhere
-  const orHighData = candles.map(c => {
-    const zone = orbZones.find(z => z.date_raw === c.date || z.date === c.date)
-    return zone ? zone.or_high : null
-  })
-
-  const orLowData = candles.map(c => {
-    const zone = orbZones.find(z => z.date_raw === c.date || z.date === c.date)
-    return zone ? zone.or_low : null
-  })
-
-  return [
-    {
-      id: 'orb-high',
-      name: 'OR High',
-      type: 'line',
-      data: orHighData,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 5,
-      lineStyle: {
-        color: '#4CAF50',  // Green for OR high
-        width: 1,
-        type: 'dashed',
-      },
-      tooltip: {
-        show: true,
-        formatter: (params: any) => {
-          if (params.value === null) return ''
-          return `<span style="color:#4CAF50">OR High: ₹${params.value.toFixed(2)}</span>`
-        }
-      },
-    },
-    {
-      id: 'orb-low',
-      name: 'OR Low',
-      type: 'line',
-      data: orLowData,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 5,
-      lineStyle: {
-        color: '#F44336',  // Red for OR low
-        width: 1,
-        type: 'dashed',
-      },
-      tooltip: {
-        show: true,
-        formatter: (params: any) => {
-          if (params.value === null) return ''
-          return `<span style="color:#F44336">OR Low: ₹${params.value.toFixed(2)}</span>`
-        }
-      },
-    },
-  ]
 }
 
 /**
@@ -611,38 +611,6 @@ function buildPivotLevelSeries(candles: CandleData[], pivotLevels?: PivotLevels[
 }
 
 // Register window handlers
-/**
- * Normalize time string for matching
- * Handles various formats and converts all times to IST for consistent matching
- */
-function normalizeTime(time: string): string {
-  if (!time) return ''
-
-  try {
-    // Parse the time string as UTC timestamp
-    const date = new Date(time)
-
-    // Get the UTC timestamp and convert to IST (add 5h 30m)
-    const istTime = new Date(date.getTime() + (5.5 * 60 * 60 * 1000))
-
-    // Format as YYYY-MM-DDTHH:MM in IST
-    const year = istTime.getUTCFullYear()
-    const month = String(istTime.getUTCMonth() + 1).padStart(2, '0')
-    const day = String(istTime.getUTCDate()).padStart(2, '0')
-    const hours = String(istTime.getUTCHours()).padStart(2, '0')
-    const minutes = String(istTime.getUTCMinutes()).padStart(2, '0')
-
-    return `${year}-${month}-${day}T${hours}:${minutes}`
-  } catch (e) {
-    // Fallback to simple normalization
-    return time
-      .replace(/\+00:00$/, '')
-      .replace(/\+05:30$/, '')
-      .replace(/Z$/, '')
-      .substring(0, 16)
-  }
-}
-
 export function initChartHandlers() {
   ;(window as any).selectChartSymbol = (symbol: string) => {
     setSelectedChartSymbol(symbol)
@@ -660,8 +628,11 @@ export function initChartHandlers() {
 
   // Zoom chart to a specific trade
   ;(window as any).zoomToTrade = (tradeIndex: number) => {
+    console.log('zoomToTrade called for trade index:', tradeIndex)
     const state = getBacktestState()
-    const symbol = state.selectedChartSymbol
+    // Use selected symbol, or fallback to first result's symbol
+    const symbol = state.selectedChartSymbol || state.results?.[0]?.symbol
+    console.log('Selected symbol:', symbol)
     if (!symbol) return
 
     const chartData = state.chartData.get(symbol)
@@ -676,10 +647,16 @@ export function initChartHandlers() {
       return
     }
 
-    const chart = chartInstances.get(symbol)
+    let chart = chartInstances.get(symbol)
     if (!chart) {
-      console.warn('Chart instance not found for', symbol)
-      return
+      // Chart not initialized yet, try to initialize it
+      console.log('Chart not initialized, attempting to init for', symbol)
+      initCharts()
+      chart = chartInstances.get(symbol)
+      if (!chart) {
+        console.warn('Chart instance still not found for', symbol)
+        return
+      }
     }
 
     // Find candle index - either from pre-computed candle_idx or by matching time

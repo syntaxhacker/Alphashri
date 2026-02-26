@@ -4,6 +4,7 @@ Trading Strategies for Backtesting
 Available strategies:
 - ORB: Opening Range Breakout
 - SR Breakout: Support & Resistance Breakout using Pivot Points
+- 52W Chaser: 52-Week High Breakout (Swing Trading)
 - VWAP: Volume Weighted Average Price (future)
 - Momentum: Momentum-based entries (future)
 """
@@ -11,11 +12,13 @@ Available strategies:
 from .base import BaseStrategy, StrategyParam
 from .orb import ORBStrategy
 from .sr_breakout import SRBreakoutStrategy
+from .week52_chaser import Week52ChaserStrategy
 
 # Strategy registry
 STRATEGIES = {
     'orb': ORBStrategy,
     'sr_breakout': SRBreakoutStrategy,
+    'week52_chaser': Week52ChaserStrategy,
 }
 
 
@@ -42,6 +45,7 @@ __all__ = [
     'StrategyParam',
     'ORBStrategy',
     'SRBreakoutStrategy',
+    'Week52ChaserStrategy',
     'STRATEGIES',
     'get_strategy',
     'list_strategies',

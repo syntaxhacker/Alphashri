@@ -189,7 +189,7 @@ export interface Trade {
   trading_costs: number
   net_pnl: number
   net_pnl_pct: number
-  exit_reason: 'TP' | 'SL' | 'EOD'
+  exit_reason: 'TP' | 'SL' | 'EOD' | 'TRAILING_STOP' | 'MAX_HOLDING' | 'NEW_52W_HIGH'
   hold_duration_minutes: number
   date: string
   // ORB strategy fields
@@ -201,6 +201,9 @@ export interface Trade {
   s1?: number   // Support 1
   r2?: number   // Resistance 2
   s2?: number   // Support 2
+  // 52W Chaser strategy fields
+  '52w_high'?: number
+  trailing_active?: boolean
 }
 
 // Chart options

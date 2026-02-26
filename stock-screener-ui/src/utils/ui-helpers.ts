@@ -219,34 +219,23 @@ export function getNextSortDirection(currentColumn: string, clickedColumn: strin
 
 /**
  * Normalize time string for matching
- * Handles various formats and converts all times to IST for consistent matching
+ * Strips timezone info and returns consistent format for matching.
+ * All times are in IST.
  */
 export function normalizeTime(time: string): string {
   if (!time) return ''
 
-  try {
-    // Parse the time string as UTC timestamp
-    const date = new Date(time)
-
-    // Get the UTC timestamp and convert to IST (add 5h 30m)
-    const istTime = new Date(date.getTime() + (5.5 * 60 * 60 * 1000))
-
-    // Format as YYYY-MM-DDTHH:MM in IST
-    const year = istTime.getUTCFullYear()
-    const month = String(istTime.getUTCMonth() + 1).padStart(2, '0')
-    const day = String(istTime.getUTCDate()).padStart(2, '0')
-    const hours = String(istTime.getUTCHours()).padStart(2, '0')
-    const minutes = String(istTime.getUTCMinutes()).padStart(2, '0')
-
-    return `${year}-${month}-${day}T${hours}:${minutes}`
-  } catch {
-    // Fallback to simple normalization
+  // Handle date-only format (YYYY-MM-DD) - for daily candles
+  if (/^\d{4}-\d{2}-\d{2}$/.test(time)) {
     return time
-      .replace(/\+00:00$/, '')
-      .replace(/\+05:30$/, '')
-      .replace(/Z$/, '')
-      .substring(0, 16)
   }
+
+  // Strip timezone suffixes and return YYYY-MM-DDTHH:MM format
+  return time
+    .replace(/\+00:00$/, '')
+    .replace(/\+05:30$/, '')
+    .replace(/Z$/, '')
+    .substring(0, 16)
 }
 
 // ============================================

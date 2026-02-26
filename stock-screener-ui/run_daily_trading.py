@@ -416,8 +416,6 @@ class DailyTradingRunner:
 
             # ENTRY FILTERS to avoid bad entries
             MAX_DISTANCE_FROM_OR = 1.5  # Don't enter if more than 1.5% away from OR level
-            MIN_ATR_PCT = 0.6  # Minimum ATR% for enough volatility
-            MIN_DAY_RANGE_PCT = 6.0  # Minimum day range %
 
             # Calculate trend indicators from OR data
             day_open = or_levels.get('or_open', current_price)
@@ -451,20 +449,6 @@ class DailyTradingRunner:
                         "or_high": round(or_high, 2),
                         "or_low": round(or_low, 2),
                         "reason": f"Day already up {day_change_pct:.1f}%",
-                    })
-                    continue
-
-                # FILTER: Need enough volatility for TP to be reached
-                if or_range_pct < 2.0:
-                    console.print(f"[yellow]  ⚠️ {symbol}: Skip LONG - low volatility (OR range {or_range_pct:.1f}%)[/yellow]")
-                    scan_items.append({
-                        "symbol": symbol,
-                        "status": "blocked",
-                        "side": "LONG",
-                        "price": round(current_price, 2),
-                        "or_high": round(or_high, 2),
-                        "or_low": round(or_low, 2),
-                        "reason": f"Low volatility (OR range {or_range_pct:.1f}%)",
                     })
                     continue
 
@@ -517,20 +501,6 @@ class DailyTradingRunner:
                         "or_high": round(or_high, 2),
                         "or_low": round(or_low, 2),
                         "reason": f"Uptrend day +{day_change_pct:.1f}%",
-                    })
-                    continue
-
-                # FILTER: Need enough volatility for TP to be reached
-                if or_range_pct < 2.0:
-                    console.print(f"[yellow]  ⚠️ {symbol}: Skip SHORT - low volatility (OR range {or_range_pct:.1f}%)[/yellow]")
-                    scan_items.append({
-                        "symbol": symbol,
-                        "status": "blocked",
-                        "side": "SHORT",
-                        "price": round(current_price, 2),
-                        "or_high": round(or_high, 2),
-                        "or_low": round(or_low, 2),
-                        "reason": f"Low volatility (OR range {or_range_pct:.1f}%)",
                     })
                     continue
 

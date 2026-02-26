@@ -92,6 +92,10 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
     return tradeSortDirection === 'asc' ? ' ▲' : ' ▼'
   }
 
+  // Debug: Check if 52w_high exists in trades
+  console.log('Trade history panel - first trade:', trades[0])
+  console.log('Has 52w_high?', trades[0]?.['52w_high'], trades[0]?.['52w_high'] ? 'YES' : 'NO')
+
   return `
     <div class="trade-history-panel" data-testid="trade-history-panel">
       <div class="trade-history-header">
@@ -125,12 +129,12 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
               </th>
               <th class="sortable ${tradeSortColumn === 'level_high' ? 'sorted ' + tradeSortDirection : ''}"
                   onclick="window.sortTrades('level_high')">
-                Level Hi${sortIndicator('level_high')}
+                ${trades[0]?.['52w_high'] ? '52W High' : 'Level Hi'}${sortIndicator('level_high')}
               </th>
-              <th class="sortable ${tradeSortColumn === 'level_low' ? 'sorted ' + tradeSortDirection : ''}"
+              ${trades[0]?.['52w_high'] ? '' : `<th class="sortable ${tradeSortColumn === 'level_low' ? 'sorted ' + tradeSortDirection : ''}"
                   onclick="window.sortTrades('level_low')">
                 Level Lo${sortIndicator('level_low')}
-              </th>
+              </th>`}
               <th class="sortable ${tradeSortColumn === 'exit_price' ? 'sorted ' + tradeSortDirection : ''}"
                   onclick="window.sortTrades('exit_price')">
                 Exit${sortIndicator('exit_price')}
@@ -160,9 +164,11 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
               const capital = t.entry_price * t.quantity
               const pnlPct = t.net_pnl_pct || ((t.net_pnl / capital) * 100)
               const side = t.side || 'LONG'  // Default to LONG for backwards compatibility
-              // Get level high/low from ORB (or_high/or_low) or S/R (r1/s1)
-              const levelHigh = t.or_high ?? t.r1 ?? 0
+              // Get level high/low from ORB (or_high/or_low) or S/R (r1/s1) or 52W Chaser (52w_high)
+              const has52w = t['52w_high'] !== undefined && t['52w_high'] !== null
+              const levelHigh = t.or_high ?? t.r1 ?? t['52w_high'] ?? 0
               const levelLow = t.or_low ?? t.s1 ?? 0
+              const showLevelLow = !has52w  // Hide Level Lo for 52W Chaser
               return `
                 <tr class="${(t.net_pnl ?? 0) >= 0 ? 'trade-win' : 'trade-loss'}"
                     onclick="window.zoomToTrade(${originalIndex})"
@@ -173,7 +179,7 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
                   <td>${t.quantity ?? 0}</td>
                   <td>₹${(t.entry_price ?? 0).toFixed(0)}</td>
                   <td>₹${levelHigh.toFixed(2)}</td>
-                  <td>₹${levelLow.toFixed(2)}</td>
+                  ${showLevelLow ? `<td>₹${levelLow.toFixed(2)}</td>` : ''}
                   <td>₹${(t.exit_price ?? 0).toFixed(0)}</td>
                   <td class="${(t.net_pnl ?? 0) >= 0 ? 'positive' : 'negative'}">
                     <strong>₹${(t.net_pnl ?? 0).toFixed(0)}</strong>

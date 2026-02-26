@@ -4,16 +4,16 @@
  * Converts raw backtest data to ECharts format.
  *
  * DATA FORMATS FROM API:
- * - Candles: index is UTC ISO format "2025-10-24T03:45:00+00:00"
+ * - Candles: index is IST without timezone "2025-10-24T09:15:00"
  * - Trades: entry_time/exit_time are IST without timezone "2025-10-27T11:25:00"
  *
- * We convert everything to a simple comparable format for matching.
+ * All times are in IST, no conversion needed.
  */
 
 import type { SymbolChartData, CandleData, ChartTrade, ORBZone, PivotLevels, Trade } from '../types/backtest'
 
 interface RawCandle {
-  index: string[]  // UTC ISO strings like "2025-10-24T03:45:00+00:00"
+  index: string[]  // IST strings like "2025-10-24T09:15:00"
   open: number[]
   high: number[]
   low: number[]
@@ -87,8 +87,8 @@ export function buildChartData(
 }
 
 /**
- * Convert UTC candle time to IST and extract parts
- * Input: "2025-10-24T03:45:00+00:00" (UTC)
+ * Parse candle time (already in IST) and extract parts
+ * Input: "2025-10-24T09:15:00" (IST, no timezone)
  * Output: IST time parts
  */
 function formatCandleData(raw: RawCandle): CandleData[] {
@@ -104,25 +104,21 @@ function formatCandleData(raw: RawCandle): CandleData[] {
 
   for (let i = 0; i < indices.length; i++) {
     try {
-      const utcTime = indices[i]
-      // Parse UTC time and convert to IST
-      const utcDate = new Date(utcTime)
-      const istDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000))
+      const timeStr = indices[i]
+      // Time is already in IST, just extract parts
+      // Format: "2025-10-24T09:15:00" or "2025-10-24T09:15:00+00:00"
+      const cleanTime = timeStr.replace(/\+00:00$|Z$/, '')
+      const [datePart, timePart] = cleanTime.split('T')
+      const [hours, minutes] = timePart.split(':')
 
-      const year = istDate.getUTCFullYear()
-      const month = String(istDate.getUTCMonth() + 1).padStart(2, '0')
-      const day = String(istDate.getUTCDate()).padStart(2, '0')
-      const hours = String(istDate.getUTCHours()).padStart(2, '0')
-      const minutes = String(istDate.getUTCMinutes()).padStart(2, '0')
-
-      const dateRaw = `${year}-${month}-${day}`  // YYYY-MM-DD for matching
-      const timeStr = `${hours}:${minutes}`       // HH:MM for display
-      const comparableTime = `${dateRaw}T${timeStr}` // For matching with trades
+      const dateRaw = datePart  // YYYY-MM-DD for matching
+      const timeDisplay = `${hours}:${minutes}`  // HH:MM for display
+      const comparableTime = `${dateRaw}T${timeDisplay}` // For matching with trades
 
       candles.push({
         time: comparableTime,
         date: dateRaw,
-        time_str: timeStr,
+        time_str: timeDisplay,
         open: opens[i] || 0,
         high: highs[i] || 0,
         low: lows[i] || 0,
@@ -379,6 +375,9 @@ export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
         s1: ct.trade.s1,
         r2: ct.trade.r2,
         s2: ct.trade.s2,
+        // 52W Chaser fields
+        '52w_high': ct.trade['52w_high'],
+        trailing_active: ct.trade.trailing_active,
       })
     })
 

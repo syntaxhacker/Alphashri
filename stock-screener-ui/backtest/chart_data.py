@@ -4,7 +4,7 @@ Chart Data Formatter
 Converts backtest results to ECharts-compatible format for visualization.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 import pandas as pd
 
@@ -19,6 +19,8 @@ def format_candle_data(candle_data: Union[pd.DataFrame, Dict]) -> List[Dict]:
 
     Returns:
         List of candle data dicts
+
+    Note: All times are in IST, no conversion needed.
     """
     candles = []
 
@@ -33,40 +35,39 @@ def format_candle_data(candle_data: Union[pd.DataFrame, Dict]) -> List[Dict]:
 
         for i in range(len(indices)):
             try:
-                dt_utc = datetime.fromisoformat(indices[i].replace('Z', '+00:00'))
-                if dt_utc.tzinfo is None:
-                    dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+                # Parse time string (already in IST)
+                time_str = indices[i]
+                # Handle various formats: "2025-10-24T09:15:00" or "2025-10-24T09:15:00+00:00"
+                clean_time = time_str.replace('Z', '').replace('+00:00', '')
+                dt = datetime.fromisoformat(clean_time)
+
+                candles.append({
+                    'time': dt.isoformat(),
+                    'date': dt.strftime('%Y-%m-%d'),
+                    'time_str': dt.strftime('%H:%M'),
+                    'open': float(opens[i]) if i < len(opens) else 0,
+                    'high': float(highs[i]) if i < len(highs) else 0,
+                    'low': float(lows[i]) if i < len(lows) else 0,
+                    'close': float(closes[i]) if i < len(closes) else 0,
+                    'volume': int(volumes[i]) if i < len(volumes) else 0,
+                })
             except:
                 continue
-
-            dt_ist = dt_utc + timedelta(hours=5, minutes=30)
-
-            candles.append({
-                'time': dt_ist.isoformat(),
-                'date': dt_ist.strftime('%Y-%m-%d'),
-                'time_str': dt_ist.strftime('%H:%M'),
-                'open': float(opens[i]) if i < len(opens) else 0,
-                'high': float(highs[i]) if i < len(highs) else 0,
-                'low': float(lows[i]) if i < len(lows) else 0,
-                'close': float(closes[i]) if i < len(closes) else 0,
-                'volume': int(volumes[i]) if i < len(volumes) else 0,
-            })
 
         return candles
 
     # Handle DataFrame format
     for idx, row in candle_data.iterrows():
-        # Convert to IST
-        if idx.tz is None:
-            dt_utc = idx.tz_localize('UTC')
-        else:
-            dt_utc = idx.tz_convert('UTC')
-        dt_ist = dt_utc + timedelta(hours=5, minutes=30)
+        # Time is already in IST, just format it
+        dt = idx
+        if hasattr(dt, 'tz_localize') and dt.tz is not None:
+            # Strip timezone if present
+            dt = dt.tz_localize(None)
 
         candles.append({
-            'time': dt_ist.isoformat(),
-            'date': dt_ist.strftime('%Y-%m-%d'),
-            'time_str': dt_ist.strftime('%H:%M'),
+            'time': dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
+            'date': dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt)[:10],
+            'time_str': dt.strftime('%H:%M') if hasattr(dt, 'strftime') else '00:00',
             'open': float(row['open']),
             'high': float(row['high']),
             'low': float(row['low']),
@@ -181,6 +182,9 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
                 's1': trade.get('s1'),
                 'r2': trade.get('r2'),
                 's2': trade.get('s2'),
+                # 52W Chaser fields
+                '52w_high': trade.get('52w_high'),
+                'trailing_active': trade.get('trailing_active'),
             }
         })
 
@@ -189,6 +193,9 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
             'TP': '#4CAF50',  # Green
             'SL': '#F44336',  # Red
             'EOD': '#FFC107',  # Yellow
+            'TRAILING_STOP': '#9C27B0',  # Purple
+            'MAX_HOLDING': '#FF9800',  # Orange
+            'NEW_52W_HIGH': '#00BCD4',  # Cyan
         }.get(trade['exit_reason'], '#FFC107')
 
         markers.append({
@@ -223,6 +230,9 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
                 's1': trade.get('s1'),
                 'r2': trade.get('r2'),
                 's2': trade.get('s2'),
+                # 52W Chaser fields
+                '52w_high': trade.get('52w_high'),
+                'trailing_active': trade.get('trailing_active'),
             }
         })
 
@@ -264,6 +274,33 @@ def extract_pivot_levels(trades: List[Dict]) -> List[Dict]:
     return list(levels_by_date.values())
 
 
+def extract_52w_levels(trades: List[Dict]) -> List[Dict]:
+    """
+    Extract 52W high levels from trades (for 52W Chaser strategy).
+
+    Args:
+        trades: List of trade dicts from backtest
+
+    Returns:
+        List of 52W level dicts per trade
+    """
+    levels = []
+
+    for trade in trades:
+        date = trade.get('date')
+        high_52w = trade.get('52w_high')
+
+        if date and high_52w is not None:
+            levels.append({
+                'date': date,
+                'date_raw': date,
+                '52w_high': round(high_52w, 2),
+                'trailing_active': trade.get('trailing_active', False),
+            })
+
+    return levels
+
+
 def build_chart_data_for_symbol(
     symbol: str,
     candles_df: pd.DataFrame,
@@ -280,12 +317,13 @@ def build_chart_data_for_symbol(
         or_minutes: OR period in minutes
 
     Returns:
-        Dict with candles, orb_zones, pivot_levels, and trades for charting
+        Dict with candles, orb_zones, pivot_levels, 52w_levels, and trades for charting
     """
     candles = format_candle_data(candles_df)
     orb_zones = format_orb_zones(candles, or_minutes)
     trade_markers = format_trade_markers(trades)
     pivot_levels = extract_pivot_levels(trades)
+    week52_levels = extract_52w_levels(trades)
 
     # Determine date range
     if candles:
@@ -300,6 +338,7 @@ def build_chart_data_for_symbol(
         'candles': candles,
         'orb_zones': orb_zones,
         'pivot_levels': pivot_levels,
+        'week52_levels': week52_levels,
         'trades': trade_markers,
         'date_range': {
             'start': start_date,
@@ -379,6 +418,29 @@ def build_echarts_series(chart_data: Dict) -> Dict:
         for t in trades if t['type'] == 'exit' and t['trade']['exit_reason'] == 'EOD'
     ]
 
+    # 52W Chaser exit markers
+    trailing_markers = [
+        {
+            'value': [t['time'], t['price']],
+            'itemStyle': {'color': t['marker']['color']},
+            'symbol': t['marker']['symbol'],
+            'symbolSize': t['marker']['size'],
+            'trade': t['trade'],
+        }
+        for t in trades if t['type'] == 'exit' and t['trade']['exit_reason'] == 'TRAILING_STOP'
+    ]
+
+    max_hold_markers = [
+        {
+            'value': [t['time'], t['price']],
+            'itemStyle': {'color': t['marker']['color']},
+            'symbol': t['marker']['symbol'],
+            'symbolSize': t['marker']['size'],
+            'trade': t['trade'],
+        }
+        for t in trades if t['type'] == 'exit' and t['trade']['exit_reason'] == 'MAX_HOLDING'
+    ]
+
     # ORB zone lines (markLine data)
     orb_high_lines = []
     orb_low_lines = []
@@ -432,6 +494,16 @@ def build_echarts_series(chart_data: Dict) -> Dict:
                 'name': 'EOD Exit',
                 'type': 'scatter',
                 'data': eod_markers,
+            },
+            'trailing_exit': {
+                'name': 'Trailing Stop',
+                'type': 'scatter',
+                'data': trailing_markers,
+            },
+            'max_hold_exit': {
+                'name': 'Max Holding',
+                'type': 'scatter',
+                'data': max_hold_markers,
             },
         },
         'orb_zones': orb_zones,

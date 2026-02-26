@@ -251,20 +251,17 @@ describe('getNextSortDirection', () => {
 })
 
 describe('normalizeTime', () => {
-  test('converts UTC to IST', () => {
-    // 09:45 UTC + 5:30 = 15:15 IST
+  test('strips +00:00 suffix', () => {
     const result = normalizeTime('2026-01-28T09:45:00+00:00')
-    expect(result).toBe('2026-01-28T15:15')
+    expect(result).toBe('2026-01-28T09:45')
   })
 
   test('handles Z suffix', () => {
     const result = normalizeTime('2026-01-28T09:45:00Z')
-    expect(result).toBe('2026-01-28T15:15')
+    expect(result).toBe('2026-01-28T09:45')
   })
 
-  test('normalizes IST times to IST representation', () => {
-    // IST time 15:15 is already in IST, so it stays 15:15
-    // (JS converts to UTC internally: 09:45, then we add 5:30: 15:15)
+  test('strips +05:30 suffix', () => {
     const result = normalizeTime('2026-01-28T15:15:00+05:30')
     expect(result).toBe('2026-01-28T15:15')
   })
@@ -273,10 +270,13 @@ describe('normalizeTime', () => {
     expect(normalizeTime('')).toBe('')
   })
 
-  test('treats time without timezone as UTC', () => {
-    // Time without timezone is parsed as local time by JS, then 5:30 is added
+  test('handles time without timezone', () => {
     const result = normalizeTime('2026-01-28T09:45:00')
-    // Result depends on local timezone interpretation, just check format
-    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+    expect(result).toBe('2026-01-28T09:45')
+  })
+
+  test('handles date-only format for daily candles', () => {
+    const result = normalizeTime('2026-01-28')
+    expect(result).toBe('2026-01-28')
   })
 })
