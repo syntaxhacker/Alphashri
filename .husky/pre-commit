@@ -4,6 +4,25 @@ echo "Running pre-commit checks..."
 
 cd stock-screener-ui
 
+# Run lint and format checks first (fast)
+echo "Running oxlint..."
+bun run lint
+LINT_EXIT_CODE=$?
+
+if [ $LINT_EXIT_CODE -ne 0 ]; then
+  echo "Linting failed! Commit aborted."
+  exit 1
+fi
+
+echo "Running oxfmt check..."
+bun run format:check
+FMT_EXIT_CODE=$?
+
+if [ $FMT_EXIT_CODE -ne 0 ]; then
+  echo "Formatting check failed! Run 'bun run format' to fix. Commit aborted."
+  exit 1
+fi
+
 # Load nvm if available
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -35,5 +54,5 @@ if [ $TEST_EXIT_CODE -ne 0 ]; then
   exit 1
 fi
 
-echo "All tests passed!"
+echo "All checks passed!"
 exit 0

@@ -12,61 +12,61 @@ import type {
   ChartOptions,
   Trade,
   CostBreakdown,
-} from '../types/backtest'
-import { chartTradesToTrades } from '../api/chartBuilder'
+} from "../types/backtest";
+import { chartTradesToTrades } from "../api/chartBuilder";
 
 // State interface
 export interface BacktestState {
   // View
-  currentView: AppView
+  currentView: AppView;
 
   // Available strategies
-  strategies: Strategy[]
-  strategiesLoading: boolean
+  strategies: Strategy[];
+  strategiesLoading: boolean;
 
   // Current config
-  selectedStrategy: string
-  selectedSymbols: string[]
-  params: Record<string, number | string | boolean>
-  days: number
-  includeCosts: boolean
+  selectedStrategy: string;
+  selectedSymbols: string[];
+  params: Record<string, number | string | boolean>;
+  days: number;
+  includeCosts: boolean;
 
   // Results
-  results: BacktestResult[] | null
-  totals: BacktestTotals | null
-  isRunning: boolean
-  progress: BacktestProgress
+  results: BacktestResult[] | null;
+  totals: BacktestTotals | null;
+  isRunning: boolean;
+  progress: BacktestProgress;
 
   // Chart state
-  showCharts: boolean
-  selectedChartSymbol: string | null
-  chartData: Map<string, SymbolChartData>
-  chartLoading: boolean
-  chartOptions: ChartOptions
+  showCharts: boolean;
+  selectedChartSymbol: string | null;
+  chartData: Map<string, SymbolChartData>;
+  chartLoading: boolean;
+  chartOptions: ChartOptions;
 
   // Trade history (table view)
-  tradeHistory: Trade[] | null
-  tradeHistorySymbol: string | null
+  tradeHistory: Trade[] | null;
+  tradeHistorySymbol: string | null;
 
   // Costs
-  costBreakdown: CostBreakdown | null
+  costBreakdown: CostBreakdown | null;
 
   // Error
-  error: string | null
+  error: string | null;
 }
 
 // Initial state
 export const initialBacktestState: BacktestState = {
-  currentView: 'screener',
+  currentView: "screener",
 
   strategies: [],
   strategiesLoading: false,
 
-  selectedStrategy: 'orb',
-  selectedSymbols: ['NETWEB', 'SBILIFE'],
+  selectedStrategy: "orb",
+  selectedSymbols: ["NETWEB", "SBILIFE"],
   params: {
     or_minutes: 45,
-    timeframe: '5',
+    timeframe: "5",
     stop_loss_pct: 0.4,
     take_profit_pct: 1.2,
     trade_size: 100,
@@ -82,7 +82,7 @@ export const initialBacktestState: BacktestState = {
   progress: {
     current: 0,
     total: 0,
-    message: '',
+    message: "",
     running: false,
   },
 
@@ -95,7 +95,7 @@ export const initialBacktestState: BacktestState = {
     show_entry_markers: true,
     show_exit_markers: true,
     show_sl_tp_lines: true,
-    date_range: 'all',
+    date_range: "all",
   },
 
   tradeHistory: null,
@@ -104,89 +104,89 @@ export const initialBacktestState: BacktestState = {
   costBreakdown: null,
 
   error: null,
-}
+};
 
 // Current state (mutable)
-let state: BacktestState = { ...initialBacktestState }
+let state: BacktestState = { ...initialBacktestState };
 
 // Subscribers for state changes
-const subscribers: Set<() => void> = new Set()
+const subscribers: Set<() => void> = new Set();
 
 // Notify all subscribers
 function notify() {
-  subscribers.forEach(callback => callback())
+  subscribers.forEach((callback) => callback());
 }
 
 // Subscribe to state changes
 export function subscribe(callback: () => void) {
-  subscribers.add(callback)
-  return () => subscribers.delete(callback)
+  subscribers.add(callback);
+  return () => subscribers.delete(callback);
 }
 
 // Get current state
 export function getState(): BacktestState {
-  return state
+  return state;
 }
 
 // View management
 export function setCurrentView(view: AppView) {
-  state = { ...state, currentView: view }
-  notify()
+  state = { ...state, currentView: view };
+  notify();
 }
 
 // Strategy management
 export function setStrategies(strategies: Strategy[]) {
-  state = { ...state, strategies, strategiesLoading: false }
-  notify()
+  state = { ...state, strategies, strategiesLoading: false };
+  notify();
 }
 
 export function setStrategiesLoading(loading: boolean) {
-  state = { ...state, strategiesLoading: loading }
-  notify()
+  state = { ...state, strategiesLoading: loading };
+  notify();
 }
 
 export function setSelectedStrategy(strategyId: string) {
-  state = { ...state, selectedStrategy: strategyId }
-  notify()
+  state = { ...state, selectedStrategy: strategyId };
+  notify();
 }
 
 // Config management
 export function setSelectedSymbols(symbols: string[]) {
-  state = { ...state, selectedSymbols: symbols }
-  notify()
+  state = { ...state, selectedSymbols: symbols };
+  notify();
 }
 
 export function addSymbol(symbol: string) {
   if (!state.selectedSymbols.includes(symbol)) {
-    state = { ...state, selectedSymbols: [...state.selectedSymbols, symbol] }
-    notify()
+    state = { ...state, selectedSymbols: [...state.selectedSymbols, symbol] };
+    notify();
   }
 }
 
 export function removeSymbol(symbol: string) {
   state = {
     ...state,
-    selectedSymbols: state.selectedSymbols.filter(s => s !== symbol),
-  }
-  notify()
+    selectedSymbols: state.selectedSymbols.filter((s) => s !== symbol),
+  };
+  notify();
 }
 
 export function setParam(key: string, value: number | string | boolean) {
   state = {
     ...state,
     params: { ...state.params, [key]: value },
-  }
-  notify()
+  };
+  notify();
 }
 
 export function setDays(days: number) {
-  state = { ...state, days }
-  notify()
+  state = { ...state, days };
+  notify();
 }
 
 export function setIncludeCosts(include: boolean) {
-  state = { ...state, includeCosts: include }
-  notify()
+  state = { ...state, includeCosts: include };
+  notify();
 }
 
 // Results management
@@ -196,9 +196,9 @@ export function setResults(results: BacktestResult[], totals: BacktestTotals) {
     results,
     totals,
     isRunning: false,
-    progress: { current: 0, total: 0, message: '', running: false },
-  }
-  notify()
+    progress: { current: 0, total: 0, message: "", running: false },
+  };
+  notify();
 }
 
 export function setRunning(isRunning: boolean) {
@@ -206,41 +206,41 @@ export function setRunning(isRunning: boolean) {
     ...state,
     isRunning,
     progress: { ...state.progress, running: isRunning },
-  }
-  notify()
+  };
+  notify();
 }
 
 export function setProgress(progress: Partial<BacktestProgress>) {
-  state = { ...state, progress: { ...state.progress, ...progress } }
-  notify()
+  state = { ...state, progress: { ...state.progress, ...progress } };
+  notify();
 }
 
 export function setError(error: string | null) {
-  state = { ...state, error, isRunning: false }
-  notify()
+  state = { ...state, error, isRunning: false };
+  notify();
 }
 
 // Chart management
 export function setShowCharts(show: boolean) {
-  state = { ...state, showCharts: show }
-  notify()
+  state = { ...state, showCharts: show };
+  notify();
 }
 
 export function setSelectedChartSymbol(symbol: string | null) {
-  state = { ...state, selectedChartSymbol: symbol }
-  notify()
+  state = { ...state, selectedChartSymbol: symbol };
+  notify();
 }
 
 export function setChartData(symbol: string, data: SymbolChartData) {
-  const newChartData = new Map(state.chartData)
-  newChartData.set(symbol, data)
+  const newChartData = new Map(state.chartData);
+  newChartData.set(symbol, data);
 
   // Also set trade history if trades exist
-  let tradeHistory = state.tradeHistory
-  let tradeHistorySymbol = state.tradeHistorySymbol
+  let tradeHistory = state.tradeHistory;
+  let tradeHistorySymbol = state.tradeHistorySymbol;
   if (data.trades && data.trades.length > 0) {
-    tradeHistory = chartTradesToTrades(data.trades)
-    tradeHistorySymbol = symbol
+    tradeHistory = chartTradesToTrades(data.trades);
+    tradeHistorySymbol = symbol;
   }
 
   state = {
@@ -249,44 +249,44 @@ export function setChartData(symbol: string, data: SymbolChartData) {
     chartLoading: false,
     tradeHistory,
     tradeHistorySymbol,
-  }
-  notify()
+  };
+  notify();
 }
 
 export function setChartLoading(loading: boolean) {
-  state = { ...state, chartLoading: loading }
-  notify()
+  state = { ...state, chartLoading: loading };
+  notify();
 }
 
 export function setChartOptions(options: Partial<ChartOptions>) {
-  state = { ...state, chartOptions: { ...state.chartOptions, ...options } }
-  notify()
+  state = { ...state, chartOptions: { ...state.chartOptions, ...options } };
+  notify();
 }
 
 // Trade history
 export function setTradeHistory(trades: Trade[] | null, symbol: string | null) {
-  state = { ...state, tradeHistory: trades, tradeHistorySymbol: symbol }
-  notify()
+  state = { ...state, tradeHistory: trades, tradeHistorySymbol: symbol };
+  notify();
 }
 
 // Costs
 export function setCostBreakdown(costs: CostBreakdown) {
-  state = { ...state, costBreakdown: costs }
-  notify()
+  state = { ...state, costBreakdown: costs };
+  notify();
 }
 
 // Reset
 export function resetBacktestState() {
-  state = { ...initialBacktestState, currentView: state.currentView }
-  notify()
+  state = { ...initialBacktestState, currentView: state.currentView };
+  notify();
 }
 
 // Export a readonly state getter for components
 export function getBacktestState(): Readonly<BacktestState> {
-  return state
+  return state;
 }
 
 // Force a re-render (used for sorting without changing state)
 export function triggerRerender() {
-  notify()
+  notify();
 }

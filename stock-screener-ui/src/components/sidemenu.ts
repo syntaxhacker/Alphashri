@@ -4,12 +4,12 @@
  * Navigation between Screener, Backtest, and Paper Trading views.
  */
 
-import { getBacktestState, setCurrentView } from '../state/backtest'
-import type { AppView } from '../types/backtest'
+import { getBacktestState, setCurrentView } from "../state/backtest";
+import type { AppView } from "../types/backtest";
 
 export function renderSidemenu(): string {
-  const state = getBacktestState()
-  const currentView = state.currentView
+  const state = getBacktestState();
+  const currentView = state.currentView;
 
   return `
     <div class="sidemenu" data-testid="sidemenu">
@@ -19,7 +19,7 @@ export function renderSidemenu(): string {
 
       <nav class="sidemenu-nav">
         <button
-          class="sidemenu-item ${currentView === 'screener' ? 'active' : ''}"
+          class="sidemenu-item ${currentView === "screener" ? "active" : ""}"
           data-testid="nav-screener"
           onclick="window.setAppView('screener')"
         >
@@ -29,7 +29,7 @@ export function renderSidemenu(): string {
         </button>
 
         <button
-          class="sidemenu-item ${currentView === 'backtest' ? 'active' : ''}"
+          class="sidemenu-item ${currentView === "backtest" ? "active" : ""}"
           data-testid="nav-backtest"
           onclick="window.setAppView('backtest')"
         >
@@ -39,7 +39,7 @@ export function renderSidemenu(): string {
         </button>
 
         <button
-          class="sidemenu-item ${currentView === 'paper' ? 'active' : ''}"
+          class="sidemenu-item ${currentView === "paper" ? "active" : ""}"
           data-testid="nav-paper"
           onclick="window.setAppView('paper')"
         >
@@ -49,7 +49,7 @@ export function renderSidemenu(): string {
         </button>
 
         <button
-          class="sidemenu-item ${currentView === 'sector' ? 'active' : ''}"
+          class="sidemenu-item ${currentView === "sector" ? "active" : ""}"
           data-testid="nav-sector"
           onclick="window.setAppView('sector')"
         >
@@ -63,15 +63,15 @@ export function renderSidemenu(): string {
         <div class="sidemenu-version">v1.1.0</div>
       </div>
     </div>
-  `
+  `;
 }
 
 // Register window handlers
 export function initSidemenu() {
-  ;(window as any).setAppView = (view: AppView) => {
-    setCurrentView(view)
-    if (typeof (window as any).navigateToRoute === 'function') {
-      ;(window as any).navigateToRoute(view)
+  (window as any).setAppView = (view: AppView) => {
+    setCurrentView(view);
+    if (typeof (window as any).navigateToRoute === "function") {
+      (window as any).navigateToRoute(view);
     }
-  }
+  };
 }

@@ -9,131 +9,131 @@ import type {
   ProfileMeta,
   ChangeNotification,
   NotifFilter,
-  SortDirection
-} from '../types'
-import { DEFAULT_FILTERS, DEFAULT_AUTO_REFRESH_SECONDS } from '../constants'
+  SortDirection,
+} from "../types";
+import { DEFAULT_FILTERS, DEFAULT_AUTO_REFRESH_SECONDS } from "../constants";
 
 // Data state
-export let data: ScreenerData | null = null
-export let isLoading = false
-export let error: string | null = null
+export let data: ScreenerData | null = null;
+export let isLoading = false;
+export let error: string | null = null;
 
 // Auto-refresh state
-export let autoRefreshInterval: ReturnType<typeof setInterval> | null = null
-export let autoRefreshSeconds = DEFAULT_AUTO_REFRESH_SECONDS
+export let autoRefreshInterval: ReturnType<typeof setInterval> | null = null;
+export let autoRefreshSeconds = DEFAULT_AUTO_REFRESH_SECONDS;
 
 // Filter state
-export let filters: Filters = { ...DEFAULT_FILTERS }
+export let filters: Filters = { ...DEFAULT_FILTERS };
 
 // Sort state
-export let sortColumn: string | null = null
-export let sortDirection: SortDirection = 'desc'
+export let sortColumn: string | null = null;
+export let sortDirection: SortDirection = "desc";
 
 // Screener state
-export let screenerOptions: ScreenerOption[] = []
-export let activeScreener = 'trending'
-export let profileMetaById: Record<string, ProfileMeta> = {}
-export let profileFilterValues: Record<string, string | number> = {}
+export let screenerOptions: ScreenerOption[] = [];
+export let activeScreener = "trending";
+export let profileMetaById: Record<string, ProfileMeta> = {};
+export let profileFilterValues: Record<string, string | number> = {};
 
 // Notification state
-export let notifications: ChangeNotification[] = []
-export let notifSeq = 1
-export let notifPanelOpen = true
-export let notifFilter: NotifFilter = 'all'
+export let notifications: ChangeNotification[] = [];
+export let notifSeq = 1;
+export let notifPanelOpen = true;
+export let notifFilter: NotifFilter = "all";
 
 // Recent additions tracking
-export let recentAddedSymbols: Record<string, number> = {}
+export let recentAddedSymbols: Record<string, number> = {};
 
 // Setters
 export function setData(newData: ScreenerData | null) {
-  data = newData
+  data = newData;
 }
 
 export function setIsLoading(loading: boolean) {
-  isLoading = loading
+  isLoading = loading;
 }
 
 export function setError(err: string | null) {
-  error = err
+  error = err;
 }
 
 export function setAutoRefreshInterval(interval: ReturnType<typeof setInterval> | null) {
-  autoRefreshInterval = interval
+  autoRefreshInterval = interval;
 }
 
 export function setAutoRefreshSeconds(seconds: number) {
-  autoRefreshSeconds = seconds
+  autoRefreshSeconds = seconds;
 }
 
 export function setFilters(newFilters: Filters) {
-  filters = newFilters
+  filters = newFilters;
 }
 
 export function updateFilter(key: keyof Filters, value: string | number) {
-  if (key === 'sector') {
-    filters[key] = value as string
+  if (key === "sector") {
+    filters[key] = value as string;
   } else {
-    filters[key] = value as number
+    filters[key] = value as number;
   }
 }
 
 export function setSortColumn(column: string | null) {
-  sortColumn = column
+  sortColumn = column;
 }
 
 export function setSortDirection(direction: SortDirection) {
-  sortDirection = direction
+  sortDirection = direction;
 }
 
 export function setScreenerOptions(options: ScreenerOption[]) {
-  screenerOptions = options
+  screenerOptions = options;
 }
 
 export function setActiveScreener(screener: string) {
-  activeScreener = screener
+  activeScreener = screener;
 }
 
 export function setProfileMetaById(meta: Record<string, ProfileMeta>) {
-  profileMetaById = meta
+  profileMetaById = meta;
 }
 
 export function setProfileFilterValues(values: Record<string, string | number>) {
-  profileFilterValues = values
+  profileFilterValues = values;
 }
 
 export function updateProfileFilterValue(key: string, value: string | number) {
-  profileFilterValues[key] = value
+  profileFilterValues[key] = value;
 }
 
 export function addNotification(notification: ChangeNotification) {
-  notifications.push(notification)
+  notifications.push(notification);
 }
 
 export function setNotifications(newNotifications: ChangeNotification[]) {
-  notifications = newNotifications
+  notifications = newNotifications;
 }
 
 export function clearNotifications() {
-  notifications = []
-  notifSeq = 1
+  notifications = [];
+  notifSeq = 1;
 }
 
 export function incrementNotifSeq() {
-  notifSeq++
+  notifSeq++;
 }
 
 export function setNotifPanelOpen(open: boolean) {
-  notifPanelOpen = open
+  notifPanelOpen = open;
 }
 
 export function setNotifFilter(filter: NotifFilter) {
-  notifFilter = filter
+  notifFilter = filter;
 }
 
 export function setRecentAddedSymbols(symbols: Record<string, number>) {
-  recentAddedSymbols = symbols
+  recentAddedSymbols = symbols;
 }
 
 export function resetFilters() {
-  filters = { ...DEFAULT_FILTERS }
+  filters = { ...DEFAULT_FILTERS };
 }

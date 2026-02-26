@@ -9,17 +9,17 @@
  * - Right: Chart (fits window) + Trade history below
  */
 
-import { renderStrategyConfig, initConfigHandlers } from './config'
-import { renderResults, initResultsHandlers } from './results'
-import { renderChartContainer, initCharts, initChartHandlers } from './chart'
-import { getBacktestState, setError, setTradeHistory, triggerRerender } from '../../state/backtest'
+import { renderStrategyConfig, initConfigHandlers } from "./config";
+import { renderResults, initResultsHandlers } from "./results";
+import { renderChartContainer, initCharts, initChartHandlers } from "./chart";
+import { getBacktestState, setError, setTradeHistory, triggerRerender } from "../../state/backtest";
 
 // Trade history sort state
-let tradeSortColumn: string = 'entry_time'
-let tradeSortDirection: 'asc' | 'desc' = 'desc'
+let tradeSortColumn: string = "entry_time";
+let tradeSortDirection: "asc" | "desc" = "desc";
 
 export function renderBacktestView(): string {
-  const state = getBacktestState()
+  const state = getBacktestState();
 
   return `
     <div class="backtest-view" data-testid="backtest-view">
@@ -38,63 +38,91 @@ export function renderBacktestView(): string {
         <!-- Right: Chart + Trade History -->
         <div class="backtest-right">
           ${renderChartContainer()}
-          ${state.tradeHistory ? renderTradeHistoryPanel(state.tradeHistorySymbol || '', state.tradeHistory) : ''}
+          ${state.tradeHistory ? renderTradeHistoryPanel(state.tradeHistorySymbol || "", state.tradeHistory) : ""}
         </div>
       </div>
 
-      ${state.error ? `
+      ${
+        state.error
+          ? `
         <div class="backtest-error" data-testid="backtest-error">
           <p>❌ ${state.error}</p>
           <button class="btn btn-secondary" onclick="window.clearError()">Dismiss</button>
         </div>
-      ` : ''}
+      `
+          : ""
+      }
     </div>
-  `
+  `;
 }
 
 // Trade history panel for right side
 function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
-  if (!trades || trades.length === 0) return ''
+  if (!trades || trades.length === 0) return "";
 
   // Format date to human readable: "12th Thu Jan 2025 10:30"
   const formatDateHuman = (isoStr: string) => {
-    if (!isoStr) return '-'
-    const parts = isoStr.split('T')
-    const datePart = parts[0]
-    const timePart = parts[1]?.replace('Z', '').replace(/\+00:00/g, '').replace(/\+05:30/g, '').substring(0, 5)
-    const [year, month, day] = datePart.split('-')
-    const d = parseInt(day)
-    const m = parseInt(month) - 1
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const date = new Date(parseInt(year), m, d)
-    const dayName = days[date.getDay()]
-    const monthName = months[m]
-    const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th'
-    return `${d}${suffix} ${dayName} ${monthName} ${timePart}`
-  }
+    if (!isoStr) return "-";
+    const parts = isoStr.split("T");
+    const datePart = parts[0];
+    const timePart = parts[1]
+      ?.replace("Z", "")
+      .replace(/\+00:00/g, "")
+      .replace(/\+05:30/g, "")
+      .substring(0, 5);
+    const [year, month, day] = datePart.split("-");
+    const d = parseInt(day);
+    const m = parseInt(month) - 1;
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const date = new Date(parseInt(year), m, d);
+    const dayName = days[date.getDay()];
+    const monthName = months[m];
+    const suffix =
+      d === 1 || d === 21 || d === 31
+        ? "st"
+        : d === 2 || d === 22
+          ? "nd"
+          : d === 3 || d === 23
+            ? "rd"
+            : "th";
+    return `${d}${suffix} ${dayName} ${monthName} ${timePart}`;
+  };
 
   const formatDuration = (mins: number) => {
-    const h = Math.floor(mins / 60)
-    const m = mins % 60
-    return h > 0 ? `${h}h ${m}m` : `${m}m`
-  }
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
 
   // Sort trades
-  const sortedTrades = sortTrades([...trades], tradeSortColumn, tradeSortDirection)
+  const sortedTrades = sortTrades([...trades], tradeSortColumn, tradeSortDirection);
 
-  const totalPnl = trades.reduce((sum, t) => sum + t.net_pnl, 0)
-  const wins = trades.filter(t => t.net_pnl > 0).length
-  const winRate = trades.length > 0 ? (wins / trades.length * 100).toFixed(1) : '0'
+  const totalPnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
+  const wins = trades.filter((t) => t.net_pnl > 0).length;
+  const winRate = trades.length > 0 ? ((wins / trades.length) * 100).toFixed(1) : "0";
 
   const sortIndicator = (col: string) => {
-    if (tradeSortColumn !== col) return ''
-    return tradeSortDirection === 'asc' ? ' ▲' : ' ▼'
-  }
+    if (tradeSortColumn !== col) return "";
+    return tradeSortDirection === "asc" ? " ▲" : " ▼";
+  };
 
   // Debug: Check if 52w_high exists in trades
-  console.log('Trade history panel - first trade:', trades[0])
-  console.log('Has 52w_high?', trades[0]?.['52w_high'], trades[0]?.['52w_high'] ? 'YES' : 'NO')
+  console.log("Trade history panel - first trade:", trades[0]);
+  console.log("Has 52w_high?", trades[0]?.["52w_high"], trades[0]?.["52w_high"] ? "YES" : "NO");
 
   return `
     <div class="trade-history-panel" data-testid="trade-history-panel">
@@ -103,7 +131,7 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
         <button class="btn-small" onclick="window.closeTradeHistory()" title="Close">×</button>
       </div>
       <div class="trade-history-summary">
-        <span>P&L: <strong class="${totalPnl >= 0 ? 'positive' : 'negative'}">₹${totalPnl.toFixed(0)}</strong></span>
+        <span>P&L: <strong class="${totalPnl >= 0 ? "positive" : "negative"}">₹${totalPnl.toFixed(0)}</strong></span>
         <span>WR: ${winRate}%</span>
         <span>Wins: ${wins}/${trades.length}</span>
       </div>
@@ -112,196 +140,204 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
           <thead>
             <tr>
               <th>#</th>
-              <th class="sortable ${tradeSortColumn === 'entry_time' ? 'sorted ' + tradeSortDirection : ''}"
+              <th class="sortable ${tradeSortColumn === "entry_time" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('entry_time')">
-                Time${sortIndicator('entry_time')}
+                Time${sortIndicator("entry_time")}
               </th>
-              <th class="sortable ${tradeSortColumn === 'side' ? 'sorted ' + tradeSortDirection : ''}"
+              <th class="sortable ${tradeSortColumn === "side" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('side')">
-                Side${sortIndicator('side')}
+                Side${sortIndicator("side")}
               </th>
-              <th class="sortable ${tradeSortColumn === 'quantity' ? 'sorted ' + tradeSortDirection : ''}"
+              <th class="sortable ${tradeSortColumn === "quantity" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('quantity')">
-                Qty${sortIndicator('quantity')}
+                Qty${sortIndicator("quantity")}
               </th>
-              <th class="sortable ${tradeSortColumn === 'entry_price' ? 'sorted ' + tradeSortDirection : ''}"
+              <th class="sortable ${tradeSortColumn === "entry_price" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('entry_price')">
-                Entry${sortIndicator('entry_price')}
+                Entry${sortIndicator("entry_price")}
               </th>
-              <th class="sortable ${tradeSortColumn === 'level_high' ? 'sorted ' + tradeSortDirection : ''}"
+              <th class="sortable ${tradeSortColumn === "level_high" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('level_high')">
-                ${trades[0]?.['52w_high'] ? '52W High' : 'Level Hi'}${sortIndicator('level_high')}
+                ${trades[0]?.["52w_high"] ? "52W High" : "Level Hi"}${sortIndicator("level_high")}
               </th>
-              ${trades[0]?.['52w_high'] ? '' : `<th class="sortable ${tradeSortColumn === 'level_low' ? 'sorted ' + tradeSortDirection : ''}"
+              ${
+                trades[0]?.["52w_high"]
+                  ? ""
+                  : `<th class="sortable ${tradeSortColumn === "level_low" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('level_low')">
-                Level Lo${sortIndicator('level_low')}
-              </th>`}
-              <th class="sortable ${tradeSortColumn === 'exit_price' ? 'sorted ' + tradeSortDirection : ''}"
+                Level Lo${sortIndicator("level_low")}
+              </th>`
+              }
+              <th class="sortable ${tradeSortColumn === "exit_price" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('exit_price')">
-                Exit${sortIndicator('exit_price')}
+                Exit${sortIndicator("exit_price")}
               </th>
-              <th class="sortable ${tradeSortColumn === 'net_pnl' ? 'sorted ' + tradeSortDirection : ''}"
+              <th class="sortable ${tradeSortColumn === "net_pnl" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('net_pnl')">
-                P&L${sortIndicator('net_pnl')}
+                P&L${sortIndicator("net_pnl")}
               </th>
-              <th class="sortable ${tradeSortColumn === 'net_pnl_pct' ? 'sorted ' + tradeSortDirection : ''}"
+              <th class="sortable ${tradeSortColumn === "net_pnl_pct" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('net_pnl_pct')">
-                %${sortIndicator('net_pnl_pct')}
+                %${sortIndicator("net_pnl_pct")}
               </th>
-              <th class="sortable ${tradeSortColumn === 'hold_duration_minutes' ? 'sorted ' + tradeSortDirection : ''}"
+              <th class="sortable ${tradeSortColumn === "hold_duration_minutes" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('hold_duration_minutes')">
-                Hold${sortIndicator('hold_duration_minutes')}
+                Hold${sortIndicator("hold_duration_minutes")}
               </th>
-              <th class="sortable ${tradeSortColumn === 'exit_reason' ? 'sorted ' + tradeSortDirection : ''}"
+              <th class="sortable ${tradeSortColumn === "exit_reason" ? "sorted " + tradeSortDirection : ""}"
                   onclick="window.sortTrades('exit_reason')">
-                Type${sortIndicator('exit_reason')}
+                Type${sortIndicator("exit_reason")}
               </th>
             </tr>
           </thead>
           <tbody>
-            ${sortedTrades.map((t, i) => {
-              // Find original index for zoomToTrade
-              const originalIndex = trades.indexOf(t)
-              const tradeNumber = originalIndex + 1 // 1-based trade number
-              const capital = t.entry_price * t.quantity
-              const pnlPct = t.net_pnl_pct || ((t.net_pnl / capital) * 100)
-              const side = t.side || 'LONG'  // Default to LONG for backwards compatibility
-              // Get level high/low from ORB (or_high/or_low) or S/R (r1/s1) or 52W Chaser (52w_high)
-              const has52w = t['52w_high'] !== undefined && t['52w_high'] !== null
-              const levelHigh = t.or_high ?? t.r1 ?? t['52w_high'] ?? 0
-              const levelLow = t.or_low ?? t.s1 ?? 0
-              const showLevelLow = !has52w  // Hide Level Lo for 52W Chaser
-              return `
-                <tr class="${(t.net_pnl ?? 0) >= 0 ? 'trade-win' : 'trade-loss'}"
+            ${sortedTrades
+              .map((t, _i) => {
+                // Find original index for zoomToTrade
+                const originalIndex = trades.indexOf(t);
+                const tradeNumber = originalIndex + 1; // 1-based trade number
+                const capital = t.entry_price * t.quantity;
+                const pnlPct = t.net_pnl_pct || (t.net_pnl / capital) * 100;
+                const side = t.side || "LONG"; // Default to LONG for backwards compatibility
+                // Get level high/low from ORB (or_high/or_low) or S/R (r1/s1) or 52W Chaser (52w_high)
+                const has52w = t["52w_high"] !== undefined && t["52w_high"] !== null;
+                const levelHigh = t.or_high ?? t.r1 ?? t["52w_high"] ?? 0;
+                const levelLow = t.or_low ?? t.s1 ?? 0;
+                const showLevelLow = !has52w; // Hide Level Lo for 52W Chaser
+                return `
+                <tr class="${(t.net_pnl ?? 0) >= 0 ? "trade-win" : "trade-loss"}"
                     data-trade-number="${tradeNumber}"
                     onclick="window.zoomToTrade(${originalIndex})"
                     style="cursor:pointer"
                     title="Click to zoom to this trade">
                   <td class="trade-number">${tradeNumber}</td>
                   <td class="time-cell">${formatDateHuman(t.entry_time)}</td>
-                  <td class="side-${side.toLowerCase()}">${side === 'LONG' ? '▲' : '▼'}</td>
+                  <td class="side-${side.toLowerCase()}">${side === "LONG" ? "▲" : "▼"}</td>
                   <td>${t.quantity ?? 0}</td>
                   <td>₹${(t.entry_price ?? 0).toFixed(0)}</td>
                   <td>₹${levelHigh.toFixed(2)}</td>
-                  ${showLevelLow ? `<td>₹${levelLow.toFixed(2)}</td>` : ''}
+                  ${showLevelLow ? `<td>₹${levelLow.toFixed(2)}</td>` : ""}
                   <td>₹${(t.exit_price ?? 0).toFixed(0)}</td>
-                  <td class="${(t.net_pnl ?? 0) >= 0 ? 'positive' : 'negative'}">
+                  <td class="${(t.net_pnl ?? 0) >= 0 ? "positive" : "negative"}">
                     <strong>₹${(t.net_pnl ?? 0).toFixed(0)}</strong>
                   </td>
-                  <td class="${pnlPct >= 0 ? 'positive' : 'negative'}">
-                    ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%
+                  <td class="${pnlPct >= 0 ? "positive" : "negative"}">
+                    ${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%
                   </td>
                   <td>${formatDuration(t.hold_duration_minutes ?? 0)}</td>
-                  <td class="exit-${(t.exit_reason ?? 'EOD').toLowerCase()}">${t.exit_reason ?? 'EOD'}</td>
+                  <td class="exit-${(t.exit_reason ?? "EOD").toLowerCase()}">${t.exit_reason ?? "EOD"}</td>
                 </tr>
-              `
-            }).join('')}
+              `;
+              })
+              .join("")}
           </tbody>
         </table>
       </div>
     </div>
-  `
+  `;
 }
 
-function sortTrades(trades: any[], column: string, direction: 'asc' | 'desc'): any[] {
+function sortTrades(trades: any[], column: string, direction: "asc" | "desc"): any[] {
   return trades.sort((a, b) => {
-    let aVal: number | string = 0
-    let bVal: number | string = 0
+    let aVal: number | string = 0;
+    let bVal: number | string = 0;
 
     switch (column) {
-      case 'entry_time':
-        aVal = a.entry_time || ''
-        bVal = b.entry_time || ''
-        break
-      case 'side':
-        aVal = a.side || 'LONG'
-        bVal = b.side || 'LONG'
-        break
-      case 'quantity':
-        aVal = a.quantity
-        bVal = b.quantity
-        break
-      case 'entry_price':
-        aVal = a.entry_price
-        bVal = b.entry_price
-        break
-      case 'exit_price':
-        aVal = a.exit_price
-        bVal = b.exit_price
-        break
-      case 'level_high':
-        aVal = a.or_high ?? a.r1 ?? 0
-        bVal = b.or_high ?? b.r1 ?? 0
-        break
-      case 'level_low':
-        aVal = a.or_low ?? a.s1 ?? 0
-        bVal = b.or_low ?? b.s1 ?? 0
-        break
-      case 'or_high':  // Keep for backwards compatibility
-        aVal = a.or_high ?? a.r1 ?? 0
-        bVal = b.or_high ?? b.r1 ?? 0
-        break
-      case 'or_low':  // Keep for backwards compatibility
-        aVal = a.or_low ?? a.s1 ?? 0
-        bVal = b.or_low ?? b.s1 ?? 0
-        break
-      case 'net_pnl':
-        aVal = a.net_pnl
-        bVal = b.net_pnl
-        break
-      case 'net_pnl_pct':
-        aVal = a.net_pnl_pct || (a.net_pnl / (a.entry_price * a.quantity)) * 100
-        bVal = b.net_pnl_pct || (b.net_pnl / (b.entry_price * b.quantity)) * 100
-        break
-      case 'hold_duration_minutes':
-        aVal = a.hold_duration_minutes
-        bVal = b.hold_duration_minutes
-        break
-      case 'exit_reason':
-        aVal = a.exit_reason || ''
-        bVal = b.exit_reason || ''
-        break
+      case "entry_time":
+        aVal = a.entry_time || "";
+        bVal = b.entry_time || "";
+        break;
+      case "side":
+        aVal = a.side || "LONG";
+        bVal = b.side || "LONG";
+        break;
+      case "quantity":
+        aVal = a.quantity;
+        bVal = b.quantity;
+        break;
+      case "entry_price":
+        aVal = a.entry_price;
+        bVal = b.entry_price;
+        break;
+      case "exit_price":
+        aVal = a.exit_price;
+        bVal = b.exit_price;
+        break;
+      case "level_high":
+        aVal = a.or_high ?? a.r1 ?? 0;
+        bVal = b.or_high ?? b.r1 ?? 0;
+        break;
+      case "level_low":
+        aVal = a.or_low ?? a.s1 ?? 0;
+        bVal = b.or_low ?? b.s1 ?? 0;
+        break;
+      case "or_high": // Keep for backwards compatibility
+        aVal = a.or_high ?? a.r1 ?? 0;
+        bVal = b.or_high ?? b.r1 ?? 0;
+        break;
+      case "or_low": // Keep for backwards compatibility
+        aVal = a.or_low ?? a.s1 ?? 0;
+        bVal = b.or_low ?? b.s1 ?? 0;
+        break;
+      case "net_pnl":
+        aVal = a.net_pnl;
+        bVal = b.net_pnl;
+        break;
+      case "net_pnl_pct":
+        aVal = a.net_pnl_pct || (a.net_pnl / (a.entry_price * a.quantity)) * 100;
+        bVal = b.net_pnl_pct || (b.net_pnl / (b.entry_price * b.quantity)) * 100;
+        break;
+      case "hold_duration_minutes":
+        aVal = a.hold_duration_minutes;
+        bVal = b.hold_duration_minutes;
+        break;
+      case "exit_reason":
+        aVal = a.exit_reason || "";
+        bVal = b.exit_reason || "";
+        break;
       default:
-        return 0
+        return 0;
     }
 
-    if (typeof aVal === 'string' && typeof bVal === 'string') {
-      return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+    if (typeof aVal === "string" && typeof bVal === "string") {
+      return direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
     }
 
-    return direction === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
-  })
+    return direction === "asc"
+      ? (aVal as number) - (bVal as number)
+      : (bVal as number) - (aVal as number);
+  });
 }
 
 // Initialize all backtest handlers
 export function initBacktestHandlers() {
-  initConfigHandlers()
-  initResultsHandlers()
-  initChartHandlers()
+  initConfigHandlers();
+  initResultsHandlers();
+  initChartHandlers();
 
-  ;(window as any).clearError = () => {
-    setError(null)
-  }
+  (window as any).clearError = () => {
+    setError(null);
+  };
 
-  ;(window as any).closeTradeHistory = () => {
-    setTradeHistory(null, null)
-  }
+  (window as any).closeTradeHistory = () => {
+    setTradeHistory(null, null);
+  };
 
-  ;(window as any).sortTrades = (column: string) => {
+  (window as any).sortTrades = (column: string) => {
     if (tradeSortColumn === column) {
-      tradeSortDirection = tradeSortDirection === 'asc' ? 'desc' : 'asc'
+      tradeSortDirection = tradeSortDirection === "asc" ? "desc" : "asc";
     } else {
-      tradeSortColumn = column
-      tradeSortDirection = 'desc'
+      tradeSortColumn = column;
+      tradeSortDirection = "desc";
     }
-    triggerRerender()
-  }
+    triggerRerender();
+  };
 }
 
 // Initialize charts after render
 export function initBacktestCharts() {
   // Small delay to ensure DOM is ready
   setTimeout(() => {
-    initCharts()
-  }, 100)
+    initCharts();
+  }, 100);
 }

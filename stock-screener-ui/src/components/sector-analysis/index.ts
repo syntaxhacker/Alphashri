@@ -5,7 +5,7 @@
  * /historical_sector_cycles as an embedded frame.
  */
 
-const API_BASE = 'http://localhost:8765'
+const API_BASE = "http://localhost:8765";
 
 export function renderSectorAnalysisView(): string {
   return `
@@ -33,6 +33,5 @@ export function renderSectorAnalysisView(): string {
         ></iframe>
       </div>
     </div>
-  `
+  `;
 }
-

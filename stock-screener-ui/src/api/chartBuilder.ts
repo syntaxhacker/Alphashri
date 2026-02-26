@@ -10,66 +10,75 @@
  * All times are in IST, no conversion needed.
  */
 
-import type { SymbolChartData, CandleData, ChartTrade, ORBZone, PivotLevels, Trade } from '../types/backtest'
+import type {
+  SymbolChartData,
+  CandleData,
+  ChartTrade,
+  ORBZone,
+  PivotLevels,
+  Trade,
+} from "../types/backtest";
 
 interface RawCandle {
-  index: string[]  // IST strings like "2025-10-24T09:15:00"
-  open: number[]
-  high: number[]
-  low: number[]
-  close: number[]
-  volume: number[]
+  index: string[]; // IST strings like "2025-10-24T09:15:00"
+  open: number[];
+  high: number[];
+  low: number[];
+  close: number[];
+  volume: number[];
 }
 
 interface RawTrade {
-  entry_price: number
-  exit_price: number
-  entry_time: string  // IST without timezone like "2025-10-27T11:25:00"
-  exit_time: string
-  quantity: number
-  gross_pnl: number
-  gross_pnl_pct: number
-  trading_costs: number
-  net_pnl: number
-  net_pnl_pct: number
-  exit_reason: 'TP' | 'SL' | 'EOD'
-  hold_duration_minutes: number
-  date: string  // YYYY-MM-DD
+  entry_price: number;
+  exit_price: number;
+  entry_time: string; // IST without timezone like "2025-10-27T11:25:00"
+  exit_time: string;
+  quantity: number;
+  gross_pnl: number;
+  gross_pnl_pct: number;
+  trading_costs: number;
+  net_pnl: number;
+  net_pnl_pct: number;
+  exit_reason: "TP" | "SL" | "EOD";
+  hold_duration_minutes: number;
+  date: string; // YYYY-MM-DD
   // ORB strategy fields
-  or_high?: number
-  or_low?: number
+  or_high?: number;
+  or_low?: number;
   // S/R Breakout strategy fields
-  pp?: number   // Pivot Point
-  r1?: number   // Resistance 1
-  s1?: number   // Support 1
-  r2?: number   // Resistance 2
-  s2?: number   // Support 2
+  pp?: number; // Pivot Point
+  r1?: number; // Resistance 1
+  s1?: number; // Support 1
+  r2?: number; // Resistance 2
+  s2?: number; // Support 2
 }
 
 export function buildChartData(
   symbol: string,
   rawCandles: RawCandle,
   rawTrades: RawTrade[],
-  orMinutes: number = 45
+  orMinutes: number = 45,
 ): SymbolChartData {
-  const candles = formatCandleData(rawCandles)
+  const candles = formatCandleData(rawCandles);
 
   // Get unique trade dates to filter ORB zones
-  const tradeDates = new Set(rawTrades.map(t => t.date))
+  const tradeDates = new Set(rawTrades.map((t) => t.date));
 
   // Only calculate ORB zones for days with trades
-  const orbZones = formatORBZones(candles, orMinutes).filter(z => tradeDates.has(z.date_raw))
+  const orbZones = formatORBZones(candles, orMinutes).filter((z) => tradeDates.has(z.date_raw));
 
   // Extract pivot levels from trades (for S/R Breakout strategy)
-  const pivotLevels = extractPivotLevels(rawTrades)
+  const pivotLevels = extractPivotLevels(rawTrades);
 
-  const trades = formatTradeMarkers(rawTrades, candles)
+  const trades = formatTradeMarkers(rawTrades, candles);
 
-  const startDates = candles.map(c => c.date_raw).filter(d => d)
-  const startDate = startDates[0] || null
-  const endDate = startDates[startDates.length - 1] || null
+  const startDates = candles.map((c) => c.date_raw).filter((d) => d);
+  const startDate = startDates[0] || null;
+  const endDate = startDates[startDates.length - 1] || null;
 
-  console.log(`buildChartData: ${candles.length} candles, ${orbZones.length} ORB zones, ${pivotLevels.length} pivot levels, ${trades.length} trade markers`)
+  console.log(
+    `buildChartData: ${candles.length} candles, ${orbZones.length} ORB zones, ${pivotLevels.length} pivot levels, ${trades.length} trade markers`,
+  );
 
   return {
     symbol,
@@ -83,7 +92,7 @@ export function buildChartData(
     },
     total_candles: candles.length,
     total_trades: rawTrades.length,
-  }
+  };
 }
 
 /**
@@ -92,28 +101,28 @@ export function buildChartData(
  * Output: IST time parts
  */
 function formatCandleData(raw: RawCandle): CandleData[] {
-  const candles: CandleData[] = []
-  const indices = raw.index || []
-  const opens = raw.open || []
-  const highs = raw.high || []
-  const lows = raw.low || []
-  const closes = raw.close || []
-  const volumes = raw.volume || []
+  const candles: CandleData[] = [];
+  const indices = raw.index || [];
+  const opens = raw.open || [];
+  const highs = raw.high || [];
+  const lows = raw.low || [];
+  const closes = raw.close || [];
+  const volumes = raw.volume || [];
 
-  console.log(`formatCandleData: ${indices.length} raw candles`)
+  console.log(`formatCandleData: ${indices.length} raw candles`);
 
   for (let i = 0; i < indices.length; i++) {
     try {
-      const timeStr = indices[i]
+      const timeStr = indices[i];
       // Time is already in IST, just extract parts
       // Format: "2025-10-24T09:15:00" or "2025-10-24T09:15:00+00:00"
-      const cleanTime = timeStr.replace(/\+00:00$|Z$/, '')
-      const [datePart, timePart] = cleanTime.split('T')
-      const [hours, minutes] = timePart.split(':')
+      const cleanTime = timeStr.replace(/\+00:00$|Z$/, "");
+      const [datePart, timePart] = cleanTime.split("T");
+      const [hours, minutes] = timePart.split(":");
 
-      const dateRaw = datePart  // YYYY-MM-DD for matching
-      const timeDisplay = `${hours}:${minutes}`  // HH:MM for display
-      const comparableTime = `${dateRaw}T${timeDisplay}` // For matching with trades
+      const dateRaw = datePart; // YYYY-MM-DD for matching
+      const timeDisplay = `${hours}:${minutes}`; // HH:MM for display
+      const comparableTime = `${dateRaw}T${timeDisplay}`; // For matching with trades
 
       candles.push({
         time: comparableTime,
@@ -124,70 +133,70 @@ function formatCandleData(raw: RawCandle): CandleData[] {
         low: lows[i] || 0,
         close: closes[i] || 0,
         volume: volumes[i] || 0,
-      })
+      });
     } catch (e) {
-      console.error('Error parsing candle:', indices[i], e)
+      console.error("Error parsing candle:", indices[i], e);
     }
   }
 
   if (candles.length > 0) {
-    console.log(`Candles: ${candles[0].time} to ${candles[candles.length - 1].time}`)
+    console.log(`Candles: ${candles[0].time} to ${candles[candles.length - 1].time}`);
   }
 
-  return candles
+  return candles;
 }
 
 function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
-  const zones: ORBZone[] = []
-  let currentDate: string | null = null
-  let orCandles: CandleData[] = []
+  const zones: ORBZone[] = [];
+  let currentDate: string | null = null;
+  let orCandles: CandleData[] = [];
 
-  const marketOpenMinutes = 9 * 60 + 15 // 9:15 AM
-  const orEndMinutes = marketOpenMinutes + orMinutes
+  const marketOpenMinutes = 9 * 60 + 15; // 9:15 AM
+  const orEndMinutes = marketOpenMinutes + orMinutes;
 
   for (const candle of candles) {
-    const timeParts = candle.time_str.split(':')
-    const candleMinutes = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1])
+    const timeParts = candle.time_str.split(":");
+    const candleMinutes = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1]);
 
     // New day
     if (candle.date !== currentDate) {
       // Process previous day's OR
       if (orCandles.length > 0 && currentDate) {
-        const orHigh = Math.max(...orCandles.map(c => c.high))
-        const orLow = Math.min(...orCandles.map(c => c.low))
+        const orHigh = Math.max(...orCandles.map((c) => c.high));
+        const orLow = Math.min(...orCandles.map((c) => c.low));
         zones.push({
           date: currentDate,
           date_raw: currentDate,
           or_high: Math.round(orHigh * 100) / 100,
           or_low: Math.round(orLow * 100) / 100,
-          or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, '0')}:${String(orEndMinutes % 60).padStart(2, '0')}`,
-        })
+          or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, "0")}:${String(orEndMinutes % 60).padStart(2, "0")}`,
+        });
       }
 
-      currentDate = candle.date
-      orCandles = []
+      currentDate = candle.date;
+      orCandles = [];
     }
 
     // Collect OR candles (before 10:00 for 45-min OR)
     if (candleMinutes < orEndMinutes) {
-      orCandles.push(candle)
+      orCandles.push(candle);
     }
   }
 
   // Process last day
   if (orCandles.length > 0 && currentDate) {
-    const orHigh = Math.max(...orCandles.map(c => c.high))
-    const orLow = Math.min(...orCandles.map(c => c.low))
+    const orHigh = Math.max(...orCandles.map((c) => c.high));
+    const orLow = Math.min(...orCandles.map((c) => c.low));
     zones.push({
       date: currentDate,
       date_raw: currentDate,
       or_high: Math.round(orHigh * 100) / 100,
       or_low: Math.round(orLow * 100) / 100,
-      or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, '0')}:${String(orEndMinutes % 60).padStart(2, '0')}`,
-    })
+      or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, "0")}:${String(orEndMinutes % 60).padStart(2, "0")}`,
+    });
   }
 
-  return zones
+  return zones;
 }
 
 /**
@@ -195,7 +204,7 @@ function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
  * Pivot levels are the same for all trades on the same day.
  */
 function extractPivotLevels(trades: RawTrade[]): PivotLevels[] {
-  const levelsByDate = new Map<string, PivotLevels>()
+  const levelsByDate = new Map<string, PivotLevels>();
 
   for (const trade of trades) {
     if (trade.pp && trade.r1 && trade.s1) {
@@ -209,12 +218,12 @@ function extractPivotLevels(trades: RawTrade[]): PivotLevels[] {
           s1: trade.s1,
           r2: trade.r2,
           s2: trade.s2,
-        })
+        });
       }
     }
   }
 
-  return Array.from(levelsByDate.values())
+  return Array.from(levelsByDate.values());
 }
 
 /**
@@ -223,46 +232,49 @@ function extractPivotLevels(trades: RawTrade[]): PivotLevels[] {
  * Candle times are already converted to IST comparable format
  */
 function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTrade[] {
-  const markers: ChartTrade[] = []
+  const markers: ChartTrade[] = [];
 
   // Build lookup map for candle times
-  const candleTimeMap = new Map<string, number>()
-  candles.forEach((c, i) => candleTimeMap.set(c.time, i))
+  const candleTimeMap = new Map<string, number>();
+  candles.forEach((c, i) => candleTimeMap.set(c.time, i));
 
-  console.log(`Sample candle times for matching:`, candles.slice(0, 3).map(c => c.time))
+  console.log(
+    `Sample candle times for matching:`,
+    candles.slice(0, 3).map((c) => c.time),
+  );
 
   trades.forEach((trade, idx) => {
     // Trade time format: "2025-10-27T11:25:00" or "2025-10-27T11:25:00+00:00"
     // Normalize to "YYYY-MM-DDTHH:MM"
-    const entryNormalized = normalizeTradeTime(trade.entry_time)
-    const exitNormalized = normalizeTradeTime(trade.exit_time)
+    const entryNormalized = normalizeTradeTime(trade.entry_time);
+    const exitNormalized = normalizeTradeTime(trade.exit_time);
 
     if (idx < 3) {
-      console.log(`Trade ${idx + 1}: ${trade.entry_time} -> ${entryNormalized}`)
+      console.log(`Trade ${idx + 1}: ${trade.entry_time} -> ${entryNormalized}`);
     }
 
     // Find candle index
-    const entryCandleIdx = candleTimeMap.get(entryNormalized)
-    const exitCandleIdx = candleTimeMap.get(exitNormalized)
+    const entryCandleIdx = candleTimeMap.get(entryNormalized);
+    const exitCandleIdx = candleTimeMap.get(exitNormalized);
 
     if (entryCandleIdx === undefined) {
-      console.warn(`Entry time not found: ${entryNormalized}`)
+      console.warn(`Entry time not found: ${entryNormalized}`);
     }
     if (exitCandleIdx === undefined) {
-      console.warn(`Exit time not found: ${exitNormalized}`)
+      console.warn(`Exit time not found: ${exitNormalized}`);
     }
 
     // Entry marker
     markers.push({
       trade_id: idx + 1,
-      type: 'entry',
+      type: "entry",
       time: entryNormalized,
       candle_idx: entryCandleIdx,
       date: trade.date,
       price: trade.entry_price,
       marker: {
-        symbol: 'triangle',
-        color: '#00BFFF',
+        symbol: "triangle",
+        color: "#00BFFF",
         size: 16,
       },
       trade: {
@@ -285,25 +297,25 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
         r2: trade.r2,
         s2: trade.s2,
       },
-    })
+    });
 
     // Exit marker
     const exitColors: Record<string, string> = {
-      TP: '#00E676',
-      SL: '#FF1744',
-      EOD: '#FFEA00',
-    }
+      TP: "#00E676",
+      SL: "#FF1744",
+      EOD: "#FFEA00",
+    };
 
     markers.push({
       trade_id: idx + 1,
-      type: 'exit',
+      type: "exit",
       time: exitNormalized,
       candle_idx: exitCandleIdx,
       date: trade.date,
       price: trade.exit_price,
       marker: {
-        symbol: 'circle',
-        color: exitColors[trade.exit_reason] || '#FFEA00',
+        symbol: "circle",
+        color: exitColors[trade.exit_reason] || "#FFEA00",
         size: 14,
       },
       trade: {
@@ -326,10 +338,10 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
         r2: trade.r2,
         s2: trade.s2,
       },
-    })
-  })
+    });
+  });
 
-  return markers
+  return markers;
 }
 
 /**
@@ -338,22 +350,22 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
  * Output: "2025-10-27T11:25"
  */
 function normalizeTradeTime(time: string): string {
-  if (!time) return ''
+  if (!time) return "";
   // Remove timezone suffix and seconds if present
   return time
-    .replace(/\+00:00$/, '')
-    .replace(/\+05:30$/, '')
-    .replace(/Z$/, '')
-    .substring(0, 16) // "YYYY-MM-DDTHH:MM"
+    .replace(/\+00:00$/, "")
+    .replace(/\+05:30$/, "")
+    .replace(/Z$/, "")
+    .substring(0, 16); // "YYYY-MM-DDTHH:MM"
 }
 
 // Helper to convert chart trades to Trade[] for modal
 export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
-  const trades: Trade[] = []
+  const trades: Trade[] = [];
 
   chartTrades
-    .filter(ct => ct.type === 'entry')
-    .forEach(ct => {
+    .filter((ct) => ct.type === "entry")
+    .forEach((ct) => {
       trades.push({
         entry_price: ct.trade.entry_price,
         exit_price: ct.trade.exit_price,
@@ -376,10 +388,10 @@ export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
         r2: ct.trade.r2,
         s2: ct.trade.s2,
         // 52W Chaser fields
-        '52w_high': ct.trade['52w_high'],
+        "52w_high": ct.trade["52w_high"],
         trailing_active: ct.trade.trailing_active,
-      })
-    })
+      });
+    });
 
-  return trades
+  return trades;
 }

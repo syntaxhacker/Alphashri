@@ -13,7 +13,7 @@
  * Format a number as Indian currency (₹)
  */
 export function formatCurrency(amount: number, precision: number = 0): string {
-  return `₹${amount.toFixed(precision)}`
+  return `₹${amount.toFixed(precision)}`;
 }
 
 /**
@@ -21,30 +21,34 @@ export function formatCurrency(amount: number, precision: number = 0): string {
  * E.g., 1500 → "1.5K", 150000 → "1.5L"
  */
 export function formatNumber(value: number): string {
-  const absValue = Math.abs(value)
-  const sign = value < 0 ? '-' : ''
+  const absValue = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
 
   if (absValue >= 100000) {
-    return `${sign}${(absValue / 100000).toFixed(1)}L`
+    return `${sign}${(absValue / 100000).toFixed(1)}L`;
   } else if (absValue >= 1000) {
-    return `${sign}${(absValue / 1000).toFixed(1)}K`
+    return `${sign}${(absValue / 1000).toFixed(1)}K`;
   }
-  return `${sign}${absValue.toFixed(0)}`
+  return `${sign}${absValue.toFixed(0)}`;
 }
 
 /**
  * Format currency with K/L suffix for display in tables
  */
 export function formatCurrencyCompact(amount: number): string {
-  return `₹${formatNumber(amount)}`
+  return `₹${formatNumber(amount)}`;
 }
 
 /**
  * Format a percentage with optional sign prefix
  */
-export function formatPercentage(value: number, precision: number = 2, showSign: boolean = true): string {
-  const sign = showSign && value >= 0 ? '+' : ''
-  return `${sign}${value.toFixed(precision)}%`
+export function formatPercentage(
+  value: number,
+  precision: number = 2,
+  showSign: boolean = true,
+): string {
+  const sign = showSign && value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(precision)}%`;
 }
 
 // ============================================
@@ -55,31 +59,48 @@ export function formatPercentage(value: number, precision: number = 2, showSign:
  * Format date to human readable: "12th Thu Jan 2025 10:30"
  */
 export function formatDateTimeHuman(isoStr: string): string {
-  if (!isoStr) return '-'
+  if (!isoStr) return "-";
 
   try {
-    const parts = isoStr.split('T')
-    const datePart = parts[0]
-    const timePart = parts[1]?.replace('Z', '').replace(/\+00:00/g, '').replace(/\+05:30/g, '').substring(0, 5)
+    const parts = isoStr.split("T");
+    const datePart = parts[0];
+    const timePart = parts[1]
+      ?.replace("Z", "")
+      .replace(/\+00:00/g, "")
+      .replace(/\+05:30/g, "")
+      .substring(0, 5);
 
-    if (!datePart) return '-'
+    if (!datePart) return "-";
 
-    const [year, month, day] = datePart.split('-')
-    const d = parseInt(day)
-    const m = parseInt(month) - 1
+    const [_year, month, day] = datePart.split("-");
+    const d = parseInt(day);
+    const m = parseInt(month) - 1;
 
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
 
-    const date = new Date(parseInt(year), m, d)
-    const dayName = days[date.getDay()]
-    const monthName = months[m]
+    const date = new Date(parseInt(_year), m, d);
+    const dayName = days[date.getDay()];
+    const monthName = months[m];
 
-    const suffix = getOrdinalSuffix(d)
+    const suffix = getOrdinalSuffix(d);
 
-    return `${d}${suffix} ${dayName} ${monthName} ${timePart || ''}`
+    return `${d}${suffix} ${dayName} ${monthName} ${timePart || ""}`;
   } catch {
-    return '-'
+    return "-";
   }
 }
 
@@ -87,25 +108,42 @@ export function formatDateTimeHuman(isoStr: string): string {
  * Format date compact: "12th Jan 10:30"
  */
 export function formatDateTimeCompact(isoStr: string): string {
-  if (!isoStr) return '-'
+  if (!isoStr) return "-";
 
   try {
-    const parts = isoStr.split('T')
-    const datePart = parts[0]
-    const timePart = parts[1]?.replace('Z', '').replace(/\+00:00/g, '').replace(/\+05:30/g, '').substring(0, 5)
+    const parts = isoStr.split("T");
+    const datePart = parts[0];
+    const timePart = parts[1]
+      ?.replace("Z", "")
+      .replace(/\+00:00/g, "")
+      .replace(/\+05:30/g, "")
+      .substring(0, 5);
 
-    if (!datePart) return '-'
+    if (!datePart) return "-";
 
-    const [year, month, day] = datePart.split('-')
-    const d = parseInt(day)
-    const m = parseInt(month) - 1
+    const [_year, month, day] = datePart.split("-");
+    const d = parseInt(day);
+    const m = parseInt(month) - 1;
 
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const suffix = getOrdinalSuffix(d)
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const suffix = getOrdinalSuffix(d);
 
-    return `${d}${suffix} ${months[m]} ${timePart || ''}`
+    return `${d}${suffix} ${months[m]} ${timePart || ""}`;
   } catch {
-    return '-'
+    return "-";
   }
 }
 
@@ -113,23 +151,36 @@ export function formatDateTimeCompact(isoStr: string): string {
  * Format date for trade display: "24 Feb 2026, 10:38:36"
  */
 export function formatTradeTime(isoStr: string): string {
-  if (!isoStr) return '-'
+  if (!isoStr) return "-";
 
   try {
-    const date = new Date(isoStr)
+    const date = new Date(isoStr);
 
-    const day = date.getDate()
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const month = months[date.getMonth()]
-    const year = date.getFullYear()
+    const day = date.getDate();
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
 
-    const hours = String(date.getHours()).padStart(2, '0')
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-    const seconds = String(date.getSeconds()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const seconds = String(date.getSeconds()).padStart(2, "0");
 
-    return `${day} ${month} ${year}, ${hours}:${minutes}:${seconds}`
+    return `${day} ${month} ${year}, ${hours}:${minutes}:${seconds}`;
   } catch {
-    return '-'
+    return "-";
   }
 }
 
@@ -137,25 +188,25 @@ export function formatTradeTime(isoStr: string): string {
  * Format duration in minutes to human readable: "2h 30m" or "45m"
  */
 export function formatDuration(minutes: number): string {
-  if (!minutes || minutes < 0) return '0m'
+  if (!minutes || minutes < 0) return "0m";
 
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
 
   if (h > 0) {
-    return m > 0 ? `${h}h ${m}m` : `${h}h`
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
   }
-  return `${m}m`
+  return `${m}m`;
 }
 
 /**
  * Get ordinal suffix for a number (1st, 2nd, 3rd, 4th, etc.)
  */
 export function getOrdinalSuffix(n: number): string {
-  if (n === 1 || n === 21 || n === 31) return 'st'
-  if (n === 2 || n === 22) return 'nd'
-  if (n === 3 || n === 23) return 'rd'
-  return 'th'
+  if (n === 1 || n === 21 || n === 31) return "st";
+  if (n === 2 || n === 22) return "nd";
+  if (n === 3 || n === 23) return "rd";
+  return "th";
 }
 
 // ============================================
@@ -165,18 +216,18 @@ export function getOrdinalSuffix(n: number): string {
 /**
  * Get CSS class for positive/negative values
  */
-export function getPnLClass(value: number): 'positive' | 'negative' | '' {
-  if (value > 0) return 'positive'
-  if (value < 0) return 'negative'
-  return ''
+export function getPnLClass(value: number): "positive" | "negative" | "" {
+  if (value > 0) return "positive";
+  if (value < 0) return "negative";
+  return "";
 }
 
 /**
  * Get color for P&L value
  */
 export function getPnLColor(value: number): string {
-  if (value >= 0) return '#00E676'  // Green
-  return '#FF1744'  // Red
+  if (value >= 0) return "#00E676"; // Green
+  return "#FF1744"; // Red
 }
 
 /**
@@ -184,10 +235,14 @@ export function getPnLColor(value: number): string {
  */
 export function getExitReasonColor(reason: string): string {
   switch (reason) {
-    case 'TP': return '#00E676'  // Green
-    case 'SL': return '#FF1744'  // Red
-    case 'EOD': return '#FFEA00' // Yellow
-    default: return '#FFEA00'
+    case "TP":
+      return "#00E676"; // Green
+    case "SL":
+      return "#FF1744"; // Red
+    case "EOD":
+      return "#FFEA00"; // Yellow
+    default:
+      return "#FFEA00";
   }
 }
 
@@ -198,19 +253,27 @@ export function getExitReasonColor(reason: string): string {
 /**
  * Render sort indicator arrow
  */
-export function renderSortIndicator(column: string, sortColumn: string, sortDirection: 'asc' | 'desc'): string {
-  if (column !== sortColumn) return ''
-  return sortDirection === 'asc' ? ' ▲' : ' ▼'
+export function renderSortIndicator(
+  column: string,
+  sortColumn: string,
+  sortDirection: "asc" | "desc",
+): string {
+  if (column !== sortColumn) return "";
+  return sortDirection === "asc" ? " ▲" : " ▼";
 }
 
 /**
  * Get sort direction when clicking a column
  */
-export function getNextSortDirection(currentColumn: string, clickedColumn: string, currentDirection: 'asc' | 'desc'): 'asc' | 'desc' {
+export function getNextSortDirection(
+  currentColumn: string,
+  clickedColumn: string,
+  currentDirection: "asc" | "desc",
+): "asc" | "desc" {
   if (currentColumn !== clickedColumn) {
-    return 'desc'  // Default to descending for new column
+    return "desc"; // Default to descending for new column
   }
-  return currentDirection === 'asc' ? 'desc' : 'asc'
+  return currentDirection === "asc" ? "desc" : "asc";
 }
 
 // ============================================
@@ -223,19 +286,19 @@ export function getNextSortDirection(currentColumn: string, clickedColumn: strin
  * All times are in IST.
  */
 export function normalizeTime(time: string): string {
-  if (!time) return ''
+  if (!time) return "";
 
   // Handle date-only format (YYYY-MM-DD) - for daily candles
   if (/^\d{4}-\d{2}-\d{2}$/.test(time)) {
-    return time
+    return time;
   }
 
   // Strip timezone suffixes and return YYYY-MM-DDTHH:MM format
   return time
-    .replace(/\+00:00$/, '')
-    .replace(/\+05:30$/, '')
-    .replace(/Z$/, '')
-    .substring(0, 16)
+    .replace(/\+00:00$/, "")
+    .replace(/\+05:30$/, "")
+    .replace(/Z$/, "")
+    .substring(0, 16);
 }
 
 // ============================================
@@ -245,22 +308,22 @@ export function normalizeTime(time: string): string {
 /**
  * Render empty state HTML
  */
-export function renderEmptyState(message: string, icon: string = '📊'): string {
+export function renderEmptyState(message: string, icon: string = "📊"): string {
   return `
     <div class="empty-state">
       <div class="empty-icon">${icon}</div>
       <p>${message}</p>
     </div>
-  `
+  `;
 }
 
 /**
  * Render loading state HTML
  */
-export function renderLoadingState(message: string = 'Loading...'): string {
+export function renderLoadingState(message: string = "Loading..."): string {
   return `
     <div class="loading-state">
       <p>${message}</p>
     </div>
-  `
+  `;
 }

@@ -2,11 +2,11 @@
  * TradingList component for copy-paste functionality
  */
 
-import type { Stock } from '../types'
-import { getTradingList } from '../runtime_utils'
+import type { Stock } from "../types";
+import { getTradingList } from "../runtime_utils";
 
 export function renderTradingListBlock(id: string, stocks: Stock[]): string {
-  const list = getTradingList(stocks)
+  const list = getTradingList(stocks);
   return `
     <div class="tradinglist-wrap" data-testid="tradinglist-wrap">
       <div class="tradinglist-head">
@@ -15,5 +15,5 @@ export function renderTradingListBlock(id: string, stocks: Stock[]): string {
       </div>
       <textarea id="${id}" data-testid="tradinglist-textarea" class="tradinglist-box" readonly>${list}</textarea>
     </div>
-  `
+  `;
 }

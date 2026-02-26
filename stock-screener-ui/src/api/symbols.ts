@@ -5,18 +5,18 @@
  * Used by autocomplete components throughout the UI.
  */
 
-const API_BASE = 'http://localhost:8765/api/symbols'
+const API_BASE = "http://localhost:8765/api/symbols";
 
 export interface SymbolResult {
-  symbol: string    // Trading symbol (e.g., "TATASTEEL")
-  name: string      // Company name (e.g., "Tata Steel Limited")
-  isin?: string     // ISIN code
+  symbol: string; // Trading symbol (e.g., "TATASTEEL")
+  name: string; // Company name (e.g., "Tata Steel Limited")
+  isin?: string; // ISIN code
 }
 
 export interface SearchResponse {
-  results: SymbolResult[]
-  query: string
-  total: number
+  results: SymbolResult[];
+  query: string;
+  total: number;
 }
 
 /**
@@ -29,22 +29,22 @@ export interface SearchResponse {
  */
 export async function searchSymbols(query: string, limit: number = 10): Promise<SymbolResult[]> {
   if (!query || query.trim().length === 0) {
-    return []
+    return [];
   }
 
   try {
-    const url = `${API_BASE}/search?q=${encodeURIComponent(query.trim())}&limit=${limit}`
-    const response = await fetch(url)
+    const url = `${API_BASE}/search?q=${encodeURIComponent(query.trim())}&limit=${limit}`;
+    const response = await fetch(url);
 
     if (!response.ok) {
-      console.error('Symbol search failed:', response.status)
-      return []
+      console.error("Symbol search failed:", response.status);
+      return [];
     }
 
-    const data: SearchResponse = await response.json()
-    return data.results || []
+    const data: SearchResponse = await response.json();
+    return data.results || [];
   } catch (error) {
-    console.error('Symbol search error:', error)
-    return []
+    console.error("Symbol search error:", error);
+    return [];
   }
 }

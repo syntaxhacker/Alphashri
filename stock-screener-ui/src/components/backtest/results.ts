@@ -5,20 +5,26 @@
  * Supports sorting by clicking column headers.
  */
 
-import { getBacktestState, setSelectedChartSymbol, setShowCharts, setTradeHistory, triggerRerender } from '../../state/backtest'
-import { fetchChartData } from '../../api/backtest'
-import { chartTradesToTrades } from '../../api/chartBuilder'
-import type { BacktestResult, BacktestTotals } from '../../types/backtest'
+import {
+  getBacktestState,
+  setSelectedChartSymbol,
+  setShowCharts,
+  setTradeHistory,
+  triggerRerender,
+} from "../../state/backtest";
+import { fetchChartData } from "../../api/backtest";
+import { chartTradesToTrades } from "../../api/chartBuilder";
+import type { BacktestResult, BacktestTotals } from "../../types/backtest";
 
 // Sort state
-let sortColumn: string = 'net_pnl'
-let sortDirection: 'asc' | 'desc' = 'desc'
+let sortColumn: string = "net_pnl";
+let sortDirection: "asc" | "desc" = "desc";
 
 export function renderResults(): string {
-  const state = getBacktestState()
+  const state = getBacktestState();
 
   if (state.isRunning) {
-    return renderProgress(state.progress)
+    return renderProgress(state.progress);
   }
 
   if (!state.results || state.results.length === 0) {
@@ -26,11 +32,11 @@ export function renderResults(): string {
       <div class="results-empty" data-testid="results-empty">
         <p>No results yet. Run a backtest.</p>
       </div>
-    `
+    `;
   }
 
   // Sort results
-  const sortedResults = sortResults([...state.results], sortColumn, sortDirection)
+  const sortedResults = sortResults([...state.results], sortColumn, sortDirection);
 
   return `
     <div class="results-container" data-testid="results-container">
@@ -40,81 +46,87 @@ export function renderResults(): string {
         <table class="results-table sortable" data-testid="results-table">
           <thead>
             <tr>
-              <th class="sortable ${sortColumn === 'symbol' ? 'sorted ' + sortDirection : ''}"
+              <th class="sortable ${sortColumn === "symbol" ? "sorted " + sortDirection : ""}"
                   onclick="window.sortResults('symbol')">
-                Symbol ${sortColumn === 'symbol' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                Symbol ${sortColumn === "symbol" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
-              <th class="sortable ${sortColumn === 'net_pnl' ? 'sorted ' + sortDirection : ''}"
+              <th class="sortable ${sortColumn === "net_pnl" ? "sorted " + sortDirection : ""}"
                   onclick="window.sortResults('net_pnl')">
-                Net PnL ${sortColumn === 'net_pnl' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                Net PnL ${sortColumn === "net_pnl" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
-              <th class="sortable ${sortColumn === 'trades' ? 'sorted ' + sortDirection : ''}"
+              <th class="sortable ${sortColumn === "trades" ? "sorted " + sortDirection : ""}"
                   onclick="window.sortResults('trades')">
-                Trades ${sortColumn === 'trades' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                Trades ${sortColumn === "trades" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
-              <th class="sortable ${sortColumn === 'win_rate' ? 'sorted ' + sortDirection : ''}"
+              <th class="sortable ${sortColumn === "win_rate" ? "sorted " + sortDirection : ""}"
                   onclick="window.sortResults('win_rate')">
-                WR% ${sortColumn === 'win_rate' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                WR% ${sortColumn === "win_rate" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
-              <th class="sortable ${sortColumn === 'pf' ? 'sorted ' + sortDirection : ''}"
+              <th class="sortable ${sortColumn === "pf" ? "sorted " + sortDirection : ""}"
                   onclick="window.sortResults('pf')">
-                PF ${sortColumn === 'pf' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                PF ${sortColumn === "pf" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
               <th>TP/SL</th>
             </tr>
           </thead>
           <tbody>
-            ${sortedResults.map(r => renderResultRow(r)).join('')}
+            ${sortedResults.map((r) => renderResultRow(r)).join("")}
           </tbody>
         </table>
       </div>
     </div>
-  `
+  `;
 }
 
-function sortResults(results: BacktestResult[], column: string, direction: 'asc' | 'desc'): BacktestResult[] {
+function sortResults(
+  results: BacktestResult[],
+  column: string,
+  direction: "asc" | "desc",
+): BacktestResult[] {
   return results.sort((a, b) => {
-    let aVal: number | string = 0
-    let bVal: number | string = 0
+    let aVal: number | string = 0;
+    let bVal: number | string = 0;
 
     switch (column) {
-      case 'symbol':
-        aVal = a.symbol
-        bVal = b.symbol
-        break
-      case 'net_pnl':
-        aVal = a.net_pnl
-        bVal = b.net_pnl
-        break
-      case 'trades':
-        aVal = a.trades
-        bVal = b.trades
-        break
-      case 'win_rate':
-        aVal = a.win_rate
-        bVal = b.win_rate
-        break
-      case 'pf':
-        aVal = a.pf
-        bVal = b.pf
-        break
+      case "symbol":
+        aVal = a.symbol;
+        bVal = b.symbol;
+        break;
+      case "net_pnl":
+        aVal = a.net_pnl;
+        bVal = b.net_pnl;
+        break;
+      case "trades":
+        aVal = a.trades;
+        bVal = b.trades;
+        break;
+      case "win_rate":
+        aVal = a.win_rate;
+        bVal = b.win_rate;
+        break;
+      case "pf":
+        aVal = a.pf;
+        bVal = b.pf;
+        break;
       default:
-        return 0
+        return 0;
     }
 
-    if (typeof aVal === 'string' && typeof bVal === 'string') {
-      return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+    if (typeof aVal === "string" && typeof bVal === "string") {
+      return direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
     }
 
-    return direction === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
-  })
+    return direction === "asc"
+      ? (aVal as number) - (bVal as number)
+      : (bVal as number) - (aVal as number);
+  });
 }
 
 function renderSummaryCompact(totals: BacktestTotals | null): string {
-  if (!totals) return ''
+  if (!totals) return "";
 
-  const pnlClass = totals.net_pnl >= 0 ? 'positive' : 'negative'
-  const pnlSign = totals.net_pnl >= 0 ? '+' : ''
+  const pnlClass = totals.net_pnl >= 0 ? "positive" : "negative";
+  const pnlSign = totals.net_pnl >= 0 ? "+" : "";
 
   return `
     <div class="results-summary-compact" data-testid="results-summary">
@@ -137,23 +149,24 @@ function renderSummaryCompact(totals: BacktestTotals | null): string {
         </span>
       </div>
     </div>
-  `
+  `;
 }
 
 function renderResultRow(result: BacktestResult): string {
-  const pnlClass = result.net_pnl >= 0 ? 'positive' : 'negative'
-  const wrClass = result.win_rate >= 50 ? 'positive' : result.win_rate >= 40 ? 'neutral' : 'negative'
-  const isSelected = getBacktestState().selectedChartSymbol === result.symbol
+  const pnlClass = result.net_pnl >= 0 ? "positive" : "negative";
+  const wrClass =
+    result.win_rate >= 50 ? "positive" : result.win_rate >= 40 ? "neutral" : "negative";
+  const isSelected = getBacktestState().selectedChartSymbol === result.symbol;
 
   return `
-    <tr class="result-row ${isSelected ? 'selected' : ''}"
+    <tr class="result-row ${isSelected ? "selected" : ""}"
         data-testid="result-row-${result.symbol}"
         data-symbol="${result.symbol}"
         onclick="window.viewChartAndTrades('${result.symbol}')"
         style="cursor:pointer">
       <td class="symbol-cell" data-testid="symbol-${result.symbol}">${result.symbol}</td>
       <td class="pnl-cell ${pnlClass}" data-testid="net-pnl-${result.symbol}">
-        ${result.net_pnl >= 0 ? '+' : ''}₹${(result.net_pnl / 1000).toFixed(1)}K
+        ${result.net_pnl >= 0 ? "+" : ""}₹${(result.net_pnl / 1000).toFixed(1)}K
       </td>
       <td class="trades-cell" data-testid="trades-${result.symbol}">${result.trades}</td>
       <td class="wr-cell ${wrClass}" data-testid="wr-${result.symbol}">${result.win_rate.toFixed(0)}%</td>
@@ -162,11 +175,11 @@ function renderResultRow(result: BacktestResult): string {
         <span class="tp positive">${result.tp_exits}</span>/<span class="sl negative">${result.sl_exits}</span>
       </td>
     </tr>
-  `
+  `;
 }
 
 function renderProgress(progress: { current: number; total: number; message: string }): string {
-  const percent = progress.total > 0 ? (progress.current / progress.total) * 100 : 0
+  const percent = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
 
   return `
     <div class="progress-container" data-testid="progress-container">
@@ -179,52 +192,62 @@ function renderProgress(progress: { current: number; total: number; message: str
       </div>
       <div class="progress-message" data-testid="progress-message">${progress.message}</div>
     </div>
-  `
+  `;
 }
 
 // Register window handlers
 export function initResultsHandlers() {
-  console.log('initResultsHandlers called')
+  console.log("initResultsHandlers called");
 
-  ;(window as any).viewChartAndTrades = (symbol: string) => {
-    console.log('viewChartAndTrades called for:', symbol)
+  (window as any).viewChartAndTrades = (symbol: string) => {
+    console.log("viewChartAndTrades called for:", symbol);
 
     // Show charts and select symbol
-    setShowCharts(true)
-    setSelectedChartSymbol(symbol)
+    setShowCharts(true);
+    setSelectedChartSymbol(symbol);
 
     // Check if chart data already exists
-    const state = getBacktestState()
-    const chartData = state.chartData.get(symbol)
+    const state = getBacktestState();
+    const chartData = state.chartData.get(symbol);
 
     if (chartData && chartData.trades && chartData.trades.length > 0) {
       // Data already loaded, just set trade history
-      console.log('Chart data exists, setting trade history')
-      const trades = chartTradesToTrades(chartData.trades)
-      setTradeHistory(trades, symbol)
+      console.log("Chart data exists, setting trade history");
+      const trades = chartTradesToTrades(chartData.trades);
+      setTradeHistory(trades, symbol);
     } else {
       // Load chart data (which will also trigger re-render)
-      console.log('Fetching chart data')
-      fetchChartData(symbol)
+      console.log("Fetching chart data");
+      fetchChartData(symbol);
     }
-  }
+  };
 
-  ;(window as any).sortResults = (column: string) => {
+  (window as any).sortResults = (column: string) => {
     if (sortColumn === column) {
-      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'
+      sortDirection = sortDirection === "asc" ? "desc" : "asc";
     } else {
-      sortColumn = column
-      sortDirection = 'desc'
+      sortColumn = column;
+      sortDirection = "desc";
     }
-    triggerRerender()
-  }
+    triggerRerender();
+  };
 
-  ;(window as any).exportResultsCSV = () => {
-    const state = getBacktestState()
-    if (!state.results) return
+  (window as any).exportResultsCSV = () => {
+    const state = getBacktestState();
+    if (!state.results) return;
 
-    const headers = ['Symbol', 'Net PnL', 'Gross PnL', 'Costs', 'Trades', 'Win Rate', 'PF', 'TP', 'SL']
-    const rows = state.results.map(r => [
+    const headers = [
+      "Symbol",
+      "Net PnL",
+      "Gross PnL",
+      "Costs",
+      "Trades",
+      "Win Rate",
+      "PF",
+      "TP",
+      "SL",
+    ];
+    const rows = state.results.map((r) => [
       r.symbol,
       r.net_pnl,
       r.gross_pnl,
@@ -234,15 +257,15 @@ export function initResultsHandlers() {
       r.pf,
       r.tp_exits,
       r.sl_exits,
-    ])
+    ]);
 
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `backtest-results-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `backtest-results-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 }

@@ -1,47 +1,47 @@
-import { useEffect } from 'react'
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { setCurrentView } from './state/backtest'
-import { useAppDispatch, useAppSelector } from './store/hooks'
-import { setCurrentView as setReduxView, type AppRouteView } from './store/appSlice'
-import NewsPanel from './components/news/NewsPanel'
-import ChartView from './components/chart/ChartView'
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { setCurrentView } from "./state/backtest";
+import { useAppDispatch, useAppSelector } from "./store/hooks";
+import { setCurrentView as setReduxView, type AppRouteView } from "./store/appSlice";
+import NewsPanel from "./components/news/NewsPanel";
+import ChartView from "./components/chart/ChartView";
 
 function LegacyShell({ view }: { view: AppRouteView }) {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const dispatch = useAppDispatch()
-  const currentReduxView = useAppSelector((state) => state.app.currentView)
+  const navigate = useNavigate();
+  const location = useLocation();
+  const dispatch = useAppDispatch();
+  const currentReduxView = useAppSelector((state) => state.app.currentView);
 
   useEffect(() => {
     // Load existing non-React app once (it mounts into #legacy-root).
-    void import('./legacy-main')
-  }, [])
+    void import("./legacy-main");
+  }, []);
 
   useEffect(() => {
-    dispatch(setReduxView(view))
-    setCurrentView(view)
-  }, [dispatch, view, location.pathname])
+    dispatch(setReduxView(view));
+    setCurrentView(view);
+  }, [dispatch, view, location.pathname]);
 
   useEffect(() => {
-    ;(window as any).navigateToRoute = (nextView: AppRouteView) => {
+    (window as any).navigateToRoute = (nextView: AppRouteView) => {
       const path =
-        nextView === 'backtest'
-          ? '/backtest'
-          : nextView === 'paper'
-            ? '/paper'
-            : nextView === 'sector'
-              ? '/sector'
-              : '/'
+        nextView === "backtest"
+          ? "/backtest"
+          : nextView === "paper"
+            ? "/paper"
+            : nextView === "sector"
+              ? "/sector"
+              : "/";
       if (location.pathname !== path) {
-        navigate(path)
+        navigate(path);
       }
-    }
+    };
     return () => {
-      delete (window as any).navigateToRoute
-    }
-  }, [navigate, location.pathname])
+      delete (window as any).navigateToRoute;
+    };
+  }, [navigate, location.pathname]);
 
-  return <div id="legacy-root" data-view={currentReduxView} />
+  return <div id="legacy-root" data-view={currentReduxView} />;
 }
 
 export default function App() {
@@ -57,5 +57,5 @@ export default function App() {
       </Routes>
       <NewsPanel />
     </>
-  )
+  );
 }

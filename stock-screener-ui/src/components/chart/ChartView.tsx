@@ -5,77 +5,77 @@
  * Shows candlestick chart with timeframe and OR minutes controls.
  */
 
-import React, { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { fetchChartPreview, ChartPreviewData } from '../../api/chartPreview'
-import { buildChartOption } from './chartRenderer'
+import React, { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { fetchChartPreview, ChartPreviewData } from "../../api/chartPreview";
+import { buildChartOption } from "./chartRenderer";
 
 const TIMEFRAMES = [
-  { value: 1, label: '1m' },
-  { value: 5, label: '5m' },
-  { value: 15, label: '15m' },
-  { value: 30, label: '30m' },
-  { value: 60, label: '1h' },
-]
+  { value: 1, label: "1m" },
+  { value: 5, label: "5m" },
+  { value: 15, label: "15m" },
+  { value: 30, label: "30m" },
+  { value: 60, label: "1h" },
+];
 
 const OR_MINUTES = [
-  { value: 30, label: 'OR 30m' },
-  { value: 45, label: 'OR 45m' },
-  { value: 60, label: 'OR 60m' },
-]
+  { value: 30, label: "OR 30m" },
+  { value: 45, label: "OR 45m" },
+  { value: 60, label: "OR 60m" },
+];
 
 export const ChartView: React.FC = () => {
-  const { symbol } = useParams<{ symbol: string }>()
-  const navigate = useNavigate()
+  const { symbol } = useParams<{ symbol: string }>();
+  const navigate = useNavigate();
 
-  const [data, setData] = useState<ChartPreviewData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [timeframe, setTimeframe] = useState(15)
-  const [orMinutes, setOrMinutes] = useState(45)
-  const [showPivots, setShowPivots] = useState(true)
+  const [data, setData] = useState<ChartPreviewData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [timeframe, setTimeframe] = useState(15);
+  const [orMinutes, setOrMinutes] = useState(45);
+  const [showPivots, setShowPivots] = useState(true);
 
-  const chartRef = useRef<HTMLDivElement>(null)
-  const chartInstanceRef = useRef<any>(null)
+  const chartRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<any>(null);
 
   // Fetch chart data
   useEffect(() => {
-    if (!symbol) return
+    if (!symbol) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     fetchChartPreview(symbol, timeframe, 5, orMinutes)
-      .then(result => {
+      .then((result) => {
         if (!result) {
-          setError('No data available')
+          setError("No data available");
         } else if (result.error) {
-          setError(result.error)
+          setError(result.error);
         } else {
-          setData(result)
+          setData(result);
         }
       })
-      .catch(err => {
-        setError(err.message || 'Failed to load chart')
+      .catch((err) => {
+        setError(err.message || "Failed to load chart");
       })
       .finally(() => {
-        setLoading(false)
-      })
-  }, [symbol, timeframe, orMinutes])
+        setLoading(false);
+      });
+  }, [symbol, timeframe, orMinutes]);
 
   // Render chart when data changes
   useEffect(() => {
-    if (!data || !chartRef.current || loading) return
+    if (!data || !chartRef.current || loading) return;
 
     // Check if echarts is available
     if (!(window as any).echarts) {
-      setError('ECharts not loaded')
-      return
+      setError("ECharts not loaded");
+      return;
     }
 
     // Dispose previous chart
     if (chartInstanceRef.current) {
-      chartInstanceRef.current.dispose()
+      chartInstanceRef.current.dispose();
     }
 
     // Build chart option
@@ -84,38 +84,38 @@ export const ChartView: React.FC = () => {
       candles: data.candles,
       orb_zones: data.orb_zones,
       pivot_levels: data.pivot_levels,
-      size: 'full',
+      size: "full",
       showPivots,
-    })
+    });
 
     if (!chartOption) {
-      setError('Failed to build chart')
-      return
+      setError("Failed to build chart");
+      return;
     }
 
     // Initialize chart
-    chartInstanceRef.current = (window as any).echarts.init(chartRef.current)
-    chartInstanceRef.current.setOption(chartOption)
+    chartInstanceRef.current = (window as any).echarts.init(chartRef.current);
+    chartInstanceRef.current.setOption(chartOption);
 
     // Handle resize
     const handleResize = () => {
-      chartInstanceRef.current?.resize()
-    }
-    window.addEventListener('resize', handleResize)
+      chartInstanceRef.current?.resize();
+    };
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize)
-      chartInstanceRef.current?.dispose()
-    }
-  }, [data, showPivots, loading])
+      window.removeEventListener("resize", handleResize);
+      chartInstanceRef.current?.dispose();
+    };
+  }, [data, showPivots, loading]);
 
   if (!symbol) {
     return (
       <div className="chart-view-error">
         <p>No symbol specified</p>
-        <button onClick={() => navigate('/')}>Back to Screener</button>
+        <button onClick={() => navigate("/")}>Back to Screener</button>
       </div>
-    )
+    );
   }
 
   return (
@@ -129,11 +129,8 @@ export const ChartView: React.FC = () => {
         <div className="chart-controls">
           <div className="control-group">
             <label>Timeframe:</label>
-            <select
-              value={timeframe}
-              onChange={e => setTimeframe(parseInt(e.target.value))}
-            >
-              {TIMEFRAMES.map(tf => (
+            <select value={timeframe} onChange={(e) => setTimeframe(parseInt(e.target.value))}>
+              {TIMEFRAMES.map((tf) => (
                 <option key={tf.value} value={tf.value}>
                   {tf.label}
                 </option>
@@ -143,11 +140,8 @@ export const ChartView: React.FC = () => {
 
           <div className="control-group">
             <label>OR:</label>
-            <select
-              value={orMinutes}
-              onChange={e => setOrMinutes(parseInt(e.target.value))}
-            >
-              {OR_MINUTES.map(or => (
+            <select value={orMinutes} onChange={(e) => setOrMinutes(parseInt(e.target.value))}>
+              {OR_MINUTES.map((or) => (
                 <option key={or.value} value={or.value}>
                   {or.label}
                 </option>
@@ -160,7 +154,7 @@ export const ChartView: React.FC = () => {
               <input
                 type="checkbox"
                 checked={showPivots}
-                onChange={e => setShowPivots(e.target.checked)}
+                onChange={(e) => setShowPivots(e.target.checked)}
               />
               Pivots
             </label>
@@ -186,7 +180,7 @@ export const ChartView: React.FC = () => {
           <div
             ref={chartRef}
             className="chart-container-full"
-            style={{ width: '100%', height: '100%' }}
+            style={{ width: "100%", height: "100%" }}
           />
         )}
       </div>
@@ -201,7 +195,7 @@ export const ChartView: React.FC = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default ChartView
+export default ChartView;

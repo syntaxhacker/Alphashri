@@ -4,20 +4,35 @@
  * Horizontal form for configuring backtest parameters.
  */
 
-import { getBacktestState, setSelectedStrategy, setParam, setDays, setIncludeCosts, addSymbol, removeSymbol, resetBacktestState, subscribe } from '../../state/backtest'
-import { runBacktest as runBacktestApi } from '../../api/backtest'
-import { renderSymbolSearch, registerSymbolSearchCallback, initSymbolSearchHandlers, setSelectedSymbols } from '../common/symbolSearch'
-import type { Strategy, StrategyParam } from '../../types/backtest'
+import {
+  getBacktestState,
+  setSelectedStrategy,
+  setParam,
+  setDays,
+  setIncludeCosts,
+  addSymbol,
+  removeSymbol,
+  resetBacktestState,
+  subscribe,
+} from "../../state/backtest";
+import { runBacktest as runBacktestApi } from "../../api/backtest";
+import {
+  renderSymbolSearch,
+  registerSymbolSearchCallback,
+  initSymbolSearchHandlers,
+  setSelectedSymbols,
+} from "../common/symbolSearch";
+import type { StrategyParam } from "../../types/backtest";
 
 export function renderStrategyConfig(): string {
-  const state = getBacktestState()
-  const strategies = state.strategies
-  const selectedStrategy = state.selectedStrategy
-  const params = state.params
-  const selectedSymbols = state.selectedSymbols
+  const state = getBacktestState();
+  const strategies = state.strategies;
+  const selectedStrategy = state.selectedStrategy;
+  const params = state.params;
+  const selectedSymbols = state.selectedSymbols;
 
   // Find selected strategy
-  const strategy = strategies.find(s => s.id === selectedStrategy)
+  const strategy = strategies.find((s) => s.id === selectedStrategy);
 
   return `
     <div class="strategy-config-horizontal" data-testid="strategy-config">
@@ -28,29 +43,37 @@ export function renderStrategyConfig(): string {
           data-testid="strategy-select"
           onchange="window.setStrategy(this.value)"
         >
-          ${strategies.map(s => `
-            <option value="${s.id}" ${s.id === selectedStrategy ? 'selected' : ''}>
+          ${strategies
+            .map(
+              (s) => `
+            <option value="${s.id}" ${s.id === selectedStrategy ? "selected" : ""}>
               ${s.name}
             </option>
-          `).join('')}
+          `,
+            )
+            .join("")}
         </select>
       </div>
 
-      ${strategy ? renderParamsHorizontal(strategy.params, params) : ''}
+      ${strategy ? renderParamsHorizontal(strategy.params, params) : ""}
 
       <div class="config-section">
         <label>Stocks</label>
         <div class="symbols-input-inline">
-          ${selectedSymbols.map(s => `
+          ${selectedSymbols
+            .map(
+              (s) => `
             <span class="symbol-tag-small">
               ${s}
               <button class="symbol-remove-small" onclick="window.removeSymbol('${s}')" title="Remove">×</button>
             </span>
-          `).join('')}
+          `,
+            )
+            .join("")}
           ${renderSymbolSearch({
-            containerId: 'symbol-search-backtest',
-            placeholder: '+ Add symbol',
-            inputClass: 'symbol-add-input-small',
+            containerId: "symbol-search-backtest",
+            placeholder: "+ Add symbol",
+            inputClass: "symbol-add-input-small",
           })}
         </div>
       </div>
@@ -74,7 +97,7 @@ export function renderStrategyConfig(): string {
           <input
             type="checkbox"
             data-testid="include-costs-checkbox"
-            ${state.includeCosts ? 'checked' : ''}
+            ${state.includeCosts ? "checked" : ""}
             onchange="window.setIncludeCosts(this.checked)"
           />
           <span>Costs</span>
@@ -93,113 +116,130 @@ export function renderStrategyConfig(): string {
           class="btn btn-primary btn-small"
           data-testid="run-backtest-btn"
           onclick="window.runBacktest()"
-          ${state.isRunning ? 'disabled' : ''}
+          ${state.isRunning ? "disabled" : ""}
         >
-          ${state.isRunning ? '⏳' : '▶ Run'}
+          ${state.isRunning ? "⏳" : "▶ Run"}
         </button>
       </div>
     </div>
-  `
+  `;
 }
 
-function renderParamsHorizontal(paramDefs: StrategyParam[], currentParams: Record<string, any>): string {
-  return paramDefs.map(param => `
+function renderParamsHorizontal(
+  paramDefs: StrategyParam[],
+  currentParams: Record<string, any>,
+): string {
+  return paramDefs
+    .map(
+      (param) => `
     <div class="config-section">
       <label>${param.label}</label>
-      ${param.type === 'select' ? `
+      ${
+        param.type === "select"
+          ? `
         <select
           class="config-select-small"
           data-testid="param-${param.key}"
           onchange="window.setParam('${param.key}', this.value)"
         >
-          ${(param.options || []).map(opt => `
-            <option value="${opt}" ${currentParams[param.key] === opt ? 'selected' : ''}>
+          ${(param.options || [])
+            .map(
+              (opt) => `
+            <option value="${opt}" ${currentParams[param.key] === opt ? "selected" : ""}>
               ${opt}
             </option>
-          `).join('')}
+          `,
+            )
+            .join("")}
         </select>
-      ` : param.type === 'boolean' ? `
+      `
+          : param.type === "boolean"
+            ? `
         <input
           type="checkbox"
           class="config-checkbox-small"
           data-testid="param-${param.key}"
-          ${currentParams[param.key] ? 'checked' : ''}
+          ${currentParams[param.key] ? "checked" : ""}
           onchange="window.setParam('${param.key}', this.checked)"
         />
-      ` : `
+      `
+            : `
         <input
           type="number"
           class="config-input-small"
           data-testid="param-${param.key}"
           value="${currentParams[param.key] ?? param.default}"
-          min="${param.min ?? ''}"
-          max="${param.max ?? ''}"
+          min="${param.min ?? ""}"
+          max="${param.max ?? ""}"
           step="${param.step ?? 1}"
           onchange="window.setParam('${param.key}', parseFloat(this.value))"
         />
-      `}
+      `
+      }
     </div>
-  `).join('')
+  `,
+    )
+    .join("");
 }
 
 // Register window handlers
 export function initConfigHandlers() {
   // Initialize symbol search handlers
-  initSymbolSearchHandlers()
+  initSymbolSearchHandlers();
 
   // Register callback for symbol search in backtest config
-  registerSymbolSearchCallback('symbol-search-backtest', (symbol: string) => {
-    addSymbol(symbol)
-  })
+  registerSymbolSearchCallback("symbol-search-backtest", (symbol: string) => {
+    addSymbol(symbol);
+  });
 
   // Subscribe to state changes to update selected symbols filter
   subscribe(() => {
-    const state = getBacktestState()
-    setSelectedSymbols('symbol-search-backtest', state.selectedSymbols)
-  })
+    const state = getBacktestState();
+    setSelectedSymbols("symbol-search-backtest", state.selectedSymbols);
+  });
 
   // Set initial selected symbols
-  const initialState = getBacktestState()
-  setSelectedSymbols('symbol-search-backtest', initialState.selectedSymbols)
+  const initialState = getBacktestState();
+  setSelectedSymbols("symbol-search-backtest", initialState.selectedSymbols);
 
-  ;(window as any).setStrategy = (id: string) => {
-    setSelectedStrategy(id)
-  }
+  (window as any).setStrategy = (id: string) => {
+    setSelectedStrategy(id);
+  };
 
-  ;(window as any).setParam = (key: string, value: any) => {
-    setParam(key, value)
-  }
+  (window as any).setParam = (key: string, value: any) => {
+    setParam(key, value);
+  };
 
-  ;(window as any).setDays = (days: number) => {
-    setDays(days)
-  }
+  (window as any).setDays = (days: number) => {
+    setDays(days);
+  };
 
-  ;(window as any).setIncludeCosts = (include: boolean) => {
-    setIncludeCosts(include)
-  }
+  (window as any).setIncludeCosts = (include: boolean) => {
+    setIncludeCosts(include);
+  };
 
-  ;(window as any).removeSymbol = (symbol: string) => {
-    removeSymbol(symbol)
-  }
+  (window as any).removeSymbol = (symbol: string) => {
+    removeSymbol(symbol);
+  };
 
-  ;(window as any).resetConfig = () => {
-    resetBacktestState()
-  }
+  (window as any).resetConfig = () => {
+    resetBacktestState();
+  };
 
-  ;(window as any).runBacktest = async () => {
-    await runBacktestApi()
-  }
+  (window as any).runBacktest = async () => {
+    await runBacktestApi();
+  };
 
   // Keyboard shortcut: Cmd+Enter or Ctrl+Enter to run backtest
   const handleKeyboardShortcut = (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      e.preventDefault()
-      const state = getBacktestState()
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      const state = getBacktestState();
       if (!state.isRunning && state.selectedSymbols.length > 0) {
-        console.log('Running backtest via keyboard shortcut')
-        runBacktestApi()
+        console.log("Running backtest via keyboard shortcut");
+        runBacktestApi();
       }
     }
-  }
-  window.addEventListener('keydown', handleKeyboardShortcut)
+  };
+  window.addEventListener("keydown", handleKeyboardShortcut);
 }

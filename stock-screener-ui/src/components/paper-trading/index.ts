@@ -4,9 +4,9 @@
  * Main paper trading view with Live Positions and Trade History tabs.
  */
 
-import { renderPositionsPanel, initPositionsHandlers } from './positions'
-import { renderHistoryPanel, initHistoryHandlers } from './history'
-import { renderChartContainer, initChartHandlers } from './chart'
+import { renderPositionsPanel, initPositionsHandlers } from "./positions";
+import { renderHistoryPanel, initHistoryHandlers } from "./history";
+import { renderChartContainer, initChartHandlers } from "./chart";
 import {
   getPaperTradingState,
   setPaperTradingView,
@@ -14,7 +14,7 @@ import {
   setFilterToDate,
   setFilterSymbol,
   setError,
-} from '../../state/paperTrading'
+} from "../../state/paperTrading";
 import {
   refreshLiveData,
   refreshHistoryData,
@@ -23,13 +23,13 @@ import {
   startPaperBot,
   stopPaperBot,
   fetchPaperBotStatus,
-} from '../../api/paperTrading'
-import type { PaperTradingView } from '../../types/paperTrading'
+} from "../../api/paperTrading";
+import type { PaperTradingView } from "../../types/paperTrading";
 
-let paperTradingActive = false
+let paperTradingActive = false;
 
 export function renderPaperTradingView(): string {
-  const state = getPaperTradingState()
+  const state = getPaperTradingState();
 
   return `
     <div class="paper-trading-view" data-testid="paper-trading-view">
@@ -37,20 +37,20 @@ export function renderPaperTradingView(): string {
       <div class="paper-header">
         <div class="paper-tabs">
           <button
-            class="paper-tab ${state.currentView === 'live' ? 'active' : ''}"
+            class="paper-tab ${state.currentView === "live" ? "active" : ""}"
             onclick="window.setPaperView('live')"
           >
             <span class="tab-icon">📡</span>
             Live Positions
-            ${state.positions.length > 0 ? `<span class="tab-badge">${state.positions.length}</span>` : ''}
+            ${state.positions.length > 0 ? `<span class="tab-badge">${state.positions.length}</span>` : ""}
           </button>
           <button
-            class="paper-tab ${state.currentView === 'history' ? 'active' : ''}"
+            class="paper-tab ${state.currentView === "history" ? "active" : ""}"
             onclick="window.setPaperView('history')"
           >
             <span class="tab-icon">📋</span>
             Trade History
-            ${state.trades.length > 0 ? `<span class="tab-badge">${state.trades.length}</span>` : ''}
+            ${state.trades.length > 0 ? `<span class="tab-badge">${state.trades.length}</span>` : ""}
           </button>
         </div>
         <div class="paper-filters">
@@ -62,10 +62,7 @@ export function renderPaperTradingView(): string {
       <div class="paper-main">
         <!-- Left: Positions or History Table -->
         <div class="paper-left">
-          ${state.currentView === 'live'
-            ? renderPositionsPanel()
-            : renderHistoryPanel()
-          }
+          ${state.currentView === "live" ? renderPositionsPanel() : renderHistoryPanel()}
         </div>
 
         <!-- Right: Chart -->
@@ -74,47 +71,51 @@ export function renderPaperTradingView(): string {
         </div>
       </div>
 
-      ${state.error ? `
+      ${
+        state.error
+          ? `
         <div class="paper-error" data-testid="paper-error">
           <p>❌ ${state.error}</p>
           <button class="btn btn-secondary" onclick="window.clearPaperError()">Dismiss</button>
         </div>
-      ` : ''}
+      `
+          : ""
+      }
     </div>
-  `
+  `;
 }
 
 function renderFilters(state: ReturnType<typeof getPaperTradingState>): string {
-  if (state.currentView === 'live') {
+  if (state.currentView === "live") {
     // Live view only needs auto-refresh toggle
     return `
       <div class="filter-group">
         <label class="checkbox-label">
           <input
             type="checkbox"
-            ${state.autoRefreshEnabled ? 'checked' : ''}
+            ${state.autoRefreshEnabled ? "checked" : ""}
             onchange="window.toggleAutoRefresh(this.checked)"
           />
           Auto-refresh (20s)
         </label>
       </div>
       <div class="filter-group">
-        <span class="paper-bot-status ${state.botRunning ? 'running' : 'stopped'}">
-          Bot: ${state.botRunning ? `Running${state.botPid ? ` (PID ${state.botPid})` : ''}` : 'Stopped'}
+        <span class="paper-bot-status ${state.botRunning ? "running" : "stopped"}">
+          Bot: ${state.botRunning ? `Running${state.botPid ? ` (PID ${state.botPid})` : ""}` : "Stopped"}
         </span>
         <button
           class="btn btn-secondary btn-small"
           onclick="window.togglePaperBot()"
         >
-          ${state.botRunning ? 'Stop Paper Trading' : 'Start Paper Trading'}
+          ${state.botRunning ? "Stop Paper Trading" : "Start Paper Trading"}
         </button>
       </div>
-    `
+    `;
   }
 
   // History view needs date and symbol filters
   // Get unique symbols from trades
-  const symbols = [...new Set(state.trades.map(t => t.symbol))].sort()
+  const symbols = [...new Set(state.trades.map((t) => t.symbol))].sort();
 
   return `
     <div class="filter-group">
@@ -122,7 +123,7 @@ function renderFilters(state: ReturnType<typeof getPaperTradingState>): string {
       <input
         type="date"
         class="filter-select"
-        value="${state.filterFromDate || ''}"
+        value="${state.filterFromDate || ""}"
         onchange="window.setPaperFromDate(this.value)"
       />
     </div>
@@ -131,7 +132,7 @@ function renderFilters(state: ReturnType<typeof getPaperTradingState>): string {
       <input
         type="date"
         class="filter-select"
-        value="${state.filterToDate || ''}"
+        value="${state.filterToDate || ""}"
         onchange="window.setPaperToDate(this.value)"
       />
     </div>
@@ -139,80 +140,84 @@ function renderFilters(state: ReturnType<typeof getPaperTradingState>): string {
       <label>Symbol:</label>
       <select onchange="window.setPaperSymbolFilter(this.value)" class="filter-select">
         <option value="">All Symbols</option>
-        ${symbols.map(s => `
-          <option value="${s}" ${state.filterSymbol === s ? 'selected' : ''}>${s}</option>
-        `).join('')}
+        ${symbols
+          .map(
+            (s) => `
+          <option value="${s}" ${state.filterSymbol === s ? "selected" : ""}>${s}</option>
+        `,
+          )
+          .join("")}
       </select>
     </div>
-  `
+  `;
 }
 
 // Initialize all paper trading handlers
 export function initPaperTradingHandlers() {
-  initPositionsHandlers()
-  initHistoryHandlers()
-  initChartHandlers()
+  initPositionsHandlers();
+  initHistoryHandlers();
+  initChartHandlers();
 
   // View switching
-  ;(window as any).setPaperView = (view: PaperTradingView) => {
-    setPaperTradingView(view)
-    if (view === 'live') {
-      initLiveAutoRefresh()
-      refreshLiveData()
+  (window as any).setPaperView = (view: PaperTradingView) => {
+    setPaperTradingView(view);
+    if (view === "live") {
+      initLiveAutoRefresh();
+      refreshLiveData();
     } else {
-      stopLiveAutoRefresh()
-      refreshHistoryData()
+      stopLiveAutoRefresh();
+      refreshHistoryData();
     }
-  }
+  };
 
   // Filter handlers
-  ;(window as any).setPaperFromDate = (value: string) => {
-    setFilterFromDate(value || null)
-    refreshHistoryData()
-  }
+  (window as any).setPaperFromDate = (value: string) => {
+    setFilterFromDate(value || null);
+    refreshHistoryData();
+  };
 
-  ;(window as any).setPaperToDate = (value: string) => {
-    setFilterToDate(value || null)
-    refreshHistoryData()
-  }
+  (window as any).setPaperToDate = (value: string) => {
+    setFilterToDate(value || null);
+    refreshHistoryData();
+  };
 
-  ;(window as any).setPaperSymbolFilter = (value: string) => {
-    setFilterSymbol(value || null)
-  }
+  (window as any).setPaperSymbolFilter = (value: string) => {
+    setFilterSymbol(value || null);
+  };
 
-  ;(window as any).toggleAutoRefresh = (enabled: boolean) => {
+  (window as any).toggleAutoRefresh = (enabled: boolean) => {
     if (enabled) {
-      initLiveAutoRefresh()
+      initLiveAutoRefresh();
     } else {
-      stopLiveAutoRefresh()
+      stopLiveAutoRefresh();
     }
-  }
+  };
 
-  ;(window as any).togglePaperBot = async () => {
-    const state = getPaperTradingState()
+  (window as any).togglePaperBot = async () => {
+    const state = getPaperTradingState();
     if (state.botRunning) {
-      await stopPaperBot()
+      await stopPaperBot();
     } else {
-      await startPaperBot()
+      await startPaperBot();
     }
-  }
+  };
 
-  ;(window as any).clearPaperError = () => {
-    setError(null)
-  }
+  (window as any).clearPaperError = () => {
+    setError(null);
+  };
 }
 
 export function activatePaperTrading() {
-  if (paperTradingActive) return
-  paperTradingActive = true
+  if (paperTradingActive) return;
+  paperTradingActive = true;
 
-  refreshLiveData()
-  fetchPaperBotStatus()
-  initLiveAutoRefresh()
+  refreshLiveData();
+  fetchPaperBotStatus();
+  initLiveAutoRefresh();
 }
 
 // Clean up when switching views
 export function cleanupPaperTrading() {
-  paperTradingActive = false
-  stopLiveAutoRefresh()
+  paperTradingActive = false;
+  stopLiveAutoRefresh();
 }

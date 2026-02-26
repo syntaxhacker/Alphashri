@@ -2,36 +2,54 @@
 
 export const mockScreenersList = {
   screeners: [
-    { id: 'trending', label: 'Trending', description: '52-week high scanner' },
-    { id: 'buyer_interest_enhanced', label: 'Buyer Interest+', description: 'Enhanced buyer interest with sentiment' }
+    { id: "trending", label: "Trending", description: "52-week high scanner" },
+    {
+      id: "buyer_interest_enhanced",
+      label: "Buyer Interest+",
+      description: "Enhanced buyer interest with sentiment",
+    },
   ],
-  default: 'trending',
+  default: "trending",
   meta_by_id: {
     buyer_interest_enhanced: {
-      section_labels: { primary: 'Buyer Interest+', secondary: '' },
+      section_labels: { primary: "Buyer Interest+", secondary: "" },
       filters: [
-        { key: 'direction', label: 'Direction', type: 'select', options: ['both', 'bullish', 'bearish'], default: 'both' },
-        { key: 'min_score', label: 'Min Score', type: 'number', min: 0, max: 200, default: 0 },
-        { key: 'min_vol_surge', label: 'Min Vol Surge', type: 'number', min: 0, max: 10, step: 0.1, default: 0 }
-      ]
-    }
-  }
+        {
+          key: "direction",
+          label: "Direction",
+          type: "select",
+          options: ["both", "bullish", "bearish"],
+          default: "both",
+        },
+        { key: "min_score", label: "Min Score", type: "number", min: 0, max: 200, default: 0 },
+        {
+          key: "min_vol_surge",
+          label: "Min Vol Surge",
+          type: "number",
+          min: 0,
+          max: 10,
+          step: 0.1,
+          default: 0,
+        },
+      ],
+    },
+  },
 };
 
 // Mock trending screener response
 export const mockTrendingResponse = {
   approaching: [
     {
-      symbol: 'MOCK1',
+      symbol: "MOCK1",
       score: 105,
-      tv_price: 100.50,
+      tv_price: 100.5,
       upstox_price: 100.45,
       broker_diff: -0.05,
       high_52w: 103.25,
       to_52w_high: 2.73,
       recent_return_5d: -1.6,
       perf_w: 4.8,
-      sector: 'Finance',
+      sector: "Finance",
       touched_52w: false,
       day_change: 0.26,
       rsi: 63.0,
@@ -46,22 +64,22 @@ export const mockTrendingResponse = {
       impact_score: 0,
       market_cap_b: 1222.98,
       volume_m: 1.34,
-      reversal_signal: '',
+      reversal_signal: "",
       is_bullish: true,
-      sentiment: 'bullish',
-      rationale: 'Score 105 | 52W gap +2.73% | 5D -1.6% | PerfW +4.8%'
+      sentiment: "bullish",
+      rationale: "Score 105 | 52W gap +2.73% | 5D -1.6% | PerfW +4.8%",
     },
     {
-      symbol: 'MOCK2',
+      symbol: "MOCK2",
       score: 90,
-      tv_price: 200.00,
+      tv_price: 200.0,
       upstox_price: 200.05,
       broker_diff: 0.02,
-      high_52w: 200.80,
+      high_52w: 200.8,
       to_52w_high: 0.4,
       recent_return_5d: 0.3,
       perf_w: 6.5,
-      sector: 'Technology',
+      sector: "Technology",
       touched_52w: false,
       day_change: 0.45,
       rsi: 80.1,
@@ -74,26 +92,26 @@ export const mockTrendingResponse = {
       gap_pct: 0,
       premarket_change: 0,
       impact_score: 0,
-      market_cap_b: 5000.00,
+      market_cap_b: 5000.0,
       volume_m: 5.42,
-      reversal_signal: '',
+      reversal_signal: "",
       is_bullish: false,
-      sentiment: 'bearish',
-      rationale: 'Score 90 | 52W gap +0.40% | 5D +0.3% | PerfW +6.5%'
-    }
+      sentiment: "bearish",
+      rationale: "Score 90 | 52W gap +0.40% | 5D +0.3% | PerfW +6.5%",
+    },
   ],
   touched: [
     {
-      symbol: 'MOCK3',
+      symbol: "MOCK3",
       score: 115,
-      tv_price: 150.00,
-      upstox_price: 150.10,
+      tv_price: 150.0,
+      upstox_price: 150.1,
       broker_diff: 0.07,
-      high_52w: 150.00,
+      high_52w: 150.0,
       to_52w_high: 0,
       recent_return_5d: 2.5,
       perf_w: 8.0,
-      sector: 'Healthcare',
+      sector: "Healthcare",
       touched_52w: true,
       day_change: 1.5,
       rsi: 75.0,
@@ -106,32 +124,32 @@ export const mockTrendingResponse = {
       gap_pct: 0,
       premarket_change: 0,
       impact_score: 0,
-      market_cap_b: 3000.00,
+      market_cap_b: 3000.0,
       volume_m: 2.5,
-      reversal_signal: '',
+      reversal_signal: "",
       is_bullish: true,
-      sentiment: 'bullish',
-      rationale: 'Score 115 | Touched 52W | 5D +2.5% | PerfW +8.0%'
-    }
+      sentiment: "bullish",
+      rationale: "Score 115 | Touched 52W | 5D +2.5% | PerfW +8.0%",
+    },
   ],
   last_updated: new Date().toISOString(),
-  provider: 'upstox',
-  mode: 'intraday',
-  screener: 'trending'
+  provider: "upstox",
+  mode: "intraday",
+  screener: "trending",
 };
 
 // All buyer interest stocks (unfiltered)
 const allBuyerInterestStocks = [
   {
-    symbol: 'BULL1',
+    symbol: "BULL1",
     score: 99,
-    tv_price: 500.00,
-    upstox_price: 500.50,
-    broker_diff: 0.10,
+    tv_price: 500.0,
+    upstox_price: 500.5,
+    broker_diff: 0.1,
     to_52w_high: 0,
     recent_return_5d: 2.5,
     perf_w: 5.0,
-    sector: 'Industrial Services',
+    sector: "Industrial Services",
     touched_52w: false,
     day_change: 2.5,
     rsi: 70.0,
@@ -146,21 +164,21 @@ const allBuyerInterestStocks = [
     impact_score: 0,
     market_cap_b: 1000.0,
     volume_m: 1.0,
-    reversal_signal: '',
+    reversal_signal: "",
     is_bullish: true,
-    sentiment: 'bullish',
-    rationale: 'Wick 87.2% | VolSurge 1.66x | RSI 70.0'
+    sentiment: "bullish",
+    rationale: "Wick 87.2% | VolSurge 1.66x | RSI 70.0",
   },
   {
-    symbol: 'BULL2',
+    symbol: "BULL2",
     score: 95,
-    tv_price: 300.00,
+    tv_price: 300.0,
     upstox_price: 300.25,
     broker_diff: 0.08,
     to_52w_high: 0,
     recent_return_5d: 1.8,
     perf_w: 4.0,
-    sector: 'Technology',
+    sector: "Technology",
     touched_52w: false,
     day_change: 1.8,
     rsi: 65.0,
@@ -175,21 +193,21 @@ const allBuyerInterestStocks = [
     impact_score: 0,
     market_cap_b: 800.0,
     volume_m: 0.8,
-    reversal_signal: '',
+    reversal_signal: "",
     is_bullish: true,
-    sentiment: 'bullish',
-    rationale: 'Wick 75.0% | VolSurge 2.00x | RSI 65.0'
+    sentiment: "bullish",
+    rationale: "Wick 75.0% | VolSurge 2.00x | RSI 65.0",
   },
   {
-    symbol: 'BEAR1',
+    symbol: "BEAR1",
     score: 85,
-    tv_price: 200.00,
-    upstox_price: 199.50,
+    tv_price: 200.0,
+    upstox_price: 199.5,
     broker_diff: -0.25,
     to_52w_high: 0,
     recent_return_5d: -1.5,
     perf_w: -2.0,
-    sector: 'Energy',
+    sector: "Energy",
     touched_52w: false,
     day_change: -1.5,
     rsi: 35.0,
@@ -204,21 +222,21 @@ const allBuyerInterestStocks = [
     impact_score: 0,
     market_cap_b: 500.0,
     volume_m: 0.5,
-    reversal_signal: '',
+    reversal_signal: "",
     is_bullish: false,
-    sentiment: 'bearish',
-    rationale: 'Wick 25.0% | VolSurge 1.50x | RSI 35.0'
+    sentiment: "bearish",
+    rationale: "Wick 25.0% | VolSurge 1.50x | RSI 35.0",
   },
   {
-    symbol: 'BEAR2',
+    symbol: "BEAR2",
     score: 80,
-    tv_price: 150.00,
-    upstox_price: 149.80,
+    tv_price: 150.0,
+    upstox_price: 149.8,
     broker_diff: -0.13,
     to_52w_high: 0,
     recent_return_5d: -2.0,
     perf_w: -3.0,
-    sector: 'Materials',
+    sector: "Materials",
     touched_52w: false,
     day_change: -2.0,
     rsi: 30.0,
@@ -233,21 +251,21 @@ const allBuyerInterestStocks = [
     impact_score: 0,
     market_cap_b: 300.0,
     volume_m: 0.3,
-    reversal_signal: '',
+    reversal_signal: "",
     is_bullish: false,
-    sentiment: 'bearish',
-    rationale: 'Wick 15.0% | VolSurge 1.20x | RSI 30.0'
+    sentiment: "bearish",
+    rationale: "Wick 15.0% | VolSurge 1.20x | RSI 30.0",
   },
   {
-    symbol: 'NEUTRAL1',
+    symbol: "NEUTRAL1",
     score: 75,
-    tv_price: 100.00,
+    tv_price: 100.0,
     upstox_price: 100.05,
     broker_diff: 0.05,
     to_52w_high: 0,
     recent_return_5d: 0.5,
     perf_w: 1.0,
-    sector: 'Consumer',
+    sector: "Consumer",
     touched_52w: false,
     day_change: 0.5,
     rsi: 50.0,
@@ -262,71 +280,85 @@ const allBuyerInterestStocks = [
     impact_score: 0,
     market_cap_b: 200.0,
     volume_m: 0.2,
-    reversal_signal: '',
+    reversal_signal: "",
     is_bullish: true,
-    sentiment: 'neutral',
-    rationale: 'Wick 50.0% | VolSurge 1.00x | RSI 50.0'
-  }
+    sentiment: "neutral",
+    rationale: "Wick 50.0% | VolSurge 1.00x | RSI 50.0",
+  },
 ];
 
 // Helper to create buyer interest response
 function createBuyerInterestResponse(direction: string) {
   let stocks = allBuyerInterestStocks;
-  if (direction === 'bullish') {
-    stocks = stocks.filter(s => s.wick_close_pct >= 60);
-  } else if (direction === 'bearish') {
-    stocks = stocks.filter(s => s.wick_close_pct <= 40);
+  if (direction === "bullish") {
+    stocks = stocks.filter((s) => s.wick_close_pct >= 60);
+  } else if (direction === "bearish") {
+    stocks = stocks.filter((s) => s.wick_close_pct <= 40);
   }
   return {
     approaching: stocks,
     touched: [],
     last_updated: new Date().toISOString(),
-    provider: 'upstox',
-    mode: 'intraday',
-    screener: 'buyer_interest_enhanced',
+    provider: "upstox",
+    mode: "intraday",
+    screener: "buyer_interest_enhanced",
     profile_meta: {
-      section_labels: { primary: 'Buyer Interest+', secondary: '' },
+      section_labels: { primary: "Buyer Interest+", secondary: "" },
       filters: [
-        { key: 'direction', label: 'Direction', type: 'select', options: ['both', 'bullish', 'bearish'], default: 'both' },
-        { key: 'min_score', label: 'Min Score', type: 'number', min: 0, max: 200, default: 0 },
-        { key: 'min_vol_surge', label: 'Min Vol Surge', type: 'number', min: 0, max: 10, step: 0.1, default: 0 }
-      ]
-    }
+        {
+          key: "direction",
+          label: "Direction",
+          type: "select",
+          options: ["both", "bullish", "bearish"],
+          default: "both",
+        },
+        { key: "min_score", label: "Min Score", type: "number", min: 0, max: 200, default: 0 },
+        {
+          key: "min_vol_surge",
+          label: "Min Vol Surge",
+          type: "number",
+          min: 0,
+          max: 10,
+          step: 0.1,
+          default: 0,
+        },
+      ],
+    },
   };
 }
 
 // Export the counts for assertions
 export const mockBuyerInterestCounts = {
   total: allBuyerInterestStocks.length,
-  bullish: allBuyerInterestStocks.filter(s => s.wick_close_pct >= 60).length,
-  bearish: allBuyerInterestStocks.filter(s => s.wick_close_pct <= 40).length
+  bullish: allBuyerInterestStocks.filter((s) => s.wick_close_pct >= 60).length,
+  bearish: allBuyerInterestStocks.filter((s) => s.wick_close_pct <= 40).length,
 };
 
 // Helper to setup API mocks in Playwright tests
 // IMPORTANT: This must be called BEFORE page.goto()
-export async function setupApiMocks(page: import('@playwright/test').Page) {
+export async function setupApiMocks(page: import("@playwright/test").Page) {
   // Mock screeners list - use full URL pattern
-  await page.route('**/api/screeners', async route => {
+  await page.route("**/api/screeners", async (route) => {
     await route.fulfill({
       status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(mockScreenersList)
+      contentType: "application/json",
+      body: JSON.stringify(mockScreenersList),
     });
   });
 
   // Mock screener data endpoint with query parameters
-  await page.route('**/api/screener*', async route => {
+  await page.route("**/api/screener*", async (route) => {
     const url = route.request().url();
 
     // Check if it's buyer_interest_enhanced
-    if (url.includes('screener=buyer_interest_enhanced')) {
+    if (url.includes("screener=buyer_interest_enhanced")) {
       const directionMatch = url.match(/pf_direction=([^&]+)/);
-      const direction = directionMatch ? directionMatch[1] : 'both';
+      const direction = directionMatch ? directionMatch[1] : "both";
       const response = createBuyerInterestResponse(direction);
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(response)
+        contentType: "application/json",
+        body: JSON.stringify(response),
       });
       return;
     }
@@ -334,8 +366,8 @@ export async function setupApiMocks(page: import('@playwright/test').Page) {
     // Default to trending response
     await route.fulfill({
       status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(mockTrendingResponse)
+      contentType: "application/json",
+      body: JSON.stringify(mockTrendingResponse),
     });
   });
 }
