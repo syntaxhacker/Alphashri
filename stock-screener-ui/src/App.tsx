@@ -4,6 +4,7 @@ import { setCurrentView } from './state/backtest'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { setCurrentView as setReduxView, type AppRouteView } from './store/appSlice'
 import NewsPanel from './components/news/NewsPanel'
+import ChartView from './components/chart/ChartView'
 
 function LegacyShell({ view }: { view: AppRouteView }) {
   const navigate = useNavigate()
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/backtest" element={<LegacyShell view="backtest" />} />
         <Route path="/paper" element={<LegacyShell view="paper" />} />
         <Route path="/sector" element={<LegacyShell view="sector" />} />
+        <Route path="/chart/:symbol" element={<ChartView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <NewsPanel />

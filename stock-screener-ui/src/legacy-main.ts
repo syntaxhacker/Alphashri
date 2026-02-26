@@ -23,6 +23,7 @@ import { subscribe as subscribePaperTrading } from './state/paperTrading'
 import { renderPaperTradingView, initPaperTradingHandlers, cleanupPaperTrading, activatePaperTrading } from './components/paper-trading'
 import { initPaperChart } from './components/paper-trading/chart'
 import { renderSectorAnalysisView } from './components/sector-analysis'
+import { initPreviewChartHandlers } from './components/common/previewChart'
 import type { AppView } from './types/backtest'
 
 // Utilities
@@ -257,6 +258,7 @@ loadScreeners(initProfileFilters).then(() => {
   initSidemenu()
   initBacktestHandlers()
   initPaperTradingHandlers()
+  initPreviewChartHandlers()
   fetchStrategies()
   fetchCosts()
 

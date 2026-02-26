@@ -6,6 +6,17 @@ import type { Stock } from '../types'
 import { escapeAttr } from '../utils/format'
 import { isRecentlyAdded } from '../utils/notifications'
 
+/**
+ * Render a symbol cell with hover preview and click-to-expand functionality.
+ */
+function renderSymbolCell(symbol: string): string {
+  return `<td class="sym previewable"
+    data-symbol="${symbol}"
+    onmouseenter="window.showPreviewChart(event, '${symbol}')"
+    onmouseleave="window.hidePreviewChart()"
+    onclick="window.toggleExpandedChart('${symbol}')">${symbol}</td>`
+}
+
 export function renderStockRow(s: Stock, touched: boolean = false, screener: string = 'trending'): string {
   const scoreClass = s.score >= 80 ? 'score-high' : s.score >= 60 ? 'score-med' : ''
   const brokerClass = Math.abs(s.broker_diff) < 1.0 ? 'green' : 'yellow'
@@ -22,7 +33,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     const day = s.day_change ?? 0
     return `
       <tr class="${rowClass}" title="${rowHint}">
-        <td class="sym">${s.symbol}</td>
+        ${renderSymbolCell(s.symbol)}
         <td class="num ${scoreClass}">${s.score}</td>
         <td class="num ${gap >= 0 ? 'green' : 'red'}">${gap >= 0 ? '+' : ''}${gap.toFixed(2)}%</td>
         <td class="num ${pre >= 0 ? 'green' : 'red'}">${pre >= 0 ? '+' : ''}${pre.toFixed(2)}%</td>
@@ -37,7 +48,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     const day = s.day_change ?? 0
     return `
       <tr class="${rowClass}" title="${rowHint}">
-        <td class="sym">${s.symbol}</td>
+        ${renderSymbolCell(s.symbol)}
         <td class="num ${scoreClass}">${s.score}</td>
         <td class="num">${(s.rsi ?? 0).toFixed(1)}</td>
         <td class="num">${(s.stoch_k ?? 0).toFixed(1)}</td>
@@ -53,7 +64,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     const day = s.day_change ?? 0
     return `
       <tr class="${rowClass}" title="${rowHint}">
-        <td class="sym">${s.symbol}</td>
+        ${renderSymbolCell(s.symbol)}
         <td class="num ${scoreClass}">${s.score}</td>
         <td class="num ${impact >= 0 ? 'green' : 'red'}">${impact >= 0 ? '+' : ''}${impact.toFixed(2)}</td>
         <td class="num">${(s.market_cap_b ?? 0).toFixed(1)}B</td>
@@ -68,7 +79,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     const day = s.day_change ?? 0
     return `
       <tr class="${rowClass}" title="${rowHint}">
-        <td class="sym">${s.symbol}</td>
+        ${renderSymbolCell(s.symbol)}
         <td class="num ${scoreClass}">${s.score}</td>
         <td class="num">${(s.rsi ?? 0).toFixed(1)}</td>
         <td class="num ${day >= 0 ? 'green' : 'red'}">${day >= 0 ? '+' : ''}${day.toFixed(2)}%</td>
@@ -84,7 +95,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     const day = s.day_change ?? 0
     return `
       <tr class="${rowClass}" title="${rowHint}">
-        <td class="sym">${s.symbol}</td>
+        ${renderSymbolCell(s.symbol)}
         <td class="num ${scoreClass}">${s.score}</td>
         <td class="num">${(s.wick_close_pct ?? 0).toFixed(1)}%</td>
         <td class="num">${(s.volume_surge ?? 0).toFixed(2)}x</td>
@@ -110,7 +121,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     const { icon, label, cls: dirClass } = sentimentDisplay[sentiment]
     return `
       <tr class="${rowClass}" title="${rowHint}">
-        <td class="sym">${s.symbol}</td>
+        ${renderSymbolCell(s.symbol)}
         <td class="num ${scoreClass}">${s.score}</td>
         <td class="num ${dirClass}" title="${sentiment}">${icon}</td>
         <td class="num">${(s.wick_close_pct ?? 0).toFixed(1)}%</td>
@@ -127,7 +138,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     const day = s.day_change ?? 0
     return `
       <tr class="${rowClass}" data-testid="stock-row" data-symbol="${s.symbol}" title="${rowHint}">
-        <td class="sym" data-testid="stock-symbol">${s.symbol}</td>
+        ${renderSymbolCell(s.symbol)}
         <td class="num ${scoreClass}" data-testid="stock-score">${s.score}</td>
         <td class="num" data-testid="stock-atr-pct">${(s.atr_pct ?? 0).toFixed(2)}%</td>
         <td class="num" data-testid="stock-adx">${(s.adx ?? 0).toFixed(1)}</td>
@@ -143,7 +154,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     const day = s.day_change ?? 0
     return `
       <tr class="${rowClass}" title="${rowHint}">
-        <td class="sym">${s.symbol}</td>
+        ${renderSymbolCell(s.symbol)}
         <td class="num ${scoreClass}">${s.score}</td>
         <td class="num">${(s.interest_score ?? 0).toFixed(1)}</td>
         <td class="num">${(s.volume_surge ?? 0).toFixed(2)}x</td>
@@ -160,7 +171,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
     const day = s.day_change ?? 0
     return `
       <tr class="${rowClass}" title="${rowHint}">
-        <td class="sym">${s.symbol}</td>
+        ${renderSymbolCell(s.symbol)}
         <td class="num ${move >= 0 ? 'green' : 'red'}">${move >= 0 ? '+' : ''}${move.toFixed(2)}%</td>
         <td class="num ${scoreClass}">${s.score}</td>
         <td class="num">${(s.volume_surge ?? 0).toFixed(2)}x</td>
@@ -176,7 +187,7 @@ export function renderStockRow(s: Stock, touched: boolean = false, screener: str
   // Default row (trending / near_52w)
   return `
     <tr class="${rowClass}" title="${rowHint}">
-      <td class="sym">${s.symbol}</td>
+      ${renderSymbolCell(s.symbol)}
       <td class="num ${scoreClass}">${s.score}</td>
       <td class="num">₹${s.tv_price.toFixed(2)}</td>
       <td class="num">₹${s.upstox_price.toFixed(2)}</td>

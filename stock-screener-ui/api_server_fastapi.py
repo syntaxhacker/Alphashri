@@ -971,6 +971,256 @@ async def search_symbols(
     return {"results": results, "query": q, "total": len(results)}
 
 
+# ============================================
+# Chart Preview API
+# ============================================
+
+def _resample_candles(df, tf_minutes: int):
+    """Resample 1-min candles to higher timeframe."""
+    import pandas as pd
+
+    if df is None or df.empty or tf_minutes <= 1:
+        return df
+
+    # Ensure datetime index
+    if not isinstance(df.index, pd.DatetimeIndex):
+        if 'date' in df.columns:
+            df = df.set_index('date')
+        elif 'time' in df.columns:
+            df = df.set_index('time')
+
+    # Convert to datetime if needed
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index)
+
+    # Resample OHLCV
+    agg_dict = {
+        'open': 'first',
+        'high': 'max',
+        'low': 'min',
+        'close': 'last',
+        'volume': 'sum',
+    }
+
+    # Only include columns that exist
+    available_cols = [c for c in agg_dict.keys() if c in df.columns]
+    agg_dict = {k: v for k, v in agg_dict.items() if k in available_cols}
+
+    resampled = df[available_cols].resample(f'{tf_minutes}min').agg(agg_dict).dropna()
+    return resampled
+
+
+def _calculate_orb_zones(df, or_minutes: int = 45):
+    """Calculate ORB zones for each trading day."""
+    import pandas as pd
+
+    if df is None or df.empty:
+        return []
+
+    # Ensure datetime index
+    if not isinstance(df.index, pd.DatetimeIndex):
+        if 'date' in df.columns:
+            df = df.set_index('date')
+        elif 'time' in df.columns:
+            df = df.set_index('time')
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+
+    zones = []
+
+    # Market open time: 9:15 AM
+    market_open_minutes = 9 * 60 + 15
+    or_end_minutes = market_open_minutes + or_minutes  # e.g., 10:00 for 45-min OR
+
+    # Group by date
+    df_copy = df.copy()
+    df_copy['date'] = df_copy.index.date
+
+    for date, day_df in df_copy.groupby('date'):
+        # Filter candles within OR period
+        day_df_copy = day_df.copy()
+        day_df_copy['minutes'] = day_df.index.hour * 60 + day_df.index.minute
+        or_candles = day_df_copy[day_df_copy['minutes'] < or_end_minutes]
+
+        if or_candles.empty:
+            continue
+
+        or_high = float(or_candles['high'].max())
+        or_low = float(or_candles['low'].min())
+
+        zones.append({
+            'date': date.isoformat() if hasattr(date, 'isoformat') else str(date),
+            'date_raw': date.isoformat() if hasattr(date, 'isoformat') else str(date),
+            'or_high': round(or_high, 2),
+            'or_low': round(or_low, 2),
+            'or_end_time': f"{or_end_minutes // 60:02d}:{or_end_minutes % 60:02d}",
+        })
+
+    return zones
+
+
+def _calculate_pivot_points(df):
+    """Calculate pivot points for each trading day based on previous day's OHLC."""
+    import pandas as pd
+
+    if df is None or df.empty:
+        return []
+
+    # Ensure datetime index
+    if not isinstance(df.index, pd.DatetimeIndex):
+        if 'date' in df.columns:
+            df = df.set_index('date')
+        elif 'time' in df.columns:
+            df = df.set_index('time')
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+
+    pivots = []
+
+    # Get daily OHLC
+    df_copy = df.copy()
+    df_copy['date'] = df_copy.index.date
+
+    daily_ohlc = df_copy.groupby('date').agg({
+        'open': 'first',
+        'high': 'max',
+        'low': 'min',
+        'close': 'last',
+    })
+
+    dates = list(daily_ohlc.index)
+
+    for i, date in enumerate(dates[1:], 1):  # Skip first day (no prior data)
+        prev = daily_ohlc.iloc[i - 1]
+        prev_high = float(prev['high'])
+        prev_low = float(prev['low'])
+        prev_close = float(prev['close'])
+
+        pp = (prev_high + prev_low + prev_close) / 3
+        r1 = 2 * pp - prev_low
+        s1 = 2 * pp - prev_high
+        r2 = pp + (prev_high - prev_low)
+        s2 = pp - (prev_high - prev_low)
+
+        pivots.append({
+            'date': date.isoformat() if hasattr(date, 'isoformat') else str(date),
+            'date_raw': date.isoformat() if hasattr(date, 'isoformat') else str(date),
+            'pp': round(pp, 2),
+            'r1': round(r1, 2),
+            's1': round(s1, 2),
+            'r2': round(r2, 2),
+            's2': round(s2, 2),
+        })
+
+    return pivots
+
+
+def _format_candles_for_chart(df):
+    """Format DataFrame candles for chart response."""
+    if df is None or df.empty:
+        return []
+
+    candles = []
+    for idx, row in df.iterrows():
+        time_str = idx.strftime('%Y-%m-%dT%H:%M') if hasattr(idx, 'strftime') else str(idx)
+        date_str = idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10]
+        time_display = idx.strftime('%H:%M') if hasattr(idx, 'strftime') else ''
+
+        candles.append({
+            'time': time_str,
+            'date': date_str,
+            'time_str': time_display,
+            'open': _to_float(row.get('open', 0)),
+            'high': _to_float(row.get('high', 0)),
+            'low': _to_float(row.get('low', 0)),
+            'close': _to_float(row.get('close', 0)),
+            'volume': _to_float(row.get('volume', 0)),
+        })
+
+    return candles
+
+
+@app.get("/api/chart/preview/{symbol}")
+async def get_chart_preview(
+    symbol: str,
+    tf: int = Query(15, ge=1, le=60, description="Timeframe in minutes (1, 5, 15, 30, 60)"),
+    days: int = Query(1, ge=1, le=30, description="Days of history (default 1 for hover preview)"),
+    or_minutes: int = Query(45, ge=15, le=90, description="Opening range period in minutes")
+):
+    """
+    Fetch lightweight chart data for preview.
+    Returns candles, ORB zones, and pivot points.
+
+    Default days=1 for hover preview (today only).
+    Use days=5+ for expanded/full chart view.
+    """
+    from datetime import timedelta
+
+    try:
+        api = TradingAPIFactory.create_from_config('upstox', quiet=True)
+    except ValueError:
+        return {
+            'symbol': symbol,
+            'candles': [],
+            'orb_zones': [],
+            'pivot_levels': [],
+            'error': 'API not available'
+        }
+
+    try:
+        # Fetch 1-min intraday data
+        to_date = datetime.now().strftime('%Y-%m-%d')
+        from_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+        df = api.fetch_historical_data_v3(
+            symbol=symbol,
+            unit='minutes',
+            interval=1,
+            from_date=from_date,
+            to_date=to_date
+        )
+
+        if df is None or df.empty:
+            return {
+                'symbol': symbol,
+                'candles': [],
+                'orb_zones': [],
+                'pivot_levels': [],
+                'timeframe': tf
+            }
+
+        # Calculate ORB zones from 1-min data before resampling
+        orb_zones = _calculate_orb_zones(df, or_minutes)
+
+        # Calculate pivot points from 1-min data
+        pivot_levels = _calculate_pivot_points(df)
+
+        # Resample to requested timeframe
+        df_tf = _resample_candles(df, tf)
+
+        # Format candles for chart
+        candles = _format_candles_for_chart(df_tf)
+
+        return _sanitize_for_json({
+            'symbol': symbol,
+            'candles': candles,
+            'orb_zones': orb_zones,
+            'pivot_levels': pivot_levels,
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': len(candles),
+        })
+
+    except Exception as e:
+        return {
+            'symbol': symbol,
+            'candles': [],
+            'orb_zones': [],
+            'pivot_levels': [],
+            'error': str(e)
+        }
+
+
 # Include paper trading router
 try:
     from api.paper_trading import router as paper_trading_router
