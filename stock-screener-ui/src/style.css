@@ -157,6 +157,18 @@ kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
 .symbol-remove:hover{color:#ff4757}
 .symbol-add-input{width:100%;background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:4px 6px;font:10px monospace}
 
+/* Symbol Search Autocomplete */
+.symbol-search-wrapper{position:relative;display:inline-block;min-width:100px}
+.symbol-search-dropdown{position:absolute;top:100%;left:0;right:0;background:#1a1a1a;border:1px solid #333;border-top:none;max-height:200px;overflow-y:auto;z-index:1000;display:none;box-shadow:0 4px 8px rgba(0,0,0,0.3);min-width:220px}
+.symbol-search-dropdown.visible{display:block}
+.symbol-search-item{padding:6px 8px;cursor:pointer;border-bottom:1px solid #222}
+.symbol-search-item:last-child{border-bottom:none}
+.symbol-search-item:hover,.symbol-search-item.selected{background:#252525}
+.symbol-search-item.selected{background:#0f3d28;border-color:#00ff9d}
+.symbol-search-symbol{font-weight:700;color:#00ff9d;font-size:10px;display:block}
+.symbol-search-name{color:#888;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;margin-top:2px}
+.symbol-search-loading{padding:8px;text-align:center;color:#666;font-size:10px}
+
 /* Checkbox */
 .checkbox-row{margin-top:4px}
 .checkbox-label{display:flex;align-items:center;gap:6px;font-size:10px;color:#888;cursor:pointer}
@@ -256,6 +268,7 @@ kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
 .trade-history-table th.sortable:hover{color:#00ff9d}
 .trade-history-table th.sorted{color:#00ff9d}
 .trade-history-table .time-cell{text-align:left;white-space:nowrap}
+.trade-history-table .trade-number{color:#666;font-size:8px;text-align:center;width:20px}
 .trade-history-table .positive{color:#00ff9d}
 .trade-history-table .negative{color:#ff4757}
 .trade-history-table .exit-tp{color:#00ff9d;font-weight:700}
@@ -266,6 +279,7 @@ kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
 .trade-history-table tr.trade-win{background:rgba(0,255,157,0.03)}
 .trade-history-table tr.trade-loss{background:rgba(255,71,87,0.03)}
 .trade-history-table tbody tr:hover{background:#1a1a1a !important}
+.trade-history-table tr.trade-row-highlighted{background:rgba(255,215,0,0.15) !important;box-shadow:inset 0 0 0 2px #FFD700;transition:all 0.3s ease}
 
 /* Backtest Error */
 .backtest-error{position:fixed;bottom:16px;right:16px;background:#1a0a0a;border:1px solid #ff4757;padding:12px;z-index:100;max-width:300px}
@@ -1079,4 +1093,392 @@ kbd{background:#222;padding:2px 6px;border-radius:3px;font-size:9px}
   height: 100%;
   color: #888;
   font-size: 12px;
+}
+
+/* ============================================
+   News Panel
+   ============================================ */
+
+/* News Panel - Slide in from right */
+.news-panel {
+  position: fixed;
+  top: 0;
+  right: -380px;
+  width: 380px;
+  height: 100vh;
+  background: #0f0f0f;
+  border-left: 1px solid #222;
+  z-index: 200;
+  transition: right 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.news-panel.open {
+  right: 0;
+}
+
+/* Toggle Button */
+.news-toggle-btn {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 150;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #e0e0e0;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.news-toggle-btn:hover {
+  border-color: #00ff9d;
+  color: #00ff9d;
+}
+
+/* Unread badge */
+.news-badge {
+  background: #ff4757;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* Header */
+.news-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #222;
+  flex-shrink: 0;
+}
+
+.news-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #00ff9d;
+}
+
+.news-close-btn {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.news-close-btn:hover {
+  color: #ff4757;
+}
+
+/* Toolbar */
+.news-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #222;
+  flex-shrink: 0;
+}
+
+.news-source-select {
+  flex: 1;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #e0e0e0;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.news-source-select:focus {
+  outline: none;
+  border-color: #00ff9d;
+}
+
+.news-refresh-btn {
+  padding: 4px 12px;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #e0e0e0;
+  cursor: pointer;
+}
+
+.news-refresh-btn:hover {
+  border-color: #00ff9d;
+}
+
+.news-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Auto-refresh button */
+.news-autorefresh-btn {
+  padding: 4px 8px;
+  font-size: 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #666;
+  cursor: pointer;
+}
+
+.news-autorefresh-btn:hover {
+  border-color: #555;
+}
+
+.news-autorefresh-btn.active {
+  border-color: #00ff9d;
+  color: #00ff9d;
+  background: #0f1b16;
+}
+
+/* Mark all read button */
+.news-markread-btn {
+  padding: 4px 8px;
+  font-size: 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: transparent;
+  border: 1px solid #ffa502;
+  color: #ffa502;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.news-markread-btn:hover {
+  background: rgba(255, 165, 2, 0.1);
+}
+
+/* Refreshing indicator */
+.news-refreshing-indicator {
+  color: #00ff9d;
+  animation: news-pulse 1s infinite;
+  margin-left: 4px;
+}
+
+@keyframes news-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* List */
+.news-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* Item Card */
+.news-item {
+  background: #121212;
+  border: 1px solid #1f1f1f;
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.news-item:hover {
+  border-color: #333;
+  background: #151515;
+}
+
+.news-item.unread {
+  background: #0f1b16;
+  border-left: 2px solid #00ff9d;
+}
+
+.news-item-headline {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e0e0e0;
+  line-height: 1.3;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.news-unread-dot {
+  width: 6px;
+  height: 6px;
+  background: #00ff9d;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.news-item-desc {
+  font-size: 10px;
+  color: #888;
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+.news-item-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 9px;
+  color: #555;
+}
+
+/* Article View */
+.news-article {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.news-article-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #222;
+  flex-shrink: 0;
+}
+
+.news-article-back {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+  padding: 0;
+}
+
+.news-article-back:hover {
+  color: #00ff9d;
+}
+
+.news-article-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e0e0;
+  padding: 10px 12px 6px;
+  line-height: 1.3;
+}
+
+.news-article-meta {
+  font-size: 9px;
+  color: #555;
+  padding: 0 12px 10px;
+  border-bottom: 1px solid #222;
+}
+
+/* Stock Symbols Section */
+.news-symbols {
+  padding: 8px 12px;
+  border-bottom: 1px solid #222;
+  background: #0a0a0a;
+}
+
+.news-symbols-label {
+  font-size: 9px;
+  color: #666;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.news-symbols-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.news-symbol-tag {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #70a1ff;
+  padding: 3px 8px;
+  font-size: 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s;
+}
+
+.news-symbol-tag:hover {
+  border-color: #00ff9d;
+  color: #00ff9d;
+  background: #0f1b16;
+}
+
+.news-article-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  font-size: 11px;
+  color: #9aa0a6;
+  line-height: 1.6;
+}
+
+.news-article-content p {
+  margin-bottom: 12px;
+}
+
+.news-article-link {
+  padding: 10px 12px;
+  border-top: 1px solid #222;
+  flex-shrink: 0;
+}
+
+/* Overlay */
+.news-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 199;
+  display: none;
+}
+
+.news-overlay.visible {
+  display: block;
+}
+
+/* Loading/Empty States */
+.news-loading {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+  font-size: 11px;
+}
+
+.news-empty {
+  padding: 20px;
+  text-align: center;
+  color: #555;
+  font-size: 11px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .news-panel {
+    width: 100%;
+    right: -100%;
+  }
+
+  .news-toggle-btn {
+    top: auto;
+    bottom: 8px;
+    right: 8px;
+  }
 }

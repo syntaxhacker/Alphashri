@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { setCurrentView } from './state/backtest'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { setCurrentView as setReduxView, type AppRouteView } from './store/appSlice'
+import NewsPanel from './components/news/NewsPanel'
 
 function LegacyShell({ view }: { view: AppRouteView }) {
   const navigate = useNavigate()
@@ -44,12 +45,15 @@ function LegacyShell({ view }: { view: AppRouteView }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<LegacyShell view="screener" />} />
-      <Route path="/backtest" element={<LegacyShell view="backtest" />} />
-      <Route path="/paper" element={<LegacyShell view="paper" />} />
-      <Route path="/sector" element={<LegacyShell view="sector" />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<LegacyShell view="screener" />} />
+        <Route path="/backtest" element={<LegacyShell view="backtest" />} />
+        <Route path="/paper" element={<LegacyShell view="paper" />} />
+        <Route path="/sector" element={<LegacyShell view="sector" />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <NewsPanel />
+    </>
   )
 }
