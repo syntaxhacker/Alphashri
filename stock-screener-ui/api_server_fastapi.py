@@ -678,6 +678,8 @@ class BacktestRunRequest(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f'🚀 Stock Screener API starting...')
+    # Preload instruments at startup
+    _load_instruments()
     yield
 
 app = FastAPI(title="Stock Screener API", lifespan=lifespan)
@@ -869,6 +871,106 @@ async def get_results():
     }
 
 
+# ============================================
+# Symbol Search API
+# ============================================
+
+# Cache for instruments (loaded once)
+_instruments_cache: List[Dict] = []
+_instruments_loaded = False
+
+def _load_instruments():
+    """Load NSE instruments from cache file."""
+    global _instruments_cache, _instruments_loaded
+
+    if _instruments_loaded:
+        return _instruments_cache
+
+    # Try multiple paths for instruments file
+    instrument_paths = [
+        _project_root / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
+        _script_dir / 'nse_instruments.json',
+        Path(__file__).parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
+    ]
+
+    for path in instrument_paths:
+        if path.exists():
+            try:
+                import json
+                with open(path, 'r') as f:
+                    _instruments_cache = json.load(f)
+                _instruments_loaded = True
+                print(f"✅ Loaded {len(_instruments_cache)} instruments from {path}")
+                return _instruments_cache
+            except Exception as e:
+                print(f"⚠️ Failed to load instruments from {path}: {e}")
+
+    print("⚠️ No instruments file found. Symbol search will return empty results.")
+    _instruments_loaded = True
+    return _instruments_cache
+
+
+@app.get("/api/symbols/search")
+async def search_symbols(
+    q: str = Query(..., min_length=1, description="Search query"),
+    limit: int = Query(10, ge=1, le=50, description="Max results")
+):
+    """
+    Search for stock symbols by trading symbol or company name.
+    Returns NSE_EQ stocks only (equity segment).
+    """
+    instruments = _load_instruments()
+
+    if not instruments:
+        return {"results": [], "query": q, "total": 0}
+
+    query_lower = q.lower()
+
+    # Filter NSE_EQ stocks with EQ instrument type
+    results = []
+    for inst in instruments:
+        if inst.get('segment') != 'NSE_EQ' or inst.get('instrument_type') != 'EQ':
+            continue
+
+        symbol = inst.get('trading_symbol', '')
+        name = inst.get('name', '')
+
+        # Case-insensitive search in symbol and name
+        symbol_match = query_lower in symbol.lower()
+        name_match = query_lower in name.lower()
+
+        if symbol_match or name_match:
+            # Calculate match score (prefix match is better)
+            symbol_lower = symbol.lower()
+            if symbol_lower.startswith(query_lower):
+                score = 100  # Exact prefix match
+            elif symbol_lower == query_lower:
+                score = 95   # Exact match
+            elif symbol_match:
+                score = 80   # Contains match
+            else:
+                score = 50   # Name match
+
+            results.append({
+                'symbol': symbol,
+                'name': name,
+                'isin': inst.get('isin', ''),
+                'score': score,
+            })
+
+    # Sort by score (descending) then by symbol length (ascending)
+    results.sort(key=lambda x: (-x['score'], len(x['symbol'])))
+
+    # Limit results
+    results = results[:limit]
+
+    # Remove score from output
+    for r in results:
+        del r['score']
+
+    return {"results": results, "query": q, "total": len(results)}
+
+
 # Include paper trading router
 try:
     from api.paper_trading import router as paper_trading_router
@@ -876,6 +978,78 @@ try:
     print("✅ Paper trading API loaded at /api/paper")
 except Exception as e:
     print(f"⚠️ Could not load paper trading API: {e}")
+
+
+# ============================================
+# News API
+# ============================================
+
+# Import news module
+_news_module_path = _project_root / 'moneycontrol-scraper'
+if str(_news_module_path) not in sys.path:
+    sys.path.insert(0, str(_news_module_path))
+
+try:
+    from news_api import fetch_news, fetch_article_content, NEWS_SOURCES
+    _news_available = True
+    print("✅ News API module loaded")
+except ImportError as e:
+    _news_available = False
+    print(f"⚠️ News API module not available: {e}")
+
+
+@app.get("/api/news")
+async def get_news(
+    source: str = Query(default='moneycontrol', description="News source identifier"),
+    limit: int = Query(default=25, ge=1, le=100, description="Max number of items")
+):
+    """
+    Fetch latest news from specified source.
+    Returns list of news items with headline, description, source, and timestamp.
+    """
+    if not _news_available:
+        raise HTTPException(status_code=503, detail="News API not available")
+
+    try:
+        news = fetch_news(source=source, limit=limit)
+        return {
+            'items': news,
+            'source': source,
+            'total': len(news),
+            'fetchedAt': datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/news/article")
+async def get_news_article(url: str = Query(..., description="Article URL to fetch")):
+    """
+    Fetch full content of a specific news article.
+    """
+    if not _news_available:
+        raise HTTPException(status_code=503, detail="News API not available")
+
+    try:
+        article = fetch_article_content(url)
+        if 'error' in article:
+            raise HTTPException(status_code=500, detail=article['error'])
+        return article
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/news/sources")
+async def get_news_sources():
+    """
+    Get list of available news sources.
+    """
+    if not _news_available:
+        return {'sources': []}
+
+    return {'sources': NEWS_SOURCES}
 
 
 if __name__ == '__main__':

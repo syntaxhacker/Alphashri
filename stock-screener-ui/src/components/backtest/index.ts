@@ -111,6 +111,7 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
         <table class="trade-history-table sortable">
           <thead>
             <tr>
+              <th>#</th>
               <th class="sortable ${tradeSortColumn === 'entry_time' ? 'sorted ' + tradeSortDirection : ''}"
                   onclick="window.sortTrades('entry_time')">
                 Time${sortIndicator('entry_time')}
@@ -161,6 +162,7 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
             ${sortedTrades.map((t, i) => {
               // Find original index for zoomToTrade
               const originalIndex = trades.indexOf(t)
+              const tradeNumber = originalIndex + 1 // 1-based trade number
               const capital = t.entry_price * t.quantity
               const pnlPct = t.net_pnl_pct || ((t.net_pnl / capital) * 100)
               const side = t.side || 'LONG'  // Default to LONG for backwards compatibility
@@ -171,9 +173,11 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
               const showLevelLow = !has52w  // Hide Level Lo for 52W Chaser
               return `
                 <tr class="${(t.net_pnl ?? 0) >= 0 ? 'trade-win' : 'trade-loss'}"
+                    data-trade-number="${tradeNumber}"
                     onclick="window.zoomToTrade(${originalIndex})"
                     style="cursor:pointer"
                     title="Click to zoom to this trade">
+                  <td class="trade-number">${tradeNumber}</td>
                   <td class="time-cell">${formatDateHuman(t.entry_time)}</td>
                   <td class="side-${side.toLowerCase()}">${side === 'LONG' ? '▲' : '▼'}</td>
                   <td>${t.quantity ?? 0}</td>

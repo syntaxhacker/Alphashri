@@ -4,8 +4,9 @@
  * Horizontal form for configuring backtest parameters.
  */
 
-import { getBacktestState, setSelectedStrategy, setParam, setDays, setIncludeCosts, addSymbol, removeSymbol, resetBacktestState } from '../../state/backtest'
+import { getBacktestState, setSelectedStrategy, setParam, setDays, setIncludeCosts, addSymbol, removeSymbol, resetBacktestState, subscribe } from '../../state/backtest'
 import { runBacktest as runBacktestApi } from '../../api/backtest'
+import { renderSymbolSearch, registerSymbolSearchCallback, initSymbolSearchHandlers, setSelectedSymbols } from '../common/symbolSearch'
 import type { Strategy, StrategyParam } from '../../types/backtest'
 
 export function renderStrategyConfig(): string {
@@ -46,13 +47,11 @@ export function renderStrategyConfig(): string {
               <button class="symbol-remove-small" onclick="window.removeSymbol('${s}')" title="Remove">×</button>
             </span>
           `).join('')}
-          <input
-            type="text"
-            class="symbol-add-input-small"
-            data-testid="symbol-add-input"
-            placeholder="+"
-            onkeydown="if(event.key==='Enter')window.addSymbolFromInput(this)"
-          />
+          ${renderSymbolSearch({
+            containerId: 'symbol-search-backtest',
+            placeholder: '+ Add symbol',
+            inputClass: 'symbol-add-input-small',
+          })}
         </div>
       </div>
 
@@ -145,6 +144,24 @@ function renderParamsHorizontal(paramDefs: StrategyParam[], currentParams: Recor
 
 // Register window handlers
 export function initConfigHandlers() {
+  // Initialize symbol search handlers
+  initSymbolSearchHandlers()
+
+  // Register callback for symbol search in backtest config
+  registerSymbolSearchCallback('symbol-search-backtest', (symbol: string) => {
+    addSymbol(symbol)
+  })
+
+  // Subscribe to state changes to update selected symbols filter
+  subscribe(() => {
+    const state = getBacktestState()
+    setSelectedSymbols('symbol-search-backtest', state.selectedSymbols)
+  })
+
+  // Set initial selected symbols
+  const initialState = getBacktestState()
+  setSelectedSymbols('symbol-search-backtest', initialState.selectedSymbols)
+
   ;(window as any).setStrategy = (id: string) => {
     setSelectedStrategy(id)
   }
@@ -161,14 +178,6 @@ export function initConfigHandlers() {
     setIncludeCosts(include)
   }
 
-  ;(window as any).addSymbolFromInput = (input: HTMLInputElement) => {
-    const symbol = input.value.trim().toUpperCase()
-    if (symbol) {
-      addSymbol(symbol)
-      input.value = ''
-    }
-  }
-
   ;(window as any).removeSymbol = (symbol: string) => {
     removeSymbol(symbol)
   }
@@ -180,4 +189,17 @@ export function initConfigHandlers() {
   ;(window as any).runBacktest = async () => {
     await runBacktestApi()
   }
+
+  // Keyboard shortcut: Cmd+Enter or Ctrl+Enter to run backtest
+  const handleKeyboardShortcut = (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      const state = getBacktestState()
+      if (!state.isRunning && state.selectedSymbols.length > 0) {
+        console.log('Running backtest via keyboard shortcut')
+        runBacktestApi()
+      }
+    }
+  }
+  window.addEventListener('keydown', handleKeyboardShortcut)
 }

@@ -136,8 +136,46 @@ function renderECharts(symbol: string, chartData: SymbolChartData) {
   const option = buildChartOption(chartData)
   chart.setOption(option)
 
+  // Handle click on markers to scroll to trade in table
+  chart.on('click', (params: any) => {
+    if (params.componentType === 'series' && params.seriesType === 'scatter') {
+      const data = params.data
+      // Check if this is a trade marker (has trade_id)
+      if (data && data.trade_id !== undefined) {
+        console.log('Clicked trade marker:', data.trade_id)
+        // Scroll to trade in table (trade_id is the 1-based trade number)
+        scrollToTrade(data.trade_id)
+      }
+    }
+  })
+
   // Handle resize
   window.addEventListener('resize', () => chart.resize())
+}
+
+// Scroll to and highlight a trade row in the table
+// tradeNumber is the 1-based trade number (trade_id)
+function scrollToTrade(tradeNumber: number) {
+  // Find the row by data-trade-number attribute (table is sorted, so can't use index)
+  const row = document.querySelector(`.trade-history-table tbody tr[data-trade-number="${tradeNumber}"]`) as HTMLElement
+
+  if (row) {
+    // Remove previous highlight
+    document.querySelectorAll('.trade-row-highlighted').forEach(el => {
+      el.classList.remove('trade-row-highlighted')
+    })
+
+    // Add highlight class
+    row.classList.add('trade-row-highlighted')
+
+    // Scroll into view
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    // Remove highlight after 3 seconds
+    setTimeout(() => {
+      row.classList.remove('trade-row-highlighted')
+    }, 3000)
+  }
 }
 
 function buildChartOption(data: SymbolChartData): any {
@@ -747,8 +785,71 @@ export function initChartHandlers() {
       const levelHighData = chartData.candles.map(c => (c.date === selectedDate ? levelHigh : null))
       const levelLowData = chartData.candles.map(c => (c.date === selectedDate ? levelLow : null))
 
+      // Build highlighted markers for the selected trade (using candle index)
+      // Make them BIG with glow effect
+      const highlightEntryMarker = {
+        value: [entryIdx, entryMarker.price],
+        symbol: 'triangle',
+        symbolSize: 32,
+        itemStyle: {
+          color: '#FFD700',
+          borderColor: '#FF6B00',
+          borderWidth: 4,
+          shadowBlur: 10,
+          shadowColor: '#FFD700',
+        },
+        label: {
+          show: true,
+          position: 'top',
+          distance: 8,
+          formatter: `▼ Entry #${tradeIndex + 1}`,
+          color: '#FFD700',
+          fontSize: 12,
+          fontWeight: 'bold',
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          padding: [4, 8],
+          borderRadius: 4,
+        },
+      }
+
+      const highlightExitMarker = exitMarker && exitIdx !== undefined ? {
+        value: [exitIdx, exitMarker.price],
+        symbol: 'circle',
+        symbolSize: 28,
+        itemStyle: {
+          color: exitMarker.trade?.exit_reason === 'TP' ? '#00E676' :
+                 exitMarker.trade?.exit_reason === 'SL' ? '#FF1744' : '#FFEA00',
+          borderColor: '#FFFFFF',
+          borderWidth: 4,
+          shadowBlur: 10,
+          shadowColor: exitMarker.trade?.exit_reason === 'TP' ? '#00E676' :
+                       exitMarker.trade?.exit_reason === 'SL' ? '#FF1744' : '#FFEA00',
+        },
+        label: {
+          show: true,
+          position: 'bottom',
+          distance: 8,
+          formatter: `● ${exitMarker.trade?.exit_reason || 'Exit'}`,
+          color: '#FFFFFF',
+          fontSize: 12,
+          fontWeight: 'bold',
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          padding: [4, 8],
+          borderRadius: 4,
+        },
+      } : null
+
+      // Build connecting line between entry and exit
+      const connectLineData = exitIdx !== undefined ? chartData.candles.map((c, i) => {
+        if (i >= entryIdx! && i <= exitIdx!) {
+          return entryMarker.price // Draw at entry price level
+        }
+        return null
+      }) : []
+
       chart.setOption({
         series: [
+          // Level lines
           {
             id: 'selected-or-high',
             name: 'Selected Level High',
@@ -781,8 +882,59 @@ export function initChartHandlers() {
             },
             tooltip: { show: false },
           },
+          // Connecting line between entry and exit
+          ...(connectLineData.length > 0 ? [{
+            id: 'trade-connect-line',
+            name: 'Trade Line',
+            type: 'line',
+            data: connectLineData,
+            showSymbol: false,
+            connectNulls: false,
+            silent: true,
+            z: 15,
+            lineStyle: {
+              color: '#FFD700',
+              width: 2,
+              type: 'solid',
+              opacity: 0.6,
+            },
+            tooltip: { show: false },
+          }] : []),
+          // Highlighted entry marker (big, glowing)
+          {
+            id: 'highlight-entry',
+            name: 'Selected Entry',
+            type: 'scatter',
+            data: [highlightEntryMarker],
+            symbolSize: 32,
+            z: 25,
+            animation: true,
+            animationDuration: 200,
+          },
+          // Highlighted exit marker (big, glowing)
+          ...(highlightExitMarker ? [{
+            id: 'highlight-exit',
+            name: 'Selected Exit',
+            type: 'scatter',
+            data: [highlightExitMarker],
+            symbolSize: 28,
+            z: 25,
+            animation: true,
+            animationDuration: 200,
+          }] : []),
         ],
       })
+
+      // Remove highlight after 5 seconds
+      setTimeout(() => {
+        chart.setOption({
+          series: [
+            { id: 'highlight-entry', data: [] },
+            { id: 'highlight-exit', data: [] },
+            { id: 'trade-connect-line', data: [] },
+          ],
+        })
+      }, 5000)
     }
   }
 }
