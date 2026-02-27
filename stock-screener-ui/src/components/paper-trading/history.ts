@@ -2,10 +2,7 @@
  * Trade History Panel Component
  */
 
-import {
-  getPaperTradingState,
-  setSelectedSymbol,
-} from "../../state/paperTrading";
+import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
 
@@ -254,9 +251,8 @@ function generateTradeTooltip(trade: PaperTrade): string {
   const entryTime = new Date(trade.entry_time);
   const exitTime = new Date(trade.exit_time);
   const holdMinutes = Math.round((exitTime.getTime() - entryTime.getTime()) / 60000);
-  const holdStr = holdMinutes >= 60
-    ? `${Math.floor(holdMinutes / 60)}h ${holdMinutes % 60}m`
-    : `${holdMinutes}m`;
+  const holdStr =
+    holdMinutes >= 60 ? `${Math.floor(holdMinutes / 60)}h ${holdMinutes % 60}m` : `${holdMinutes}m`;
 
   const tooltipData = {
     tradeId: trade.trade_id,

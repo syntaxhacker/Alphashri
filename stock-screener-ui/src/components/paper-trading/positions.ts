@@ -2,7 +2,11 @@
  * Live Positions Panel Component
  */
 
-import { getPaperTradingState, setSelectedSymbol, getPaperTradingState as getState } from "../../state/paperTrading";
+import {
+  getPaperTradingState,
+  setSelectedSymbol,
+  getPaperTradingState as getState,
+} from "../../state/paperTrading";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 
 export function renderPositionsPanel(): string {
