@@ -137,15 +137,26 @@ export async function fetchSymbolPerformance(): Promise<SymbolPerformance[]> {
 export async function fetchPaperChart(
   symbol: string,
   date?: string,
+  timeframe?: string,
 ): Promise<PaperChartData | null> {
   setChartLoading(true);
 
   try {
-    const url = date
-      ? `${API_BASE}/api/paper/chart/${symbol}?date=${date}`
+    const params = new URLSearchParams();
+    if (date) params.append("date", date);
+    if (timeframe) params.append("timeframe", timeframe);
+    const queryString = params.toString();
+    const url = queryString
+      ? `${API_BASE}/api/paper/chart/${symbol}?${queryString}`
       : `${API_BASE}/api/paper/chart/${symbol}`;
+    console.log("[API] Fetching chart:", { symbol, date, timeframe, url });
     const response = await fetch(url);
     const data = await response.json();
+    console.log("[API] Chart response:", {
+      candleCount: data.candles?.length,
+      symbol: data.symbol,
+      date: data.date,
+    });
 
     if (data.error) {
       console.error("Chart data error:", data.error);
@@ -256,5 +267,32 @@ export async function healthCheck(): Promise<boolean> {
     return data.status === "healthy";
   } catch {
     return false;
+  }
+}
+
+// Close a position manually
+export async function closePaperPosition(
+  symbol: string,
+  exitPrice: number,
+  reason: string = "MANUAL",
+): Promise<{ success: boolean; pnl?: number }> {
+  try {
+    const response = await fetch(`${API_BASE}/api/paper/close`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symbol: symbol.toUpperCase(),
+        exit_price: exitPrice,
+        reason: reason,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "Failed to close position");
+    }
+    return { success: true, pnl: data.pnl };
+  } catch (error) {
+    console.error("Failed to close position:", error);
+    throw error;
   }
 }

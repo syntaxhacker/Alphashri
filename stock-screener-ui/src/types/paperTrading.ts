@@ -35,6 +35,8 @@ export interface PaperTrade {
   net_pnl: number;
   sl_price: number;
   tp_price: number;
+  peak_price: number; // Highest price during trade
+  low_price: number; // Lowest price during trade
   notes: string;
 }
 
@@ -171,6 +173,7 @@ export interface PaperTradingState {
   selectedSymbol: string | null;
   chartData: PaperChartData | null;
   chartLoading: boolean;
+  chartTimeframe: string;
 
   // Loading states
   isLoading: boolean;

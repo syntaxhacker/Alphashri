@@ -43,6 +43,8 @@ class TradeRecord:
     net_pnl: float
     sl_price: float = 0.0
     tp_price: float = 0.0
+    peak_price: float = 0.0  # Highest price during trade
+    low_price: float = 0.0   # Lowest price during trade
     notes: str = ""
 
 
@@ -79,7 +81,7 @@ class TradeJournal:
         Log a completed trade.
 
         Args:
-            trade: Trade dict from PaperTrader
+            trade: Trade dict from PaperTrader or backtest
             notes: Optional notes
 
         Returns:
@@ -101,6 +103,8 @@ class TradeJournal:
             net_pnl=trade['net_pnl'],
             sl_price=trade.get('sl_price', 0),
             tp_price=trade.get('tp_price', 0),
+            peak_price=trade.get('peak_price', 0),
+            low_price=trade.get('low_price', 0),
             notes=notes,
         )
 
@@ -309,7 +313,7 @@ class TradeJournal:
                 'trade_id', 'symbol', 'side', 'quantity',
                 'entry_price', 'exit_price', 'entry_time', 'exit_time',
                 'pnl', 'pnl_pct', 'exit_reason', 'costs', 'net_pnl',
-                'sl_price', 'tp_price', 'notes'
+                'sl_price', 'tp_price', 'peak_price', 'low_price', 'notes'
             ])
             writer.writeheader()
             for trade in self.trades:
@@ -348,6 +352,49 @@ class TradeJournal:
             self.daily_summaries[date] = summary
 
         console.print(f"[green]Loaded {len(self.trades)} trades from {filepath}[/green]")
+
+    def log_backtest_trades(self, symbol: str, trades: List[dict], strategy_name: str = "backtest"):
+        """
+        Log trades from a backtest run.
+
+        Args:
+            symbol: Stock symbol
+            trades: List of trade dicts from backtest
+            strategy_name: Name of the strategy used
+
+        Returns:
+            Number of trades logged
+        """
+        count = 0
+        for i, trade in enumerate(trades):
+            # Convert backtest trade format to journal format
+            journal_trade = {
+                'trade_id': f"BT-{symbol}-{strategy_name}-{i+1:04d}",
+                'symbol': symbol,
+                'side': trade.get('side', 'LONG'),
+                'quantity': trade.get('quantity', 0),
+                'entry_price': trade.get('entry_price', 0),
+                'exit_price': trade.get('exit_price', 0),
+                'entry_time': trade.get('entry_time', ''),
+                'exit_time': trade.get('exit_time', ''),
+                'pnl': trade.get('gross_pnl', 0),
+                'pnl_pct': trade.get('gross_pnl_pct', 0),
+                'exit_reason': trade.get('exit_reason', 'UNKNOWN'),
+                'costs': trade.get('trading_costs', 0),
+                'net_pnl': trade.get('net_pnl', 0),
+                'sl_price': 0,
+                'tp_price': 0,
+                'peak_price': trade.get('peak_price', 0),
+                'low_price': trade.get('low_price', 0),
+            }
+            self.log_trade(journal_trade, notes=f"Backtest: {strategy_name}")
+            count += 1
+
+        if count > 0:
+            self.save_journal()
+            console.print(f"[green]Logged {count} backtest trades for {symbol}[/green]")
+
+        return count
 
 
 # Singleton instance

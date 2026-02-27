@@ -2,8 +2,8 @@
  * Live Positions Panel Component
  */
 
-import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
-import { fetchPaperChart } from "../../api/paperTrading";
+import { getPaperTradingState, setSelectedSymbol, getPaperTradingState as getState } from "../../state/paperTrading";
+import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 
 export function renderPositionsPanel(): string {
   const state = getPaperTradingState();
@@ -204,6 +204,7 @@ function renderPositionsTable(
             <th>SL</th>
             <th>TP</th>
             <th>Time</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -231,6 +232,13 @@ function renderPositionsTable(
                 <td class="sl-cell">₹${(pos.stop_loss ?? 1).toFixed(2)}</td>
                 <td class="tp-cell">₹${(pos.take_profit ?? 1).toFixed(2)}</td>
                 <td class="time-cell">${duration}</td>
+                <td class="actions-cell">
+                  <div class="position-actions">
+                    <button class="action-btn close-btn" onclick="event.stopPropagation(); window.closePosition('${pos.symbol}', ${pos.current_price})" title="Close Position">
+                      ✕
+                    </button>
+                  </div>
+                </td>
               </tr>
             `;
             })
@@ -283,11 +291,25 @@ function formatDuration(entryTime: string): string {
 export function initPositionsHandlers() {
   (window as any).selectPosition = async (symbol: string) => {
     setSelectedSymbol(symbol);
-    await fetchPaperChart(symbol);
+    const state = getState();
+    await fetchPaperChart(symbol, undefined, state.chartTimeframe);
   };
 
   (window as any).selectWatchlistSymbol = async (symbol: string) => {
     setSelectedSymbol(symbol);
-    await fetchPaperChart(symbol);
+    const state = getState();
+    await fetchPaperChart(symbol, undefined, state.chartTimeframe);
+  };
+
+  (window as any).closePosition = async (symbol: string, currentPrice: number) => {
+    if (confirm(`Close position for ${symbol} at ₹${currentPrice.toFixed(2)}?`)) {
+      try {
+        await closePaperPosition(symbol, currentPrice, "MANUAL");
+        await refreshLiveData();
+      } catch (error) {
+        console.error("Failed to close position:", error);
+        alert("Failed to close position. Check console for details.");
+      }
+    }
   };
 }

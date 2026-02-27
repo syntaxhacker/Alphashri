@@ -62,6 +62,7 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
     params = body.get('params', {})
     days = body.get('days', 90)
     include_costs = body.get('include_costs', True)
+    log_to_journal = body.get('log_to_journal', False)  # New parameter
 
     params['include_costs'] = include_costs
 
@@ -91,6 +92,27 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
     # Run backtest
     try:
         result = strategy.run(symbols, days, params, progress_callback)
+
+        # Optionally log trades to journal
+        if log_to_journal and result.get('chart_data'):
+            try:
+                from trading.journal import get_journal
+                journal = get_journal()
+                total_logged = 0
+
+                for symbol, data in result['chart_data'].items():
+                    if data.get('trades'):
+                        count = journal.log_backtest_trades(
+                            symbol=symbol,
+                            trades=data['trades'],
+                            strategy_name=strategy_id
+                        )
+                        total_logged += count
+
+                result['journal_logged'] = total_logged
+            except Exception as e:
+                result['journal_error'] = str(e)
+
         return _sanitize_for_json(result)
     except Exception as e:
         return {'error': str(e)}

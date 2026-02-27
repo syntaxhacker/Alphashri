@@ -237,6 +237,10 @@ class ORBNautilusStrategy(Strategy):
         self.trades = []
         self._current_entry_time = None
 
+        # Track peak and low during position
+        self._position_peak = None
+        self._position_low = None
+
     def on_start(self):
         self.subscribe_bars(self._bar_type)
 
@@ -313,6 +317,8 @@ class ORBNautilusStrategy(Strategy):
             self._position_side = "SHORT"
             self._entry_price = close_f
             self._current_entry_time = bar_time_ist
+            self._position_peak = close_f
+            self._position_low = close_f
         elif long_entry:
             order = self.order_factory.market(
                 instrument_id=self._instrument_id,
@@ -323,9 +329,19 @@ class ORBNautilusStrategy(Strategy):
             self._position_side = "LONG"
             self._entry_price = close_f
             self._current_entry_time = bar_time_ist
+            self._position_peak = close_f
+            self._position_low = close_f
 
     def _manage(self, bar, position, bar_time_ist):
         cur_price = float(bar.close)
+        high_f = float(bar.high)
+        low_f = float(bar.low)
+
+        # Update peak and low prices
+        if self._position_peak is not None:
+            self._position_peak = max(self._position_peak, high_f)
+        if self._position_low is not None:
+            self._position_low = min(self._position_low, low_f)
 
         if self._position_side == "SHORT":
             pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
@@ -373,6 +389,8 @@ class ORBNautilusStrategy(Strategy):
             'or_high': self._or_high,
             'or_low': self._or_low,
             'side': self._position_side,
+            'peak_price': round(self._position_peak, 2) if self._position_peak else cur_price,
+            'low_price': round(self._position_low, 2) if self._position_low else cur_price,
         })
 
         self.close_all_positions(self._instrument_id)
@@ -380,6 +398,8 @@ class ORBNautilusStrategy(Strategy):
         self._entry_price = None
         self._current_entry_time = None
         self._last_exit_bar = self._bar_number
+        self._position_peak = None
+        self._position_low = None
 
     def on_stop(self):
         pass

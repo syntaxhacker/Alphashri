@@ -69,6 +69,8 @@ class PaperPosition:
     current_price: float = 0.0
     unrealized_pnl: float = 0.0
     unrealized_pnl_pct: float = 0.0
+    peak_price: float = 0.0  # Highest price during position
+    low_price: float = float('inf')  # Lowest price during position
 
 
 @dataclass
@@ -87,6 +89,8 @@ class PaperTrade:
     exit_reason: ExitReason
     costs: float = 0.0
     net_pnl: float = 0.0
+    peak_price: float = 0.0  # Highest price during trade
+    low_price: float = 0.0   # Lowest price during trade
 
 
 class PaperTrader:
@@ -152,6 +156,9 @@ class PaperTrader:
         self.daily_trades = 0
         self.day_start = datetime.now().date()
 
+        # Load today's trades from journal
+        self._load_todays_trades_from_journal()
+
     def _generate_order_id(self) -> str:
         self._order_counter += 1
         return f"PAPER-{self._order_counter:06d}"
@@ -159,6 +166,76 @@ class PaperTrader:
     def _generate_trade_id(self) -> str:
         self._trade_counter += 1
         return f"TRADE-{self._trade_counter:06d}"
+
+    def _load_todays_trades_from_journal(self):
+        """Load today's trades from journal file to restore state after restart."""
+        try:
+            from trading.journal import TradeJournal
+
+            journal = TradeJournal()
+            today_str = datetime.now().strftime('%Y%m%d')
+            journal_file = Path(__file__).parent.parent / 'journals' / f'journal_{today_str}.json'
+
+            if not journal_file.exists():
+                return
+
+            with open(journal_file) as f:
+                data = json.load(f)
+
+            today_trades = data.get('trades', [])
+
+            # Map exit reason strings to enum
+            exit_reason_map = {
+                'SL': ExitReason.STOP_LOSS,
+                'TP': ExitReason.TAKE_PROFIT,
+                'EOD': ExitReason.END_OF_DAY,
+                'MANUAL': ExitReason.MANUAL,
+            }
+
+            # Convert journal trades to PaperTrade objects
+            for trade_data in today_trades:
+                try:
+                    exit_reason_str = trade_data.get('exit_reason', 'MANUAL')
+                    exit_reason = exit_reason_map.get(exit_reason_str, ExitReason.MANUAL)
+
+                    trade = PaperTrade(
+                        trade_id=trade_data['trade_id'],
+                        symbol=trade_data['symbol'],
+                        side=OrderSide.BUY if trade_data['side'] == 'BUY' else OrderSide.SELL,
+                        quantity=trade_data['quantity'],
+                        entry_price=trade_data['entry_price'],
+                        exit_price=trade_data['exit_price'],
+                        entry_time=datetime.fromisoformat(trade_data['entry_time']),
+                        exit_time=datetime.fromisoformat(trade_data['exit_time']),
+                        pnl=trade_data['pnl'],
+                        pnl_pct=trade_data['pnl_pct'],
+                        exit_reason=exit_reason,
+                        costs=trade_data.get('costs', 0),
+                        net_pnl=trade_data.get('net_pnl', 0),
+                        peak_price=trade_data.get('peak_price', 0),
+                        low_price=trade_data.get('low_price', 0),
+                    )
+                    self.trades.append(trade)
+
+                    # Update trade counter to avoid ID conflicts
+                    trade_num = int(trade_data['trade_id'].split('-')[1])
+                    self._trade_counter = max(self._trade_counter, trade_num)
+
+                    # Update daily P&L
+                    self.daily_pnl += trade.net_pnl
+                    self.daily_trades += 1
+
+                    # Update cash balance
+                    self.cash += trade.net_pnl
+
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not load trade {trade_data.get('trade_id')}: {e}[/yellow]")
+
+            if today_trades:
+                console.print(f"[green]Loaded {len(today_trades)} trades from journal[/green]")
+
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not load journal: {e}[/yellow]")
 
     def calculate_costs(self, price: float, quantity: int, side: OrderSide) -> dict:
         """
@@ -287,6 +364,8 @@ class PaperTrader:
             take_profit=take_profit,
             entry_time=datetime.now(),
             current_price=price,
+            peak_price=price,
+            low_price=price,
         )
 
         console.print(f"[green]✓ Order filled: {side.value} {quantity} {symbol} @ ₹{price:.2f}[/green]")
@@ -309,6 +388,13 @@ class PaperTrader:
 
             current_price = prices[symbol]
             position.current_price = current_price
+
+            # Track peak and low prices
+            position.peak_price = max(position.peak_price, current_price)
+            if position.low_price == float('inf'):
+                position.low_price = current_price
+            else:
+                position.low_price = min(position.low_price, current_price)
 
             # Calculate unrealized P&L
             if position.side == OrderSide.BUY:
@@ -394,6 +480,8 @@ class PaperTrader:
             exit_reason=exit_reason,
             costs=round(total_costs, 2),
             net_pnl=round(net_pnl, 2),
+            peak_price=round(position.peak_price, 2),
+            low_price=round(position.low_price, 2),
         )
 
         # Update cash and margin
@@ -493,6 +581,8 @@ class PaperTrader:
                 'exit_reason': t.exit_reason.value,
                 'costs': t.costs,
                 'net_pnl': t.net_pnl,
+                'peak_price': t.peak_price,
+                'low_price': t.low_price,
             }
             for t in self.trades[-limit:]
         ]

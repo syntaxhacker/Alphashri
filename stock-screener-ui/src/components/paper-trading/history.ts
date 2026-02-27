@@ -5,14 +5,9 @@
 import {
   getPaperTradingState,
   setSelectedSymbol,
-  triggerPaperTradingRerender,
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
-
-// Sort state
-let sortColumn: string = "exit_time";
-let sortDirection: "asc" | "desc" = "desc";
 
 export function renderHistoryPanel(): string {
   const state = getPaperTradingState();
@@ -70,89 +65,126 @@ function renderTradesTable(trades: PaperTrade[], selectedSymbol: string | null):
     `;
   }
 
-  // Sort trades
-  const sortedTrades = sortTrades([...trades], sortColumn, sortDirection);
+  // Group trades by date
+  const tradesByDate = groupTradesByDate(trades);
 
+  // Calculate overall totals
   const totalPnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
-  const wins = trades.filter((t) => t.net_pnl > 0).length;
-  const winRate = trades.length > 0 ? ((wins / trades.length) * 100).toFixed(1) : "0";
-
-  const sortIndicator = (col: string) => {
-    if (sortColumn !== col) return "";
-    return sortDirection === "asc" ? " ▲" : " ▼";
-  };
+  const totalWins = trades.filter((t) => t.net_pnl > 0).length;
+  const totalLosses = trades.filter((t) => t.net_pnl < 0).length;
 
   return `
     <div class="trades-table-container">
       <div class="trades-header">
-        <h3>Completed Trades (${trades.length})</h3>
+        <h3>Trade History (${trades.length} trades)</h3>
         <div class="trades-summary">
-          <span>P&L: <strong class="${totalPnl >= 0 ? "positive" : "negative"}">₹${formatNumber(totalPnl)}</strong></span>
-          <span>WR: ${winRate}%</span>
+          <span>Total: <strong class="${totalPnl >= 0 ? "positive" : "negative"}">₹${formatNumber(totalPnl)}</strong></span>
+          <span class="win-loss">
+            <span class="wins">▲${totalWins}</span>
+            <span class="losses">▼${totalLosses}</span>
+          </span>
         </div>
       </div>
-      <table class="trades-table sortable" data-testid="trades-table">
+      <div class="trades-by-date">
+        ${Object.entries(tradesByDate)
+          .sort(([a], [b]) => b.localeCompare(a)) // Most recent first
+          .map(([date, dayTrades]) => renderDayGroup(date, dayTrades, selectedSymbol))
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function groupTradesByDate(trades: PaperTrade[]): Record<string, PaperTrade[]> {
+  const groups: Record<string, PaperTrade[]> = {};
+
+  for (const trade of trades) {
+    const date = trade.exit_time.split("T")[0];
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(trade);
+  }
+
+  // Sort each day's trades by exit time (most recent first)
+  for (const date of Object.keys(groups)) {
+    groups[date].sort((a, b) => b.exit_time.localeCompare(a.exit_time));
+  }
+
+  return groups;
+}
+
+function renderDayGroup(date: string, trades: PaperTrade[], selectedSymbol: string | null): string {
+  const dayPnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
+  const wins = trades.filter((t) => t.net_pnl > 0).length;
+  const losses = trades.filter((t) => t.net_pnl < 0).length;
+  const pnlClass = dayPnl >= 0 ? "positive" : "negative";
+  const pnlSign = dayPnl >= 0 ? "+" : "";
+
+  // Format date nicely
+  const dateObj = new Date(date);
+  const formattedDate = dateObj.toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
+
+  return `
+    <div class="day-group" data-date="${date}">
+      <div class="day-header ${pnlClass}">
+        <div class="day-left">
+          <span class="day-icon">📅</span>
+          <span class="day-date">${formattedDate}</span>
+        </div>
+        <div class="day-right">
+          <span class="day-pnl">₹${pnlSign}${formatNumber(Math.abs(dayPnl))}</span>
+          <span class="day-win-loss">
+            <span class="wins">▲${wins}</span>
+            <span class="losses">▼${losses}</span>
+          </span>
+        </div>
+      </div>
+      <table class="trades-table" data-testid="trades-table-${date}">
         <thead>
           <tr>
-            <th class="sortable ${sortColumn === "exit_time" ? "sorted " + sortDirection : ""}"
-                onclick="window.sortPaperTrades('exit_time')">
-              Time${sortIndicator("exit_time")}
-            </th>
-            <th class="sortable ${sortColumn === "symbol" ? "sorted " + sortDirection : ""}"
-                onclick="window.sortPaperTrades('symbol')">
-              Symbol${sortIndicator("symbol")}
-            </th>
-            <th class="sortable ${sortColumn === "side" ? "sorted " + sortDirection : ""}"
-                onclick="window.sortPaperTrades('side')">
-              Side${sortIndicator("side")}
-            </th>
-            <th class="sortable ${sortColumn === "entry_price" ? "sorted " + sortDirection : ""}"
-                onclick="window.sortPaperTrades('entry_price')">
-              Entry${sortIndicator("entry_price")}
-            </th>
-            <th class="sortable ${sortColumn === "exit_price" ? "sorted " + sortDirection : ""}"
-                onclick="window.sortPaperTrades('exit_price')">
-              Exit${sortIndicator("exit_price")}
-            </th>
-            <th class="sortable ${sortColumn === "net_pnl" ? "sorted " + sortDirection : ""}"
-                onclick="window.sortPaperTrades('net_pnl')">
-              P&L${sortIndicator("net_pnl")}
-            </th>
-            <th class="sortable ${sortColumn === "pnl_pct" ? "sorted " + sortDirection : ""}"
-                onclick="window.sortPaperTrades('pnl_pct')">
-              %${sortIndicator("pnl_pct")}
-            </th>
-            <th class="sortable ${sortColumn === "exit_reason" ? "sorted " + sortDirection : ""}"
-                onclick="window.sortPaperTrades('exit_reason')">
-              Type${sortIndicator("exit_reason")}
-            </th>
+            <th>Symbol</th>
+            <th>Side</th>
+            <th>Qty</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>P&L</th>
+            <th>Type</th>
+            <th>Time</th>
           </tr>
         </thead>
         <tbody>
-          ${sortedTrades
+          ${trades
             .map((trade) => {
               const isSelected = trade.symbol === selectedSymbol;
-              const pnlClass = trade.net_pnl >= 0 ? "positive" : "negative";
+              const tradePnlClass = trade.net_pnl >= 0 ? "positive" : "negative";
               const sideClass = trade.side === "BUY" ? "side-long" : "side-short";
               const sideIcon = trade.side === "BUY" ? "▲" : "▼";
-              const time = formatTradeTime(trade.exit_time);
+              const time = formatTradeTimeOnly(trade.exit_time);
+              const tooltipContent = generateTradeTooltip(trade);
 
               return `
               <tr class="trade-row ${isSelected ? "selected" : ""} ${trade.net_pnl >= 0 ? "trade-win" : "trade-loss"}"
                   onclick="window.selectTrade('${trade.symbol}', '${trade.exit_time}')"
-                  data-symbol="${trade.symbol}">
-                <td class="time-cell">${time}</td>
+                  onmouseenter="window.showTradeTooltip(event, '${trade.trade_id}')"
+                  onmouseleave="window.hideTradeTooltip()"
+                  data-symbol="${trade.symbol}"
+                  data-trade-id="${trade.trade_id}"
+                  data-tooltip='${tooltipContent}'>
                 <td class="symbol-cell"><strong>${trade.symbol}</strong></td>
                 <td class="${sideClass}">${sideIcon}</td>
+                <td>${trade.quantity}</td>
                 <td>₹${trade.entry_price.toFixed(2)}</td>
                 <td>₹${trade.exit_price.toFixed(2)}</td>
-                <td class="${pnlClass}">
+                <td class="${tradePnlClass}">
                   <strong>₹${formatNumber(trade.net_pnl)}</strong>
                 </td>
-                <td class="${pnlClass}">
-                  ${trade.pnl_pct >= 0 ? "+" : ""}${trade.pnl_pct.toFixed(2)}%
-                </td>
                 <td class="exit-${trade.exit_reason.toLowerCase()}">${trade.exit_reason}</td>
+                <td class="time-cell">${time}</td>
               </tr>
             `;
             })
@@ -161,58 +193,6 @@ function renderTradesTable(trades: PaperTrade[], selectedSymbol: string | null):
       </table>
     </div>
   `;
-}
-
-function sortTrades(trades: PaperTrade[], column: string, direction: "asc" | "desc"): PaperTrade[] {
-  return trades.sort((a, b) => {
-    let aVal: number | string = 0;
-    let bVal: number | string = 0;
-
-    switch (column) {
-      case "exit_time":
-        aVal = a.exit_time || "";
-        bVal = b.exit_time || "";
-        break;
-      case "symbol":
-        aVal = a.symbol;
-        bVal = b.symbol;
-        break;
-      case "side":
-        aVal = a.side;
-        bVal = b.side;
-        break;
-      case "entry_price":
-        aVal = a.entry_price;
-        bVal = b.entry_price;
-        break;
-      case "exit_price":
-        aVal = a.exit_price;
-        bVal = b.exit_price;
-        break;
-      case "net_pnl":
-        aVal = a.net_pnl;
-        bVal = b.net_pnl;
-        break;
-      case "pnl_pct":
-        aVal = a.pnl_pct;
-        bVal = b.pnl_pct;
-        break;
-      case "exit_reason":
-        aVal = a.exit_reason;
-        bVal = b.exit_reason;
-        break;
-      default:
-        return 0;
-    }
-
-    if (typeof aVal === "string" && typeof bVal === "string") {
-      return direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-    }
-
-    return direction === "asc"
-      ? (aVal as number) - (bVal as number)
-      : (bVal as number) - (aVal as number);
-  });
 }
 
 function formatNumber(num: number | undefined | null): string {
@@ -247,22 +227,229 @@ function formatTradeTime(isoStr: string): string {
     .replace(",", "");
 }
 
+function formatTradeTimeOnly(isoStr: string): string {
+  if (!isoStr) return "-";
+  const date = new Date(isoStr);
+  if (Number.isNaN(date.getTime())) return isoStr;
+
+  // Just time: 10:38
+  return date.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function generateTradeTooltip(trade: PaperTrade): string {
+  const peakPrice = trade.peak_price || trade.exit_price;
+  const lowPrice = trade.low_price || trade.entry_price;
+
+  // Calculate excursions
+  const mfe = peakPrice - trade.entry_price; // Max Favorable Excursion
+  const mae = lowPrice - trade.entry_price; // Max Adverse Excursion
+  const mfePct = (mfe / trade.entry_price) * 100;
+  const maePct = (mae / trade.entry_price) * 100;
+
+  // Calculate hold duration
+  const entryTime = new Date(trade.entry_time);
+  const exitTime = new Date(trade.exit_time);
+  const holdMinutes = Math.round((exitTime.getTime() - entryTime.getTime()) / 60000);
+  const holdStr = holdMinutes >= 60
+    ? `${Math.floor(holdMinutes / 60)}h ${holdMinutes % 60}m`
+    : `${holdMinutes}m`;
+
+  const tooltipData = {
+    tradeId: trade.trade_id,
+    symbol: trade.symbol,
+    side: trade.side,
+    qty: trade.quantity,
+    entry: trade.entry_price.toFixed(2),
+    exit: trade.exit_price.toFixed(2),
+    peak: peakPrice.toFixed(2),
+    low: lowPrice.toFixed(2),
+    mfe: mfe.toFixed(2),
+    mfePct: mfePct.toFixed(2),
+    mae: mae.toFixed(2),
+    maePct: maePct.toFixed(2),
+    grossPnl: trade.pnl.toFixed(2),
+    costs: trade.costs.toFixed(2),
+    netPnl: trade.net_pnl.toFixed(2),
+    pnlPct: trade.pnl_pct.toFixed(2),
+    exitReason: trade.exit_reason,
+    slPrice: trade.sl_price.toFixed(2),
+    tpPrice: trade.tp_price.toFixed(2),
+    holdTime: holdStr,
+    entryTime: formatTradeTime(trade.entry_time),
+    exitTime: formatTradeTime(trade.exit_time),
+  };
+
+  return JSON.stringify(tooltipData).replace(/'/g, "&#39;");
+}
+
 export function initHistoryHandlers() {
   (window as any).selectTrade = async (symbol: string, exitTime: string) => {
     setSelectedSymbol(symbol);
     // Extract date from exit time for chart
     const date = exitTime.split("T")[0];
-    await fetchPaperChart(symbol, date);
+    const state = getPaperTradingState();
+    await fetchPaperChart(symbol, date, state.chartTimeframe);
   };
 
-  (window as any).sortPaperTrades = (column: string) => {
-    if (sortColumn === column) {
-      sortDirection = sortDirection === "asc" ? "desc" : "asc";
-    } else {
-      sortColumn = column;
-      sortDirection = "desc";
+  // Tooltip handlers
+  let tooltipEl: HTMLDivElement | null = null;
+
+  (window as any).showTradeTooltip = (event: MouseEvent, tradeId: string) => {
+    const row = (event.target as HTMLElement).closest("tr");
+    if (!row) return;
+
+    const tooltipDataStr = row.getAttribute("data-tooltip");
+    if (!tooltipDataStr) return;
+
+    try {
+      const data = JSON.parse(tooltipDataStr);
+
+      // Create tooltip element if it doesn't exist
+      if (!tooltipEl) {
+        tooltipEl = document.createElement("div");
+        tooltipEl.className = "trade-tooltip";
+        tooltipEl.id = "trade-tooltip";
+        document.body.appendChild(tooltipEl);
+      }
+
+      // Build tooltip content
+      const pnlColor = parseFloat(data.netPnl) >= 0 ? "#10b981" : "#ef4444";
+      const mfeColor = parseFloat(data.mfe) >= 0 ? "#10b981" : "#ef4444";
+      const maeColor = parseFloat(data.mae) >= 0 ? "#10b981" : "#ef4444";
+
+      tooltipEl.innerHTML = `
+        <div class="tooltip-header">
+          <strong>${data.symbol}</strong> <span class="tooltip-side">${data.side}</span>
+          <span class="tooltip-trade-id">${data.tradeId}</span>
+        </div>
+
+        <div class="tooltip-section">
+          <div class="tooltip-row">
+            <span class="tooltip-label">Quantity:</span>
+            <span class="tooltip-value">${data.qty}</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Hold Time:</span>
+            <span class="tooltip-value">${data.holdTime}</span>
+          </div>
+        </div>
+
+        <div class="tooltip-section">
+          <div class="tooltip-section-title">Prices</div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Entry:</span>
+            <span class="tooltip-value">₹${data.entry}</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Exit:</span>
+            <span class="tooltip-value">₹${data.exit}</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Peak:</span>
+            <span class="tooltip-value">₹${data.peak} ⬆️</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Low:</span>
+            <span class="tooltip-value">₹${data.low} ⬇️</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">SL / TP:</span>
+            <span class="tooltip-value">₹${data.slPrice} / ₹${data.tpPrice}</span>
+          </div>
+        </div>
+
+        <div class="tooltip-section">
+          <div class="tooltip-section-title">Price Movement</div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Best Price Reached:</span>
+            <span class="tooltip-value" style="color: ${mfeColor}">₹${data.mfe} (${data.mfePct}%)</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Worst Price Reached:</span>
+            <span class="tooltip-value" style="color: ${maeColor}">₹${data.mae} (${data.maePct}%)</span>
+          </div>
+        </div>
+
+        <div class="tooltip-section">
+          <div class="tooltip-section-title">P&L</div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Gross P&L:</span>
+            <span class="tooltip-value">₹${data.grossPnl}</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Costs:</span>
+            <span class="tooltip-value">₹${data.costs}</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Net P&L:</span>
+            <span class="tooltip-value" style="color: ${pnlColor}; font-weight: bold;">₹${data.netPnl} (${data.pnlPct}%)</span>
+          </div>
+        </div>
+
+        <div class="tooltip-section">
+          <div class="tooltip-row">
+            <span class="tooltip-label">Exit Reason:</span>
+            <span class="tooltip-value tooltip-exit-${data.exitReason.toLowerCase()}">${data.exitReason}</span>
+          </div>
+          <div class="tooltip-row tooltip-times">
+            <span class="tooltip-label">Entry:</span>
+            <span class="tooltip-value">${data.entryTime}</span>
+          </div>
+          <div class="tooltip-row tooltip-times">
+            <span class="tooltip-label">Exit:</span>
+            <span class="tooltip-value">${data.exitTime}</span>
+          </div>
+        </div>
+      `;
+
+      // Position tooltip
+      const rect = row.getBoundingClientRect();
+
+      // Make tooltip visible but off-screen to measure its dimensions
+      tooltipEl.style.left = "-9999px";
+      tooltipEl.style.top = "-9999px";
+      tooltipEl.style.display = "block";
+
+      // Now get the actual tooltip dimensions
+      const tooltipRect = tooltipEl.getBoundingClientRect();
+
+      let left = rect.right + 10;
+      let top = rect.top;
+
+      // Adjust if tooltip goes off right edge
+      if (left + tooltipRect.width > window.innerWidth - 10) {
+        left = rect.left - tooltipRect.width - 10;
+      }
+
+      // Adjust if tooltip goes off left edge
+      if (left < 10) {
+        left = 10;
+      }
+
+      // Adjust if tooltip goes off bottom edge
+      if (top + tooltipRect.height > window.innerHeight - 10) {
+        top = window.innerHeight - tooltipRect.height - 10;
+      }
+
+      // Adjust if tooltip goes off top edge
+      if (top < 10) {
+        top = 10;
+      }
+
+      tooltipEl.style.left = `${left}px`;
+      tooltipEl.style.top = `${top}px`;
+    } catch (e) {
+      console.error("Error showing tooltip:", e);
     }
-    // Trigger re-render
-    triggerPaperTradingRerender();
+  };
+
+  (window as any).hideTradeTooltip = () => {
+    if (tooltipEl) {
+      tooltipEl.style.display = "none";
+    }
   };
 }

@@ -134,12 +134,34 @@ async def get_portfolio():
     trader = get_paper_trader()
     status = trader.get_portfolio_status()
 
+    # Get today's date for filtering closed trades
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    today_str_compact = datetime.now().strftime('%Y%m%d')
+
+    # Calculate realized P&L from today's closed trades
+    realized_pnl_today = 0.0
+    daily_trades = 0
+
+    # Try to load today's journal file
+    journal_dir = Path(__file__).parent.parent / "journals"
+    journal_file = journal_dir / f"journal_{today_str_compact}.json"
+    if journal_file.exists():
+        try:
+            from trading.journal import TradeJournal
+            temp_journal = TradeJournal()
+            temp_journal.load_journal(str(journal_file))
+            for t in temp_journal.trades:
+                realized_pnl_today += float(t.net_pnl or 0)
+                daily_trades += 1
+        except Exception:
+            pass
+
     # If bot runs in a separate process, in-memory portfolio here may be stale.
     # Recompute key live fields from snapshot open positions when available.
     snap = _load_fresh_bot_snapshot()
     if snap:
         snap_positions = snap.get("open_positions_data") or []
-        if isinstance(snap_positions, list) and len(snap_positions) > 0:
+        if isinstance(snap_positions, list):
             margin_used = sum(float(p.get("entry_price", 0)) * int(p.get("quantity", 0)) for p in snap_positions)
             position_value = sum(float(p.get("current_price", 0)) * int(p.get("quantity", 0)) for p in snap_positions)
             unrealized_pnl = sum(float(p.get("pnl", 0)) for p in snap_positions)
@@ -148,7 +170,9 @@ async def get_portfolio():
             total_value = cash + position_value
             total_pnl = total_value - status.get("initial_capital", 0)
             total_pnl_pct = (total_pnl / status.get("initial_capital", 1) * 100) if status.get("initial_capital", 0) else 0
-            daily_pnl = unrealized_pnl
+
+            # Daily P&L = Unrealized + Realized today
+            daily_pnl = unrealized_pnl + realized_pnl_today
             daily_pnl_pct = (daily_pnl / status.get("initial_capital", 1) * 100) if status.get("initial_capital", 0) else 0
 
             status.update({
@@ -156,11 +180,13 @@ async def get_portfolio():
                 "margin_used": round(margin_used, 2),
                 "position_value": round(position_value, 2),
                 "unrealized_pnl": round(unrealized_pnl, 2),
+                "realized_pnl_today": round(realized_pnl_today, 2),
                 "total_value": round(total_value, 2),
                 "total_pnl": round(total_pnl, 2),
                 "total_pnl_pct": round(total_pnl_pct, 2),
                 "daily_pnl": round(daily_pnl, 2),
                 "daily_pnl_pct": round(daily_pnl_pct, 2),
+                "daily_trades": daily_trades,
                 "positions": len(snap_positions),
                 "open_positions": len(snap_positions),
             })
@@ -168,6 +194,12 @@ async def get_portfolio():
         base = status.get("initial_capital", 0) or 0
         daily_pnl = status.get("daily_pnl", 0) or 0
         status["daily_pnl_pct"] = (daily_pnl / base * 100) if base else 0.0
+
+    # Ensure realized_pnl_today is always present
+    if "realized_pnl_today" not in status:
+        status["realized_pnl_today"] = round(realized_pnl_today, 2)
+    if "daily_trades" not in status:
+        status["daily_trades"] = daily_trades
 
     return status
 
@@ -374,7 +406,10 @@ async def close_position(request: ClosePositionRequest):
         'exit_reason': trade.exit_reason.value,
         'costs': trade.costs,
         'net_pnl': trade.net_pnl,
+        'peak_price': trade.peak_price,
+        'low_price': trade.low_price,
     })
+    journal.save_journal()
 
     return {
         "trade_id": trade.trade_id,
@@ -405,12 +440,46 @@ async def close_all_positions(request: UpdatePricesRequest):
 async def update_prices(request: UpdatePricesRequest):
     """Update prices and check for SL/TP triggers."""
     trader = get_paper_trader()
+
+    # Track trades before update
+    trades_before = len(trader.trades)
+
     trader.update_prices(request.prices)
+
+    # Check if any new trades were closed
+    trades_after = len(trader.trades)
+    new_trades_count = trades_after - trades_before
+
+    # Log new trades to journal
+    if new_trades_count > 0:
+        journal = get_journal()
+        new_trades = trader.trades[-new_trades_count:]
+        for trade in new_trades:
+            journal.log_trade({
+                'trade_id': trade.trade_id,
+                'symbol': trade.symbol,
+                'side': trade.side.value,
+                'quantity': trade.quantity,
+                'entry_price': trade.entry_price,
+                'exit_price': trade.exit_price,
+                'entry_time': trade.entry_time.isoformat(),
+                'exit_time': trade.exit_time.isoformat(),
+                'pnl': trade.pnl,
+                'pnl_pct': trade.pnl_pct,
+                'exit_reason': trade.exit_reason.value,
+                'costs': trade.costs,
+                'net_pnl': trade.net_pnl,
+                'peak_price': trade.peak_price,
+                'low_price': trade.low_price,
+            })
+        # Save journal to file
+        journal.save_journal()
 
     return {
         "status": "success",
         "portfolio": trader.get_portfolio_status(),
-        "positions": trader.get_positions()
+        "positions": trader.get_positions(),
+        "trades_closed": new_trades_count
     }
 
 
@@ -753,12 +822,21 @@ async def stop_paper_bot():
 # ============== Chart Data Endpoint ==============
 
 @router.get("/chart/{symbol}")
-async def get_paper_chart(symbol: str, date: Optional[str] = None):
+async def get_paper_chart(
+    symbol: str,
+    date: Optional[str] = None,
+    timeframe: str = "5min",
+):
     """
     Get intraday chart data with paper trade markers.
 
+    Args:
+        symbol: Stock symbol
+        date: Date in YYYY-MM-DD format (default: today)
+        timeframe: Candle timeframe - 1min, 5min, 15min, 1hour (default: 5min)
+
     Returns:
-    - candles: 5-min OHLCV data for the day
+    - candles: OHLCV data for the day at requested timeframe
     - trades: List of trades for this symbol on this date
     - orb_levels: OR High, OR Low for the day
     - current_position: If there's an open position
@@ -803,86 +881,101 @@ async def get_paper_chart(symbol: str, date: Optional[str] = None):
 
             return resampled if not resampled.empty else None
 
+        def _resample_to_timeframe(df_1m, tf: str):
+            """Resample 1-minute OHLCV to specified timeframe."""
+            if df_1m is None or df_1m.empty:
+                return None
+
+            # Map timeframe string to pandas resample string
+            tf_map = {
+                '1min': '1min',
+                '5min': '5min',
+                '15min': '15min',
+                '1hour': '1h',
+            }
+            resample_str = tf_map.get(tf, '5min')
+
+            df_work = df_1m.copy()
+
+            if not isinstance(df_work.index, pd.DatetimeIndex):
+                df_work.index = pd.to_datetime(df_work.index)
+
+            df_work = df_work.sort_index()
+
+            # Keep only columns needed by the chart response
+            agg_map = {
+                'open': 'first',
+                'high': 'max',
+                'low': 'min',
+                'close': 'last',
+                'volume': 'sum',
+            }
+            available_agg = {k: v for k, v in agg_map.items() if k in df_work.columns}
+            if {'open', 'high', 'low', 'close'} - set(available_agg.keys()):
+                return None
+
+            resampled = (
+                df_work
+                .resample(resample_str, label='left', closed='left')
+                .agg(available_agg)
+                .dropna(subset=['open', 'high', 'low', 'close'])
+            )
+
+            return resampled if not resampled.empty else None
+
         # Get date to fetch
         today = datetime.now().strftime('%Y-%m-%d')
         if date is None:
             date = today
 
+        # Always fetch 1-min data and resample to requested timeframe
+        # This ensures all timeframes work consistently
         screener = TVScreenerUsage(enable_paper_trading=False)
+        df_1m = None
 
         # Use historical API for past dates, intraday for today
         if date == today:
-            # Fetch today's intraday data
-            df = screener.upstox_api.fetch_intraday_data_v3(
+            # Fetch today's intraday 1-min data
+            df_1m = screener.upstox_api.fetch_intraday_data_v3(
                 symbol=symbol.upper(),
-                interval='5'
+                interval='1'
             )
-            # Fallback: if 5-min data is unavailable, fetch 1-min and resample
-            if df is None or df.empty:
-                df_1m = screener.upstox_api.fetch_intraday_data_v3(
-                    symbol=symbol.upper(),
-                    interval='1'
-                )
-                df = _resample_to_5m(df_1m)
         else:
-            # Fetch historical minute data for past dates
-            # Use a range since same-day from/to doesn't work reliably
+            # Fetch historical 1-min data for past dates
             from datetime import timedelta
             from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
-            df_full = screener.upstox_api.fetch_historical_data_v3(
+            df_1m_full = screener.upstox_api.fetch_historical_data_v3(
                 symbol=symbol.upper(),
                 unit='minutes',
-                interval=5,
+                interval=1,
                 to_date=date,
                 from_date=from_date,
             )
             # Filter to only the requested date
-            if df_full is not None and not df_full.empty:
+            if df_1m_full is not None and not df_1m_full.empty:
                 date_start = f"{date}T00:00:00"
                 date_end = f"{date}T23:59:59"
-                df = df_full[df_full.index >= date_start]
-                df = df[df.index <= date_end]
-            else:
-                df = None
+                df_1m = df_1m_full[df_1m_full.index >= date_start]
+                df_1m = df_1m[df_1m.index <= date_end]
 
-            # Fallback: if 5-min historical data is unavailable, fetch 1-min and resample
-            if df is None or df.empty:
+            # Fallback: try broader range if no data
+            if df_1m is None or df_1m.empty:
+                broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
                 df_1m_full = screener.upstox_api.fetch_historical_data_v3(
                     symbol=symbol.upper(),
                     unit='minutes',
                     interval=1,
                     to_date=date,
-                    from_date=from_date,
+                    from_date=broad_from_date,
                 )
-                # Upstox can return empty minute candles for multi-day ranges on some symbols.
-                # Retry with same-day window before failing.
-                if (df_1m_full is None or df_1m_full.empty) and from_date != date:
-                    df_1m_full = screener.upstox_api.fetch_historical_data_v3(
-                        symbol=symbol.upper(),
-                        unit='minutes',
-                        interval=1,
-                        to_date=date,
-                        from_date=date,
-                    )
-                # Additional fallback for symbols where narrow windows miss latest minutes.
-                # Query a broader range, then filter the requested date.
-                if df_1m_full is None or df_1m_full.empty:
-                    broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
-                    df_1m_full = screener.upstox_api.fetch_historical_data_v3(
-                        symbol=symbol.upper(),
-                        unit='minutes',
-                        interval=1,
-                        to_date=date,
-                        from_date=broad_from_date,
-                    )
                 if df_1m_full is not None and not df_1m_full.empty:
                     date_start = f"{date}T00:00:00"
                     date_end = f"{date}T23:59:59"
                     df_1m = df_1m_full[df_1m_full.index >= date_start]
                     df_1m = df_1m[df_1m.index <= date_end]
-                else:
-                    df_1m = None
-                df = _resample_to_5m(df_1m)
+
+        # Resample to requested timeframe
+        df = _resample_to_timeframe(df_1m, timeframe)
 
         if df is None or df.empty:
             return {"error": f"No data for {symbol} on {date}", "symbol": symbol, "date": date}
@@ -993,6 +1086,7 @@ async def get_paper_chart(symbol: str, date: Optional[str] = None):
         return {
             "symbol": symbol.upper(),
             "date": date,
+            "timeframe": timeframe,
             "candles": candles,
             "trades": trades_data,
             "orb_levels": orb_levels,

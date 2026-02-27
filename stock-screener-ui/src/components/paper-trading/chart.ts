@@ -5,7 +5,8 @@
  * Reuses the same chart implementation as backtest.
  */
 
-import { getPaperTradingState } from "../../state/paperTrading";
+import { getPaperTradingState, setChartTimeframe } from "../../state/paperTrading";
+import { fetchPaperChart } from "../../api/paperTrading";
 import type {
   PaperChartData,
   CandleData,
@@ -72,6 +73,12 @@ export function renderChartContainer(): string {
     <div class="paper-chart-container" data-testid="paper-chart-container">
       <div class="paper-chart-header">
         <h4>${state.chartData.symbol} - ${state.chartData.date}</h4>
+        <select id="paper-chart-timeframe" class="chart-timeframe-select" data-testid="paper-chart-timeframe">
+          <option value="1min" ${state.chartTimeframe === "1min" ? "selected" : ""}>1m</option>
+          <option value="5min" ${state.chartTimeframe === "5min" ? "selected" : ""}>5m</option>
+          <option value="15min" ${state.chartTimeframe === "15min" ? "selected" : ""}>15m</option>
+          <option value="1hour" ${state.chartTimeframe === "1hour" ? "selected" : ""}>1H</option>
+        </select>
         ${state.chartData.current_position ? renderPositionInfo(state.chartData.current_position) : ""}
       </div>
       <div
@@ -101,8 +108,52 @@ function renderPositionInfo(position: PaperPosition): string {
   `;
 }
 
+// Track if handlers are already attached to avoid duplicates
+let chartHandlersAttached = false;
+
 export function initChartHandlers() {
-  // Chart handlers are initialized after render
+  const timeframeSelect = document.getElementById("paper-chart-timeframe") as HTMLSelectElement;
+  if (!timeframeSelect) {
+    console.log("[CHART] Timeframe select element not found");
+    return;
+  }
+
+  // Remove old listener by cloning the element
+  if (chartHandlersAttached) {
+    const newSelect = timeframeSelect.cloneNode(true) as HTMLSelectElement;
+    timeframeSelect.parentNode?.replaceChild(newSelect, timeframeSelect);
+  }
+
+  const selectEl = document.getElementById("paper-chart-timeframe") as HTMLSelectElement;
+  selectEl?.addEventListener("change", async (e) => {
+    const target = e.target as HTMLSelectElement;
+    const newTimeframe = target.value;
+    console.log("[CHART] Timeframe changed to:", newTimeframe);
+    setChartTimeframe(newTimeframe);
+
+    // Re-fetch chart data with new timeframe
+    const state = getPaperTradingState();
+    console.log("[CHART] Current state:", {
+      selectedSymbol: state.selectedSymbol,
+      chartDate: state.chartData?.date,
+      currentCandleCount: state.chartData?.candles?.length,
+    });
+
+    if (state.selectedSymbol && state.chartData?.date) {
+      console.log("[CHART] Fetching new data with timeframe:", newTimeframe);
+      await fetchPaperChart(state.selectedSymbol, state.chartData.date, newTimeframe);
+
+      // Log the new data
+      const newState = getPaperTradingState();
+      console.log("[CHART] New data received:", {
+        candleCount: newState.chartData?.candles?.length,
+        firstCandle: newState.chartData?.candles?.[0],
+        lastCandle: newState.chartData?.candles?.[newState.chartData?.candles?.length - 1],
+      });
+    }
+  });
+
+  chartHandlersAttached = true;
 }
 
 // Initialize ECharts after DOM is ready
@@ -128,6 +179,9 @@ export function initPaperChart() {
   window.addEventListener("resize", () => {
     chartInstance?.resize();
   });
+
+  // Initialize chart handlers (timeframe dropdown, etc.)
+  initChartHandlers();
 }
 
 function buildChartOption(data: PaperChartData) {

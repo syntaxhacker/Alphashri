@@ -34,6 +34,7 @@ export const initialPaperTradingState: PaperTradingState = {
   selectedSymbol: null,
   chartData: null,
   chartLoading: false,
+  chartTimeframe: "5min",
 
   isLoading: false,
   error: null,
@@ -145,6 +146,11 @@ export function setChartData(data: PaperChartData | null) {
 
 export function setChartLoading(loading: boolean) {
   state = { ...state, chartLoading: loading };
+  notify();
+}
+
+export function setChartTimeframe(timeframe: string) {
+  state = { ...state, chartTimeframe: timeframe };
   notify();
 }
 
