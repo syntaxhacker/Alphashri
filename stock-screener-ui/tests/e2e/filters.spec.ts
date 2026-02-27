@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks } from "../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 
 test.describe("Filter Functionality", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
+    await loginAsTestUser(page);
   });
 
   test("should have score filter input", async ({ page }) => {

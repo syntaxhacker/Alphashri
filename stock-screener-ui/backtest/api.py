@@ -97,7 +97,8 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
         if log_to_journal and result.get('chart_data'):
             try:
                 from trading.journal import get_journal
-                journal = get_journal()
+                # Use default user (admin) for backtest journal logging
+                journal = get_journal(1)
                 total_logged = 0
 
                 for symbol, data in result['chart_data'].items():

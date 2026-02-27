@@ -83,7 +83,7 @@ export function renderHeader(): string {
   return `
     <div class="header" data-testid="header">
       <div>
-        <div class="title" data-testid="screener-title">🚀 ${screenerLabel} Stock Screener ${demoBadge}</div>
+        <div class="title" data-testid="screener-title">🚀 ${screenerLabel} | Alphashri ${demoBadge}</div>
         <div class="status" data-testid="status">${state.data?.last_updated ? formatTimestamp(state.data.last_updated) : ""} | ${state.data?.provider?.toUpperCase() || ""} | ${state.data?.mode === "intraday" ? "Intraday" : "5D"} | ${screenerLabel.toUpperCase()} ${state.isLoading ? '<span class="inline-refresh">Refreshing...</span>' : ""}</div>
       </div>
       <div class="controls">

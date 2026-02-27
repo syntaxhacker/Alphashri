@@ -337,6 +337,29 @@ export const mockBuyerInterestCounts = {
 // Helper to setup API mocks in Playwright tests
 // IMPORTANT: This must be called BEFORE page.goto()
 export async function setupApiMocks(page: import("@playwright/test").Page) {
+  // Mock auth endpoints
+  await page.route("**/api/auth/me", async (route) => {
+    // Return unauthenticated by default - tests should use login helper if needed
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Not authenticated" }),
+    });
+  });
+
+  await page.route("**/api/auth/login", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        access_token: "test_access_token_12345",
+        refresh_token: "test_refresh_token_12345",
+        token_type: "bearer",
+        expires_in: 86400,
+      }),
+    });
+  });
+
   // Mock screeners list - use full URL pattern
   await page.route("**/api/screeners", async (route) => {
     await route.fulfill({
@@ -369,5 +392,39 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       contentType: "application/json",
       body: JSON.stringify(mockTrendingResponse),
     });
+  });
+}
+
+// Test user credentials
+export const testUser = {
+  id: 1,
+  email: "test@alphashri.dev",
+  display_name: "TestUser",
+  initial_capital: 1000000,
+  created_at: "2026-01-01T00:00:00",
+};
+
+// Helper to login as test user (sets localStorage tokens)
+export async function loginAsTestUser(page: import("@playwright/test").Page) {
+  // Mock auth/me to return authenticated user
+  await page.route("**/api/auth/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(testUser),
+    });
+  });
+
+  // Set localStorage tokens before navigating
+  await page.addInitScript(() => {
+    localStorage.setItem("alphashri_token", "test_access_token_12345");
+    localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
+    localStorage.setItem("alphashri_user", JSON.stringify({
+      id: 1,
+      email: "test@alphashri.dev",
+      display_name: "TestUser",
+      initial_capital: 1000000,
+      created_at: "2026-01-01T00:00:00",
+    }));
   });
 }

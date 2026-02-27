@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks } from "../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 
 test.describe("Table Sorting", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
+    await loginAsTestUser(page);
   });
 
   test("should sort by Score column when clicked", async ({ page }) => {

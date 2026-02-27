@@ -2,7 +2,7 @@
 ORB Signal Generator - Generate live trading signals for ORB strategy.
 
 This module generates real-time trading signals based on:
-1. ORB stock screener results
+1. ORB stock scanner results
 2. Live 5-minute candle data
 3. Opening range breakout detection
 """

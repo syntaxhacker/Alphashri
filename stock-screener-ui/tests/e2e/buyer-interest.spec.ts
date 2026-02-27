@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks } from "../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 
 test.describe("Buyer Interest+ Screener", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
+    await loginAsTestUser(page);
   });
 
   // Test Buyer Interest+ by loading it directly via URL parameter

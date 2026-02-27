@@ -59,19 +59,23 @@ class TradeJournal:
     - Export data
     """
 
-    def __init__(self, journal_dir: Optional[str] = None):
+    def __init__(self, journal_dir: Optional[str] = None, user_id: Optional[int] = None):
         """
         Initialize trade journal.
 
         Args:
             journal_dir: Directory to store journal files
+            user_id: User ID for multi-user support (journals stored in journals/{user_id}/)
         """
         if journal_dir:
             self.journal_dir = Path(journal_dir)
+        elif user_id:
+            self.journal_dir = Path(__file__).parent.parent / "journals" / str(user_id)
         else:
             self.journal_dir = Path(__file__).parent.parent / "journals"
 
         self.journal_dir.mkdir(parents=True, exist_ok=True)
+        self.user_id = user_id
 
         self.trades: List[TradeRecord] = []
         self.daily_summaries: Dict[str, dict] = {}
@@ -397,24 +401,55 @@ class TradeJournal:
         return count
 
 
-# Singleton instance
-_journal: Optional[TradeJournal] = None
+# User-scoped instances for multi-user API
+_journals: Dict[int, TradeJournal] = {}
+_default_journal: Optional[TradeJournal] = None
 
 
-def get_journal() -> TradeJournal:
-    """Get singleton journal instance, loading today's journal if it exists."""
-    global _journal
-    if _journal is None:
-        _journal = TradeJournal()
+def get_journal(user_id: Optional[int] = None) -> TradeJournal:
+    """
+    Get journal instance for a specific user.
+
+    Args:
+        user_id: User ID. If None, returns the default (legacy) instance.
+
+    Returns:
+        TradeJournal instance for the user.
+    """
+    global _default_journal
+
+    if user_id is None:
+        # Legacy single-user mode
+        if _default_journal is None:
+            _default_journal = TradeJournal()
+            # Try to load today's journal file
+            today = datetime.now().strftime('%Y%m%d')
+            journal_file = _default_journal.journal_dir / f"journal_{today}.json"
+            if journal_file.exists():
+                try:
+                    _default_journal.load_journal(str(journal_file))
+                except Exception as e:
+                    console.print(f"[yellow]Could not load journal: {e}[/yellow]")
+        return _default_journal
+
+    if user_id not in _journals:
+        _journals[user_id] = TradeJournal(user_id=user_id)
         # Try to load today's journal file
         today = datetime.now().strftime('%Y%m%d')
-        journal_file = _journal.journal_dir / f"journal_{today}.json"
+        journal_file = _journals[user_id].journal_dir / f"journal_{today}.json"
         if journal_file.exists():
             try:
-                _journal.load_journal(str(journal_file))
+                _journals[user_id].load_journal(str(journal_file))
             except Exception as e:
-                console.print(f"[yellow]Could not load journal: {e}[/yellow]")
-    return _journal
+                console.print(f"[yellow]Could not load journal for user {user_id}: {e}[/yellow]")
+
+    return _journals[user_id]
+
+
+def clear_journal(user_id: int):
+    """Clear a user's journal instance (e.g., on logout)."""
+    if user_id in _journals:
+        del _journals[user_id]
 
 
 if __name__ == '__main__':

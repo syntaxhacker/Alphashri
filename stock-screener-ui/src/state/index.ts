@@ -1,5 +1,5 @@
 /**
- * State management for Stock Screener UI
+ * State management for Alphashri
  */
 
 import type {

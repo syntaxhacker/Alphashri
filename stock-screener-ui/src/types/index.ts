@@ -1,5 +1,5 @@
 /**
- * Type definitions for Stock Screener UI
+ * Type definitions for Alphashri
  */
 
 export interface Stock {

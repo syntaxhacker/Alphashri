@@ -1,5 +1,5 @@
 /**
- * Constants for Stock Screener UI
+ * Constants for Alphashri
  */
 
 // API endpoints

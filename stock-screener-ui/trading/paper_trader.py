@@ -115,6 +115,7 @@ class PaperTrader:
         sebi_pct: float = 0.000001,
         stamp_pct: float = 0.00003,  # 0.003% (buy side)
         gst_pct: float = 0.18,
+        user_id: Optional[int] = None,
     ):
         """
         Initialize paper trader.
@@ -128,7 +129,9 @@ class PaperTrader:
             sebi_pct: SEBI fee percentage
             stamp_pct: Stamp duty percentage (buy side)
             gst_pct: GST on brokerage+exchange+sebi
+            user_id: User ID for multi-user support
         """
+        self.user_id = user_id
         self.initial_capital = initial_capital
         self.cash = initial_capital
         self.margin_used = 0.0
@@ -170,11 +173,14 @@ class PaperTrader:
     def _load_todays_trades_from_journal(self):
         """Load today's trades from journal file to restore state after restart."""
         try:
-            from trading.journal import TradeJournal
+            from trading.journal import TradeJournal, get_journal
 
-            journal = TradeJournal()
+            journal = get_journal(self.user_id) if self.user_id else TradeJournal()
             today_str = datetime.now().strftime('%Y%m%d')
-            journal_file = Path(__file__).parent.parent / 'journals' / f'journal_{today_str}.json'
+            if self.user_id:
+                journal_file = Path(__file__).parent.parent / 'journals' / str(self.user_id) / f'journal_{today_str}.json'
+            else:
+                journal_file = Path(__file__).parent.parent / 'journals' / f'journal_{today_str}.json'
 
             if not journal_file.exists():
                 return
@@ -618,23 +624,72 @@ class PaperTrader:
         console.print(table)
 
 
-# Singleton instance for API
-_paper_trader: Optional[PaperTrader] = None
+# User-scoped instances for multi-user API
+_paper_traders: Dict[int, PaperTrader] = {}
+_default_paper_trader: Optional[PaperTrader] = None
 
 
-def get_paper_trader() -> PaperTrader:
-    """Get singleton paper trader instance."""
-    global _paper_trader
-    if _paper_trader is None:
-        _paper_trader = PaperTrader()
-    return _paper_trader
+def get_paper_trader(user_id: Optional[int] = None, initial_capital: Optional[float] = None) -> PaperTrader:
+    """
+    Get paper trader instance for a specific user.
+
+    Args:
+        user_id: User ID. If None, returns the default (legacy) instance.
+        initial_capital: Initial capital for new traders.
+
+    Returns:
+        PaperTrader instance for the user.
+    """
+    global _default_paper_trader
+
+    if user_id is None:
+        # Legacy single-user mode
+        if _default_paper_trader is None:
+            _default_paper_trader = PaperTrader(initial_capital=initial_capital or 1_000_000)
+        return _default_paper_trader
+
+    if user_id not in _paper_traders:
+        # Load user's initial capital from database if not provided
+        if initial_capital is None:
+            try:
+                from db.database import SessionLocal
+                from db.models import User
+                with SessionLocal() as db:
+                    user = db.query(User).filter(User.id == user_id).first()
+                    initial_capital = user.initial_capital if user else 1_000_000
+            except Exception:
+                initial_capital = 1_000_000
+
+        _paper_traders[user_id] = PaperTrader(
+            initial_capital=initial_capital,
+            user_id=user_id
+        )
+
+    return _paper_traders[user_id]
 
 
-def reset_paper_trader(capital: float = 1_000_000):
-    """Reset paper trader with new capital."""
-    global _paper_trader
-    _paper_trader = PaperTrader(initial_capital=capital)
-    return _paper_trader
+def reset_paper_trader(user_id: Optional[int] = None, capital: float = 1_000_000):
+    """
+    Reset paper trader with new capital.
+
+    Args:
+        user_id: User ID. If None, resets the default instance.
+        capital: New initial capital.
+    """
+    global _default_paper_trader
+
+    if user_id is None:
+        _default_paper_trader = PaperTrader(initial_capital=capital)
+        return _default_paper_trader
+
+    _paper_traders[user_id] = PaperTrader(initial_capital=capital, user_id=user_id)
+    return _paper_traders[user_id]
+
+
+def clear_paper_trader(user_id: int):
+    """Clear a user's paper trader instance (e.g., on logout)."""
+    if user_id in _paper_traders:
+        del _paper_traders[user_id]
 
 
 if __name__ == '__main__':

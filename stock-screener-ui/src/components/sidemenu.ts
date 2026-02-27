@@ -7,9 +7,39 @@
 import { getBacktestState, setCurrentView } from "../state/backtest";
 import type { AppView } from "../types/backtest";
 
+interface UserInfo {
+  displayName: string;
+  email: string;
+}
+
+// Get user info from window (set by React AuthProvider)
+function getUserInfo(): UserInfo | null {
+  const userInfo = (window as any).__ALPHASHRI_USER__;
+  if (userInfo) {
+    return userInfo;
+  }
+  return null;
+}
+
 export function renderSidemenu(): string {
   const state = getBacktestState();
   const currentView = state.currentView;
+  const user = getUserInfo();
+
+  const userSection = user
+    ? `
+      <div class="sidemenu-user">
+        <div class="sidemenu-user-avatar">${user.displayName?.charAt(0)?.toUpperCase() || "U"}</div>
+        <div class="sidemenu-user-info">
+          <div class="sidemenu-user-name">${user.displayName}</div>
+          <div class="sidemenu-user-email">${user.email}</div>
+        </div>
+        <button class="sidemenu-logout" onclick="window.handleLogout()" title="Sign Out">
+          Sign Out
+        </button>
+      </div>
+    `
+    : "";
 
   return `
     <div class="sidemenu" data-testid="sidemenu">
@@ -60,7 +90,8 @@ export function renderSidemenu(): string {
       </nav>
 
       <div class="sidemenu-footer">
-        <div class="sidemenu-version">v1.1.0</div>
+        ${userSection}
+        <div class="sidemenu-version">v1.1.0 • Alphashri</div>
       </div>
     </div>
   `;

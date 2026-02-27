@@ -1,5 +1,5 @@
 """
-Backtesting Module for Stock Screener UI
+Backtesting Module for Alphashri
 
 Provides strategy backtesting with:
 - Multiple strategy support (ORB, VWAP, etc.)

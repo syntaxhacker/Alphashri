@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FastAPI server for stock screener UI with auto-reload.
+FastAPI server for Alphashri with auto-reload.
 Serves screener data and backtest API as JSON.
 
 Run with: uvicorn api_server_fastapi:app --reload --port 8765
@@ -677,12 +677,16 @@ class BacktestRunRequest(BaseModel):
 # FastAPI app
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f'🚀 Stock Screener API starting...')
+    print(f'🚀 Alphashri API starting...')
+    # Initialize database
+    from db.database import init_db
+    init_db()
+    print("✅ Database initialized")
     # Preload instruments at startup
     _load_instruments()
     yield
 
-app = FastAPI(title="Stock Screener API", lifespan=lifespan)
+app = FastAPI(title="Alphashri API", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -1230,6 +1234,15 @@ except Exception as e:
     print(f"⚠️ Could not load paper trading API: {e}")
 
 
+# Include auth router
+try:
+    from api.auth import router as auth_router
+    app.include_router(auth_router)
+    print("✅ Auth API loaded at /api/auth")
+except Exception as e:
+    print(f"⚠️ Could not load auth API: {e}")
+
+
 # ============================================
 # News API
 # ============================================
@@ -1303,7 +1316,7 @@ async def get_news_sources():
 
 
 if __name__ == '__main__':
-    print(f'🚀 Stock Screener FastAPI running on http://localhost:8765')
+    print(f'🚀 Alphashri FastAPI running on http://localhost:8765')
     print(f'   API docs: http://localhost:8765/docs')
     print(f'   Screener API: http://localhost:8765/api/screener')
     print(f'   Backtest API: http://localhost:8765/api/backtest/strategies')

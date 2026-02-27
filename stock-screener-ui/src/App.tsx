@@ -1,10 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { setCurrentView } from "./state/backtest";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setCurrentView as setReduxView, type AppRouteView } from "./store/appSlice";
 import NewsPanel from "./components/news/NewsPanel";
 import ChartView from "./components/chart/ChartView";
+import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
+import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
 
 function LegacyShell({ view }: { view: AppRouteView }) {
   const navigate = useNavigate();
@@ -44,7 +46,47 @@ function LegacyShell({ view }: { view: AppRouteView }) {
   return <div id="legacy-root" data-view={currentReduxView} />;
 }
 
-export default function App() {
+function AuthScreen() {
+  const [showRegister, setShowRegister] = useState(false);
+
+  return showRegister ? (
+    <RegisterForm onSwitchToLogin={() => setShowRegister(false)} />
+  ) : (
+    <LoginForm onSwitchToRegister={() => setShowRegister(true)} />
+  );
+}
+
+function AppContent() {
+  const { isAuthenticated, loading, user, logout } = useAuth();
+
+  // Update window user info for legacy sidemenu
+  useEffect(() => {
+    if (user) {
+      (window as any).__ALPHASHRI_USER__ = {
+        displayName: user.display_name || user.email?.split("@")[0] || "User",
+        email: user.email,
+      };
+      (window as any).handleLogout = logout;
+    } else {
+      (window as any).__ALPHASHRI_USER__ = null;
+    }
+  }, [user, logout]);
+
+  // Show loading spinner while checking auth
+  if (loading) {
+    return (
+      <div className="auth-loading">
+        <div className="auth-spinner"></div>
+        <span>Loading...</span>
+      </div>
+    );
+  }
+
+  // Show auth screen if not authenticated
+  if (!isAuthenticated) {
+    return <AuthScreen />;
+  }
+
   return (
     <>
       <Routes>
@@ -57,5 +99,13 @@ export default function App() {
       </Routes>
       <NewsPanel />
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

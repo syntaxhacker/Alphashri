@@ -22,7 +22,7 @@ from dataclasses import asdict
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from rich.console import Console
 
@@ -32,26 +32,59 @@ from trading.orb_signals import ORBSignalGenerator, ORBSignal, SignalType, creat
 from trading.risk_manager import RiskManager, get_risk_manager
 from trading.journal import TradeJournal, get_journal
 
+# Optional auth imports
+try:
+    from api.auth import get_current_user_optional
+    from db.models import User
+    _auth_available = True
+except ImportError:
+    _auth_available = False
+    async def get_current_user_optional():
+        return None
+
 console = Console()
 
 # Create router
 router = APIRouter(prefix="/api/paper", tags=["Paper Trading"])
 
-# Background runner process state
+# Background runner process state (global for single-user mode)
 _paper_bot_process: Optional[subprocess.Popen] = None
-_paper_bot_log_file = Path("/tmp/paper-trading-runner.log")
+_paper_bot_log_file = Path("/tmp/alphashri-runner.log")
 _paper_bot_log_handle = None
-_paper_bot_snapshot_file = Path("/tmp/paper-trading-snapshot.json")
-_paper_bot_pid_file = Path("/tmp/paper-trading-runner.pid")
+_paper_bot_snapshot_file = Path("/tmp/alphashri-snapshot.json")
+_paper_bot_pid_file = Path("/tmp/alphashri-runner.pid")
+
+# User-scoped file paths
+_user_snapshot_files: dict = {}
+_user_pid_files: dict = {}
 
 
-def _load_fresh_bot_snapshot(max_age_seconds: int = 300) -> Optional[dict]:
+def _get_snapshot_file(user_id: Optional[int] = None) -> Path:
+    """Get snapshot file path for a user."""
+    if user_id is None:
+        return _paper_bot_snapshot_file
+    if user_id not in _user_snapshot_files:
+        _user_snapshot_files[user_id] = Path(f"/tmp/alphashri-{user_id}-snapshot.json")
+    return _user_snapshot_files[user_id]
+
+
+def _get_pid_file(user_id: Optional[int] = None) -> Path:
+    """Get PID file path for a user."""
+    if user_id is None:
+        return _paper_bot_pid_file
+    if user_id not in _user_pid_files:
+        _user_pid_files[user_id] = Path(f"/tmp/alphashri-{user_id}-runner.pid")
+    return _user_pid_files[user_id]
+
+
+def _load_fresh_bot_snapshot(max_age_seconds: int = 300, user_id: Optional[int] = None) -> Optional[dict]:
     """Load bot snapshot only when it is recent enough to represent live state."""
-    if not _paper_bot_snapshot_file.exists():
+    snapshot_file = _get_snapshot_file(user_id)
+    if not snapshot_file.exists():
         return None
 
     try:
-        data = json.loads(_paper_bot_snapshot_file.read_text())
+        data = json.loads(snapshot_file.read_text())
         ts = data.get("timestamp")
         if ts:
             try:
@@ -66,29 +99,32 @@ def _load_fresh_bot_snapshot(max_age_seconds: int = 300) -> Optional[dict]:
         return None
 
 
-def _read_runner_pid_file() -> Optional[int]:
+def _read_runner_pid_file(user_id: Optional[int] = None) -> Optional[int]:
     """Read persisted runner PID from disk."""
+    pid_file = _get_pid_file(user_id)
     try:
-        if not _paper_bot_pid_file.exists():
+        if not pid_file.exists():
             return None
-        return int(_paper_bot_pid_file.read_text().strip())
+        return int(pid_file.read_text().strip())
     except Exception:
         return None
 
 
-def _write_runner_pid_file(pid: int) -> None:
+def _write_runner_pid_file(pid: int, user_id: Optional[int] = None) -> None:
     """Persist runner PID so API reloads can still track the process."""
+    pid_file = _get_pid_file(user_id)
     try:
-        _paper_bot_pid_file.write_text(str(pid))
+        pid_file.write_text(str(pid))
     except Exception:
         pass
 
 
-def _clear_runner_pid_file() -> None:
+def _clear_runner_pid_file(user_id: Optional[int] = None) -> None:
     """Remove persisted runner PID file."""
+    pid_file = _get_pid_file(user_id)
     try:
-        if _paper_bot_pid_file.exists():
-            _paper_bot_pid_file.unlink()
+        if pid_file.exists():
+            pid_file.unlink()
     except Exception:
         pass
 
@@ -128,10 +164,20 @@ class UpdatePricesRequest(BaseModel):
 
 # ============== Portfolio Endpoints ==============
 
+# Default user ID for unauthenticated access (admin user created during migration)
+DEFAULT_USER_ID = 1
+
+
+def _get_user_id(user: Optional["User"]) -> int:
+    """Get user ID, defaulting to admin user (1) if not authenticated."""
+    return user.id if user else DEFAULT_USER_ID
+
+
 @router.get("/portfolio")
-async def get_portfolio():
+async def get_portfolio(user: Optional["User"] = Depends(get_current_user_optional)):
     """Get current paper trading portfolio status."""
-    trader = get_paper_trader()
+    user_id = _get_user_id(user)
+    trader = get_paper_trader(user_id)
     status = trader.get_portfolio_status()
 
     # Get today's date for filtering closed trades
@@ -143,12 +189,15 @@ async def get_portfolio():
     daily_trades = 0
 
     # Try to load today's journal file
-    journal_dir = Path(__file__).parent.parent / "journals"
+    if user_id:
+        journal_dir = Path(__file__).parent.parent / "journals" / str(user_id)
+    else:
+        journal_dir = Path(__file__).parent.parent / "journals"
     journal_file = journal_dir / f"journal_{today_str_compact}.json"
     if journal_file.exists():
         try:
             from trading.journal import TradeJournal
-            temp_journal = TradeJournal()
+            temp_journal = TradeJournal(user_id=user_id)
             temp_journal.load_journal(str(journal_file))
             for t in temp_journal.trades:
                 realized_pnl_today += float(t.net_pnl or 0)
@@ -158,7 +207,7 @@ async def get_portfolio():
 
     # If bot runs in a separate process, in-memory portfolio here may be stale.
     # Recompute key live fields from snapshot open positions when available.
-    snap = _load_fresh_bot_snapshot()
+    snap = _load_fresh_bot_snapshot(user_id=user_id)
     if snap:
         snap_positions = snap.get("open_positions_data") or []
         if isinstance(snap_positions, list):
@@ -205,9 +254,10 @@ async def get_portfolio():
 
 
 @router.post("/reset")
-async def reset_portfolio(request: ResetRequest):
+async def reset_portfolio(request: ResetRequest, user: Optional["User"] = Depends(get_current_user_optional)):
     """Reset paper trading with new capital."""
-    trader = reset_paper_trader(request.capital)
+    user_id = _get_user_id(user)
+    trader = reset_paper_trader(user_id, request.capital)
     return {
         "status": "success",
         "message": f"Reset with capital ₹{request.capital:,.0f}",
@@ -216,14 +266,15 @@ async def reset_portfolio(request: ResetRequest):
 
 
 @router.get("/positions")
-async def get_positions():
+async def get_positions(user: Optional["User"] = Depends(get_current_user_optional)):
     """Get all open positions."""
-    trader = get_paper_trader()
+    user_id = _get_user_id(user)
+    trader = get_paper_trader(user_id)
     positions = trader.get_positions()
 
     # If bot runs in a separate process, in-memory positions in API process can be stale.
     # Prefer fresh snapshot positions when available so live table and summary stay in sync.
-    snap = _load_fresh_bot_snapshot()
+    snap = _load_fresh_bot_snapshot(user_id=user_id)
     if snap:
         snap_positions = snap.get("open_positions_data") or []
         if isinstance(snap_positions, list) and len(snap_positions) > 0:
@@ -241,11 +292,16 @@ async def get_trades(
     date: Optional[str] = None,
     symbol: Optional[str] = None,
     strategy: Optional[str] = None,
+    user: Optional["User"] = Depends(get_current_user_optional),
 ):
     """Get trade history from journal with filters."""
     from trading.journal import TradeJournal
 
-    journal_dir = Path(__file__).parent.parent / "journals"
+    user_id = _get_user_id(user)
+    if user_id:
+        journal_dir = Path(__file__).parent.parent / "journals" / str(user_id)
+    else:
+        journal_dir = Path(__file__).parent.parent / "journals"
 
     all_trades = []
 
@@ -254,7 +310,7 @@ async def get_trades(
         date_str = date.replace('-', '')
         journal_file = journal_dir / f"journal_{date_str}.json"
         if journal_file.exists():
-            temp_journal = TradeJournal()
+            temp_journal = TradeJournal(user_id=user_id)
             try:
                 temp_journal.load_journal(str(journal_file))
                 all_trades = [asdict(t) for t in temp_journal.trades]
@@ -264,7 +320,7 @@ async def get_trades(
         # No date filter - merge in-memory journal + journal files (including today)
         # In-memory journal can be stale when runner writes from another process,
         # so we always load today's file as source of truth and dedupe.
-        journal = get_journal()
+        journal = get_journal(user_id)
         all_trades = [asdict(t) for t in journal.trades]
 
         # Load recent journal files (today + previous 7 days)
@@ -274,7 +330,7 @@ async def get_trades(
             if not journal_file.exists():
                 continue
             try:
-                temp_journal = TradeJournal()
+                temp_journal = TradeJournal(user_id=user_id)
                 temp_journal.load_journal(str(journal_file))
                 all_trades.extend([asdict(t) for t in temp_journal.trades])
             except Exception:
@@ -320,9 +376,10 @@ async def get_trades(
 # ============== Order Endpoints ==============
 
 @router.post("/order")
-async def place_order(request: OrderRequest):
+async def place_order(request: OrderRequest, user: Optional["User"] = Depends(get_current_user_optional)):
     """Place a paper trading order."""
-    trader = get_paper_trader()
+    user_id = _get_user_id(user)
+    trader = get_paper_trader(user_id)
     risk_manager = get_risk_manager()
 
     # Validate side
@@ -371,9 +428,10 @@ async def place_order(request: OrderRequest):
 
 
 @router.post("/close")
-async def close_position(request: ClosePositionRequest):
+async def close_position(request: ClosePositionRequest, user: Optional["User"] = Depends(get_current_user_optional)):
     """Close a specific position."""
-    trader = get_paper_trader()
+    user_id = _get_user_id(user)
+    trader = get_paper_trader(user_id)
     from trading.paper_trader import ExitReason
 
     try:
@@ -391,7 +449,7 @@ async def close_position(request: ClosePositionRequest):
         raise HTTPException(status_code=404, detail=f"No position found for {request.symbol}")
 
     # Log to journal
-    journal = get_journal()
+    journal = get_journal(user_id)
     journal.log_trade({
         'trade_id': trade.trade_id,
         'symbol': trade.symbol,
@@ -422,9 +480,10 @@ async def close_position(request: ClosePositionRequest):
 
 
 @router.post("/close-all")
-async def close_all_positions(request: UpdatePricesRequest):
+async def close_all_positions(request: UpdatePricesRequest, user: Optional["User"] = Depends(get_current_user_optional)):
     """Close all open positions."""
-    trader = get_paper_trader()
+    user_id = _get_user_id(user)
+    trader = get_paper_trader(user_id)
     from trading.paper_trader import ExitReason
 
     trader.close_all_positions(request.prices, ExitReason.MANUAL)
@@ -437,9 +496,10 @@ async def close_all_positions(request: UpdatePricesRequest):
 
 
 @router.post("/update-prices")
-async def update_prices(request: UpdatePricesRequest):
+async def update_prices(request: UpdatePricesRequest, user: Optional["User"] = Depends(get_current_user_optional)):
     """Update prices and check for SL/TP triggers."""
-    trader = get_paper_trader()
+    user_id = _get_user_id(user)
+    trader = get_paper_trader(user_id)
 
     # Track trades before update
     trades_before = len(trader.trades)
@@ -452,7 +512,7 @@ async def update_prices(request: UpdatePricesRequest):
 
     # Log new trades to journal
     if new_trades_count > 0:
-        journal = get_journal()
+        journal = get_journal(user_id)
         new_trades = trader.trades[-new_trades_count:]
         for trade in new_trades:
             journal.log_trade({
@@ -553,30 +613,34 @@ async def create_signal(
 # ============== Journal Endpoints ==============
 
 @router.get("/journal/summary")
-async def get_journal_summary():
+async def get_journal_summary(user: Optional["User"] = Depends(get_current_user_optional)):
     """Get trading performance summary."""
-    journal = get_journal()
+    user_id = _get_user_id(user)
+    journal = get_journal(user_id)
     return journal.get_performance_summary()
 
 
 @router.get("/journal/symbols")
-async def get_symbol_performance():
+async def get_symbol_performance(user: Optional["User"] = Depends(get_current_user_optional)):
     """Get performance by symbol."""
-    journal = get_journal()
+    user_id = _get_user_id(user)
+    journal = get_journal(user_id)
     return journal.get_symbol_performance()
 
 
 @router.get("/journal/daily")
-async def get_daily_report(date: Optional[str] = None):
+async def get_daily_report(date: Optional[str] = None, user: Optional["User"] = Depends(get_current_user_optional)):
     """Get daily trading report."""
-    journal = get_journal()
+    user_id = _get_user_id(user)
+    journal = get_journal(user_id)
     return journal.get_daily_report(date)
 
 
 @router.get("/journal/export")
-async def export_journal():
+async def export_journal(user: Optional["User"] = Depends(get_current_user_optional)):
     """Export journal to CSV."""
-    journal = get_journal()
+    user_id = _get_user_id(user)
+    journal = get_journal(user_id)
     filepath = journal.export_to_csv()
     return {"status": "success", "filepath": filepath}
 
@@ -826,6 +890,7 @@ async def get_paper_chart(
     symbol: str,
     date: Optional[str] = None,
     timeframe: str = "5min",
+    user: Optional["User"] = Depends(get_current_user_optional),
 ):
     """
     Get intraday chart data with paper trade markers.
@@ -1011,13 +1076,14 @@ async def get_paper_chart(
         # Get trades from journal for this symbol and date
         # Load the journal file for the specific date
         from trading.journal import TradeJournal
-        journal_dir = Path(__file__).parent.parent / "journals"
+        uid = _get_user_id(user)
+        journal_dir = Path(__file__).parent.parent / "journals" / str(uid)
         date_str = date.replace('-', '')  # 2026-02-23 -> 20260223
         journal_file = journal_dir / f"journal_{date_str}.json"
 
         symbol_trades = []
         if journal_file.exists():
-            temp_journal = TradeJournal()
+            temp_journal = TradeJournal(user_id=uid)
             try:
                 temp_journal.load_journal(str(journal_file))
                 symbol_trades = [
@@ -1028,7 +1094,7 @@ async def get_paper_chart(
                 console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
         else:
             # Fallback to global journal for today
-            journal = get_journal()
+            journal = get_journal(uid)
             symbol_trades = [
                 t for t in journal.trades
                 if t.symbol == symbol.upper() and t.exit_time.startswith(date)

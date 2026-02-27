@@ -1,5 +1,5 @@
 /**
- * Main entry point for Stock Screener UI
+ * Main entry point for Alphashri
  */
 
 import "./style.css";
@@ -134,7 +134,7 @@ function renderScreenerView(): string {
   if (state.error) {
     return `
       <div class="header">
-        <div class="title">🚀 Stock Screener</div>
+        <div class="title">🚀 Alphashri</div>
         <div class="controls">
           <button onclick="window.refresh()">Retry</button>
         </div>

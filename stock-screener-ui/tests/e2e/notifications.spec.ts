@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks } from "../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 
 test.describe("Notification Panel", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
+    await loginAsTestUser(page);
   });
 
   test("should toggle notification panel when button clicked", async ({ page }) => {

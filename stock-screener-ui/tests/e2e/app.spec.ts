@@ -1,14 +1,15 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, mockTrendingResponse } from "../mocks/apiResponses";
+import { setupApiMocks, mockTrendingResponse, loginAsTestUser } from "../mocks/apiResponses";
 
-test.describe("Stock Screener UI", () => {
+test.describe("Alphashri", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
+    await loginAsTestUser(page);
   });
 
   test("should load the main page with title", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/Stock Screener/);
+    await expect(page).toHaveTitle(/Alphashri/);
   });
 
   test("should display data table", async ({ page }) => {

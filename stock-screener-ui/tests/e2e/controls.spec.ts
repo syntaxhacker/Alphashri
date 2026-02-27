@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks } from "../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 
 test.describe("UI Controls", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
+    await loginAsTestUser(page);
   });
 
   test("should refresh data when refresh button clicked", async ({ page }) => {
@@ -90,7 +91,6 @@ test.describe("UI Controls", () => {
       await route.continue();
     });
 
-    await setupApiMocks(page);
     await page.goto("/");
 
     // Check for loading indicator (may be brief)
