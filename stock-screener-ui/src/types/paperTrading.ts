@@ -147,7 +147,7 @@ export interface PaperBotSnapshot {
 }
 
 // View type for paper trading
-export type PaperTradingView = "live" | "history";
+export type PaperTradingView = "live" | "history" | "settings";
 
 // State interface
 export interface PaperTradingState {
@@ -187,7 +187,50 @@ export interface PaperTradingState {
   botPid: number | null;
   botLogFile: string | null;
   botSnapshot: PaperBotSnapshot | null;
+
+  // Strategy config
+  strategyConfig: StrategyConfig | null;
+  configLoading: boolean;
+  configError: string | null;
+  configDirty: boolean; // Has unsaved changes
 }
 
 // View type for paper trading (match the state)
-export type PaperView = "live" | "history";
+export type PaperView = "live" | "history" | "settings";
+
+// Strategy configuration from database
+export interface StrategyConfig {
+  id?: number;
+  name: string;
+  strategy_type: string;
+  is_active: boolean;
+  is_default: boolean;
+  // ORB Parameters
+  or_minutes: number;
+  sl_pct: number;
+  tp_pct: number;
+  min_or_range_pct: number;
+  max_or_range_pct: number;
+  // Risk Parameters
+  max_positions: number;
+  max_capital_per_trade_pct: number;
+  max_daily_loss_pct: number;
+  max_total_exposure_pct: number;
+  risk_per_trade_pct: number;
+  min_trade_value: number;
+  max_trade_value: number;
+  // Runner Parameters
+  cooldown_minutes: number;
+  max_distance_from_or_pct: number;
+  // Cost Parameters
+  brokerage_pct: number;
+  min_brokerage: number;
+  stt_pct: number;
+  exchange_pct: number;
+  sebi_pct: number;
+  stamp_pct: number;
+  gst_pct: number;
+  // Metadata
+  created_at?: string | null;
+  updated_at?: string | null;
+}

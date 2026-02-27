@@ -16,6 +16,13 @@ import json
 # Add project paths
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+# Import config loader
+try:
+    from trading.config_loader import get_strategy_config
+    _config_available = True
+except ImportError:
+    _config_available = False
+
 from rich.console import Console
 from rich.table import Table
 
@@ -108,42 +115,55 @@ class PaperTrader:
     def __init__(
         self,
         initial_capital: float = 1_000_000,
-        brokerage_pct: float = 0.0003,  # 0.03%
-        min_brokerage: float = 20,
-        stt_pct: float = 0.00025,  # 0.025% (sell side)
-        exchange_pct: float = 0.0000297,
-        sebi_pct: float = 0.000001,
-        stamp_pct: float = 0.00003,  # 0.003% (buy side)
-        gst_pct: float = 0.18,
+        brokerage_pct: float = None,
+        min_brokerage: float = None,
+        stt_pct: float = None,
+        exchange_pct: float = None,
+        sebi_pct: float = None,
+        stamp_pct: float = None,
+        gst_pct: float = None,
         user_id: Optional[int] = None,
+        config_name: str = None,
     ):
         """
         Initialize paper trader.
 
         Args:
             initial_capital: Starting capital in INR
-            brokerage_pct: Brokerage percentage
-            min_brokerage: Minimum brokerage per order
-            stt_pct: STT percentage (sell side)
-            exchange_pct: Exchange charges percentage
-            sebi_pct: SEBI fee percentage
-            stamp_pct: Stamp duty percentage (buy side)
-            gst_pct: GST on brokerage+exchange+sebi
+            brokerage_pct: Brokerage percentage (overrides config)
+            min_brokerage: Minimum brokerage per order (overrides config)
+            stt_pct: STT percentage (sell side) (overrides config)
+            exchange_pct: Exchange charges percentage (overrides config)
+            sebi_pct: SEBI fee percentage (overrides config)
+            stamp_pct: Stamp duty percentage (buy side) (overrides config)
+            gst_pct: GST on brokerage+exchange+sebi (overrides config)
             user_id: User ID for multi-user support
+            config_name: Name of config to load from database
         """
         self.user_id = user_id
         self.initial_capital = initial_capital
         self.cash = initial_capital
         self.margin_used = 0.0
 
-        # Cost parameters
-        self.brokerage_pct = brokerage_pct
-        self.min_brokerage = min_brokerage
-        self.stt_pct = stt_pct
-        self.exchange_pct = exchange_pct
-        self.sebi_pct = sebi_pct
-        self.stamp_pct = stamp_pct
-        self.gst_pct = gst_pct
+        # Load cost parameters from config if available
+        if _config_available:
+            config = get_strategy_config(config_name)
+            self.brokerage_pct = brokerage_pct if brokerage_pct is not None else config.brokerage_pct
+            self.min_brokerage = min_brokerage if min_brokerage is not None else config.min_brokerage
+            self.stt_pct = stt_pct if stt_pct is not None else config.stt_pct
+            self.exchange_pct = exchange_pct if exchange_pct is not None else config.exchange_pct
+            self.sebi_pct = sebi_pct if sebi_pct is not None else config.sebi_pct
+            self.stamp_pct = stamp_pct if stamp_pct is not None else config.stamp_pct
+            self.gst_pct = gst_pct if gst_pct is not None else config.gst_pct
+        else:
+            # Fall back to hardcoded defaults
+            self.brokerage_pct = brokerage_pct if brokerage_pct is not None else 0.0003
+            self.min_brokerage = min_brokerage if min_brokerage is not None else 20
+            self.stt_pct = stt_pct if stt_pct is not None else 0.00025
+            self.exchange_pct = exchange_pct if exchange_pct is not None else 0.0000297
+            self.sebi_pct = sebi_pct if sebi_pct is not None else 0.000001
+            self.stamp_pct = stamp_pct if stamp_pct is not None else 0.00003
+            self.gst_pct = gst_pct if gst_pct is not None else 0.18
 
         # Positions and orders
         self.positions: Dict[str, PaperPosition] = {}

@@ -11,6 +11,7 @@ import type {
   SymbolPerformance,
   PaperChartData,
   PaperBotSnapshot,
+  StrategyConfig,
 } from "../types/paperTrading";
 import {
   setPositions,
@@ -27,6 +28,9 @@ import {
   setBotSnapshot,
   setupAutoRefresh,
   stopAutoRefresh,
+  setStrategyConfig,
+  setConfigLoading,
+  setConfigError,
 } from "../state/paperTrading";
 
 const API_BASE = "http://localhost:8765";
@@ -294,5 +298,72 @@ export async function closePaperPosition(
   } catch (error) {
     console.error("Failed to close position:", error);
     throw error;
+  }
+}
+
+// Fetch strategy configuration
+export async function fetchStrategyConfig(): Promise<StrategyConfig | null> {
+  setConfigLoading(true);
+  try {
+    const response = await fetch(`${API_BASE}/api/paper/config`);
+    const data = await response.json();
+    if (data.config) {
+      setStrategyConfig(data.config);
+      return data.config;
+    }
+    setConfigLoading(false);
+    return null;
+  } catch (error) {
+    console.error("Failed to fetch strategy config:", error);
+    setConfigError(error instanceof Error ? error.message : "Failed to load config");
+    return null;
+  }
+}
+
+// Update strategy configuration
+export async function updateStrategyConfig(
+  config: Partial<StrategyConfig>,
+): Promise<boolean> {
+  setConfigLoading(true);
+  try {
+    const response = await fetch(`${API_BASE}/api/paper/config`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "Failed to update config");
+    }
+    if (data.config) {
+      setStrategyConfig(data.config);
+    }
+    return true;
+  } catch (error) {
+    console.error("Failed to update strategy config:", error);
+    setConfigError(error instanceof Error ? error.message : "Failed to save config");
+    return false;
+  }
+}
+
+// Reset strategy configuration to defaults
+export async function resetStrategyConfig(): Promise<boolean> {
+  setConfigLoading(true);
+  try {
+    const response = await fetch(`${API_BASE}/api/paper/config/reset`, {
+      method: "POST",
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "Failed to reset config");
+    }
+    if (data.config) {
+      setStrategyConfig(data.config);
+    }
+    return true;
+  } catch (error) {
+    console.error("Failed to reset strategy config:", error);
+    setConfigError(error instanceof Error ? error.message : "Failed to reset config");
+    return false;
   }
 }

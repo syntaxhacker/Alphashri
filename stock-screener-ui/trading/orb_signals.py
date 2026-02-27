@@ -21,6 +21,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / 'scanners'))
 from rich.console import Console
 from rich.table import Table
 
+# Import config loader
+try:
+    from trading.config_loader import get_strategy_config
+    _config_available = True
+except ImportError:
+    _config_available = False
+
 console = Console()
 
 
@@ -71,27 +78,39 @@ class ORBSignalGenerator:
 
     def __init__(
         self,
-        or_minutes: int = 45,
-        sl_pct: float = 0.4,
-        tp_pct: float = 1.2,
-        min_or_range_pct: float = 0.5,
-        max_or_range_pct: float = 3.0,
+        or_minutes: int = None,
+        sl_pct: float = None,
+        tp_pct: float = None,
+        min_or_range_pct: float = None,
+        max_or_range_pct: float = None,
+        config_name: str = None,
     ):
         """
         Initialize signal generator.
 
         Args:
-            or_minutes: Opening range duration in minutes
-            sl_pct: Stop loss percentage
-            tp_pct: Take profit percentage
-            min_or_range_pct: Minimum OR range % for valid signal
-            max_or_range_pct: Maximum OR range % for valid signal
+            or_minutes: Opening range duration in minutes (overrides config)
+            sl_pct: Stop loss percentage (overrides config)
+            tp_pct: Take profit percentage (overrides config)
+            min_or_range_pct: Minimum OR range % for valid signal (overrides config)
+            max_or_range_pct: Maximum OR range % for valid signal (overrides config)
+            config_name: Name of config to load from database
         """
-        self.or_minutes = or_minutes
-        self.sl_pct = sl_pct
-        self.tp_pct = tp_pct
-        self.min_or_range_pct = min_or_range_pct
-        self.max_or_range_pct = max_or_range_pct
+        # Load from config if available
+        if _config_available:
+            config = get_strategy_config(config_name)
+            self.or_minutes = or_minutes if or_minutes is not None else config.or_minutes
+            self.sl_pct = sl_pct if sl_pct is not None else config.sl_pct
+            self.tp_pct = tp_pct if tp_pct is not None else config.tp_pct
+            self.min_or_range_pct = min_or_range_pct if min_or_range_pct is not None else config.min_or_range_pct
+            self.max_or_range_pct = max_or_range_pct if max_or_range_pct is not None else config.max_or_range_pct
+        else:
+            # Fall back to hardcoded defaults
+            self.or_minutes = or_minutes if or_minutes is not None else 45
+            self.sl_pct = sl_pct if sl_pct is not None else 0.4
+            self.tp_pct = tp_pct if tp_pct is not None else 1.2
+            self.min_or_range_pct = min_or_range_pct if min_or_range_pct is not None else 0.5
+            self.max_or_range_pct = max_or_range_pct if max_or_range_pct is not None else 3.0
 
         # OR levels cache
         self.or_levels: Dict[str, dict] = {}

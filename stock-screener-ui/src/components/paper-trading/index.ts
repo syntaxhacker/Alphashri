@@ -1,12 +1,13 @@
 /**
  * Paper Trading View Component
  *
- * Main paper trading view with Live Positions and Trade History tabs.
+ * Main paper trading view with Live Positions, Trade History, and Settings tabs.
  */
 
 import { renderPositionsPanel, initPositionsHandlers } from "./positions";
 import { renderHistoryPanel, initHistoryHandlers } from "./history";
 import { renderChartContainer, initChartHandlers } from "./chart";
+import { renderSettingsPanel, initSettingsHandlers } from "./settings";
 import {
   getPaperTradingState,
   setPaperTradingView,
@@ -23,6 +24,7 @@ import {
   startPaperBot,
   stopPaperBot,
   fetchPaperBotStatus,
+  fetchStrategyConfig,
 } from "../../api/paperTrading";
 import type { PaperTradingView } from "../../types/paperTrading";
 
@@ -52,24 +54,35 @@ export function renderPaperTradingView(): string {
             Trade History
             ${state.trades.length > 0 ? `<span class="tab-badge">${state.trades.length}</span>` : ""}
           </button>
+          <button
+            class="paper-tab ${state.currentView === "settings" ? "active" : ""}"
+            onclick="window.setPaperView('settings')"
+          >
+            <span class="tab-icon">⚙️</span>
+            Settings
+            ${state.configDirty ? `<span class="tab-badge tab-badge-dirty">●</span>` : ""}
+          </button>
         </div>
         <div class="paper-filters">
           ${renderFilters(state)}
         </div>
       </div>
 
-      <!-- Main Content: Table Left, Chart Right -->
-      <div class="paper-main">
-        <!-- Left: Positions or History Table -->
-        <div class="paper-left">
-          ${state.currentView === "live" ? renderPositionsPanel() : renderHistoryPanel()}
-        </div>
+      <!-- Main Content -->
+      ${state.currentView === "settings" ? renderSettingsPanel() : `
+        <!-- Table Left, Chart Right -->
+        <div class="paper-main">
+          <!-- Left: Positions or History Table -->
+          <div class="paper-left">
+            ${state.currentView === "live" ? renderPositionsPanel() : renderHistoryPanel()}
+          </div>
 
-        <!-- Right: Chart -->
-        <div class="paper-right">
-          ${renderChartContainer()}
+          <!-- Right: Chart -->
+          <div class="paper-right">
+            ${renderChartContainer()}
+          </div>
         </div>
-      </div>
+      `}
 
       ${
         state.error
@@ -157,6 +170,7 @@ export function initPaperTradingHandlers() {
   initPositionsHandlers();
   initHistoryHandlers();
   initChartHandlers();
+  initSettingsHandlers();
 
   // View switching
   (window as any).setPaperView = (view: PaperTradingView) => {
@@ -164,9 +178,12 @@ export function initPaperTradingHandlers() {
     if (view === "live") {
       initLiveAutoRefresh();
       refreshLiveData();
-    } else {
+    } else if (view === "history") {
       stopLiveAutoRefresh();
       refreshHistoryData();
+    } else if (view === "settings") {
+      stopLiveAutoRefresh();
+      fetchStrategyConfig();
     }
   };
 

@@ -1162,3 +1162,142 @@ async def get_paper_chart(
     except Exception as e:
         console.print(f"[red]Error fetching chart data: {e}[/red]")
         return {"error": str(e), "symbol": symbol, "date": date}
+
+
+# ============== Strategy Configuration Endpoints ==============
+
+class StrategyConfigUpdate(BaseModel):
+    """Model for updating strategy config."""
+    # ORB Strategy Parameters
+    or_minutes: Optional[int] = None
+    sl_pct: Optional[float] = None
+    tp_pct: Optional[float] = None
+    min_or_range_pct: Optional[float] = None
+    max_or_range_pct: Optional[float] = None
+
+    # Risk Management Parameters
+    max_positions: Optional[int] = None
+    max_capital_per_trade_pct: Optional[float] = None
+    max_daily_loss_pct: Optional[float] = None
+    max_total_exposure_pct: Optional[float] = None
+    risk_per_trade_pct: Optional[float] = None
+    min_trade_value: Optional[float] = None
+    max_trade_value: Optional[float] = None
+
+    # Trading Runner Parameters
+    cooldown_minutes: Optional[int] = None
+    max_distance_from_or_pct: Optional[float] = None
+
+    # Cost Parameters
+    brokerage_pct: Optional[float] = None
+    min_brokerage: Optional[float] = None
+    stt_pct: Optional[float] = None
+    exchange_pct: Optional[float] = None
+    sebi_pct: Optional[float] = None
+    stamp_pct: Optional[float] = None
+    gst_pct: Optional[float] = None
+
+
+@router.get("/config")
+async def get_strategy_config_endpoint(name: Optional[str] = None):
+    """Get strategy configuration from database."""
+    try:
+        from trading.config_loader import get_strategy_config, StrategyConfigData
+        config = get_strategy_config(name)
+        return {
+            "status": "success",
+            "config": config.to_dict(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load config: {e}")
+
+
+@router.put("/config")
+async def update_strategy_config_endpoint(
+    request: StrategyConfigUpdate,
+    name: str = "orb_default",
+    user: Optional["User"] = Depends(get_current_user_optional),
+):
+    """Update strategy configuration in database."""
+    try:
+        from db.database import SessionLocal
+        from db.models import StrategyConfig
+
+        with SessionLocal() as db:
+            config = db.query(StrategyConfig).filter(
+                StrategyConfig.name == name
+            ).first()
+
+            if not config:
+                # Create new config if doesn't exist
+                config = StrategyConfig(name=name, strategy_type="ORB", is_default=(name == "orb_default"))
+                db.add(config)
+
+            # Update only provided fields
+            update_data = request.model_dump(exclude_unset=True)
+            for key, value in update_data.items():
+                if value is not None and hasattr(config, key):
+                    setattr(config, key, value)
+
+            db.commit()
+            db.refresh(config)
+
+            return {
+                "status": "success",
+                "message": f"Config '{name}' updated",
+                "config": config.to_dict(),
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update config: {e}")
+
+
+@router.post("/config/reset")
+async def reset_strategy_config_endpoint(name: str = "orb_default"):
+    """Reset strategy configuration to defaults."""
+    try:
+        from db.database import SessionLocal
+        from db.models import StrategyConfig
+
+        with SessionLocal() as db:
+            config = db.query(StrategyConfig).filter(
+                StrategyConfig.name == name
+            ).first()
+
+            if not config:
+                raise HTTPException(status_code=404, detail=f"Config '{name}' not found")
+
+            # Reset to default values
+            config.or_minutes = 45
+            config.sl_pct = 0.4
+            config.tp_pct = 1.2
+            config.min_or_range_pct = 0.5
+            config.max_or_range_pct = 3.0
+            config.max_positions = 5
+            config.max_capital_per_trade_pct = 0.10
+            config.max_daily_loss_pct = 0.02
+            config.max_total_exposure_pct = 0.50
+            config.risk_per_trade_pct = 0.01
+            config.min_trade_value = 5000
+            config.max_trade_value = 100000
+            config.cooldown_minutes = 30
+            config.max_distance_from_or_pct = 1.5
+            config.brokerage_pct = 0.0003
+            config.min_brokerage = 20
+            config.stt_pct = 0.00025
+            config.exchange_pct = 0.0000297
+            config.sebi_pct = 0.000001
+            config.stamp_pct = 0.00003
+            config.gst_pct = 0.18
+
+            db.commit()
+            db.refresh(config)
+
+            return {
+                "status": "success",
+                "message": f"Config '{name}' reset to defaults",
+                "config": config.to_dict(),
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reset config: {e}")

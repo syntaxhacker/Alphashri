@@ -404,6 +404,41 @@ export const testUser = {
   created_at: "2026-01-01T00:00:00",
 };
 
+// Mock strategy config
+export const mockStrategyConfig = {
+  id: 1,
+  name: "orb_default",
+  strategy_type: "ORB",
+  is_active: true,
+  is_default: true,
+  or_minutes: 45,
+  sl_pct: 0.4,
+  tp_pct: 1.2,
+  min_or_range_pct: 0.5,
+  max_or_range_pct: 3.0,
+  max_positions: 5,
+  max_capital_per_trade_pct: 0.1,
+  max_daily_loss_pct: 0.02,
+  max_total_exposure_pct: 0.5,
+  risk_per_trade_pct: 0.01,
+  min_trade_value: 5000,
+  max_trade_value: 100000,
+  cooldown_minutes: 30,
+  max_distance_from_or_pct: 1.5,
+  brokerage_pct: 0.0003,
+  min_brokerage: 20,
+  stt_pct: 0.00025,
+  exchange_pct: 0.0000297,
+  sebi_pct: 0.000001,
+  stamp_pct: 0.00003,
+  gst_pct: 0.18,
+  created_at: "2026-01-01T00:00:00",
+  updated_at: "2026-01-01T00:00:00",
+};
+
+// Mutable config for tests
+let currentConfig = { ...mockStrategyConfig };
+
 // Helper to login as test user (sets localStorage tokens)
 export async function loginAsTestUser(page: import("@playwright/test").Page) {
   // Mock auth/me to return authenticated user
@@ -430,4 +465,123 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
       }),
     );
   });
+}
+
+// Helper to setup paper trading API mocks
+export async function setupPaperTradingMocks(page: import("@playwright/test").Page) {
+  // Reset config to defaults
+  currentConfig = { ...mockStrategyConfig };
+
+  // Mock portfolio endpoint
+  await page.route("**/api/paper/portfolio", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        initial_capital: 1000000,
+        cash: 950000,
+        margin_used: 50000,
+        position_value: 50000,
+        unrealized_pnl: 1000,
+        realized_pnl: 5000,
+        total_value: 1006000,
+        total_pnl: 6000,
+        total_pnl_pct: 0.6,
+        positions: 1,
+        trades: 5,
+        daily_pnl: 1000,
+        daily_pnl_pct: 0.1,
+        daily_trades: 2,
+        open_positions: 1,
+      }),
+    });
+  });
+
+  // Mock positions endpoint
+  await page.route("**/api/paper/positions", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        count: 0,
+        positions: [],
+      }),
+    });
+  });
+
+  // Mock bot status endpoint
+  await page.route("**/api/paper/bot/status", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        running: false,
+        pid: null,
+        log_file: null,
+      }),
+    });
+  });
+
+  // Mock bot snapshot endpoint
+  await page.route("**/api/paper/bot/snapshot", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        watchlist: [],
+        open_positions: [],
+        scan_items: [],
+        signals: [],
+      }),
+    });
+  });
+
+  // Mock GET config endpoint
+  await page.route("**/api/paper/config**", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "success",
+          config: currentConfig,
+        }),
+      });
+    } else if (route.request().method() === "PUT") {
+      // Handle PUT - update config
+      const body = route.request().postDataJSON();
+      currentConfig = { ...currentConfig, ...body };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "success",
+          message: "Config updated",
+          config: currentConfig,
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // Mock POST config/reset endpoint
+  await page.route("**/api/paper/config/reset", async (route) => {
+    currentConfig = { ...mockStrategyConfig };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "success",
+        message: "Config reset to defaults",
+        config: currentConfig,
+      }),
+    });
+  });
+}
+
+// Helper to get current config (for test assertions)
+export function getCurrentConfig() {
+  return { ...currentConfig };
 }

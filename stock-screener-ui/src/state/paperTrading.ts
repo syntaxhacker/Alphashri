@@ -12,6 +12,7 @@ import type {
   PerformanceSummary,
   SymbolPerformance,
   PaperChartData,
+  StrategyConfig,
 } from "../types/paperTrading";
 
 // Initial state
@@ -44,6 +45,12 @@ export const initialPaperTradingState: PaperTradingState = {
   botPid: null,
   botLogFile: null,
   botSnapshot: null,
+
+  // Strategy config
+  strategyConfig: null,
+  configLoading: false,
+  configError: null,
+  configDirty: false,
 };
 
 // Additional type for the view state
@@ -217,4 +224,36 @@ export function resetPaperTradingState() {
 // Force re-render
 export function triggerPaperTradingRerender() {
   notify();
+}
+
+// Strategy config management
+export function setStrategyConfig(config: StrategyConfig | null) {
+  state = { ...state, strategyConfig: config, configLoading: false, configError: null, configDirty: false };
+  notify();
+}
+
+export function setConfigLoading(loading: boolean) {
+  state = { ...state, configLoading: loading };
+  notify();
+}
+
+export function setConfigError(error: string | null) {
+  state = { ...state, configError: error, configLoading: false };
+  notify();
+}
+
+export function setConfigDirty(dirty: boolean) {
+  state = { ...state, configDirty: dirty };
+  notify();
+}
+
+export function updateConfigValue(key: keyof StrategyConfig, value: any) {
+  if (state.strategyConfig) {
+    state = {
+      ...state,
+      strategyConfig: { ...state.strategyConfig, [key]: value },
+      configDirty: true,
+    };
+    notify();
+  }
 }

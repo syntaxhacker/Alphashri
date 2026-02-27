@@ -11,6 +11,13 @@ Implements risk management rules:
 from typing import Dict, Optional
 from dataclasses import dataclass
 
+# Import config loader
+try:
+    from trading.config_loader import get_strategy_config
+    _config_available = True
+except ImportError:
+    _config_available = False
+
 
 @dataclass
 class RiskConfig:
@@ -35,9 +42,32 @@ class RiskManager:
     - Trade validation
     """
 
-    def __init__(self, config: Optional[RiskConfig] = None):
-        """Initialize risk manager."""
-        self.config = config or RiskConfig()
+    def __init__(self, config: Optional[RiskConfig] = None, config_name: str = None):
+        """
+        Initialize risk manager.
+
+        Args:
+            config: RiskConfig to use (overrides database config)
+            config_name: Name of config to load from database
+        """
+        if config is not None:
+            self.config = config
+        elif _config_available:
+            # Load from database config
+            db_config = get_strategy_config(config_name)
+            self.config = RiskConfig(
+                max_positions=db_config.max_positions,
+                max_capital_per_trade=db_config.max_capital_per_trade_pct,
+                max_daily_loss=db_config.max_daily_loss_pct,
+                max_total_exposure=db_config.max_total_exposure_pct,
+                risk_per_trade=db_config.risk_per_trade_pct,
+                min_trade_value=db_config.min_trade_value,
+                max_trade_value=db_config.max_trade_value,
+            )
+        else:
+            # Fall back to defaults
+            self.config = RiskConfig()
+
         self.daily_pnl = 0.0
         self.daily_start_loss_limit_hit = False
 
@@ -241,11 +271,28 @@ class RiskManager:
 _risk_manager: Optional[RiskManager] = None
 
 
-def get_risk_manager() -> RiskManager:
-    """Get singleton risk manager instance."""
+def get_risk_manager(config_name: str = None) -> RiskManager:
+    """
+    Get singleton risk manager instance.
+
+    Args:
+        config_name: Name of config to load from database (only used on first call)
+    """
     global _risk_manager
     if _risk_manager is None:
-        _risk_manager = RiskManager()
+        _risk_manager = RiskManager(config_name=config_name)
+    return _risk_manager
+
+
+def reset_risk_manager(config_name: str = None) -> RiskManager:
+    """
+    Reset risk manager with new config.
+
+    Args:
+        config_name: Name of config to load from database
+    """
+    global _risk_manager
+    _risk_manager = RiskManager(config_name=config_name)
     return _risk_manager
 
 

@@ -24,7 +24,8 @@ from db.database import get_db
 from db.models import User, UserSession
 
 # Configuration
-JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", secrets.token_hex(32))
+# Use a fixed secret key for development (set JWT_SECRET_KEY env var in production)
+JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "alphashri-dev-secret-key-do-not-use-in-production")
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 REFRESH_TOKEN_EXPIRE_DAYS = 7

@@ -36,6 +36,13 @@ from rich.panel import Panel
 
 console = Console()
 
+# Import config loader
+try:
+    from trading.config_loader import get_strategy_config
+    _config_available = True
+except ImportError:
+    _config_available = False
+
 # Import trading modules
 from trading.paper_trader import PaperTrader, OrderSide, get_paper_trader
 from trading.orb_signals import ORBSignalGenerator, SignalType, create_entry_signal
@@ -57,34 +64,41 @@ class DailyTradingRunner:
     FORCE_EXIT = (14, 45)
     MARKET_CLOSE = (15, 30)
 
-    # Cooldown period in minutes after a trade closes
-    COOLDOWN_MINUTES = 30
-
     def __init__(
         self,
         capital: float = 1_000_000,
         max_positions: int = 5,
         test_mode: bool = False,
         force_signals: bool = False,
+        config_name: str = None,
     ):
         """
         Initialize daily trading runner.
 
         Args:
             capital: Initial capital
-            max_positions: Maximum concurrent positions
+            max_positions: Maximum concurrent positions (overrides config)
             test_mode: If True, don't execute trades
             force_signals: If True, generate synthetic signals for testing
+            config_name: Name of config to load from database
         """
+        # Load config
+        self.config = get_strategy_config(config_name) if _config_available else None
+
         self.capital = capital
-        self.max_positions = max_positions
+        self.max_positions = max_positions if max_positions is not None else (
+            self.config.max_positions if self.config else 5
+        )
         self.test_mode = test_mode
         self.force_signals = force_signals
 
+        # Load runner parameters from config
+        self.COOLDOWN_MINUTES = self.config.cooldown_minutes if self.config else 30
+
         # Initialize components
         self.trader = get_paper_trader()
-        self.signal_generator = ORBSignalGenerator()
-        self.risk_manager = get_risk_manager()
+        self.signal_generator = ORBSignalGenerator(config_name=config_name)
+        self.risk_manager = get_risk_manager(config_name=config_name)
         self.journal = get_journal()
 
         # State
@@ -415,7 +429,8 @@ class DailyTradingRunner:
             console.print(f"[dim]  {symbol}: Price ₹{current_price:.2f} | OR High ₹{or_high:.2f} | OR Low ₹{or_low:.2f}[/dim]")
 
             # ENTRY FILTERS to avoid bad entries
-            MAX_DISTANCE_FROM_OR = 1.5  # Don't enter if more than 1.5% away from OR level
+            # Load from config or use default
+            MAX_DISTANCE_FROM_OR = self.config.max_distance_from_or_pct if self.config else 1.5
 
             # Calculate trend indicators from OR data
             day_open = or_levels.get('or_open', current_price)

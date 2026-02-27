@@ -2384,6 +2384,181 @@ kbd {
   font-size: 11px;
 }
 
+/* Tab badge for unsaved changes */
+.tab-badge-dirty {
+  background: #ff9f43 !important;
+  font-size: 10px;
+  padding: 0 4px;
+}
+
+/* ============================================
+   Settings Panel
+   ============================================ */
+
+.settings-panel {
+  padding: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.settings-loading,
+.settings-empty,
+.settings-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: #888;
+  font-size: 14px;
+  gap: 16px;
+}
+
+.settings-error-bar {
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid #ff4757;
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  color: #ff4757;
+  font-size: 12px;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #222;
+}
+
+.settings-header h3 {
+  font-size: 16px;
+  font-weight: 500;
+  color: #e0e0e0;
+  margin: 0;
+}
+
+.settings-header .config-name {
+  font-size: 11px;
+  color: #666;
+  background: #1a1a1a;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-section {
+  background: #0f0f0f;
+  border: 1px solid #222;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  cursor: default;
+}
+
+.settings-section-collapsible .settings-section-header {
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-section-collapsible .settings-section-header:hover {
+  color: #00ff9d;
+}
+
+.settings-section-icon {
+  font-size: 16px;
+}
+
+.settings-section-header h4 {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+  margin: 0;
+  flex: 1;
+}
+
+.settings-collapse-icon {
+  font-size: 10px;
+  color: #666;
+  transition: transform 0.2s;
+}
+
+.settings-section-content {
+  padding-top: 8px;
+}
+
+.settings-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 12px;
+}
+
+.settings-row:last-child {
+  margin-bottom: 0;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.settings-field label {
+  font-size: 10px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.settings-input {
+  background: #0a0a0a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 13px;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+
+.settings-input:hover {
+  border-color: #444;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: #00ff9d;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #222;
+}
+
+.settings-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Loading indicator */
 .loading-indicator {
   display: flex;
