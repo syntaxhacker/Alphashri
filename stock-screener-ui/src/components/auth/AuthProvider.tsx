@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from "react";
 
 const API_BASE = "http://localhost:8765";
 const TOKEN_KEY = "alphashri_token";
@@ -19,7 +26,11 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
+  register: (
+    email: string,
+    password: string,
+    displayName?: string,
+  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   getAccessToken: () => string | null;
   fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
@@ -95,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return fetch(url, { ...options, headers });
     },
-    []
+    [],
   );
 
   const refreshTokens = useCallback(async (): Promise<boolean> => {
@@ -220,14 +231,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: errorMessage };
       }
     },
-    []
+    [],
   );
 
   const register = useCallback(
     async (
       email: string,
       password: string,
-      displayName?: string
+      displayName?: string,
     ): Promise<{ success: boolean; error?: string }> => {
       setLoading(true);
       setError(null);
@@ -270,7 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: errorMessage };
       }
     },
-    []
+    [],
   );
 
   const logout = useCallback(async () => {

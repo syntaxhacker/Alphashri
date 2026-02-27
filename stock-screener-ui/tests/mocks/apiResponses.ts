@@ -419,12 +419,15 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
   await page.addInitScript(() => {
     localStorage.setItem("alphashri_token", "test_access_token_12345");
     localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
-    localStorage.setItem("alphashri_user", JSON.stringify({
-      id: 1,
-      email: "test@alphashri.dev",
-      display_name: "TestUser",
-      initial_capital: 1000000,
-      created_at: "2026-01-01T00:00:00",
-    }));
+    localStorage.setItem(
+      "alphashri_user",
+      JSON.stringify({
+        id: 1,
+        email: "test@alphashri.dev",
+        display_name: "TestUser",
+        initial_capital: 1000000,
+        created_at: "2026-01-01T00:00:00",
+      }),
+    );
   });
 }

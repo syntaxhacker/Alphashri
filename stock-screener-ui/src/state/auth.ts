@@ -85,10 +85,7 @@ export function setStoredUser(user: User): void {
 }
 
 // API helper with auth
-async function fetchWithAuth(
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> {
+async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAccessToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -105,7 +102,7 @@ async function fetchWithAuth(
 // Auth API functions
 export async function login(
   email: string,
-  password: string
+  password: string,
 ): Promise<{ success: boolean; error?: string }> {
   updateState({ loading: true, error: null });
 
@@ -147,8 +144,7 @@ export async function login(
 
     return { success: true };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Network error";
+    const errorMessage = error instanceof Error ? error.message : "Network error";
     updateState({ loading: false, error: errorMessage });
     return { success: false, error: errorMessage };
   }
@@ -157,7 +153,7 @@ export async function login(
 export async function register(
   email: string,
   password: string,
-  displayName?: string
+  displayName?: string,
 ): Promise<{ success: boolean; error?: string }> {
   updateState({ loading: true, error: null });
 
@@ -198,8 +194,7 @@ export async function register(
 
     return { success: true };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Network error";
+    const errorMessage = error instanceof Error ? error.message : "Network error";
     updateState({ loading: false, error: errorMessage });
     return { success: false, error: errorMessage };
   }

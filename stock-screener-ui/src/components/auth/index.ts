@@ -34,11 +34,7 @@ export function renderLoginForm(): string {
           <p>Sign in to your account</p>
         </div>
 
-        ${
-          state.error
-            ? `<div class="auth-error">${state.error}</div>`
-            : ""
-        }
+        ${state.error ? `<div class="auth-error">${state.error}</div>` : ""}
 
         <form id="auth-login-form" class="auth-form">
           <div class="form-group">
@@ -92,11 +88,7 @@ export function renderRegisterForm(): string {
           <p>Create your account</p>
         </div>
 
-        ${
-          state.error
-            ? `<div class="auth-error">${state.error}</div>`
-            : ""
-        }
+        ${state.error ? `<div class="auth-error">${state.error}</div>` : ""}
 
         <form id="auth-register-form" class="auth-form">
           <div class="form-group">
@@ -216,8 +208,7 @@ export function initAuthHandlers(render: () => void): void {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const email = (form.querySelector("#auth-email") as HTMLInputElement).value;
-    const password = (form.querySelector("#auth-password") as HTMLInputElement)
-      .value;
+    const password = (form.querySelector("#auth-password") as HTMLInputElement).value;
 
     const result = await authState.login(email, password);
     if (result.success) {
@@ -229,14 +220,10 @@ export function initAuthHandlers(render: () => void): void {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const email = (form.querySelector("#auth-email") as HTMLInputElement).value;
-    const displayName = (
-      form.querySelector("#auth-display-name") as HTMLInputElement
-    )?.value;
-    const password = (form.querySelector("#auth-password") as HTMLInputElement)
-      .value;
-    const passwordConfirm = (
-      form.querySelector("#auth-password-confirm") as HTMLInputElement
-    )?.value;
+    const displayName = (form.querySelector("#auth-display-name") as HTMLInputElement)?.value;
+    const password = (form.querySelector("#auth-password") as HTMLInputElement).value;
+    const passwordConfirm = (form.querySelector("#auth-password-confirm") as HTMLInputElement)
+      ?.value;
 
     if (password !== passwordConfirm) {
       authState.authState.error = "Passwords do not match";
