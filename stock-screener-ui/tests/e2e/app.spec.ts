@@ -48,7 +48,7 @@ test.describe("Paper Trading Settings", () => {
     await page.goto("/");
 
     // Click on Paper Trading in the nav
-    await page.click('text=Paper Trading');
+    await page.click("text=Paper Trading");
 
     // Wait for paper trading view to load
     await expect(page.locator(".paper-trading-view")).toBeVisible({ timeout: 10000 });
@@ -90,7 +90,7 @@ test.describe("Paper Trading Settings", () => {
     await page.reload();
 
     // Navigate back to Paper Trading > Settings
-    await page.click('text=Paper Trading');
+    await page.click("text=Paper Trading");
     await page.click('button:has-text("Settings")');
 
     // Wait for settings panel to load
@@ -106,7 +106,7 @@ test.describe("Paper Trading Settings", () => {
     await page.goto("/");
 
     // Click on Paper Trading in the nav
-    await page.click('text=Paper Trading');
+    await page.click("text=Paper Trading");
 
     // Click on Settings tab
     await page.click('button:has-text("Settings")');
@@ -131,7 +131,7 @@ test.describe("Paper Trading Settings", () => {
     await page.goto("/");
 
     // Click on Paper Trading in the nav
-    await page.click('text=Paper Trading');
+    await page.click("text=Paper Trading");
 
     // Click on Settings tab
     await page.click('button:has-text("Settings")');
@@ -159,7 +159,7 @@ test.describe("Paper Trading Settings", () => {
     await page.reload();
 
     // Navigate back to settings
-    await page.click('text=Paper Trading');
+    await page.click("text=Paper Trading");
     await page.click('button:has-text("Settings")');
 
     // Wait for settings panel to load

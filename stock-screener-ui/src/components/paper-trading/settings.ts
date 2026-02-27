@@ -4,7 +4,10 @@
  * Settings panel for configuring strategy parameters.
  */
 
-import { getPaperTradingState, updateConfigValue as updateConfigValueState } from "../../state/paperTrading";
+import {
+  getPaperTradingState,
+  updateConfigValue as updateConfigValueState,
+} from "../../state/paperTrading";
 import {
   fetchStrategyConfig,
   updateStrategyConfig,

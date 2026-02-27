@@ -69,7 +69,10 @@ export function renderPaperTradingView(): string {
       </div>
 
       <!-- Main Content -->
-      ${state.currentView === "settings" ? renderSettingsPanel() : `
+      ${
+        state.currentView === "settings"
+          ? renderSettingsPanel()
+          : `
         <!-- Table Left, Chart Right -->
         <div class="paper-main">
           <!-- Left: Positions or History Table -->
@@ -82,7 +85,8 @@ export function renderPaperTradingView(): string {
             ${renderChartContainer()}
           </div>
         </div>
-      `}
+      `
+      }
 
       ${
         state.error

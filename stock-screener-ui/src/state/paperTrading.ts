@@ -228,7 +228,13 @@ export function triggerPaperTradingRerender() {
 
 // Strategy config management
 export function setStrategyConfig(config: StrategyConfig | null) {
-  state = { ...state, strategyConfig: config, configLoading: false, configError: null, configDirty: false };
+  state = {
+    ...state,
+    strategyConfig: config,
+    configLoading: false,
+    configError: null,
+    configDirty: false,
+  };
   notify();
 }
 

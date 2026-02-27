@@ -321,9 +321,7 @@ export async function fetchStrategyConfig(): Promise<StrategyConfig | null> {
 }
 
 // Update strategy configuration
-export async function updateStrategyConfig(
-  config: Partial<StrategyConfig>,
-): Promise<boolean> {
+export async function updateStrategyConfig(config: Partial<StrategyConfig>): Promise<boolean> {
   setConfigLoading(true);
   try {
     const response = await fetch(`${API_BASE}/api/paper/config`, {
