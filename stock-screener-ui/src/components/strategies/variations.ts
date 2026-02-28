@@ -12,7 +12,7 @@ import {
 
 export function renderVariationsPanel(
   template: StrategyConfig,
-  variations: StrategyConfig[]
+  variations: StrategyConfig[],
 ): string {
   return `
     <div class="variations-panel">
@@ -60,11 +60,7 @@ function renderVariationDetailCard(variation: StrategyConfig): string {
         </div>
       </div>
 
-      ${
-        variation.description
-          ? `<p class="variation-desc">${variation.description}</p>`
-          : ""
-      }
+      ${variation.description ? `<p class="variation-desc">${variation.description}</p>` : ""}
 
       <div class="variation-sections">
         <div class="variation-section">

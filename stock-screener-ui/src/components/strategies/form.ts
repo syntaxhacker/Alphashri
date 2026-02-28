@@ -14,10 +14,12 @@ import {
 
 export function renderStrategyForm(
   editingStrategy: StrategyConfig | null,
-  parentTemplate: StrategyConfig | null
+  parentTemplate: StrategyConfig | null,
 ): string {
   const isEdit = editingStrategy !== null;
-  const title = isEdit ? "Edit Strategy" : `New ${parentTemplate?.strategy_type || "ORB"} Variation`;
+  const title = isEdit
+    ? "Edit Strategy"
+    : `New ${parentTemplate?.strategy_type || "ORB"} Variation`;
 
   // Default values
   const defaults = {
@@ -34,18 +36,20 @@ export function renderStrategyForm(
     // Risk params
     max_positions: editingStrategy?.max_positions ?? parentTemplate?.max_positions ?? 5,
     max_capital_per_trade_pct:
-      (editingStrategy?.max_capital_per_trade_pct ?? parentTemplate?.max_capital_per_trade_pct ?? 0.1) * 100,
+      (editingStrategy?.max_capital_per_trade_pct ??
+        parentTemplate?.max_capital_per_trade_pct ??
+        0.1) * 100,
     max_daily_loss_pct:
       (editingStrategy?.max_daily_loss_pct ?? parentTemplate?.max_daily_loss_pct ?? 0.02) * 100,
     max_total_exposure_pct:
-      (editingStrategy?.max_total_exposure_pct ?? parentTemplate?.max_total_exposure_pct ?? 0.5) * 100,
+      (editingStrategy?.max_total_exposure_pct ?? parentTemplate?.max_total_exposure_pct ?? 0.5) *
+      100,
     risk_per_trade_pct:
       (editingStrategy?.risk_per_trade_pct ?? parentTemplate?.risk_per_trade_pct ?? 0.01) * 100,
     min_trade_value: editingStrategy?.min_trade_value ?? parentTemplate?.min_trade_value ?? 5000,
     max_trade_value: editingStrategy?.max_trade_value ?? parentTemplate?.max_trade_value ?? 100000,
     // Runner params
-    cooldown_minutes:
-      editingStrategy?.cooldown_minutes ?? parentTemplate?.cooldown_minutes ?? 30,
+    cooldown_minutes: editingStrategy?.cooldown_minutes ?? parentTemplate?.cooldown_minutes ?? 30,
     max_distance_from_or_pct:
       editingStrategy?.max_distance_from_or_pct ?? parentTemplate?.max_distance_from_or_pct ?? 1.5,
     is_default: editingStrategy?.is_default ?? false,
@@ -89,7 +93,9 @@ export function renderStrategyForm(
                   placeholder="Optional notes about this strategy"
                 >${defaults.description}</textarea>
               </div>
-              ${isEdit ? `
+              ${
+                isEdit
+                  ? `
                 <div class="form-group">
                   <label class="checkbox-label">
                     <input
@@ -100,7 +106,9 @@ export function renderStrategyForm(
                     Set as default strategy
                   </label>
                 </div>
-              ` : ""}
+              `
+                  : ""
+              }
             </div>
 
             <!-- ORB Parameters -->
@@ -341,17 +349,25 @@ export function initFormHandlers() {
     // Collect form values
     const data: StrategyCreate | StrategyUpdate = {
       name: (document.getElementById("strategy-name") as HTMLInputElement)?.value,
-      description: (document.getElementById("strategy-description") as HTMLTextAreaElement)?.value || null,
+      description:
+        (document.getElementById("strategy-description") as HTMLTextAreaElement)?.value || null,
       strategy_type: (document.getElementById("strategy-type") as HTMLInputElement)?.value,
-      parent_id: parseInt((document.getElementById("parent-id") as HTMLInputElement)?.value) || null,
+      parent_id:
+        parseInt((document.getElementById("parent-id") as HTMLInputElement)?.value) || null,
       // ORB params
       or_minutes: parseFloat((document.getElementById("or-minutes") as HTMLInputElement)?.value),
       sl_pct: parseFloat((document.getElementById("sl-pct") as HTMLInputElement)?.value),
       tp_pct: parseFloat((document.getElementById("tp-pct") as HTMLInputElement)?.value),
-      min_or_range_pct: parseFloat((document.getElementById("min-or-range") as HTMLInputElement)?.value),
-      max_or_range_pct: parseFloat((document.getElementById("max-or-range") as HTMLInputElement)?.value),
+      min_or_range_pct: parseFloat(
+        (document.getElementById("min-or-range") as HTMLInputElement)?.value,
+      ),
+      max_or_range_pct: parseFloat(
+        (document.getElementById("max-or-range") as HTMLInputElement)?.value,
+      ),
       // Risk params (convert % to decimals)
-      max_positions: parseInt((document.getElementById("max-positions") as HTMLInputElement)?.value),
+      max_positions: parseInt(
+        (document.getElementById("max-positions") as HTMLInputElement)?.value,
+      ),
       max_capital_per_trade_pct:
         parseFloat((document.getElementById("capital-per-trade") as HTMLInputElement)?.value) / 100,
       max_daily_loss_pct:
@@ -360,12 +376,17 @@ export function initFormHandlers() {
         parseFloat((document.getElementById("total-exposure") as HTMLInputElement)?.value) / 100,
       risk_per_trade_pct:
         parseFloat((document.getElementById("risk-per-trade") as HTMLInputElement)?.value) / 100,
-      min_trade_value: parseFloat((document.getElementById("min-trade-value") as HTMLInputElement)?.value),
-      max_trade_value: parseFloat((document.getElementById("max-trade-value") as HTMLInputElement)?.value),
+      min_trade_value: parseFloat(
+        (document.getElementById("min-trade-value") as HTMLInputElement)?.value,
+      ),
+      max_trade_value: parseFloat(
+        (document.getElementById("max-trade-value") as HTMLInputElement)?.value,
+      ),
       // Runner params
       cooldown_minutes: parseInt((document.getElementById("cooldown") as HTMLInputElement)?.value),
-      max_distance_from_or_pct:
-        parseFloat((document.getElementById("max-distance") as HTMLInputElement)?.value),
+      max_distance_from_or_pct: parseFloat(
+        (document.getElementById("max-distance") as HTMLInputElement)?.value,
+      ),
     };
 
     // Add is_default only for edits

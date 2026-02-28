@@ -121,11 +121,15 @@ function renderStrategySelector(config: StrategyConfig): string {
             data-testid="strategy-selector"
             onchange="window.selectPaperTradingStrategy(this.value)"
           >
-            ${strategies.map((s) => `
+            ${strategies
+              .map(
+                (s) => `
               <option value="${s.id}" ${s.id === config.id ? "selected" : ""}>
                 ${s.name} ${s.is_default ? "(Default)" : ""}
               </option>
-            `).join("")}
+            `,
+              )
+              .join("")}
           </select>
         </div>
         <div class="settings-field">

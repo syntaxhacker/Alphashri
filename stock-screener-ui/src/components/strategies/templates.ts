@@ -3,15 +3,11 @@
  */
 
 import type { StrategyConfig } from "../../types/strategies";
-import {
-  openCreateModal,
-  selectStrategy,
-  loadStrategy,
-} from "../../state/strategies";
+import { openCreateModal, selectStrategy, loadStrategy } from "../../state/strategies";
 
 export function renderTemplateCard(
   template: StrategyConfig,
-  allStrategies: StrategyConfig[]
+  allStrategies: StrategyConfig[],
 ): string {
   const variations = allStrategies.filter((s) => s.parent_id === template.id);
 
@@ -103,9 +99,7 @@ function renderVariationCard(variation: StrategyConfig): string {
         </div>
       </div>
       ${
-        variation.description
-          ? `<p class="variation-description">${variation.description}</p>`
-          : ""
+        variation.description ? `<p class="variation-description">${variation.description}</p>` : ""
       }
     </div>
   `;
@@ -140,7 +134,7 @@ export function initTemplateHandlers() {
   (window as any).createVariation = (
     templateId: number,
     templateName: string,
-    strategyType: string
+    strategyType: string,
   ) => {
     const template: StrategyConfig = {
       id: templateId,

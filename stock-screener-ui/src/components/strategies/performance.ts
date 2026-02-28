@@ -32,11 +32,13 @@ export function renderPerformanceView(state: StrategiesState): string {
 
   // Get selected strategy performance
   const selectedPerf = selectedStrategyId
-    ? performances.find(p => p.strategy_id === selectedStrategyId)
+    ? performances.find((p) => p.strategy_id === selectedStrategyId)
     : null;
 
   // Get trades for selected strategy
-  const selectedTrades = selectedStrategyId ? strategyTradesCache.get(selectedStrategyId) || [] : [];
+  const selectedTrades = selectedStrategyId
+    ? strategyTradesCache.get(selectedStrategyId) || []
+    : [];
 
   return `
     <div class="performance-view">
@@ -48,7 +50,9 @@ export function renderPerformanceView(state: StrategiesState): string {
         ${renderSummaryCard("Net P&L", formatCurrency(totals.net_pnl), totals.net_pnl >= 0 ? "💰" : "💸", totals.net_pnl >= 0 ? "positive" : "negative")}
       </div>
 
-      ${selectedStrategyId && selectedPerf ? `
+      ${
+        selectedStrategyId && selectedPerf
+          ? `
         <!-- Selected Strategy Detail -->
         <div class="strategy-detail-panel">
           <div class="strategy-detail-header">
@@ -62,7 +66,8 @@ export function renderPerformanceView(state: StrategiesState): string {
           </div>
           ${renderStrategyTrades(selectedTrades, selectedPerf.strategy_name)}
         </div>
-      ` : `
+      `
+          : `
         <!-- Performance Table -->
         <div class="performance-table-container">
           <h4 class="performance-section-title">Strategy Comparison (Click to view trades)</h4>
@@ -92,7 +97,8 @@ export function renderPerformanceView(state: StrategiesState): string {
             ${sortedPerformances.map((p) => renderPerformanceBar(p, totals.maxAbsPnl)).join("")}
           </div>
         </div>
-      `}
+      `
+      }
     </div>
   `;
 }
@@ -128,10 +134,13 @@ function renderStrategyTrades(trades: any[], strategyName: string): string {
           </tr>
         </thead>
         <tbody>
-          ${trades.slice(0, 20).map(trade => renderTradeRow(trade)).join("")}
+          ${trades
+            .slice(0, 20)
+            .map((trade) => renderTradeRow(trade))
+            .join("")}
         </tbody>
       </table>
-      ${trades.length > 20 ? `<p class="trades-more">Showing 20 of ${trades.length} trades</p>` : ''}
+      ${trades.length > 20 ? `<p class="trades-more">Showing 20 of ${trades.length} trades</p>` : ""}
     </div>
   `;
 }
@@ -180,7 +189,12 @@ function formatTradeTime(isoStr: string): string {
   });
 }
 
-function renderSummaryCard(label: string, value: string, icon: string, className: string = ""): string {
+function renderSummaryCard(
+  label: string,
+  value: string,
+  icon: string,
+  className: string = "",
+): string {
   return `
     <div class="performance-summary-card ${className}">
       <span class="summary-icon">${icon}</span>
@@ -317,16 +331,16 @@ export function initPerformanceHandlers() {
 
   (window as any).viewAllStrategyTrades = (strategyName: string) => {
     // Navigate to paper trading history with strategy filter
-    localStorage.setItem('filterStrategy', strategyName);
+    localStorage.setItem("filterStrategy", strategyName);
     if ((window as any).navigateToRoute) {
-      (window as any).navigateToRoute('paper');
+      (window as any).navigateToRoute("paper");
     }
   };
 
   // Check if we need to select a strategy by name (from navigation)
-  const strategyNameToSelect = localStorage.getItem('selectStrategyByName');
+  const strategyNameToSelect = localStorage.getItem("selectStrategyByName");
   if (strategyNameToSelect) {
-    localStorage.removeItem('selectStrategyByName');
+    localStorage.removeItem("selectStrategyByName");
     // We'll handle this after performance data is loaded
     (window as any).__pendingStrategySelection = strategyNameToSelect;
   }
@@ -334,7 +348,9 @@ export function initPerformanceHandlers() {
 
 // Select a strategy by name (called after data is loaded)
 export async function selectStrategyByName(strategyName: string, strategies: any[]) {
-  const strategy = strategies.find(s => s.name === strategyName || s.strategy_name === strategyName);
+  const strategy = strategies.find(
+    (s) => s.name === strategyName || s.strategy_name === strategyName,
+  );
   if (strategy) {
     const strategyId = strategy.id || strategy.strategy_id;
     if (strategyId) {

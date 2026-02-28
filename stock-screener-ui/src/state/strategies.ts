@@ -172,9 +172,7 @@ export async function loadStrategy(strategyId: number): Promise<void> {
 }
 
 // Create a new strategy
-export async function createStrategy(
-  data: api.StrategyCreate
-): Promise<StrategyConfig | null> {
+export async function createStrategy(data: api.StrategyCreate): Promise<StrategyConfig | null> {
   setLoading(true);
   setError(null);
   try {
@@ -202,7 +200,7 @@ export async function createStrategy(
 // Update a strategy
 export async function updateStrategy(
   strategyId: number,
-  data: api.StrategyUpdate
+  data: api.StrategyUpdate,
 ): Promise<StrategyConfig | null> {
   setLoading(true);
   setError(null);
@@ -302,7 +300,7 @@ export async function loadAllPerformance(): Promise<void> {
   const pendingSelection = (window as any).__pendingStrategySelection;
   if (pendingSelection && performanceResults.length > 0) {
     delete (window as any).__pendingStrategySelection;
-    const strategy = performanceResults.find(s => s.strategy_name === pendingSelection);
+    const strategy = performanceResults.find((s) => s.strategy_name === pendingSelection);
     if (strategy) {
       // Import and call the selection function
       const { selectStrategyByName } = require("../components/strategies/performance");

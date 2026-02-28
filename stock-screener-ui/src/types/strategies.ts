@@ -126,7 +126,7 @@ export interface StrategiesState {
   selectedStrategy: StrategyConfig | null;
   selectedVariations: StrategyConfig[];
   performance: StrategyPerformance | null;
-  allPerformance: StrategyPerformance[];  // Performance data for all strategies
+  allPerformance: StrategyPerformance[]; // Performance data for all strategies
   bots: BotConfig[];
   isLoading: boolean;
   error: string | null;

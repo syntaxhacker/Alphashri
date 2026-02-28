@@ -234,12 +234,12 @@ export function activatePaperTrading() {
   paperTradingActive = true;
 
   // Check if we should navigate to history with a strategy filter
-  const savedFilter = localStorage.getItem('filterStrategy');
+  const savedFilter = localStorage.getItem("filterStrategy");
   if (savedFilter) {
     // Switch to history view and apply filter
-    setPaperTradingView('history');
+    setPaperTradingView("history");
     setFilterStrategy(savedFilter);
-    localStorage.removeItem('filterStrategy');
+    localStorage.removeItem("filterStrategy");
     refreshHistoryData();
   } else {
     refreshLiveData();

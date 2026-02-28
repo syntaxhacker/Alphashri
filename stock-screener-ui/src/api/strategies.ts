@@ -15,7 +15,7 @@ const API_BASE = "http://localhost:8765";
 // List all strategies
 export async function listStrategies(
   includeTemplates: boolean = false,
-  strategyType?: string
+  strategyType?: string,
 ): Promise<{ strategies: StrategyConfig[]; count: number }> {
   const params = new URLSearchParams();
   if (includeTemplates) params.set("include_templates", "true");
@@ -43,7 +43,7 @@ export async function listTemplates(): Promise<{
 
 // Get a specific strategy
 export async function getStrategy(
-  strategyId: number
+  strategyId: number,
 ): Promise<{ strategy: StrategyConfig; variations: StrategyConfig[] }> {
   const response = await fetch(`${API_BASE}/api/strategies/${strategyId}`);
   if (!response.ok) {
@@ -54,7 +54,7 @@ export async function getStrategy(
 
 // Create a new strategy variation
 export async function createStrategy(
-  data: StrategyCreate
+  data: StrategyCreate,
 ): Promise<{ status: string; message: string; strategy: StrategyConfig }> {
   const response = await fetch(`${API_BASE}/api/strategies`, {
     method: "POST",
@@ -71,7 +71,7 @@ export async function createStrategy(
 // Update a strategy
 export async function updateStrategy(
   strategyId: number,
-  data: StrategyUpdate
+  data: StrategyUpdate,
 ): Promise<{ status: string; message: string; strategy: StrategyConfig }> {
   const response = await fetch(`${API_BASE}/api/strategies/${strategyId}`, {
     method: "PUT",
@@ -87,7 +87,7 @@ export async function updateStrategy(
 
 // Delete a strategy (soft delete)
 export async function deleteStrategy(
-  strategyId: number
+  strategyId: number,
 ): Promise<{ status: string; message: string }> {
   const response = await fetch(`${API_BASE}/api/strategies/${strategyId}`, {
     method: "DELETE",
@@ -100,14 +100,10 @@ export async function deleteStrategy(
 }
 
 // Get strategy performance
-export async function getStrategyPerformance(
-  strategyId: number
-): Promise<StrategyPerformance> {
+export async function getStrategyPerformance(strategyId: number): Promise<StrategyPerformance> {
   const response = await fetch(`${API_BASE}/api/strategies/${strategyId}/performance`);
   if (!response.ok) {
-    throw new Error(
-      `Failed to get strategy performance: ${response.statusText}`
-    );
+    throw new Error(`Failed to get strategy performance: ${response.statusText}`);
   }
   return response.json();
 }
@@ -115,26 +111,22 @@ export async function getStrategyPerformance(
 // Get trades for a specific strategy
 export async function getStrategyTrades(
   strategyId: number,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<{ strategy_id: number; strategy_name: string; trades: any[]; total: number }> {
   const response = await fetch(`${API_BASE}/api/strategies/${strategyId}/trades?limit=${limit}`);
   if (!response.ok) {
-    throw new Error(
-      `Failed to get strategy trades: ${response.statusText}`
-    );
+    throw new Error(`Failed to get strategy trades: ${response.statusText}`);
   }
   return response.json();
 }
 
 // Get variations of a template
 export async function getStrategyVariations(
-  strategyId: number
+  strategyId: number,
 ): Promise<{ parent: StrategyConfig; variations: StrategyConfig[]; count: number }> {
   const response = await fetch(`${API_BASE}/api/strategies/${strategyId}/variations`);
   if (!response.ok) {
-    throw new Error(
-      `Failed to get strategy variations: ${response.statusText}`
-    );
+    throw new Error(`Failed to get strategy variations: ${response.statusText}`);
   }
   return response.json();
 }
@@ -151,9 +143,7 @@ export async function listBots(): Promise<{
   return response.json();
 }
 
-export async function getBot(
-  botId: number
-): Promise<{ bot: BotConfig }> {
+export async function getBot(botId: number): Promise<{ bot: BotConfig }> {
   const response = await fetch(`${API_BASE}/api/strategies/bots/${botId}`);
   if (!response.ok) {
     throw new Error(`Failed to get bot: ${response.statusText}`);

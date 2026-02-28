@@ -7,7 +7,11 @@
 import { renderTemplateCard, initTemplateHandlers } from "./templates";
 import { renderVariationsPanel, initVariationsHandlers } from "./variations";
 import { renderStrategyForm, initFormHandlers } from "./form";
-import { renderPerformanceView, initPerformanceHandlers, clearPerformanceCache } from "./performance";
+import {
+  renderPerformanceView,
+  initPerformanceHandlers,
+  clearPerformanceCache,
+} from "./performance";
 import {
   getStrategiesState,
   getCurrentView,
@@ -71,10 +75,7 @@ export function renderStrategiesView(): string {
       <!-- Create/Edit Modal -->
       ${
         currentState.showCreateModal || currentState.showEditModal
-          ? renderStrategyForm(
-              currentState.editingStrategy,
-              currentState.parentTemplate
-            )
+          ? renderStrategyForm(currentState.editingStrategy, currentState.parentTemplate)
           : ""
       }
 
@@ -123,9 +124,7 @@ function renderMainContent(view: StrategiesView, state: StrategiesState): string
 
   return `
     <div class="strategies-templates">
-      ${state.templates
-        .map((template) => renderTemplateCard(template, state.strategies))
-        .join("")}
+      ${state.templates.map((template) => renderTemplateCard(template, state.strategies)).join("")}
     </div>
   `;
 }
