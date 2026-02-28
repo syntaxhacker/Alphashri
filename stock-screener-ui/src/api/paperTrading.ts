@@ -302,10 +302,13 @@ export async function closePaperPosition(
 }
 
 // Fetch strategy configuration
-export async function fetchStrategyConfig(): Promise<StrategyConfig | null> {
+export async function fetchStrategyConfig(strategyId?: number): Promise<StrategyConfig | null> {
   setConfigLoading(true);
   try {
-    const response = await fetch(`${API_BASE}/api/paper/config`);
+    const url = strategyId
+      ? `${API_BASE}/api/paper/config?strategy_id=${strategyId}`
+      : `${API_BASE}/api/paper/config`;
+    const response = await fetch(url);
     const data = await response.json();
     if (data.config) {
       setStrategyConfig(data.config);

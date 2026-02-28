@@ -14,6 +14,7 @@ import {
   setFilterFromDate,
   setFilterToDate,
   setFilterSymbol,
+  setFilterStrategy,
   setError,
 } from "../../state/paperTrading";
 import {
@@ -232,9 +233,19 @@ export function activatePaperTrading() {
   if (paperTradingActive) return;
   paperTradingActive = true;
 
-  refreshLiveData();
-  fetchPaperBotStatus();
-  initLiveAutoRefresh();
+  // Check if we should navigate to history with a strategy filter
+  const savedFilter = localStorage.getItem('filterStrategy');
+  if (savedFilter) {
+    // Switch to history view and apply filter
+    setPaperTradingView('history');
+    setFilterStrategy(savedFilter);
+    localStorage.removeItem('filterStrategy');
+    refreshHistoryData();
+  } else {
+    refreshLiveData();
+    fetchPaperBotStatus();
+    initLiveAutoRefresh();
+  }
 }
 
 // Clean up when switching views

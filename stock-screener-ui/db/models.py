@@ -2,10 +2,21 @@
 Database models for Alphashri
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
+
+
+# Association table for bot-strategy many-to-many relationship
+bot_strategies = Table(
+    'bot_strategies',
+    Base.metadata,
+    Column('bot_id', Integer, ForeignKey('bot_configs.id'), primary_key=True),
+    Column('strategy_id', Integer, ForeignKey('strategy_configs.id'), primary_key=True),
+    Column('max_positions', Integer, default=3),  # Max positions for this strategy in bot
+    Column('capital_allocation_pct', Float, default=0.20),  # % of capital for this strategy
+)
 
 
 class User(Base):
@@ -48,14 +59,28 @@ class UserSession(Base):
 
 
 class StrategyConfig(Base):
-    """Strategy configuration parameters for paper trading."""
+    """Strategy configuration parameters for paper trading.
+
+    Supports strategy variations through parent-child relationships.
+    Templates are predefined strategies (is_template=True).
+    Variations are user-created children of templates.
+    """
     __tablename__ = "strategy_configs"
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)  # e.g., "orb_default"
-    strategy_type = Column(String, nullable=False)  # e.g., "ORB"
+    strategy_type = Column(String, nullable=False)  # e.g., "ORB", "EMA_CROSS", "52W_CHASER"
+
+    # Parent-child relationship for variations
+    parent_id = Column(Integer, ForeignKey("strategy_configs.id"), nullable=True)
+    is_template = Column(Boolean, default=False)  # True for predefined templates
+
+    # Status
     is_active = Column(Boolean, default=True)
     is_default = Column(Boolean, default=False)
+
+    # User-facing metadata
+    description = Column(String, nullable=True)  # User notes about this variation
 
     # ORB Strategy Parameters
     or_minutes = Column(Integer, default=45)  # Opening range duration in minutes
@@ -90,6 +115,10 @@ class StrategyConfig(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
+    # Relationships
+    parent = relationship("StrategyConfig", remote_side=[id], backref="variations")
+    bots = relationship("BotConfig", secondary=bot_strategies, back_populates="strategies")
+
     def __repr__(self):
         return f"<StrategyConfig(id={self.id}, name='{self.name}', type='{self.strategy_type}')>"
 
@@ -100,8 +129,11 @@ class StrategyConfig(Base):
             "id": self.id,
             "name": self.name,
             "strategy_type": self.strategy_type,
+            "parent_id": self.parent_id,
+            "is_template": self.is_template,
             "is_active": self.is_active,
             "is_default": self.is_default,
+            "description": self.description,
             # ORB Parameters
             "or_minutes": self.or_minutes,
             "sl_pct": self.sl_pct,
@@ -128,6 +160,53 @@ class StrategyConfig(Base):
             "stamp_pct": self.stamp_pct,
             "gst_pct": self.gst_pct,
             # Metadata
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class BotConfig(Base):
+    """Configuration for a trading bot instance.
+
+    A bot can run multiple strategies simultaneously.
+    Each strategy has its own allocation within the bot.
+    """
+    __tablename__ = "bot_configs"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)  # e.g., "Multi-Strategy Test"
+    is_active = Column(Boolean, default=True)
+
+    # Global risk limits (across all strategies)
+    max_total_positions = Column(Integer, default=10)  # Max positions across all strategies
+    max_total_capital_pct = Column(Float, default=0.80)  # Max 80% capital usage
+
+    # Metadata
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    strategies = relationship("StrategyConfig", secondary=bot_strategies, back_populates="bots")
+
+    def __repr__(self):
+        return f"<BotConfig(id={self.id}, name='{self.name}')>"
+
+    def to_dict(self) -> dict:
+        """Convert bot config to dictionary."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "is_active": self.is_active,
+            "max_total_positions": self.max_total_positions,
+            "max_total_capital_pct": self.max_total_capital_pct,
+            "strategies": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "strategy_type": s.strategy_type,
+                }
+                for s in self.strategies
+            ],
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

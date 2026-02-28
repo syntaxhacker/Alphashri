@@ -175,7 +175,7 @@ export interface CostInfo {
 }
 
 // View types
-export type AppView = "screener" | "backtest" | "paper" | "sector";
+export type AppView = "screener" | "backtest" | "paper" | "sector" | "strategies";
 
 // Trade for history table
 export interface Trade {

@@ -1243,6 +1243,15 @@ except Exception as e:
     print(f"⚠️ Could not load auth API: {e}")
 
 
+# Include strategies router
+try:
+    from api.strategies import router as strategies_router
+    app.include_router(strategies_router)
+    print("✅ Strategies API loaded at /api/strategies")
+except Exception as e:
+    print(f"⚠️ Could not load strategies API: {e}")
+
+
 # ============================================
 # News API
 # ============================================

@@ -2,7 +2,7 @@
  * Trade History Panel Component
  */
 
-import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
+import { getPaperTradingState, setSelectedSymbol, setFilterStrategy } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
 
@@ -27,10 +27,50 @@ export function renderHistoryPanel(): string {
   if (state.filterFromDate || state.filterToDate) {
     filteredTrades = filterByRange(filteredTrades, state.filterFromDate, state.filterToDate);
   }
+  if (state.filterStrategy) {
+    filteredTrades = filteredTrades.filter((t) => t.strategy_name === state.filterStrategy);
+  }
+
+  // Get unique strategies for filter dropdown
+  const strategies = getUniqueStrategies(state.trades);
 
   return `
     <div class="history-panel" data-testid="history-panel">
+      ${renderStrategyFilter(strategies, state.filterStrategy)}
       ${renderTradesTable(filteredTrades, state.selectedSymbol)}
+    </div>
+  `;
+}
+
+function getUniqueStrategies(trades: PaperTrade[]): string[] {
+  const strategies = new Set<string>();
+  for (const trade of trades) {
+    if (trade.strategy_name) {
+      strategies.add(trade.strategy_name);
+    }
+  }
+  return Array.from(strategies).sort();
+}
+
+function renderStrategyFilter(strategies: string[], currentFilter: string | null): string {
+  // Always show filter bar if there's an active filter, even with only one strategy
+  if (strategies.length <= 1 && !currentFilter) {
+    return '';
+  }
+
+  return `
+    <div class="strategy-filter-bar">
+      <label>Strategy:</label>
+      <select onchange="window.filterByStrategy(this.value)" class="strategy-filter-select">
+        <option value="">All Strategies</option>
+        ${strategies.map(s => `
+          <option value="${s}" ${currentFilter === s ? 'selected' : ''}>${s}</option>
+        `).join('')}
+      </select>
+      ${currentFilter ? `
+        <span class="filter-active-indicator">Showing: ${currentFilter}</span>
+        <button class="btn btn-small btn-secondary" onclick="window.clearStrategyFilter()">Clear</button>
+      ` : ''}
     </div>
   `;
 }
@@ -150,6 +190,7 @@ function renderDayGroup(date: string, trades: PaperTrade[], selectedSymbol: stri
             <th>Entry</th>
             <th>Exit</th>
             <th>P&L</th>
+            <th>Strategy</th>
             <th>Type</th>
             <th>Time</th>
           </tr>
@@ -179,6 +220,9 @@ function renderDayGroup(date: string, trades: PaperTrade[], selectedSymbol: stri
                 <td>₹${trade.exit_price.toFixed(2)}</td>
                 <td class="${tradePnlClass}">
                   <strong>₹${formatNumber(trade.net_pnl)}</strong>
+                </td>
+                <td class="strategy-cell" onclick="event.stopPropagation(); window.viewStrategyHistory('${trade.strategy_name || 'default'}')" title="Click to view trades for this strategy">
+                  ${trade.strategy_name || 'default'}
                 </td>
                 <td class="exit-${trade.exit_reason.toLowerCase()}">${trade.exit_reason}</td>
                 <td class="time-cell">${time}</td>
@@ -277,6 +321,8 @@ function generateTradeTooltip(trade: PaperTrade): string {
     holdTime: holdStr,
     entryTime: formatTradeTime(trade.entry_time),
     exitTime: formatTradeTime(trade.exit_time),
+    strategyId: trade.strategy_id || 0,
+    strategyName: trade.strategy_name || 'default',
   };
 
   return JSON.stringify(tooltipData).replace(/'/g, "&#39;");
@@ -290,6 +336,34 @@ export function initHistoryHandlers() {
     const state = getPaperTradingState();
     await fetchPaperChart(symbol, date, state.chartTimeframe);
   };
+
+  // Strategy filter handlers
+  (window as any).filterByStrategy = (strategy: string) => {
+    setFilterStrategy(strategy || null);
+  };
+
+  (window as any).clearStrategyFilter = () => {
+    setFilterStrategy(null);
+  };
+
+  // Navigate to strategy detail view (Strategies > Performance with strategy selected)
+  (window as any).viewStrategyHistory = (strategyName: string) => {
+    console.log('viewStrategyHistory called with:', strategyName);
+
+    // Navigate to strategies view and select this strategy
+    // We pass the strategy name via localStorage so the strategies view can find and select it
+    localStorage.setItem('selectStrategyByName', strategyName);
+    if ((window as any).navigateToRoute) {
+      (window as any).navigateToRoute('strategies');
+    }
+  };
+
+  // Check for strategy filter from navigation (from strategies view)
+  const savedFilter = localStorage.getItem('filterStrategy');
+  if (savedFilter) {
+    setFilterStrategy(savedFilter);
+    localStorage.removeItem('filterStrategy');
+  }
 
   // Tooltip handlers
   let tooltipEl: HTMLDivElement | null = null;
@@ -321,6 +395,15 @@ export function initHistoryHandlers() {
         <div class="tooltip-header">
           <strong>${data.symbol}</strong> <span class="tooltip-side">${data.side}</span>
           <span class="tooltip-trade-id">${data.tradeId}</span>
+        </div>
+
+        <div class="tooltip-section">
+          <div class="tooltip-row">
+            <span class="tooltip-label">Strategy:</span>
+            <span class="tooltip-value strategy-link" onclick="window.viewStrategyHistory('${data.strategyName}')" title="Click to view trades for this strategy">
+              ${data.strategyName} →
+            </span>
+          </div>
         </div>
 
         <div class="tooltip-section">

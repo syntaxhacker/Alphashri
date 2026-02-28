@@ -16,6 +16,8 @@ export interface PaperPosition {
   pnl_pct: number;
   margin_used: number;
   order_id: string;
+  strategy_id: number;
+  strategy_name: string;
 }
 
 // Completed trade from journal
@@ -38,6 +40,8 @@ export interface PaperTrade {
   peak_price: number; // Highest price during trade
   low_price: number; // Lowest price during trade
   notes: string;
+  strategy_id: number;
+  strategy_name: string;
 }
 
 // Portfolio status - matches API response from /api/paper/portfolio
@@ -168,6 +172,7 @@ export interface PaperTradingState {
   filterFromDate: string | null;
   filterToDate: string | null;
   filterSymbol: string | null;
+  filterStrategy: string | null; // Filter by strategy name
 
   // Chart state
   selectedSymbol: string | null;
@@ -205,6 +210,10 @@ export interface StrategyConfig {
   strategy_type: string;
   is_active: boolean;
   is_default: boolean;
+  // Parent/child relationship
+  parent_id?: number | null;
+  is_template?: boolean;
+  description?: string | null;
   // ORB Parameters
   or_minutes: number;
   sl_pct: number;

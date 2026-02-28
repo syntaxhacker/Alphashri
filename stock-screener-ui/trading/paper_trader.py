@@ -78,6 +78,8 @@ class PaperPosition:
     unrealized_pnl_pct: float = 0.0
     peak_price: float = 0.0  # Highest price during position
     low_price: float = float('inf')  # Lowest price during position
+    strategy_id: int = 0  # Strategy that opened this position
+    strategy_name: str = ""  # Strategy name for quick reference
 
 
 @dataclass
@@ -98,6 +100,8 @@ class PaperTrade:
     net_pnl: float = 0.0
     peak_price: float = 0.0  # Highest price during trade
     low_price: float = 0.0   # Lowest price during trade
+    strategy_id: int = 0  # Strategy that opened this trade
+    strategy_name: str = ""  # Strategy name for quick reference
 
 
 class PaperTrader:
@@ -124,6 +128,8 @@ class PaperTrader:
         gst_pct: float = None,
         user_id: Optional[int] = None,
         config_name: str = None,
+        strategy_id: int = 0,
+        strategy_name: str = "",
     ):
         """
         Initialize paper trader.
@@ -139,11 +145,17 @@ class PaperTrader:
             gst_pct: GST on brokerage+exchange+sebi (overrides config)
             user_id: User ID for multi-user support
             config_name: Name of config to load from database
+            strategy_id: ID of the strategy to use for tracking trades
+            strategy_name: Name of the strategy for quick reference
         """
         self.user_id = user_id
         self.initial_capital = initial_capital
         self.cash = initial_capital
         self.margin_used = 0.0
+
+        # Strategy tracking
+        self.strategy_id = strategy_id
+        self.strategy_name = strategy_name
 
         # Load cost parameters from config if available
         if _config_available:
@@ -155,6 +167,10 @@ class PaperTrader:
             self.sebi_pct = sebi_pct if sebi_pct is not None else config.sebi_pct
             self.stamp_pct = stamp_pct if stamp_pct is not None else config.stamp_pct
             self.gst_pct = gst_pct if gst_pct is not None else config.gst_pct
+            # Set strategy info from config if available
+            if strategy_id == 0 and config.id > 0:
+                self.strategy_id = config.id
+                self.strategy_name = config.name
         else:
             # Fall back to hardcoded defaults
             self.brokerage_pct = brokerage_pct if brokerage_pct is not None else 0.0003
@@ -240,6 +256,8 @@ class PaperTrader:
                         net_pnl=trade_data.get('net_pnl', 0),
                         peak_price=trade_data.get('peak_price', 0),
                         low_price=trade_data.get('low_price', 0),
+                        strategy_id=trade_data.get('strategy_id', 0),
+                        strategy_name=trade_data.get('strategy_name', ''),
                     )
                     self.trades.append(trade)
 
@@ -392,6 +410,8 @@ class PaperTrader:
             current_price=price,
             peak_price=price,
             low_price=price,
+            strategy_id=self.strategy_id,
+            strategy_name=self.strategy_name,
         )
 
         console.print(f"[green]✓ Order filled: {side.value} {quantity} {symbol} @ ₹{price:.2f}[/green]")
@@ -508,6 +528,8 @@ class PaperTrader:
             net_pnl=round(net_pnl, 2),
             peak_price=round(position.peak_price, 2),
             low_price=round(position.low_price, 2),
+            strategy_id=position.strategy_id,
+            strategy_name=position.strategy_name,
         )
 
         # Update cash and margin
@@ -586,6 +608,8 @@ class PaperTrader:
                 'unrealized_pnl': pos.unrealized_pnl,
                 'unrealized_pnl_pct': pos.unrealized_pnl_pct,
                 'entry_time': pos.entry_time.isoformat(),
+                'strategy_id': pos.strategy_id,
+                'strategy_name': pos.strategy_name,
             }
             for pos in self.positions.values()
         ]
@@ -609,6 +633,8 @@ class PaperTrader:
                 'net_pnl': t.net_pnl,
                 'peak_price': t.peak_price,
                 'low_price': t.low_price,
+                'strategy_id': t.strategy_id,
+                'strategy_name': t.strategy_name,
             }
             for t in self.trades[-limit:]
         ]
@@ -649,13 +675,22 @@ _paper_traders: Dict[int, PaperTrader] = {}
 _default_paper_trader: Optional[PaperTrader] = None
 
 
-def get_paper_trader(user_id: Optional[int] = None, initial_capital: Optional[float] = None) -> PaperTrader:
+def get_paper_trader(
+    user_id: Optional[int] = None,
+    initial_capital: Optional[float] = None,
+    strategy_id: int = 0,
+    strategy_name: str = "",
+    config_name: str = None,
+) -> PaperTrader:
     """
     Get paper trader instance for a specific user.
 
     Args:
         user_id: User ID. If None, returns the default (legacy) instance.
         initial_capital: Initial capital for new traders.
+        strategy_id: ID of the strategy to use for tracking trades.
+        strategy_name: Name of the strategy for quick reference.
+        config_name: Name of config to load from database.
 
     Returns:
         PaperTrader instance for the user.
@@ -665,7 +700,12 @@ def get_paper_trader(user_id: Optional[int] = None, initial_capital: Optional[fl
     if user_id is None:
         # Legacy single-user mode
         if _default_paper_trader is None:
-            _default_paper_trader = PaperTrader(initial_capital=initial_capital or 1_000_000)
+            _default_paper_trader = PaperTrader(
+                initial_capital=initial_capital or 1_000_000,
+                strategy_id=strategy_id,
+                strategy_name=strategy_name,
+                config_name=config_name,
+            )
         return _default_paper_trader
 
     if user_id not in _paper_traders:
@@ -682,7 +722,10 @@ def get_paper_trader(user_id: Optional[int] = None, initial_capital: Optional[fl
 
         _paper_traders[user_id] = PaperTrader(
             initial_capital=initial_capital,
-            user_id=user_id
+            user_id=user_id,
+            strategy_id=strategy_id,
+            strategy_name=strategy_name,
+            config_name=config_name,
         )
 
     return _paper_traders[user_id]

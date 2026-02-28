@@ -13,7 +13,21 @@ import {
   updateStrategyConfig,
   resetStrategyConfig as resetConfigApi,
 } from "../../api/paperTrading";
+import { listStrategies } from "../../api/strategies";
 import type { StrategyConfig } from "../../types/paperTrading";
+
+// Cache for available strategies
+let availableStrategies: StrategyConfig[] = [];
+
+export async function loadAvailableStrategies(): Promise<void> {
+  try {
+    const result = await listStrategies(false); // Exclude templates
+    availableStrategies = result.strategies.filter((s) => !s.is_template && s.is_active);
+  } catch (error) {
+    console.error("Failed to load strategies:", error);
+    availableStrategies = [];
+  }
+}
 
 export function renderSettingsPanel(): string {
   const state = getPaperTradingState();
@@ -60,6 +74,9 @@ export function renderSettingsPanel(): string {
         <span class="config-name">${config.name} (${config.strategy_type})</span>
       </div>
 
+      <!-- Strategy Selector -->
+      ${renderStrategySelector(config)}
+
       <div class="settings-sections">
         ${renderORBSection(config)}
         ${renderRiskSection(config)}
@@ -83,6 +100,45 @@ export function renderSettingsPanel(): string {
           ${state.configLoading ? "Saving..." : state.configDirty ? "Save Changes" : "Saved"}
         </button>
       </div>
+    </div>
+  `;
+}
+
+function renderStrategySelector(config: StrategyConfig): string {
+  const strategies = availableStrategies;
+
+  return `
+    <div class="settings-section strategy-selector-section">
+      <div class="settings-section-header">
+        <span class="settings-section-icon">📋</span>
+        <h4>Active Strategy</h4>
+      </div>
+      <div class="settings-row">
+        <div class="settings-field strategy-selector-field">
+          <label>Select Strategy for Paper Trading</label>
+          <select
+            class="settings-select"
+            data-testid="strategy-selector"
+            onchange="window.selectPaperTradingStrategy(this.value)"
+          >
+            ${strategies.map((s) => `
+              <option value="${s.id}" ${s.id === config.id ? "selected" : ""}>
+                ${s.name} ${s.is_default ? "(Default)" : ""}
+              </option>
+            `).join("")}
+          </select>
+        </div>
+        <div class="settings-field">
+          <button
+            class="btn btn-secondary btn-small"
+            onclick="window.goToStrategies()"
+            title="Manage strategies"
+          >
+            Manage Strategies
+          </button>
+        </div>
+      </div>
+      ${config.description ? `<p class="strategy-description">${config.description}</p>` : ""}
     </div>
   `;
 }
@@ -408,6 +464,9 @@ function renderCostsSection(config: StrategyConfig): string {
 
 // Initialize settings handlers
 export function initSettingsHandlers() {
+  // Load available strategies on init
+  loadAvailableStrategies();
+
   (window as any).updateConfigValue = (key: string, value: any) => {
     updateConfigValueState(key, value);
   };
@@ -440,6 +499,24 @@ export function initSettingsHandlers() {
         content.style.display = "none";
         icon.textContent = "▼";
       }
+    }
+  };
+
+  // Strategy selection handler
+  (window as any).selectPaperTradingStrategy = async (strategyId: string) => {
+    const id = parseInt(strategyId);
+    if (id) {
+      // Fetch the selected strategy config
+      await fetchStrategyConfig(id);
+      // Reload available strategies to update UI
+      await loadAvailableStrategies();
+    }
+  };
+
+  // Navigate to strategies management
+  (window as any).goToStrategies = () => {
+    if (typeof (window as any).setAppView === "function") {
+      (window as any).setAppView("strategies");
     }
   };
 }

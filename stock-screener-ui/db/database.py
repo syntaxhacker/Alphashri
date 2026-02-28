@@ -37,5 +37,5 @@ def get_db():
 
 def init_db():
     """Initialize database tables."""
-    from .models import User, UserSession, StrategyConfig  # noqa: F401
+    from .models import User, UserSession, StrategyConfig, BotConfig  # noqa: F401
     Base.metadata.create_all(bind=engine)

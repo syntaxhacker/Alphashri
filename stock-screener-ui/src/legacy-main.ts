@@ -33,6 +33,12 @@ import {
 } from "./components/paper-trading";
 import { initPaperChart } from "./components/paper-trading/chart";
 import { renderSectorAnalysisView } from "./components/sector-analysis";
+import {
+  renderStrategiesView,
+  initStrategiesHandlers,
+  cleanupStrategies,
+} from "./components/strategies";
+import { subscribe as subscribeStrategies } from "./state/strategies";
 import { initPreviewChartHandlers } from "./components/common/previewChart";
 import type { AppView } from "./types/backtest";
 
@@ -100,6 +106,8 @@ function render() {
     mainContent = renderPaperTradingView();
   } else if (currentView === "sector") {
     mainContent = renderSectorAnalysisView();
+  } else if (currentView === "strategies") {
+    mainContent = renderStrategiesView();
   } else {
     mainContent = renderScreenerView();
   }
@@ -126,6 +134,11 @@ function render() {
     activatePaperTrading();
   } else if (currentView !== "paper" && lastRenderedView === "paper") {
     cleanupPaperTrading();
+  }
+
+  // Cleanup strategies view when leaving
+  if (currentView !== "strategies" && lastRenderedView === "strategies") {
+    cleanupStrategies();
   }
   lastRenderedView = currentView;
 }
@@ -212,6 +225,9 @@ subscribeBacktest(render);
 
 // Subscribe to paper trading state changes
 subscribePaperTrading(render);
+
+// Subscribe to strategies state changes
+subscribeStrategies(render);
 
 // Window-exposed functions for onclick handlers
 (window as any).refresh = () =>
@@ -309,6 +325,7 @@ loadScreeners(initProfileFilters).then(() => {
   initSidemenu();
   initBacktestHandlers();
   initPaperTradingHandlers();
+  initStrategiesHandlers();
   initPreviewChartHandlers();
   fetchStrategies();
   fetchCosts();

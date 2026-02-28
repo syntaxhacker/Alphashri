@@ -46,6 +46,9 @@ class TradeRecord:
     peak_price: float = 0.0  # Highest price during trade
     low_price: float = 0.0   # Lowest price during trade
     notes: str = ""
+    # Strategy tracking
+    strategy_id: int = 0           # ID of the strategy used
+    strategy_name: str = ""        # Name for quick reference
 
 
 class TradeJournal:
@@ -80,13 +83,15 @@ class TradeJournal:
         self.trades: List[TradeRecord] = []
         self.daily_summaries: Dict[str, dict] = {}
 
-    def log_trade(self, trade: dict, notes: str = "") -> TradeRecord:
+    def log_trade(self, trade: dict, notes: str = "", strategy_id: int = 0, strategy_name: str = "") -> TradeRecord:
         """
         Log a completed trade.
 
         Args:
             trade: Trade dict from PaperTrader or backtest
             notes: Optional notes
+            strategy_id: ID of the strategy used
+            strategy_name: Name of the strategy for quick reference
 
         Returns:
             TradeRecord
@@ -110,6 +115,8 @@ class TradeJournal:
             peak_price=trade.get('peak_price', 0),
             low_price=trade.get('low_price', 0),
             notes=notes,
+            strategy_id=trade.get('strategy_id', strategy_id),
+            strategy_name=trade.get('strategy_name', strategy_name),
         )
 
         self.trades.append(record)
@@ -317,7 +324,8 @@ class TradeJournal:
                 'trade_id', 'symbol', 'side', 'quantity',
                 'entry_price', 'exit_price', 'entry_time', 'exit_time',
                 'pnl', 'pnl_pct', 'exit_reason', 'costs', 'net_pnl',
-                'sl_price', 'tp_price', 'peak_price', 'low_price', 'notes'
+                'sl_price', 'tp_price', 'peak_price', 'low_price', 'notes',
+                'strategy_id', 'strategy_name'
             ])
             writer.writeheader()
             for trade in self.trades:

@@ -1199,15 +1199,33 @@ class StrategyConfigUpdate(BaseModel):
 
 
 @router.get("/config")
-async def get_strategy_config_endpoint(name: Optional[str] = None):
-    """Get strategy configuration from database."""
+async def get_strategy_config_endpoint(
+    name: Optional[str] = None,
+    strategy_id: Optional[int] = None,
+):
+    """Get strategy configuration from database.
+
+    Args:
+        name: Config name (e.g., 'orb_default')
+        strategy_id: Strategy ID (takes precedence over name)
+    """
     try:
-        from trading.config_loader import get_strategy_config, StrategyConfigData
-        config = get_strategy_config(name)
+        from trading.config_loader import get_strategy_config, get_strategy_by_id, StrategyConfigData
+
+        # If strategy_id is provided, use it
+        if strategy_id:
+            config = get_strategy_by_id(strategy_id)
+            if not config:
+                raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+        else:
+            config = get_strategy_config(name)
+
         return {
             "status": "success",
             "config": config.to_dict(),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load config: {e}")
 

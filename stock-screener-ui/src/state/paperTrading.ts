@@ -31,6 +31,7 @@ export const initialPaperTradingState: PaperTradingState = {
   filterFromDate: null,
   filterToDate: null,
   filterSymbol: null,
+  filterStrategy: null,
 
   selectedSymbol: null,
   chartData: null,
@@ -137,6 +138,11 @@ export function setFilterToDate(date: string | null) {
 
 export function setFilterSymbol(symbol: string | null) {
   state = { ...state, filterSymbol: symbol };
+  notify();
+}
+
+export function setFilterStrategy(strategy: string | null) {
+  state = { ...state, filterStrategy: strategy };
   notify();
 }
 

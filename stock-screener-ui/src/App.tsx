@@ -33,7 +33,9 @@ function LegacyShell({ view }: { view: AppRouteView }) {
             ? "/paper"
             : nextView === "sector"
               ? "/sector"
-              : "/";
+              : nextView === "strategies"
+                ? "/strategies"
+                : "/";
       if (location.pathname !== path) {
         navigate(path);
       }
@@ -94,6 +96,7 @@ function AppContent() {
         <Route path="/backtest" element={<LegacyShell view="backtest" />} />
         <Route path="/paper" element={<LegacyShell view="paper" />} />
         <Route path="/sector" element={<LegacyShell view="sector" />} />
+        <Route path="/strategies" element={<LegacyShell view="strategies" />} />
         <Route path="/chart/:symbol" element={<ChartView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
