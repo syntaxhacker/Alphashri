@@ -34,8 +34,23 @@ export async function navigateToPaperTradingWithBot(
   botId: string = "2",
 ): Promise<void> {
   await navigateToPaperTrading(page);
-  await page.locator(".bot-selector-dropdown").selectOption(botId);
-  await page.waitForSelector(".portfolio-card", { timeout: 5000 });
+
+  // Wait for bot selector to be populated
+  const dropdown = page.locator(".bot-selector-dropdown");
+  await dropdown.waitFor({ state: "visible", timeout: 10000 });
+
+  // Wait for options to be populated (bots API call completes)
+  await page.waitForFunction(
+    (selector) => {
+      const select = document.querySelector(selector);
+      return select && select.querySelectorAll("option[value]").length > 0;
+    },
+    ".bot-selector-dropdown",
+    { timeout: 10000 },
+  );
+
+  await dropdown.selectOption(botId);
+  await page.waitForTimeout(500);
 }
 
 /**

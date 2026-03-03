@@ -31,8 +31,33 @@ export async function navigateToMultiStrategyBot(page: Page, botId: string = "2"
   await page.goto("/paper");
   await page.waitForSelector(".sidemenu", { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
-  await page.locator(".bot-selector-dropdown").selectOption(botId);
-  await page.waitForSelector(".portfolio-card", { timeout: 5000 });
+
+  // Wait for bot selector to be populated
+  const dropdown = page.locator(".bot-selector-dropdown");
+  await dropdown.waitFor({ state: "visible", timeout: 10000 });
+
+  // Wait for options to be populated (bots API call completes)
+  await page.waitForFunction(
+    (selector) => {
+      const select = document.querySelector(selector);
+      return select && select.querySelectorAll("option[value]").length > 0;
+    },
+    ".bot-selector-dropdown",
+    { timeout: 10000 },
+  );
+
+  await dropdown.selectOption(botId);
+
+  // Wait for positions to load (not just "Loading positions...")
+  await page.waitForFunction(
+    () => {
+      const loadingText = document.body.textContent;
+      return !loadingText?.includes("Loading positions...");
+    },
+    { timeout: 10000 },
+  );
+
+  await page.waitForTimeout(300);
 }
 
 /**

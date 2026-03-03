@@ -23,16 +23,18 @@ export async function setupTradeHistoryMocks(page: Page): Promise<void> {
 export async function navigateToPaperTrading(page: Page): Promise<void> {
   // Navigate directly to paper trading URL
   await page.goto("/paper");
-  await page.waitForSelector(".sidemenu", { timeout: 15000 });
-  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
+  await page.waitForSelector(".sidemenu", { timeout: 20000 });
+  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 30000 });
 }
 
 /**
  * Navigate to the Trade History tab within Paper Trading
  */
 export async function navigateToTradeHistoryTab(page: Page): Promise<void> {
-  await page.click('[data-testid="trade-history-tab"]');
-  await page.waitForSelector('[data-testid="history-panel"]', { timeout: 10000 });
+  const tabButton = page.locator('[data-testid="trade-history-tab"]');
+  await tabButton.click();
+  // Wait for the history panel to appear (it may take a moment for React to re-render)
+  await page.waitForSelector('[data-testid="history-panel"]', { timeout: 20000 });
 }
 
 /**

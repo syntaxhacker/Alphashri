@@ -588,45 +588,37 @@ export function getCurrentConfig() {
 
 // Multi-strategy bot mocks
 export async function setupMultiStrategyBotMocks(page: import("@playwright/test").Page) {
-  // Mock bots list endpoint - use function matcher for more control
-  await page.route(
-    (url) => {
-      const path = url.pathname;
-      return path === "/api/bots" || path.endsWith("/api/bots");
-    },
-    async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          bots: [
-            {
-              id: 1,
-              name: "Multi-Strategy Bot",
-              strategies: [
-                { id: 1, name: "ORB Conservative", allocation: 0.5 },
-                { id: 2, name: "ORB Aggressive", allocation: 0.5 },
-              ],
-              is_active: true,
-              is_running: false,
-            },
-            {
-              id: 2,
-              name: "Multi-ORB Test Bot",
-              strategies: [
-                { id: 1, name: "ORB Conservative", allocation: 0.5 },
-                { id: 2, name: "ORB Aggressive", allocation: 0.5 },
-              ],
-              is_active: true,
-              is_running: true,
-              pid: 12345,
-            },
+  // Mock bots list endpoint - only match /api/bots exactly (not /api/bots/123)
+  // The API returns an array of bots directly, not wrapped in { bots: [...] }
+  await page.route("**/api/bots", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: 1,
+          name: "Multi-Strategy Bot",
+          strategies: [
+            { id: 1, name: "ORB Conservative", allocation: 0.5 },
+            { id: 2, name: "ORB Aggressive", allocation: 0.5 },
           ],
-          count: 2,
-        }),
-      });
-    },
-  );
+          is_active: true,
+          is_running: false,
+        },
+        {
+          id: 2,
+          name: "Multi-ORB Test Bot",
+          strategies: [
+            { id: 1, name: "ORB Conservative", allocation: 0.5 },
+            { id: 2, name: "ORB Aggressive", allocation: 0.5 },
+          ],
+          is_active: true,
+          is_running: true,
+          pid: 12345,
+        },
+      ]),
+    });
+  });
 
   // Mock bot start
   await page.route(/\/api\/bots\/\d+\/start/, async (route) => {
