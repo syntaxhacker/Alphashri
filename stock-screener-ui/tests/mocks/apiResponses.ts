@@ -585,3 +585,92 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
 export function getCurrentConfig() {
   return { ...currentConfig };
 }
+
+// Multi-strategy bot mocks
+export async function setupMultiStrategyBotMocks(page: import("@playwright/test").Page) {
+  // Mock bots list
+  await page.route("**/api/bots", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        bots: [
+          {
+            id: 1,
+            name: "Multi-Strategy Bot",
+            strategies: [
+              { id: 1, name: "ORB Conservative", allocation: 0.5 },
+              { id: 2, name: "ORB Aggressive", allocation: 0.5 },
+            ],
+            is_active: true,
+            is_running: false,
+          },
+        ],
+        count: 1,
+      }),
+    });
+  });
+
+  // Mock bot start
+  await page.route("**/api/bots/1/start", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "success",
+        message: "Bot started",
+        pid: 12345,
+      }),
+    });
+  });
+
+  // Mock bot stop
+  await page.route("**/api/bots/1/stop", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "success",
+        message: "Bot stopped",
+      }),
+    });
+  });
+
+  // Mock bot status
+  await page.route("**/api/bots/1/status", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        is_running: true,
+        pid: 12345,
+        portfolio: {
+          cash: 100000,
+          equity: 105000,
+          pnl: 5000,
+        },
+        positions: [],
+        strategies: [
+          { id: 1, name: "ORB Conservative", pnl: 2500 },
+          { id: 2, name: "ORB Aggressive", pnl: 2500 },
+        ],
+      }),
+    });
+  });
+
+  // Mock bot portfolio
+  await page.route("**/api/bots/1/portfolio", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        cash: 100000,
+        equity: 105000,
+        pnl: 5000,
+        margin_used: 50000,
+        daily_pnl: 1000,
+        positions: [],
+      }),
+    });
+  });
+}
