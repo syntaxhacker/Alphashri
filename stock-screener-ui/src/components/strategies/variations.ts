@@ -15,7 +15,7 @@ export function renderVariationsPanel(
   variations: StrategyConfig[],
 ): string {
   return `
-    <div class="variations-panel">
+    <div class="variations-panel" data-testid="variations-panel">
       <div class="variations-header">
         <h3>Variations of ${template.name}</h3>
         <button
@@ -35,7 +35,7 @@ export function renderVariationsPanel(
 
 function renderVariationDetailCard(variation: StrategyConfig): string {
   return `
-    <div class="variation-detail-card ${variation.is_default ? "default" : ""}" data-variation-id="${variation.id}">
+    <div class="variation-detail-card ${variation.is_default ? "default" : ""}" data-variation-id="${variation.id}" data-testid="variation-detail-card">
       <div class="variation-detail-header">
         <h4>
           ${variation.is_default ? '<span class="default-badge">⭐ Default</span>' : ""}
@@ -46,6 +46,7 @@ function renderVariationDetailCard(variation: StrategyConfig): string {
             class="btn btn-icon"
             onclick="window.editStrategy(${variation.id})"
             title="Edit"
+            data-testid="edit-strategy-btn"
           >
             ✏️
           </button>
@@ -54,6 +55,7 @@ function renderVariationDetailCard(variation: StrategyConfig): string {
             onclick="window.confirmDeleteStrategy(${variation.id})"
             ${variation.is_default ? "disabled" : ""}
             title="Delete"
+            data-testid="delete-strategy-btn"
           >
             🗑️
           </button>
@@ -125,7 +127,7 @@ export function renderPerformancePanel(performance: StrategyPerformance): string
   const pnlColor = performance.net_pnl >= 0 ? "green" : "red";
 
   return `
-    <div class="performance-panel">
+    <div class="performance-panel" data-testid="performance-panel">
       <h4>Performance: ${performance.strategy_name}</h4>
       <div class="performance-stats">
         <div class="stat-item">

@@ -107,6 +107,7 @@ export interface PaperChartData {
   candles: CandleData[];
   trades: PaperTrade[];
   orb_levels: ORBLevels | null;
+  week52_levels: Week52Levels | null; // 52W levels for swing strategies
   current_position: PaperPosition | null;
 }
 
@@ -125,6 +126,15 @@ export interface ORBLevels {
   or_open: number;
   or_range: number;
   or_range_pct: number;
+}
+
+// 52-week high levels for swing strategies
+export interface Week52Levels {
+  high_52w: number; // 52-week high price
+  low_52w: number; // 52-week low price
+  distance_to_high_pct: number; // How far from 52W high (%)
+  distance_to_low_pct: number; // How far from 52W low (%)
+  near_high: boolean; // Within entry threshold of high
 }
 
 export interface PaperScanItem {
@@ -176,6 +186,7 @@ export interface PaperTradingState {
 
   // Chart state
   selectedSymbol: string | null;
+  selectedStrategyTab: string | null; // For multi-strategy position tabs
   chartData: PaperChartData | null;
   chartLoading: boolean;
   chartTimeframe: string;
@@ -198,10 +209,25 @@ export interface PaperTradingState {
   configLoading: boolean;
   configError: string | null;
   configDirty: boolean; // Has unsaved changes
+
+  // Multi-strategy bots
+  availableBots: BotInfo[];
 }
 
 // View type for paper trading (match the state)
 export type PaperView = "live" | "history" | "settings";
+
+// Bot info for multi-strategy
+export interface BotInfo {
+  id: number;
+  name: string;
+  strategies: Array<{
+    id: number;
+    name: string;
+    strategy_type: string;
+  }>;
+  is_active: boolean;
+}
 
 // Strategy configuration from database
 export interface StrategyConfig {

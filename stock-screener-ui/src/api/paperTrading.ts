@@ -32,6 +32,7 @@ import {
   setConfigLoading,
   setConfigError,
 } from "../state/paperTrading";
+import { fetchWithAuth } from "../state/auth";
 
 const API_BASE = "http://localhost:8765";
 
@@ -43,7 +44,7 @@ type PaperBotStatus = {
 
 export async function fetchPaperBotSnapshot(): Promise<PaperBotSnapshot | null> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/bot/snapshot`);
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/bot/snapshot`);
     const data = await response.json();
     setBotSnapshot(data);
     return data;
@@ -56,7 +57,7 @@ export async function fetchPaperBotSnapshot(): Promise<PaperBotSnapshot | null> 
 // Fetch portfolio status
 export async function fetchPortfolio(): Promise<PortfolioStatus | null> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/portfolio`);
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/portfolio`);
     const data = await response.json();
     setPortfolio(data);
     return data;
@@ -69,7 +70,7 @@ export async function fetchPortfolio(): Promise<PortfolioStatus | null> {
 // Fetch open positions
 export async function fetchPositions(): Promise<PaperPosition[]> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/positions`);
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/positions`);
     const data = await response.json();
     const positions = data.positions || [];
     setPositions(positions);
@@ -83,7 +84,7 @@ export async function fetchPositions(): Promise<PaperPosition[]> {
 // Fetch trade history
 export async function fetchTrades(limit: number = 100): Promise<PaperTrade[]> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/trades?limit=${limit}`);
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?limit=${limit}`);
     const data = await response.json();
     const trades = data.trades || [];
     setTrades(trades);
@@ -100,7 +101,7 @@ export async function fetchDailyReport(date?: string): Promise<DailySummary | nu
     const url = date
       ? `${API_BASE}/api/paper/journal/daily?date=${date}`
       : `${API_BASE}/api/paper/journal/daily`;
-    const response = await fetch(url);
+    const response = await fetchWithAuth(url);
     const data = await response.json();
     setDailySummary(data);
     return data;
@@ -113,7 +114,7 @@ export async function fetchDailyReport(date?: string): Promise<DailySummary | nu
 // Fetch performance summary
 export async function fetchPerformanceSummary(): Promise<PerformanceSummary | null> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/journal/summary`);
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/journal/summary`);
     const data = await response.json();
     setPerformanceSummary(data);
     return data;
@@ -126,7 +127,7 @@ export async function fetchPerformanceSummary(): Promise<PerformanceSummary | nu
 // Fetch symbol performance
 export async function fetchSymbolPerformance(): Promise<SymbolPerformance[]> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/journal/symbols`);
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/journal/symbols`);
     const data = await response.json();
     const performance = Object.values(data) as SymbolPerformance[];
     setSymbolPerformance(performance);
@@ -154,7 +155,7 @@ export async function fetchPaperChart(
       ? `${API_BASE}/api/paper/chart/${symbol}?${queryString}`
       : `${API_BASE}/api/paper/chart/${symbol}`;
     console.log("[API] Fetching chart:", { symbol, date, timeframe, url });
-    const response = await fetch(url);
+    const response = await fetchWithAuth(url);
     const data = await response.json();
     console.log("[API] Chart response:", {
       candleCount: data.candles?.length,
@@ -201,7 +202,7 @@ export async function refreshLiveData(): Promise<void> {
 
 export async function fetchPaperBotStatus(): Promise<PaperBotStatus | null> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/bot/status`);
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/bot/status`);
     const data = await response.json();
     setBotStatus(!!data.running, data.pid ?? null, data.log_file ?? null);
     return data;
@@ -214,7 +215,7 @@ export async function fetchPaperBotStatus(): Promise<PaperBotStatus | null> {
 
 export async function startPaperBot(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/bot/start`, { method: "POST" });
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/bot/start`, { method: "POST" });
     const data = await response.json();
     setBotStatus(!!data.running, data.pid ?? null, data.log_file ?? null);
     return !!data.running;
@@ -226,7 +227,7 @@ export async function startPaperBot(): Promise<boolean> {
 
 export async function stopPaperBot(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/bot/stop`, { method: "POST" });
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/bot/stop`, { method: "POST" });
     const data = await response.json();
     setBotStatus(!!data.running, data.pid ?? null, data.log_file ?? null);
     return !data.running;
@@ -266,7 +267,7 @@ export function stopLiveAutoRefresh() {
 // Health check
 export async function healthCheck(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/health`);
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/health`);
     const data = await response.json();
     return data.status === "healthy";
   } catch {
@@ -281,7 +282,7 @@ export async function closePaperPosition(
   reason: string = "MANUAL",
 ): Promise<{ success: boolean; pnl?: number }> {
   try {
-    const response = await fetch(`${API_BASE}/api/paper/close`, {
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/close`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -308,7 +309,7 @@ export async function fetchStrategyConfig(strategyId?: number): Promise<Strategy
     const url = strategyId
       ? `${API_BASE}/api/paper/config?strategy_id=${strategyId}`
       : `${API_BASE}/api/paper/config`;
-    const response = await fetch(url);
+    const response = await fetchWithAuth(url);
     const data = await response.json();
     if (data.config) {
       setStrategyConfig(data.config);
@@ -327,7 +328,7 @@ export async function fetchStrategyConfig(strategyId?: number): Promise<Strategy
 export async function updateStrategyConfig(config: Partial<StrategyConfig>): Promise<boolean> {
   setConfigLoading(true);
   try {
-    const response = await fetch(`${API_BASE}/api/paper/config`, {
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/config`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(config),
@@ -351,7 +352,7 @@ export async function updateStrategyConfig(config: Partial<StrategyConfig>): Pro
 export async function resetStrategyConfig(): Promise<boolean> {
   setConfigLoading(true);
   try {
-    const response = await fetch(`${API_BASE}/api/paper/config/reset`, {
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/config/reset`, {
       method: "POST",
     });
     const data = await response.json();
@@ -366,5 +367,179 @@ export async function resetStrategyConfig(): Promise<boolean> {
     console.error("Failed to reset strategy config:", error);
     setConfigError(error instanceof Error ? error.message : "Failed to reset config");
     return false;
+  }
+}
+
+// ==================== Multi-Strategy Bot API Functions ====================
+
+// List all available bots
+export async function listBots(): Promise<any[]> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/bots`);
+    const data = await response.json();
+    return data || [];
+  } catch (error) {
+    console.error("Failed to list bots:", error);
+    return [];
+  }
+}
+
+// Get bot details
+export async function getBot(botId: number): Promise<any | null> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}`);
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Failed to get bot:", error);
+    return null;
+  }
+}
+
+// Start a multi-strategy bot
+export async function startBot(
+  botId: number,
+): Promise<{ success: boolean; pid?: number; message?: string }> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/start`, {
+      method: "POST",
+    });
+    const data = await response.json();
+    return { success: !!data.pid, pid: data.pid, message: data.message };
+  } catch (error) {
+    console.error("Failed to start bot:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to start bot",
+    };
+  }
+}
+
+// Stop a multi-strategy bot
+export async function stopBot(botId: number): Promise<{ success: boolean; message?: string }> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/stop`, {
+      method: "POST",
+    });
+    const data = await response.json();
+    return { success: true, message: data.message };
+  } catch (error) {
+    console.error("Failed to stop bot:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to stop bot",
+    };
+  }
+}
+
+// Get bot portfolio with per-strategy breakdown
+export async function fetchBotPortfolio(botId: number): Promise<any | null> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/portfolio`);
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch bot portfolio:", error);
+    return null;
+  }
+}
+
+// Get bot positions (optionally filtered by strategy)
+export async function fetchBotPositions(botId: number, strategyId?: number): Promise<any[]> {
+  try {
+    const params = new URLSearchParams();
+    if (strategyId) params.set("strategy_id", strategyId.toString());
+    const url = `${API_BASE}/api/bots/${botId}/positions${params.toString() ? "?" + params : ""}`;
+    const response = await fetchWithAuth(url);
+    const data = await response.json();
+    return data.positions || [];
+  } catch (error) {
+    console.error("Failed to fetch bot positions:", error);
+    return [];
+  }
+}
+
+// Get bot scan items (optionally filtered by strategy)
+export async function fetchBotScanItems(botId: number, strategyId?: number): Promise<any[]> {
+  try {
+    const params = new URLSearchParams();
+    if (strategyId) params.set("strategy_id", strategyId.toString());
+    const url = `${API_BASE}/api/bots/${botId}/scan${params.toString() ? "?" + params : ""}`;
+    const response = await fetchWithAuth(url);
+    const data = await response.json();
+    return data.scan_items || [];
+  } catch (error) {
+    console.error("Failed to fetch bot scan items:", error);
+    return [];
+  }
+}
+
+// Get bot strategy performance
+export async function fetchBotStrategyPerformance(
+  botId: number,
+  includeTest: boolean = true,
+): Promise<any | null> {
+  try {
+    const params = new URLSearchParams();
+    if (!includeTest) params.set("include_test", "false");
+    const url = `${API_BASE}/api/bots/${botId}/strategy-performance${params.toString() ? "?" + params : ""}`;
+    const response = await fetchWithAuth(url);
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch bot strategy performance:", error);
+    return null;
+  }
+}
+
+// Refresh data from multi-strategy bot
+export async function refreshBotLiveData(botId: number): Promise<void> {
+  setLoading(true);
+  try {
+    const [botInfo, portfolioData, positions, scanItems] = await Promise.all([
+      getBot(botId),
+      fetchBotPortfolio(botId),
+      fetchBotPositions(botId),
+      fetchBotScanItems(botId),
+    ]);
+
+    // Update bot status
+    if (botInfo) {
+      setBotStatus(!!botInfo.running, botInfo.pid ?? null, null);
+    }
+
+    if (portfolioData) {
+      setPortfolio(portfolioData.portfolio);
+      // Convert bot positions to paper positions format
+      const paperPositions = positions.map((p: any) => ({
+        symbol: p.symbol,
+        side: p.side,
+        quantity: p.quantity,
+        entry_price: p.entry_price,
+        current_price: p.current_price || p.entry_price,
+        entry_time: p.entry_time,
+        stop_loss: p.sl_price || 0,
+        take_profit: p.tp_price || 0,
+        pnl: p.unrealized_pnl || 0,
+        pnl_pct: p.unrealized_pnl_pct || 0,
+        margin_used: p.margin_used || 0,
+        strategy_id: p.strategy_id,
+        strategy_name: p.strategy_name,
+      }));
+      setPositions(paperPositions);
+
+      // Convert scan items to bot snapshot format
+      setBotSnapshot({
+        timestamp: new Date().toISOString(),
+        watchlist: [],
+        open_positions: positions.map((p: any) => p.symbol),
+        scan_items: scanItems,
+        signals: [],
+      });
+    }
+  } catch (error) {
+    setError(error instanceof Error ? error.message : "Unknown error");
+  } finally {
+    setLoading(false);
   }
 }

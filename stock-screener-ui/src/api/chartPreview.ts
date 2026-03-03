@@ -4,6 +4,8 @@
  * Fetches lightweight chart data for hover preview and expanded charts.
  */
 
+import { fetchWithAuth } from "../state/auth";
+
 const API_BASE = "http://localhost:8765/api/chart/preview";
 
 export interface PreviewCandle {
@@ -79,7 +81,7 @@ export async function fetchChartPreview(
 
   try {
     const url = `${API_BASE}/${symbol}?tf=${tf}&days=${days}&or_minutes=${orMinutes}`;
-    const response = await fetch(url);
+    const response = await fetchWithAuth(url);
 
     if (!response.ok) {
       console.error("Chart preview fetch failed:", response.status);

@@ -41,9 +41,9 @@ export function renderPerformanceView(state: StrategiesState): string {
     : [];
 
   return `
-    <div class="performance-view">
+    <div class="performance-view" data-testid="performance-view">
       <!-- Summary Cards -->
-      <div class="performance-summary">
+      <div class="performance-summary" data-testid="performance-summary">
         ${renderSummaryCard("Total Trades", totals.total_trades.toString(), "📊")}
         ${renderSummaryCard("Overall Win Rate", `${totals.win_rate.toFixed(1)}%`, totals.win_rate >= 50 ? "✅" : "⚠️", totals.win_rate >= 50 ? "positive" : "negative")}
         ${renderSummaryCard("Total P&L", formatCurrency(totals.total_pnl), totals.total_pnl >= 0 ? "📈" : "📉", totals.total_pnl >= 0 ? "positive" : "negative")}
@@ -69,9 +69,9 @@ export function renderPerformanceView(state: StrategiesState): string {
       `
           : `
         <!-- Performance Table -->
-        <div class="performance-table-container">
+        <div class="performance-table-container" data-testid="performance-table-container">
           <h4 class="performance-section-title">Strategy Comparison (Click to view trades)</h4>
-          <table class="performance-table">
+          <table class="performance-table" data-testid="performance-table">
             <thead>
               <tr>
                 <th>Strategy</th>
@@ -91,9 +91,9 @@ export function renderPerformanceView(state: StrategiesState): string {
         </div>
 
         <!-- Performance Chart (Simple Bar) -->
-        <div class="performance-chart-container">
+        <div class="performance-chart-container" data-testid="performance-chart-container">
           <h4 class="performance-section-title">Net P&L by Strategy</h4>
-          <div class="performance-bars">
+          <div class="performance-bars" data-testid="performance-bars">
             ${sortedPerformances.map((p) => renderPerformanceBar(p, totals.maxAbsPnl)).join("")}
           </div>
         </div>
@@ -195,8 +195,9 @@ function renderSummaryCard(
   icon: string,
   className: string = "",
 ): string {
+  const testid = `perf-card-${label.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
   return `
-    <div class="performance-summary-card ${className}">
+    <div class="performance-summary-card ${className}" data-testid="${testid}">
       <span class="summary-icon">${icon}</span>
       <div class="summary-content">
         <span class="summary-value">${value}</span>
@@ -211,7 +212,7 @@ function renderPerformanceRow(perf: StrategyPerformance): string {
   const pnlClass = perf.net_pnl >= 0 ? "positive" : "negative";
 
   return `
-    <tr class="performance-row ${pnlClass} clickable" onclick="window.selectStrategyForDetail(${perf.strategy_id})">
+    <tr class="performance-row ${pnlClass} clickable" onclick="window.selectStrategyForDetail(${perf.strategy_id})" data-testid="performance-row" data-strategy-id="${perf.strategy_id}">
       <td class="strategy-name-cell">
         <span class="strategy-name">${perf.strategy_name}</span>
         <span class="strategy-id">ID: ${perf.strategy_id}</span>
@@ -248,7 +249,7 @@ function renderPerformanceBar(perf: StrategyPerformance, maxAbsPnl: number): str
   const percentage = maxAbsPnl > 0 ? (absValue / maxAbsPnl) * 100 : 0;
 
   return `
-    <div class="performance-bar-item clickable" onclick="window.selectStrategyForDetail(${perf.strategy_id})">
+    <div class="performance-bar-item clickable" onclick="window.selectStrategyForDetail(${perf.strategy_id})" data-testid="performance-bar-item" data-strategy-id="${perf.strategy_id}">
       <div class="bar-label">${perf.strategy_name}</div>
       <div class="bar-container">
         <div

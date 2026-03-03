@@ -49,6 +49,9 @@ class TradeRecord:
     # Strategy tracking
     strategy_id: int = 0           # ID of the strategy used
     strategy_name: str = ""        # Name for quick reference
+    # Source tracking
+    source: str = "live"           # "live", "backtest", "seed_test" - identifies trade origin
+    is_test: bool = False          # Quick flag for test/seeded data
 
 
 class TradeJournal:
@@ -117,6 +120,8 @@ class TradeJournal:
             notes=notes,
             strategy_id=trade.get('strategy_id', strategy_id),
             strategy_name=trade.get('strategy_name', strategy_name),
+            source=trade.get('source', 'live'),
+            is_test=trade.get('is_test', False),
         )
 
         self.trades.append(record)
@@ -257,6 +262,102 @@ class TradeJournal:
 
         return symbol_stats
 
+    def get_strategy_performance(self, include_test: bool = True) -> Dict[int, dict]:
+        """Get performance breakdown by strategy for multi-strategy tracking.
+
+        Args:
+            include_test: If False, exclude trades marked as test/seeded data
+        """
+        strategy_stats = {}
+
+        for trade in self.trades:
+            # Skip test trades if requested
+            if not include_test and getattr(trade, 'is_test', False):
+                continue
+
+            strategy_id = trade.strategy_id or 0
+            if strategy_id not in strategy_stats:
+                strategy_stats[strategy_id] = {
+                    'strategy_id': strategy_id,
+                    'strategy_name': trade.strategy_name or 'Unknown',
+                    'trades': 0,
+                    'winners': 0,
+                    'losers': 0,
+                    'total_pnl': 0,
+                    'net_pnl': 0,
+                    'total_costs': 0,
+                    'test_trades': 0,
+                    'symbols': set(),
+                }
+
+            stats = strategy_stats[strategy_id]
+            stats['trades'] += 1
+            stats['total_pnl'] += trade.pnl
+            stats['net_pnl'] += trade.net_pnl
+            stats['total_costs'] += trade.costs
+            stats['symbols'].add(trade.symbol)
+
+            # Track test trades separately
+            if getattr(trade, 'is_test', False):
+                stats['test_trades'] += 1
+
+            if trade.net_pnl > 0:
+                stats['winners'] += 1
+            else:
+                stats['losers'] += 1
+
+        # Calculate win rates and convert sets to lists
+        for strategy_id, stats in strategy_stats.items():
+            stats['win_rate'] = (
+                stats['winners'] / stats['trades'] * 100
+                if stats['trades'] > 0 else 0
+            )
+            stats['total_pnl'] = round(stats['total_pnl'], 2)
+            stats['net_pnl'] = round(stats['net_pnl'], 2)
+            stats['total_costs'] = round(stats['total_costs'], 2)
+            stats['win_rate'] = round(stats['win_rate'], 1)
+            stats['symbols'] = list(stats['symbols'])
+            stats['symbol_count'] = len(stats['symbols'])
+            stats['has_test_data'] = stats['test_trades'] > 0
+
+        return strategy_stats
+
+    def display_strategy_performance(self):
+        """Display performance by strategy (for multi-strategy bots)."""
+        strategy_stats = self.get_strategy_performance()
+
+        if not strategy_stats:
+            console.print("[yellow]No strategy data available[/yellow]")
+            return
+
+        # Sort by net P&L
+        sorted_stats = sorted(
+            strategy_stats.values(),
+            key=lambda x: x['net_pnl'],
+            reverse=True
+        )
+
+        console.print("\n[bold cyan]═══ Strategy Performance ═══[/bold cyan]")
+
+        table = Table()
+        table.add_column("Strategy", style="cyan")
+        table.add_column("Trades", justify="right")
+        table.add_column("Win Rate", justify="right")
+        table.add_column("Net P&L", justify="right")
+        table.add_column("Symbols", justify="right")
+
+        for stats in sorted_stats:
+            pnl_color = "green" if stats['net_pnl'] >= 0 else "red"
+            table.add_row(
+                stats['strategy_name'],
+                str(stats['trades']),
+                f"{stats['win_rate']:.1f}%",
+                f"[{pnl_color}]₹{stats['net_pnl']:,.0f}[/{pnl_color}]",
+                str(stats['symbol_count']),
+            )
+
+        console.print(table)
+
     def display_summary(self):
         """Display performance summary."""
         summary = self.get_performance_summary()
@@ -279,6 +380,65 @@ class TradeJournal:
         table.add_row("Profit Factor", f"{summary['profit_factor']:.2f}")
 
         console.print(table)
+
+    def load_all_journals(self, days: int = 30) -> int:
+        """
+        Load all journal files from the past N days.
+
+        Args:
+            days: Number of days to look back
+
+        Returns:
+            Number of trades loaded
+        """
+        from datetime import datetime, timedelta
+
+        loaded_trades = 0
+        for i in range(days):
+            date = (datetime.now() - timedelta(days=i)).strftime('%Y%m%d')
+            journal_file = self.journal_dir / f"journal_{date}.json"
+            if journal_file.exists():
+                try:
+                    with open(journal_file, 'r') as f:
+                        data = json.load(f)
+
+                    for trade_data in data.get('trades', []):
+                        # Check if trade already exists (by trade_id)
+                        existing_ids = [t.trade_id for t in self.trades]
+                        if trade_data.get('trade_id') not in existing_ids:
+                            trade = TradeRecord(
+                                trade_id=trade_data.get('trade_id', ''),
+                                symbol=trade_data['symbol'],
+                                side=trade_data['side'],
+                                quantity=trade_data['quantity'],
+                                entry_price=trade_data['entry_price'],
+                                exit_price=trade_data['exit_price'],
+                                entry_time=trade_data['entry_time'],
+                                exit_time=trade_data['exit_time'],
+                                pnl=trade_data['pnl'],
+                                pnl_pct=trade_data['pnl_pct'],
+                                exit_reason=trade_data['exit_reason'],
+                                costs=trade_data.get('costs', 0),
+                                net_pnl=trade_data.get('net_pnl', trade_data['pnl']),
+                                sl_price=trade_data.get('sl_price', 0),
+                                tp_price=trade_data.get('tp_price', 0),
+                                peak_price=trade_data.get('peak_price', 0),
+                                low_price=trade_data.get('low_price', 0),
+                                notes=trade_data.get('notes', ''),
+                                strategy_id=trade_data.get('strategy_id', 0),
+                                strategy_name=trade_data.get('strategy_name', ''),
+                            )
+                            self.trades.append(trade)
+                            self._update_daily_summary(trade)
+                            loaded_trades += 1
+
+                except Exception as e:
+                    console.print(f"[yellow]Could not load journal {date}: {e}[/yellow]")
+
+        if loaded_trades > 0:
+            console.print(f"[green]Loaded {loaded_trades} historical trades[/green]")
+
+        return loaded_trades
 
     def display_symbol_performance(self, top_n: int = 10):
         """Display performance by symbol."""

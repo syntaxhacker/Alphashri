@@ -15,7 +15,7 @@ export function renderHistoryPanel(): string {
 
   if (state.isLoading && state.trades.length === 0) {
     return `
-      <div class="history-panel">
+      <div class="history-panel" data-testid="history-panel">
         <div class="loading-indicator">
           <p>Loading trade history...</p>
         </div>
@@ -63,9 +63,9 @@ function renderStrategyFilter(strategies: string[], currentFilter: string | null
   }
 
   return `
-    <div class="strategy-filter-bar">
+    <div class="strategy-filter-bar" data-testid="strategy-filter-bar">
       <label>Strategy:</label>
-      <select onchange="window.filterByStrategy(this.value)" class="strategy-filter-select">
+      <select onchange="window.filterByStrategy(this.value)" class="strategy-filter-select" data-testid="strategy-filter-select">
         <option value="">All Strategies</option>
         ${strategies
           .map(
@@ -123,8 +123,8 @@ function renderTradesTable(trades: PaperTrade[], selectedSymbol: string | null):
   const totalLosses = trades.filter((t) => t.net_pnl < 0).length;
 
   return `
-    <div class="trades-table-container">
-      <div class="trades-header">
+    <div class="trades-table-container" data-testid="trades-table-container">
+      <div class="trades-header" data-testid="trades-header">
         <h3>Trade History (${trades.length} trades)</h3>
         <div class="trades-summary">
           <span>Total: <strong class="${totalPnl >= 0 ? "positive" : "negative"}">₹${formatNumber(totalPnl)}</strong></span>
@@ -179,8 +179,8 @@ function renderDayGroup(date: string, trades: PaperTrade[], selectedSymbol: stri
   });
 
   return `
-    <div class="day-group" data-date="${date}">
-      <div class="day-header ${pnlClass}">
+    <div class="day-group" data-date="${date}" data-testid="day-group-${date}">
+      <div class="day-header ${pnlClass}" data-testid="day-header-${date}">
         <div class="day-left">
           <span class="day-icon">📅</span>
           <span class="day-date">${formattedDate}</span>
@@ -224,6 +224,7 @@ function renderDayGroup(date: string, trades: PaperTrade[], selectedSymbol: stri
                   onmouseleave="window.hideTradeTooltip()"
                   data-symbol="${trade.symbol}"
                   data-trade-id="${trade.trade_id}"
+                  data-testid="trade-row-${trade.trade_id}"
                   data-tooltip='${tooltipContent}'>
                 <td class="symbol-cell"><strong>${trade.symbol}</strong></td>
                 <td class="${sideClass}">${sideIcon}</td>

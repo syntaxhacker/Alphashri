@@ -1073,6 +1073,29 @@ async def get_paper_chart(
                 "or_range_pct": ((or_high - or_low) / or_open * 100) if or_open > 0 else 0,
             }
 
+        # Get 52-week levels from screener data
+        week52_levels = None
+        try:
+            from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
+            tv_screener = TVScreenerUsage(enable_paper_trading=False)
+            # Try to get 52W data from TV screener
+            df_52w = tv_screener.fetch_52w_data(symbol.upper())
+            if df_52w is not None and not df_52w.empty:
+                row = df_52w.iloc[0]
+                high_52w = row.get('high_52w', 0)
+                low_52w = row.get('low_52w', 0)
+                if high_52w > 0:
+                    current_price = candles[-1]['close'] if candles else 0
+                    week52_levels = {
+                        "high_52w": float(high_52w),
+                        "low_52w": float(low_52w) if low_52w > 0 else 0,
+                        "distance_to_high_pct": ((high_52w - current_price) / high_52w * 100) if high_52w > 0 and current_price > 0 else 0,
+                        "distance_to_low_pct": ((current_price - low_52w) / low_52w * 100) if low_52w > 0 and current_price > 0 else 0,
+                        "near_high": ((high_52w - current_price) / high_52w * 100) <= 3.0 if high_52w > 0 and current_price > 0 else False,
+                    }
+        except Exception as e:
+            console.print(f"[yellow]Could not fetch 52W levels for {symbol}: {e}[/yellow]")
+
         # Get trades from journal for this symbol and date
         # Load the journal file for the specific date
         from trading.journal import TradeJournal
@@ -1156,6 +1179,7 @@ async def get_paper_chart(
             "candles": candles,
             "trades": trades_data,
             "orb_levels": orb_levels,
+            "week52_levels": week52_levels,
             "current_position": current_position,
         }
 

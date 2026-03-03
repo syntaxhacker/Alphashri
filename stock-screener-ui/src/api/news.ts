@@ -8,6 +8,7 @@ import type {
   NewsResponse,
   ArticleResponse,
 } from "../components/news/news-types";
+import { fetchWithAuth } from "../state/auth";
 
 const API_BASE = "http://localhost:8765";
 
@@ -19,7 +20,7 @@ export async function fetchNews(
   limit: number = 25,
 ): Promise<NewsItem[]> {
   try {
-    const response = await fetch(`${API_BASE}/api/news?source=${source}&limit=${limit}`);
+    const response = await fetchWithAuth(`${API_BASE}/api/news?source=${source}&limit=${limit}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch news: ${response.statusText}`);
     }
@@ -37,7 +38,7 @@ export async function fetchNews(
 export async function fetchArticle(url: string): Promise<ArticleResponse | null> {
   try {
     const encodedUrl = encodeURIComponent(url);
-    const response = await fetch(`${API_BASE}/api/news/article?url=${encodedUrl}`);
+    const response = await fetchWithAuth(`${API_BASE}/api/news/article?url=${encodedUrl}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch article: ${response.statusText}`);
     }
@@ -54,7 +55,7 @@ export async function fetchArticle(url: string): Promise<ArticleResponse | null>
  */
 export async function fetchNewsSources(): Promise<NewsSource[]> {
   try {
-    const response = await fetch(`${API_BASE}/api/news/sources`);
+    const response = await fetchWithAuth(`${API_BASE}/api/news/sources`);
     if (!response.ok) {
       throw new Error(`Failed to fetch sources: ${response.statusText}`);
     }

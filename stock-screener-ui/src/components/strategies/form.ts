@@ -57,7 +57,7 @@ export function renderStrategyForm(
 
   return `
     <div class="modal-overlay" data-testid="strategy-modal">
-      <div class="modal-content strategy-form-modal">
+      <div class="modal-content strategy-form-modal" data-testid="strategy-form">
         <div class="modal-header">
           <h3>${title}</h3>
           <button class="btn btn-icon modal-close" onclick="window.closeStrategyModal()">✕</button>
@@ -91,6 +91,7 @@ export function renderStrategyForm(
                   class="form-input"
                   rows="2"
                   placeholder="Optional notes about this strategy"
+                  data-testid="strategy-description-input"
                 >${defaults.description}</textarea>
               </div>
               ${
@@ -308,7 +309,7 @@ export function renderStrategyForm(
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="window.closeStrategyModal()">
+            <button type="button" class="btn btn-secondary" onclick="window.closeStrategyModal()" data-testid="cancel-strategy-btn">
               Cancel
             </button>
             <button type="submit" class="btn btn-primary" data-testid="save-strategy-btn">

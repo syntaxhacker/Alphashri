@@ -5,6 +5,8 @@
  * Used by autocomplete components throughout the UI.
  */
 
+import { fetchWithAuth } from "../state/auth";
+
 const API_BASE = "http://localhost:8765/api/symbols";
 
 export interface SymbolResult {
@@ -34,7 +36,7 @@ export async function searchSymbols(query: string, limit: number = 10): Promise<
 
   try {
     const url = `${API_BASE}/search?q=${encodeURIComponent(query.trim())}&limit=${limit}`;
-    const response = await fetch(url);
+    const response = await fetchWithAuth(url);
 
     if (!response.ok) {
       console.error("Symbol search failed:", response.status);

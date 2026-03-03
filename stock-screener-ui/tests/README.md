@@ -68,25 +68,27 @@ pytest tests/api/ -n auto
 
 Current test results (Last Updated: 2026-03-03):
 
-| Category | Tests | Passing | Success Rate | Status |
-|----------|-------|---------|--------------|--------|
-| Authentication | 43 | 43 | 100% | ✅ Perfect |
-| Strategies | 63 | 63 | 100% | ✅ Perfect |
-| Health Checks | 18 | 18 | 100% | ✅ Perfect |
-| Paper Trading | 42 | 41 | 98% | ✅ Production Ready |
-| Utilities | 54 | 49 | 91% | ⚠️ Minor issues |
-| Bots | 54 | 47 | 87% | ⚠️ Needs fixes |
-| Integration | 51 | 39 | 76% | ⚠️ Needs fixes |
-| Data APIs | 36 | 21 | 58% | ⚠️ Needs fixes |
-| **Total** | **361** | **321** | **89%** | ✅ Core features ready |
+| Category       | Tests   | Passing | Success Rate | Status                 |
+| -------------- | ------- | ------- | ------------ | ---------------------- |
+| Authentication | 43      | 43      | 100%         | ✅ Perfect             |
+| Strategies     | 63      | 63      | 100%         | ✅ Perfect             |
+| Health Checks  | 18      | 18      | 100%         | ✅ Perfect             |
+| Paper Trading  | 42      | 41      | 98%          | ✅ Production Ready    |
+| Utilities      | 54      | 49      | 91%          | ⚠️ Minor issues        |
+| Bots           | 54      | 47      | 87%          | ⚠️ Needs fixes         |
+| Integration    | 51      | 39      | 76%          | ⚠️ Needs fixes         |
+| Data APIs      | 36      | 21      | 58%          | ⚠️ Needs fixes         |
+| **Total**      | **361** | **321** | **89%**      | ✅ Core features ready |
 
 ### What's Fully Tested
+
 - ✅ User authentication (register, login, tokens, sessions)
 - ✅ Strategy management (CRUD, templates, variations)
 - ✅ Health monitoring
 - ✅ Paper trading (portfolio, orders, positions, risk)
 
 ### Running 100% Passing Tests
+
 ```bash
 # Core functionality (all passing)
 pytest tests/api/test_auth.py -v          # 43/43 ✅
@@ -96,6 +98,7 @@ pytest tests/api/test_paper_trading.py -v # 41/42 ✅
 ```
 
 Generate coverage report:
+
 ```bash
 pytest tests/api/ --cov=api --cov-report=html --cov-report=term
 open htmlcov/index.html
@@ -110,6 +113,7 @@ open htmlcov/index.html
 5. Ensure tests are independent
 
 Example:
+
 ```python
 def test_get_user_success(client, auth_headers, active_user):
     """Test getting current user with valid token."""
@@ -121,10 +125,11 @@ def test_get_user_success(client, auth_headers, active_user):
 ## CI/CD Integration
 
 Add to your GitHub Actions workflow:
+
 ```yaml
 - name: Run API Tests
   run: pytest tests/api/ --cov=api --cov-report=xml
-  
+
 - name: Upload Coverage
   uses: codecov/codecov-action@v3
   with:

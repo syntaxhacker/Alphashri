@@ -381,7 +381,7 @@ class TestBotStartupFlow:
 
         # Get bot details
         detail_response = client.get(f"/api/bots/{bot['id']}")
-        detail_bot = detail_response.json()["bot"]
+        detail_bot = detail_response.json()
 
         assert len(detail_bot["strategies"]) == 2
 

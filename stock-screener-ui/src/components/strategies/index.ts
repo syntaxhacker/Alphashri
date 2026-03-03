@@ -123,7 +123,7 @@ function renderMainContent(view: StrategiesView, state: StrategiesState): string
   }
 
   return `
-    <div class="strategies-templates">
+    <div class="strategies-templates" data-testid="strategies-templates">
       ${state.templates.map((template) => renderTemplateCard(template, state.strategies)).join("")}
     </div>
   `;
@@ -141,8 +141,8 @@ function renderAllStrategiesList(state: StrategiesState): string {
   }
 
   return `
-    <div class="strategies-list">
-      <table class="strategies-table">
+    <div class="strategies-list" data-testid="strategies-list">
+      <table class="strategies-table" data-testid="strategies-table">
         <thead>
           <tr>
             <th>Name</th>
@@ -174,6 +174,7 @@ function renderAllStrategiesList(state: StrategiesState): string {
                 <button
                   class="btn btn-small btn-secondary"
                   onclick="window.editStrategy(${s.id})"
+                  data-testid="edit-strategy-btn"
                 >
                   Edit
                 </button>
@@ -181,6 +182,7 @@ function renderAllStrategiesList(state: StrategiesState): string {
                   class="btn btn-small btn-danger"
                   onclick="window.deleteStrategy(${s.id})"
                   ${s.is_default ? "disabled title='Cannot delete default strategy'" : ""}
+                  data-testid="delete-strategy-btn"
                 >
                   Delete
                 </button>

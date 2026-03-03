@@ -24,7 +24,7 @@ const OR_MINUTES = [
   { value: 60, label: "OR 60m" },
 ];
 
-export const ChartView: React.FC = () => {
+const ChartView: React.FC = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const navigate = useNavigate();
 
@@ -119,7 +119,7 @@ export const ChartView: React.FC = () => {
   }
 
   return (
-    <div className="chart-view">
+    <div className="chart-view" data-testid="chart-view">
       <div className="chart-view-header">
         <button className="back-btn" onClick={() => navigate(-1)}>
           ← Back
@@ -180,6 +180,7 @@ export const ChartView: React.FC = () => {
           <div
             ref={chartRef}
             className="chart-container-full"
+            data-testid="candlestick-chart"
             style={{ width: "100%", height: "100%" }}
           />
         )}

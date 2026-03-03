@@ -18,8 +18,8 @@ body {
 }
 .notif-sidebar {
   position: fixed;
-  top: 8px;
-  right: 8px;
+  top: 56px;
+  right: 12px;
   width: 260px;
   max-height: 92vh;
   overflow: auto;
@@ -108,6 +108,151 @@ button:active {
     opacity: 0.65;
   }
 }
+/* ============================================
+   Market Ticker Styles
+   ============================================ */
+.market-ticker {
+  position: relative;
+  background: #0f0f0f;
+  border-bottom: 1px solid #00ff9d;
+  padding: 4px clamp(6px, 1.1vw, 12px);
+  z-index: auto;
+  font: clamp(9px, 0.75vw, 10px) ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #e0e0e0;
+}
+
+.market-ticker .ticker-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 0.8vw, 10px);
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.market-ticker .ticker-container::-webkit-scrollbar {
+  display: none;
+}
+.market-ticker .ticker-container {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.market-ticker .ticker-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+.market-ticker .ticker-item {
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 0.7vw, 8px);
+  padding: clamp(2px, 0.5vw, 4px) clamp(4px, 0.8vw, 10px);
+  background: #121212;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: space-between;
+}
+.market-ticker .ticker-item:hover {
+  background: #1a1a1a;
+  border-color: #333;
+}
+.market-ticker .ticker-label {
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-size: clamp(8px, 0.7vw, 9px);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.market-ticker .ticker-value {
+  color: #e0e0e0;
+  font-weight: 700;
+  font-size: clamp(9px, 0.95vw, 12px);
+}
+.market-ticker .ticker-change {
+  font-size: clamp(8px, 0.75vw, 10px);
+  padding: 2px clamp(3px, 0.6vw, 6px);
+  border-radius: 3px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.market-ticker .ticker-change.positive {
+  color: #00ff9d;
+  background: rgba(0, 255, 157, 0.1);
+  border: 1px solid rgba(0, 255, 157, 0.3);
+}
+.market-ticker .ticker-change.negative {
+  color: #ff4757;
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid rgba(255, 71, 87, 0.3);
+}
+.market-ticker .ticker-footer {
+  text-align: right;
+  padding: 3px 0 0;
+  border-top: 1px solid #222;
+  font-size: 9px;
+  color: #666;
+}
+.market-ticker .ticker-updated {
+  color: #00ff9d;
+}
+.market-ticker .ticker-loading,
+.market-ticker .ticker-error {
+  color: #ff4757;
+}
+.market-ticker .ticker-empty {
+  color: #666;
+}
+
+/* Animation for price updates */
+.ticker-update {
+  animation: ticker-pulse 1.5s ease-out;
+}
+@keyframes ticker-pulse {
+  0% {
+    background: rgba(0, 255, 157, 0.3);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .market-ticker .ticker-item {
+    flex: 1 1 0;
+    width: auto;
+    text-align: left;
+    padding: 2px 4px;
+    gap: 4px;
+  }
+  .market-ticker .ticker-value {
+    font-size: 9px;
+  }
+  .market-ticker .ticker-label {
+    font-size: 7px;
+    letter-spacing: 0;
+  }
+  .market-ticker .ticker-change {
+    font-size: 7px;
+    padding: 1px 3px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .market-ticker .ticker-change-pct {
+    display: none;
+  }
+}
+
 .filters {
   display: flex;
   gap: 12px;
@@ -194,12 +339,10 @@ button:active {
   font-size: 13px;
 }
 .notif-open-btn {
-  position: fixed;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
+  position: static;
   padding: 4px 8px;
   font-size: 10px;
+  white-space: nowrap;
 }
 .notif-toolbar {
   display: flex;
@@ -1526,6 +1669,32 @@ kbd {
   align-items: center;
 }
 
+/* Bot selector */
+.bot-selector {
+  display: flex;
+  align-items: center;
+}
+
+.bot-selector-dropdown {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #ccc;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 180px;
+}
+
+.bot-selector-dropdown:hover {
+  border-color: #00ff9d;
+}
+
+.bot-selector-dropdown:focus {
+  outline: none;
+  border-color: #00ff9d;
+}
+
 /* Main content area */
 .paper-main {
   display: flex;
@@ -1984,7 +2153,6 @@ kbd {
   padding: 4px 8px;
   background: rgba(124, 131, 255, 0.1);
   border-radius: 4px;
-}
   overflow: hidden;
 }
 
@@ -2686,8 +2854,8 @@ kbd {
 /* Toggle Button */
 .news-toggle-btn {
   position: fixed;
-  top: 8px;
-  right: 8px;
+  bottom: 12px;
+  right: 12px;
   z-index: 150;
   background: #1a1a1a;
   border: 1px solid #333;
@@ -3049,7 +3217,6 @@ kbd {
   }
 
   .news-toggle-btn {
-    top: auto;
     bottom: 8px;
     right: 8px;
   }
@@ -4818,3 +4985,716 @@ textarea.form-input {
   border-radius: 4px;
 }
 
+/* ===========================================
+   Bot Management Styles
+   =========================================== */
+
+.bots-view {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.bots-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #222;
+}
+
+.bots-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.bots-tab {
+  padding: 6px 16px;
+  background: #121212;
+  border: 1px solid #2a2a2a;
+  color: #888;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.bots-tab:hover:not(:disabled) {
+  border-color: #00ff9d;
+  color: #e0e0e0;
+}
+
+.bots-tab.active {
+  border-color: #00ff9d;
+  color: #00ff9d;
+  background: #0f1b16;
+}
+
+.bots-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bots-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.bots-empty {
+  padding: 40px;
+  text-align: center;
+  color: #666;
+}
+
+/* Bots Table */
+.bots-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bots-table th,
+.bots-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #222;
+}
+
+.bots-table th {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #666;
+  font-weight: 500;
+  background: #0f0f0f;
+  position: sticky;
+  top: 0;
+}
+
+.bot-row {
+  transition: background 0.15s ease;
+}
+
+.bot-row:hover {
+  background: #1a1a1a;
+}
+
+.bot-row.selected {
+  background: #0f1b16;
+}
+
+.bot-row.running {
+  border-left: 3px solid #00ff9d;
+}
+
+.bot-name {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #666;
+}
+
+.status-indicator.running {
+  background: #00ff9d;
+  box-shadow: 0 0 8px rgba(0, 255, 157, 0.5);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.inactive-badge {
+  font-size: 9px;
+  background: #ff6b6b22;
+  color: #ff6b6b;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 8px;
+}
+
+.bot-status {
+  font-size: 11px;
+}
+
+.bot-status.running {
+  color: #00ff9d;
+}
+
+.bot-status.stopped {
+  color: #666;
+}
+
+.bot-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.bot-strategies-row td {
+  padding: 0;
+}
+
+.bot-strategies-detail {
+  padding: 16px;
+  background: #0f0f0f;
+  border-bottom: 1px solid #222;
+}
+
+.strategies-summary h4 {
+  font-size: 11px;
+  margin-bottom: 12px;
+  color: #888;
+}
+
+.strategies-list-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.strategy-mini {
+  background: #151515;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.strategy-mini .strategy-name {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.strategy-mini .strategy-allocation {
+  font-size: 12px;
+  color: #00ff9d;
+  font-weight: 600;
+}
+
+.strategy-mini .strategy-positions {
+  font-size: 9px;
+  color: #666;
+}
+
+.allocation-total {
+  margin-top: 12px;
+  font-size: 11px;
+  color: #888;
+}
+
+.allocation-total .warning {
+  color: #ff6b6b;
+  margin-left: 8px;
+}
+
+/* Bot Config Modal */
+.bot-config-modal {
+  width: 600px;
+  max-width: 90vw;
+}
+
+.bot-config-modal .modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.form-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #222;
+}
+
+.form-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.form-section h4 {
+  font-size: 12px;
+  margin-bottom: 12px;
+  color: #888;
+}
+
+.help-text {
+  font-size: 10px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.strategy-allocations {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.strategy-allocation-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+  padding: 12px;
+  background: #151515;
+  border-radius: 4px;
+}
+
+.strategy-allocation-row .form-group {
+  margin-bottom: 0;
+}
+
+.allocation-summary {
+  font-size: 11px;
+  color: #888;
+  margin-top: 12px;
+}
+
+.allocation-summary .warning {
+  color: #ff6b6b;
+  margin-left: 8px;
+}
+
+.hidden {
+  display: none;
+}
+
+/* Bot Status Panel */
+.bot-status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bot-status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #222;
+}
+
+.bot-status-header .bot-info h3 {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.bot-status-badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.bot-status-badge.running {
+  background: #00ff9d22;
+  color: #00ff9d;
+}
+
+.bot-status-badge.stopped {
+  background: #666222;
+  color: #666;
+}
+
+.bot-controls {
+  display: flex;
+  gap: 8px;
+}
+
+/* Portfolio Summary */
+.portfolio-summary {
+  background: #121212;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.portfolio-summary h4 {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+.portfolio-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.portfolio-metrics .metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-label {
+  font-size: 10px;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.metric-value.positive {
+  color: #00ff9d;
+}
+
+.metric-value.negative {
+  color: #ff6b6b;
+}
+
+.pnl-pct {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.portfolio-summary-placeholder {
+  padding: 40px;
+  text-align: center;
+  color: #666;
+  background: #121212;
+  border: 1px dashed #333;
+  border-radius: 4px;
+}
+
+/* Strategies Status */
+.strategies-status h4 {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+.strategies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.strategy-card {
+  background: #121212;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.strategy-card.running {
+  border-left: 3px solid #00ff9d;
+}
+
+.strategy-card.paused {
+  border-left: 3px solid #ff9500;
+}
+
+.strategy-card.stopped {
+  border-left: 3px solid #666;
+}
+
+.strategy-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #151515;
+}
+
+.strategy-card-header h5 {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.strategy-status-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.strategy-status-badge.running {
+  background: #00ff9d22;
+  color: #00ff9d;
+}
+
+.strategy-status-badge.paused {
+  background: #ff950022;
+  color: #ff9500;
+}
+
+.strategy-status-badge.stopped {
+  background: #666222;
+  color: #666;
+}
+
+.strategy-card-body {
+  padding: 12px;
+}
+
+.strategy-metric {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.strategy-metric span:first-child {
+  color: #666;
+}
+
+.capital-pct {
+  font-size: 10px;
+  color: #666;
+  margin-left: 4px;
+}
+
+.capital-bar {
+  height: 4px;
+  background: #2a2a2a;
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.capital-bar-fill {
+  height: 100%;
+  background: #00ff9d;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Bot Positions */
+.bot-positions h4 {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+.positions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.positions-table th,
+.positions-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #222;
+}
+
+.positions-table th {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: #666;
+  font-weight: 500;
+  background: #0f0f0f;
+}
+
+.position-row:hover {
+  background: #1a1a1a;
+}
+
+.position-row .strategy-name {
+  font-size: 10px;
+  color: #888;
+}
+
+.position-row .symbol {
+  font-weight: 600;
+}
+
+.position-row .side {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.position-row .side.buy {
+  color: #00ff9d;
+}
+
+.position-row .side.sell {
+  color: #ff6b6b;
+}
+
+.position-row .sl-tp {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+}
+
+.position-row .sl {
+  color: #ff6b6b;
+}
+
+.position-row .tp {
+  color: #00ff9d;
+}
+
+.no-positions {
+  padding: 32px;
+  text-align: center;
+  color: #666;
+  background: #121212;
+  border: 1px dashed #333;
+  border-radius: 4px;
+}
+
+.status-footer {
+  text-align: right;
+  padding-top: 8px;
+  border-top: 1px solid #222;
+}
+
+.last-update {
+  font-size: 10px;
+  color: #666;
+}
+
+/* ==================== Multi-Strategy Position Tabs ==================== */
+
+.strategy-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid #222;
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+
+.strategy-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 11px;
+  color: #888;
+}
+
+.strategy-tab:hover {
+  background: #222;
+  border-color: #444;
+  color: #ccc;
+}
+
+.strategy-tab.active {
+  background: #0d3d2e;
+  border-color: #00ff9d;
+  color: #00ff9d;
+}
+
+.strategy-tab .tab-name {
+  font-weight: 500;
+}
+
+.strategy-tab .tab-count {
+  background: #333;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  color: #aaa;
+}
+
+.strategy-tab.active .tab-count {
+  background: rgba(0, 255, 157, 0.2);
+  color: #00ff9d;
+}
+
+.strategy-tab .tab-pnl {
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.strategy-tab .tab-pnl.positive {
+  color: #00ff9d;
+}
+
+.strategy-tab .tab-pnl.negative {
+  color: #ff6b6b;
+}
+
+/* Strategy badge in position rows */
+.strategy-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 3px;
+  font-size: 9px;
+  color: #888;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strategy-cell {
+  max-width: 100px;
+}
+
+/* Strategy summary footer */
+.strategy-summary-footer {
+  margin-top: 12px;
+  padding: 12px;
+  background: #0f0f0f;
+  border: 1px solid #222;
+  border-radius: 4px;
+}
+
+.strategy-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.strategy-summary-table th {
+  text-align: left;
+  padding: 6px 8px;
+  color: #666;
+  font-weight: 500;
+  border-bottom: 1px solid #222;
+}
+
+.strategy-summary-table td {
+  padding: 8px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.strategy-summary-table tr:last-child td {
+  border-bottom: none;
+}
+
+.strategy-summary-table .positive {
+  color: #00ff9d;
+}
+
+.strategy-summary-table .negative {
+  color: #ff6b6b;
+}
+
+/* Positions table container with multi-strategy */
+.positions-table-container.multi-strategy {
+  background: #0f0f0f;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.positions-table-container.multi-strategy .positions-header {
+  margin-bottom: 0;
+}

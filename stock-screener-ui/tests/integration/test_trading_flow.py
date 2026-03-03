@@ -722,16 +722,28 @@ class TestErrorRecoveryInTrading:
         with patch('api.paper_trading.get_paper_trader') as mock_get_trader:
             mock_trader = Mock()
 
+            # Mock portfolio status
+            portfolio_status = {
+                "initial_capital": 100000.0,
+                "cash": 100000.0,
+                "margin_used": 0.0,
+                "total_value": 100000.0,
+                "total_pnl": 0.0,
+            }
+            mock_trader.get_portfolio_status = Mock(return_value=portfolio_status)
+
             # First call fails
             mock_trader.place_order = Mock(side_effect=Exception("Network error"))
             mock_get_trader.return_value = mock_trader
 
             # Order should fail
-            response = client.post("/api/paper/orders", json={
+            response = client.post("/api/paper/order", json={
                 "symbol": "TEST",
                 "side": "BUY",
                 "quantity": 10,
                 "price": 100.0,
+                "stop_loss": 95.0,
+                "take_profit": 110.0,
             })
 
             assert response.status_code >= 400  # Error response
@@ -742,11 +754,13 @@ class TestErrorRecoveryInTrading:
                 "status": "filled"
             })
 
-            response = client.post("/api/paper/orders", json={
+            response = client.post("/api/paper/order", json={
                 "symbol": "TEST",
                 "side": "BUY",
                 "quantity": 10,
                 "price": 100.0,
+                "stop_loss": 95.0,
+                "take_profit": 110.0,
             })
 
             assert response.status_code == 200
@@ -762,10 +776,21 @@ class TestErrorRecoveryInTrading:
 
             # Recovery - subsequent call succeeds
             mock_trader = Mock()
-            mock_trader.get_portfolio_summary = Mock(return_value={
+            portfolio_data = {
                 "initial_capital": 100000.0,
                 "cash": 100000.0,
-            })
+                "position_value": 0.0,
+                "total_value": 100000.0,
+                "total_pnl": 0.0,
+                "total_pnl_pct": 0.0,
+                "realized_pnl": 0.0,
+                "unrealized_pnl": 0.0,
+                "positions": 0,
+                "trades": 0,
+            }
+            mock_trader.get_portfolio_summary = Mock(return_value=portfolio_data)
+            mock_trader.get_portfolio_status = Mock(return_value=portfolio_data)
+            mock_get_trader.side_effect = None
             mock_get_trader.return_value = mock_trader
 
             response = client.get("/api/paper/portfolio")

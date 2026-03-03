@@ -13,39 +13,42 @@ export function renderNotificationsHtml(): string {
   const primaryCount = state.notifications.filter((n) => n.kind === "primary").length;
   const secondaryCount = state.notifications.filter((n) => n.kind === "secondary").length;
 
-  if (state.notifPanelOpen) {
-    return `
-      <aside class="notif-sidebar">
-        <div class="notif-title-row">
-          <div class="notif-title">Auto Refresh Updates</div>
-          <button class="notif-close-btn" onclick="window.toggleNotifPanel()">×</button>
-        </div>
-        <div class="notif-toolbar">
-          <button class="notif-tab ${state.notifFilter === "all" ? "active" : ""}" onclick="window.setNotifFilter('all')">All (${state.notifications.length})</button>
-          <button class="notif-tab ${state.notifFilter === "primary" ? "active" : ""}" onclick="window.setNotifFilter('primary')">Primary (${primaryCount})</button>
-          <button class="notif-tab ${state.notifFilter === "secondary" ? "active" : ""}" onclick="window.setNotifFilter('secondary')">Secondary (${secondaryCount})</button>
-        </div>
-        <div class="notif-actions">
-          <button class="notif-clear-btn" onclick="window.clearNotifications()">Clear</button>
-        </div>
-        ${
-          visibleNotifications.length === 0
-            ? '<div class="notif-empty">No new additions yet.</div>'
-            : visibleNotifications
-                .map(
-                  (n) => `
-            <div class="notif-item ${n.kind}">
-              <div class="notif-time">${n.ts}</div>
-              <div class="notif-head">${n.title}</div>
-              <div class="notif-detail">${n.detail}</div>
-            </div>
-          `,
-                )
-                .join("")
-        }
-      </aside>
-    `;
-  }
+  if (!state.notifPanelOpen) return "";
+
+  return `
+    <aside class="notif-sidebar">
+      <div class="notif-title-row">
+        <div class="notif-title">Auto Refresh Updates</div>
+        <button class="notif-close-btn" onclick="window.toggleNotifPanel()">×</button>
+      </div>
+      <div class="notif-toolbar">
+        <button class="notif-tab ${state.notifFilter === "all" ? "active" : ""}" onclick="window.setNotifFilter('all')">All (${state.notifications.length})</button>
+        <button class="notif-tab ${state.notifFilter === "primary" ? "active" : ""}" onclick="window.setNotifFilter('primary')">Primary (${primaryCount})</button>
+        <button class="notif-tab ${state.notifFilter === "secondary" ? "active" : ""}" onclick="window.setNotifFilter('secondary')">Secondary (${secondaryCount})</button>
+      </div>
+      <div class="notif-actions">
+        <button class="notif-clear-btn" onclick="window.clearNotifications()">Clear</button>
+      </div>
+      ${
+        visibleNotifications.length === 0
+          ? '<div class="notif-empty">No new additions yet.</div>'
+          : visibleNotifications
+              .map(
+                (n) => `
+          <div class="notif-item ${n.kind}">
+            <div class="notif-time">${n.ts}</div>
+            <div class="notif-head">${n.title}</div>
+            <div class="notif-detail">${n.detail}</div>
+          </div>
+        `,
+              )
+              .join("")
+      }
+    </aside>
+  `;
+}
+
+export function renderNotificationsButton(): string {
   return `
     <button class="notif-open-btn" onclick="window.toggleNotifPanel()">Updates (${state.notifications.length})</button>
   `;
@@ -88,6 +91,7 @@ export function renderHeader(): string {
       </div>
       <div class="controls">
         <button id="refreshBtn" data-testid="refresh-btn" class="${state.isLoading ? "refreshing" : ""}" onclick="window.refresh()">🔄</button>
+        ${renderNotificationsButton()}
         <label style="font-size:10px;color:#888;display:flex;align-items:center;gap:4px">
           Auto(s)
           <input

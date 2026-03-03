@@ -9,6 +9,7 @@ import { getBacktestState } from "../state/backtest";
 import { buildProfileFilterQueryParams, detectAddedSymbols } from "../runtime_utils";
 import { pushNotification, markNewSymbols } from "../utils/notifications";
 import { abortPendingRequest, isAbortError } from "../hooks/useFetch";
+import { fetchWithAuth } from "../state/auth";
 
 // Render callback - set by notifications module
 let renderCallback: () => void = () => {};
@@ -118,7 +119,7 @@ export async function fetchData(
   try {
     const pfQuery = buildProfileFilterQueryParams(state.profileFilterValues);
     const suffix = pfQuery ? `&${pfQuery}` : "";
-    const res = await fetch(
+    const res = await fetchWithAuth(
       `${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}${suffix}`,
       {
         signal: abortController.signal,
@@ -161,7 +162,7 @@ export function resetLoadingState() {
 
 export async function loadScreeners(initProfileFilters: (screener: string) => void) {
   try {
-    const res = await fetch(SCREENERS_URL);
+    const res = await fetchWithAuth(SCREENERS_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
     state.setScreenerOptions(payload.screeners || []);

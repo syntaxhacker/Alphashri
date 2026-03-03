@@ -290,6 +290,7 @@ async def delete_strategy(
 @router.get("/{strategy_id}/performance")
 async def get_strategy_performance(
     strategy_id: int,
+    include_test: bool = True,  # Include test/seeded data by default
     db: Session = Depends(get_db),
     user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -304,7 +305,13 @@ async def get_strategy_performance(
     # Load trades from journal files and calculate performance
     user_id = user.id if user else 1
     all_trades = _load_all_trades(user_id)
+
+    # Filter by strategy
     strategy_trades = [t for t in all_trades if t.get('strategy_id') == strategy_id]
+
+    # Filter out test trades if requested
+    if not include_test:
+        strategy_trades = [t for t in strategy_trades if not t.get('is_test', False)]
 
     # Calculate stats
     total_trades = len(strategy_trades)
@@ -313,6 +320,9 @@ async def get_strategy_performance(
     win_rate = (winners / total_trades * 100) if total_trades > 0 else 0
     total_pnl = sum(t.get('pnl', 0) for t in strategy_trades)
     net_pnl = sum(t.get('net_pnl', 0) for t in strategy_trades)
+
+    # Count test trades
+    test_trades = len([t for t in strategy_trades if t.get('is_test', False)])
 
     return {
         "strategy_id": strategy_id,
@@ -323,6 +333,8 @@ async def get_strategy_performance(
         "win_rate": round(win_rate, 1),
         "total_pnl": round(total_pnl, 2),
         "net_pnl": round(net_pnl, 2),
+        "test_trades": test_trades,
+        "has_test_data": test_trades > 0,
     }
 
 
@@ -352,6 +364,7 @@ def _load_all_trades(user_id: int) -> list:
 async def get_strategy_trades(
     strategy_id: int,
     limit: int = 50,
+    include_test: bool = True,  # Include test/seeded data by default
     db: Session = Depends(get_db),
     user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -367,6 +380,10 @@ async def get_strategy_trades(
     user_id = user.id if user else 1
     all_trades = _load_all_trades(user_id)
     strategy_trades = [t for t in all_trades if t.get('strategy_id') == strategy_id]
+
+    # Filter out test trades if requested
+    if not include_test:
+        strategy_trades = [t for t in strategy_trades if not t.get('is_test', False)]
 
     # Sort by exit time descending
     strategy_trades.sort(key=lambda t: t.get('exit_time', ''), reverse=True)

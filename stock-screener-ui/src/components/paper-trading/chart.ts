@@ -12,6 +12,7 @@ import type {
   CandleData,
   PaperTrade,
   PaperPosition,
+  Week52Levels,
 } from "../../types/paperTrading";
 
 // ECharts type
@@ -26,7 +27,7 @@ export function renderChartContainer(): string {
   if (!state.selectedSymbol) {
     return `
       <div class="paper-chart-container chart-placeholder-full" data-testid="paper-chart-container">
-        <div class="chart-placeholder-content">
+        <div class="chart-placeholder-content" data-testid="chart-placeholder-content">
           <span class="placeholder-icon">📈</span>
           <p>Select a position or trade to view chart</p>
         </div>
@@ -37,7 +38,7 @@ export function renderChartContainer(): string {
   if (state.chartLoading) {
     return `
       <div class="paper-chart-container" data-testid="paper-chart-container">
-        <div class="chart-loading">
+        <div class="chart-loading" data-testid="chart-loading">
           <p>Loading ${state.selectedSymbol} chart...</p>
         </div>
       </div>
@@ -47,7 +48,7 @@ export function renderChartContainer(): string {
   if (!state.chartData) {
     return `
       <div class="paper-chart-container" data-testid="paper-chart-container">
-        <div class="chart-error">
+        <div class="chart-error" data-testid="chart-error">
           <span class="error-icon">⚠️</span>
           <p>No data available for ${state.selectedSymbol}</p>
           <p class="error-hint">Stock data may not be available or symbol is invalid</p>
@@ -60,7 +61,7 @@ export function renderChartContainer(): string {
   if (!state.chartData.candles || state.chartData.candles.length === 0) {
     return `
       <div class="paper-chart-container" data-testid="paper-chart-container">
-        <div class="chart-error">
+        <div class="chart-error" data-testid="chart-error">
           <span class="error-icon">⚠️</span>
           <p>No candle data for ${state.selectedSymbol}</p>
           <p class="error-hint">Market may be closed or data unavailable for this date</p>
@@ -71,7 +72,7 @@ export function renderChartContainer(): string {
 
   return `
     <div class="paper-chart-container" data-testid="paper-chart-container">
-      <div class="paper-chart-header">
+      <div class="paper-chart-header" data-testid="paper-chart-header">
         <h4>${state.chartData.symbol} - ${state.chartData.date}</h4>
         <select id="paper-chart-timeframe" class="chart-timeframe-select" data-testid="paper-chart-timeframe">
           <option value="1min" ${state.chartTimeframe === "1min" ? "selected" : ""}>1m</option>
@@ -91,6 +92,20 @@ export function renderChartContainer(): string {
         <span class="legend-item"><span class="legend-marker entry"></span> Entry</span>
         <span class="legend-item"><span class="legend-marker tp"></span> TP</span>
         <span class="legend-item"><span class="legend-marker sl"></span> SL</span>
+        ${
+          state.chartData.orb_levels
+            ? `
+          <span class="legend-item"><span class="legend-marker orb" style="background: #2196F3;"></span> OR</span>
+        `
+            : ""
+        }
+        ${
+          state.chartData.week52_levels
+            ? `
+          <span class="legend-item"><span class="legend-marker w52" style="background: #E91E63;"></span> 52W High</span>
+        `
+            : ""
+        }
       </div>
     </div>
   `;
@@ -101,7 +116,7 @@ function renderPositionInfo(position: PaperPosition): string {
   const sideIcon = position.side === "BUY" ? "▲" : "▼";
 
   return `
-    <div class="position-info ${pnlClass}">
+    <div class="position-info ${pnlClass}" data-testid="position-info">
       <span>${sideIcon} ${position.side} ${position.quantity} @ ₹${position.entry_price.toFixed(2)}</span>
       <span>P&L: ₹${position.pnl.toFixed(0)} (${position.pnl_pct >= 0 ? "+" : ""}${position.pnl_pct.toFixed(2)}%)</span>
     </div>
@@ -185,7 +200,7 @@ export function initPaperChart() {
 }
 
 function buildChartOption(data: PaperChartData) {
-  const { candles, trades, orb_levels, current_position } = data;
+  const { candles, trades, orb_levels, week52_levels, current_position } = data;
 
   if (!candles || candles.length === 0) {
     return {};
@@ -196,6 +211,7 @@ function buildChartOption(data: PaperChartData) {
     tradeCount: trades.length,
     hasCurrentPosition: !!current_position,
     orbLevels: orb_levels,
+    week52Levels: week52_levels,
   });
 
   // Build OHLC data for candlestick
@@ -333,6 +349,24 @@ function buildChartOption(data: PaperChartData) {
       lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
       label: { formatter: "OR Low", position: "start", color: "#2196F3", fontSize: 10 },
     });
+  }
+
+  // Add 52W high level line if available
+  if (week52_levels) {
+    markLines.push({
+      name: "52W High",
+      yAxis: week52_levels.high_52w,
+      lineStyle: { color: "#E91E63", type: "dashed", width: 2 },
+      label: { formatter: "52W High", position: "start", color: "#E91E63", fontSize: 10 },
+    });
+    if (week52_levels.low_52w > 0) {
+      markLines.push({
+        name: "52W Low",
+        yAxis: week52_levels.low_52w,
+        lineStyle: { color: "#9C27B0", type: "dashed", width: 1 },
+        label: { formatter: "52W Low", position: "start", color: "#9C27B0", fontSize: 10 },
+      });
+    }
   }
 
   console.log("Paper trading markers built:", {

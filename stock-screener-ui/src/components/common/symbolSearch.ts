@@ -61,7 +61,7 @@ export function renderSymbolSearch(options: SymbolSearchOptions): string {
   } = options;
 
   return `
-    <div class="symbol-search-wrapper" id="${containerId}">
+    <div class="symbol-search-wrapper" id="${containerId}" data-testid="symbol-search">
       <input
         type="text"
         class="${inputClass}"

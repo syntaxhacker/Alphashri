@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Use headless mode by default, set HEADLESS=false to run headed
+const headless = process.env.HEADLESS !== 'false';
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -17,6 +20,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     actionTimeout: 5000,
     navigationTimeout: 10000,
+    headless,
   },
   projects: [
     {

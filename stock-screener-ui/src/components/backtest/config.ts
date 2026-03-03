@@ -59,13 +59,13 @@ export function renderStrategyConfig(): string {
 
       <div class="config-section">
         <label>Stocks</label>
-        <div class="symbols-input-inline">
+        <div class="symbols-input-inline" data-testid="symbols-input">
           ${selectedSymbols
             .map(
               (s) => `
-            <span class="symbol-tag-small">
+            <span class="symbol-tag-small" data-testid="symbol-tag-${s}">
               ${s}
-              <button class="symbol-remove-small" onclick="window.removeSymbol('${s}')" title="Remove">×</button>
+              <button class="symbol-remove-small" data-testid="remove-symbol-${s}" onclick="window.removeSymbol('${s}')" title="Remove">×</button>
             </span>
           `,
             )

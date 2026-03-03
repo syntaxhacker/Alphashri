@@ -249,6 +249,7 @@ export default function NewsPanel() {
       {/* Toggle Button */}
       <button
         className="news-toggle-btn"
+        data-testid="news-toggle-btn"
         onClick={() => setIsOpen(!isOpen)}
         title="Open news panel"
       >
@@ -262,10 +263,10 @@ export default function NewsPanel() {
       {isOpen && <div className="news-overlay visible" onClick={handleClose} />}
 
       {/* Panel */}
-      <div className={`news-panel ${isOpen ? "open" : ""}`}>
+      <div className={`news-panel ${isOpen ? "open" : ""}`} data-testid="news-panel">
         {selectedArticle ? (
           // Article View
-          <div className="news-article">
+          <div className="news-article" data-testid="news-article">
             <div className="news-article-header">
               <button className="news-article-back" onClick={handleBack}>
                 {"<"} Back
@@ -395,6 +396,7 @@ export default function NewsPanel() {
                     <div
                       key={item.id}
                       className={`news-item ${isUnread ? "unread" : ""}`}
+                      data-testid="news-item"
                       onClick={() => handleArticleClick(item)}
                     >
                       <div className="news-item-headline">

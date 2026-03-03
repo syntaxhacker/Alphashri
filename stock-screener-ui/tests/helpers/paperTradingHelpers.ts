@@ -1,0 +1,73 @@
+import { Page } from "@playwright/test";
+import {
+  setupApiMocks,
+  loginAsTestUser,
+  setupPaperTradingMocks,
+  setupMultiStrategyBotMocks,
+} from "../mocks/apiResponses";
+
+/**
+ * Setup all required mocks for paper trading tests
+ */
+export async function setupPaperTradingTestMocks(page: Page): Promise<void> {
+  await setupApiMocks(page);
+  await loginAsTestUser(page);
+  await setupPaperTradingMocks(page);
+  await setupMultiStrategyBotMocks(page);
+}
+
+/**
+ * Navigate to Paper Trading view
+ */
+export async function navigateToPaperTrading(page: Page): Promise<void> {
+  // Navigate directly to paper trading URL
+  await page.goto("/paper");
+  await page.waitForSelector(".sidemenu", { timeout: 15000 });
+  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
+}
+
+/**
+ * Navigate to Paper Trading and select a bot
+ */
+export async function navigateToPaperTradingWithBot(
+  page: Page,
+  botId: string = "2",
+): Promise<void> {
+  await navigateToPaperTrading(page);
+  await page.locator(".bot-selector-dropdown").selectOption(botId);
+  await page.waitForSelector(".portfolio-card", { timeout: 5000 });
+}
+
+/**
+ * Verify tabs are visible
+ */
+export async function verifyPaperTradingTabs(page: Page): Promise<void> {
+  await expect(page.locator('button:has-text("LivePositions")')).toBeVisible();
+  await expect(page.locator('button:has-text("Trade History")')).toBeVisible();
+  await expect(page.locator('button:has-text("Settings")')).toBeVisible();
+}
+
+/**
+ * Click on a tab in Paper Trading view
+ */
+export async function clickPaperTradingTab(page: Page, tabName: string): Promise<void> {
+  await page.click(`button:has-text("${tabName}")`);
+  await page.waitForTimeout(300);
+}
+
+/**
+ * Get bot selector dropdown
+ */
+export function getBotSelector(page: Page) {
+  return page.locator(".bot-selector-dropdown");
+}
+
+/**
+ * Get portfolio card
+ */
+export function getPortfolioCard(page: Page) {
+  return page.locator(".portfolio-card");
+}
+
+// Import expect for use in helper functions
+import { expect } from "@playwright/test";

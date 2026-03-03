@@ -39,6 +39,8 @@ import {
   cleanupStrategies,
 } from "./components/strategies";
 import { subscribe as subscribeStrategies } from "./state/strategies";
+import { renderBotsView, initBotsHandlers, cleanupBots } from "./components/bots";
+import { subscribe as subscribeBots } from "./state/bots";
 import { initPreviewChartHandlers } from "./components/common/previewChart";
 import type { AppView } from "./types/backtest";
 
@@ -77,6 +79,12 @@ import {
   renderFilters,
   renderFooter,
 } from "./components/header";
+import { renderMarketTicker } from "./components/market-ticker";
+import {
+  fetchMarketTicker,
+  initMarketTickerRefresh,
+  clearMarketTickerCache,
+} from "./state/marketTicker";
 
 function getTableHeaders(screener: string, touched: boolean): string {
   return getColumnKeysForProfile(screener, touched)
@@ -108,11 +116,14 @@ function render() {
     mainContent = renderSectorAnalysisView();
   } else if (currentView === "strategies") {
     mainContent = renderStrategiesView();
+  } else if (currentView === "bots") {
+    mainContent = renderBotsView();
   } else {
     mainContent = renderScreenerView();
   }
 
   app.innerHTML = `
+    ${renderMarketTicker()}
     <div class="app-layout">
       ${renderSidemenu()}
       <div class="app-main">
@@ -140,8 +151,16 @@ function render() {
   if (currentView !== "strategies" && lastRenderedView === "strategies") {
     cleanupStrategies();
   }
+
+  // Cleanup bots view when leaving
+  if (currentView !== "bots" && lastRenderedView === "bots") {
+    cleanupBots();
+  }
   lastRenderedView = currentView;
 }
+
+// Initialize market ticker on first load
+initMarketTickerRefresh();
 
 function renderScreenerView(): string {
   if (state.error) {
@@ -326,6 +345,7 @@ loadScreeners(initProfileFilters).then(() => {
   initBacktestHandlers();
   initPaperTradingHandlers();
   initStrategiesHandlers();
+  initBotsHandlers();
   initPreviewChartHandlers();
   fetchStrategies();
   fetchCosts();

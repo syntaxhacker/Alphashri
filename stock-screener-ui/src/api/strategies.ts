@@ -9,24 +9,19 @@ import type {
   StrategyPerformance,
   BotConfig,
 } from "../types/strategies";
+import { apiGet, apiPost, apiPut, apiDelete } from "./utils";
 
-const API_BASE = "http://localhost:8765";
+const STRATEGY_BASE = "/api/strategies";
 
 // List all strategies
 export async function listStrategies(
   includeTemplates: boolean = false,
   strategyType?: string,
 ): Promise<{ strategies: StrategyConfig[]; count: number }> {
-  const params = new URLSearchParams();
-  if (includeTemplates) params.set("include_templates", "true");
-  if (strategyType) params.set("strategy_type", strategyType);
-
-  const url = `${API_BASE}/api/strategies${params.toString() ? `?${params}` : ""}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to list strategies: ${response.statusText}`);
-  }
-  return response.json();
+  const params: Record<string, string> = {};
+  if (includeTemplates) params.include_templates = "true";
+  if (strategyType) params.strategy_type = strategyType;
+  return apiGet<{ strategies: StrategyConfig[]; count: number }>(STRATEGY_BASE, params);
 }
 
 // List strategy templates
@@ -34,38 +29,26 @@ export async function listTemplates(): Promise<{
   templates: StrategyConfig[];
   count: number;
 }> {
-  const response = await fetch(`${API_BASE}/api/strategies/templates`);
-  if (!response.ok) {
-    throw new Error(`Failed to list templates: ${response.statusText}`);
-  }
-  return response.json();
+  return apiGet<{ templates: StrategyConfig[]; count: number }>(`${STRATEGY_BASE}/templates`);
 }
 
 // Get a specific strategy
 export async function getStrategy(
   strategyId: number,
 ): Promise<{ strategy: StrategyConfig; variations: StrategyConfig[] }> {
-  const response = await fetch(`${API_BASE}/api/strategies/${strategyId}`);
-  if (!response.ok) {
-    throw new Error(`Failed to get strategy: ${response.statusText}`);
-  }
-  return response.json();
+  return apiGet<{ strategy: StrategyConfig; variations: StrategyConfig[] }>(
+    `${STRATEGY_BASE}/${strategyId}`,
+  );
 }
 
 // Create a new strategy variation
 export async function createStrategy(
   data: StrategyCreate,
 ): Promise<{ status: string; message: string; strategy: StrategyConfig }> {
-  const response = await fetch(`${API_BASE}/api/strategies`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to create strategy");
-  }
-  return response.json();
+  return apiPost<{ status: string; message: string; strategy: StrategyConfig }>(
+    STRATEGY_BASE,
+    data,
+  );
 }
 
 // Update a strategy
@@ -73,39 +56,22 @@ export async function updateStrategy(
   strategyId: number,
   data: StrategyUpdate,
 ): Promise<{ status: string; message: string; strategy: StrategyConfig }> {
-  const response = await fetch(`${API_BASE}/api/strategies/${strategyId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to update strategy");
-  }
-  return response.json();
+  return apiPut<{ status: string; message: string; strategy: StrategyConfig }>(
+    `${STRATEGY_BASE}/${strategyId}`,
+    data,
+  );
 }
 
 // Delete a strategy (soft delete)
 export async function deleteStrategy(
   strategyId: number,
 ): Promise<{ status: string; message: string }> {
-  const response = await fetch(`${API_BASE}/api/strategies/${strategyId}`, {
-    method: "DELETE",
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to delete strategy");
-  }
-  return response.json();
+  return apiDelete<{ status: string; message: string }>(`${STRATEGY_BASE}/${strategyId}`);
 }
 
 // Get strategy performance
 export async function getStrategyPerformance(strategyId: number): Promise<StrategyPerformance> {
-  const response = await fetch(`${API_BASE}/api/strategies/${strategyId}/performance`);
-  if (!response.ok) {
-    throw new Error(`Failed to get strategy performance: ${response.statusText}`);
-  }
-  return response.json();
+  return apiGet<StrategyPerformance>(`${STRATEGY_BASE}/${strategyId}/performance`);
 }
 
 // Get trades for a specific strategy
@@ -113,22 +79,19 @@ export async function getStrategyTrades(
   strategyId: number,
   limit: number = 50,
 ): Promise<{ strategy_id: number; strategy_name: string; trades: any[]; total: number }> {
-  const response = await fetch(`${API_BASE}/api/strategies/${strategyId}/trades?limit=${limit}`);
-  if (!response.ok) {
-    throw new Error(`Failed to get strategy trades: ${response.statusText}`);
-  }
-  return response.json();
+  return apiGet<{ strategy_id: number; strategy_name: string; trades: any[]; total: number }>(
+    `${STRATEGY_BASE}/${strategyId}/trades`,
+    { limit },
+  );
 }
 
 // Get variations of a template
 export async function getStrategyVariations(
   strategyId: number,
 ): Promise<{ parent: StrategyConfig; variations: StrategyConfig[]; count: number }> {
-  const response = await fetch(`${API_BASE}/api/strategies/${strategyId}/variations`);
-  if (!response.ok) {
-    throw new Error(`Failed to get strategy variations: ${response.statusText}`);
-  }
-  return response.json();
+  return apiGet<{ parent: StrategyConfig; variations: StrategyConfig[]; count: number }>(
+    `${STRATEGY_BASE}/${strategyId}/variations`,
+  );
 }
 
 // Bot endpoints
@@ -136,17 +99,9 @@ export async function listBots(): Promise<{
   bots: BotConfig[];
   count: number;
 }> {
-  const response = await fetch(`${API_BASE}/api/strategies/bots`);
-  if (!response.ok) {
-    throw new Error(`Failed to list bots: ${response.statusText}`);
-  }
-  return response.json();
+  return apiGet<{ bots: BotConfig[]; count: number }>(`${STRATEGY_BASE}/bots`);
 }
 
 export async function getBot(botId: number): Promise<{ bot: BotConfig }> {
-  const response = await fetch(`${API_BASE}/api/strategies/bots/${botId}`);
-  if (!response.ok) {
-    throw new Error(`Failed to get bot: ${response.statusText}`);
-  }
-  return response.json();
+  return apiGet<{ bot: BotConfig }>(`${STRATEGY_BASE}/bots/${botId}`);
 }

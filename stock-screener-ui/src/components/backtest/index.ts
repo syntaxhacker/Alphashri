@@ -47,7 +47,7 @@ export function renderBacktestView(): string {
           ? `
         <div class="backtest-error" data-testid="backtest-error">
           <p>❌ ${state.error}</p>
-          <button class="btn btn-secondary" onclick="window.clearError()">Dismiss</button>
+          <button class="btn btn-secondary" data-testid="dismiss-error-btn" onclick="window.clearError()">Dismiss</button>
         </div>
       `
           : ""
@@ -126,17 +126,17 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
 
   return `
     <div class="trade-history-panel" data-testid="trade-history-panel">
-      <div class="trade-history-header">
+      <div class="trade-history-header" data-testid="trade-history-header">
         <h4>📋 ${symbol} Trades (${trades.length})</h4>
-        <button class="btn-small" onclick="window.closeTradeHistory()" title="Close">×</button>
+        <button class="btn-small" data-testid="close-trade-history-btn" onclick="window.closeTradeHistory()" title="Close">×</button>
       </div>
-      <div class="trade-history-summary">
-        <span>P&L: <strong class="${totalPnl >= 0 ? "positive" : "negative"}">₹${totalPnl.toFixed(0)}</strong></span>
-        <span>WR: ${winRate}%</span>
-        <span>Wins: ${wins}/${trades.length}</span>
+      <div class="trade-history-summary" data-testid="trade-history-summary">
+        <span data-testid="trade-summary-pnl">P&L: <strong class="${totalPnl >= 0 ? "positive" : "negative"}">₹${totalPnl.toFixed(0)}</strong></span>
+        <span data-testid="trade-summary-wr">WR: ${winRate}%</span>
+        <span data-testid="trade-summary-wins">Wins: ${wins}/${trades.length}</span>
       </div>
       <div class="trade-history-body">
-        <table class="trade-history-table sortable">
+        <table class="trade-history-table sortable" data-testid="trade-history-table">
           <thead>
             <tr>
               <th>#</th>
@@ -177,20 +177,23 @@ function renderTradeHistoryPanel(symbol: string, trades: any[]): string {
                 P&L${sortIndicator("net_pnl")}
               </th>
               <th class="sortable ${tradeSortColumn === "net_pnl_pct" ? "sorted " + tradeSortDirection : ""}"
+                  data-testid="th-pnl-pct"
                   onclick="window.sortTrades('net_pnl_pct')">
                 %${sortIndicator("net_pnl_pct")}
               </th>
               <th class="sortable ${tradeSortColumn === "hold_duration_minutes" ? "sorted " + tradeSortDirection : ""}"
+                  data-testid="th-hold-duration"
                   onclick="window.sortTrades('hold_duration_minutes')">
                 Hold${sortIndicator("hold_duration_minutes")}
               </th>
               <th class="sortable ${tradeSortColumn === "exit_reason" ? "sorted " + tradeSortDirection : ""}"
+                  data-testid="th-exit-reason"
                   onclick="window.sortTrades('exit_reason')">
                 Type${sortIndicator("exit_reason")}
               </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody data-testid="trade-history-tbody">
             ${sortedTrades
               .map((t, _i) => {
                 // Find original index for zoomToTrade

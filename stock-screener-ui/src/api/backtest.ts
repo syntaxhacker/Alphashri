@@ -22,6 +22,7 @@ import {
   getBacktestState,
 } from "../state/backtest";
 import { buildChartData } from "./chartBuilder";
+import { fetchWithAuth } from "../state/auth";
 
 const API_BASE = "http://localhost:8765";
 
@@ -30,7 +31,7 @@ export async function fetchStrategies(): Promise<Strategy[]> {
   setStrategiesLoading(true);
 
   try {
-    const response = await fetch(`${API_BASE}/api/backtest/strategies`);
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/strategies`);
     const data = await response.json();
 
     if (data.strategies) {
@@ -48,7 +49,7 @@ export async function fetchStrategies(): Promise<Strategy[]> {
 // Fetch cost breakdown
 export async function fetchCosts(): Promise<CostBreakdown | null> {
   try {
-    const response = await fetch(`${API_BASE}/api/backtest/costs`);
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/costs`);
     const data = await response.json();
 
     if (data.costs) {
@@ -70,7 +71,7 @@ export async function runBacktest(): Promise<BacktestResponse | null> {
   setProgress({ current: 0, total: state.selectedSymbols.length, message: "Starting..." });
 
   try {
-    const response = await fetch(`${API_BASE}/api/backtest/run?include_chart_data=true`, {
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/run?include_chart_data=true`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -154,7 +155,7 @@ export async function fetchChartData(symbol: string): Promise<SymbolChartData | 
   setChartLoading(true);
 
   try {
-    const response = await fetch(`${API_BASE}/api/backtest/chart/${symbol}`);
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/chart/${symbol}`);
     const data: SymbolChartData = await response.json();
 
     if (data.error) {
@@ -175,7 +176,7 @@ export async function fetchChartData(symbol: string): Promise<SymbolChartData | 
 // Fetch progress (for long-running backtests)
 export async function fetchProgress(): Promise<BacktestProgress | null> {
   try {
-    const response = await fetch(`${API_BASE}/api/backtest/progress`);
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/progress`);
     return await response.json();
   } catch (error) {
     console.error("Failed to fetch progress:", error);
@@ -186,7 +187,7 @@ export async function fetchProgress(): Promise<BacktestProgress | null> {
 // Fetch cached results
 export async function fetchResults(): Promise<BacktestResponse | null> {
   try {
-    const response = await fetch(`${API_BASE}/api/backtest/results`);
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/results`);
     return await response.json();
   } catch (error) {
     console.error("Failed to fetch results:", error);

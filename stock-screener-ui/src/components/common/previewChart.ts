@@ -164,6 +164,7 @@ async function renderHoverChart(event: MouseEvent, symbol: string): Promise<void
     hoverContainer = document.createElement("div");
     hoverContainer.id = HOVER_CONTAINER_ID;
     hoverContainer.className = "chart-hover-popup";
+    hoverContainer.setAttribute("data-testid", "preview-chart-hover");
     document.body.appendChild(hoverContainer);
   }
 
@@ -195,6 +196,7 @@ async function renderExpandedChart(symbol: string): Promise<void> {
     expandedContainer = document.createElement("div");
     expandedContainer.id = EXPANDED_CONTAINER_ID;
     expandedContainer.className = "chart-expanded-panel";
+    expandedContainer.setAttribute("data-testid", "preview-chart-expanded");
     document.body.appendChild(expandedContainer);
   }
 

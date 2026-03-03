@@ -34,7 +34,7 @@ export function renderSidemenu(): string {
           <div class="sidemenu-user-name">${user.displayName}</div>
           <div class="sidemenu-user-email">${user.email}</div>
         </div>
-        <button class="sidemenu-logout" onclick="window.handleLogout()" title="Sign Out">
+        <button class="sidemenu-logout" data-testid="logout-button" onclick="window.handleLogout()" title="Sign Out">
           Sign Out
         </button>
       </div>
@@ -96,6 +96,16 @@ export function renderSidemenu(): string {
           <span class="sidemenu-icon">📊</span>
           <span class="sidemenu-label">Strategies</span>
           <span class="sidemenu-desc">Manage strategy variations</span>
+        </button>
+
+        <button
+          class="sidemenu-item ${currentView === "bots" ? "active" : ""}"
+          data-testid="nav-bots"
+          onclick="window.setAppView('bots')"
+        >
+          <span class="sidemenu-icon">🤖</span>
+          <span class="sidemenu-label">Bots</span>
+          <span class="sidemenu-desc">Multi-strategy trading bots</span>
         </button>
       </nav>
 

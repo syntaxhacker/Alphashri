@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-export type AppRouteView = "screener" | "backtest" | "paper" | "sector" | "strategies";
+export type AppRouteView = "screener" | "backtest" | "paper" | "sector" | "strategies" | "bots";
 
 type AppState = {
   currentView: AppRouteView;

@@ -12,7 +12,7 @@ export function renderTemplateCard(
   const variations = allStrategies.filter((s) => s.parent_id === template.id);
 
   return `
-    <div class="template-card" data-template-id="${template.id}">
+    <div class="template-card" data-template-id="${template.id}" data-testid="strategy-card">
       <div class="template-header" onclick="window.toggleTemplateExpand(${template.id})">
         <div class="template-info">
           <span class="template-icon">${getStrategyTypeIcon(template.strategy_type)}</span>
@@ -45,6 +45,7 @@ export function renderTemplateCard(
           <button
             class="btn btn-secondary btn-small"
             onclick="window.createVariation(${template.id}, '${template.name}', '${template.strategy_type}')"
+            data-testid="add-variation-btn"
           >
             + Add Variation
           </button>
@@ -56,7 +57,7 @@ export function renderTemplateCard(
 
 function renderVariationCard(variation: StrategyConfig): string {
   return `
-    <div class="variation-card ${variation.is_default ? "default" : ""}" data-variation-id="${variation.id}">
+    <div class="variation-card ${variation.is_default ? "default" : ""}" data-variation-id="${variation.id}" data-testid="variation-card">
       <div class="variation-header">
         <h4 class="variation-name">
           ${variation.is_default ? '<span class="default-badge">⭐</span>' : ""}
@@ -67,6 +68,7 @@ function renderVariationCard(variation: StrategyConfig): string {
             class="btn btn-small btn-secondary"
             onclick="window.editStrategy(${variation.id})"
             title="Edit variation"
+            data-testid="edit-strategy-btn"
           >
             ✏️
           </button>
@@ -75,6 +77,7 @@ function renderVariationCard(variation: StrategyConfig): string {
             onclick="window.deleteStrategy(${variation.id})"
             ${variation.is_default ? "disabled" : ""}
             title="Delete variation"
+            data-testid="delete-strategy-btn"
           >
             🗑️
           </button>

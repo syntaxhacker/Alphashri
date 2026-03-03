@@ -13,6 +13,7 @@ import type {
   SymbolPerformance,
   PaperChartData,
   StrategyConfig,
+  BotInfo,
 } from "../types/paperTrading";
 
 // Initial state
@@ -34,6 +35,7 @@ export const initialPaperTradingState: PaperTradingState = {
   filterStrategy: null,
 
   selectedSymbol: null,
+  selectedStrategyTab: null, // For multi-strategy position tabs
   chartData: null,
   chartLoading: false,
   chartTimeframe: "5min",
@@ -52,6 +54,9 @@ export const initialPaperTradingState: PaperTradingState = {
   configLoading: false,
   configError: null,
   configDirty: false,
+
+  // Multi-strategy bots
+  availableBots: [],
 };
 
 // Additional type for the view state
@@ -149,6 +154,11 @@ export function setFilterStrategy(strategy: string | null) {
 // Chart management
 export function setSelectedSymbol(symbol: string | null) {
   state = { ...state, selectedSymbol: symbol };
+  notify();
+}
+
+export function setSelectedStrategyTab(strategy: string | null) {
+  state = { ...state, selectedStrategyTab: strategy };
   notify();
 }
 
@@ -268,4 +278,10 @@ export function updateConfigValue(key: keyof StrategyConfig, value: any) {
     };
     notify();
   }
+}
+
+// Multi-strategy bots management
+export function setAvailableBots(bots: BotInfo[]) {
+  state = { ...state, availableBots: bots };
+  notify();
 }

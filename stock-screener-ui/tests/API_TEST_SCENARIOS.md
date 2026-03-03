@@ -25,18 +25,19 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/auth/register` | Register new user | No |
-| POST | `/api/auth/login` | Login user | No |
-| POST | `/api/auth/refresh` | Refresh access token | No |
-| POST | `/api/auth/logout` | Logout user | Optional |
-| GET | `/api/auth/me` | Get current user | Yes |
-| PUT | `/api/auth/me` | Update user settings | Yes |
+| Method | Endpoint             | Description          | Auth Required |
+| ------ | -------------------- | -------------------- | ------------- |
+| POST   | `/api/auth/register` | Register new user    | No            |
+| POST   | `/api/auth/login`    | Login user           | No            |
+| POST   | `/api/auth/refresh`  | Refresh access token | No            |
+| POST   | `/api/auth/logout`   | Logout user          | Optional      |
+| GET    | `/api/auth/me`       | Get current user     | Yes           |
+| PUT    | `/api/auth/me`       | Update user settings | Yes           |
 
 ### Test Scenarios
 
 #### 1.1 Register User
+
 ```python
 # Test Cases:
 - ✅ Register with valid email and password
@@ -50,6 +51,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 1.2 Login User
+
 ```python
 # Test Cases:
 - ✅ Login with valid credentials
@@ -63,6 +65,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 1.3 Refresh Token
+
 ```python
 # Test Cases:
 - ✅ Refresh with valid refresh token
@@ -75,6 +78,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 1.4 Logout
+
 ```python
 # Test Cases:
 - ✅ Logout with valid refresh token
@@ -84,6 +88,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 1.5 Get Current User
+
 ```python
 # Test Cases:
 - ✅ Get user with valid token
@@ -96,6 +101,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 1.6 Update User Settings
+
 ```python
 # Test Cases:
 - ✅ Update display_name only
@@ -113,23 +119,24 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/strategies` | List all strategies | Optional |
-| GET | `/api/strategies/templates` | List templates | Optional |
-| GET | `/api/strategies/{id}` | Get specific strategy | Optional |
-| POST | `/api/strategies` | Create strategy | Optional |
-| PUT | `/api/strategies/{id}` | Update strategy | Optional |
-| DELETE | `/api/strategies/{id}` | Delete strategy | Optional |
-| GET | `/api/strategies/{id}/performance` | Get performance | Optional |
-| GET | `/api/strategies/{id}/trades` | Get trades | Optional |
-| GET | `/api/strategies/{id}/variations` | Get variations | Optional |
-| GET | `/api/strategies/bots` | List bots | Optional |
-| GET | `/api/strategies/bots/{id}` | Get bot | Optional |
+| Method | Endpoint                           | Description           | Auth Required |
+| ------ | ---------------------------------- | --------------------- | ------------- |
+| GET    | `/api/strategies`                  | List all strategies   | Optional      |
+| GET    | `/api/strategies/templates`        | List templates        | Optional      |
+| GET    | `/api/strategies/{id}`             | Get specific strategy | Optional      |
+| POST   | `/api/strategies`                  | Create strategy       | Optional      |
+| PUT    | `/api/strategies/{id}`             | Update strategy       | Optional      |
+| DELETE | `/api/strategies/{id}`             | Delete strategy       | Optional      |
+| GET    | `/api/strategies/{id}/performance` | Get performance       | Optional      |
+| GET    | `/api/strategies/{id}/trades`      | Get trades            | Optional      |
+| GET    | `/api/strategies/{id}/variations`  | Get variations        | Optional      |
+| GET    | `/api/strategies/bots`             | List bots             | Optional      |
+| GET    | `/api/strategies/bots/{id}`        | Get bot               | Optional      |
 
 ### Test Scenarios
 
 #### 2.1 List Strategies
+
 ```python
 # Test Cases:
 - ✅ List all non-template strategies
@@ -140,6 +147,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 2.2 List Templates
+
 ```python
 # Test Cases:
 - ✅ List all active templates
@@ -149,6 +157,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 2.3 Get Strategy
+
 ```python
 # Test Cases:
 - ✅ Get existing strategy by ID
@@ -159,6 +168,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 2.4 Create Strategy
+
 ```python
 # Test Cases:
 - ✅ Create strategy with minimal fields
@@ -172,6 +182,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 2.5 Update Strategy
+
 ```python
 # Test Cases:
 - ✅ Update strategy name
@@ -185,6 +196,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 2.6 Delete Strategy
+
 ```python
 # Test Cases:
 - ✅ Delete existing strategy (soft delete)
@@ -195,6 +207,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 2.7 Get Strategy Performance
+
 ```python
 # Test Cases:
 - ✅ Get performance for strategy with trades
@@ -206,6 +219,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 2.8 Get Strategy Trades
+
 ```python
 # Test Cases:
 - ✅ Get trades with default limit (50)
@@ -217,6 +231,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 2.9 Get Strategy Variations
+
 ```python
 # Test Cases:
 - ✅ Get variations for template strategy
@@ -234,29 +249,30 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/paper/portfolio` | Get portfolio | Optional |
-| POST | `/api/paper/portfolio/reset` | Reset portfolio | Optional |
-| GET | `/api/paper/positions` | Get positions | Optional |
-| GET | `/api/paper/positions/{symbol}` | Get position | Optional |
-| POST | `/api/paper/orders` | Place order | Optional |
-| DELETE | `/api/paper/orders/{symbol}` | Cancel position | Optional |
-| GET | `/api/paper/signals` | Get signals | Optional |
-| POST | `/api/paper/signals/generate` | Generate signals | Optional |
-| GET | `/api/paper/trades` | Get trade history | Optional |
-| GET | `/api/paper/trades/summary` | Get trade summary | Optional |
-| POST | `/api/paper/runner/start` | Start runner | Optional |
-| POST | `/api/paper/runner/stop` | Stop runner | Optional |
-| GET | `/api/paper/runner/status` | Get runner status | Optional |
-| GET | `/api/paper/runner/logs` | Get runner logs | Optional |
-| GET | `/api/paper/runner/snapshot` | Get runner snapshot | Optional |
-| GET | `/api/paper/config` | Get config | Optional |
-| PUT | `/api/paper/config` | Update config | Optional |
+| Method | Endpoint                        | Description         | Auth Required |
+| ------ | ------------------------------- | ------------------- | ------------- |
+| GET    | `/api/paper/portfolio`          | Get portfolio       | Optional      |
+| POST   | `/api/paper/portfolio/reset`    | Reset portfolio     | Optional      |
+| GET    | `/api/paper/positions`          | Get positions       | Optional      |
+| GET    | `/api/paper/positions/{symbol}` | Get position        | Optional      |
+| POST   | `/api/paper/orders`             | Place order         | Optional      |
+| DELETE | `/api/paper/orders/{symbol}`    | Cancel position     | Optional      |
+| GET    | `/api/paper/signals`            | Get signals         | Optional      |
+| POST   | `/api/paper/signals/generate`   | Generate signals    | Optional      |
+| GET    | `/api/paper/trades`             | Get trade history   | Optional      |
+| GET    | `/api/paper/trades/summary`     | Get trade summary   | Optional      |
+| POST   | `/api/paper/runner/start`       | Start runner        | Optional      |
+| POST   | `/api/paper/runner/stop`        | Stop runner         | Optional      |
+| GET    | `/api/paper/runner/status`      | Get runner status   | Optional      |
+| GET    | `/api/paper/runner/logs`        | Get runner logs     | Optional      |
+| GET    | `/api/paper/runner/snapshot`    | Get runner snapshot | Optional      |
+| GET    | `/api/paper/config`             | Get config          | Optional      |
+| PUT    | `/api/paper/config`             | Update config       | Optional      |
 
 ### Test Scenarios
 
 #### 3.1 Portfolio Management
+
 ```python
 # Test Cases - GET /api/paper/portfolio:
 - ✅ Get portfolio with positions
@@ -272,6 +288,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 3.2 Positions Management
+
 ```python
 # Test Cases - GET /api/paper/positions:
 - ✅ Get all positions
@@ -285,6 +302,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 3.3 Order Management
+
 ```python
 # Test Cases - POST /api/paper/orders:
 - ✅ Place BUY order with valid data
@@ -305,6 +323,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 3.4 Signal Generation
+
 ```python
 # Test Cases - GET /api/paper/signals:
 - ✅ Get generated signals
@@ -319,6 +338,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 3.5 Trade History
+
 ```python
 # Test Cases - GET /api/paper/trades:
 - ✅ Get trades with default limit
@@ -334,6 +354,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 3.6 Runner Control
+
 ```python
 # Test Cases - POST /api/paper/runner/start:
 - ✅ Start runner successfully
@@ -363,6 +384,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 3.7 Configuration
+
 ```python
 # Test Cases - GET /api/paper/config:
 - ✅ Get current configuration
@@ -383,29 +405,30 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/bots` | List all bots | Optional |
-| POST | `/api/bots` | Create bot | Optional |
-| GET | `/api/bots/available-strategies` | List available strategies | Optional |
-| GET | `/api/bots/{id}` | Get bot | Optional |
-| PUT | `/api/bots/{id}` | Update bot | Optional |
-| DELETE | `/api/bots/{id}` | Delete bot | Optional |
-| POST | `/api/bots/{id}/start` | Start bot | Optional |
-| POST | `/api/bots/{id}/stop` | Stop bot | Optional |
-| GET | `/api/bots/{id}/status` | Get bot status | Optional |
-| GET | `/api/bots/{id}/logs` | Get bot logs | Optional |
-| GET | `/api/bots/{id}/portfolio` | Get bot portfolio | Optional |
-| GET | `/api/bots/{id}/positions` | Get bot positions | Optional |
-| GET | `/api/bots/{id}/scan` | Get bot scan items | Optional |
-| GET | `/api/bots/{id}/performance` | Get bot performance | Optional |
-| GET | `/api/bots/{id}/performance/compare` | Compare strategies | Optional |
-| GET | `/api/bots/{id}/trades` | Get bot trades | Optional |
-| GET | `/api/bots/{id}/strategy-performance` | Get strategy performance | Optional |
+| Method | Endpoint                              | Description               | Auth Required |
+| ------ | ------------------------------------- | ------------------------- | ------------- |
+| GET    | `/api/bots`                           | List all bots             | Optional      |
+| POST   | `/api/bots`                           | Create bot                | Optional      |
+| GET    | `/api/bots/available-strategies`      | List available strategies | Optional      |
+| GET    | `/api/bots/{id}`                      | Get bot                   | Optional      |
+| PUT    | `/api/bots/{id}`                      | Update bot                | Optional      |
+| DELETE | `/api/bots/{id}`                      | Delete bot                | Optional      |
+| POST   | `/api/bots/{id}/start`                | Start bot                 | Optional      |
+| POST   | `/api/bots/{id}/stop`                 | Stop bot                  | Optional      |
+| GET    | `/api/bots/{id}/status`               | Get bot status            | Optional      |
+| GET    | `/api/bots/{id}/logs`                 | Get bot logs              | Optional      |
+| GET    | `/api/bots/{id}/portfolio`            | Get bot portfolio         | Optional      |
+| GET    | `/api/bots/{id}/positions`            | Get bot positions         | Optional      |
+| GET    | `/api/bots/{id}/scan`                 | Get bot scan items        | Optional      |
+| GET    | `/api/bots/{id}/performance`          | Get bot performance       | Optional      |
+| GET    | `/api/bots/{id}/performance/compare`  | Compare strategies        | Optional      |
+| GET    | `/api/bots/{id}/trades`               | Get bot trades            | Optional      |
+| GET    | `/api/bots/{id}/strategy-performance` | Get strategy performance  | Optional      |
 
 ### Test Scenarios
 
 #### 4.1 Bot CRUD Operations
+
 ```python
 # Test Cases - GET /api/bots:
 - ✅ List all bots
@@ -442,6 +465,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 4.2 Bot Control
+
 ```python
 # Test Cases - POST /api/bots/{id}/start:
 - ✅ Start bot successfully
@@ -470,6 +494,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 4.3 Bot Portfolio & Positions
+
 ```python
 # Test Cases - GET /api/bots/{id}/portfolio:
 - ✅ Get portfolio for running bot
@@ -489,6 +514,7 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ```
 
 #### 4.4 Bot Performance
+
 ```python
 # Test Cases - GET /api/bots/{id}/performance:
 - ✅ Get performance summary
@@ -522,10 +548,10 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/market-ticker` | Get all tickers | No |
-| GET | `/api/market-ticker/{symbol}` | Get specific ticker | No |
+| Method | Endpoint                      | Description         | Auth Required |
+| ------ | ----------------------------- | ------------------- | ------------- |
+| GET    | `/api/market-ticker`          | Get all tickers     | No            |
+| GET    | `/api/market-ticker/{symbol}` | Get specific ticker | No            |
 
 ### Test Scenarios
 
@@ -554,10 +580,10 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/screeners` | Get available screeners | No |
-| GET | `/api/screener` | Get screener data | No |
+| Method | Endpoint         | Description             | Auth Required |
+| ------ | ---------------- | ----------------------- | ------------- |
+| GET    | `/api/screeners` | Get available screeners | No            |
+| GET    | `/api/screener`  | Get screener data       | No            |
 
 ### Test Scenarios
 
@@ -585,14 +611,14 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/backtest/strategies` | Get strategies | No |
-| GET | `/api/backtest/costs` | Get cost structure | No |
-| GET | `/api/backtest/progress` | Get backtest progress | No |
-| POST | `/api/backtest/run` | Run backtest | No |
-| GET | `/api/backtest/chart/{symbol}` | Get chart data | No |
-| GET | `/api/backtest/results` | Get backtest results | No |
+| Method | Endpoint                       | Description           | Auth Required |
+| ------ | ------------------------------ | --------------------- | ------------- |
+| GET    | `/api/backtest/strategies`     | Get strategies        | No            |
+| GET    | `/api/backtest/costs`          | Get cost structure    | No            |
+| GET    | `/api/backtest/progress`       | Get backtest progress | No            |
+| POST   | `/api/backtest/run`            | Run backtest          | No            |
+| GET    | `/api/backtest/chart/{symbol}` | Get chart data        | No            |
+| GET    | `/api/backtest/results`        | Get backtest results  | No            |
 
 ### Test Scenarios
 
@@ -638,9 +664,9 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/chart/preview/{symbol}` | Get preview chart | No |
+| Method | Endpoint                      | Description       | Auth Required |
+| ------ | ----------------------------- | ----------------- | ------------- |
+| GET    | `/api/chart/preview/{symbol}` | Get preview chart | No            |
 
 ### Test Scenarios
 
@@ -662,9 +688,9 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/symbols/search` | Search symbols | No |
+| Method | Endpoint              | Description    | Auth Required |
+| ------ | --------------------- | -------------- | ------------- |
+| GET    | `/api/symbols/search` | Search symbols | No            |
 
 ### Test Scenarios
 
@@ -687,11 +713,11 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/news` | Get news feed | No |
-| GET | `/api/news/article` | Get article details | No |
-| GET | `/api/news/sources` | Get news sources | No |
+| Method | Endpoint            | Description         | Auth Required |
+| ------ | ------------------- | ------------------- | ------------- |
+| GET    | `/api/news`         | Get news feed       | No            |
+| GET    | `/api/news/article` | Get article details | No            |
+| GET    | `/api/news/sources` | Get news sources    | No            |
 
 ### Test Scenarios
 
@@ -720,9 +746,9 @@ This document provides comprehensive test scenarios for all backend API endpoint
 
 ### Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/health` | Health check | No |
+| Method | Endpoint  | Description  | Auth Required |
+| ------ | --------- | ------------ | ------------- |
+| GET    | `/health` | Health check | No            |
 
 ### Test Scenarios
 
@@ -738,17 +764,20 @@ This document provides comprehensive test scenarios for all backend API endpoint
 ## Test Implementation Strategy
 
 ### Phase 1: Core Tests (High Priority)
+
 1. Authentication APIs (all endpoints)
 2. Strategy Management APIs (CRUD operations)
 3. Paper Trading APIs (portfolio, orders, positions)
 4. Bot Management APIs (CRUD + control)
 
 ### Phase 2: Data APIs (Medium Priority)
+
 5. Screener APIs
 6. Backtest APIs
 7. Market Ticker APIs
 
 ### Phase 3: Utility APIs (Lower Priority)
+
 8. Chart APIs
 9. Symbol Search APIs
 10. News APIs
@@ -788,6 +817,7 @@ stock-screener-ui/tests/
 ## Test Fixtures Needed
 
 ### Database Fixtures
+
 - Clean database before each test
 - Sample users (active, inactive, different roles)
 - Sample strategies (templates and variations)
@@ -795,11 +825,13 @@ stock-screener-ui/tests/
 - Sample trade history
 
 ### Mock Data
+
 - Mock market data (for ticker APIs)
 - Mock yfinance responses
 - Mock external API responses (news, etc.)
 
 ### Authentication Fixtures
+
 - Valid access token
 - Expired access token
 - Valid refresh token

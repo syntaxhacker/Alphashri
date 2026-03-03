@@ -146,6 +146,21 @@ function formatCandleData(raw: RawCandle): CandleData[] {
   return candles;
 }
 
+/**
+ * Helper to create an ORB zone from candles
+ */
+function createORBZone(date: string, orCandles: CandleData[], orEndMinutes: number): ORBZone {
+  const orHigh = Math.max(...orCandles.map((c) => c.high));
+  const orLow = Math.min(...orCandles.map((c) => c.low));
+  return {
+    date,
+    date_raw: date,
+    or_high: Math.round(orHigh * 100) / 100,
+    or_low: Math.round(orLow * 100) / 100,
+    or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, "0")}:${String(orEndMinutes % 60).padStart(2, "0")}`,
+  };
+}
+
 function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
   const zones: ORBZone[] = [];
   let currentDate: string | null = null;
@@ -162,15 +177,7 @@ function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
     if (candle.date !== currentDate) {
       // Process previous day's OR
       if (orCandles.length > 0 && currentDate) {
-        const orHigh = Math.max(...orCandles.map((c) => c.high));
-        const orLow = Math.min(...orCandles.map((c) => c.low));
-        zones.push({
-          date: currentDate,
-          date_raw: currentDate,
-          or_high: Math.round(orHigh * 100) / 100,
-          or_low: Math.round(orLow * 100) / 100,
-          or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, "0")}:${String(orEndMinutes % 60).padStart(2, "0")}`,
-        });
+        zones.push(createORBZone(currentDate, orCandles, orEndMinutes));
       }
 
       currentDate = candle.date;
@@ -185,15 +192,7 @@ function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
 
   // Process last day
   if (orCandles.length > 0 && currentDate) {
-    const orHigh = Math.max(...orCandles.map((c) => c.high));
-    const orLow = Math.min(...orCandles.map((c) => c.low));
-    zones.push({
-      date: currentDate,
-      date_raw: currentDate,
-      or_high: Math.round(orHigh * 100) / 100,
-      or_low: Math.round(orLow * 100) / 100,
-      or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, "0")}:${String(orEndMinutes % 60).padStart(2, "0")}`,
-    });
+    zones.push(createORBZone(currentDate, orCandles, orEndMinutes));
   }
 
   return zones;
@@ -264,6 +263,28 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
       console.warn(`Exit time not found: ${exitNormalized}`);
     }
 
+    // Shared trade data for both entry and exit markers
+    const tradeData = {
+      entry_price: trade.entry_price,
+      exit_price: trade.exit_price,
+      entry_time: trade.entry_time,
+      exit_time: trade.exit_time,
+      quantity: trade.quantity,
+      gross_pnl: trade.gross_pnl,
+      trading_costs: trade.trading_costs,
+      net_pnl: trade.net_pnl,
+      net_pnl_pct: trade.net_pnl_pct,
+      exit_reason: trade.exit_reason,
+      hold_duration_minutes: trade.hold_duration_minutes,
+      or_high: trade.or_high,
+      or_low: trade.or_low,
+      pp: trade.pp,
+      r1: trade.r1,
+      s1: trade.s1,
+      r2: trade.r2,
+      s2: trade.s2,
+    };
+
     // Entry marker
     markers.push({
       trade_id: idx + 1,
@@ -277,26 +298,7 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
         color: "#00BFFF",
         size: 16,
       },
-      trade: {
-        entry_price: trade.entry_price,
-        exit_price: trade.exit_price,
-        entry_time: trade.entry_time,
-        exit_time: trade.exit_time,
-        quantity: trade.quantity,
-        gross_pnl: trade.gross_pnl,
-        trading_costs: trade.trading_costs,
-        net_pnl: trade.net_pnl,
-        net_pnl_pct: trade.net_pnl_pct,
-        exit_reason: trade.exit_reason,
-        hold_duration_minutes: trade.hold_duration_minutes,
-        or_high: trade.or_high,
-        or_low: trade.or_low,
-        pp: trade.pp,
-        r1: trade.r1,
-        s1: trade.s1,
-        r2: trade.r2,
-        s2: trade.s2,
-      },
+      trade: tradeData,
     });
 
     // Exit marker
@@ -318,26 +320,7 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
         color: exitColors[trade.exit_reason] || "#FFEA00",
         size: 14,
       },
-      trade: {
-        entry_price: trade.entry_price,
-        exit_price: trade.exit_price,
-        entry_time: trade.entry_time,
-        exit_time: trade.exit_time,
-        quantity: trade.quantity,
-        gross_pnl: trade.gross_pnl,
-        trading_costs: trade.trading_costs,
-        net_pnl: trade.net_pnl,
-        net_pnl_pct: trade.net_pnl_pct,
-        exit_reason: trade.exit_reason,
-        hold_duration_minutes: trade.hold_duration_minutes,
-        or_high: trade.or_high,
-        or_low: trade.or_low,
-        pp: trade.pp,
-        r1: trade.r1,
-        s1: trade.s1,
-        r2: trade.r2,
-        s2: trade.s2,
-      },
+      trade: tradeData,
     });
   });
 

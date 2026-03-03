@@ -588,31 +588,48 @@ export function getCurrentConfig() {
 
 // Multi-strategy bot mocks
 export async function setupMultiStrategyBotMocks(page: import("@playwright/test").Page) {
-  // Mock bots list
-  await page.route("**/api/bots", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        bots: [
-          {
-            id: 1,
-            name: "Multi-Strategy Bot",
-            strategies: [
-              { id: 1, name: "ORB Conservative", allocation: 0.5 },
-              { id: 2, name: "ORB Aggressive", allocation: 0.5 },
-            ],
-            is_active: true,
-            is_running: false,
-          },
-        ],
-        count: 1,
-      }),
-    });
-  });
+  // Mock bots list endpoint - use function matcher for more control
+  await page.route(
+    (url) => {
+      const path = url.pathname;
+      return path === "/api/bots" || path.endsWith("/api/bots");
+    },
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          bots: [
+            {
+              id: 1,
+              name: "Multi-Strategy Bot",
+              strategies: [
+                { id: 1, name: "ORB Conservative", allocation: 0.5 },
+                { id: 2, name: "ORB Aggressive", allocation: 0.5 },
+              ],
+              is_active: true,
+              is_running: false,
+            },
+            {
+              id: 2,
+              name: "Multi-ORB Test Bot",
+              strategies: [
+                { id: 1, name: "ORB Conservative", allocation: 0.5 },
+                { id: 2, name: "ORB Aggressive", allocation: 0.5 },
+              ],
+              is_active: true,
+              is_running: true,
+              pid: 12345,
+            },
+          ],
+          count: 2,
+        }),
+      });
+    }
+  );
 
   // Mock bot start
-  await page.route("**/api/bots/1/start", async (route) => {
+  await page.route(/\/api\/bots\/\d+\/start/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -625,7 +642,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot stop
-  await page.route("**/api/bots/1/stop", async (route) => {
+  await page.route(/\/api\/bots\/\d+\/stop/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -636,8 +653,8 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
     });
   });
 
-  // Mock bot status
-  await page.route("**/api/bots/1/status", async (route) => {
+  // Mock bot status - use regex to match any bot ID
+  await page.route(/\/api\/bots\/\d+\/status/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -658,8 +675,8 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
     });
   });
 
-  // Mock bot portfolio
-  await page.route("**/api/bots/1/portfolio", async (route) => {
+  // Mock bot portfolio - use regex to match any bot ID
+  await page.route(/\/api\/bots\/\d+\/portfolio/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -669,7 +686,97 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
         pnl: 5000,
         margin_used: 50000,
         daily_pnl: 1000,
-        positions: [],
+        positions: [
+          {
+            id: 1,
+            symbol: "TCS",
+            side: "BUY",
+            qty: 10,
+            entry_price: 3750,
+            current_price: 3800,
+            pnl: 500,
+            pnl_pct: 1.33,
+            strategy_name: "ORB Conservative",
+          },
+          {
+            id: 2,
+            symbol: "INFY",
+            side: "BUY",
+            qty: 20,
+            entry_price: 1480,
+            current_price: 1500,
+            pnl: 400,
+            pnl_pct: 1.35,
+            strategy_name: "ORB Aggressive",
+          },
+        ],
+      }),
+    });
+  });
+
+  // Mock bot positions - use regex to match any bot ID
+  await page.route(/\/api\/bots\/\d+\/positions/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        positions: [
+          {
+            id: 1,
+            symbol: "TCS",
+            side: "BUY",
+            qty: 10,
+            entry_price: 3750,
+            current_price: 3800,
+            pnl: 500,
+            pnl_pct: 1.33,
+            strategy_name: "ORB Conservative",
+          },
+          {
+            id: 2,
+            symbol: "INFY",
+            side: "BUY",
+            qty: 20,
+            entry_price: 1480,
+            current_price: 1500,
+            pnl: 400,
+            pnl_pct: 1.35,
+            strategy_name: "ORB Aggressive",
+          },
+        ],
+        count: 2,
+      }),
+    });
+  });
+
+  // Mock bot scan items - use regex to match any bot ID
+  await page.route(/\/api\/bots\/\d+\/scan/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        bot_id: 2,
+        scan_items: [
+          {
+            id: 1,
+            symbol: "TCS",
+            price: 3750,
+            or_high: 3760,
+            or_low: 3745,
+            status: "signal",
+            strategy_name: "ORB Conservative",
+          },
+          {
+            id: 2,
+            symbol: "INFY",
+            price: 1480,
+            or_high: 1490,
+            or_low: 1470,
+            status: "watching",
+            strategy_name: "ORB Aggressive",
+          },
+        ],
+        count: 2,
       }),
     });
   });

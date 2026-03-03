@@ -317,5 +317,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearError,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value} data-testid="auth-provider">
+      {children}
+    </AuthContext.Provider>
+  );
 }

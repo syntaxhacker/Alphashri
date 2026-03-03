@@ -26,13 +26,17 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
 
   return (
     <div className="auth-container">
-      <div className="auth-card">
+      <div className="auth-card" data-testid="login-form">
         <div className="auth-header">
           <h1>🚀 Alphashri</h1>
           <p>Sign in to your account</p>
         </div>
 
-        {error && <div className="auth-error">{error}</div>}
+        {error && (
+          <div className="auth-error" data-testid="auth-error">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
@@ -40,6 +44,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
             <input
               type="email"
               id="email"
+              data-testid="login-email-input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
@@ -54,6 +59,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
             <input
               type="password"
               id="password"
+              data-testid="login-password-input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
@@ -62,7 +68,12 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
             />
           </div>
 
-          <button type="submit" className="auth-button" disabled={loading}>
+          <button
+            type="submit"
+            className="auth-button"
+            data-testid="login-submit-btn"
+            disabled={loading}
+          >
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
@@ -70,7 +81,12 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
         {onSwitchToRegister && (
           <div className="auth-footer">
             <p>Don't have an account?</p>
-            <button type="button" className="auth-link-button" onClick={handleSwitch}>
+            <button
+              type="button"
+              className="auth-link-button"
+              data-testid="register-link"
+              onClick={handleSwitch}
+            >
               Create Account
             </button>
           </div>
@@ -123,13 +139,17 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
 
   return (
     <div className="auth-container">
-      <div className="auth-card">
+      <div className="auth-card" data-testid="register-form">
         <div className="auth-header">
           <h1>🚀 Alphashri</h1>
           <p>Create your account</p>
         </div>
 
-        {displayError && <div className="auth-error">{displayError}</div>}
+        {displayError && (
+          <div className="auth-error" data-testid="auth-error">
+            {displayError}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
@@ -137,6 +157,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
             <input
               type="email"
               id="reg-email"
+              data-testid="register-email-input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
@@ -151,6 +172,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
             <input
               type="text"
               id="display-name"
+              data-testid="display-name-input"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Your name"
@@ -163,6 +185,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
             <input
               type="password"
               id="reg-password"
+              data-testid="register-password-input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Create a password (min 6 characters)"
@@ -177,6 +200,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
             <input
               type="password"
               id="confirm-password"
+              data-testid="confirm-password-input"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm your password"
@@ -185,7 +209,12 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
             />
           </div>
 
-          <button type="submit" className="auth-button" disabled={loading}>
+          <button
+            type="submit"
+            className="auth-button"
+            data-testid="register-button"
+            disabled={loading}
+          >
             {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>

@@ -42,34 +42,39 @@ export function renderResults(): string {
     <div class="results-container" data-testid="results-container">
       ${renderSummaryCompact(state.totals)}
 
-      <div class="results-table-wrapper">
+      <div class="results-table-wrapper" data-testid="results-table-wrapper">
         <table class="results-table sortable" data-testid="results-table">
           <thead>
             <tr>
               <th class="sortable ${sortColumn === "symbol" ? "sorted " + sortDirection : ""}"
+                  data-testid="th-symbol"
                   onclick="window.sortResults('symbol')">
                 Symbol ${sortColumn === "symbol" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
               <th class="sortable ${sortColumn === "net_pnl" ? "sorted " + sortDirection : ""}"
+                  data-testid="th-net-pnl"
                   onclick="window.sortResults('net_pnl')">
                 Net PnL ${sortColumn === "net_pnl" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
               <th class="sortable ${sortColumn === "trades" ? "sorted " + sortDirection : ""}"
+                  data-testid="th-trades"
                   onclick="window.sortResults('trades')">
                 Trades ${sortColumn === "trades" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
               <th class="sortable ${sortColumn === "win_rate" ? "sorted " + sortDirection : ""}"
+                  data-testid="th-win-rate"
                   onclick="window.sortResults('win_rate')">
                 WR% ${sortColumn === "win_rate" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
               <th class="sortable ${sortColumn === "pf" ? "sorted " + sortDirection : ""}"
+                  data-testid="th-pf"
                   onclick="window.sortResults('pf')">
                 PF ${sortColumn === "pf" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
               </th>
-              <th>TP/SL</th>
+              <th data-testid="th-tp-sl">TP/SL</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody data-testid="results-tbody">
             ${sortedResults.map((r) => renderResultRow(r)).join("")}
           </tbody>
         </table>
@@ -131,19 +136,19 @@ function renderSummaryCompact(totals: BacktestTotals | null): string {
   return `
     <div class="results-summary-compact" data-testid="results-summary">
       <div class="summary-row">
-        <span class="summary-item">
+        <span class="summary-item" data-testid="summary-net-pnl">
           <span class="label">Net PnL</span>
           <span class="value ${pnlClass}">${pnlSign}₹${(totals.net_pnl / 1000).toFixed(1)}K</span>
         </span>
-        <span class="summary-item">
+        <span class="summary-item" data-testid="summary-costs">
           <span class="label">Costs</span>
           <span class="value negative">₹${(totals.total_costs / 1000).toFixed(1)}K</span>
         </span>
-        <span class="summary-item">
+        <span class="summary-item" data-testid="summary-wr">
           <span class="label">WR</span>
           <span class="value">${totals.win_rate.toFixed(0)}%</span>
         </span>
-        <span class="summary-item">
+        <span class="summary-item" data-testid="summary-trades">
           <span class="label">Trades</span>
           <span class="value">${totals.trades}</span>
         </span>

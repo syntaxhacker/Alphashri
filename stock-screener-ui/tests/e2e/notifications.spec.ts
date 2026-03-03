@@ -9,7 +9,7 @@ test.describe("Notification Panel", () => {
 
   test("should toggle notification panel when button clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForSelector(".sidemenu", { timeout: 15000 });
 
     // Find notification toggle button
     const notifBtn = page.locator(".notif-open-btn, .notif-close-btn");
@@ -29,7 +29,7 @@ test.describe("Notification Panel", () => {
 
   test("should show notification filter tabs", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForSelector(".sidemenu", { timeout: 15000 });
 
     // Open notification panel
     const openBtn = page.locator(".notif-open-btn");
@@ -50,7 +50,7 @@ test.describe("Notification Panel", () => {
 
   test("should clear notifications when clear button clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForSelector(".sidemenu", { timeout: 15000 });
 
     // Open notification panel
     const openBtn = page.locator(".notif-open-btn");
@@ -74,7 +74,7 @@ test.describe("Notification Panel", () => {
 
   test("should filter notifications by type", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForSelector(".sidemenu", { timeout: 15000 });
 
     // Open notification panel
     const openBtn = page.locator(".notif-open-btn");

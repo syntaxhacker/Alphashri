@@ -928,6 +928,8 @@ async def search_symbols(
     if not instruments:
         return {"results": [], "query": q, "total": 0}
 
+    # Strip whitespace from query for better search UX
+    q = q.strip()
     query_lower = q.lower()
 
     # Filter NSE_EQ stocks with EQ instrument type
@@ -1250,6 +1252,25 @@ try:
     print("✅ Strategies API loaded at /api/strategies")
 except Exception as e:
     print(f"⚠️ Could not load strategies API: {e}")
+
+
+# ============================================
+# Market Ticker API (Live indices & commodities)
+# ============================================
+try:
+    from api.market_ticker import router as market_ticker_router
+    app.include_router(market_ticker_router)
+    print("✅ Market Ticker API loaded at /api/market-ticker")
+except Exception as e:
+    print(f"⚠️ Could not load market ticker API: {e}")
+
+# Include bots router (multi-strategy)
+try:
+    from api.bots import router as bots_router
+    app.include_router(bots_router)
+    print("✅ Bots API loaded at /api/bots")
+except Exception as e:
+    print(f"⚠️ Could not load bots API: {e}")
 
 
 # ============================================

@@ -35,6 +35,7 @@ export function renderChartContainer(): string {
               (s) => `
             <button
               class="chart-tab ${s === selectedSymbol ? "active" : ""}"
+              data-testid="chart-tab-${s}"
               data-symbol="${s}"
               onclick="window.selectChartSymbol('${s}')"
             >
@@ -46,6 +47,7 @@ export function renderChartContainer(): string {
         </div>
         <select
           class="chart-zoom-select"
+          data-testid="chart-zoom-select"
           onchange="window.setChartZoom(this.value)"
         >
           <option value="all">All</option>
@@ -55,23 +57,23 @@ export function renderChartContainer(): string {
         </select>
       </div>
 
-      <div class="chart-body">
+      <div class="chart-body" data-testid="chart-body">
         ${
           selectedSymbol
             ? renderChart(selectedSymbol, state.chartData.get(selectedSymbol))
             : `
-          <div class="chart-placeholder">
+          <div class="chart-placeholder" data-testid="chart-placeholder">
             <p>Loading...</p>
           </div>
         `
         }
       </div>
 
-      <div class="chart-legend">
-        <span class="legend-item"><span class="legend-marker entry"></span> Entry</span>
-        <span class="legend-item"><span class="legend-marker tp"></span> TP</span>
-        <span class="legend-item"><span class="legend-marker sl"></span> SL</span>
-        <span class="legend-item"><span class="legend-marker eod"></span> EOD</span>
+      <div class="chart-legend" data-testid="chart-legend">
+        <span class="legend-item" data-testid="legend-entry"><span class="legend-marker entry"></span> Entry</span>
+        <span class="legend-item" data-testid="legend-tp"><span class="legend-marker tp"></span> TP</span>
+        <span class="legend-item" data-testid="legend-sl"><span class="legend-marker sl"></span> SL</span>
+        <span class="legend-item" data-testid="legend-eod"><span class="legend-marker eod"></span> EOD</span>
       </div>
     </div>
   `;
