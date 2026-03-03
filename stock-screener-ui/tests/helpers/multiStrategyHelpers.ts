@@ -11,12 +11,7 @@ import {
 } from "../mocks/apiResponses";
 
 // Re-export for convenience
-export {
-  setupMultiStrategyBotMocks,
-  setupApiMocks,
-  loginAsTestUser,
-  setupPaperTradingMocks,
-};
+export { setupMultiStrategyBotMocks, setupApiMocks, loginAsTestUser, setupPaperTradingMocks };
 
 /**
  * Setup all required mocks for multi-strategy tests

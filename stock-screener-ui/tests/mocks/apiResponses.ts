@@ -625,7 +625,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
           count: 2,
         }),
       });
-    }
+    },
   );
 
   // Mock bot start
