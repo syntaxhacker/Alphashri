@@ -33,6 +33,7 @@ export const initialPaperTradingState: PaperTradingState = {
   filterToDate: null,
   filterSymbol: null,
   filterStrategy: null,
+  filterBot: null,
 
   selectedSymbol: null,
   selectedStrategyTab: null, // For multi-strategy position tabs
@@ -284,4 +285,28 @@ export function updateConfigValue(key: keyof StrategyConfig, value: any) {
 export function setAvailableBots(bots: BotInfo[]) {
   state = { ...state, availableBots: bots };
   notify();
+}
+
+// Bot filter management
+export function setFilterBot(botId: number | null) {
+  state = { ...state, filterBot: botId };
+  notify();
+}
+
+// Trade deletion action
+export async function deleteTradeAction(tradeId: string): Promise<boolean> {
+  try {
+    const { deleteTrade } = await import("../api/paperTrading");
+    await deleteTrade(tradeId);
+    // Remove from local state
+    state = {
+      ...state,
+      trades: state.trades.filter((t) => t.trade_id !== tradeId),
+    };
+    notify();
+    return true;
+  } catch (error) {
+    setError(error instanceof Error ? error.message : "Failed to delete trade");
+    return false;
+  }
 }

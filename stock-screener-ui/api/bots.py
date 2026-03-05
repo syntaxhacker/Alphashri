@@ -961,6 +961,39 @@ async def get_bot_trades(
         raise HTTPException(status_code=500, detail=f"Failed to get trades: {str(e)}")
 
 
+@router.get("/{bot_id}/trade-count")
+async def get_bot_trade_count(
+    bot_id: int,
+    user_id_query: Optional[int] = None,  # For testing without auth
+    user=Depends(get_current_user_optional)
+):
+    """Get count of trades for a bot (used to prevent deletion if trades exist)."""
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    # Allow query param override for testing
+    user_id = user_id_query if user_id_query is not None else get_user_id(user)
+
+    try:
+        from trading.journal import get_journal
+        journal = get_journal(user_id)
+
+        # Get bot's strategy IDs
+        with SessionLocal() as db:
+            result = db.execute(
+                bot_strategies.select().where(bot_strategies.c.bot_id == bot_id)
+            ).fetchall()
+            strategy_ids = [row.strategy_id for row in result]
+
+        # Count trades from this bot's strategies
+        count = sum(1 for t in journal.trades if t.strategy_id in strategy_ids)
+
+        return {"count": count}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get trade count: {str(e)}")
+
+
 @router.get("/{bot_id}/strategy-performance")
 async def get_strategy_performance(
     bot_id: int,

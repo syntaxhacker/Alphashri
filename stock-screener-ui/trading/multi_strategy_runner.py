@@ -650,7 +650,7 @@ class MultiStrategyRunner:
                     'net_pnl': trade.net_pnl,
                     'strategy_id': trade.strategy_id,
                     'strategy_name': trade.strategy_name,
-                })
+                }, strategy_id=trade.strategy_id, strategy_name=trade.strategy_name, bot_id=self.bot_config.id, bot_name=self.bot_config.name)
 
                 # Add to cooldown
                 self.cooldown_stocks[symbol] = datetime.now()

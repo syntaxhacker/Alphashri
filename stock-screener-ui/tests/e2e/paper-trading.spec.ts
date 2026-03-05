@@ -18,11 +18,12 @@ async function setupPaperTradingTest(page: import("@playwright/test").Page) {
   await setupMultiStrategyBotMocks(page);
 }
 
-test.describe("Paper Trading - Live Positions", () => {
+test.describe.configure({ mode: "serial" });
+
+test.describe("Paper Trading - Strategy Tabs", () => {
   test.beforeEach(async ({ page }) => {
     await setupPaperTradingTest(page);
   });
-
   test("should display paper trading view with tabs", async ({ page }) => {
     await navigateToPaperTrading(page);
 

@@ -6,6 +6,8 @@ import {
   getPaperTradingState,
   setSelectedSymbol,
   setFilterStrategy,
+  setFilterBot,
+  deleteTradeAction
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
@@ -34,12 +36,18 @@ export function renderHistoryPanel(): string {
   if (state.filterStrategy) {
     filteredTrades = filteredTrades.filter((t) => t.strategy_name === state.filterStrategy);
   }
+  if (state.filterBot) {
+    filteredTrades = filteredTrades.filter((t) => t.bot_id === state.filterBot);
+  }
 
-  // Get unique strategies for filter dropdown
+  // Get unique strategies and filter dropdown
   const strategies = getUniqueStrategies(state.trades);
+  // Get unique bots for filter dropdown
+  const bots = getUniqueBots(state.trades);
 
   return `
     <div class="history-panel" data-testid="history-panel">
+      ${renderBotFilter(bots, state.filterBot)}
       ${renderStrategyFilter(strategies, state.filterStrategy)}
       ${renderTradesTable(filteredTrades, state.selectedSymbol)}
     </div>
@@ -54,6 +62,18 @@ function getUniqueStrategies(trades: PaperTrade[]): string[] {
     }
   }
   return Array.from(strategies).sort();
+}
+
+function getUniqueBots(trades: PaperTrade[]): Array<{ id: number; name: string }> {
+  const botsMap = new Map<number, string>();
+  for (const trade of trades) {
+    if (trade.bot_id && trade.bot_name) {
+      botsMap.set(trade.bot_id, trade.bot_name);
+    }
+  }
+  return Array.from(botsMap.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function renderStrategyFilter(strategies: string[], currentFilter: string | null): string {
@@ -80,6 +100,37 @@ function renderStrategyFilter(strategies: string[], currentFilter: string | null
           ? `
         <span class="filter-active-indicator">Showing: ${currentFilter}</span>
         <button class="btn btn-small btn-secondary" onclick="window.clearStrategyFilter()">Clear</button>
+      `
+          : ""
+      }
+    </div>
+  `;
+}
+
+function renderBotFilter(bots: Array<{ id: number; name: string }>, currentFilter: number | null): string {
+  // Always show filter bar if there's an active filter, even with only one bot
+  if (bots.length <= 1 && !currentFilter) {
+    return "";
+  }
+
+  return `
+    <div class="bot-filter-bar" data-testid="bot-filter-bar">
+      <label>Bot:</label>
+      <select onchange="window.filterByBot(this.value)" class="bot-filter-select" data-testid="bot-filter-select">
+        <option value="">All Bots</option>
+        ${bots
+          .map(
+            (b) => `
+          <option value="${b.id}" ${currentFilter === b.id ? "selected" : ""}>${b.name}</option>
+        `,
+          )
+          .join("")}
+      </select>
+      ${
+        currentFilter
+          ? `
+        <span class="filter-active-indicator">Showing: ${bots.find(bot => bot.id === currentFilter)?.name || ""}</span>
+        <button class="btn btn-small btn-secondary" onclick="window.clearBotFilter()">Clear</button>
       `
           : ""
       }
@@ -202,9 +253,11 @@ function renderDayGroup(date: string, trades: PaperTrade[], selectedSymbol: stri
             <th>Entry</th>
             <th>Exit</th>
             <th>P&L</th>
+            <th>Bot</th>
             <th>Strategy</th>
             <th>Type</th>
             <th>Time</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -234,11 +287,24 @@ function renderDayGroup(date: string, trades: PaperTrade[], selectedSymbol: stri
                 <td class="${tradePnlClass}">
                   <strong>₹${formatNumber(trade.net_pnl)}</strong>
                 </td>
+                <td class="bot-cell" onclick="event.stopPropagation(); window.viewBotHistory(${trade.bot_id || 0})" title="Click to view trades for this bot">
+                  ${trade.bot_name || "-"}
+                </td>
                 <td class="strategy-cell" onclick="event.stopPropagation(); window.viewStrategyHistory('${trade.strategy_name || "default"}')" title="Click to view trades for this strategy">
                   ${trade.strategy_name || "default"}
                 </td>
                 <td class="exit-${trade.exit_reason.toLowerCase()}">${trade.exit_reason}</td>
                 <td class="time-cell">${time}</td>
+                <td class="actions-cell">
+                  <button
+                    class="btn btn-small btn-danger"
+                    onclick="event.stopPropagation(); window.deleteTrade('${trade.trade_id}')"
+                    title="Delete Trade"
+                    data-testid="delete-trade-btn-${trade.trade_id}"
+                  >
+                    🗑️
+                  </button>
+                </td>
               </tr>
             `;
             })

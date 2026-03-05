@@ -81,10 +81,13 @@ export async function fetchPositions(): Promise<PaperPosition[]> {
   }
 }
 
-// Fetch trade history
-export async function fetchTrades(limit: number = 100): Promise<PaperTrade[]> {
+// Fetch trade history with optional bot filtering
+export async function fetchTrades(limit: number = 100, botId?: number | null): Promise<PaperTrade[]> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?limit=${limit}`);
+    const params = new URLSearchParams();
+    params.append("limit", limit.toString());
+    if (botId) params.append("bot_id", botId.toString());
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?${params.toString()}`);
     const data = await response.json();
     const trades = data.trades || [];
     setTrades(trades);
@@ -92,6 +95,23 @@ export async function fetchTrades(limit: number = 100): Promise<PaperTrade[]> {
   } catch (error) {
     console.error("Failed to fetch trades:", error);
     return [];
+  }
+}
+
+// Delete a single trade
+export async function deleteTrade(tradeId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades/${tradeId}`, {
+      method: "DELETE",
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "Failed to delete trade");
+    }
+    return { success: true, message: data.message || "Trade deleted" };
+  } catch (error) {
+    console.error("Failed to delete trade:", error);
+    throw error;
   }
 }
 
@@ -237,14 +257,14 @@ export async function stopPaperBot(): Promise<boolean> {
   }
 }
 
-// Refresh history data
-export async function refreshHistoryData(): Promise<void> {
+// Refresh history data with optional bot filtering
+export async function refreshHistoryData(botId?: number | null): Promise<void> {
   setLoading(true);
 
   try {
     await Promise.all([
       // Load a larger set so date-range filtering works reliably on the client.
-      fetchTrades(1000),
+      fetchTrades(1000, botId),
       fetchPerformanceSummary(),
     ]);
   } catch (error) {

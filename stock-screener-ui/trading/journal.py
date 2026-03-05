@@ -49,6 +49,9 @@ class TradeRecord:
     # Strategy tracking
     strategy_id: int = 0           # ID of the strategy used
     strategy_name: str = ""        # Name for quick reference
+    # Bot tracking
+    bot_id: int = 0                # ID of the bot that executed this trade
+    bot_name: str = ""             # Bot name for quick reference
     # Source tracking
     source: str = "live"           # "live", "backtest", "seed_test" - identifies trade origin
     is_test: bool = False          # Quick flag for test/seeded data
@@ -86,7 +89,7 @@ class TradeJournal:
         self.trades: List[TradeRecord] = []
         self.daily_summaries: Dict[str, dict] = {}
 
-    def log_trade(self, trade: dict, notes: str = "", strategy_id: int = 0, strategy_name: str = "") -> TradeRecord:
+    def log_trade(self, trade: dict, notes: str = "", strategy_id: int = 0, strategy_name: str = "", bot_id: int = 0, bot_name: str = "") -> TradeRecord:
         """
         Log a completed trade.
 
@@ -95,6 +98,8 @@ class TradeJournal:
             notes: Optional notes
             strategy_id: ID of the strategy used
             strategy_name: Name of the strategy for quick reference
+            bot_id: ID of the bot that executed this trade
+            bot_name: Name of the bot for quick reference
 
         Returns:
             TradeRecord
@@ -120,6 +125,8 @@ class TradeJournal:
             notes=notes,
             strategy_id=trade.get('strategy_id', strategy_id),
             strategy_name=trade.get('strategy_name', strategy_name),
+            bot_id=trade.get('bot_id', bot_id),
+            bot_name=trade.get('bot_name', bot_name),
             source=trade.get('source', 'live'),
             is_test=trade.get('is_test', False),
         )

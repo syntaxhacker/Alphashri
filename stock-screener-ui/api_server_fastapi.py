@@ -605,6 +605,7 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
         api = TradingAPIFactory.create_from_config(provider, quiet=True)
         use_api = True
     except ValueError:
+        api = None
         use_api = False
 
     use_intraday = (mode == 'intraday')

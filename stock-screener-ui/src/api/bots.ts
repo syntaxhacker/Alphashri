@@ -119,3 +119,8 @@ export async function compareStrategyPerformance(
 export async function listAvailableStrategies(): Promise<AvailableStrategy[]> {
   return apiGet<AvailableStrategy[]>(`${BOT_BASE}/available-strategies`);
 }
+
+// Get trade count for a bot (used to prevent deletion if trades exist)
+export async function getBotTradeCount(botId: number): Promise<{ count: number }> {
+  return apiGet<{ count: number }>(`${BOT_BASE}/${botId}/trade-count`);
+}

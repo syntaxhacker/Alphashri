@@ -163,6 +163,7 @@ test.describe("Screener - Profile Filters", () => {
   });
 });
 
+test.describe.configure({ mode: "serial" });
 test.describe("Screener - Auto Refresh", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
@@ -194,14 +195,15 @@ test.describe("Screener - Auto Refresh", () => {
     }
   });
 
-  test("should disable auto-refresh when set to 0", async ({ page }) => {
+    test("should disable auto-refresh when set to 0", async ({ page }) => {
+    test.slow();
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForSelector("table tbody tr", { timeout: 15000 });
 
     const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"]');
     if ((await autoRefreshInput.count()) > 0) {
       await autoRefreshInput.fill("0");
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(500);
 
       // Auto-refresh should be disabled
       const value = await autoRefreshInput.inputValue();

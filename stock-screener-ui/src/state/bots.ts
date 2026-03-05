@@ -185,11 +185,23 @@ export async function updateBotAction(botId: number, data: BotUpdate): Promise<B
   }
 }
 
-// Delete a bot
+// Delete a bot (with trade check)
 export async function deleteBotAction(botId: number): Promise<boolean> {
   setLoading(true);
   setError(null);
   try {
+    // Check if bot has trades first
+    const tradeCount = await api.getBotTradeCount(botId);
+    if (tradeCount.count > 0) {
+      state = {
+        ...state,
+        error: `Cannot delete bot: ${tradeCount.count} trade(s) exist for this bot. Delete trades first.`,
+        isLoading: false,
+      };
+      notify();
+      return false;
+    }
+
     await api.deleteBot(botId);
     await loadBots();
     state = { ...state, selectedBot: null };

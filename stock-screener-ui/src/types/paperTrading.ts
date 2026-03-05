@@ -42,6 +42,8 @@ export interface PaperTrade {
   notes: string;
   strategy_id: number;
   strategy_name: string;
+  bot_id: number | null;
+  bot_name: string | null;
 }
 
 // Portfolio status - matches API response from /api/paper/portfolio
@@ -183,6 +185,7 @@ export interface PaperTradingState {
   filterToDate: string | null;
   filterSymbol: string | null;
   filterStrategy: string | null; // Filter by strategy name
+  filterBot: number | null; // Filter by bot ID
 
   // Chart state
   selectedSymbol: string | null;

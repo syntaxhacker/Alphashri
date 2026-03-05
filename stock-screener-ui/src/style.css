@@ -117,7 +117,11 @@ button:active {
   border-bottom: 1px solid #00ff9d;
   padding: 4px clamp(6px, 1.1vw, 12px);
   z-index: auto;
-  font: clamp(9px, 0.75vw, 10px) ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    clamp(9px, 0.75vw, 10px) ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   color: #e0e0e0;
 }
 
@@ -5110,8 +5114,13 @@ textarea.form-input {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .inactive-badge {

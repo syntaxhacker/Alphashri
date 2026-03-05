@@ -292,6 +292,7 @@ async def get_trades(
     date: Optional[str] = None,
     symbol: Optional[str] = None,
     strategy: Optional[str] = None,
+    bot_id: Optional[int] = None,
     user: Optional["User"] = Depends(get_current_user_optional),
 ):
     """Get trade history from journal with filters."""
@@ -360,6 +361,10 @@ async def get_trades(
         # Filter by strategy if stored in notes
         filtered_trades = [t for t in filtered_trades if strategy.lower() in (t.get('notes') or '').lower()]
 
+    if bot_id:
+        # Filter by bot_id
+        filtered_trades = [t for t in filtered_trades if t.get('bot_id') == bot_id]
+
     # Sort by exit time descending
     filtered_trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
 
@@ -371,6 +376,28 @@ async def get_trades(
         "filtered_trades": len(filtered_trades),
         "trades": filtered_trades
     }
+
+
+@router.delete("/trades/{trade_id}")
+async def delete_trade(
+    trade_id: str,
+    user: Optional["User"] = Depends(get_current_user_optional)
+):
+    """Delete a single trade from the journal."""
+    user_id = _get_user_id(user)
+    journal = get_journal(user_id)
+
+    # Find and remove the trade
+    original_count = len(journal.trades)
+    journal.trades = [t for t in journal.trades if t.trade_id != trade_id]
+
+    if len(journal.trades) == original_count:
+        raise HTTPException(status_code=404, detail=f"Trade {trade_id} not found")
+
+    # Save the updated journal
+    journal.save_journal()
+
+    return {"success": True, "message": f"Trade {trade_id} deleted"}
 
 
 # ============== Order Endpoints ==============
