@@ -7,6 +7,7 @@ import NewsPanel from "./components/news/NewsPanel";
 import ChartView from "./components/chart/ChartView";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
+import { NotificationContainer } from "./components/NotificationContainer";
 
 function LegacyShell({ view }: { view: AppRouteView }) {
   const navigate = useNavigate();
@@ -104,6 +105,7 @@ function AppContent() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <NewsPanel />
+      <NotificationContainer />
     </>
   );
 }
