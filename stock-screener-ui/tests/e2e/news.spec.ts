@@ -72,7 +72,7 @@ test.describe("News Panel - Toggle Visibility", () => {
 
   test("should show news toggle button on page load", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     const toggleBtn = page.locator('[data-testid="news-toggle-btn"]');
     await expect(toggleBtn).toBeVisible({ timeout: 10000 });
@@ -81,7 +81,7 @@ test.describe("News Panel - Toggle Visibility", () => {
 
   test("should open panel when toggle button is clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
@@ -92,7 +92,7 @@ test.describe("News Panel - Toggle Visibility", () => {
 
   test("should close panel when close button is clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     // Open panel first
     await clickNewsToggle(page);
@@ -113,7 +113,7 @@ test.describe("News Panel - Toggle Visibility", () => {
 
   test("should close panel when overlay is clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     // Open panel first
     await clickNewsToggle(page);
@@ -142,7 +142,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should display news source selector when panel is open", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
@@ -155,7 +155,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should display refresh button when panel is open", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
@@ -168,7 +168,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should display news items when panel is open", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
@@ -185,7 +185,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should show headlines for news items", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
@@ -200,7 +200,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should show descriptions for news items", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
@@ -215,7 +215,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should show source for each news item", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
@@ -230,7 +230,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should mark unread items with visual indicator", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
@@ -260,7 +260,7 @@ test.describe("News Panel - Source Switching", () => {
 
   test("should allow switching news sources", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
@@ -297,7 +297,7 @@ test.describe("News Panel - Refresh", () => {
     });
 
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await clickNewsToggle(page);
 
