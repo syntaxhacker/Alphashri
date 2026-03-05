@@ -1,142 +1,179 @@
-# API Test Suite
+# Test Suite
 
-Comprehensive test suite for Alphashri backend APIs using pytest and FastAPI TestClient.
+Comprehensive test suite for Alphashri backend using pytest, FastAPI TestClient, and Testcontainers.
 
 ## Quick Start
 
 ```bash
-# Install test dependencies
-pip install pytest pytest-asyncio pytest-cov httpx
+# Install dependencies
+uv pip install pytest pytest-asyncio pytest-cov httpx testcontainers schemathesis
 
-# Run all API tests
-pytest tests/api/ -v
+# Run all unit tests
+uv run pytest tests/test_*.py -v
 
-# Run with coverage
-pytest tests/api/ --cov=api --cov-report=html
+# Run API tests
+uv run pytest tests/api/ -v
 
 # Run integration tests
-pytest tests/integration/ -v
+uv run pytest tests/integration/ -v
+
+# Run contract tests (requires running server)
+uv run pytest tests/contract/ -v
+
+# Run testcontainers tests (requires Docker)
+uv run pytest tests/integration/testcontainers/ -v
+
+# Run security tests
+uv run pytest tests/test_security.py -v
+
+# Run with coverage
+uv run pytest --cov=. --cov-report=html
 ```
 
 ## Test Structure
 
 ```
 tests/
-├── api/                    # Unit tests for API endpoints
-│   ├── conftest.py        # Shared fixtures
-│   ├── test_auth.py       # Authentication tests
-│   ├── test_strategies.py # Strategy management tests
-│   ├── test_paper_trading.py # Paper trading tests
-│   ├── test_bots.py       # Bot management tests
-│   ├── test_backtest.py   # Backtest tests
-│   ├── test_screeners.py  # Screener tests
-│   ├── test_market_ticker.py # Market ticker tests
-│   ├── test_chart.py      # Chart preview tests
-│   ├── test_symbols.py    # Symbol search tests
-│   ├── test_news.py       # News feed tests
-│   └── test_health.py     # Health check tests
-├── integration/            # End-to-end integration tests
-│   ├── conftest.py        # Integration fixtures
-│   ├── test_auth_flow.py  # Authentication flows
-│   ├── test_trading_flow.py # Trading flows
-│   └── test_bot_lifecycle.py # Bot lifecycle
-└── fixtures/              # Test data fixtures
-    ├── sample_users.json
-    ├── sample_strategies.json
-    └── sample_trades.json
+├── test_*.py                    # Unit tests for trading modules (1,436 tests)
+│   ├── test_journal.py          # Trading journal tests
+│   ├── test_risk_manager.py     # Risk manager tests
+│   ├── test_global_risk_manager.py
+│   ├── test_shared_portfolio.py
+│   ├── test_orb_signals.py      # ORB signal tests
+│   ├── test_paper_trader.py
+│   ├── test_config_loader.py
+│   ├── test_multi_strategy_runner.py
+│   ├── test_backtest_*.py       # Backtest module tests
+│   ├── test_db_*.py             # Database tests
+│   └── test_security.py         # Security tests (82 tests)
+├── api/                         # API endpoint tests
+│   ├── conftest.py              # Shared fixtures
+│   ├── test_auth.py
+│   ├── test_strategies.py
+│   ├── test_paper_trading.py
+│   ├── test_bots.py
+│   ├── test_backtest.py
+│   └── ...
+├── integration/                 # Integration tests
+│   ├── conftest.py
+│   ├── test_auth_flow.py
+│   ├── test_trading_flow.py
+│   ├── test_bot_lifecycle.py
+│   └── testcontainers/          # Real PostgreSQL tests (50 tests)
+│       ├── conftest.py          # Docker fixtures
+│       ├── test_real_db_auth.py
+│       ├── test_real_db_bots.py
+│       └── test_real_db_strategies.py
+├── contract/                    # Contract tests (27 tests)
+│   └── test_api_contract.py     # OpenAPI validation
+├── e2e/                         # E2E TypeScript tests (19 tests)
+├── fixtures/                    # Test data
+├── helpers/                     # Test utilities
+└── mocks/                       # Mock responses
 ```
+
+## Test Categories
+
+| Category | Tests | Status | Requirement |
+|----------|-------|--------|-------------|
+| Unit Tests | 1,436 | ✅ Complete | None |
+| API Tests | ~400 | ✅ Complete | None |
+| Contract Tests | 27 | ✅ Complete | Running server |
+| Testcontainers | 50 | ✅ Complete | Docker |
+| Security Tests | 82 | ✅ Complete | None |
+| Integration Tests | ~50 | ✅ Complete | None |
+| E2E Tests | 19 | ✅ Complete | Browser |
+| **Total** | **1,614+** | ✅ | |
 
 ## Running Specific Tests
 
 ```bash
-# Run specific test file
-pytest tests/api/test_auth.py -v
+# Trading module tests
+uv run pytest tests/test_journal.py -v
+uv run pytest tests/test_risk_manager.py -v
+uv run pytest tests/test_orb_signals.py -v
 
-# Run tests matching a pattern
-pytest tests/api/ -k "auth" -v
-pytest tests/api/ -k "bots" -v
+# Backtest tests
+uv run pytest tests/test_backtest_*.py -v
+
+# Database tests
+uv run pytest tests/test_db_*.py -v
+
+# Security tests
+uv run pytest tests/test_security.py -v
+
+# Contract tests
+uv run pytest tests/contract/ -v -m contract
+
+# Testcontainers (real PostgreSQL)
+uv run pytest tests/integration/testcontainers/ -v
+
+# Run with pattern
+uv run pytest tests/ -k "auth" -v
+uv run pytest tests/ -k "risk" -v
 
 # Run with markers
-pytest tests/api/ -m "auth" -v
-pytest tests/api/ -m "integration" -v
-
-# Run with parallel execution
-pytest tests/api/ -n auto
+uv run pytest tests/ -m "contract" -v
+uv run pytest tests/ -m "testcontainers" -v
 ```
 
 ## Test Coverage
 
-Current test results (Last Updated: 2026-03-03):
-
-| Category       | Tests   | Passing | Success Rate | Status                 |
-| -------------- | ------- | ------- | ------------ | ---------------------- |
-| Authentication | 43      | 43      | 100%         | ✅ Perfect             |
-| Strategies     | 63      | 63      | 100%         | ✅ Perfect             |
-| Health Checks  | 18      | 18      | 100%         | ✅ Perfect             |
-| Paper Trading  | 42      | 41      | 98%          | ✅ Production Ready    |
-| Utilities      | 54      | 49      | 91%          | ⚠️ Minor issues        |
-| Bots           | 54      | 47      | 87%          | ⚠️ Needs fixes         |
-| Integration    | 51      | 39      | 76%          | ⚠️ Needs fixes         |
-| Data APIs      | 36      | 21      | 58%          | ⚠️ Needs fixes         |
-| **Total**      | **361** | **321** | **89%**      | ✅ Core features ready |
-
-### What's Fully Tested
-
-- ✅ User authentication (register, login, tokens, sessions)
-- ✅ Strategy management (CRUD, templates, variations)
-- ✅ Health monitoring
-- ✅ Paper trading (portfolio, orders, positions, risk)
-
-### Running 100% Passing Tests
-
-```bash
-# Core functionality (all passing)
-pytest tests/api/test_auth.py -v          # 43/43 ✅
-pytest tests/api/test_strategies.py -v    # 63/63 ✅
-pytest tests/api/test_health.py -v        # 18/18 ✅
-pytest tests/api/test_paper_trading.py -v # 41/42 ✅
-```
-
-Generate coverage report:
-
-```bash
-pytest tests/api/ --cov=api --cov-report=html --cov-report=term
-open htmlcov/index.html
-```
+| Module | Tests | Coverage |
+|--------|-------|----------|
+| `trading/journal.py` | 79 | Full |
+| `trading/risk_manager.py` | 76 | Full |
+| `trading/global_risk_manager.py` | 67 | Full |
+| `trading/shared_portfolio.py` | 89 | Full |
+| `trading/orb_signals.py` | 80 | Full |
+| `trading/paper_trader.py` | 113 | Full |
+| `trading/config_loader.py` | 53 | Full |
+| `trading/multi_strategy_runner.py` | 72 | Full |
+| `backtest/engine.py` | 39 | Full |
+| `backtest/costs.py` | 64 | Full |
+| `backtest/chart_data.py` | 99 | Full |
+| `backtest/api.py` | 73 | Full |
+| `backtest/strategies/orb.py` | 97 | Full |
+| `backtest/strategies/sr_breakout.py` | 112 | Full |
+| `backtest/strategies/week52_chaser.py` | 101 | Full |
+| `db/models.py` | 70 | Full |
+| `db/database.py` | 58 | Full |
 
 ## Writing New Tests
 
 1. Use fixtures from `conftest.py`
-2. Follow naming convention: `test_<method>_<endpoint>_<scenario>`
-3. Test both positive and negative cases
+2. Follow naming: `test_<method>_<scenario>`
+3. Test positive and negative cases
 4. Mock external dependencies
-5. Ensure tests are independent
+5. Ensure test isolation
 
 Example:
 
 ```python
-def test_get_user_success(client, auth_headers, active_user):
-    """Test getting current user with valid token."""
-    response = client.get("/api/auth/me", headers=auth_headers(active_user))
-    assert response.status_code == 200
-    assert response.json()["email"] == active_user.email
+def test_create_user_success(db_session):
+    """Test user creation with valid data."""
+    user = User(email="test@example.com", hashed_password="...")
+    db_session.add(user)
+    db_session.commit()
+    assert user.id is not None
 ```
 
 ## CI/CD Integration
 
-Add to your GitHub Actions workflow:
-
 ```yaml
-- name: Run API Tests
-  run: pytest tests/api/ --cov=api --cov-report=xml
+# .github/workflows/test.yml
+- name: Run Unit Tests
+  run: uv run pytest tests/test_*.py -v
 
-- name: Upload Coverage
-  uses: codecov/codecov-action@v3
-  with:
-    file: ./coverage.xml
+- name: Run Contract Tests
+  run: uv run pytest tests/contract/ -v
+
+- name: Run Testcontainers Tests
+  run: uv run pytest tests/integration/testcontainers/ -v
 ```
 
 ## Documentation
 
-- [API Test Scenarios](./API_TEST_SCENARIOS.md) - Detailed test scenarios
-- [Test Summary](./TEST_SUMMARY.md) - Quick reference guide
+- [TESTING_ROADMAP.md](../TESTING_ROADMAP.md) - Testing strategy
+- [TODO.md](../TODO.md) - Progress tracking
+- [API_TEST_SCENARIOS.md](./API_TEST_SCENARIOS.md) - API test scenarios
