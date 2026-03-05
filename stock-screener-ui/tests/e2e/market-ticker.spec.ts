@@ -1,9 +1,49 @@
 import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+
+const mockTickerResponse = {
+  tickers: {
+    "^NSEI": {
+      symbol: "^NSEI",
+      name: "Nifty 50",
+      price: 22567.35,
+      change: 123.45,
+      change_percent: 0.55,
+      is_positive: true,
+    },
+    "^NSEBANK": {
+      symbol: "^NSEBANK",
+      name: "Bank Nifty",
+      price: 48210.1,
+      change: -87.65,
+      change_percent: -0.18,
+      is_positive: false,
+    },
+    "GC=F": {
+      symbol: "GC=F",
+      name: "Gold",
+      price: 68123.4,
+      change: 44.5,
+      change_percent: 0.07,
+      is_positive: true,
+    },
+  },
+  last_updated: "2026-03-06T09:15:00.000Z",
+  loading: false,
+  error: null,
+};
+
 test.describe("Market Ticker", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
+    await page.route("**/api/market-ticker", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockTickerResponse),
+      });
+    });
   });
 
   test("should display market ticker at the top of page", async ({ page }) => {
@@ -21,9 +61,9 @@ test.describe("Market Ticker", () => {
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
-    // Just verify ticker has content - be flexible about item count
-    const tickerContent = await ticker.textContent();
-    expect(tickerContent.length).toBeGreaterThan(0);
+    await expect(ticker).toContainText("Nifty 50");
+    await expect(ticker).toContainText("Bank Nifty");
+    await expect(ticker).toContainText("Gold");
   });
 
   test("should display correct ticker labels", async ({ page }) => {
@@ -33,9 +73,9 @@ test.describe("Market Ticker", () => {
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
-    // Just verify ticker has some text content
-    const tickerText = await ticker.textContent();
-    expect(tickerText.length).toBeGreaterThan(0);
+    await expect(ticker).toContainText("Nifty 50");
+    await expect(ticker).toContainText("Bank Nifty");
+    await expect(ticker).toContainText("Gold");
   });
 
   test("should display positive changes in green", async ({ page }) => {
@@ -44,9 +84,8 @@ test.describe("Market Ticker", () => {
     // Wait for market ticker
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
-    // Just verify ticker is visible - colors are CSS implementation details
     const ticker = page.locator('[data-testid="market-ticker"]');
-    await expect(ticker).toBeVisible();
+    await expect(ticker).toContainText("+123.45 (0.55%)");
   });
 
   test("should display negative changes in red", async ({ page }) => {
@@ -55,9 +94,8 @@ test.describe("Market Ticker", () => {
     // Wait for market ticker
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
-    // Just verify ticker is visible - colors are CSS implementation details
     const ticker = page.locator('[data-testid="market-ticker"]');
-    await expect(ticker).toBeVisible();
+    await expect(ticker).toContainText("-87.65 (-0.18%)");
   });
 
   test("should display updated timestamp", async ({ page }) => {
@@ -66,9 +104,8 @@ test.describe("Market Ticker", () => {
     // Wait for market ticker
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
-    // Just verify ticker is visible - timestamp is an implementation detail
     const ticker = page.locator('[data-testid="market-ticker"]');
-    await expect(ticker).toBeVisible();
+    await expect(ticker).toContainText("Updated:");
   });
 
   test("should show error state when API fails", async ({ page }) => {
@@ -87,21 +124,23 @@ test.describe("Market Ticker", () => {
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
-    // Just verify ticker shows error indication (displays "http 500" on error)
-    const tickerText = await ticker.textContent();
-    expect(tickerText.toLowerCase()).toContain("http 500");
+    await expect(ticker).toContainText("Market data unavailable");
   });
 
   test("should show loading state initially", async ({ page }) => {
     // Delay API response and capture the initial loading state
-    let resolveRoute: () => void;
+    let resolveRoute!: () => void;
     const routePromise = new Promise<void>((resolve) => {
       resolveRoute = resolve;
     });
 
     await page.route("**/api/market-ticker", async (route) => {
       await routePromise;
-      route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockTickerResponse),
+      });
     });
 
     // Navigate and immediately check for loading
@@ -112,10 +151,9 @@ test.describe("Market Ticker", () => {
 
     // Check loading state is shown - use try/catch since it may resolve quickly
     try {
-      const loadingTicker = page.locator(".market-ticker.loading");
-      // Don't wait too long since the API will resolve
-      const isVisible = await loadingTicker.isVisible({ timeout: 500 });
-      expect(isVisible).toBeTruthy();
+      const loadingTicker = page.locator('[data-testid="market-ticker"]');
+      const skeleton = loadingTicker.locator(".mantine-Skeleton-root").first();
+      await expect(skeleton).toBeVisible({ timeout: 500 });
     } catch {
       // Loading state may have passed already, which is fine
     }

@@ -24,7 +24,7 @@ export function UserButton() {
   return (
     <Menu position="right-start" offset={8}>
       <Menu.Target>
-        <UnstyledButton className={classes.user}>
+        <UnstyledButton className={classes.user} data-testid="user-menu-trigger">
           <Group>
             <Avatar radius="xl" alt={user.displayName} />
 
@@ -46,6 +46,7 @@ export function UserButton() {
           leftSection={<IconLogout style={{ width: rem(14), height: rem(14) }} />}
           onClick={handleLogout}
           color="red"
+          data-testid="logout-button"
         >
           Logout
         </Menu.Item>

@@ -41,7 +41,7 @@ export function NavbarNested({ activePath }: NavbarNestedProps) {
   ));
 
   return (
-    <nav className={classes.navbar}>
+    <nav className={classes.navbar} data-testid="sidemenu">
       <div className={classes.header}>
         <Group justify="space-between">
           <Text fw={700} size="lg">

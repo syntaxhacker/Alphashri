@@ -75,6 +75,7 @@ export function MarketTicker() {
     return (
       <Box
         bg={background}
+        data-testid="market-ticker"
         style={{
           borderBottom: `1px solid ${border}`,
           padding: `${theme.spacing.xs} ${theme.spacing.md}`,
@@ -93,6 +94,7 @@ export function MarketTicker() {
     return (
       <Box
         bg={background}
+        data-testid="market-ticker"
         style={{
           borderBottom: `1px solid ${border}`,
           padding: `${theme.spacing.xs} ${theme.spacing.md}`,
@@ -117,6 +119,7 @@ export function MarketTicker() {
   return (
     <Box
       bg={background}
+      data-testid="market-ticker"
       style={{
         borderBottom: `1px solid ${border}`,
         padding: `${theme.spacing.xs} ${theme.spacing.md}`,

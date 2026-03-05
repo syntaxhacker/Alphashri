@@ -16,6 +16,8 @@ export function NavbarLinksGroup({ icon: Icon, label, link, active }: NavbarLink
     <UnstyledButton
       onClick={() => navigate(link)}
       className={classes.control}
+      data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-").replace("paper-trading", "paper").replace("sector-analysis", "sector")}`}
+      data-active={active || undefined}
       style={{
         backgroundColor: active ? "var(--mantine-color-blue-light)" : undefined,
         color: active ? "var(--mantine-color-blue-filled)" : undefined,
