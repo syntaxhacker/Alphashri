@@ -26,3 +26,36 @@ dist-ssr
 # Database files
 *.db
 *.db-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+*.cover
+*.py,cover
+*.egg-info/
+.eggs/
+
+# Test outputs
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+--timeout
