@@ -15,7 +15,6 @@ import * as state from "./state";
 
 // Backtest state and components
 import { subscribe as subscribeBacktest, getBacktestState } from "./state/backtest";
-import { renderSidemenu, initSidemenu } from "./components/sidemenu";
 import {
   renderBacktestView,
   initBacktestHandlers,
@@ -79,12 +78,6 @@ import {
   renderFilters,
   renderFooter,
 } from "./components/header";
-import { renderMarketTicker } from "./components/market-ticker";
-import {
-  fetchMarketTicker,
-  initMarketTickerRefresh,
-  clearMarketTickerCache,
-} from "./state/marketTicker";
 
 function getTableHeaders(screener: string, touched: boolean): string {
   return getColumnKeysForProfile(screener, touched)
@@ -123,12 +116,8 @@ function render() {
   }
 
   app.innerHTML = `
-    ${renderMarketTicker()}
-    <div class="app-layout">
-      ${renderSidemenu()}
-      <div class="app-main">
-        ${mainContent}
-      </div>
+    <div class="app-main">
+      ${mainContent}
     </div>
   `;
 
@@ -158,9 +147,6 @@ function render() {
   }
   lastRenderedView = currentView;
 }
-
-// Initialize market ticker on first load
-initMarketTickerRefresh();
 
 function renderScreenerView(): string {
   if (state.error) {
@@ -343,8 +329,7 @@ document.addEventListener("keydown", (e) => {
 
 // Initial load
 loadScreeners(initProfileFilters).then(() => {
-  // Initialize navigation and handlers
-  initSidemenu();
+  // Initialize handlers
   initBacktestHandlers();
   initPaperTradingHandlers();
   initStrategiesHandlers();

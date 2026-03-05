@@ -9,8 +9,6 @@ body {
     SFMono-Regular,
     Menlo,
     monospace;
-  background: #0a0a0a;
-  color: #e0e0e0;
   min-height: 100vh;
 }
 #app {
@@ -63,7 +61,7 @@ body {
   color: #00ff9d;
   background: #0f1b16;
 }
-button {
+#legacy-root button {
   background: #1a1a1a;
   border: 1px solid #333;
   color: #e0e0e0;
@@ -71,11 +69,11 @@ button {
   font: 11px monospace;
   cursor: pointer;
 }
-button:hover {
+#legacy-root button:hover {
   background: #252525;
   border-color: #00ff9d;
 }
-button:active {
+#legacy-root button:active {
   background: #00ff9d;
   color: #0a0a0a;
 }
@@ -432,7 +430,7 @@ button:active {
     Menlo,
     monospace;
 }
-table {
+#legacy-root table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 16px;
@@ -448,12 +446,12 @@ table {
 .section-title.touched {
   border-left-color: #ff6b35;
 }
-thead {
+#legacy-root thead {
   background: #111;
   position: sticky;
   top: 0;
 }
-th {
+#legacy-root th {
   font: 10px monospace;
   text-align: left;
   padding: 4px 6px;
@@ -462,13 +460,13 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-th.sortable {
+#legacy-root th.sortable {
   cursor: pointer;
   user-select: none;
   position: relative;
   transition: color 0.15s;
 }
-th.sortable:hover {
+#legacy-root th.sortable:hover {
   color: #00ff9d;
   background: #0a0a0a;
 }
@@ -483,11 +481,11 @@ th.sortable:hover {
 .sort-indicator.desc {
   opacity: 1;
 }
-td {
+#legacy-root td {
   padding: 3px 6px;
   border-bottom: 1px solid #1a1a1a;
 }
-tr:hover {
+#legacy-root tr:hover {
   background: #0f0f0f;
 }
 .row-new {
@@ -592,78 +590,10 @@ kbd {
 }
 
 /* Sidemenu Layout */
-.app-layout {
-  display: flex;
-  min-height: 100vh;
-}
 .app-main {
   flex: 1;
   padding: 8px;
   max-width: calc(100% - 140px);
-}
-.sidemenu {
-  width: 140px;
-  background: #0a0a0a;
-  border-right: 1px solid #222;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-}
-.sidemenu-header {
-  padding-bottom: 8px;
-  border-bottom: 1px solid #222;
-  margin-bottom: 8px;
-}
-.sidemenu-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #00ff9d;
-}
-.sidemenu-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-.sidemenu-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 8px;
-  background: #111;
-  border: 1px solid #222;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.sidemenu-item:hover {
-  background: #1a1a1a;
-  border-color: #333;
-}
-.sidemenu-item.active {
-  background: #0f1b16;
-  border-color: #00ff9d;
-}
-.sidemenu-icon {
-  font-size: 14px;
-  margin-bottom: 2px;
-}
-.sidemenu-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #e0e0e0;
-}
-.sidemenu-desc {
-  font-size: 9px;
-  color: #666;
-}
-.sidemenu-footer {
-  padding-top: 8px;
-  border-top: 1px solid #222;
-}
-.sidemenu-version {
-  font-size: 9px;
-  color: #444;
 }
 
 /* Backtest View */
@@ -1587,19 +1517,6 @@ kbd {
   }
   .app-main {
     max-width: 100%;
-  }
-  .sidemenu {
-    width: 100%;
-    flex-direction: row;
-    border-right: none;
-    border-bottom: 1px solid #222;
-  }
-  .sidemenu-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .app-layout {
-    flex-direction: column;
   }
 }
 
@@ -3375,12 +3292,12 @@ kbd {
 }
 
 /* Symbol cell hover effect */
-td.sym.previewable {
+#legacy-root td.sym.previewable {
   cursor: pointer;
   transition: color 0.15s;
 }
 
-td.sym.previewable:hover {
+#legacy-root td.sym.previewable:hover {
   color: #00ff9d;
 }
 
@@ -4001,66 +3918,6 @@ body.authenticated {
 }
 
 /* Sidemenu user section */
-.sidemenu-user {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px;
-  background: #0a0a0a;
-  border: 1px solid #222;
-  margin-bottom: 8px;
-}
-
-.sidemenu-user-avatar {
-  width: 32px;
-  height: 32px;
-  background: #00ff9d;
-  color: #0a0a0a;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: bold;
-  flex-shrink: 0;
-}
-
-.sidemenu-user-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.sidemenu-user-name {
-  font-size: 11px;
-  font-weight: 600;
-  color: #e0e0e0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sidemenu-user-email {
-  font-size: 9px;
-  color: #666;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sidemenu-logout {
-  background: none;
-  border: 1px solid #333;
-  color: #888;
-  padding: 4px 8px;
-  font-size: 9px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.sidemenu-logout:hover {
-  border-color: #ff6b6b;
-  color: #ff6b6b;
-}
 
 /* ===========================================
    Strategy Management Styles

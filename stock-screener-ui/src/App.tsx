@@ -8,6 +8,7 @@ import ChartView from "./components/chart/ChartView";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
 import { NotificationContainer } from "./components/NotificationContainer";
+import { AppLayout } from "./components/layout/AppLayout";
 
 function LegacyShell({ view }: { view: AppRouteView }) {
   const navigate = useNavigate();
@@ -64,7 +65,6 @@ function AuthScreen() {
 function AppContent() {
   const { isAuthenticated, loading, user, logout } = useAuth();
 
-  // Update window user info for legacy sidemenu
   useEffect(() => {
     if (user) {
       (window as any).__ALPHASHRI_USER__ = {
@@ -77,7 +77,6 @@ function AppContent() {
     }
   }, [user, logout]);
 
-  // Show loading spinner while checking auth
   if (loading) {
     return (
       <div className="auth-loading">
@@ -87,13 +86,12 @@ function AppContent() {
     );
   }
 
-  // Show auth screen if not authenticated
   if (!isAuthenticated) {
     return <AuthScreen />;
   }
 
   return (
-    <>
+    <AppLayout>
       <Routes>
         <Route path="/" element={<LegacyShell view="screener" />} />
         <Route path="/backtest" element={<LegacyShell view="backtest" />} />
@@ -106,7 +104,7 @@ function AppContent() {
       </Routes>
       <NewsPanel />
       <NotificationContainer />
-    </>
+    </AppLayout>
   );
 }
 
