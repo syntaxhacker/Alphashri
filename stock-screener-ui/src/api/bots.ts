@@ -9,6 +9,7 @@ import type {
   BotStatus,
   StrategyComparison,
   AvailableStrategy,
+  BotTrade,
 } from "../types/bots";
 import { apiGet, apiPost, apiPut, apiDelete, apiPostAction } from "./utils";
 
@@ -20,7 +21,7 @@ export async function listBots(): Promise<BotConfig[]> {
 }
 
 // Get a specific bot
-export async function getBot(botId: number): Promise<BotConfig> {
+export async function getBot(botId: string): Promise<BotConfig> {
   return apiGet<BotConfig>(`${BOT_BASE}/${botId}`);
 }
 
@@ -30,18 +31,18 @@ export async function createBot(data: BotCreate): Promise<BotConfig> {
 }
 
 // Update a bot
-export async function updateBot(botId: number, data: BotUpdate): Promise<BotConfig> {
+export async function updateBot(botId: string, data: BotUpdate): Promise<BotConfig> {
   return apiPut<BotConfig>(`${BOT_BASE}/${botId}`, data);
 }
 
 // Delete a bot
-export async function deleteBot(botId: number): Promise<{ message: string }> {
+export async function deleteBot(botId: string): Promise<{ message: string }> {
   return apiDelete<{ message: string }>(`${BOT_BASE}/${botId}`);
 }
 
 // Start a bot
 export async function startBot(
-  botId: number,
+  botId: string,
   testMode: boolean = false,
 ): Promise<{ message: string; pid: number; log_file: string }> {
   const params = testMode ? { test_mode: "true" } : undefined;
@@ -52,18 +53,18 @@ export async function startBot(
 }
 
 // Stop a bot
-export async function stopBot(botId: number): Promise<{ message: string }> {
+export async function stopBot(botId: string): Promise<{ message: string }> {
   return apiPostAction<{ message: string }>(`${BOT_BASE}/${botId}/stop`);
 }
 
 // Get bot status
-export async function getBotStatus(botId: number): Promise<BotStatus> {
+export async function getBotStatus(botId: string): Promise<BotStatus> {
   return apiGet<BotStatus>(`${BOT_BASE}/${botId}/status`);
 }
 
 // Get bot logs
 export async function getBotLogs(
-  botId: number,
+  botId: string,
   lines: number = 100,
 ): Promise<{ logs: string; total_lines: number; showing: number }> {
   return apiGet<{ logs: string; total_lines: number; showing: number }>(
@@ -73,15 +74,15 @@ export async function getBotLogs(
 }
 
 // Get bot portfolio
-export async function getBotPortfolio(botId: number): Promise<{
-  bot_id: number;
+export async function getBotPortfolio(botId: string): Promise<{
+  bot_id: string;
   portfolio: any;
   positions: any[];
   strategies: Record<string, any>;
   timestamp: string;
 }> {
   return apiGet<{
-    bot_id: number;
+    bot_id: string;
     portfolio: any;
     positions: any[];
     strategies: Record<string, any>;
@@ -91,26 +92,26 @@ export async function getBotPortfolio(botId: number): Promise<{
 
 // Get bot positions
 export async function getBotPositions(
-  botId: number,
-  strategyId?: number,
-): Promise<{ bot_id: number; positions: any[]; count: number }> {
+  botId: string,
+  strategyId?: string,
+): Promise<{ bot_id: string; positions: any[]; count: number }> {
   const params = strategyId ? { strategy_id: strategyId } : undefined;
-  return apiGet<{ bot_id: number; positions: any[]; count: number }>(
+  return apiGet<{ bot_id: string; positions: any[]; count: number }>(
     `${BOT_BASE}/${botId}/positions`,
     params,
   );
 }
 
 // Get bot performance
-export async function getBotPerformance(botId: number, days: number = 30): Promise<any> {
+export async function getBotPerformance(botId: string, days: number = 30): Promise<any> {
   return apiGet<any>(`${BOT_BASE}/${botId}/performance`, { days });
 }
 
 // Compare strategy performance
 export async function compareStrategyPerformance(
-  botId: number,
-): Promise<{ bot_id: number; comparison: StrategyComparison[]; timestamp: string }> {
-  return apiGet<{ bot_id: number; comparison: StrategyComparison[]; timestamp: string }>(
+  botId: string,
+): Promise<{ bot_id: string; comparison: StrategyComparison[]; timestamp: string }> {
+  return apiGet<{ bot_id: string; comparison: StrategyComparison[]; timestamp: string }>(
     `${BOT_BASE}/${botId}/performance/compare`,
   );
 }
@@ -121,6 +122,22 @@ export async function listAvailableStrategies(): Promise<AvailableStrategy[]> {
 }
 
 // Get trade count for a bot (used to prevent deletion if trades exist)
-export async function getBotTradeCount(botId: number): Promise<{ count: number }> {
+export async function getBotTradeCount(botId: string): Promise<{ count: number }> {
   return apiGet<{ count: number }>(`${BOT_BASE}/${botId}/trade-count`);
+}
+
+// Get bot trades history
+export async function getBotTrades(
+  botId: string,
+  strategyId?: string,
+  limit: number = 50,
+): Promise<{ bot_id: string; trades: BotTrade[]; count: number }> {
+  const params: Record<string, string | number> = { limit };
+  if (strategyId !== undefined) {
+    params.strategy_id = strategyId;
+  }
+  return apiGet<{ bot_id: string; trades: BotTrade[]; count: number }>(
+    `${BOT_BASE}/${botId}/trades`,
+    params,
+  );
 }

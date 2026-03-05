@@ -286,7 +286,7 @@ export function initConfigHandlers() {
 
       if (strategyId && allocation) {
         strategies.push({
-          strategy_id: parseInt(strategyId as string),
+          strategy_id: strategyId as string,
           capital_allocation_pct: parseFloat(allocation as string) / 100,
           max_positions: parseInt(maxPositions as string) || 3,
         });
@@ -304,7 +304,7 @@ export function initConfigHandlers() {
 
     if (botId) {
       // Update existing bot
-      await updateBotAction(parseInt(botId), data);
+      await updateBotAction(botId, data);
     } else {
       // Create new bot
       await createBotAction(data);

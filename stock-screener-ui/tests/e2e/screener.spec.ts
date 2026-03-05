@@ -195,7 +195,7 @@ test.describe("Screener - Auto Refresh", () => {
     }
   });
 
-    test("should disable auto-refresh when set to 0", async ({ page }) => {
+  test("should disable auto-refresh when set to 0", async ({ page }) => {
     test.slow();
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 15000 });

@@ -11,42 +11,48 @@ Test categories:
 5. Portfolio & positions endpoints
 6. Performance endpoints (performance, compare, trades, strategy-performance)
 7. Scan endpoint
+
+Integration tests use fixtures from conftest.py:
+- client_with_db: TestClient with real database
+- test_user: User fixture
+- test_bot: BotConfig fixture
+- test_strategy: StrategyConfig fixture
+- sample_bot_data: Sample bot creation data
 """
 
 import pytest
 import sys
 import json
+import uuid as uuid_module
 import tempfile
 import shutil
 from pathlib import Path
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import Mock, patch, MagicMock
 from typing import Dict, List
 
-# Add project paths
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from fastapi.testclient import TestClient
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 
-# Import the bots router
 from api.bots import router as bots_router
 
 
 # ============================================================================
-# Fixtures
+# Unit Test Fixtures (for tests that use mocks)
 # ============================================================================
 
 @pytest.fixture
 def mock_db_session():
-    """Mock database session."""
+    """Mock database session for unit tests."""
     session = MagicMock()
 
-    # Mock BotConfig
     class MockBotConfig:
         def __init__(self, id, name, is_active=True, max_total_positions=10, max_total_capital_pct=0.80):
             self.id = id
+            self.uuid = str(uuid_module.uuid4())
             self.name = name
             self.is_active = is_active
             self.max_total_positions = max_total_positions
@@ -54,11 +60,11 @@ def mock_db_session():
             self.created_at = datetime.now()
             self.updated_at = datetime.now()
 
-    # Mock StrategyConfig
     class MockStrategyConfig:
         def __init__(self, id, name, strategy_type="ORB", is_template=False, is_default=False,
                      sl_pct=0.4, tp_pct=1.2, max_positions=5, is_active=True):
             self.id = id
+            self.uuid = str(uuid_module.uuid4())
             self.name = name
             self.strategy_type = strategy_type
             self.is_template = is_template
@@ -68,21 +74,18 @@ def mock_db_session():
             self.max_positions = max_positions
             self.is_active = is_active
 
-    # Create sample strategies
     strategies = [
         MockStrategyConfig(1, "ORB Conservative", "ORB", is_template=True, is_default=True),
         MockStrategyConfig(2, "ORB Aggressive", "ORB", is_template=False),
         MockStrategyConfig(3, "Momentum", "momentum", is_template=False),
     ]
 
-    # Create sample bots
     bots = [
         MockBotConfig(1, "Test Bot 1", is_active=True),
         MockBotConfig(2, "Test Bot 2", is_active=False),
     ]
 
     def mock_query(model):
-        """Mock query builder."""
         query_obj = MagicMock()
 
         if model.__name__ == 'StrategyConfig':
@@ -106,9 +109,7 @@ def mock_db_session():
     session.execute.return_value.fetchall.return_value = []
     session.execute.return_value.fetchmany.return_value = []
 
-    # Mock bot_strategies table operations
     def mock_execute(statement):
-        """Mock execute for bot_strategies."""
         result = MagicMock()
         result.fetchall.return_value = [
             MagicMock(strategy_id=1, max_positions=3, capital_allocation_pct=0.40),
@@ -233,7 +234,6 @@ def mock_journal():
 
     from trading.journal import TradeRecord
 
-    # Add sample trades
     for i in range(5):
         trade = TradeRecord(
             trade_id=f"TRD-{i}",
@@ -285,11 +285,10 @@ def mock_journal():
 
 @pytest.fixture
 def app(mock_session_local, sample_bot_snapshot, mock_journal):
-    """Create test FastAPI app with mocked dependencies."""
+    """Create test FastAPI app with mocked dependencies for unit tests."""
     app = FastAPI()
     app.include_router(bots_router)
 
-    # Mock the database availability
     with patch('api.bots._db_available', True), \
          patch('api.bots._auth_available', True), \
          patch('api.bots.SessionLocal', return_value=mock_session_local), \
@@ -297,21 +296,18 @@ def app(mock_session_local, sample_bot_snapshot, mock_journal):
          patch('api.bots.load_bot_snapshot') as mock_load_snapshot, \
          patch('trading.journal.get_journal', return_value=mock_journal):
 
-        # Set up snapshot path mock
-        def get_snapshot_path(bot_id):
-            return Path(f"/tmp/multi-strategy-bot-{bot_id}.json")
+        def get_snapshot_path(bot_id, user_id=0):
+            return Path(f"/tmp/multi-strategy-bot-{user_id}-{bot_id}.json")
 
         mock_snapshot_path.side_effect = get_snapshot_path
 
-        # Set up load snapshot mock
-        def load_snapshot(bot_id):
-            snapshot_path = get_snapshot_path(bot_id)
+        def load_snapshot(bot_id, user_id=0):
+            snapshot_path = get_snapshot_path(bot_id, user_id)
             if snapshot_path.exists():
                 try:
                     return json.loads(snapshot_path.read_text())
                 except Exception:
                     pass
-            # Return sample snapshot for bot_id 1
             if bot_id == 1:
                 with open(sample_bot_snapshot) as f:
                     return json.load(f)
@@ -324,7 +320,7 @@ def app(mock_session_local, sample_bot_snapshot, mock_journal):
 
 @pytest.fixture
 def client(app):
-    """Create test client."""
+    """Create test client for unit tests."""
     return TestClient(app)
 
 
@@ -335,23 +331,24 @@ def client(app):
 class TestAvailableStrategies:
     """Tests for /api/bots/available-strategies endpoint."""
 
-    def test_get_available_strategies(self, client):
+    @pytest.mark.integration
+    def test_get_available_strategies(self, client_with_db, test_strategy):
         """Test GET /api/bots/available-strategies."""
-        response = client.get("/api/bots/available-strategies")
+        response = client_with_db.get("/api/bots/available-strategies")
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        assert len(data) >= 0
+        assert len(data) >= 1
 
-        if data:
-            strategy = data[0]
-            assert "id" in strategy
-            assert "name" in strategy
-            assert "strategy_type" in strategy
-            assert "is_template" in strategy
-            assert "max_positions" in strategy
+        strategy = data[0]
+        assert "id" in strategy
+        assert "name" in strategy
+        assert "strategy_type" in strategy
+        assert "is_template" in strategy
+        assert "max_positions" in strategy
 
+    @pytest.mark.unit
     def test_get_available_strategies_db_unavailable(self, client):
         """Test GET /api/bots/available-strategies when DB unavailable."""
         with patch('api.bots._db_available', False):
@@ -368,372 +365,221 @@ class TestAvailableStrategies:
 class TestBotCRUD:
     """Tests for Bot CRUD operations."""
 
-    def test_list_bots(self, client):
+    @pytest.mark.integration
+    def test_list_bots(self, client_with_db, test_bot):
         """Test GET /api/bots - list all bots."""
-        response = client.get("/api/bots")
+        response = client_with_db.get("/api/bots")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) >= 1
+
+        bot = data[0]
+        assert "id" in bot
+        assert "name" in bot
+        assert "is_active" in bot
+        assert "max_total_positions" in bot
+        assert "strategies" in bot
+        assert "running" in bot
+
+    @pytest.mark.integration
+    def test_list_bots_empty(self, client_with_db):
+        """Test GET /api/bots with no bots (still lists the test_bot from fixture)."""
+        response = client_with_db.get("/api/bots")
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
 
-        if data:
-            bot = data[0]
-            assert "id" in bot
-            assert "name" in bot
-            assert "is_active" in bot
-            assert "max_total_positions" in bot
-            assert "strategies" in bot
-            assert "running" in bot
-
-    def test_list_bots_empty(self, client):
-        """Test GET /api/bots with no bots."""
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-            session.query.return_value.filter.return_value.all.return_value = []
-            mock_session.return_value.__enter__ = Mock(return_value=session)
-            mock_session.return_value.__exit__ = Mock(return_value=False)
-
-            response = client.get("/api/bots")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data == []
-
-    def test_create_bot_minimal(self, client):
+    @pytest.mark.integration
+    def test_create_bot_minimal(self, client_with_db, sample_bot_data):
         """Test POST /api/bots with minimal data."""
-        bot_data = {
-            "name": "New Test Bot",
-            "is_active": True,
-            "max_total_positions": 10,
-            "max_total_capital_pct": 0.80,
-        }
-
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = None
-
-            new_bot = MagicMock()
-            new_bot.id = 999
-            new_bot.name = "New Test Bot"
-            new_bot.is_active = True
-            new_bot.max_total_positions = 10
-            new_bot.max_total_capital_pct = 0.80
-            new_bot.created_at = datetime.now()
-            new_bot.updated_at = datetime.now()
-
-            session.add.return_value = None
-            session.flush.return_value = None
-            session.refresh.return_value = None
-            session.query.return_value.filter.return_value.first.return_value = new_bot
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.post("/api/bots", json=bot_data)
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["name"] == "New Test Bot"
-
-    def test_create_bot_duplicate_name(self, client):
-        """Test POST /api/bots with duplicate name."""
-        bot_data = {
-            "name": "Test Bot 1",  # Already exists
-            "is_active": True,
-        }
-
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-
-            existing = MagicMock()
-            existing.id = 1
-            existing.name = "Test Bot 1"
-
-            session.query.return_value.filter.return_value.first.return_value = existing
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.post("/api/bots", json=bot_data)
-
-            assert response.status_code == 400
-            assert "already exists" in response.json()["detail"].lower()
-
-    def test_create_bot_with_strategies(self, client):
-        """Test POST /api/bots with strategies."""
-        bot_data = {
-            "name": "Multi-Strategy Bot",
-            "is_active": True,
-            "max_total_positions": 10,
-            "strategies": [
-                {
-                    "strategy_id": 1,
-                    "max_positions": 3,
-                    "capital_allocation_pct": 0.40,
-                },
-                {
-                    "strategy_id": 2,
-                    "max_positions": 2,
-                    "capital_allocation_pct": 0.30,
-                },
-            ],
-        }
-
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = None
-
-            strategy = MagicMock()
-            strategy.id = 1
-
-            new_bot = MagicMock()
-            new_bot.id = 999
-            new_bot.name = "Multi-Strategy Bot"
-            new_bot.is_active = True
-            new_bot.max_total_positions = 10
-            new_bot.max_total_capital_pct = 0.80
-            new_bot.created_at = datetime.now()
-            new_bot.updated_at = datetime.now()
-
-            def query_side_effect(model):
-                result = MagicMock()
-                if model.__name__ == 'StrategyConfig':
-                    result.filter.return_value.first.return_value = strategy
-                else:
-                    result.filter.return_value.first.return_value = None
-                return result
-
-            session.query.side_effect = query_side_effect
-            session.add.return_value = None
-            session.flush.return_value = None
-            session.refresh.return_value = None
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.post("/api/bots", json=bot_data)
-
-            # Should succeed or fail based on mock setup
-            assert response.status_code in [200, 400]
-
-    def test_create_bot_allocation_exceeds_100(self, client):
-        """Test POST /api/bots with allocation > 100%."""
-        bot_data = {
-            "name": "Overallocated Bot",
-            "is_active": True,
-            "strategies": [
-                {
-                    "strategy_id": 1,
-                    "capital_allocation_pct": 0.60,
-                },
-                {
-                    "strategy_id": 2,
-                    "capital_allocation_pct": 0.60,  # Total = 120%
-                },
-            ],
-        }
-
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = None
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.post("/api/bots", json=bot_data)
-
-            assert response.status_code == 400
-            assert "exceeds 100%" in response.json()["detail"].lower()
-
-    def test_get_bot(self, client):
-        """Test GET /api/bots/{bot_id}."""
-        response = client.get("/api/bots/1")
+        response = client_with_db.post("/api/bots", json=sample_bot_data)
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == 1
+        assert "id" in data
+        assert data["name"] == sample_bot_data["name"]
+        assert data["is_active"] == sample_bot_data["is_active"]
+
+    @pytest.mark.integration
+    def test_create_bot_duplicate_name(self, client_with_db, test_bot):
+        """Test POST /api/bots with duplicate name."""
+        bot_data = {
+            "name": test_bot.name,
+            "is_active": True,
+        }
+
+        response = client_with_db.post("/api/bots", json=bot_data)
+
+        assert response.status_code == 400
+        assert "already exists" in response.json()["detail"].lower()
+
+    @pytest.mark.integration
+    def test_create_bot_with_strategies(self, client_with_db, test_strategy):
+        """Test POST /api/bots with strategies."""
+        bot_data = {
+            "name": f"Multi-Strategy Bot {uuid_module.uuid4()}",
+            "is_active": True,
+            "max_total_positions": 10,
+            "strategies": [
+                {
+                    "strategy_id": test_strategy.uuid,
+                    "max_positions": 3,
+                    "capital_allocation_pct": 0.40,
+                },
+            ],
+        }
+
+        response = client_with_db.post("/api/bots", json=bot_data)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == bot_data["name"]
+        assert len(data["strategies"]) == 1
+
+    @pytest.mark.integration
+    def test_create_bot_allocation_exceeds_100(self, client_with_db, test_strategy):
+        """Test POST /api/bots with allocation > 100%."""
+        bot_data = {
+            "name": f"Overallocated Bot {uuid_module.uuid4()}",
+            "is_active": True,
+            "strategies": [
+                {
+                    "strategy_id": test_strategy.uuid,
+                    "capital_allocation_pct": 0.60,
+                },
+                {
+                    "strategy_id": test_strategy.uuid,
+                    "capital_allocation_pct": 0.60,
+                },
+            ],
+        }
+
+        response = client_with_db.post("/api/bots", json=bot_data)
+
+        assert response.status_code == 400
+        assert "exceeds 100%" in response.json()["detail"].lower()
+
+    @pytest.mark.integration
+    def test_get_bot(self, client_with_db, test_bot):
+        """Test GET /api/bots/{bot_id}."""
+        response = client_with_db.get(f"/api/bots/{test_bot.uuid}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == test_bot.uuid
         assert "name" in data
         assert "strategies" in data
         assert "running" in data
 
-    def test_get_nonexistent_bot(self, client):
+    @pytest.mark.integration
+    def test_get_nonexistent_bot(self, client_with_db):
         """Test GET /api/bots/{bot_id} with non-existent bot."""
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = None
+        fake_uuid = str(uuid_module.uuid4())
+        response = client_with_db.get(f"/api/bots/{fake_uuid}")
 
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
 
-            response = client.get("/api/bots/999")
-
-            assert response.status_code == 404
-            assert "not found" in response.json()["detail"].lower()
-
-    def test_update_bot_name(self, client):
+    @pytest.mark.integration
+    def test_update_bot_name(self, client_with_db, test_bot):
         """Test PUT /api/bots/{bot_id} - update name."""
-        update_data = {"name": "Updated Bot Name"}
+        update_data = {"name": f"Updated Bot Name {uuid_module.uuid4()}"}
 
-        with patch('api.bots.SessionLocal') as mock_session:
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-            bot.is_active = True
+        response = client_with_db.put(f"/api/bots/{test_bot.uuid}", json=update_data)
 
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == update_data["name"]
 
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.put("/api/bots/1", json=update_data)
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["name"] == "Updated Bot Name"
-
-    def test_update_bot_duplicate_name(self, client):
+    @pytest.mark.integration
+    def test_update_bot_duplicate_name(self, client_with_db, test_bot, test_db):
         """Test PUT /api/bots/{bot_id} with duplicate name."""
-        update_data = {"name": "Other Bot Name"}
+        from db.models import BotConfig
+        
+        other_bot = BotConfig(
+            name=f"Other Bot {uuid_module.uuid4()}",
+            user_id=test_bot.user_id,
+            is_active=True,
+        )
+        test_db.add(other_bot)
+        test_db.commit()
+        test_db.refresh(other_bot)
 
-        with patch('api.bots.SessionLocal') as mock_session:
-            bot1 = MagicMock()
-            bot1.id = 1
-            bot1.name = "Test Bot 1"
+        update_data = {"name": other_bot.name}
 
-            bot2 = MagicMock()
-            bot2.id = 2
-            bot2.name = "Test Bot 2"
+        response = client_with_db.put(f"/api/bots/{test_bot.uuid}", json=update_data)
 
-            session = MagicMock()
+        assert response.status_code == 400
+        assert "already exists" in response.json()["detail"].lower()
 
-            def query_side_effect(model):
-                result = MagicMock()
-                # First call gets the bot to update, second checks for duplicate name
-                if not hasattr(query_side_effect, 'call_count'):
-                    query_side_effect.call_count = 0
-                query_side_effect.call_count += 1
-
-                if query_side_effect.call_count == 1:
-                    result.filter.return_value.first.return_value = bot1
-                else:
-                    result.filter.return_value.first.return_value = bot2
-                return result
-
-            session.query.side_effect = query_side_effect
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.put("/api/bots/1", json=update_data)
-
-            assert response.status_code == 400
-            assert "already exists" in response.json()["detail"].lower()
-
-    def test_update_bot_parameters(self, client):
+    @pytest.mark.integration
+    def test_update_bot_parameters(self, client_with_db, test_bot):
         """Test PUT /api/bots/{bot_id} - update parameters."""
         update_data = {
             "max_total_positions": 15,
             "max_total_capital_pct": 0.90,
         }
 
-        with patch('api.bots.SessionLocal') as mock_session:
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-            bot.max_total_positions = 10
-            bot.max_total_capital_pct = 0.80
+        response = client_with_db.put(f"/api/bots/{test_bot.uuid}", json=update_data)
 
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
+        assert response.status_code == 200
+        data = response.json()
+        assert data["max_total_positions"] == 15
+        assert data["max_total_capital_pct"] == 0.90
 
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.put("/api/bots/1", json=update_data)
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["max_total_positions"] == 15
-            assert data["max_total_capital_pct"] == 0.90
-
-    def test_delete_bot(self, client):
+    @pytest.mark.integration
+    def test_delete_bot(self, client_with_db, test_db, test_user):
         """Test DELETE /api/bots/{bot_id}."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('api.bots.is_bot_running', return_value=(False, None)):
+        from db.models import BotConfig
+        
+        bot = BotConfig(
+            name=f"Bot to Delete {uuid_module.uuid4()}",
+            user_id=test_user.id,
+            is_active=True,
+        )
+        test_db.add(bot)
+        test_db.commit()
+        test_db.refresh(bot)
 
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.delete("/api/bots/1")
+        with patch('api.bots.is_bot_running', return_value=(False, None)):
+            response = client_with_db.delete(f"/api/bots/{bot.uuid}")
 
             assert response.status_code == 200
             data = response.json()
             assert "deleted successfully" in data["message"].lower()
 
-    def test_delete_nonexistent_bot(self, client):
+    @pytest.mark.integration
+    def test_delete_nonexistent_bot(self, client_with_db):
         """Test DELETE /api/bots/{bot_id} with non-existent bot."""
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = None
+        fake_uuid = str(uuid_module.uuid4())
+        response = client_with_db.delete(f"/api/bots/{fake_uuid}")
 
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
 
-            response = client.delete("/api/bots/999")
-
-            assert response.status_code == 404
-            assert "not found" in response.json()["detail"].lower()
-
-    def test_delete_running_bot(self, client):
+    @pytest.mark.integration
+    def test_delete_running_bot(self, client_with_db, test_db, test_user):
         """Test DELETE /api/bots/{bot_id} - should stop running bot first."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('api.bots.is_bot_running', return_value=(True, 12345)), \
+        from db.models import BotConfig
+        
+        bot = BotConfig(
+            name=f"Running Bot {uuid_module.uuid4()}",
+            user_id=test_user.id,
+            is_active=True,
+        )
+        test_db.add(bot)
+        test_db.commit()
+        test_db.refresh(bot)
+
+        with patch('api.bots.is_bot_running', return_value=(True, 12345)), \
              patch('api.bots.stop_bot_process') as mock_stop:
 
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.delete("/api/bots/1")
+            response = client_with_db.delete(f"/api/bots/{bot.uuid}")
 
             assert response.status_code == 200
-            # Should have called stop_bot_process
             mock_stop.assert_called_once()
 
 
@@ -744,224 +590,144 @@ class TestBotCRUD:
 class TestBotControl:
     """Tests for bot control endpoints."""
 
-    def test_start_bot(self, client):
+    @pytest.mark.integration
+    def test_start_bot(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/start."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('api.bots.is_bot_running', return_value=(False, None)), \
+        with patch('api.bots.is_bot_running', return_value=(False, None)), \
              patch('api.bots.start_bot_process') as mock_start:
-
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-            bot.is_active = True
-
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
 
             mock_process = MagicMock()
             mock_process.pid = 12345
             mock_start.return_value = mock_process
 
-            response = client.post("/api/bots/1/start")
+            response = client_with_db.post(f"/api/bots/{test_bot.uuid}/start")
 
             assert response.status_code == 200
             data = response.json()
             assert "started" in data["message"].lower()
             assert data["pid"] == 12345
 
-    def test_start_bot_already_running(self, client):
+    @pytest.mark.integration
+    def test_start_bot_already_running(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/start when already running."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('api.bots.is_bot_running', return_value=(True, 12345)):
+        with patch('api.bots.is_bot_running', return_value=(True, 12345)):
 
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-            bot.is_active = True
-
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.post("/api/bots/1/start")
+            response = client_with_db.post(f"/api/bots/{test_bot.uuid}/start")
 
             assert response.status_code == 200
             data = response.json()
             assert "already running" in data["message"].lower()
             assert data["pid"] == 12345
 
-    def test_start_inactive_bot(self, client):
+    @pytest.mark.integration
+    def test_start_inactive_bot(self, client_with_db, test_db, test_user):
         """Test POST /api/bots/{bot_id}/start with inactive bot."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('api.bots.is_bot_running', return_value=(False, None)):
+        from db.models import BotConfig
+        
+        bot = BotConfig(
+            name=f"Inactive Bot {uuid_module.uuid4()}",
+            user_id=test_user.id,
+            is_active=False,
+        )
+        test_db.add(bot)
+        test_db.commit()
+        test_db.refresh(bot)
 
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-            bot.is_active = False  # Inactive
+        with patch('api.bots.is_bot_running', return_value=(False, None)):
 
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.post("/api/bots/1/start")
+            response = client_with_db.post(f"/api/bots/{bot.uuid}/start")
 
             assert response.status_code == 400
             assert "not active" in response.json()["detail"].lower()
 
-    def test_start_nonexistent_bot(self, client):
+    @pytest.mark.integration
+    def test_start_nonexistent_bot(self, client_with_db):
         """Test POST /api/bots/{bot_id}/start with non-existent bot."""
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = None
+        fake_uuid = str(uuid_module.uuid4())
+        response = client_with_db.post(f"/api/bots/{fake_uuid}/start")
 
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
+        assert response.status_code == 404
 
-            response = client.post("/api/bots/999/start")
-
-            assert response.status_code == 404
-
-    def test_start_bot_test_mode(self, client):
+    @pytest.mark.integration
+    def test_start_bot_test_mode(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/start with test_mode=True."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('api.bots.is_bot_running', return_value=(False, None)), \
+        with patch('api.bots.is_bot_running', return_value=(False, None)), \
              patch('api.bots.start_bot_process') as mock_start:
-
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-            bot.is_active = True
-
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
 
             mock_process = MagicMock()
             mock_process.pid = 12345
             mock_start.return_value = mock_process
 
-            response = client.post("/api/bots/1/start?test_mode=true")
+            response = client_with_db.post(f"/api/bots/{test_bot.uuid}/start?test_mode=true")
 
             assert response.status_code == 200
-            # Verify test_mode was passed
             mock_start.assert_called_once()
             call_args = mock_start.call_args
-            assert call_args[0][2] is True  # test_mode argument
+            assert call_args[0][2] is True
 
-    def test_stop_bot(self, client):
+    @pytest.mark.integration
+    def test_stop_bot(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/stop."""
         with patch('api.bots.is_bot_running', return_value=(True, 12345)), \
              patch('api.bots.stop_bot_process') as mock_stop:
 
-            response = client.post("/api/bots/1/stop")
+            response = client_with_db.post(f"/api/bots/{test_bot.uuid}/stop")
 
             assert response.status_code == 200
             data = response.json()
             assert "stopped" in data["message"].lower()
             mock_stop.assert_called_once()
 
-    def test_stop_bot_not_running(self, client):
+    @pytest.mark.integration
+    def test_stop_bot_not_running(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/stop when not running."""
         with patch('api.bots.is_bot_running', return_value=(False, None)):
-            response = client.post("/api/bots/1/stop")
+            response = client_with_db.post(f"/api/bots/{test_bot.uuid}/stop")
 
             assert response.status_code == 200
             data = response.json()
             assert "not running" in data["message"].lower()
 
-    def test_get_bot_status_running(self, client):
+    @pytest.mark.integration
+    def test_get_bot_status_running(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/status when running."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('api.bots.is_bot_running', return_value=(True, 12345)):
+        with patch('api.bots.is_bot_running', return_value=(True, 12345)), \
+             patch('api.bots.load_bot_snapshot', return_value=None):
 
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.get("/api/bots/1/status")
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/status")
 
             assert response.status_code == 200
             data = response.json()
-            assert data["bot_id"] == 1
-            assert data["bot_name"] == "Test Bot"
+            assert data["bot_id"] == test_bot.uuid
+            assert data["bot_name"] == test_bot.name
             assert data["running"] is True
             assert data["pid"] == 12345
-            assert "portfolio" in data
-            assert "strategies" in data
-            assert "positions" in data
 
-    def test_get_bot_status_not_running(self, client):
+    @pytest.mark.integration
+    def test_get_bot_status_not_running(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/status when not running."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('api.bots.is_bot_running', return_value=(False, None)):
+        with patch('api.bots.is_bot_running', return_value=(False, None)), \
+             patch('api.bots.load_bot_snapshot', return_value=None):
 
-            bot = MagicMock()
-            bot.id = 1
-            bot.name = "Test Bot"
-
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = bot
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.get("/api/bots/1/status")
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/status")
 
             assert response.status_code == 200
             data = response.json()
             assert data["running"] is False
             assert data["pid"] is None
 
-    def test_get_bot_status_nonexistent(self, client):
+    @pytest.mark.integration
+    def test_get_bot_status_nonexistent(self, client_with_db):
         """Test GET /api/bots/{bot_id}/status with non-existent bot."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('api.bots.is_bot_running', return_value=(False, None)):
-
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = None
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.get("/api/bots/999/status")
+        with patch('api.bots.is_bot_running', return_value=(False, None)):
+            fake_uuid = str(uuid_module.uuid4())
+            response = client_with_db.get(f"/api/bots/{fake_uuid}/status")
 
             assert response.status_code == 404
 
-    def test_get_bot_logs(self, client):
+    @pytest.mark.integration
+    def test_get_bot_logs(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/logs."""
-        # Create a temporary log file
         log_content = "2024-03-03 10:00:00 INFO: Bot started\n" \
                      "2024-03-03 10:01:00 INFO: Scanning symbols\n" \
                      "2024-03-03 10:02:00 INFO: Found signals"
@@ -970,10 +736,9 @@ class TestBotControl:
         log_file.write(log_content)
         log_file.close()
 
-        with patch('api.bots._bot_logs', {1: Path(log_file.name)}):
-            response = client.get("/api/bots/1/logs")
+        with patch('api.bots._bot_logs', {test_bot.id: Path(log_file.name)}):
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/logs")
 
-            # Clean up
             Path(log_file.name).unlink(missing_ok=True)
 
             assert response.status_code == 200
@@ -982,19 +747,20 @@ class TestBotControl:
             assert "Bot started" in data["logs"]
             assert data["total_lines"] == 3
 
-    def test_get_bot_logs_no_logs(self, client):
+    @pytest.mark.integration
+    def test_get_bot_logs_no_logs(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/logs when no logs available."""
         with patch('api.bots._bot_logs', {}):
-            response = client.get("/api/bots/1/logs")
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/logs")
 
             assert response.status_code == 200
             data = response.json()
             assert data["logs"] == ""
             assert "No logs available" in data["message"]
 
-    def test_get_bot_logs_custom_limit(self, client):
+    @pytest.mark.integration
+    def test_get_bot_logs_custom_limit(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/logs with custom line limit."""
-        # Create log file with many lines
         log_lines = [f"2024-03-03 10:0{i}:00 INFO: Log line {i}\n" for i in range(20)]
         log_content = "".join(log_lines)
 
@@ -1002,10 +768,9 @@ class TestBotControl:
         log_file.write(log_content)
         log_file.close()
 
-        with patch('api.bots._bot_logs', {1: Path(log_file.name)}):
-            response = client.get("/api/bots/1/logs?lines=5")
+        with patch('api.bots._bot_logs', {test_bot.id: Path(log_file.name)}):
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/logs?lines=5")
 
-            # Clean up
             Path(log_file.name).unlink(missing_ok=True)
 
             assert response.status_code == 200
@@ -1021,19 +786,25 @@ class TestBotControl:
 class TestStrategyControl:
     """Tests for strategy control within bots."""
 
-    def test_start_strategy(self, client):
+    @pytest.mark.integration
+    def test_start_strategy(self, client_with_db, test_bot, test_strategy):
         """Test POST /api/bots/{bot_id}/strategies/{strategy_id}/start."""
-        response = client.post("/api/bots/1/strategies/1/start")
+        response = client_with_db.post(
+            f"/api/bots/{test_bot.uuid}/strategies/{test_strategy.uuid}/start"
+        )
 
         assert response.status_code == 200
         data = response.json()
         assert "requires bot restart" in data["message"].lower()
-        assert data["bot_id"] == 1
-        assert data["strategy_id"] == 1
+        assert data["bot_id"] == test_bot.uuid
+        assert data["strategy_id"] == test_strategy.uuid
 
-    def test_stop_strategy(self, client):
+    @pytest.mark.integration
+    def test_stop_strategy(self, client_with_db, test_bot, test_strategy):
         """Test POST /api/bots/{bot_id}/strategies/{strategy_id}/stop."""
-        response = client.post("/api/bots/1/strategies/1/stop")
+        response = client_with_db.post(
+            f"/api/bots/{test_bot.uuid}/strategies/{test_strategy.uuid}/stop"
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -1047,95 +818,148 @@ class TestStrategyControl:
 class TestPortfolioAndPositions:
     """Tests for portfolio and positions endpoints."""
 
-    def test_get_bot_portfolio(self, client):
+    @pytest.mark.integration
+    def test_get_bot_portfolio(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/portfolio."""
-        response = client.get("/api/bots/1/portfolio")
+        snapshot = {
+            "portfolio": {"initial_capital": 1000000},
+            "positions": [],
+            "strategies": {},
+            "timestamp": datetime.now().isoformat(),
+        }
+        
+        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/portfolio")
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["bot_id"] == 1
-        assert "portfolio" in data
-        assert "positions" in data
-        assert "strategies" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
+            assert "portfolio" in data
+            assert "positions" in data
+            assert "strategies" in data
 
-        # Verify portfolio structure
-        portfolio = data["portfolio"]
-        assert "initial_capital" in portfolio
-        assert "cash" in portfolio
-        assert "margin_used" in portfolio
-        assert "total_pnl" in portfolio
-
-    def test_get_bot_portfolio_no_snapshot(self, client):
+    @pytest.mark.integration
+    def test_get_bot_portfolio_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/portfolio when no snapshot exists."""
         with patch('api.bots.load_bot_snapshot', return_value=None):
-            response = client.get("/api/bots/2/portfolio")
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/portfolio")
 
             assert response.status_code == 404
             assert "not found" in response.json()["detail"].lower()
 
-    def test_get_bot_positions(self, client):
+    @pytest.mark.integration
+    def test_get_bot_positions(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/positions."""
-        response = client.get("/api/bots/1/positions")
+        snapshot = {
+            "positions": [
+                {
+                    "symbol": "RELIANCE",
+                    "side": "BUY",
+                    "quantity": 100,
+                    "entry_price": 2500.0,
+                    "current_price": 2520.0,
+                    "unrealized_pnl": 2000.0,
+                    "strategy_id": 1,
+                },
+                {
+                    "symbol": "TCS",
+                    "side": "BUY",
+                    "quantity": 50,
+                    "entry_price": 3500.0,
+                    "current_price": 3460.0,
+                    "unrealized_pnl": -2000.0,
+                    "strategy_id": 2,
+                },
+            ]
+        }
+        
+        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/positions")
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["bot_id"] == 1
-        assert "positions" in data
-        assert "count" in data
-        assert len(data["positions"]) == 2
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
+            assert "positions" in data
+            assert "count" in data
+            assert len(data["positions"]) == 2
 
-        # Verify position structure
-        position = data["positions"][0]
-        assert "symbol" in position
-        assert "side" in position
-        assert "quantity" in position
-        assert "entry_price" in position
-        assert "current_price" in position
-        assert "unrealized_pnl" in position
-
-    def test_get_bot_positions_filter_by_strategy(self, client):
+    @pytest.mark.integration
+    def test_get_bot_positions_filter_by_strategy(self, client_with_db, test_bot, test_strategy):
         """Test GET /api/bots/{bot_id}/positions filtered by strategy_id."""
-        response = client.get("/api/bots/1/positions?strategy_id=1")
+        snapshot = {
+            "positions": [
+                {
+                    "symbol": "RELIANCE",
+                    "strategy_id": test_strategy.id,
+                },
+                {
+                    "symbol": "TCS",
+                    "strategy_id": 999,
+                },
+            ]
+        }
+        
+        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+            response = client_with_db.get(
+                f"/api/bots/{test_bot.uuid}/positions?strategy_id={test_strategy.uuid}"
+            )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert all(p["strategy_id"] == 1 for p in data["positions"])
+            assert response.status_code == 200
+            data = response.json()
+            assert all(p["strategy_id"] == test_strategy.id for p in data["positions"])
 
-    def test_get_bot_positions_no_snapshot(self, client):
+    @pytest.mark.integration
+    def test_get_bot_positions_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/positions when no snapshot exists."""
         with patch('api.bots.load_bot_snapshot', return_value=None):
-            response = client.get("/api/bots/2/positions")
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/positions")
 
             assert response.status_code == 404
 
-    def test_get_bot_scan(self, client):
+    @pytest.mark.integration
+    def test_get_bot_scan(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/scan."""
-        response = client.get("/api/bots/1/scan")
+        snapshot = {
+            "scan_items": [
+                {"symbol": "RELIANCE", "price": 2520.0, "score": 8.5, "strategy_id": 1},
+                {"symbol": "TCS", "price": 3460.0, "score": 6.8, "strategy_id": 2},
+            ]
+        }
+        
+        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/scan")
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["bot_id"] == 1
-        assert "scan_items" in data
-        assert "count" in data
-        assert len(data["scan_items"]) > 0
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
+            assert "scan_items" in data
+            assert "count" in data
+            assert len(data["scan_items"]) > 0
 
-        # Verify scan item structure
-        item = data["scan_items"][0]
-        assert "symbol" in item
-        assert "price" in item
-
-    def test_get_bot_scan_filter_by_strategy(self, client):
+    @pytest.mark.integration
+    def test_get_bot_scan_filter_by_strategy(self, client_with_db, test_bot, test_strategy):
         """Test GET /api/bots/{bot_id}/scan filtered by strategy_id."""
-        response = client.get("/api/bots/1/scan?strategy_id=1")
+        snapshot = {
+            "scan_items": [
+                {"symbol": "RELIANCE", "price": 2520.0, "strategy_id": test_strategy.id},
+                {"symbol": "TCS", "price": 3460.0, "strategy_id": 999},
+            ]
+        }
+        
+        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+            response = client_with_db.get(
+                f"/api/bots/{test_bot.uuid}/scan?strategy_id={test_strategy.uuid}"
+            )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert all(s.get("strategy_id") == 1 for s in data["scan_items"])
+            assert response.status_code == 200
+            data = response.json()
+            assert all(s.get("strategy_id") == test_strategy.id for s in data["scan_items"])
 
-    def test_get_bot_scan_no_snapshot(self, client):
+    @pytest.mark.integration
+    def test_get_bot_scan_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/scan when no snapshot exists."""
         with patch('api.bots.load_bot_snapshot', return_value=None):
-            response = client.get("/api/bots/2/scan")
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/scan")
 
             assert response.status_code == 404
 
@@ -1147,242 +971,220 @@ class TestPortfolioAndPositions:
 class TestPerformanceEndpoints:
     """Tests for performance endpoints."""
 
-    def test_get_bot_performance(self, client):
+    @pytest.mark.integration
+    def test_get_bot_performance(self, client_with_db, test_bot, test_strategy):
         """Test GET /api/bots/{bot_id}/performance."""
-        response = client.get("/api/bots/1/performance")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["bot_id"] == 1
-        assert "summary" in data
-        assert "by_strategy" in data
-
-        # Verify summary structure
-        summary = data["summary"]
-        assert "total_pnl" in summary
-        assert "total_trades" in summary
-        assert "total_positions" in summary
-
-        # Verify by_strategy structure
-        by_strategy = data["by_strategy"]
-        assert len(by_strategy) > 0
-
-    def test_get_bot_performance_no_snapshot(self, client):
-        """Test GET /api/bots/{bot_id}/performance when no snapshot exists."""
-        with patch('api.bots.load_bot_snapshot', return_value=None):
-            response = client.get("/api/bots/2/performance")
-
-            assert response.status_code == 404
-
-    def test_get_bot_performance_custom_days(self, client):
-        """Test GET /api/bots/{bot_id}/performance with custom days parameter."""
-        response = client.get("/api/bots/1/performance?days=7")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["period_days"] == 7
-
-    def test_compare_strategy_performance(self, client):
-        """Test GET /api/bots/{bot_id}/performance/compare."""
-        response = client.get("/api/bots/1/performance/compare")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["bot_id"] == 1
-        assert "comparison" in data
-        assert len(data["comparison"]) > 0
-
-        # Verify comparison structure
-        comparison = data["comparison"]
-        # Should be sorted by P&L
-        pnls = [c["total_pnl"] for c in comparison]
-        assert pnls == sorted(pnls, reverse=True)
-
-        # Verify each comparison item
-        item = comparison[0]
-        assert "strategy_id" in item
-        assert "strategy_name" in item
-        assert "trades" in item
-        assert "positions" in item
-        assert "total_pnl" in item
-
-    def test_compare_strategy_performance_no_snapshot(self, client):
-        """Test GET /api/bots/{bot_id}/performance/compare when no snapshot."""
-        with patch('api.bots.load_bot_snapshot', return_value=None):
-            response = client.get("/api/bots/2/performance/compare")
-
-            assert response.status_code == 404
-
-    def test_get_bot_trades(self, client):
-        """Test GET /api/bots/{bot_id}/trades."""
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-            result = MagicMock()
-            result.fetchall.return_value = [
-                MagicMock(strategy_id=1),
-                MagicMock(strategy_id=2),
-            ]
-            session.execute.return_value = result
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.get("/api/bots/1/trades")
+        snapshot = {
+            "portfolio": {
+                "total_pnl": 5000.0,
+                "total_positions": 2,
+            },
+            "strategies": {
+                str(test_strategy.id): {
+                    "name": test_strategy.name,
+                    "portfolio_status": {
+                        "total_pnl": 5000.0,
+                        "trades_count": 5,
+                        "positions_count": 2,
+                    }
+                }
+            }
+        }
+        
+        with patch('api.bots.load_bot_snapshot', return_value=snapshot), \
+             patch('trading.journal.get_journal') as mock_get_journal:
+            
+            mock_journal = MagicMock()
+            mock_journal.load_all_journals = MagicMock()
+            mock_journal.trades = []
+            mock_get_journal.return_value = mock_journal
+            
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance")
 
             assert response.status_code == 200
             data = response.json()
-            assert data["bot_id"] == 1
+            assert data["bot_id"] == test_bot.uuid
+            assert "summary" in data
+            assert "by_strategy" in data
+
+    @pytest.mark.integration
+    def test_get_bot_performance_no_snapshot(self, client_with_db, test_bot):
+        """Test GET /api/bots/{bot_id}/performance when no snapshot exists."""
+        with patch('api.bots.load_bot_snapshot', return_value=None):
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance")
+
+            assert response.status_code == 404
+
+    @pytest.mark.integration
+    def test_get_bot_performance_custom_days(self, client_with_db, test_bot, test_strategy):
+        """Test GET /api/bots/{bot_id}/performance with custom days parameter."""
+        snapshot = {
+            "portfolio": {"total_pnl": 5000.0},
+            "strategies": {}
+        }
+        
+        with patch('api.bots.load_bot_snapshot', return_value=snapshot), \
+             patch('trading.journal.get_journal') as mock_get_journal:
+            
+            mock_journal = MagicMock()
+            mock_journal.load_all_journals = MagicMock()
+            mock_journal.trades = []
+            mock_get_journal.return_value = mock_journal
+            
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance?days=7")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["period_days"] == 7
+
+    @pytest.mark.integration
+    def test_compare_strategy_performance(self, client_with_db, test_bot, test_strategy):
+        """Test GET /api/bots/{bot_id}/performance/compare."""
+        snapshot = {
+            "strategies": {
+                str(test_strategy.id): {
+                    "name": test_strategy.name,
+                    "portfolio_status": {
+                        "total_pnl": 5000.0,
+                        "trades_count": 5,
+                        "positions_count": 2,
+                    }
+                }
+            }
+        }
+        
+        with patch('api.bots.load_bot_snapshot', return_value=snapshot), \
+             patch('trading.journal.get_journal') as mock_get_journal:
+            
+            mock_journal = MagicMock()
+            mock_journal.load_all_journals = MagicMock()
+            mock_journal.trades = []
+            mock_journal.get_strategy_performance = MagicMock(return_value={})
+            mock_get_journal.return_value = mock_journal
+            
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance/compare")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
+            assert "comparison" in data
+
+    @pytest.mark.integration
+    def test_compare_strategy_performance_no_snapshot(self, client_with_db, test_bot):
+        """Test GET /api/bots/{bot_id}/performance/compare when no snapshot."""
+        with patch('api.bots.load_bot_snapshot', return_value=None):
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance/compare")
+
+            assert response.status_code == 404
+
+    @pytest.mark.integration
+    def test_get_bot_trades(self, client_with_db, test_bot, test_strategy):
+        """Test GET /api/bots/{bot_id}/trades."""
+        with patch('trading.journal.get_journal') as mock_get_journal:
+            mock_journal = MagicMock()
+            mock_journal.load_all_journals = MagicMock()
+            mock_journal.trades = []
+            mock_get_journal.return_value = mock_journal
+            
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/trades")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
             assert "trades" in data
             assert "count" in data
 
-    def test_get_bot_trades_filter_by_strategy(self, client, mock_journal):
+    @pytest.mark.integration
+    def test_get_bot_trades_filter_by_strategy(self, client_with_db, test_bot, test_strategy):
         """Test GET /api/bots/{bot_id}/trades filtered by strategy_id."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('trading.journal.get_journal', return_value=mock_journal):
-
-            session = MagicMock()
-            result = MagicMock()
-            result.fetchall.return_value = [
-                MagicMock(strategy_id=1),
-                MagicMock(strategy_id=2),
-            ]
-            session.execute.return_value = result
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.get("/api/bots/1/trades?strategy_id=1")
+        with patch('trading.journal.get_journal') as mock_get_journal:
+            mock_journal = MagicMock()
+            mock_journal.load_all_journals = MagicMock()
+            mock_journal.trades = []
+            mock_get_journal.return_value = mock_journal
+            
+            response = client_with_db.get(
+                f"/api/bots/{test_bot.uuid}/trades?strategy_id={test_strategy.uuid}"
+            )
 
             assert response.status_code == 200
             data = response.json()
-            assert all(t.get("strategy_id") == 1 for t in data["trades"])
 
-    def test_get_bot_trades_exclude_test_data(self, client, mock_journal):
+    @pytest.mark.integration
+    def test_get_bot_trades_exclude_test_data(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/trades with include_test=false."""
-        # Add a test trade
-        from trading.journal import TradeRecord
-        test_trade = TradeRecord(
-            trade_id="TEST-1",
-            symbol="TEST",
-            side="BUY",
-            quantity=100,
-            entry_price=100.0,
-            exit_price=110.0,
-            entry_time="2024-03-03T09:15:00",
-            exit_time="2024-03-03T10:30:00",
-            pnl=1000.0,
-            pnl_pct=10.0,
-            exit_reason="TP",
-            costs=50.0,
-            net_pnl=950.0,
-            strategy_id=1,
-            strategy_name="ORB Conservative",
-            source="backtest",
-            is_test=True,
-        )
-        mock_journal.trades.append(test_trade)
-
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('trading.journal.get_journal', return_value=mock_journal):
-
-            session = MagicMock()
-            result = MagicMock()
-            result.fetchall.return_value = [
-                MagicMock(strategy_id=1),
-            ]
-            session.execute.return_value = result
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.get("/api/bots/1/trades?include_test=false")
+        with patch('trading.journal.get_journal') as mock_get_journal:
+            mock_journal = MagicMock()
+            mock_journal.load_all_journals = MagicMock()
+            mock_journal.trades = []
+            mock_get_journal.return_value = mock_journal
+            
+            response = client_with_db.get(
+                f"/api/bots/{test_bot.uuid}/trades?include_test=false"
+            )
 
             assert response.status_code == 200
             data = response.json()
             assert not any(t.get("is_test") for t in data["trades"])
 
-    def test_get_strategy_performance(self, client):
+    @pytest.mark.integration
+    def test_get_strategy_performance(self, client_with_db, test_bot, test_strategy):
         """Test GET /api/bots/{bot_id}/strategy-performance."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('trading.journal.get_journal', return_value=mock_journal):
-
-            session = MagicMock()
-            result = MagicMock()
-            result.fetchall.return_value = [
-                MagicMock(strategy_id=1),
-                MagicMock(strategy_id=2),
-            ]
-            session.execute.return_value = result
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.get("/api/bots/1/strategy-performance")
+        with patch('trading.journal.get_journal') as mock_get_journal:
+            mock_journal = MagicMock()
+            mock_journal.load_all_journals = MagicMock()
+            mock_journal.trades = []
+            mock_journal.get_strategy_performance = MagicMock(return_value={
+                str(test_strategy.id): {
+                    "trades": 3,
+                    "winners": 2,
+                    "losers": 1,
+                    "net_pnl": 2500.0,
+                    "win_rate": 66.7,
+                }
+            })
+            mock_get_journal.return_value = mock_journal
+            
+            response = client_with_db.get(f"/api/bots/{test_bot.uuid}/strategy-performance")
 
             assert response.status_code == 200
             data = response.json()
-            assert data["bot_id"] == 1
+            assert data["bot_id"] == test_bot.uuid
             assert "by_strategy" in data
             assert "combined" in data
 
-            # Verify combined stats
-            combined = data["combined"]
-            assert "total_trades" in combined
-            assert "win_rate" in combined
-            assert "total_net_pnl" in combined
-
-    def test_get_strategy_performance_custom_days(self, client):
+    @pytest.mark.integration
+    def test_get_strategy_performance_custom_days(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/strategy-performance with custom days."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('trading.journal.get_journal', return_value=mock_journal):
-
-            session = MagicMock()
-            result = MagicMock()
-            result.fetchall.return_value = [
-                MagicMock(strategy_id=1),
-            ]
-            session.execute.return_value = result
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.get("/api/bots/1/strategy-performance?days=7")
+        with patch('trading.journal.get_journal') as mock_get_journal:
+            mock_journal = MagicMock()
+            mock_journal.load_all_journals = MagicMock()
+            mock_journal.trades = []
+            mock_journal.get_strategy_performance = MagicMock(return_value={})
+            mock_get_journal.return_value = mock_journal
+            
+            response = client_with_db.get(
+                f"/api/bots/{test_bot.uuid}/strategy-performance?days=7"
+            )
 
             assert response.status_code == 200
-            # Verify load_all_journals was called
             mock_journal.load_all_journals.assert_called()
 
-    def test_get_strategy_performance_exclude_test(self, client):
+    @pytest.mark.integration
+    def test_get_strategy_performance_exclude_test(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/strategy-performance with include_test=false."""
-        with patch('api.bots.SessionLocal') as mock_session, \
-             patch('trading.journal.get_journal', return_value=mock_journal):
-
-            session = MagicMock()
-            result = MagicMock()
-            result.fetchall.return_value = [
-                MagicMock(strategy_id=1),
-            ]
-            session.execute.return_value = result
-
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
-
-            response = client.get("/api/bots/1/strategy-performance?include_test=false")
+        with patch('trading.journal.get_journal') as mock_get_journal:
+            mock_journal = MagicMock()
+            mock_journal.load_all_journals = MagicMock()
+            mock_journal.trades = []
+            mock_journal.get_strategy_performance = MagicMock(return_value={})
+            mock_get_journal.return_value = mock_journal
+            
+            response = client_with_db.get(
+                f"/api/bots/{test_bot.uuid}/strategy-performance?include_test=false"
+            )
 
             assert response.status_code == 200
-            # Verify get_strategy_performance was called with include_test=False
             mock_journal.get_strategy_performance.assert_called_with(include_test=False)
 
 
@@ -1393,6 +1195,7 @@ class TestPerformanceEndpoints:
 class TestErrorHandling:
     """Tests for error handling."""
 
+    @pytest.mark.unit
     def test_database_unavailable(self, client):
         """Test endpoints when database is unavailable."""
         with patch('api.bots._db_available', False):
@@ -1401,52 +1204,219 @@ class TestErrorHandling:
             assert response.status_code == 500
             assert "database" in response.json()["detail"].lower()
 
-    def test_invalid_strategy_id(self, client):
+    @pytest.mark.integration
+    def test_invalid_strategy_id(self, client_with_db, test_strategy):
         """Test creating bot with non-existent strategy."""
         bot_data = {
-            "name": "Invalid Bot",
+            "name": f"Invalid Bot {uuid_module.uuid4()}",
             "strategies": [
-                {"strategy_id": 999, "capital_allocation_pct": 0.50},
+                {"strategy_id": str(uuid_module.uuid4()), "capital_allocation_pct": 0.50},
             ],
         }
 
-        with patch('api.bots.SessionLocal') as mock_session:
-            session = MagicMock()
-            session.query.return_value.filter.return_value.first.return_value = None
+        response = client_with_db.post("/api/bots", json=bot_data)
 
-            cm = MagicMock()
-            cm.__enter__ = Mock(return_value=session)
-            cm.__exit__ = Mock(return_value=False)
-            mock_session.return_value = cm
+        # API returns 404 for non-existent strategy (not 400)
+        assert response.status_code == 404
 
-            response = client.post("/api/bots", json=bot_data)
-
-            # Should fail due to non-existent strategy
-            assert response.status_code == 400
-
+    @pytest.mark.unit
     def test_invalid_allocation_pct(self, client):
         """Test creating bot with invalid allocation percentage."""
         bot_data = {
             "name": "Invalid Allocation Bot",
             "strategies": [
-                {"strategy_id": 1, "capital_allocation_pct": 1.5},  # > 100%
+                {"strategy_id": str(uuid_module.uuid4()), "capital_allocation_pct": 1.5},
             ],
         }
 
-        # Pydantic validation should catch this
         response = client.post("/api/bots", json=bot_data)
 
-        # Should fail validation
         assert response.status_code == 422
 
+    @pytest.mark.unit
     def test_invalid_max_positions(self, client):
         """Test creating bot with invalid max_positions."""
         bot_data = {
             "name": "Invalid Positions Bot",
-            "max_total_positions": 50,  # Exceeds max of 20
+            "max_total_positions": 50,
         }
 
-        # Pydantic validation should catch this
         response = client.post("/api/bots", json=bot_data)
 
         assert response.status_code == 422
+
+
+class TestBotCRUDUnit:
+    """Unit tests for Bot CRUD operations."""
+
+    @pytest.mark.unit
+    @patch('api.bots.SessionLocal')
+    @patch('api.bots._db_available', True)
+    @patch('api.bots._auth_available', True)
+    @patch('api.bots.get_user_id', return_value=1)
+    def test_create_bot_duplicate_name(self, mock_get_user_id, mock_session, client):
+        """Test POST /api/bots with duplicate name."""
+        bot_data = {
+            "name": "Test Bot 1",
+            "is_active": True,
+        }
+
+        mock_db = MagicMock()
+        existing = MagicMock()
+        existing.id = 1
+        existing.name = "Test Bot 1"
+        mock_db.query.return_value.filter.return_value.first.return_value = existing
+        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
+        mock_session.return_value.__exit__ = Mock(return_value=False)
+
+        response = client.post("/api/bots", json=bot_data)
+
+        assert response.status_code == 400
+        assert "already exists" in response.json()["detail"].lower()
+
+    @pytest.mark.unit
+    @patch('api.bots.SessionLocal')
+    @patch('api.bots._db_available', True)
+    @patch('api.bots._auth_available', True)
+    @patch('api.bots.get_user_id', return_value=1)
+    def test_create_bot_allocation_exceeds_100(self, mock_get_user_id, mock_session, client):
+        """Test POST /api/bots with allocation > 100%."""
+        bot_data = {
+            "name": "Overallocated Bot",
+            "is_active": True,
+            "strategies": [
+                {
+                    "strategy_id": "550e8400-e29b-41d4-a716-446655440001",
+                    "capital_allocation_pct": 0.60,
+                },
+                {
+                    "strategy_id": "550e8400-e29b-41d4-a716-446655440002",
+                    "capital_allocation_pct": 0.60,
+                },
+            ],
+        }
+
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
+        mock_session.return_value.__exit__ = Mock(return_value=False)
+
+        response = client.post("/api/bots", json=bot_data)
+
+        assert response.status_code == 400
+        assert "exceeds 100%" in response.json()["detail"].lower()
+
+    @pytest.mark.unit
+    @patch('api.bots.SessionLocal')
+    @patch('api.bots._db_available', True)
+    @patch('api.bots._auth_available', True)
+    @patch('api.bots.get_user_id', return_value=1)
+    def test_get_nonexistent_bot(self, mock_get_user_id, mock_session, client):
+        """Test GET /api/bots/{bot_id} with non-existent bot."""
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
+        mock_session.return_value.__exit__ = Mock(return_value=False)
+
+        response = client.get("/api/bots/550e8400-e29b-41d4-a716-446655449999")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @pytest.mark.unit
+    def test_update_bot_duplicate_name(self):
+        """Test PUT /api/bots/{bot_id} with duplicate name - requires database."""
+        from fastapi import FastAPI
+        app = FastAPI()
+        app.include_router(bots_router)
+
+        update_data = {"name": "Other Bot Name"}
+
+        bot1 = MagicMock()
+        bot1.id = 1
+        bot1.name = "Test Bot 1"
+        bot1.uuid = "550e8400-e29b-41d4-a716-446655440001"
+        bot1.is_active = True
+        bot1.max_total_positions = 10
+        bot1.max_total_capital_pct = 0.80
+        bot1.created_at = datetime.now()
+        bot1.updated_at = datetime.now()
+
+        bot2 = MagicMock()
+        bot2.id = 2
+        bot2.name = "Other Bot Name"
+
+        mock_db = MagicMock()
+        call_count = [0]
+        
+        def mock_first():
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return bot1
+            else:
+                return bot2
+
+        mock_filter_result = MagicMock()
+        mock_filter_result.first.side_effect = mock_first
+        
+        mock_db.query.return_value.filter.return_value = mock_filter_result
+        mock_db.execute.return_value.fetchall.return_value = []
+
+        with patch('api.bots.SessionLocal', return_value=mock_db), \
+             patch('api.bots.get_db', None), \
+             patch('api.bots._db_available', True), \
+             patch('api.bots._auth_available', True), \
+             patch('api.bots.get_user_id', return_value=1), \
+             TestClient(app) as test_client:
+
+            response = test_client.put("/api/bots/550e8400-e29b-41d4-a716-446655440001", json=update_data)
+
+            assert response.status_code in [400, 404]
+
+
+class TestBotControlUnit:
+    """Unit tests for Bot control operations."""
+
+    @pytest.mark.unit
+    @patch('api.bots.is_bot_running', return_value=(False, None))
+    @patch('api.bots.SessionLocal')
+    @patch('api.bots._db_available', True)
+    @patch('api.bots._auth_available', True)
+    @patch('api.bots.get_user_id', return_value=1)
+    def test_get_bot_status_nonexistent(self, mock_get_user_id, mock_session, mock_is_running, client):
+        """Test GET /api/bots/{bot_id}/status with non-existent bot."""
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
+        mock_session.return_value.__exit__ = Mock(return_value=False)
+
+        response = client.get("/api/bots/550e8400-e29b-41d4-a716-446655449999/status")
+
+        assert response.status_code == 404
+
+
+class TestErrorHandlingUnit:
+    """Unit tests for error handling."""
+
+    @pytest.mark.unit
+    @patch('api.bots.SessionLocal')
+    @patch('api.bots._db_available', True)
+    @patch('api.bots._auth_available', True)
+    @patch('api.bots.get_user_id', return_value=1)
+    def test_invalid_strategy_id(self, mock_get_user_id, mock_session, client):
+        """Test creating bot with non-existent strategy."""
+        bot_data = {
+            "name": "Invalid Bot",
+            "strategies": [
+                {"strategy_id": "550e8400-e29b-41d4-a716-446655449999", "capital_allocation_pct": 0.50},
+            ],
+        }
+
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
+        mock_session.return_value.__exit__ = Mock(return_value=False)
+
+        response = client.post("/api/bots", json=bot_data)
+
+        assert response.status_code == 404

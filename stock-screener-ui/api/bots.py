@@ -13,12 +13,12 @@ import subprocess
 import json
 import os
 import signal
+import uuid as uuid_module
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Generator
 from dataclasses import asdict
 
-# Add project paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -29,7 +29,6 @@ from sqlalchemy.orm import Session
 
 console = Console()
 
-# Database imports
 try:
     from db.database import SessionLocal, get_db
     from db.models import BotConfig, StrategyConfig, bot_strategies, User
@@ -38,7 +37,6 @@ except ImportError:
     _db_available = False
     get_db = None
 
-# Auth imports
 try:
     from api.auth import get_current_user_optional
     _auth_available = True
@@ -47,25 +45,19 @@ except ImportError:
     async def get_current_user_optional():
         return None
 
-# Create router
 router = APIRouter(prefix="/api/bots", tags=["Bots"])
 
-# Bot process tracking (per user)
-_bot_processes: Dict[int, Dict[int, subprocess.Popen]] = {}  # {user_id: {bot_id: process}}
-_bot_logs: Dict[int, Path] = {}  # {bot_id: log_path}
+_bot_processes: Dict[int, Dict[int, subprocess.Popen]] = {}
+_bot_logs: Dict[int, Path] = {}
 
-
-# ==================== Pydantic Models ====================
 
 class StrategyAllocation(BaseModel):
-    """Strategy allocation within a bot."""
-    strategy_id: int
+    strategy_id: str  # UUID string
     max_positions: int = Field(default=3, ge=1, le=10)
     capital_allocation_pct: float = Field(default=0.20, ge=0.05, le=1.0)
 
 
 class BotCreate(BaseModel):
-    """Request to create a new bot."""
     name: str = Field(..., min_length=1, max_length=100)
     is_active: bool = True
     max_total_positions: int = Field(default=10, ge=1, le=20)
@@ -74,7 +66,6 @@ class BotCreate(BaseModel):
 
 
 class BotUpdate(BaseModel):
-    """Request to update a bot."""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     is_active: Optional[bool] = None
     max_total_positions: Optional[int] = Field(None, ge=1, le=20)
@@ -83,8 +74,7 @@ class BotUpdate(BaseModel):
 
 
 class BotResponse(BaseModel):
-    """Bot configuration response."""
-    id: int
+    id: str  # UUID string
     name: str
     is_active: bool
     max_total_positions: int
@@ -97,8 +87,7 @@ class BotResponse(BaseModel):
 
 
 class BotStatusResponse(BaseModel):
-    """Detailed bot status response."""
-    bot_id: int
+    bot_id: str  # UUID string
     bot_name: str
     running: bool
     pid: Optional[int] = None
@@ -109,8 +98,7 @@ class BotStatusResponse(BaseModel):
 
 
 class StrategyStatusResponse(BaseModel):
-    """Strategy status within a bot."""
-    strategy_id: int
+    strategy_id: str  # UUID string
     strategy_name: str
     status: str
     positions_count: int
@@ -121,23 +109,62 @@ class StrategyStatusResponse(BaseModel):
     trades_count: int
 
 
-# ==================== Helper Functions ====================
-
 def get_user_id(user) -> int:
-    """Get user ID from user object, default to 0 for single-user mode."""
     if user is None:
         return 0
     return user.id
 
 
-def get_bot_snapshot_path(bot_id: int) -> Path:
-    """Get the snapshot file path for a bot."""
-    return Path(f"/tmp/multi-strategy-bot-{bot_id}.json")
+def validate_uuid(uuid_str: str) -> bool:
+    """Validate that a string is a valid UUID."""
+    try:
+        uuid_module.UUID(uuid_str)
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
-def load_bot_snapshot(bot_id: int) -> Optional[dict]:
-    """Load the latest snapshot for a bot."""
-    snapshot_path = get_bot_snapshot_path(bot_id)
+def get_bot_by_uuid(bot_uuid: str, user_id: int, db: Session) -> BotConfig:
+    """Get bot by UUID, validating ownership."""
+    if not validate_uuid(bot_uuid):
+        raise HTTPException(status_code=400, detail=f"Invalid bot UUID: {bot_uuid}")
+
+    bot = db.query(BotConfig).filter(
+        BotConfig.uuid == bot_uuid,
+        BotConfig.user_id == user_id
+    ).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail=f"Bot {bot_uuid} not found")
+    return bot
+
+
+def get_strategy_by_uuid(strategy_uuid: str, db: Session) -> StrategyConfig:
+    """Get strategy by UUID."""
+    if not validate_uuid(strategy_uuid):
+        raise HTTPException(status_code=400, detail=f"Invalid strategy UUID: {strategy_uuid}")
+
+    strategy = db.query(StrategyConfig).filter(StrategyConfig.uuid == strategy_uuid).first()
+    if not strategy:
+        raise HTTPException(status_code=404, detail=f"Strategy {strategy_uuid} not found")
+    return strategy
+
+
+def validate_bot_ownership(bot_id: int, user_id: int, db: Session) -> BotConfig:
+    bot = db.query(BotConfig).filter(
+        BotConfig.id == bot_id,
+        BotConfig.user_id == user_id
+    ).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail=f"Bot {bot_id} not found")
+    return bot
+
+
+def get_bot_snapshot_path(bot_id: int, user_id: int) -> Path:
+    return Path(f"/tmp/multi-strategy-bot-{user_id}-{bot_id}.json")
+
+
+def load_bot_snapshot(bot_id: int, user_id: int) -> Optional[dict]:
+    snapshot_path = get_bot_snapshot_path(bot_id, user_id)
     if snapshot_path.exists():
         try:
             return json.loads(snapshot_path.read_text())
@@ -147,23 +174,19 @@ def load_bot_snapshot(bot_id: int) -> Optional[dict]:
 
 
 def is_bot_running(user_id: int, bot_id: int) -> tuple:
-    """Check if a bot is currently running."""
     if user_id in _bot_processes and bot_id in _bot_processes[user_id]:
         process = _bot_processes[user_id][bot_id]
         if process.poll() is None:
             return True, process.pid
         else:
-            # Process has ended, clean up
             del _bot_processes[user_id][bot_id]
     return False, None
 
 
 def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = None) -> BotResponse:
-    """Convert BotConfig to response model."""
     running, pid = is_bot_running(user_id, bot.id)
 
     strategies = []
-    # Use provided db session or create a new one
     should_close = False
     if db is None:
         db = SessionLocal()
@@ -178,7 +201,7 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
             strategy = db.query(StrategyConfig).filter(StrategyConfig.id == row.strategy_id).first()
             if strategy:
                 strategies.append({
-                    'id': strategy.id,
+                    'id': strategy.uuid,  # Return UUID
                     'name': strategy.name,
                     'strategy_type': strategy.strategy_type,
                     'max_positions': row.max_positions,
@@ -189,7 +212,7 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
             db.close()
 
     return BotResponse(
-        id=bot.id,
+        id=bot.uuid,  # Return UUID
         name=bot.name,
         is_active=bot.is_active,
         max_total_positions=bot.max_total_positions,
@@ -202,19 +225,14 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
     )
 
 
-# ==================== Available Strategies Endpoint ====================
-# NOTE: This must come BEFORE /{bot_id} routes to avoid route conflicts
-
 @router.get("/available-strategies")
 async def list_available_strategies(
     user=Depends(get_current_user_optional),
     db: Session = Depends(get_db) if get_db else None
 ):
-    """List all available strategies that can be added to bots."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
-    # Fallback to SessionLocal if dependency injection not available
     if db is None:
         with SessionLocal() as db:
             strategies = db.query(StrategyConfig).filter(
@@ -223,7 +241,7 @@ async def list_available_strategies(
 
             return [
                 {
-                    "id": s.id,
+                    "id": s.uuid,  # Return UUID
                     "name": s.name,
                     "strategy_type": s.strategy_type,
                     "is_template": s.is_template,
@@ -241,7 +259,7 @@ async def list_available_strategies(
 
     return [
         {
-            "id": s.id,
+            "id": s.uuid,  # Return UUID
             "name": s.name,
             "strategy_type": s.strategy_type,
             "is_template": s.is_template,
@@ -254,26 +272,22 @@ async def list_available_strategies(
     ]
 
 
-# ==================== Bot CRUD Endpoints ====================
-
 @router.get("", response_model=List[BotResponse])
 async def list_bots(
     user=Depends(get_current_user_optional),
     db: Session = Depends(get_db) if get_db else None
 ):
-    """List all bot configurations."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
     user_id = get_user_id(user)
 
-    # Fallback to SessionLocal if dependency injection not available
     if db is None:
         with SessionLocal() as session:
-            bots = session.query(BotConfig).all()
+            bots = session.query(BotConfig).filter(BotConfig.user_id == user_id).order_by(BotConfig.name).all()
             return [bot_to_response(bot, user_id, db=session) for bot in bots]
 
-    bots = db.query(BotConfig).all()
+    bots = db.query(BotConfig).filter(BotConfig.user_id == user_id).order_by(BotConfig.name).all()
     return [bot_to_response(bot, user_id, db=db) for bot in bots]
 
 
@@ -283,25 +297,24 @@ async def create_bot(
     user=Depends(get_current_user_optional),
     db: Session = Depends(get_db) if get_db else None
 ):
-    """Create a new bot configuration."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
     user_id = get_user_id(user)
 
-    # Fallback to SessionLocal if dependency injection not available
     close_db = False
     if db is None:
         db = SessionLocal()
         close_db = True
 
     try:
-        # Check if name already exists
-        existing = db.query(BotConfig).filter(BotConfig.name == request.name).first()
+        existing = db.query(BotConfig).filter(
+            BotConfig.name == request.name,
+            BotConfig.user_id == user_id
+        ).first()
         if existing:
             raise HTTPException(status_code=400, detail=f"Bot with name '{request.name}' already exists")
 
-        # Validate total allocation doesn't exceed 100%
         total_allocation = sum(s.capital_allocation_pct for s in request.strategies)
         if total_allocation > 1.0:
             raise HTTPException(
@@ -309,9 +322,9 @@ async def create_bot(
                 detail=f"Total capital allocation ({total_allocation:.0%}) exceeds 100%"
             )
 
-        # Create bot
         bot = BotConfig(
             name=request.name,
+            user_id=user_id,
             is_active=request.is_active,
             max_total_positions=request.max_total_positions,
             max_total_capital_pct=request.max_total_capital_pct,
@@ -319,16 +332,15 @@ async def create_bot(
         db.add(bot)
         db.flush()
 
-        # Add strategies
         for alloc in request.strategies:
-            strategy = db.query(StrategyConfig).filter(StrategyConfig.id == alloc.strategy_id).first()
+            strategy = get_strategy_by_uuid(alloc.strategy_id, db)
             if not strategy:
                 raise HTTPException(status_code=400, detail=f"Strategy {alloc.strategy_id} not found")
 
             db.execute(
                 bot_strategies.insert().values(
                     bot_id=bot.id,
-                    strategy_id=alloc.strategy_id,
+                    strategy_id=strategy.id,  # Use internal ID for junction table
                     max_positions=alloc.max_positions,
                     capital_allocation_pct=alloc.capital_allocation_pct,
                 )
@@ -346,61 +358,49 @@ async def create_bot(
 
 @router.get("/{bot_id}", response_model=BotResponse)
 async def get_bot(
-    bot_id: int,
+    bot_id: str,  # UUID string
     user=Depends(get_current_user_optional),
     db: Session = Depends(get_db) if get_db else None
 ):
-    """Get a specific bot configuration."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
     user_id = get_user_id(user)
 
-    # Fallback to SessionLocal if dependency injection not available
     if db is None:
         with SessionLocal() as session:
-            bot = session.query(BotConfig).filter(BotConfig.id == bot_id).first()
-            if not bot:
-                raise HTTPException(status_code=404, detail=f"Bot {bot_id} not found")
-
+            bot = get_bot_by_uuid(bot_id, user_id, session)
             return bot_to_response(bot, user_id, db=session)
 
-    bot = db.query(BotConfig).filter(BotConfig.id == bot_id).first()
-    if not bot:
-        raise HTTPException(status_code=404, detail=f"Bot {bot_id} not found")
-
+    bot = get_bot_by_uuid(bot_id, user_id, db)
     return bot_to_response(bot, user_id, db=db)
 
 
 @router.put("/{bot_id}", response_model=BotResponse)
 async def update_bot(
-    bot_id: int,
+    bot_id: str,  # UUID string
     request: BotUpdate,
     user=Depends(get_current_user_optional),
     db: Session = Depends(get_db) if get_db else None
 ):
-    """Update a bot configuration."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
     user_id = get_user_id(user)
 
-    # Fallback to SessionLocal if dependency injection not available
     close_db = False
     if db is None:
         db = SessionLocal()
         close_db = True
 
     try:
-        bot = db.query(BotConfig).filter(BotConfig.id == bot_id).first()
-        if not bot:
-            raise HTTPException(status_code=404, detail=f"Bot {bot_id} not found")
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        # Update fields
         if request.name is not None:
             existing = db.query(BotConfig).filter(
                 BotConfig.name == request.name,
-                BotConfig.id != bot_id
+                BotConfig.user_id == user_id,
+                BotConfig.id != bot.id
             ).first()
             if existing:
                 raise HTTPException(status_code=400, detail=f"Bot with name '{request.name}' already exists")
@@ -415,9 +415,7 @@ async def update_bot(
         if request.max_total_capital_pct is not None:
             bot.max_total_capital_pct = request.max_total_capital_pct
 
-        # Update strategies if provided
         if request.strategies is not None:
-            # Validate total allocation
             total_allocation = sum(s.capital_allocation_pct for s in request.strategies)
             if total_allocation > 1.0:
                 raise HTTPException(
@@ -425,19 +423,17 @@ async def update_bot(
                     detail=f"Total capital allocation ({total_allocation:.0%}) exceeds 100%"
                 )
 
-            # Remove existing strategies
-            db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot_id))
+            db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot.id))
 
-            # Add new strategies
             for alloc in request.strategies:
-                strategy = db.query(StrategyConfig).filter(StrategyConfig.id == alloc.strategy_id).first()
+                strategy = get_strategy_by_uuid(alloc.strategy_id, db)
                 if not strategy:
                     raise HTTPException(status_code=400, detail=f"Strategy {alloc.strategy_id} not found")
 
                 db.execute(
                     bot_strategies.insert().values(
-                        bot_id=bot_id,
-                        strategy_id=alloc.strategy_id,
+                        bot_id=bot.id,
+                        strategy_id=strategy.id,  # Use internal ID for junction table
                         max_positions=alloc.max_positions,
                         capital_allocation_pct=alloc.capital_allocation_pct,
                     )
@@ -446,7 +442,7 @@ async def update_bot(
         db.commit()
         db.refresh(bot)
 
-        console.print(f"[green]Updated bot: {bot.name} (ID: {bot.id})[/green]")
+        console.print(f"[green]Updated bot: {bot.name} (UUID: {bot.uuid})[/green]")
         return bot_to_response(bot, user_id, db=db)
     finally:
         if close_db:
@@ -455,69 +451,56 @@ async def update_bot(
 
 @router.delete("/{bot_id}")
 async def delete_bot(
-    bot_id: int,
+    bot_id: str,  # UUID string
     user=Depends(get_current_user_optional),
     db: Session = Depends(get_db) if get_db else None
 ):
-    """Delete a bot configuration."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
     user_id = get_user_id(user)
 
-    # Fallback to SessionLocal if dependency injection not available
     close_db = False
     if db is None:
         db = SessionLocal()
         close_db = True
 
     try:
-        bot = db.query(BotConfig).filter(BotConfig.id == bot_id).first()
-        if not bot:
-            raise HTTPException(status_code=404, detail=f"Bot {bot_id} not found")
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        # Stop bot if running
-        running, pid = is_bot_running(user_id, bot_id)
+        running, pid = is_bot_running(user_id, bot.id)
         if running:
-            stop_bot_process(user_id, bot_id)
+            stop_bot_process(user_id, bot.id)
 
-        # Remove strategy associations
-        db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot_id))
+        db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot.id))
 
-        # Delete bot
         db.delete(bot)
         db.commit()
 
-        console.print(f"[yellow]Deleted bot: {bot.name} (ID: {bot_id})[/yellow]")
+        console.print(f"[yellow]Deleted bot: {bot.name} (UUID: {bot_id})[/yellow]")
         return {"message": f"Bot {bot_id} deleted successfully"}
     finally:
         if close_db:
             db.close()
 
 
-# ==================== Bot Control Endpoints ====================
-
 def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> subprocess.Popen:
-    """Start a bot as a background process."""
-    # Stop existing if running
     running, _ = is_bot_running(user_id, bot_id)
     if running:
         stop_bot_process(user_id, bot_id)
 
-    # Create log file
-    log_path = Path(f"/tmp/bot-{bot_id}.log")
+    log_path = Path(f"/tmp/bot-{user_id}-{bot_id}.log")
     log_file = open(log_path, 'w')
 
-    # Build command
     cmd = [
         sys.executable,
         str(Path(__file__).parent.parent / "trading" / "multi_strategy_runner.py"),
         f"--bot-id={bot_id}",
+        f"--user-id={user_id}",
     ]
     if test_mode:
         cmd.append("--test")
 
-    # Start process
     process = subprocess.Popen(
         cmd,
         stdout=log_file,
@@ -525,7 +508,6 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> sub
         start_new_session=True,
     )
 
-    # Track process
     if user_id not in _bot_processes:
         _bot_processes[user_id] = {}
     _bot_processes[user_id][bot_id] = process
@@ -536,16 +518,13 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> sub
 
 
 def stop_bot_process(user_id: int, bot_id: int):
-    """Stop a running bot process."""
     if user_id in _bot_processes and bot_id in _bot_processes[user_id]:
         process = _bot_processes[user_id][bot_id]
         if process.poll() is None:
-            # Send SIGTERM for graceful shutdown
             process.terminate()
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                # Force kill if doesn't terminate
                 process.kill()
                 process.wait()
 
@@ -555,43 +534,37 @@ def stop_bot_process(user_id: int, bot_id: int):
 
 @router.post("/{bot_id}/start")
 async def start_bot(
-    bot_id: int,
+    bot_id: str,  # UUID string
     test_mode: bool = False,
     user=Depends(get_current_user_optional),
     db: Session = Depends(get_db) if get_db else None
 ):
-    """Start a multi-strategy bot."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
     user_id = get_user_id(user)
 
-    # Fallback to SessionLocal if dependency injection not available
     close_db = False
     if db is None:
         db = SessionLocal()
         close_db = True
 
     try:
-        bot = db.query(BotConfig).filter(BotConfig.id == bot_id).first()
-        if not bot:
-            raise HTTPException(status_code=404, detail=f"Bot {bot_id} not found")
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
         if not bot.is_active:
             raise HTTPException(status_code=400, detail="Bot is not active")
 
-        # Check if already running
-        running, pid = is_bot_running(user_id, bot_id)
+        running, pid = is_bot_running(user_id, bot.id)
         if running:
             return {"message": f"Bot {bot_id} already running", "pid": pid}
 
-        # Start bot
-        process = start_bot_process(user_id, bot_id, test_mode)
+        process = start_bot_process(user_id, bot.id, test_mode)
 
         return {
             "message": f"Bot {bot_id} started",
             "pid": process.pid,
-            "log_file": str(_bot_logs.get(bot_id)),
+            "log_file": str(_bot_logs.get(bot.id)),
         }
     finally:
         if close_db:
@@ -600,51 +573,60 @@ async def start_bot(
 
 @router.post("/{bot_id}/stop")
 async def stop_bot(
-    bot_id: int,
-    user=Depends(get_current_user_optional)
-):
-    """Stop a running bot."""
-    user_id = get_user_id(user)
-
-    running, pid = is_bot_running(user_id, bot_id)
-    if not running:
-        return {"message": f"Bot {bot_id} is not running"}
-
-    stop_bot_process(user_id, bot_id)
-
-    return {"message": f"Bot {bot_id} stopped"}
-
-
-@router.get("/{bot_id}/status", response_model=BotStatusResponse)
-async def get_bot_status(
-    bot_id: int,
+    bot_id: str,  # UUID string
     user=Depends(get_current_user_optional),
     db: Session = Depends(get_db) if get_db else None
 ):
-    """Get detailed bot status with live data."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
     user_id = get_user_id(user)
 
-    # Fallback to SessionLocal if dependency injection not available
     close_db = False
     if db is None:
         db = SessionLocal()
         close_db = True
 
     try:
-        bot = db.query(BotConfig).filter(BotConfig.id == bot_id).first()
-        if not bot:
-            raise HTTPException(status_code=404, detail=f"Bot {bot_id} not found")
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        running, pid = is_bot_running(user_id, bot_id)
+        running, pid = is_bot_running(user_id, bot.id)
+        if not running:
+            return {"message": f"Bot {bot_id} is not running"}
 
-        # Load snapshot for live data
-        snapshot = load_bot_snapshot(bot_id)
+        stop_bot_process(user_id, bot.id)
+
+        return {"message": f"Bot {bot_id} stopped"}
+    finally:
+        if close_db:
+            db.close()
+
+
+@router.get("/{bot_id}/status", response_model=BotStatusResponse)
+async def get_bot_status(
+    bot_id: str,  # UUID string
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
+):
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    user_id = get_user_id(user)
+
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        bot = get_bot_by_uuid(bot_id, user_id, db)
+
+        running, pid = is_bot_running(user_id, bot.id)
+
+        snapshot = load_bot_snapshot(bot.id, user_id)
 
         return BotStatusResponse(
-            bot_id=bot_id,
+            bot_id=bot.uuid,  # Return UUID
             bot_name=bot.name,
             running=running,
             pid=pid,
@@ -660,43 +642,51 @@ async def get_bot_status(
 
 @router.get("/{bot_id}/logs")
 async def get_bot_logs(
-    bot_id: int,
+    bot_id: str,  # UUID string
     lines: int = 100,
-    user=Depends(get_current_user_optional)
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
 ):
-    """Get recent bot logs."""
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
+
     user_id = get_user_id(user)
 
-    log_path = _bot_logs.get(bot_id)
-    if not log_path or not log_path.exists():
-        return {"logs": "", "message": "No logs available"}
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
 
     try:
-        # Read last N lines
-        with open(log_path, 'r') as f:
-            all_lines = f.readlines()
-            recent_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        return {
-            "logs": "".join(recent_lines),
-            "total_lines": len(all_lines),
-            "showing": len(recent_lines),
-        }
-    except Exception as e:
-        return {"logs": "", "error": str(e)}
+        log_path = _bot_logs.get(bot.id)
+        if not log_path or not log_path.exists():
+            return {"logs": "", "message": "No logs available"}
 
+        try:
+            with open(log_path, 'r') as f:
+                all_lines = f.readlines()
+                recent_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
 
-# ==================== Strategy Control Endpoints ====================
+            return {
+                "logs": "".join(recent_lines),
+                "total_lines": len(all_lines),
+                "showing": len(recent_lines),
+            }
+        except Exception as e:
+            return {"logs": "", "error": str(e)}
+    finally:
+        if close_db:
+            db.close()
+
 
 @router.post("/{bot_id}/strategies/{strategy_id}/start")
 async def start_strategy(
-    bot_id: int,
-    strategy_id: int,
+    bot_id: str,  # UUID string
+    strategy_id: str,  # UUID string
     user=Depends(get_current_user_optional)
 ):
-    """Start a specific strategy within a running bot."""
-    # This would require IPC with the running bot process
-    # For now, return a message that this requires bot restart
     return {
         "message": "Strategy control requires bot restart. Stop the bot, update config, and restart.",
         "bot_id": bot_id,
@@ -706,11 +696,10 @@ async def start_strategy(
 
 @router.post("/{bot_id}/strategies/{strategy_id}/stop")
 async def stop_strategy(
-    bot_id: int,
-    strategy_id: int,
+    bot_id: str,  # UUID string
+    strategy_id: str,  # UUID string
     user=Depends(get_current_user_optional)
 ):
-    """Stop a specific strategy within a running bot."""
     return {
         "message": "Strategy control requires bot restart. Stop the bot, update config, and restart.",
         "bot_id": bot_id,
@@ -718,356 +707,455 @@ async def stop_strategy(
     }
 
 
-# ==================== Portfolio Endpoints ====================
-
 @router.get("/{bot_id}/portfolio")
 async def get_bot_portfolio(
-    bot_id: int,
-    user=Depends(get_current_user_optional)
+    bot_id: str,  # UUID string
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
 ):
-    """Get combined portfolio for a bot."""
-    snapshot = load_bot_snapshot(bot_id)
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
 
-    if not snapshot:
-        raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+    user_id = get_user_id(user)
 
-    return {
-        "bot_id": bot_id,
-        "portfolio": snapshot.get('portfolio'),
-        "positions": snapshot.get('positions', []),
-        "strategies": snapshot.get('strategies', {}),
-        "timestamp": snapshot.get('timestamp'),
-    }
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        bot = get_bot_by_uuid(bot_id, user_id, db)
+
+        snapshot = load_bot_snapshot(bot.id, user_id)
+
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+
+        return {
+            "bot_id": bot.uuid,
+            "portfolio": snapshot.get('portfolio'),
+            "positions": snapshot.get('positions', []),
+            "strategies": snapshot.get('strategies', {}),
+            "timestamp": snapshot.get('timestamp'),
+        }
+    finally:
+        if close_db:
+            db.close()
 
 
 @router.get("/{bot_id}/positions")
 async def get_bot_positions(
-    bot_id: int,
-    strategy_id: Optional[int] = None,
-    user=Depends(get_current_user_optional)
+    bot_id: str,  # UUID string
+    strategy_id: Optional[str] = None,  # UUID string
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
 ):
-    """Get all positions for a bot, optionally filtered by strategy."""
-    snapshot = load_bot_snapshot(bot_id)
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
 
-    if not snapshot:
-        raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+    user_id = get_user_id(user)
 
-    positions = snapshot.get('positions', [])
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
 
-    if strategy_id is not None:
-        positions = [p for p in positions if p.get('strategy_id') == strategy_id]
+    try:
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-    return {
-        "bot_id": bot_id,
-        "positions": positions,
-        "count": len(positions),
-    }
+        snapshot = load_bot_snapshot(bot.id, user_id)
+
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+
+        positions = snapshot.get('positions', [])
+
+        # Filter by strategy UUID if provided
+        if strategy_id is not None:
+            # Need to convert strategy UUID to internal ID for comparison
+            strat = get_strategy_by_uuid(strategy_id, db)
+            positions = [p for p in positions if p.get('strategy_id') == strat.id]
+
+        return {
+            "bot_id": bot.uuid,
+            "positions": positions,
+            "count": len(positions),
+        }
+    finally:
+        if close_db:
+            db.close()
 
 
 @router.get("/{bot_id}/scan")
 async def get_bot_scan(
-    bot_id: int,
-    strategy_id: Optional[int] = None,
-    user=Depends(get_current_user_optional)
+    bot_id: str,  # UUID string
+    strategy_id: Optional[str] = None,  # UUID string
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
 ):
-    """Get scan items for a bot, optionally filtered by strategy."""
-    snapshot = load_bot_snapshot(bot_id)
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
 
-    if not snapshot:
-        raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+    user_id = get_user_id(user)
 
-    # Get combined scan items
-    scan_items = snapshot.get('scan_items', [])
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
 
-    # Or get from strategies
-    if not scan_items:
-        strategies = snapshot.get('strategies', {})
-        for strat_id, strat_data in strategies.items():
-            strat_scan = strat_data.get('scan_items', [])
-            for item in strat_scan:
-                item['strategy_id'] = int(strat_id)
-                item['strategy_name'] = strat_data.get('name', f'Strategy {strat_id}')
-            scan_items.extend(strat_scan)
+    try:
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-    # Filter by strategy if specified
-    if strategy_id is not None:
-        scan_items = [s for s in scan_items if s.get('strategy_id') == strategy_id]
+        snapshot = load_bot_snapshot(bot.id, user_id)
 
-    return {
-        "bot_id": bot_id,
-        "scan_items": scan_items,
-        "count": len(scan_items),
-        "timestamp": snapshot.get('timestamp'),
-    }
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
 
+        scan_items = snapshot.get('scan_items', [])
 
-# ==================== Performance Endpoints ====================
+        if not scan_items:
+            strategies = snapshot.get('strategies', {})
+            for strat_id, strat_data in strategies.items():
+                strat_scan = strat_data.get('scan_items', [])
+                for item in strat_scan:
+                    item['strategy_id'] = int(strat_id)
+                    item['strategy_name'] = strat_data.get('name', f'Strategy {strat_id}')
+                scan_items.extend(strat_scan)
+
+        # Filter by strategy UUID if provided
+        if strategy_id is not None:
+            strat = get_strategy_by_uuid(strategy_id, db)
+            scan_items = [s for s in scan_items if s.get('strategy_id') == strat.id]
+
+        return {
+            "bot_id": bot.uuid,
+            "scan_items": scan_items,
+            "count": len(scan_items),
+            "timestamp": snapshot.get('timestamp'),
+        }
+    finally:
+        if close_db:
+            db.close()
+
 
 @router.get("/{bot_id}/performance")
 async def get_bot_performance(
-    bot_id: int,
+    bot_id: str,  # UUID string
     days: int = 30,
-    user=Depends(get_current_user_optional)
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
 ):
-    """Get combined performance for a bot."""
-    snapshot = load_bot_snapshot(bot_id)
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
 
-    if not snapshot:
-        raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+    user_id = get_user_id(user)
 
-    portfolio = snapshot.get('portfolio', {})
-    strategies = snapshot.get('strategies', {})
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
 
-    # Calculate combined stats
-    total_trades = sum(
-        s.get('portfolio_status', {}).get('trades_count', 0)
-        for s in strategies.values()
-    )
+    try:
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-    return {
-        "bot_id": bot_id,
-        "summary": {
-            "total_pnl": portfolio.get('total_pnl', 0),
-            "total_pnl_pct": portfolio.get('total_pnl_pct', 0),
-            "daily_pnl": portfolio.get('daily_pnl', 0),
-            "total_trades": total_trades,
-            "total_positions": portfolio.get('total_positions', 0),
-        },
-        "by_strategy": {
-            strat_id: {
-                "name": strat_data.get('name'),
-                "pnl": strat_data.get('portfolio_status', {}).get('total_pnl', 0),
-                "trades": strat_data.get('portfolio_status', {}).get('trades_count', 0),
-                "positions": strat_data.get('portfolio_status', {}).get('positions_count', 0),
-            }
-            for strat_id, strat_data in strategies.items()
-        },
-        "period_days": days,
-        "timestamp": snapshot.get('timestamp'),
-    }
+        snapshot = load_bot_snapshot(bot.id, user_id)
+
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+
+        portfolio = snapshot.get('portfolio', {})
+        strategies = snapshot.get('strategies', {})
+
+        total_trades = sum(
+            s.get('portfolio_status', {}).get('trades_count', 0)
+            for s in strategies.values()
+        )
+
+        return {
+            "bot_id": bot.uuid,
+            "summary": {
+                "total_pnl": portfolio.get('total_pnl', 0),
+                "total_pnl_pct": portfolio.get('total_pnl_pct', 0),
+                "daily_pnl": portfolio.get('daily_pnl', 0),
+                "total_trades": total_trades,
+                "total_positions": portfolio.get('total_positions', 0),
+            },
+            "by_strategy": {
+                strat_id: {
+                    "name": strat_data.get('name'),
+                    "pnl": strat_data.get('portfolio_status', {}).get('total_pnl', 0),
+                    "trades": strat_data.get('portfolio_status', {}).get('trades_count', 0),
+                    "positions": strat_data.get('portfolio_status', {}).get('positions_count', 0),
+                }
+                for strat_id, strat_data in strategies.items()
+            },
+            "period_days": days,
+            "timestamp": snapshot.get('timestamp'),
+        }
+    finally:
+        if close_db:
+            db.close()
 
 
 @router.get("/{bot_id}/performance/compare")
 async def compare_strategy_performance(
-    bot_id: int,
-    user=Depends(get_current_user_optional)
+    bot_id: str,  # UUID string
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
 ):
-    """Compare performance across strategies in a bot."""
-    snapshot = load_bot_snapshot(bot_id)
-
-    if not snapshot:
-        raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
-
-    strategies = snapshot.get('strategies', {})
-
-    comparison = []
-    for strat_id, strat_data in strategies.items():
-        status = strat_data.get('portfolio_status', {})
-        comparison.append({
-            "strategy_id": int(strat_id),
-            "strategy_name": strat_data.get('name'),
-            "status": strat_data.get('status'),
-            "trades": status.get('trades_count', 0),
-            "positions": status.get('positions_count', 0),
-            "realized_pnl": status.get('realized_pnl', 0),
-            "unrealized_pnl": status.get('unrealized_pnl', 0),
-            "total_pnl": status.get('total_pnl', 0),
-            "capital_used": status.get('capital_used', 0),
-            "capital_used_pct": status.get('capital_used_pct', 0),
-        })
-
-    # Sort by total P&L
-    comparison.sort(key=lambda x: x['total_pnl'], reverse=True)
-
-    return {
-        "bot_id": bot_id,
-        "comparison": comparison,
-        "timestamp": snapshot.get('timestamp'),
-    }
-
-
-# ==================== Journal & Trade History Endpoints ====================
-
-@router.get("/{bot_id}/trades")
-async def get_bot_trades(
-    bot_id: int,
-    strategy_id: Optional[int] = None,
-    limit: int = 100,
-    include_test: bool = True,  # Include test/seeded data by default
-    user_id_query: Optional[int] = None,  # For testing without auth
-    user=Depends(get_current_user_optional)
-):
-    """Get trade history for a bot, optionally filtered by strategy."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
-    # Allow query param override for testing
-    user_id = user_id_query if user_id_query is not None else get_user_id(user)
+    user_id = get_user_id(user)
 
-    # Get the journal for this user
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
     try:
-        from trading.journal import get_journal
-        journal = get_journal(user_id)
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        # Filter trades by bot's strategies
-        with SessionLocal() as db:
-            result = db.execute(
-                bot_strategies.select().where(bot_strategies.c.bot_id == bot_id)
-            ).fetchall()
+        snapshot = load_bot_snapshot(bot.id, user_id)
 
-            strategy_ids = [row.strategy_id for row in result]
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
 
-        # Filter trades
-        trades = []
-        for trade in journal.trades:
-            # Only include trades from this bot's strategies
-            if trade.strategy_id in strategy_ids:
-                if strategy_id is None or trade.strategy_id == strategy_id:
-                    # Filter out test trades if requested
-                    if not include_test and getattr(trade, 'is_test', False):
-                        continue
-                    trades.append({
-                        'trade_id': trade.trade_id,
-                        'symbol': trade.symbol,
-                        'side': trade.side,
-                        'quantity': trade.quantity,
-                        'entry_price': trade.entry_price,
-                        'exit_price': trade.exit_price,
-                        'entry_time': trade.entry_time,
-                        'exit_time': trade.exit_time,
-                        'pnl': trade.pnl,
-                        'pnl_pct': trade.pnl_pct,
-                        'exit_reason': trade.exit_reason,
-                        'costs': trade.costs,
-                        'net_pnl': trade.net_pnl,
-                        'strategy_id': trade.strategy_id,
-                        'strategy_name': trade.strategy_name,
-                        'is_test': getattr(trade, 'is_test', False),
-                        'source': getattr(trade, 'source', 'live'),
-                    })
+        strategies = snapshot.get('strategies', {})
 
-        # Sort by exit time (most recent first) and limit
-        trades.sort(key=lambda x: x['exit_time'], reverse=True)
-        trades = trades[:limit]
+        comparison = []
+        for strat_id, strat_data in strategies.items():
+            status = strat_data.get('portfolio_status', {})
+            comparison.append({
+                "strategy_id": int(strat_id),
+                "strategy_name": strat_data.get('name'),
+                "status": strat_data.get('status'),
+                "trades": status.get('trades_count', 0),
+                "positions": status.get('positions_count', 0),
+                "realized_pnl": status.get('realized_pnl', 0),
+                "unrealized_pnl": status.get('unrealized_pnl', 0),
+                "total_pnl": status.get('total_pnl', 0),
+                "capital_used": status.get('capital_used', 0),
+                "capital_used_pct": status.get('capital_used_pct', 0),
+            })
+
+        comparison.sort(key=lambda x: x['total_pnl'], reverse=True)
 
         return {
-            "bot_id": bot_id,
-            "trades": trades,
-            "count": len(trades),
-            "strategy_filter": strategy_id,
+            "bot_id": bot.uuid,
+            "comparison": comparison,
+            "timestamp": snapshot.get('timestamp'),
         }
+    finally:
+        if close_db:
+            db.close()
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get trades: {str(e)}")
+
+@router.get("/{bot_id}/trades")
+async def get_bot_trades(
+    bot_id: str,  # UUID string
+    strategy_id: Optional[str] = None,  # UUID string
+    limit: int = 100,
+    include_test: bool = True,
+    user_id_query: Optional[int] = None,
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
+):
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    user_id = user_id_query if user_id_query is not None else get_user_id(user)
+
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        bot = get_bot_by_uuid(bot_id, user_id, db)
+
+        try:
+            from trading.journal import get_journal
+            journal = get_journal(user_id)
+
+            journal.load_all_journals(days=30)
+
+            with SessionLocal() as session:
+                result = session.execute(
+                    bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
+                ).fetchall()
+
+                strategy_ids = [row.strategy_id for row in result]
+
+            # Convert strategy UUID filter to internal ID if provided
+            strategy_internal_id = None
+            if strategy_id is not None:
+                strat = get_strategy_by_uuid(strategy_id, db)
+                strategy_internal_id = strat.id
+
+            trades = []
+            for trade in journal.trades:
+                if trade.strategy_id in strategy_ids:
+                    if strategy_internal_id is None or trade.strategy_id == strategy_internal_id:
+                        if not include_test and getattr(trade, 'is_test', False):
+                            continue
+                        trades.append({
+                            'trade_id': trade.trade_id,
+                            'symbol': trade.symbol,
+                            'side': trade.side,
+                            'quantity': trade.quantity,
+                            'entry_price': trade.entry_price,
+                            'exit_price': trade.exit_price,
+                            'entry_time': trade.entry_time,
+                            'exit_time': trade.exit_time,
+                            'pnl': trade.pnl,
+                            'pnl_pct': trade.pnl_pct,
+                            'exit_reason': trade.exit_reason,
+                            'costs': trade.costs,
+                            'net_pnl': trade.net_pnl,
+                            'strategy_id': trade.strategy_id,
+                            'strategy_name': trade.strategy_name,
+                            'is_test': getattr(trade, 'is_test', False),
+                            'source': getattr(trade, 'source', 'live'),
+                        })
+
+            trades.sort(key=lambda x: x['exit_time'], reverse=True)
+            trades = trades[:limit]
+
+            return {
+                "bot_id": bot.uuid,
+                "trades": trades,
+                "count": len(trades),
+                "strategy_filter": strategy_id,
+            }
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get trades: {str(e)}")
+    finally:
+        if close_db:
+            db.close()
 
 
 @router.get("/{bot_id}/trade-count")
 async def get_bot_trade_count(
-    bot_id: int,
-    user_id_query: Optional[int] = None,  # For testing without auth
-    user=Depends(get_current_user_optional)
+    bot_id: str,  # UUID string
+    user_id_query: Optional[int] = None,
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
 ):
-    """Get count of trades for a bot (used to prevent deletion if trades exist)."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
-    # Allow query param override for testing
     user_id = user_id_query if user_id_query is not None else get_user_id(user)
 
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
     try:
-        from trading.journal import get_journal
-        journal = get_journal(user_id)
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        # Get bot's strategy IDs
-        with SessionLocal() as db:
-            result = db.execute(
-                bot_strategies.select().where(bot_strategies.c.bot_id == bot_id)
-            ).fetchall()
-            strategy_ids = [row.strategy_id for row in result]
+        try:
+            from trading.journal import get_journal
+            journal = get_journal(user_id)
 
-        # Count trades from this bot's strategies
-        count = sum(1 for t in journal.trades if t.strategy_id in strategy_ids)
+            with SessionLocal() as session:
+                result = session.execute(
+                    bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
+                ).fetchall()
+                strategy_ids = [row.strategy_id for row in result]
 
-        return {"count": count}
+            count = sum(1 for t in journal.trades if t.strategy_id in strategy_ids)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get trade count: {str(e)}")
+            return {"count": count}
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get trade count: {str(e)}")
+    finally:
+        if close_db:
+            db.close()
 
 
 @router.get("/{bot_id}/strategy-performance")
 async def get_strategy_performance(
-    bot_id: int,
+    bot_id: str,  # UUID string
     days: int = 30,
-    include_test: bool = True,  # Include test/seeded data by default
-    user_id_query: Optional[int] = None,  # For testing without auth
-    user=Depends(get_current_user_optional)
+    include_test: bool = True,
+    user_id_query: Optional[int] = None,
+    user=Depends(get_current_user_optional),
+    db: Session = Depends(get_db) if get_db else None
 ):
-    """Get performance breakdown by strategy from the trade journal."""
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
-    # Allow query param override for testing
     user_id = user_id_query if user_id_query is not None else get_user_id(user)
 
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
     try:
-        from trading.journal import get_journal
-        journal = get_journal(user_id)
+        bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        # Load historical journals for comprehensive analysis
-        journal.load_all_journals(days=days)
+        try:
+            from trading.journal import get_journal
+            journal = get_journal(user_id)
 
-        # Get all strategy performance (with optional test filtering)
-        all_strategy_perf = journal.get_strategy_performance(include_test=include_test)
+            journal.load_all_journals(days=days)
 
-        # Filter to only this bot's strategies
-        with SessionLocal() as db:
-            result = db.execute(
-                bot_strategies.select().where(bot_strategies.c.bot_id == bot_id)
-            ).fetchall()
+            all_strategy_perf = journal.get_strategy_performance(include_test=include_test)
 
-            bot_strategy_ids = [row.strategy_id for row in result]
+            with SessionLocal() as session:
+                result = session.execute(
+                    bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
+                ).fetchall()
 
-        # Filter performance to this bot's strategies
-        bot_performance = {
-            str(sid): perf
-            for sid, perf in all_strategy_perf.items()
-            if sid in bot_strategy_ids
-        }
+                bot_strategy_ids = [row.strategy_id for row in result]
 
-        # Calculate combined stats
-        combined = {
-            'total_trades': 0,
-            'total_winners': 0,
-            'total_losers': 0,
-            'total_pnl': 0,
-            'total_net_pnl': 0,
-            'total_costs': 0,
-            'test_trades': 0,
-        }
+            bot_performance = {
+                str(sid): perf
+                for sid, perf in all_strategy_perf.items()
+                if sid in bot_strategy_ids
+            }
 
-        for perf in bot_performance.values():
-            combined['total_trades'] += perf['trades']
-            combined['total_winners'] += perf['winners']
-            combined['total_losers'] += perf['losers']
-            combined['total_pnl'] += perf.get('total_pnl', 0)
-            combined['total_net_pnl'] += perf['net_pnl']
-            combined['total_costs'] += perf['total_costs']
-            combined['test_trades'] += perf.get('test_trades', 0)
+            combined = {
+                'total_trades': 0,
+                'total_winners': 0,
+                'total_losers': 0,
+                'total_pnl': 0,
+                'total_net_pnl': 0,
+                'total_costs': 0,
+                'test_trades': 0,
+            }
 
-        if combined['total_trades'] > 0:
-            combined['win_rate'] = round(
-                combined['total_winners'] / combined['total_trades'] * 100, 1
-            )
-        else:
-            combined['win_rate'] = 0
+            for perf in bot_performance.values():
+                combined['total_trades'] += perf['trades']
+                combined['total_winners'] += perf['winners']
+                combined['total_losers'] += perf['losers']
+                combined['total_pnl'] += perf.get('total_pnl', 0)
+                combined['total_net_pnl'] += perf['net_pnl']
+                combined['total_costs'] += perf['total_costs']
+                combined['test_trades'] += perf.get('test_trades', 0)
 
-        combined['has_test_data'] = combined['test_trades'] > 0
+            if combined['total_trades'] > 0:
+                combined['win_rate'] = round(
+                    combined['total_winners'] / combined['total_trades'] * 100, 1
+                )
+            else:
+                combined['win_rate'] = 0
 
-        return {
-            "bot_id": bot_id,
-            "by_strategy": bot_performance,
-            "combined": combined,
-        }
+            combined['has_test_data'] = combined['test_trades'] > 0
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get strategy performance: {str(e)}")
+            return {
+                "bot_id": bot.uuid,
+                "by_strategy": bot_performance,
+                "combined": combined,
+            }
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get strategy performance: {str(e)}")
+    finally:
+        if close_db:
+            db.close()

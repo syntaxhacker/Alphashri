@@ -39,7 +39,7 @@ async function setupBotMocksForId(page: Page, botId: string, customScanItems?: o
       contentType: "application/json",
       body: JSON.stringify([
         {
-          id: parseInt(botId),
+          id: botId,
           name: `Multi-Strategy Bot ${botId}`,
           strategies: [
             { id: 1, name: "ORB Conservative", allocation: 0.5 },
@@ -202,7 +202,7 @@ async function setupBotMocksForId(page: Page, botId: string, customScanItems?: o
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        bot_id: parseInt(botId),
+        bot_id: botId,
         scan_items: scanItems,
         count: scanItems.length,
       }),
@@ -377,7 +377,9 @@ test.describe("Multi-Strategy System - Watchlists", () => {
       if ((await chaserTab.count()) > 0) {
         await chaserTab.click();
         await page.waitForTimeout(300);
-        const chaserSymbols = await page.locator(".scan-table tbody td:first-child").allTextContents();
+        const chaserSymbols = await page
+          .locator(".scan-table tbody td:first-child")
+          .allTextContents();
         // Symbols may differ in production
         expect(Array.isArray(orbSymbols) && Array.isArray(chaserSymbols)).toBeTruthy();
       }
@@ -443,7 +445,9 @@ test.describe("Multi-Strategy System - Scan Items Filter", () => {
       await orbTab.click();
       await page.waitForTimeout(300);
 
-      const strategyCells = await page.locator(".scan-table tbody td:has-text('ORB')").allTextContents();
+      const strategyCells = await page
+        .locator(".scan-table tbody td:has-text('ORB')")
+        .allTextContents();
       expect(strategyCells.every((s) => s.includes("ORB"))).toBeTruthy();
     }
   });

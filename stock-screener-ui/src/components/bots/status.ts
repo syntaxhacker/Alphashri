@@ -10,17 +10,24 @@ import type {
   PortfolioSummary,
   StrategyStatus,
   BotPosition,
+  BotTrade,
 } from "../../types/bots";
 import {
   getBotsState,
   loadBotStatus,
+  loadBotTrades,
   startBotAction,
   stopBotAction,
   startAutoRefresh,
   stopAutoRefresh,
 } from "../../state/bots";
+import { isLoading } from "../../utils/loading";
 
 export function renderBotStatusPanel(bot: BotConfig, status: BotStatus | null): string {
+  const state = getBotsState();
+  const trades = state.botTrades;
+  const tradesLoading = isLoading(state.loading, "trades");
+
   return `
     <div class="bot-status-panel" data-testid="bot-status-panel" data-bot-id="${bot.id}">
       <!-- Bot Header -->
@@ -35,17 +42,17 @@ export function renderBotStatusPanel(bot: BotConfig, status: BotStatus | null): 
           ${
             status?.running
               ? `
-            <button class="btn btn-warning" onclick="window.stopBotFromStatus(${bot.id})" data-testid="stop-bot-btn">
+            <button class="btn btn-warning" onclick="window.stopBotFromStatus('${bot.id}')" data-testid="stop-bot-btn">
               ⏹ Stop Bot
             </button>
           `
               : `
-            <button class="btn btn-success" onclick="window.startBotFromStatus(${bot.id})" data-testid="start-bot-btn">
+            <button class="btn btn-success" onclick="window.startBotFromStatus('${bot.id}')" data-testid="start-bot-btn">
               ▶ Start Bot
             </button>
           `
           }
-          <button class="btn btn-secondary" onclick="window.refreshBotStatus(${bot.id})" data-testid="refresh-bot-status-btn">
+          <button class="btn btn-secondary" onclick="window.refreshBotStatus('${bot.id}')" data-testid="refresh-bot-status-btn">
             🔄 Refresh
           </button>
         </div>
@@ -63,7 +70,7 @@ export function renderBotStatusPanel(bot: BotConfig, status: BotStatus | null): 
       }
 
       <!-- Strategies Status -->
-      ${status?.strategies ? renderStrategiesStatus(status.strategies, status.running) : ""}
+      ${status?.strategies ? renderStrategiesStatus(status.strategies, status?.running ?? false) : ""}
 
       <!-- Positions -->
       ${
@@ -77,6 +84,9 @@ export function renderBotStatusPanel(bot: BotConfig, status: BotStatus | null): 
         `
             : ""
       }
+
+      <!-- Trade History -->
+      ${renderTradesHistory(trades, tradesLoading, bot.id)}
 
       <!-- Last Update -->
       ${
@@ -234,6 +244,98 @@ function renderPositionRow(position: BotPosition): string {
   `;
 }
 
+function renderTradesHistory(trades: BotTrade[], loading: boolean, botId: string): string {
+  if (loading) {
+    return `
+      <div class="bot-trades" data-testid="bot-trades">
+        <h4>Trade History</h4>
+        <div class="trades-loading">
+          <div class="spinner-small"></div>
+          <span>Loading trades...</span>
+        </div>
+      </div>
+    `;
+  }
+
+  if (trades.length === 0) {
+    return `
+      <div class="bot-trades" data-testid="bot-trades">
+        <h4>Trade History</h4>
+        <div class="no-trades">
+          <p>No trades yet</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="bot-trades" data-testid="bot-trades">
+      <div class="trades-header">
+        <h4>Trade History (${trades.length})</h4>
+        <button class="btn btn-small btn-secondary" onclick="window.refreshBotTrades('${botId}')" data-testid="refresh-trades-btn">
+          🔄 Refresh
+        </button>
+      </div>
+      <table class="trades-table">
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Symbol</th>
+            <th>Side</th>
+            <th>Qty</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>P&L</th>
+            <th>Net P&L</th>
+            <th>Exit Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${trades.map((t) => renderTradeRow(t)).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderTradeRow(trade: BotTrade): string {
+  const pnlColor = trade.pnl >= 0 ? "positive" : "negative";
+  const netPnlColor = trade.net_pnl >= 0 ? "positive" : "negative";
+
+  return `
+    <tr class="trade-row ${trade.is_test ? "test-trade" : ""}">
+      <td class="strategy-name">
+        ${trade.strategy_name}
+        ${trade.is_test ? '<span class="test-badge">TEST</span>' : ""}
+      </td>
+      <td class="symbol">${trade.symbol}</td>
+      <td class="side ${trade.side.toLowerCase()}">${trade.side}</td>
+      <td class="quantity">${trade.quantity}</td>
+      <td class="entry">₹${trade.entry_price.toFixed(2)}</td>
+      <td class="exit">₹${trade.exit_price.toFixed(2)}</td>
+      <td class="pnl ${pnlColor}">
+        ${trade.pnl >= 0 ? "+" : ""}₹${formatNumber(trade.pnl)}
+        <span class="pnl-pct">(${trade.pnl_pct >= 0 ? "+" : ""}${trade.pnl_pct.toFixed(2)}%)</span>
+      </td>
+      <td class="net-pnl ${netPnlColor}">
+        ${trade.net_pnl >= 0 ? "+" : ""}₹${formatNumber(trade.net_pnl)}
+      </td>
+      <td class="exit-reason ${trade.exit_reason}">${formatExitReason(trade.exit_reason)}</td>
+    </tr>
+  `;
+}
+
+function formatExitReason(reason: string): string {
+  const reasons: Record<string, string> = {
+    target: "Target",
+    stop_loss: "Stop Loss",
+    signal: "Signal",
+    manual: "Manual",
+    timeout: "Timeout",
+  };
+  return reasons[reason] || reason;
+}
+
 function formatNumber(num: number): string {
   if (Math.abs(num) >= 100000) {
     return (num / 100000).toFixed(1) + "L";
@@ -245,23 +347,28 @@ function formatNumber(num: number): string {
 
 // Initialize status panel handlers
 export function initStatusHandlers() {
-  (window as any).refreshBotStatus = async (botId: number) => {
-    await loadBotStatus(botId);
+  (window as any).refreshBotStatus = async (botId: string) => {
+    await Promise.all([loadBotStatus(botId), loadBotTrades(botId)]);
   };
 
-  (window as any).startBotFromStatus = async (botId: number) => {
+  (window as any).startBotFromStatus = async (botId: string) => {
     const success = await startBotAction(botId, false);
     if (success) {
       await loadBotStatus(botId);
+      await loadBotTrades(botId);
       startAutoRefresh(botId, 5000);
     }
   };
 
-  (window as any).stopBotFromStatus = async (botId: number) => {
+  (window as any).stopBotFromStatus = async (botId: string) => {
     const success = await stopBotAction(botId);
     if (success) {
       stopAutoRefresh();
       await loadBotStatus(botId);
     }
+  };
+
+  (window as any).refreshBotTrades = async (botId: string) => {
+    await loadBotTrades(botId);
   };
 }

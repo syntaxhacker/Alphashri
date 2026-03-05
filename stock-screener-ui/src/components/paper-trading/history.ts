@@ -7,7 +7,7 @@ import {
   setSelectedSymbol,
   setFilterStrategy,
   setFilterBot,
-  deleteTradeAction
+  deleteTradeAction,
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
@@ -64,8 +64,8 @@ function getUniqueStrategies(trades: PaperTrade[]): string[] {
   return Array.from(strategies).sort();
 }
 
-function getUniqueBots(trades: PaperTrade[]): Array<{ id: number; name: string }> {
-  const botsMap = new Map<number, string>();
+function getUniqueBots(trades: PaperTrade[]): Array<{ id: string; name: string }> {
+  const botsMap = new Map<string, string>();
   for (const trade of trades) {
     if (trade.bot_id && trade.bot_name) {
       botsMap.set(trade.bot_id, trade.bot_name);
@@ -107,7 +107,10 @@ function renderStrategyFilter(strategies: string[], currentFilter: string | null
   `;
 }
 
-function renderBotFilter(bots: Array<{ id: number; name: string }>, currentFilter: number | null): string {
+function renderBotFilter(
+  bots: Array<{ id: string; name: string }>,
+  currentFilter: string | null,
+): string {
   // Always show filter bar if there's an active filter, even with only one bot
   if (bots.length <= 1 && !currentFilter) {
     return "";
@@ -129,7 +132,7 @@ function renderBotFilter(bots: Array<{ id: number; name: string }>, currentFilte
       ${
         currentFilter
           ? `
-        <span class="filter-active-indicator">Showing: ${bots.find(bot => bot.id === currentFilter)?.name || ""}</span>
+        <span class="filter-active-indicator">Showing: ${bots.find((bot) => bot.id === currentFilter)?.name || ""}</span>
         <button class="btn btn-small btn-secondary" onclick="window.clearBotFilter()">Clear</button>
       `
           : ""
@@ -287,7 +290,7 @@ function renderDayGroup(date: string, trades: PaperTrade[], selectedSymbol: stri
                 <td class="${tradePnlClass}">
                   <strong>₹${formatNumber(trade.net_pnl)}</strong>
                 </td>
-                <td class="bot-cell" onclick="event.stopPropagation(); window.viewBotHistory(${trade.bot_id || 0})" title="Click to view trades for this bot">
+                <td class="bot-cell" onclick="event.stopPropagation(); window.viewBotHistory('${trade.bot_id || ""}')" title="Click to view trades for this bot">
                   ${trade.bot_name || "-"}
                 </td>
                 <td class="strategy-cell" onclick="event.stopPropagation(); window.viewStrategyHistory('${trade.strategy_name || "default"}')" title="Click to view trades for this strategy">

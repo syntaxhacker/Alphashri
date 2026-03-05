@@ -102,6 +102,6 @@ export async function listBots(): Promise<{
   return apiGet<{ bots: BotConfig[]; count: number }>(`${STRATEGY_BASE}/bots`);
 }
 
-export async function getBot(botId: number): Promise<{ bot: BotConfig }> {
+export async function getBot(botId: string): Promise<{ bot: BotConfig }> {
   return apiGet<{ bot: BotConfig }>(`${STRATEGY_BASE}/bots/${botId}`);
 }

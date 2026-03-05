@@ -109,7 +109,7 @@ export interface StrategyPerformance {
 
 // Bot configuration
 export interface BotConfig {
-  id: number;
+  id: string; // UUID string
   name: string;
   is_active: boolean;
   max_total_positions: number;

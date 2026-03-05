@@ -42,7 +42,7 @@ export interface PaperTrade {
   notes: string;
   strategy_id: number;
   strategy_name: string;
-  bot_id: number | null;
+  bot_id: string | null;
   bot_name: string | null;
 }
 
@@ -185,7 +185,7 @@ export interface PaperTradingState {
   filterToDate: string | null;
   filterSymbol: string | null;
   filterStrategy: string | null; // Filter by strategy name
-  filterBot: number | null; // Filter by bot ID
+  filterBot: string | null; // Filter by bot ID (UUID)
 
   // Chart state
   selectedSymbol: string | null;
@@ -222,10 +222,10 @@ export type PaperView = "live" | "history" | "settings";
 
 // Bot info for multi-strategy
 export interface BotInfo {
-  id: number;
+  id: string; // UUID string
   name: string;
   strategies: Array<{
-    id: number;
+    id: string; // UUID string
     name: string;
     strategy_type: string;
   }>;
@@ -234,7 +234,7 @@ export interface BotInfo {
 
 // Strategy configuration from database
 export interface StrategyConfig {
-  id?: number;
+  id?: string; // UUID string
   name: string;
   strategy_type: string;
   is_active: boolean;

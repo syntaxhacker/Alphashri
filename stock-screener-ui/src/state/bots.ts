@@ -13,16 +13,31 @@ import type {
   StrategyComparison,
   BotCreate,
   BotUpdate,
+  BotLoadingKey,
+  BotTrade,
 } from "../types/bots";
 import * as api from "../api/bots";
+import { createLoadingState, setLoading as setLoadingState } from "../utils/loading";
 
 // Initial state
 const initialState: BotsState = {
   bots: [],
   selectedBot: null,
   botStatus: null,
+  botTrades: [],
   availableStrategies: [],
-  isLoading: false,
+  loading: createLoadingState<BotLoadingKey>([
+    "list",
+    "load",
+    "status",
+    "strategies",
+    "create",
+    "update",
+    "delete",
+    "start",
+    "stop",
+    "trades",
+  ]),
   error: null,
   showCreateModal: false,
   showEditModal: false,
@@ -74,8 +89,8 @@ export function setCurrentView(view: BotsView) {
 }
 
 // Set loading state
-function setLoading(loading: boolean) {
-  state = { ...state, isLoading: loading };
+function setLoading(key: BotLoadingKey, loading: boolean) {
+  state = { ...state, loading: setLoadingState<BotLoadingKey>(state.loading, key, loading) };
   notify();
 }
 
@@ -87,77 +102,128 @@ function setError(error: string | null) {
 
 // Load all bots
 export async function loadBots(): Promise<void> {
-  setLoading(true);
+  setLoading("list", true);
   setError(null);
   try {
     const bots = await api.listBots();
-    state = { ...state, bots, isLoading: false };
+    state = {
+      ...state,
+      bots,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "list", false),
+    };
     notify();
   } catch (error) {
     state = {
       ...state,
       error: error instanceof Error ? error.message : "Failed to load bots",
-      isLoading: false,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "list", false),
     };
     notify();
   }
 }
 
 // Load a specific bot
-export async function loadBot(botId: number): Promise<void> {
-  setLoading(true);
+export async function loadBot(botId: string): Promise<void> {
+  setLoading("load", true);
   setError(null);
   try {
     const bot = await api.getBot(botId);
-    state = { ...state, selectedBot: bot, isLoading: false };
+    state = {
+      ...state,
+      selectedBot: bot,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "load", false),
+    };
     notify();
   } catch (error) {
     state = {
       ...state,
       error: error instanceof Error ? error.message : "Failed to load bot",
-      isLoading: false,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "load", false),
     };
     notify();
   }
 }
 
 // Load bot status (live data)
-export async function loadBotStatus(botId: number): Promise<void> {
+export async function loadBotStatus(botId: string): Promise<void> {
+  setLoading("status", true);
   try {
     const status = await api.getBotStatus(botId);
-    state = { ...state, botStatus: status };
+    state = {
+      ...state,
+      botStatus: status,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "status", false),
+    };
     notify();
   } catch (error) {
     console.error("Failed to load bot status:", error);
+    state = { ...state, loading: setLoadingState<BotLoadingKey>(state.loading, "status", false) };
+    notify();
+  }
+}
+
+// Load bot trades history
+export async function loadBotTrades(botId: string, strategyId?: string): Promise<void> {
+  setLoading("trades", true);
+  try {
+    const result = await api.getBotTrades(botId, strategyId, 50);
+    state = {
+      ...state,
+      botTrades: result.trades,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "trades", false),
+    };
+    notify();
+  } catch (error) {
+    console.error("Failed to load bot trades:", error);
+    state = {
+      ...state,
+      botTrades: [],
+      loading: setLoadingState<BotLoadingKey>(state.loading, "trades", false),
+    };
+    notify();
   }
 }
 
 // Load available strategies
 export async function loadAvailableStrategies(): Promise<void> {
+  setLoading("strategies", true);
   try {
     const strategies = await api.listAvailableStrategies();
-    state = { ...state, availableStrategies: strategies };
+    state = {
+      ...state,
+      availableStrategies: strategies,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "strategies", false),
+    };
     notify();
   } catch (error) {
     console.error("Failed to load available strategies:", error);
+    state = {
+      ...state,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "strategies", false),
+    };
+    notify();
   }
 }
 
 // Create a new bot
 export async function createBotAction(data: BotCreate): Promise<BotConfig | null> {
-  setLoading(true);
+  setLoading("create", true);
   setError(null);
   try {
     const bot = await api.createBot(data);
     await loadBots();
-    state = { ...state, showCreateModal: false };
+    state = {
+      ...state,
+      showCreateModal: false,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "create", false),
+    };
     notify();
     return bot;
   } catch (error) {
     state = {
       ...state,
       error: error instanceof Error ? error.message : "Failed to create bot",
-      isLoading: false,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "create", false),
     };
     notify();
     return null;
@@ -165,20 +231,25 @@ export async function createBotAction(data: BotCreate): Promise<BotConfig | null
 }
 
 // Update a bot
-export async function updateBotAction(botId: number, data: BotUpdate): Promise<BotConfig | null> {
-  setLoading(true);
+export async function updateBotAction(botId: string, data: BotUpdate): Promise<BotConfig | null> {
+  setLoading("update", true);
   setError(null);
   try {
     const bot = await api.updateBot(botId, data);
     await loadBots();
-    state = { ...state, showEditModal: false, editingBot: null };
+    state = {
+      ...state,
+      showEditModal: false,
+      editingBot: null,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "update", false),
+    };
     notify();
     return bot;
   } catch (error) {
     state = {
       ...state,
       error: error instanceof Error ? error.message : "Failed to update bot",
-      isLoading: false,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "update", false),
     };
     notify();
     return null;
@@ -186,17 +257,16 @@ export async function updateBotAction(botId: number, data: BotUpdate): Promise<B
 }
 
 // Delete a bot (with trade check)
-export async function deleteBotAction(botId: number): Promise<boolean> {
-  setLoading(true);
+export async function deleteBotAction(botId: string): Promise<boolean> {
+  setLoading("delete", true);
   setError(null);
   try {
-    // Check if bot has trades first
     const tradeCount = await api.getBotTradeCount(botId);
     if (tradeCount.count > 0) {
       state = {
         ...state,
         error: `Cannot delete bot: ${tradeCount.count} trade(s) exist for this bot. Delete trades first.`,
-        isLoading: false,
+        loading: setLoadingState<BotLoadingKey>(state.loading, "delete", false),
       };
       notify();
       return false;
@@ -204,14 +274,18 @@ export async function deleteBotAction(botId: number): Promise<boolean> {
 
     await api.deleteBot(botId);
     await loadBots();
-    state = { ...state, selectedBot: null };
+    state = {
+      ...state,
+      selectedBot: null,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "delete", false),
+    };
     notify();
     return true;
   } catch (error) {
     state = {
       ...state,
       error: error instanceof Error ? error.message : "Failed to delete bot",
-      isLoading: false,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "delete", false),
     };
     notify();
     return false;
@@ -219,19 +293,20 @@ export async function deleteBotAction(botId: number): Promise<boolean> {
 }
 
 // Start a bot
-export async function startBotAction(botId: number, testMode: boolean = false): Promise<boolean> {
-  setLoading(true);
+export async function startBotAction(botId: string, testMode: boolean = false): Promise<boolean> {
+  setLoading("start", true);
   setError(null);
   try {
     await api.startBot(botId, testMode);
     await loadBots();
+    state = { ...state, loading: setLoadingState<BotLoadingKey>(state.loading, "start", false) };
     notify();
     return true;
   } catch (error) {
     state = {
       ...state,
       error: error instanceof Error ? error.message : "Failed to start bot",
-      isLoading: false,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "start", false),
     };
     notify();
     return false;
@@ -239,19 +314,20 @@ export async function startBotAction(botId: number, testMode: boolean = false): 
 }
 
 // Stop a bot
-export async function stopBotAction(botId: number): Promise<boolean> {
-  setLoading(true);
+export async function stopBotAction(botId: string): Promise<boolean> {
+  setLoading("stop", true);
   setError(null);
   try {
     await api.stopBot(botId);
     await loadBots();
+    state = { ...state, loading: setLoadingState<BotLoadingKey>(state.loading, "stop", false) };
     notify();
     return true;
   } catch (error) {
     state = {
       ...state,
       error: error instanceof Error ? error.message : "Failed to stop bot",
-      isLoading: false,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "stop", false),
     };
     notify();
     return false;
@@ -291,7 +367,7 @@ export function clearError(): void {
 
 // Select a bot
 export function selectBot(bot: BotConfig | null): void {
-  state = { ...state, selectedBot: bot, botStatus: null };
+  state = { ...state, selectedBot: bot, botStatus: null, botTrades: [] };
   notify();
   if (bot && bot.running) {
     loadBotStatus(bot.id);
@@ -299,7 +375,7 @@ export function selectBot(bot: BotConfig | null): void {
 }
 
 // Start auto-refresh for bot status
-export function startAutoRefresh(botId: number, intervalMs: number = 5000): void {
+export function startAutoRefresh(botId: string, intervalMs: number = 5000): void {
   stopAutoRefresh();
   autoRefreshInterval = setInterval(() => {
     loadBotStatus(botId);

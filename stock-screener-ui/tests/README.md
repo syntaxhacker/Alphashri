@@ -74,16 +74,16 @@ tests/
 
 ## Test Categories
 
-| Category | Tests | Status | Requirement |
-|----------|-------|--------|-------------|
-| Unit Tests | 1,436 | ✅ Complete | None |
-| API Tests | ~400 | ✅ Complete | None |
-| Contract Tests | 27 | ✅ Complete | Running server |
-| Testcontainers | 50 | ✅ Complete | Docker |
-| Security Tests | 82 | ✅ Complete | None |
-| Integration Tests | ~50 | ✅ Complete | None |
-| E2E Tests | 19 | ✅ Complete | Browser |
-| **Total** | **1,614+** | ✅ | |
+| Category          | Tests      | Status      | Requirement    |
+| ----------------- | ---------- | ----------- | -------------- |
+| Unit Tests        | 1,436      | ✅ Complete | None           |
+| API Tests         | ~400       | ✅ Complete | None           |
+| Contract Tests    | 27         | ✅ Complete | Running server |
+| Testcontainers    | 50         | ✅ Complete | Docker         |
+| Security Tests    | 82         | ✅ Complete | None           |
+| Integration Tests | ~50        | ✅ Complete | None           |
+| E2E Tests         | 19         | ✅ Complete | Browser        |
+| **Total**         | **1,614+** | ✅          |                |
 
 ## Running Specific Tests
 
@@ -119,25 +119,25 @@ uv run pytest tests/ -m "testcontainers" -v
 
 ## Test Coverage
 
-| Module | Tests | Coverage |
-|--------|-------|----------|
-| `trading/journal.py` | 79 | Full |
-| `trading/risk_manager.py` | 76 | Full |
-| `trading/global_risk_manager.py` | 67 | Full |
-| `trading/shared_portfolio.py` | 89 | Full |
-| `trading/orb_signals.py` | 80 | Full |
-| `trading/paper_trader.py` | 113 | Full |
-| `trading/config_loader.py` | 53 | Full |
-| `trading/multi_strategy_runner.py` | 72 | Full |
-| `backtest/engine.py` | 39 | Full |
-| `backtest/costs.py` | 64 | Full |
-| `backtest/chart_data.py` | 99 | Full |
-| `backtest/api.py` | 73 | Full |
-| `backtest/strategies/orb.py` | 97 | Full |
-| `backtest/strategies/sr_breakout.py` | 112 | Full |
-| `backtest/strategies/week52_chaser.py` | 101 | Full |
-| `db/models.py` | 70 | Full |
-| `db/database.py` | 58 | Full |
+| Module                                 | Tests | Coverage |
+| -------------------------------------- | ----- | -------- |
+| `trading/journal.py`                   | 79    | Full     |
+| `trading/risk_manager.py`              | 76    | Full     |
+| `trading/global_risk_manager.py`       | 67    | Full     |
+| `trading/shared_portfolio.py`          | 89    | Full     |
+| `trading/orb_signals.py`               | 80    | Full     |
+| `trading/paper_trader.py`              | 113   | Full     |
+| `trading/config_loader.py`             | 53    | Full     |
+| `trading/multi_strategy_runner.py`     | 72    | Full     |
+| `backtest/engine.py`                   | 39    | Full     |
+| `backtest/costs.py`                    | 64    | Full     |
+| `backtest/chart_data.py`               | 99    | Full     |
+| `backtest/api.py`                      | 73    | Full     |
+| `backtest/strategies/orb.py`           | 97    | Full     |
+| `backtest/strategies/sr_breakout.py`   | 112   | Full     |
+| `backtest/strategies/week52_chaser.py` | 101   | Full     |
+| `db/models.py`                         | 70    | Full     |
+| `db/database.py`                       | 58    | Full     |
 
 ## Writing New Tests
 

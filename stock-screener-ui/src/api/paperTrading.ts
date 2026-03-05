@@ -82,11 +82,14 @@ export async function fetchPositions(): Promise<PaperPosition[]> {
 }
 
 // Fetch trade history with optional bot filtering
-export async function fetchTrades(limit: number = 100, botId?: number | null): Promise<PaperTrade[]> {
+export async function fetchTrades(
+  limit: number = 100,
+  botId?: string | null,
+): Promise<PaperTrade[]> {
   try {
     const params = new URLSearchParams();
     params.append("limit", limit.toString());
-    if (botId) params.append("bot_id", botId.toString());
+    if (botId) params.append("bot_id", botId);
     const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?${params.toString()}`);
     const data = await response.json();
     const trades = data.trades || [];
@@ -258,7 +261,7 @@ export async function stopPaperBot(): Promise<boolean> {
 }
 
 // Refresh history data with optional bot filtering
-export async function refreshHistoryData(botId?: number | null): Promise<void> {
+export async function refreshHistoryData(botId?: string | null): Promise<void> {
   setLoading(true);
 
   try {
@@ -405,7 +408,7 @@ export async function listBots(): Promise<any[]> {
 }
 
 // Get bot details
-export async function getBot(botId: number): Promise<any | null> {
+export async function getBot(botId: string): Promise<any | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}`);
     const data = await response.json();
@@ -418,7 +421,7 @@ export async function getBot(botId: number): Promise<any | null> {
 
 // Start a multi-strategy bot
 export async function startBot(
-  botId: number,
+  botId: string,
 ): Promise<{ success: boolean; pid?: number; message?: string }> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/start`, {
@@ -436,7 +439,7 @@ export async function startBot(
 }
 
 // Stop a multi-strategy bot
-export async function stopBot(botId: number): Promise<{ success: boolean; message?: string }> {
+export async function stopBot(botId: string): Promise<{ success: boolean; message?: string }> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/stop`, {
       method: "POST",
@@ -453,7 +456,7 @@ export async function stopBot(botId: number): Promise<{ success: boolean; messag
 }
 
 // Get bot portfolio with per-strategy breakdown
-export async function fetchBotPortfolio(botId: number): Promise<any | null> {
+export async function fetchBotPortfolio(botId: string): Promise<any | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/portfolio`);
     const data = await response.json();
@@ -465,10 +468,10 @@ export async function fetchBotPortfolio(botId: number): Promise<any | null> {
 }
 
 // Get bot positions (optionally filtered by strategy)
-export async function fetchBotPositions(botId: number, strategyId?: number): Promise<any[]> {
+export async function fetchBotPositions(botId: string, strategyId?: string): Promise<any[]> {
   try {
     const params = new URLSearchParams();
-    if (strategyId) params.set("strategy_id", strategyId.toString());
+    if (strategyId) params.set("strategy_id", strategyId);
     const url = `${API_BASE}/api/bots/${botId}/positions${params.toString() ? "?" + params : ""}`;
     const response = await fetchWithAuth(url);
     const data = await response.json();
@@ -480,10 +483,10 @@ export async function fetchBotPositions(botId: number, strategyId?: number): Pro
 }
 
 // Get bot scan items (optionally filtered by strategy)
-export async function fetchBotScanItems(botId: number, strategyId?: number): Promise<any[]> {
+export async function fetchBotScanItems(botId: string, strategyId?: string): Promise<any[]> {
   try {
     const params = new URLSearchParams();
-    if (strategyId) params.set("strategy_id", strategyId.toString());
+    if (strategyId) params.set("strategy_id", strategyId);
     const url = `${API_BASE}/api/bots/${botId}/scan${params.toString() ? "?" + params : ""}`;
     const response = await fetchWithAuth(url);
     const data = await response.json();
@@ -496,7 +499,7 @@ export async function fetchBotScanItems(botId: number, strategyId?: number): Pro
 
 // Get bot strategy performance
 export async function fetchBotStrategyPerformance(
-  botId: number,
+  botId: string,
   includeTest: boolean = true,
 ): Promise<any | null> {
   try {
@@ -513,7 +516,7 @@ export async function fetchBotStrategyPerformance(
 }
 
 // Refresh data from multi-strategy bot
-export async function refreshBotLiveData(botId: number): Promise<void> {
+export async function refreshBotLiveData(botId: string): Promise<void> {
   setLoading(true);
   try {
     const [botInfo, portfolioData, positions, scanItems] = await Promise.all([

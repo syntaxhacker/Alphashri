@@ -248,6 +248,9 @@ subscribePaperTrading(render);
 // Subscribe to strategies state changes
 subscribeStrategies(render);
 
+// Subscribe to bots state changes
+subscribeBots(render);
+
 // Window-exposed functions for onclick handlers
 (window as any).refresh = () =>
   fetchData(state.data?.provider || "upstox", state.data?.mode || "intraday", state.activeScreener);

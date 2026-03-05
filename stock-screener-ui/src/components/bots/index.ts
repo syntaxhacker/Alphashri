@@ -12,6 +12,7 @@ import {
   setCurrentView,
   loadBots,
   loadBotStatus,
+  loadBotTrades,
   selectBot,
   startAutoRefresh,
   stopAutoRefresh,
@@ -24,6 +25,7 @@ import {
   initBotsState,
 } from "../../state/bots";
 import type { BotConfig, BotsView } from "../../types/bots";
+import { isLoading } from "../../utils/loading";
 
 export function renderBotsView(): string {
   const state = getBotsState();
@@ -88,16 +90,60 @@ export function renderBotsView(): string {
           : ""
       }
 
-      ${
-        state.isLoading
-          ? `
-        <div class="bots-loading" data-testid="bots-loading">
-          <div class="spinner"></div>
-          <p>Loading...</p>
-        </div>
-      `
-          : ""
-      }
+      ${(function () {
+        const state = getBotsState();
+        if (isLoading(state.loading, "list")) {
+          return `
+              <div class="bots-loading" data-testid="bots-loading">
+                <div class="spinner"></div>
+                <p>Loading bots...</p>
+              </div>
+            `;
+        } else if (isLoading(state.loading, "create")) {
+          return `
+              <div class="bots-loading" data-testid="bots-loading">
+                <div class="spinner"></div>
+                <p>Creating bot...</p>
+              </div>
+            `;
+        } else if (isLoading(state.loading, "update")) {
+          return `
+              <div class="bots-loading" data-testid="bots-loading">
+                <div class="spinner"></div>
+                <p>Updating bot...</p>
+              </div>
+            `;
+        } else if (isLoading(state.loading, "delete")) {
+          return `
+              <div class="bots-loading" data-testid="bots-loading">
+                <div class="spinner"></div>
+                <p>Deleting bot...</p>
+              </div>
+            `;
+        } else if (isLoading(state.loading, "start")) {
+          return `
+              <div class="bots-loading" data-testid="bots-loading">
+                <div class="spinner"></div>
+                <p>Starting bot...</p>
+              </div>
+            `;
+        } else if (isLoading(state.loading, "stop")) {
+          return `
+              <div class="bots-loading" data-testid="bots-loading">
+                <div class="spinner"></div>
+                <p>Stopping bot...</p>
+              </div>
+            `;
+        } else if (Object.values(state.loading).some((v) => v)) {
+          return `
+              <div class="bots-loading" data-testid="bots-loading">
+                <div class="spinner"></div>
+                <p>Loading...</p>
+              </div>
+            `;
+        }
+        return "";
+      })()}
     </div>
   `;
 }
@@ -154,7 +200,7 @@ function renderBotsList(bots: BotConfig[], selectedBot: BotConfig | null): strin
               <td class="bot-actions">
                 <button
                   class="btn btn-small btn-secondary"
-                  onclick="window.viewBotStatus(${bot.id})"
+                  onclick="window.viewBotStatus('${bot.id}')"
                   title="View Status"
                   data-testid="view-bot-status-btn-${bot.id}"
                 >
@@ -165,7 +211,7 @@ function renderBotsList(bots: BotConfig[], selectedBot: BotConfig | null): strin
                     ? `
                   <button
                     class="btn btn-small btn-warning"
-                    onclick="window.stopBot(${bot.id})"
+                    onclick="window.stopBot('${bot.id}')"
                     title="Stop Bot"
                     data-testid="stop-bot-btn-${bot.id}"
                   >
@@ -175,7 +221,7 @@ function renderBotsList(bots: BotConfig[], selectedBot: BotConfig | null): strin
                     : `
                   <button
                     class="btn btn-small btn-success"
-                    onclick="window.startBot(${bot.id})"
+                    onclick="window.startBot('${bot.id}')"
                     title="Start Bot"
                     ${!bot.is_active ? "disabled" : ""}
                     data-testid="start-bot-btn-${bot.id}"
@@ -186,7 +232,7 @@ function renderBotsList(bots: BotConfig[], selectedBot: BotConfig | null): strin
                 }
                 <button
                   class="btn btn-small btn-secondary"
-                  onclick="window.editBot(${bot.id})"
+                  onclick="window.editBot('${bot.id}')"
                   title="Edit Bot"
                   data-testid="edit-bot-btn-${bot.id}"
                 >
@@ -194,7 +240,7 @@ function renderBotsList(bots: BotConfig[], selectedBot: BotConfig | null): strin
                 </button>
                 <button
                   class="btn btn-small btn-danger"
-                  onclick="window.deleteBot(${bot.id})"
+                  onclick="window.deleteBot('${bot.id}')"
                   title="Delete Bot"
                   ${bot.running ? "disabled" : ""}
                   data-testid="delete-bot-btn-${bot.id}"
@@ -272,12 +318,13 @@ export function initBotsHandlers() {
   };
 
   // Bot actions
-  (window as any).viewBotStatus = (botId: number) => {
+  (window as any).viewBotStatus = (botId: string) => {
     const state = getBotsState();
     const bot = state.bots.find((b) => b.id === botId);
     if (bot) {
       selectBot(bot);
       setCurrentView("status");
+      loadBotTrades(botId);
       if (bot.running) {
         loadBotStatus(botId);
         startAutoRefresh(botId, 5000);
@@ -285,16 +332,16 @@ export function initBotsHandlers() {
     }
   };
 
-  (window as any).startBot = async (botId: number) => {
+  (window as any).startBot = async (botId: string) => {
     await startBotAction(botId, false);
   };
 
-  (window as any).stopBot = async (botId: number) => {
+  (window as any).stopBot = async (botId: string) => {
     await stopBotAction(botId);
     stopAutoRefresh();
   };
 
-  (window as any).editBot = (botId: number) => {
+  (window as any).editBot = (botId: string) => {
     const state = getBotsState();
     const bot = state.bots.find((b) => b.id === botId);
     if (bot) {
@@ -302,7 +349,7 @@ export function initBotsHandlers() {
     }
   };
 
-  (window as any).deleteBot = async (botId: number) => {
+  (window as any).deleteBot = async (botId: string) => {
     if (confirm("Are you sure you want to delete this bot?")) {
       await deleteBotAction(botId);
     }

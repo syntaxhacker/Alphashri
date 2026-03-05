@@ -10,6 +10,8 @@ import {
   navigateToPaperTradingWithBot,
 } from "../helpers/paperTradingHelpers";
 
+const TEST_BOT_UUID = "550e8400-e29b-41d4-a716-446655440000";
+
 // Shared beforeEach for paper trading tests
 async function setupPaperTradingTest(page: import("@playwright/test").Page) {
   await setupApiMocks(page);
@@ -49,13 +51,13 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await expect(dropdown).toBeVisible();
 
     // Check that the option exists (it contains the bot name)
-    const optionText = await dropdown.locator("option[value='2']").textContent();
+    const optionText = await dropdown.locator(`option[value='${TEST_BOT_UUID}']`).textContent();
     expect(optionText).toContain("Multi-ORB Test Bot");
   });
 
   // Skip: Requires real backend API for bot selection
   test.skip("should show portfolio summary", async ({ page }) => {
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify portfolio card is visible
     await expect(page.locator(".portfolio-card")).toBeVisible();
@@ -67,7 +69,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
   // Skip: Requires real backend API for bot selection
   test.skip("should show scan items from multi-strategy bot", async ({ page }) => {
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify scan card is visible
     await expect(page.locator(".scan-card")).toBeVisible();
@@ -80,7 +82,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test.skip("should show positions with strategy tabs when multiple strategies have positions", async ({
     page,
   }) => {
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify positions table is visible
     await expect(page.locator(".positions-table")).toBeVisible();
@@ -93,7 +95,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   });
 
   test("should filter positions by strategy tab", async ({ page }) => {
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Click on "ORB Conservative" tab
     await page.locator(".strategy-tab:has-text('ORB Conservative')").click();
@@ -106,7 +108,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   });
 
   test("should show bot status running/pid when bot is running", async ({ page }) => {
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify bot status is shown (should show Running with PID from mock)
     await expect(page.locator(".bot-status")).toBeVisible();
@@ -129,7 +131,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
       });
     });
 
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify empty state is shown
     await expect(page.locator(".positions-empty")).toBeVisible();
@@ -159,12 +161,12 @@ test.describe("Paper Trading - API Polling", () => {
   test("should call bot portfolio API when bot is selected", async ({ page }) => {
     let portfolioApiCalled = false;
 
-    await page.route("**/api/bots/2/portfolio", async (route) => {
+    await page.route(`**/api/bots/${TEST_BOT_UUID}/portfolio`, async (route) => {
       portfolioApiCalled = true;
       await route.continue();
     });
 
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify portfolio API was called
     expect(portfolioApiCalled).toBe(true);
@@ -173,12 +175,12 @@ test.describe("Paper Trading - API Polling", () => {
   test("should call scan API when bot is selected", async ({ page }) => {
     let scanApiCalled = false;
 
-    await page.route("**/api/bots/2/scan", async (route) => {
+    await page.route(`**/api/bots/${TEST_BOT_UUID}/scan`, async (route) => {
       scanApiCalled = true;
       await route.continue();
     });
 
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify scan API was called
     expect(scanApiCalled).toBe(true);
@@ -192,12 +194,12 @@ test.describe("Paper Trading - Bot Controls", () => {
 
   test("should show Start Bot button when bot is not running", async ({ page }) => {
     // Mock bot as not running
-    await page.route("**/api/bots/2", async (route) => {
+    await page.route(`**/api/bots/${TEST_BOT_UUID}`, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: 2,
+          id: TEST_BOT_UUID,
           name: "Multi-ORB Test Bot",
           is_active: true,
           strategies: [],
@@ -207,7 +209,7 @@ test.describe("Paper Trading - Bot Controls", () => {
       });
     });
 
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify Start Bot button is visible
     await expect(page.locator('button:has-text("Start Bot")')).toBeVisible();
@@ -215,12 +217,12 @@ test.describe("Paper Trading - Bot Controls", () => {
 
   test("should show Stop Bot button when bot is running", async ({ page }) => {
     // Mock bot as running
-    await page.route("**/api/bots/2", async (route) => {
+    await page.route(`**/api/bots/${TEST_BOT_UUID}`, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: 2,
+          id: TEST_BOT_UUID,
           name: "Multi-ORB Test Bot",
           is_active: true,
           strategies: [],
@@ -230,7 +232,7 @@ test.describe("Paper Trading - Bot Controls", () => {
       });
     });
 
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify Stop Bot button is visible
     await expect(page.locator('button:has-text("Stop Bot")')).toBeVisible();
@@ -243,7 +245,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   });
 
   test("should show all positions in 'All' tab", async ({ page }) => {
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Click on "All" tab
     await page.locator(".strategy-tab:has-text('All')").click();
@@ -257,7 +259,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   });
 
   test("should filter scan items by selected strategy tab", async ({ page }) => {
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Click on "ORB Conservative" tab
     await page.locator(".strategy-tab:has-text('ORB Conservative')").click();
@@ -270,7 +272,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   });
 
   test("should show strategy P&L in tab badges", async ({ page }) => {
-    await navigateToPaperTradingWithBot(page, "2");
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify strategy tabs show P&L badges
     const conservativeTab = page.locator(".strategy-tab:has-text('ORB Conservative')");

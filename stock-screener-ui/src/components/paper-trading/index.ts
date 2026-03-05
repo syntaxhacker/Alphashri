@@ -42,7 +42,7 @@ import type { PaperTradingView } from "../../types/paperTrading";
 import { fetchWithAuth } from "../../state/auth";
 
 // Active bot ID for multi-strategy mode
-let activeBotId: number | null = null;
+let activeBotId: string | null = null;
 
 let paperTradingActive = false;
 
@@ -323,19 +323,18 @@ export function initPaperTradingHandlers() {
 
   // Bot selector
   (window as any).selectPaperBot = async (botId: string) => {
-    const id = parseInt(botId);
-    if (isNaN(id)) {
+    if (!botId) {
       activeBotId = null;
       // Switch to single-strategy mode
       stopLiveAutoRefresh();
       initLiveAutoRefresh();
       refreshLiveData();
     } else {
-      activeBotId = id;
+      activeBotId = botId;
       // Switch to multi-strategy mode with correct auto-refresh
       stopLiveAutoRefresh();
-      setupAutoRefresh(() => refreshBotLiveData(id), 20000);
-      await refreshBotLiveData(id);
+      setupAutoRefresh(() => refreshBotLiveData(botId), 20000);
+      await refreshBotLiveData(botId);
     }
   };
 
@@ -369,15 +368,16 @@ export function initPaperTradingHandlers() {
   (window as any).togglePaperBot = async () => {
     if (activeBotId) {
       // Multi-strategy bot
+      const botId = activeBotId;
       const state = getPaperTradingState();
       if (state.botRunning) {
-        await stopBot(activeBotId);
+        await stopBot(botId);
       } else {
-        await startBot(activeBotId);
+        await startBot(botId);
       }
       // Refresh status
       setTimeout(() => {
-        refreshBotLiveData(activeBotId);
+        refreshBotLiveData(botId);
       }, 1000);
     } else {
       // Single-strategy bot
@@ -427,10 +427,10 @@ export function cleanupPaperTrading() {
   activeBotId = null;
 }
 
-export function getActiveBotId(): number | null {
+export function getActiveBotId(): string | null {
   return activeBotId;
 }
 
-export function setActiveBotId(id: number | null): void {
+export function setActiveBotId(id: string | null): void {
   activeBotId = id;
 }

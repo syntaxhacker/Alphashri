@@ -588,6 +588,11 @@ export function getCurrentConfig() {
 
 // Multi-strategy bot mocks
 export async function setupMultiStrategyBotMocks(page: import("@playwright/test").Page) {
+  const BOT_UUID_1 = "550e8400-e29b-41d4-a716-446655440000";
+  const BOT_UUID_2 = "81b1e4e1-de04-4989-8357-96daade0bd86";
+  const STRATEGY_UUID_1 = "d827feff-0581-4bbb-8fe8-34629ad59369";
+  const STRATEGY_UUID_2 = "9a14755a-db30-4267-bd43-cba3e50c0e3a";
+
   // Mock bots list endpoint - only match /api/bots exactly (not /api/bots/123)
   // The API returns an array of bots directly, not wrapped in { bots: [...] }
   await page.route("**/api/bots", async (route) => {
@@ -596,21 +601,21 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
       contentType: "application/json",
       body: JSON.stringify([
         {
-          id: 1,
+          id: BOT_UUID_1,
           name: "Multi-Strategy Bot",
           strategies: [
-            { id: 1, name: "ORB Conservative", allocation: 0.5 },
-            { id: 2, name: "ORB Aggressive", allocation: 0.5 },
+            { id: STRATEGY_UUID_1, name: "ORB Conservative", allocation: 0.5 },
+            { id: STRATEGY_UUID_2, name: "ORB Aggressive", allocation: 0.5 },
           ],
           is_active: true,
           is_running: false,
         },
         {
-          id: 2,
+          id: BOT_UUID_2,
           name: "Multi-ORB Test Bot",
           strategies: [
-            { id: 1, name: "ORB Conservative", allocation: 0.5 },
-            { id: 2, name: "ORB Aggressive", allocation: 0.5 },
+            { id: STRATEGY_UUID_1, name: "ORB Conservative", allocation: 0.5 },
+            { id: STRATEGY_UUID_2, name: "ORB Aggressive", allocation: 0.5 },
           ],
           is_active: true,
           is_running: true,
@@ -621,7 +626,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot start
-  await page.route(/\/api\/bots\/\d+\/start/, async (route) => {
+  await page.route(/\/api\/bots\/[a-f0-9-]+\/start/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -634,7 +639,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot stop
-  await page.route(/\/api\/bots\/\d+\/stop/, async (route) => {
+  await page.route(/\/api\/bots\/[a-f0-9-]+\/stop/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -646,7 +651,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot status - use regex to match any bot ID
-  await page.route(/\/api\/bots\/\d+\/status/, async (route) => {
+  await page.route(/\/api\/bots\/[a-f0-9-]+\/status/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -660,15 +665,15 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
         },
         positions: [],
         strategies: [
-          { id: 1, name: "ORB Conservative", pnl: 2500 },
-          { id: 2, name: "ORB Aggressive", pnl: 2500 },
+          { id: STRATEGY_UUID_1, name: "ORB Conservative", pnl: 2500 },
+          { id: STRATEGY_UUID_2, name: "ORB Aggressive", pnl: 2500 },
         ],
       }),
     });
   });
 
   // Mock bot portfolio - use regex to match any bot ID
-  await page.route(/\/api\/bots\/\d+\/portfolio/, async (route) => {
+  await page.route(/\/api\/bots\/[a-f0-9-]+\/portfolio/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -707,7 +712,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot positions - use regex to match any bot ID
-  await page.route(/\/api\/bots\/\d+\/positions/, async (route) => {
+  await page.route(/\/api\/bots\/[a-f0-9-]+\/positions/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -742,12 +747,12 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot scan items - use regex to match any bot ID
-  await page.route(/\/api\/bots\/\d+\/scan/, async (route) => {
+  await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        bot_id: 2,
+        bot_id: BOT_UUID_2,
         scan_items: [
           {
             id: 1,

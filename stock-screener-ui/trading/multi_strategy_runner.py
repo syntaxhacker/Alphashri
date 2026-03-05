@@ -152,7 +152,7 @@ class MultiStrategyRunner:
         self.watchlist = []
         self.or_levels = {}
         self.cooldown_stocks: Dict[str, datetime] = {}  # {symbol: exit_time}
-        self.snapshot_file = Path(f"/tmp/multi-strategy-bot-{self.bot_config.id}.json")
+        self.snapshot_file = Path(f"/tmp/multi-strategy-bot-{self.user_id}-{self.bot_config.id}.json")
 
         # Data fetcher (lazy loaded)
         self._screener = None

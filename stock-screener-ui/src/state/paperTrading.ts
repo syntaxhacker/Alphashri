@@ -288,7 +288,7 @@ export function setAvailableBots(bots: BotInfo[]) {
 }
 
 // Bot filter management
-export function setFilterBot(botId: number | null) {
+export function setFilterBot(botId: string | null) {
   state = { ...state, filterBot: botId };
   notify();
 }

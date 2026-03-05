@@ -2,7 +2,8 @@
 Database models for Alphashri
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Table
+import uuid
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Table, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -24,6 +25,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, index=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     display_name = Column(String, nullable=True)
@@ -38,7 +40,7 @@ class User(Base):
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<User(id={self.id}, email='{self.email}', display_name='{self.display_name}')>"
+        return f"<User(id={self.id}, uuid='{self.uuid}', email='{self.email}', display_name='{self.display_name}')>"
 
 
 class UserSession(Base):
@@ -68,6 +70,7 @@ class StrategyConfig(Base):
     __tablename__ = "strategy_configs"
 
     id = Column(Integer, primary_key=True)
+    uuid = Column(String(36), unique=True, index=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, unique=True, nullable=False)  # e.g., "orb_default"
     strategy_type = Column(String, nullable=False)  # e.g., "ORB", "EMA_CROSS", "52W_CHASER"
 
@@ -120,13 +123,14 @@ class StrategyConfig(Base):
     bots = relationship("BotConfig", secondary=bot_strategies, back_populates="strategies")
 
     def __repr__(self):
-        return f"<StrategyConfig(id={self.id}, name='{self.name}', type='{self.strategy_type}')>"
+        return f"<StrategyConfig(id={self.id}, uuid='{self.uuid}', name='{self.name}', type='{self.strategy_type}')>"
 
     def to_dict(self) -> dict:
         """Convert config to dictionary for easy access."""
         return {
             # Identity
-            "id": self.id,
+            "id": self.uuid,  # Expose UUID as id externally
+            "internal_id": self.id,  # Keep internal ID for reference
             "name": self.name,
             "strategy_type": self.strategy_type,
             "parent_id": self.parent_id,
@@ -170,38 +174,44 @@ class BotConfig(Base):
 
     A bot can run multiple strategies simultaneously.
     Each strategy has its own allocation within the bot.
+    Bots are user-specific for multi-tenancy.
     """
     __tablename__ = "bot_configs"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)  # e.g., "Multi-Strategy Test"
+    uuid = Column(String(36), unique=True, index=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
 
-    # Global risk limits (across all strategies)
-    max_total_positions = Column(Integer, default=10)  # Max positions across all strategies
-    max_total_capital_pct = Column(Float, default=0.80)  # Max 80% capital usage
+    max_total_positions = Column(Integer, default=10)
+    max_total_capital_pct = Column(Float, default=0.80)
 
-    # Metadata
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    # Relationships
     strategies = relationship("StrategyConfig", secondary=bot_strategies, back_populates="bots")
+    user = relationship("User", backref="bots")
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'name', name='uq_bot_name_per_user'),
+    )
 
     def __repr__(self):
-        return f"<BotConfig(id={self.id}, name='{self.name}')>"
+        return f"<BotConfig(id={self.id}, uuid='{self.uuid}', name='{self.name}', user_id={self.user_id})>"
 
     def to_dict(self) -> dict:
-        """Convert bot config to dictionary."""
         return {
-            "id": self.id,
+            "id": self.uuid,  # Expose UUID as id externally
+            "internal_id": self.id,  # Keep internal ID for reference
+            "user_id": self.user_id,
             "name": self.name,
             "is_active": self.is_active,
             "max_total_positions": self.max_total_positions,
             "max_total_capital_pct": self.max_total_capital_pct,
             "strategies": [
                 {
-                    "id": s.id,
+                    "id": s.uuid,  # Expose strategy UUID
                     "name": s.name,
                     "strategy_type": s.strategy_type,
                 }
