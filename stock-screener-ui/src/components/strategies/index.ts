@@ -1,9 +1,21 @@
 /**
- * Strategy Management View Component
+ * Strategy Management Components
  *
- * Main strategies view for managing strategy templates and variations.
+ * Migrate from legacy string-based rendering to React components.
  */
 
+// React components (new)
+export { StrategiesPage } from "./StrategiesPage";
+export { StrategiesNav } from "./StrategiesNav";
+export { TemplatesView } from "./TemplatesView";
+export { StrategiesList } from "./StrategiesList";
+export { PerformanceView } from "./PerformanceView";
+export { StrategyForm } from "./StrategyForm";
+
+// Types
+export * from "./types";
+
+// Legacy components (keep for backward compatibility during migration)
 import { renderTemplateCard, initTemplateHandlers } from "./templates";
 import { renderVariationsPanel, initVariationsHandlers } from "./variations";
 import { renderStrategyForm, initFormHandlers } from "./form";

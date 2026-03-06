@@ -59,7 +59,7 @@ export async function selectBot(page: Page, botId: string): Promise<void> {
       return select && select.querySelectorAll("option[value]").length > 1;
     },
     ".bot-selector-dropdown",
-    { timeout: 10000 }
+    { timeout: 10000 },
   );
   await dropdown.selectOption(botId);
   await page.waitForTimeout(500);

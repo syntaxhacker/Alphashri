@@ -70,8 +70,6 @@ export async function clickPaperTradingTab(page: Page, tabName: string): Promise
   await page.waitForTimeout(300);
 }
 
-
-
 /**
  * Get bot selector dropdown
  */

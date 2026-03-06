@@ -296,7 +296,7 @@ test.describe("Sector Analysis - Error Handling", () => {
 
   test("should maintain view structure when backend is unavailable", async ({ page }) => {
     // Block all requests to localhost:8765
-    await page.route("**/sector/**", async (route) => {
+    await page.route("**localhost:8765/sector/**", async (route) => {
       await route.abort("failed");
     });
 

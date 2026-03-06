@@ -16,7 +16,7 @@ export interface ColumnDef {
   label: string;
   type: "string" | "number" | "badge";
   sortable?: boolean;
-  format?: (value: any, stock: Stock) => string | FormattedCell;
+  format?: (value: any, stock: Stock) => React.ReactNode | FormattedCell;
 }
 
 export function getColumnsForScreener(screenerId: string): ColumnDef[] {

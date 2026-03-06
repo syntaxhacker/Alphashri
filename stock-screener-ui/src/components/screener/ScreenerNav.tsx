@@ -1,4 +1,4 @@
-import { SegmentedControl, Tooltip } from '@mantine/core';
+import { SegmentedControl, Tooltip } from "@mantine/core";
 
 interface ScreenerOption {
   id: string;

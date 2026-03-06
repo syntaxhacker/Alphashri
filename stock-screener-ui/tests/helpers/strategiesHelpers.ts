@@ -46,7 +46,8 @@ export function getDeleteButton(page: Page, index: number = 0): Locator {
  * Get the modal locator
  */
 export function getModal(page: Page): Locator {
-  return page.locator(".modal, .strategy-form-modal");
+  // Return only visible modals to avoid strict mode violations
+  return page.locator(".modal:visible, .strategy-form-modal:visible").first();
 }
 
 /**

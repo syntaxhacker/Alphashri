@@ -1,4 +1,4 @@
-import { Paper, SimpleGrid, Text } from '@mantine/core';
+import { Paper, SimpleGrid, Text } from "@mantine/core";
 
 interface ScreenerSummaryProps {
   summary: Array<{

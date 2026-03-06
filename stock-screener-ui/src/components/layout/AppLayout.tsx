@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { Box } from "@mantine/core";
+import { AppShell } from "@mantine/core";
 import { NavbarNested } from "./NavbarNested";
 import { MarketTicker } from "./MarketTicker";
 import { useThemeColors } from "../../hooks/useThemeColors";
@@ -13,18 +13,23 @@ export function AppLayout({ children }: AppLayoutProps) {
   const colors = useThemeColors();
 
   return (
-    <Box
-      bg={colors.background}
-      c={colors.text}
-      style={{ display: "flex", minHeight: "100vh", flexDirection: "column" }}
+    <AppShell
+      header={{ height: 40 }}
+      navbar={{ width: 300, breakpoint: "sm" }}
+      padding="md"
+      h="100vh"
     >
-      <MarketTicker />
-      <Box style={{ display: "flex", flex: 1 }}>
+      <AppShell.Header bg={colors.background} c={colors.text}>
+        <MarketTicker />
+      </AppShell.Header>
+
+      <AppShell.Navbar>
         <NavbarNested activePath={location.pathname} />
-        <Box component="main" style={{ flex: 1, padding: colors.spacing("md") }}>
-          {children}
-        </Box>
-      </Box>
-    </Box>
+      </AppShell.Navbar>
+
+      <AppShell.Main bg={colors.background} c={colors.text} h="100%" style={{ overflow: "hidden" }}>
+        {children}
+      </AppShell.Main>
+    </AppShell>
   );
 }

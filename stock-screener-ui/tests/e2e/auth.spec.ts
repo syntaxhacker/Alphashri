@@ -67,9 +67,8 @@ test.describe("Authentication - Login", () => {
     // Click login using data-testid
     await page.locator('[data-testid="login-submit-btn"]').click();
 
-    // Should navigate to main app
-    await page.waitForSelector("#legacy-root", { timeout: 10000 });
-    await expect(page.locator('[data-testid="sidemenu"]')).toBeVisible();
+    // Should navigate to main app - wait for sidemenu to appear
+    await expect(page.locator('[data-testid="sidemenu"]')).toBeVisible({ timeout: 10000 });
   });
 
   test("should show error message with invalid credentials", async ({ page }) => {
@@ -190,8 +189,8 @@ test.describe("Authentication - Register", () => {
     // Click register button using data-testid
     await page.locator('[data-testid="register-button"]').click();
 
-    // Should navigate to main app
-    await page.waitForSelector("#legacy-root", { timeout: 10000 });
+    // Should navigate to main app - wait for sidemenu to appear
+    await expect(page.locator('[data-testid="sidemenu"]')).toBeVisible({ timeout: 10000 });
   });
 });
 

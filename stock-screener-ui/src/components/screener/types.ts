@@ -115,7 +115,7 @@ export interface ScreenerPageProps {
   screenerOptions: ScreenerOption[];
   activeScreener: string;
   onScreenerChange: (id: string) => void;
-  
+
   title: string;
   status: string;
   isLoading: boolean;
@@ -126,20 +126,20 @@ export interface ScreenerPageProps {
   onAutoRefreshChange: (value: number) => void;
   onProviderChange: (value: string) => void;
   onModeChange: (value: string) => void;
-  
+
   filters: Filters;
   sectors: string[];
   profileFilters?: ProfileFilterDef[];
   onFilterChange: (key: string, value: any) => void;
   onResetFilters: () => void;
-  
+
   stocks: Stock[];
   touchedSymbols: Set<string>;
   summary?: SummaryItem[];
-  
+
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
-  
+
   error?: string | null;
 }
 

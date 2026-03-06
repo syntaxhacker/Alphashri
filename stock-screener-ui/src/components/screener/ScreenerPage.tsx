@@ -1,38 +1,30 @@
-import { Stack, Alert, Container } from '@mantine/core';
-import { IconAlertCircle } from '@tabler/icons-react';
-import { useState, useMemo } from 'react';
-import { ScreenerNav } from './ScreenerNav';
-import { ScreenerHeader } from './ScreenerHeader';
-import { ScreenerFilters } from './ScreenerFilters';
-import { ScreenerSummary } from './ScreenerSummary';
-import { ScreenerTable } from './ScreenerTable';
-import { ScreenerEmpty } from './ScreenerEmpty';
-import { ScreenerLoading } from './ScreenerLoading';
-import { TradingList } from './TradingList';
-import { getColumnsForScreener } from './columns';
+import { Stack, Alert, Box, Button } from "@mantine/core";
+import { IconAlertCircle } from "@tabler/icons-react";
+import { useState, useMemo } from "react";
+import { ScreenerNav } from "./ScreenerNav";
+import { ScreenerHeader } from "./ScreenerHeader";
+import { ScreenerFilters } from "./ScreenerFilters";
+import { ScreenerTable } from "./ScreenerTable";
+import { ScreenerEmpty } from "./ScreenerEmpty";
+import { ScreenerLoading } from "./ScreenerLoading";
+import { getColumnsForScreener } from "./columns";
+import type { Stock } from "../../types";
 
 interface ProfileFilterDef {
   key: string;
   label: string;
-  type: 'number' | 'select';
+  type: "number" | "select";
   options?: Array<{ value: string; label: string }>;
   min?: number;
   max?: number;
   step?: number;
 }
 
-interface Stock {
-  symbol: string;
-  score: number;
-  sector: string;
-  [key: string]: any;
-}
-
 interface ScreenerPageProps {
   screenerOptions: Array<{ id: string; label: string; description?: string }>;
   activeScreener: string;
   onScreenerChange: (id: string) => void;
-  
+
   title: string;
   status: string;
   isLoading: boolean;
@@ -43,7 +35,7 @@ interface ScreenerPageProps {
   onAutoRefreshChange: (value: number) => void;
   onProviderChange: (value: string) => void;
   onModeChange: (value: string) => void;
-  
+
   filters: {
     minScore: number;
     maxPrice: number;
@@ -55,14 +47,13 @@ interface ScreenerPageProps {
   profileFilters?: ProfileFilterDef[];
   onFilterChange: (key: string, value: any) => void;
   onResetFilters: () => void;
-  
+
   stocks: Stock[];
   touchedSymbols: Set<string>;
-  summary?: Array<{ label: string; value: string | number; color?: string }>;
-  
+
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
-  
+
   error?: string | null;
 }
 
@@ -87,36 +78,35 @@ export function ScreenerPage({
   onResetFilters,
   stocks,
   touchedSymbols,
-  summary,
   onSymbolClick,
   onSymbolHover,
   error,
 }: ScreenerPageProps) {
-  const [sortColumn, setSortColumn] = useState<string | null>('score');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortColumn, setSortColumn] = useState<string | null>("score");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const sortedStocks = useMemo(() => {
     if (!sortColumn) return stocks;
-    
+
     return [...stocks].sort((a, b) => {
       const aVal = a[sortColumn];
       const bVal = b[sortColumn];
-      
+
       if (aVal === bVal) return 0;
       if (aVal === null || aVal === undefined) return 1;
       if (bVal === null || bVal === undefined) return -1;
-      
+
       const comparison = aVal < bVal ? -1 : 1;
-      return sortDirection === 'asc' ? comparison : -comparison;
+      return sortDirection === "asc" ? comparison : -comparison;
     });
   }, [stocks, sortColumn, sortDirection]);
 
   const handleSortChange = (column: string) => {
     if (sortColumn === column) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortColumn(column);
-      setSortDirection('desc');
+      setSortDirection("desc");
     }
   };
 
@@ -129,14 +119,20 @@ export function ScreenerPage({
 
     if (error) {
       return (
-        <Alert 
-          icon={<IconAlertCircle size={16} />} 
-          title="Error" 
-          color="red" 
-          variant="filled"
-        >
-          {error}
-        </Alert>
+        <Stack gap="md" align="center">
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Error"
+            color="red"
+            variant="filled"
+            data-testid="screener-error"
+          >
+            {error}
+          </Alert>
+          <Button onClick={onRefresh} variant="light" color="red">
+            Retry
+          </Button>
+        </Stack>
       );
     }
 
@@ -151,7 +147,7 @@ export function ScreenerPage({
         touchedSymbols={touchedSymbols}
         sortColumn={sortColumn}
         sortDirection={sortDirection}
-        onSort={handleSortChange}
+        onSortChange={handleSortChange}
         onSymbolClick={onSymbolClick}
         onSymbolHover={onSymbolHover}
         screenerType={activeScreener}
@@ -160,45 +156,49 @@ export function ScreenerPage({
   };
 
   return (
-    <Container size="xl" py="md">
-      <Stack gap="md">
-        <ScreenerNav
-          options={screenerOptions}
-          activeScreener={activeScreener}
-          onChange={onScreenerChange}
-        />
+    <Box
+      h="100%"
+      style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
+      data-testid="screener-page"
+    >
+      <Box flex="0 0 auto">
+        <Stack gap="md">
+          <ScreenerNav
+            options={screenerOptions}
+            activeScreener={activeScreener}
+            onChange={onScreenerChange}
+          />
 
-        <ScreenerHeader
-          title={title}
-          status={status}
-          isLoading={isLoading}
-          autoRefreshSeconds={autoRefreshSeconds}
-          provider={provider}
-          mode={mode}
-          onRefresh={onRefresh}
-          onAutoRefreshChange={onAutoRefreshChange}
-          onProviderChange={onProviderChange}
-          onModeChange={onModeChange}
-        />
+          <ScreenerHeader
+            title={title}
+            status={status}
+            isLoading={isLoading}
+            autoRefreshSeconds={autoRefreshSeconds}
+            provider={provider}
+            mode={mode}
+            onRefresh={onRefresh}
+            onAutoRefreshChange={onAutoRefreshChange}
+            onProviderChange={onProviderChange}
+            onModeChange={onModeChange}
+          />
 
-        <ScreenerFilters
-          minScore={filters.minScore}
-          maxPrice={filters.maxPrice}
-          minReturn={filters.minReturn}
-          sector={filters.sector}
-          sectors={sectors}
-          profileFilters={profileFilters}
-          profileFilterValues={filters}
-          onFilterChange={onFilterChange}
-          onReset={onResetFilters}
-        />
+          <ScreenerFilters
+            minScore={filters.minScore}
+            maxPrice={filters.maxPrice}
+            minReturn={filters.minReturn}
+            sector={filters.sector}
+            sectors={sectors}
+            profileFilters={profileFilters}
+            profileFilterValues={filters}
+            onFilterChange={onFilterChange}
+            onReset={onResetFilters}
+          />
+        </Stack>
+      </Box>
 
-        {summary && <ScreenerSummary summary={summary} />}
-
+      <Box flex={1} style={{ minHeight: 0 }}>
         {renderContent()}
-
-        <TradingList symbols={sortedStocks.map(s => s.symbol)} />
-      </Stack>
-    </Container>
+      </Box>
+    </Box>
   );
 }

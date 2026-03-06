@@ -1,5 +1,5 @@
-import { Group, Stack, Text, ActionIcon, NumberInput, Select, Tooltip } from '@mantine/core';
-import { IconRefresh } from '@tabler/icons-react';
+import { Group, Stack, Text, ActionIcon, NumberInput, Select, Tooltip } from "@mantine/core";
+import { IconRefresh } from "@tabler/icons-react";
 
 interface ScreenerHeaderProps {
   title: string;
@@ -34,9 +34,9 @@ export function ScreenerHeader({
         </Text>
         <Group gap="xs" align="center">
           <Tooltip label="Refresh">
-            <ActionIcon 
-              variant="subtle" 
-              onClick={onRefresh} 
+            <ActionIcon
+              variant="subtle"
+              onClick={onRefresh}
               loading={isLoading}
               data-testid="refresh-btn"
             >
@@ -62,30 +62,40 @@ export function ScreenerHeader({
               sec
             </Text>
           </Group>
-          <Select
-            value={provider}
-            onChange={(value) => value && onProviderChange(value)}
-            data={[
-              { value: 'Upstox', label: 'Upstox' },
-              { value: 'INDMONEY', label: 'INDMONEY' },
-            ]}
-            size="xs"
-            w={120}
-            disabled={isLoading}
-            data-testid="provider-select"
-          />
-          <Select
-            value={mode}
-            onChange={(value) => value && onModeChange(value)}
-            data={[
-              { value: 'Intraday', label: 'Intraday' },
-              { value: '5D', label: '5D' },
-            ]}
-            size="xs"
-            w={100}
-            disabled={isLoading}
-            data-testid="mode-select"
-          />
+          <Group gap="xs" align="center">
+            <Text size="xs" c="dimmed">
+              Provider:
+            </Text>
+            <Select
+              value={provider}
+              onChange={(value) => value && onProviderChange(value)}
+              data={[
+                { value: "upstox", label: "Upstox" },
+                { value: "indmoney", label: "INDMONEY" },
+              ]}
+              size="xs"
+              w={120}
+              disabled={isLoading}
+              data-testid="provider-select"
+            />
+          </Group>
+          <Group gap="xs" align="center">
+            <Text size="xs" c="dimmed">
+              Mode:
+            </Text>
+            <Select
+              value={mode}
+              onChange={(value) => value && onModeChange(value)}
+              data={[
+                { value: "intraday", label: "Intraday" },
+                { value: "historical", label: "5D" },
+              ]}
+              size="xs"
+              w={100}
+              disabled={isLoading}
+              data-testid="mode-select"
+            />
+          </Group>
         </Group>
       </Group>
       <Text size="xs" c="dimmed" data-testid="status">

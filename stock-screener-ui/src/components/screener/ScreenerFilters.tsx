@@ -1,9 +1,9 @@
-import { Paper, Group, NumberInput, Select, Button, Text } from '@mantine/core';
+import { Paper, Group, NumberInput, Select, Button } from "@mantine/core";
 
 interface ProfileFilterDef {
   key: string;
   label: string;
-  type: 'number' | 'select';
+  type: "number" | "select";
   options?: { value: string; label: string }[];
   min?: number;
   max?: number;
@@ -36,12 +36,12 @@ export function ScreenerFilters({
   const sectorOptions = sectors.map((s) => ({ value: s, label: s }));
 
   const renderProfileFilter = (filter: ProfileFilterDef) => {
-    if (filter.type === 'number') {
+    if (filter.type === "number") {
       return (
         <NumberInput
           key={filter.key}
           label={filter.label}
-          value={profileFilterValues[filter.key] ?? ''}
+          value={profileFilterValues[filter.key] ?? ""}
           onChange={(value) => onFilterChange(filter.key, value)}
           min={filter.min}
           max={filter.max}
@@ -51,12 +51,12 @@ export function ScreenerFilters({
       );
     }
 
-    if (filter.type === 'select' && filter.options) {
+    if (filter.type === "select" && filter.options) {
       return (
         <Select
           key={filter.key}
           label={filter.label}
-          value={profileFilterValues[filter.key] ?? ''}
+          value={profileFilterValues[filter.key] ?? ""}
           onChange={(value) => onFilterChange(filter.key, value)}
           data={filter.options}
           clearable
@@ -74,7 +74,7 @@ export function ScreenerFilters({
         <NumberInput
           label="Min Score"
           value={minScore}
-          onChange={(value) => onFilterChange('minScore', value)}
+          onChange={(value) => onFilterChange("minScore", value)}
           min={0}
           max={100}
           step={1}
@@ -85,7 +85,7 @@ export function ScreenerFilters({
         <NumberInput
           label="Max Price"
           value={maxPrice}
-          onChange={(value) => onFilterChange('maxPrice', value)}
+          onChange={(value) => onFilterChange("maxPrice", value)}
           min={0}
           step={1}
           style={{ minWidth: 100 }}
@@ -95,7 +95,7 @@ export function ScreenerFilters({
         <NumberInput
           label="Min Return %"
           value={minReturn}
-          onChange={(value) => onFilterChange('minReturn', value)}
+          onChange={(value) => onFilterChange("minReturn", value)}
           step={0.5}
           decimalScale={2}
           style={{ minWidth: 120 }}
@@ -105,7 +105,7 @@ export function ScreenerFilters({
         <Select
           label="Sector"
           value={sector}
-          onChange={(value) => onFilterChange('sector', value)}
+          onChange={(value) => onFilterChange("sector", value)}
           data={sectorOptions}
           clearable
           placeholder="All sectors"

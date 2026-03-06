@@ -60,3 +60,6 @@ playwright/.cache/
 *.tmp
 *.temp
 --timeout
+
+*storybook.log
+storybook-static

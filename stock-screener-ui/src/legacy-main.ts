@@ -1,16 +1,9 @@
 /**
- * Main entry point for Alphashri
+ * Main entry point for Alphashri legacy views
+ * This handles backtest, paper, and bots views that still use string-based HTML rendering
  */
 
 import "./style.css";
-import {
-  COLUMN_LABELS,
-  COLUMN_TOOLTIPS,
-  NUMERIC_COLUMNS,
-  getColumnKeysForProfile,
-} from "./ui_schema";
-import { mountScreenerPage, unmountScreenerPage, type BridgeProps } from "./integration/screenerBridge";
-import { formatTimestamp } from "./utils/format";
 
 // State management
 import * as state from "./state";
@@ -33,15 +26,15 @@ import {
   activatePaperTrading,
 } from "./components/paper-trading";
 import { initPaperChart } from "./components/paper-trading/chart";
-import { renderSectorAnalysisView } from "./components/sector-analysis";
-import {
-  renderStrategiesView,
-  initStrategiesHandlers,
-  cleanupStrategies,
-} from "./components/strategies";
-import { subscribe as subscribeStrategies } from "./state/strategies";
+
+// Bots state and components
 import { renderBotsView, initBotsHandlers, cleanupBots } from "./components/bots";
 import { subscribe as subscribeBots } from "./state/bots";
+
+// Strategies state (for window functions used by React components)
+import * as strategiesState from "./state/strategies";
+
+// Common
 import { initPreviewChartHandlers } from "./components/common/previewChart";
 import type { AppView } from "./types/backtest";
 
@@ -57,64 +50,36 @@ import {
 } from "./api";
 
 // Components
-import {
-  applyFilters,
-  sortStocks,
-  handleSort,
-  renderSortableHeader,
-  getUniqueSectors,
-} from "./components/filters";
-import { renderStockRow } from "./components/table";
-import { renderSummaryStrip } from "./components/summary";
-import { renderTradingListBlock } from "./components/tradinglist";
-import {
-  getActiveProfileMeta,
-  getSectionLabels,
-  initProfileFilters,
-  applyProfileFilters,
-} from "./components/profile";
-import {
-  renderNotificationsHtml,
-  renderScreenerNav,
-  renderHeader,
-  renderFilters,
-  renderFooter,
-} from "./components/header";
-
-function getTableHeaders(screener: string, touched: boolean): string {
-  return getColumnKeysForProfile(screener, touched)
-    .map((key) =>
-      renderSortableHeader(
-        COLUMN_LABELS[key],
-        key,
-        NUMERIC_COLUMNS.has(key) ? "num" : "",
-        COLUMN_TOOLTIPS[key] || "",
-      ),
-    )
-    .join("");
-}
+import { handleSort } from "./components/filters";
+import { getActiveProfileMeta, initProfileFilters } from "./components/profile";
 
 let lastRenderedView: AppView | null = null;
 
 function render() {
-  const app = document.querySelector<HTMLDivElement>("#legacy-root")!;
+  const app = document.querySelector<HTMLDivElement>("#app-content");
+  if (!app) {
+    return;
+  }
+
   const backtestState = getBacktestState();
   const currentView = backtestState.currentView;
 
-  // Render with sidemenu
+  // Skip HTML rendering for React-based views (screener, strategies, sector)
+  // These are handled by React Router directly
+  if (currentView === "screener" || currentView === "strategies" || currentView === "sector") {
+    return;
+  }
+
+  // Render legacy views with string-based HTML
   let mainContent: string;
   if (currentView === "backtest") {
     mainContent = renderBacktestView();
   } else if (currentView === "paper") {
     mainContent = renderPaperTradingView();
-  } else if (currentView === "sector") {
-    mainContent = renderSectorAnalysisView();
-  } else if (currentView === "strategies") {
-    mainContent = renderStrategiesView();
   } else if (currentView === "bots") {
     mainContent = renderBotsView();
   } else {
-    mainContent = renderScreenerView();
+    mainContent = "";
   }
 
   app.innerHTML = `
@@ -138,74 +103,12 @@ function render() {
     cleanupPaperTrading();
   }
 
-  // Cleanup strategies view when leaving
-  if (currentView !== "strategies" && lastRenderedView === "strategies") {
-    cleanupStrategies();
-  }
-
   // Cleanup bots view when leaving
   if (currentView !== "bots" && lastRenderedView === "bots") {
     cleanupBots();
   }
 
-  // Mount/unmount React screener page
-  if (currentView === "screener") {
-    mountScreenerPageIfNeeded();
-  } else {
-    unmountScreenerPage();
-  }
-
   lastRenderedView = currentView;
-}
-
-function renderScreenerView(): string {
-  return `<div id="screener-react-root" data-testid="screener-page"></div>`;
-}
-
-function mountScreenerPageIfNeeded() {
-  const container = document.getElementById("screener-react-root");
-  if (!container) return;
-  
-  const allStocks = [...(state.data?.approaching || []), ...(state.data?.touched || [])];
-  const touchedSymbols = new Set((state.data?.touched || []).map(s => s.symbol));
-  
-  const rawProfileFilters = state.profileMetaById[state.activeScreener]?.filters;
-  const profileFilters = rawProfileFilters?.map(f => ({
-    key: f.key,
-    label: f.label,
-    type: f.type,
-    min: f.min,
-    max: f.max,
-    step: f.step,
-    options: f.options?.map(opt => ({ value: opt, label: opt })),
-  }));
-  
-  const props: BridgeProps = {
-    stocks: allStocks,
-    touchedSymbols: Array.from(touchedSymbols),
-    filters: {
-      minScore: state.filters.minScore,
-      maxPrice: state.filters.maxPrice,
-      minReturn: state.filters.minReturn,
-      sector: state.filters.sector,
-      ...state.profileFilterValues,
-    },
-    sectors: getUniqueSectors(allStocks),
-    profileFilters,
-    profileFilterValues: state.profileFilterValues,
-    screenerOptions: state.screenerOptions,
-    activeScreener: state.activeScreener,
-    title: `${state.screenerOptions.find(s => s.id === state.activeScreener)?.label || "Trending"} | Alphashri`,
-    status: `${state.data?.last_updated ? formatTimestamp(state.data.last_updated) : ""} | ${state.data?.provider?.toUpperCase() || ""} | ${state.data?.mode === "intraday" ? "Intraday" : "5D"}`,
-    isLoading: state.isLoading,
-    autoRefreshSeconds: state.autoRefreshSeconds,
-    provider: state.data?.provider || "upstox",
-    mode: state.data?.mode || "intraday",
-    summary: state.data?.summary,
-    error: state.error,
-  };
-  
-  mountScreenerPage(container, props);
 }
 
 // Set render callback for modules that need to trigger re-renders
@@ -217,9 +120,6 @@ subscribeBacktest(render);
 
 // Subscribe to paper trading state changes
 subscribePaperTrading(render);
-
-// Subscribe to strategies state changes
-subscribeStrategies(render);
 
 // Subscribe to bots state changes
 subscribeBots(render);
@@ -293,6 +193,25 @@ subscribeBots(render);
   }
 };
 
+// Strategy management window functions (called from React components)
+(window as any).createStrategy = async (data: any) => {
+  await strategiesState.createStrategy(data);
+};
+
+(window as any).updateStrategy = async (strategyId: number, data: any) => {
+  await strategiesState.updateStrategy(strategyId, data);
+};
+
+(window as any).deleteStrategy = async (strategyId: number) => {
+  if (confirm("Are you sure you want to delete this strategy?")) {
+    await strategiesState.deleteStrategyAction(strategyId);
+  }
+};
+
+(window as any).viewStrategyDetails = async (strategyId: number) => {
+  await strategiesState.loadStrategy(strategyId);
+};
+
 // Keyboard shortcuts
 document.addEventListener("keydown", (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
@@ -319,7 +238,6 @@ loadScreeners(initProfileFilters).then(() => {
   // Initialize handlers
   initBacktestHandlers();
   initPaperTradingHandlers();
-  initStrategiesHandlers();
   initBotsHandlers();
   initPreviewChartHandlers();
   fetchStrategies();

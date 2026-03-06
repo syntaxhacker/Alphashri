@@ -1,5 +1,4 @@
 import type { ColumnDef } from "./index";
-import type { Stock } from "../../../types";
 
 export function getRsiReversalColumns(): ColumnDef[] {
   return [

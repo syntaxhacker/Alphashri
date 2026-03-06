@@ -9,7 +9,11 @@ import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
 import { NotificationContainer } from "./components/NotificationContainer";
 import { AppLayout } from "./components/layout/AppLayout";
+import { SectorPage } from "./components/sector/SectorPage";
+import { ScreenerContainer } from "./containers/ScreenerContainer";
+import { StrategiesContainer } from "./containers/StrategiesContainer";
 
+// Wrapper for legacy views (backtest, paper, bots) that still use string-based HTML rendering
 function LegacyShell({ view }: { view: AppRouteView }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -17,7 +21,7 @@ function LegacyShell({ view }: { view: AppRouteView }) {
   const currentReduxView = useAppSelector((state) => state.app.currentView);
 
   useEffect(() => {
-    // Load existing non-React app once (it mounts into #legacy-root).
+    // Load legacy app once
     void import("./legacy-main");
   }, []);
 
@@ -49,7 +53,13 @@ function LegacyShell({ view }: { view: AppRouteView }) {
     };
   }, [navigate, location.pathname]);
 
-  return <div id="legacy-root" data-view={currentReduxView} />;
+  return (
+    <div
+      id="app-content"
+      data-view={currentReduxView}
+      style={{ height: "100%", display: "flex", flexDirection: "column" }}
+    />
+  );
 }
 
 function AuthScreen() {
@@ -93,11 +103,11 @@ function AppContent() {
   return (
     <AppLayout>
       <Routes>
-        <Route path="/" element={<LegacyShell view="screener" />} />
+        <Route path="/" element={<ScreenerContainer />} />
         <Route path="/backtest" element={<LegacyShell view="backtest" />} />
         <Route path="/paper" element={<LegacyShell view="paper" />} />
-        <Route path="/sector" element={<LegacyShell view="sector" />} />
-        <Route path="/strategies" element={<LegacyShell view="strategies" />} />
+        <Route path="/sector" element={<SectorPage />} />
+        <Route path="/strategies" element={<StrategiesContainer />} />
         <Route path="/bots" element={<LegacyShell view="bots" />} />
         <Route path="/chart/:symbol" element={<ChartView />} />
         <Route path="*" element={<Navigate to="/" replace />} />

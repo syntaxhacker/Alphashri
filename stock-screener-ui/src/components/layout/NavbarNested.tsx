@@ -8,7 +8,7 @@ import {
   IconSun,
   IconMoon,
 } from "@tabler/icons-react";
-import { Group, ScrollArea, Text, UnstyledButton } from "@mantine/core";
+import { Group, ScrollArea, Text, UnstyledButton, AppShell } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
@@ -42,7 +42,7 @@ export function NavbarNested({ activePath }: NavbarNestedProps) {
 
   return (
     <nav className={classes.navbar} data-testid="sidemenu">
-      <div className={classes.header}>
+      <AppShell.Section className={classes.header}>
         <Group justify="space-between">
           <Text fw={700} size="lg">
             🚀 Alphashri
@@ -51,15 +51,15 @@ export function NavbarNested({ activePath }: NavbarNestedProps) {
             {colorScheme === "dark" ? <IconSun size={20} /> : <IconMoon size={20} />}
           </UnstyledButton>
         </Group>
-      </div>
+      </AppShell.Section>
 
-      <ScrollArea className={classes.links}>
+      <AppShell.Section grow component={ScrollArea} className={classes.links}>
         <div className={classes.linksInner}>{links}</div>
-      </ScrollArea>
+      </AppShell.Section>
 
-      <div className={classes.footer}>
+      <AppShell.Section className={classes.footer}>
         <UserButton />
-      </div>
+      </AppShell.Section>
     </nav>
   );
 }

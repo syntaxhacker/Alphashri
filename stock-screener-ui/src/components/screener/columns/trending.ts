@@ -42,7 +42,7 @@ export function getTrendingColumns(): ColumnDef[] {
       label: "Broker Diff",
       type: "number",
       sortable: true,
-      format: (value: number, stock: Stock) => {
+      format: (value: number, _stock: Stock) => {
         const cls = Math.abs(value) < 1.0 ? "green" : "yellow";
         return { value: `${value > 0 ? "+" : ""}${value.toFixed(2)}%`, className: cls };
       },
