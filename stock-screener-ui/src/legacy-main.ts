@@ -9,6 +9,8 @@ import {
   NUMERIC_COLUMNS,
   getColumnKeysForProfile,
 } from "./ui_schema";
+import { mountScreenerPage, unmountScreenerPage, type BridgeProps } from "./integration/screenerBridge";
+import { formatTimestamp } from "./utils/format";
 
 // State management
 import * as state from "./state";
@@ -145,80 +147,65 @@ function render() {
   if (currentView !== "bots" && lastRenderedView === "bots") {
     cleanupBots();
   }
+
+  // Mount/unmount React screener page
+  if (currentView === "screener") {
+    mountScreenerPageIfNeeded();
+  } else {
+    unmountScreenerPage();
+  }
+
   lastRenderedView = currentView;
 }
 
 function renderScreenerView(): string {
-  if (state.error) {
-    return `
-      <div class="header">
-        <div class="title">🚀 Alphashri</div>
-        <div class="controls">
-          <button onclick="window.refresh()">Retry</button>
-        </div>
-      </div>
-      <div class="error">${state.error}</div>
-    `;
-  }
+  return `<div id="screener-react-root" data-testid="screener-page"></div>`;
+}
 
+function mountScreenerPageIfNeeded() {
+  const container = document.getElementById("screener-react-root");
+  if (!container) return;
+  
   const allStocks = [...(state.data?.approaching || []), ...(state.data?.touched || [])];
-  const sectors = getUniqueSectors(allStocks);
-  const approaching = sortStocks(applyProfileFilters(applyFilters(state.data?.approaching || [])));
-  const touched = sortStocks(applyProfileFilters(applyFilters(state.data?.touched || [])));
-  const sectionLabels = getSectionLabels();
-
-  // Show loading indicator only when loading AND no data exists (i.e., screener switch)
-  // When refreshing same screener, keep showing existing table
-  const showLoading = state.isLoading && !state.data;
-
-  const tableContent = showLoading
-    ? `<div class="loading" data-testid="table-loading">🔄 Loading ${state.activeScreener} data...</div>`
-    : `${
-        approaching.length > 0
-          ? `
-      <div class="section-title" data-testid="primary-section-title">${sectionLabels.primary} (${approaching.length}${approaching.length < (state.data?.approaching?.length || 0) ? ` of ${state.data?.approaching?.length}` : ""})</div>
-      <table data-testid="stocks-table">
-        <thead>
-          <tr>
-            ${getTableHeaders(state.activeScreener, false)}
-          </tr>
-        </thead>
-        <tbody data-testid="stocks-tbody">
-          ${approaching.map((s) => renderStockRow(s, false, state.activeScreener)).join("")}
-        </tbody>
-      </table>
-      ${renderTradingListBlock("tradingListPrimary", approaching)}
-    `
-          : '<div class="empty" data-testid="empty-state">No stocks matching filters</div>'
-      }
-    ${
-      touched.length > 0
-        ? `
-      <div class="section-title touched" data-testid="secondary-section-title">${sectionLabels.secondary} (${touched.length}${touched.length < (state.data?.touched?.length || 0) ? ` of ${state.data?.touched?.length}` : ""})</div>
-      <table data-testid="touched-table">
-        <thead>
-          <tr>
-            ${getTableHeaders(state.activeScreener, true)}
-          </tr>
-        </thead>
-        <tbody data-testid="touched-tbody">
-          ${touched.map((s) => renderStockRow(s, true, state.activeScreener)).join("")}
-        </tbody>
-      </table>
-      ${renderTradingListBlock("tradingListSecondary", touched)}
-    `
-        : ""
-    }`;
-
-  return `
-    ${renderNotificationsHtml()}
-    ${renderScreenerNav()}
-    ${renderHeader()}
-    ${renderFilters(sectors)}
-    ${state.data?.summary && state.data.summary.length > 0 ? renderSummaryStrip(state.data.summary) : ""}
-    ${tableContent}
-    ${renderFooter()}
-  `;
+  const touchedSymbols = new Set((state.data?.touched || []).map(s => s.symbol));
+  
+  const rawProfileFilters = state.profileMetaById[state.activeScreener]?.filters;
+  const profileFilters = rawProfileFilters?.map(f => ({
+    key: f.key,
+    label: f.label,
+    type: f.type,
+    min: f.min,
+    max: f.max,
+    step: f.step,
+    options: f.options?.map(opt => ({ value: opt, label: opt })),
+  }));
+  
+  const props: BridgeProps = {
+    stocks: allStocks,
+    touchedSymbols: Array.from(touchedSymbols),
+    filters: {
+      minScore: state.filters.minScore,
+      maxPrice: state.filters.maxPrice,
+      minReturn: state.filters.minReturn,
+      sector: state.filters.sector,
+      ...state.profileFilterValues,
+    },
+    sectors: getUniqueSectors(allStocks),
+    profileFilters,
+    profileFilterValues: state.profileFilterValues,
+    screenerOptions: state.screenerOptions,
+    activeScreener: state.activeScreener,
+    title: `${state.screenerOptions.find(s => s.id === state.activeScreener)?.label || "Trending"} | Alphashri`,
+    status: `${state.data?.last_updated ? formatTimestamp(state.data.last_updated) : ""} | ${state.data?.provider?.toUpperCase() || ""} | ${state.data?.mode === "intraday" ? "Intraday" : "5D"}`,
+    isLoading: state.isLoading,
+    autoRefreshSeconds: state.autoRefreshSeconds,
+    provider: state.data?.provider || "upstox",
+    mode: state.data?.mode || "intraday",
+    summary: state.data?.summary,
+    error: state.error,
+  };
+  
+  mountScreenerPage(container, props);
 }
 
 // Set render callback for modules that need to trigger re-renders
