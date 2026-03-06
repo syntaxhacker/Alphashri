@@ -1,18 +1,20 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import * as strategiesState from "../state/strategies";
-import type { StrategiesView, StrategyConfig, StrategyFormData } from "../types/strategies";
+import type { StrategyConfig } from "../types/strategies";
+import type { StrategyView, StrategyFormData } from "../components/strategies/types";
 
 export function useStrategiesState() {
-  const [state, setState] = useState(strategiesState.getStrategiesState());
+  const [, setTick] = useState(0);
+  const state = strategiesState.getStrategiesState();
 
   useEffect(() => {
     const unsubscribe = strategiesState.subscribe(() => {
-      setState(strategiesState.getStrategiesState());
+      setTick((t) => t + 1);
     });
-    return unsubscribe;
+    return () => { unsubscribe(); };
   }, []);
 
-  const handleViewChange = useCallback((view: StrategiesView) => {
+  const handleViewChange = useCallback((view: StrategyView) => {
     strategiesState.setCurrentView(view);
     if (view === "templates") {
       strategiesState.loadTemplates();
@@ -24,12 +26,12 @@ export function useStrategiesState() {
   }, []);
 
   const handleRefresh = useCallback(() => {
-    const currentState = strategiesState.getStrategiesState();
-    if (currentState.activeView === "templates") {
+    const currentView = strategiesState.getCurrentView();
+    if (currentView === "templates") {
       strategiesState.loadTemplates();
-    } else if (currentState.activeView === "list") {
+    } else if (currentView === "list") {
       strategiesState.loadStrategies(true);
-    } else if (currentState.activeView === "performance") {
+    } else if (currentView === "performance") {
       strategiesState.loadAllPerformance();
     }
   }, []);
@@ -89,7 +91,7 @@ export function useStrategiesState() {
     bots: state.bots,
     isLoading: state.isLoading,
     error: state.error,
-    activeView: state.activeView,
+    activeView: strategiesState.getCurrentView() as StrategyView,
     showCreateModal: state.showCreateModal,
     showEditModal: state.showEditModal,
     editingStrategy: state.editingStrategy,
