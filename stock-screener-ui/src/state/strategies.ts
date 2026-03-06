@@ -274,13 +274,15 @@ export async function loadAllPerformance(): Promise<void> {
   // Load performance for each non-template strategy
   for (const strategy of state.strategies) {
     if (!strategy.is_template) {
+      // Use internal_id (integer) instead of id (uuid) for API calls
+      const strategyId = strategy.internal_id ?? Number(strategy.id);
       try {
-        const perf = await api.getStrategyPerformance(strategy.id);
+        const perf = await api.getStrategyPerformance(strategyId);
         performanceResults.push(perf);
       } catch (error) {
         // Add placeholder for strategies with no trades
         performanceResults.push({
-          strategy_id: strategy.id,
+          strategy_id: strategyId,
           strategy_name: strategy.name,
           total_trades: 0,
           winners: 0,
@@ -373,7 +375,8 @@ export function selectStrategy(strategy: StrategyConfig | null): void {
   state = { ...state, selectedStrategy: strategy, performance: null };
   notify();
   if (strategy) {
-    loadPerformance(strategy.id);
+    const strategyId = strategy.internal_id ?? Number(strategy.id);
+    loadPerformance(strategyId);
   }
 }
 
