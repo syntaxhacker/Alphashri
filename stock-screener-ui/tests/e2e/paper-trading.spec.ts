@@ -98,7 +98,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Click on "ORB Conservative" tab
-    await page.locator(".strategy-tab:has-text('ORB Conservative')").click();
+    await page.locator('[data-testid="strategy-tab-orb-conservative"]').click();
 
     // Wait for UI to update
     await page.waitForTimeout(200);

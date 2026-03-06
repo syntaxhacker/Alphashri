@@ -275,8 +275,8 @@ test.describe("Multi-Strategy System - Signal Generators", () => {
     test.slow();
     await navigateToBot(page, botId);
 
-    // Wait for positions to load
-    await page.waitForSelector(".positions-table, .positions-empty", { timeout: 15000 });
+    // Wait for positions panel to render (includes loading, empty, or table states)
+    await page.waitForSelector("[data-testid='positions-panel']", { timeout: 15000 });
 
     const count = await getStrategyTabCount(page);
     if (count === 0) {
