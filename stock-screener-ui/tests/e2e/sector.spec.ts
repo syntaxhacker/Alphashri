@@ -10,7 +10,7 @@ test.describe("Sector Analysis - Navigation and Display", () => {
 
   test("should navigate to sector analysis view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     // Click Sector Analysis navigation
     await page.locator('[data-testid="nav-sector"]').click();
@@ -229,15 +229,15 @@ test.describe("Sector Analysis - Navigation State", () => {
 
   test("should update navigation active state when navigating to sector view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     // Click Sector Analysis
     await page.locator('[data-testid="nav-sector"]').click();
     await page.waitForTimeout(500);
 
-    // Sector nav should be active
+    // Sector nav should be active (Mantine uses data-active attribute)
     const sectorNav = page.locator('[data-testid="nav-sector"]');
-    await expect(sectorNav).toHaveClass(/active/);
+    await expect(sectorNav).toHaveAttribute("data-active", "true");
   });
 
   test("should navigate to sector view from other views", async ({ page }) => {

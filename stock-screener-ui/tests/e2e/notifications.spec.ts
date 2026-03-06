@@ -10,7 +10,7 @@ test.describe("Notification Panel", () => {
   // Skip: The notification panel UI has changed and these selectors no longer match
   test.skip("should toggle notification panel when button clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 15000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
 
     // Find notification toggle button (Updates button)
     const notifBtn = page.locator('button:has-text("Updates")');
@@ -27,7 +27,7 @@ test.describe("Notification Panel", () => {
   // Skip: The notification panel UI has changed and these selectors no longer match
   test.skip("should show notification filter tabs", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 15000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
 
     // Open notification panel
     const openBtn = page.locator('button:has-text("Updates")');
@@ -48,7 +48,7 @@ test.describe("Notification Panel", () => {
 
   test("should clear notifications when clear button clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 15000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
 
     // Open notification panel
     const openBtn = page.locator(".notif-open-btn");
@@ -72,7 +72,7 @@ test.describe("Notification Panel", () => {
 
   test("should filter notifications by type", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 15000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
 
     // Open notification panel
     const openBtn = page.locator(".notif-open-btn");

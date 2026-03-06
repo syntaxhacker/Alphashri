@@ -321,7 +321,15 @@ async def get_trades(
         # No date filter - merge in-memory journal + journal files (including today)
         # In-memory journal can be stale when runner writes from another process,
         # so we always load today's file as source of truth and dedupe.
-        journal = get_journal(user_id)
+        # Reload today's journal file so we include newly saved trades
+        today = datetime.now().strftime('%Y%m%d')
+        journal = TradeJournal(user_id=user_id)
+        journal_file = journal_dir / f"journal_{today}.json"
+        if journal_file.exists():
+            try:
+                journal.load_journal(str(journal_file))
+            except Exception as e:
+                console.print(f"[yellow]Could not reload journal: {e}[/yellow]")
         all_trades = [asdict(t) for t in journal.trades]
 
         # Load recent journal files (today + previous 7 days)

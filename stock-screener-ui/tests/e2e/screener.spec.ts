@@ -312,7 +312,7 @@ test.describe("Screener - Error Handling", () => {
     });
 
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 15000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
 
     // Click retry if visible
     const retryBtn = page.locator("button:has-text('Retry')");

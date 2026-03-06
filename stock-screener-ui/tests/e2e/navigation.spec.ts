@@ -122,7 +122,7 @@ test.describe("Navigation - App Navigation", () => {
   // This is a known issue with the legacy view rendering
   test.skip("should update active state on navigation", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     // Click Paper Trading
     await page.locator('[data-testid="nav-paper"]').click();

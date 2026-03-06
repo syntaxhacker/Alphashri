@@ -192,6 +192,46 @@ test.describe("Paper Trading - Bot Controls", () => {
     await setupPaperTradingTest(page);
   });
 
+  test("should update UI immediately after starting a bot", async ({ page }) => {
+    let botRunning = false;
+
+    await page.route(`**/api/bots/${TEST_BOT_UUID}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: TEST_BOT_UUID,
+          name: "Multi-ORB Test Bot",
+          is_active: true,
+          strategies: [],
+          running: botRunning,
+          pid: botRunning ? 22133 : null,
+        }),
+      });
+    });
+
+    await page.route(`**/api/bots/${TEST_BOT_UUID}/start`, async (route) => {
+      botRunning = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          message: `Bot ${TEST_BOT_UUID} started`,
+          pid: 22133,
+          log_file: "/tmp/bot-1-1.log",
+        }),
+      });
+    });
+
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    await page.locator('button:has-text("Start Bot")').click();
+
+    await expect(page.locator(".paper-bot-status")).toContainText("Running");
+    await expect(page.locator(".paper-bot-status")).toContainText("22133");
+    await expect(page.locator('button:has-text("Stop Bot")')).toBeVisible();
+  });
+
   test("should show Start Bot button when bot is not running", async ({ page }) => {
     // Mock bot as not running
     await page.route(`**/api/bots/${TEST_BOT_UUID}`, async (route) => {

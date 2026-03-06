@@ -619,6 +619,7 @@ class MultiStrategyRunner:
                 positions_to_close.append((pos.strategy_id, pos.symbol, exit_price, exit_reason))
 
         # Close positions
+        trade_logged = False
         for strategy_id, symbol, exit_price, exit_reason in positions_to_close:
             # Calculate costs (simplified)
             trade_value = exit_price * self.portfolio.positions[f"{strategy_id}_{symbol}"].quantity
@@ -652,8 +653,11 @@ class MultiStrategyRunner:
                     'strategy_name': trade.strategy_name,
                 }, strategy_id=trade.strategy_id, strategy_name=trade.strategy_name, bot_id=self.bot_config.id, bot_name=self.bot_config.name)
 
+                trade_logged = True
                 # Add to cooldown
                 self.cooldown_stocks[symbol] = datetime.now()
+        if trade_logged:
+            self.journal.save_journal()
 
         # Check force exit time
         if self.is_force_exit_time():
@@ -888,6 +892,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Multi-Strategy Trading Runner')
     parser.add_argument('--bot-id', type=int, required=True, help='Bot configuration ID')
+    parser.add_argument('--user-id', type=int, help='User ID for multi-user support')
     parser.add_argument('--test', action='store_true', help='Test mode (no real trades)')
     parser.add_argument('--interval', type=int, default=30, help='Scan interval in seconds')
 
@@ -895,6 +900,7 @@ if __name__ == '__main__':
 
     runner = create_multi_strategy_runner(
         bot_id=args.bot_id,
+        user_id=args.user_id,
         test_mode=args.test,
     )
 

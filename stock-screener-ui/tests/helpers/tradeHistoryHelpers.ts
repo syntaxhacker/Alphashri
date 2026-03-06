@@ -23,7 +23,7 @@ export async function setupTradeHistoryMocks(page: Page): Promise<void> {
 export async function navigateToPaperTrading(page: Page): Promise<void> {
   // Navigate directly to paper trading URL
   await page.goto("/paper");
-  await page.waitForSelector(".sidemenu", { timeout: 20000 });
+  await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 20000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 30000 });
 }
 
@@ -51,7 +51,17 @@ export async function navigateToTradeHistory(page: Page): Promise<void> {
  * Select a bot from the dropdown by its ID
  */
 export async function selectBot(page: Page, botId: string): Promise<void> {
-  await page.locator(".bot-selector-dropdown").selectOption(botId);
+  const dropdown = page.locator(".bot-selector-dropdown");
+  await dropdown.waitFor({ state: "visible" });
+  await page.waitForFunction(
+    (sel) => {
+      const select = document.querySelector(sel);
+      return select && select.querySelectorAll("option[value]").length > 1;
+    },
+    ".bot-selector-dropdown",
+    { timeout: 10000 }
+  );
+  await dropdown.selectOption(botId);
   await page.waitForTimeout(500);
 }
 
@@ -60,7 +70,7 @@ export async function selectBot(page: Page, botId: string): Promise<void> {
  */
 export async function navigateToTradeHistoryWithBot(
   page: Page,
-  botId: string = "2",
+  botId: string = "550e8400-e29b-41d4-a716-446655440000",
 ): Promise<void> {
   await navigateToTradeHistory(page);
   await selectBot(page, botId);

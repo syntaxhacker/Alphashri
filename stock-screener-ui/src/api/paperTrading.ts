@@ -422,13 +422,25 @@ export async function getBot(botId: string): Promise<any | null> {
 // Start a multi-strategy bot
 export async function startBot(
   botId: string,
-): Promise<{ success: boolean; pid?: number; message?: string }> {
+): Promise<{ success: boolean; pid?: number; log_file?: string | null; message?: string }> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/start`, {
       method: "POST",
     });
     const data = await response.json();
-    return { success: !!data.pid, pid: data.pid, message: data.message };
+    const started = !!data.pid;
+
+    // The start endpoint does not return `running`, but the UI state depends on it.
+    if (started) {
+      setBotStatus(true, data.pid ?? null, data.log_file ?? null);
+    }
+
+    return {
+      success: started,
+      pid: data.pid,
+      log_file: data.log_file ?? null,
+      message: data.message,
+    };
   } catch (error) {
     console.error("Failed to start bot:", error);
     return {
@@ -445,6 +457,9 @@ export async function stopBot(botId: string): Promise<{ success: boolean; messag
       method: "POST",
     });
     const data = await response.json();
+
+    setBotStatus(false, null, null);
+
     return { success: true, message: data.message };
   } catch (error) {
     console.error("Failed to stop bot:", error);
@@ -515,6 +530,37 @@ export async function fetchBotStrategyPerformance(
   }
 }
 
+function normalizeBotPortfolio(
+  portfolio: any,
+  positions: any[],
+  realizedToday: number,
+): PortfolioStatus {
+  const initialCapital = Number(portfolio?.initial_capital ?? 0);
+  const unrealized = Number(portfolio?.unrealized_pnl ?? 0);
+  const dailyPnl = realizedToday + unrealized;
+  const totalPositions = Number(portfolio?.total_positions ?? positions.length ?? 0);
+
+  return {
+    initial_capital: initialCapital,
+    cash: Number(portfolio?.cash ?? 0),
+    margin_used: Number(portfolio?.margin_used ?? portfolio?.capital_used ?? 0),
+    position_value: Number(portfolio?.position_value ?? 0),
+    unrealized_pnl: unrealized,
+    realized_pnl: Number(portfolio?.realized_pnl ?? 0),
+    total_value: Number(portfolio?.total_value ?? 0),
+    total_pnl: Number(portfolio?.total_pnl ?? 0),
+    total_pnl_pct: Number(portfolio?.total_pnl_pct ?? 0),
+    positions: totalPositions,
+    trades: Number(portfolio?.trades ?? portfolio?.total_trades ?? 0),
+    daily_pnl: dailyPnl,
+    daily_pnl_pct: Number(
+      portfolio?.daily_pnl_pct ?? (initialCapital > 0 ? (dailyPnl / initialCapital) * 100 : 0),
+    ),
+    daily_trades: Number(portfolio?.daily_trades ?? 0),
+    open_positions: Number(portfolio?.open_positions ?? totalPositions),
+  };
+}
+
 // Refresh data from multi-strategy bot
 export async function refreshBotLiveData(botId: string): Promise<void> {
   setLoading(true);
@@ -525,6 +571,15 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
       fetchBotPositions(botId),
       fetchBotScanItems(botId),
     ]);
+    const trades = await fetchTrades(200, botId);
+    const todayString = new Date().toDateString();
+    const realizedToday = trades
+      .filter((trade) => {
+        if (!trade.exit_time) return false;
+        const exitDate = new Date(trade.exit_time).toDateString();
+        return exitDate === todayString;
+      })
+      .reduce((sum, trade) => sum + (trade.net_pnl ?? trade.pnl ?? 0), 0);
 
     // Update bot status
     if (botInfo) {
@@ -532,7 +587,6 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
     }
 
     if (portfolioData) {
-      setPortfolio(portfolioData.portfolio);
       // Convert bot positions to paper positions format
       const paperPositions = positions.map((p: any) => ({
         symbol: p.symbol,
@@ -549,6 +603,8 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
         strategy_id: p.strategy_id,
         strategy_name: p.strategy_name,
       }));
+
+      setPortfolio(normalizeBotPortfolio(portfolioData.portfolio, positions, realizedToday));
       setPositions(paperPositions);
 
       // Convert scan items to bot snapshot format

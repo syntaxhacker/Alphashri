@@ -29,7 +29,7 @@ test.describe("Strategies View - Navigation", () => {
 
   test("should navigate to strategies view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".sidemenu", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-strategies"]').click();
     await page.waitForTimeout(500);
