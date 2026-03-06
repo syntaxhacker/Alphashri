@@ -51,7 +51,8 @@ export function TemplatesView({
 
 function TemplateCard({ template, variations, onCreateFromTemplate }: TemplateCardProps) {
   return (
-    <Card className="template-card"
+    <Card
+      className="template-card"
       shadow="sm"
       padding="md"
       radius="sm"

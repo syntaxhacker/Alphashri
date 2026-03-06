@@ -142,7 +142,8 @@ export function StrategyForm({
   const initialValues = getInitialValues();
 
   return (
-    <Modal className="strategy-form-modal"
+    <Modal
+      className="strategy-form-modal"
       opened={opened}
       onClose={onClose}
       title={<Title order={4}>{mode === "create" ? "Create Strategy" : "Edit Strategy"}</Title>}
