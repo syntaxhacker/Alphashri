@@ -42,53 +42,49 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await expect(page.locator(".bot-selector-dropdown")).toBeVisible();
   });
 
-  // Skip: Requires real backend API for bot list
-  test.skip("should list available bots in dropdown", async ({ page }) => {
+  // Note: This test uses the mock data from setupMultiStrategyBotMocks
+  test("should list available bots in dropdown", async ({ page }) => {
     await navigateToPaperTrading(page);
 
-    // Verify bots are listed in dropdown options
     const dropdown = page.locator(".bot-selector-dropdown");
     await expect(dropdown).toBeVisible();
 
-    // Check that the option exists (it contains the bot name)
     const optionText = await dropdown.locator(`option[value='${TEST_BOT_UUID}']`).textContent();
     expect(optionText).toContain("Multi-ORB Test Bot");
   });
 
-  // Skip: Requires real backend API for bot selection
-  test.skip("should show portfolio summary", async ({ page }) => {
+  // Note: This test uses the mock data from setupMultiStrategyBotMocks  
+  test("should show portfolio summary", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify portfolio card is visible
-    await expect(page.locator(".portfolio-card")).toBeVisible();
-
-    // Verify portfolio values
-    await expect(page.locator(".portfolio-card")).toContainText("Capital");
-    await expect(page.locator(".portfolio-card")).toContainText("Cash");
+    const portfolioCard = page.locator(".portfolio-card");
+    await expect(portfolioCard).toBeVisible();
+    await expect(portfolioCard).toContainText("Capital");
+    await expect(portfolioCard).toContainText("Cash");
   });
 
-  // Skip: Requires real backend API for bot selection
-  test.skip("should show scan items from multi-strategy bot", async ({ page }) => {
+  // Note: This test uses the mock data from setupMultiStrategyBotMocks
+  test("should show scan items from multi-strategy bot", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify scan card is visible
-    await expect(page.locator(".scan-card")).toBeVisible();
+    const scanCard = page.locator(".scan-card");
+    await expect(scanCard).toBeVisible();
 
-    // Verify scan table headers include Strategy column
-    await expect(page.locator(".scan-table th:has-text('Strategy')")).toBeVisible();
+    const strategyCol = page.locator(".scan-table th:has-text('Strategy')");
+    await expect(strategyCol).toBeVisible();
   });
 
-  // Skip: Requires real backend API for bot selection
-  test.skip("should show positions with strategy tabs when multiple strategies have positions", async ({
+  // Note: This test uses the mock data from setupMultiStrategyBotMocks
+  test("should show positions with strategy tabs when multiple strategies have positions", async ({
     page,
   }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify positions table is visible
-    await expect(page.locator(".positions-table")).toBeVisible();
+    const positionsTable = page.locator(".positions-table");
+    await expect(positionsTable).toBeVisible();
 
-    // Verify strategy tabs are visible (since we have positions from multiple strategies)
-    await expect(page.locator(".strategy-tabs")).toBeVisible();
+    const strategyTabs = page.locator(".strategy-tabs");
+    await expect(strategyTabs).toBeVisible();
     await expect(page.locator(".strategy-tab:has-text('All')")).toBeVisible();
     await expect(page.locator(".strategy-tab:has-text('ORB Conservative')")).toBeVisible();
     await expect(page.locator(".strategy-tab:has-text('ORB Aggressive')")).toBeVisible();

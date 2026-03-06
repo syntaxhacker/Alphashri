@@ -51,22 +51,17 @@ test.describe("UI Controls", () => {
   // Skip: Flaky in parallel execution
   test.skip("should change auto-refresh interval", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForSelector("table tbody tr", { timeout: 15000 });
 
-    // Find auto-refresh input by test id
-    const input = page.locator('[data-testid="auto-refresh-input"]');
+    const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"]');
+    await expect(autoRefreshInput).toBeVisible();
 
-    if ((await input.count()) > 0) {
-      // Clear and type new value (more reliable for number inputs)
-      await input.clear();
-      await input.type("60");
-      await input.blur(); // Trigger change event
-      await page.waitForTimeout(300);
+    await autoRefreshInput.fill("30");
+    await autoRefreshInput.blur();
 
-      // Verify value changed
-      const newValue = await input.inputValue();
-      expect(newValue).toBe("60");
-    }
+    await page.locator('[data-testid="auto-refresh-input"]').dispatch("change");
+
+    expect(await autoRefreshInput.inputValue()).toBe("30");
   });
 
   test("should show error state when API fails", async ({ page }) => {
