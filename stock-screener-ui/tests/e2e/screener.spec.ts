@@ -180,35 +180,23 @@ test.describe("Screener - Auto Refresh", () => {
     }
   });
 
-  // Skip: Auto-refresh input element may not exist in all views
-  test.skip("should set auto-refresh interval", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
-
-    const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"]');
-    if ((await autoRefreshInput.count()) > 0) {
-      await autoRefreshInput.fill("60");
-      await page.waitForTimeout(300);
-
-      const value = await autoRefreshInput.inputValue();
-      expect(value).toBe("60");
-    }
-  });
-
   test("should disable auto-refresh when set to 0", async ({ page }) => {
     test.slow();
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 15000 });
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
 
     const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"]');
-    if ((await autoRefreshInput.count()) > 0) {
-      await autoRefreshInput.fill("0");
-      await page.waitForTimeout(500);
+    await expect(autoRefreshInput).toBeVisible();
 
-      // Auto-refresh should be disabled
-      const value = await autoRefreshInput.inputValue();
-      expect(value).toBe("0");
-    }
+    // Clear and set to 0
+    await autoRefreshInput.clear();
+    await autoRefreshInput.fill("0");
+    await autoRefreshInput.blur();
+    await page.waitForTimeout(300);
+
+    // Re-fetch the input to get fresh reference
+    const value = await autoRefreshInput.inputValue();
+    expect(value).toBe("0");
   });
 });
 

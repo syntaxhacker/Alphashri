@@ -7,7 +7,7 @@ test.describe("Notification Panel", () => {
     await loginAsTestUser(page);
   });
 
-  test("should toggle notification panel when button clicked", async ({ page }) => {
+  test("should open notification panel and button clicked", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
 
@@ -24,34 +24,12 @@ test.describe("Notification Panel", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
 
-    
     // Open notification panel
     const openBtn = page.locator(".notif-open-btn");
-    await expect(openBtn).toBeVisible();
-    await openBtn.click()
-    await page.waitForTimeout(300);
-    
-    const panel = page.locator(".notif-sidebar");
-    await expect(panel).toBeVisible();
-    
-    // Check tabs exist
-    const allTab = page.locator(".notif-tab").filter({ hasText: "All" });
-    const primaryTab = page.locator(".notif-tab").filter({ hasText: "Primary" });
-    const secondaryTab = page.locator(".notif-tab").filter({ hasText: "Secondary" });
-    
-    await expect(allTab).toBeVisible();
-    await expect(primaryTab).toBeVisible();
-    await expect(secondaryTab).toBeVisible();
-  });
-
-  test("should show notification filter tabs", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
-
-    const openBtn = page.locator(".notif-open-btn");
     await openBtn.click();
     await page.waitForTimeout(300);
 
+    // Check tabs exist
     const allTab = page.locator(".notif-tab").filter({ hasText: "All" });
     const primaryTab = page.locator(".notif-tab").filter({ hasText: "Primary" });
     const secondaryTab = page.locator(".notif-tab").filter({ hasText: "Secondary" });
