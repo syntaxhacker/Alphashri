@@ -1,4 +1,4 @@
-import { Box, Stack, Alert } from "@mantine/core";
+import { Box, Stack, Alert, Grid, Flex } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -247,7 +247,7 @@ export function BacktestPage() {
 
     return (
       <Stack gap="xs" style={{ flex: 1, minHeight: 0, height: "100%" }}>
-        <Box style={{ minHeight: 0, flex: "1 1 55%", display: "flex", flexDirection: "column" }}>
+        <Flex direction="column" style={{ minHeight: 0, flex: "1 1 55%" }}>
           <BacktestChartTabs
             symbols={symbols}
             selectedSymbol={state.selectedChartSymbol}
@@ -258,7 +258,7 @@ export function BacktestPage() {
             chartLoading={state.chartLoading}
             onTradeClick={handleZoomToTrade}
           />
-        </Box>
+        </Flex>
         {state.tradeHistory && state.tradeHistorySymbol && (
           <Box style={{ minHeight: 0, flex: "1 1 45%" }}>
             <TradeHistoryTable
@@ -322,14 +322,18 @@ export function BacktestPage() {
       </Box>
 
       <Box flex={1} style={{ minHeight: 0 }}>
-        <Box style={{ display: "flex", gap: "var(--mantine-spacing-md)", height: "100%", alignItems: "stretch" }}>
-          <Box style={{ flex: "0 0 calc(33.333% - var(--mantine-spacing-md) * 2 / 3)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            {renderLeftPanel()}
-          </Box>
-          <Box style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            {renderRightPanel()}
-          </Box>
-        </Box>
+        <Grid h="100%" gutter="md">
+          <Grid.Col span={4} style={{ display: "flex", flexDirection: "column" }}>
+            <Box style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              {renderLeftPanel()}
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={8} style={{ display: "flex", flexDirection: "column" }}>
+            <Box style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              {renderRightPanel()}
+            </Box>
+          </Grid.Col>
+        </Grid>
       </Box>
     </Box>
   );
