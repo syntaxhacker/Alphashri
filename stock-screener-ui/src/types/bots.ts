@@ -51,16 +51,41 @@ export interface BotUpdate {
 // Bot status (live data)
 export interface BotStatus {
   bot_id: string;
+  running: boolean;
+  pid: number | null;
   status: "running" | "stopped";
-  portfolio: BotPortfolioStatus | null;
+  portfolio: PortfolioSummary | null;
   strategies: Record<string, StrategyStatus>;
+  positions?: BotPosition[];
+  last_update?: string;
   error?: string | null;
 }
+
+// Portfolio summary
+export interface PortfolioSummary {
+  initial_capital: number;
+  cash: number;
+  margin_used: number;
+  total_value: number;
+  total_pnl: number;
+  total_pnl_pct: number;
+  daily_pnl: number;
+  total_positions: number;
+}
+
 // Strategy status within bot
 export interface StrategyStatus {
   strategy_id: string;
-  status: "RUNnning" | "stopped" | "cooldown";
+  strategy_name: string;
+  status: "running" | "stopped" | "cooldown";
   active_positions: number;
+  positions_count: number;
+  max_positions: number;
+  allocated_capital: number;
+  capital_used: number;
+  capital_used_pct: number;
+  total_pnl: number;
+  trades_count: number;
   portfolio_status: BotPortfolioStatus | null;
   error?: string | null;
 }
@@ -75,19 +100,40 @@ export interface BotPortfolioStatus {
   daily_pnl: number;
   total_positions: number;
 }
+// Bot position
+export interface BotPosition {
+  strategy_id: string;
+  strategy_name: string;
+  symbol: string;
+  side: "BUY" | "SELL";
+  quantity: number;
+  entry_price: number;
+  current_price: number;
+  unrealized_pnl: number;
+  unrealized_pnl_pct: number;
+  stop_loss: number;
+  take_profit: number;
+  entry_time: string;
+}
+
 // Bot trade
 export interface BotTrade {
   id: string;
   symbol: string;
-  side: "BUY" | "sell";
+  side: "BUY" | "SELL";
   quantity: number;
   entry_price: number;
   exit_price: number | null;
+  pnl: number;
+  pnl_pct: number;
+  net_pnl: number;
   realized_pnl: number | null;
   strategy_id: string;
   strategy_name: string;
   entry_time: string;
   exit_time: string | null;
+  exit_reason: string;
+  is_test: boolean;
   is_test_data: boolean;
 }
 // Bot trades response (for trades endpoint)

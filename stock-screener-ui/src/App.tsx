@@ -13,6 +13,8 @@ import { SectorPage } from "./components/sector/SectorPage";
 import { ScreenerContainer } from "./containers/ScreenerContainer";
 import { StrategiesContainer } from "./containers/StrategiesContainer";
 import { BacktestPage } from "./components/backtest/mantine";
+import { PaperTradingView } from "./components/paper-trading/mantine";
+import { BotsPage } from "./components/bots/mantine";
 
 // Wrapper for legacy views (backtest, paper, bots) that still use string-based HTML rendering
 function LegacyShell({ view }: { view: AppRouteView }) {
@@ -106,10 +108,10 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<ScreenerContainer />} />
         <Route path="/backtest" element={<BacktestPage />} />
-        <Route path="/paper" element={<LegacyShell view="paper" />} />
+        <Route path="/paper" element={<PaperTradingView />} />
         <Route path="/sector" element={<SectorPage />} />
         <Route path="/strategies" element={<StrategiesContainer />} />
-        <Route path="/bots" element={<LegacyShell view="bots" />} />
+        <Route path="/bots" element={<BotsPage />} />
         <Route path="/chart/:symbol" element={<ChartView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
