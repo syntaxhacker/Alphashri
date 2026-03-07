@@ -61,7 +61,7 @@ export function BacktestChartTabs({
     <Box
       data-testid="chart-container"
       h="100%"
-      style={{ display: "flex", flexDirection: "column" }}
+      style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
     >
       <Box mb="xs" flex="0 0 auto">
         <Group justify="space-between" align="center">
@@ -90,7 +90,7 @@ export function BacktestChartTabs({
         </Group>
       </Box>
 
-      <Box flex={1} style={{ minHeight: 0 }}>
+      <Box flex={1} style={{ minHeight: 0, position: "relative" }}>
         {selectedSymbol ? (
           <BacktestChart
             symbol={selectedSymbol}

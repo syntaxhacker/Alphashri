@@ -161,9 +161,9 @@ export function TradeHistoryTable({
     <Box
       className="trade-history-panel"
       data-testid="trade-history-panel"
-      style={{ display: "flex", flexDirection: "column", height: "100%" }}
+      style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}
     >
-      <Group justify="space-between" p="sm" data-testid="trade-history-header">
+      <Group justify="space-between" p="sm" flex="0 0 auto" data-testid="trade-history-header">
         <Text fw={600} size="sm">
           📋 {symbol} Trades ({trades.length})
         </Text>
