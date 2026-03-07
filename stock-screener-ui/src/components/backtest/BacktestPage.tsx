@@ -343,12 +343,8 @@ export function BacktestPage() {
       </Box>
 
       <Flex flex={1} gap="md" style={{ minHeight: 0 }}>
-        <Box style={{ flex: "0 0 33.333%", minHeight: 0 }}>
-          {renderLeftPanel()}
-        </Box>
-        <Box style={{ flex: "1 1 66.666%", minHeight: 0 }}>
-          {renderRightPanel()}
-        </Box>
+        <Box style={{ flex: "0 0 33.333%", minHeight: 0 }}>{renderLeftPanel()}</Box>
+        <Box style={{ flex: "1 1 66.666%", minHeight: 0 }}>{renderRightPanel()}</Box>
       </Flex>
     </Box>
   );

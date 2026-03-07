@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import dayjs from "dayjs";
 import {
   Table,
   Select,
@@ -13,6 +14,7 @@ import {
   SegmentedControl,
   Button,
   Box,
+  TextInput,
 } from "@mantine/core";
 import {
   getPaperTradingState,
@@ -324,29 +326,22 @@ export function PaperHistoryTable() {
   };
 
   const handleQuickFilter = (period: string) => {
-    const now = new Date();
     let fromDate: string | null = null;
     let toDate: string | null = null;
 
     switch (period) {
       case "today":
-        fromDate = now.toISOString().split("T")[0];
+        fromDate = dayjs().format("YYYY-MM-DD");
         toDate = fromDate;
         break;
       case "week":
-        const weekAgo = new Date(now);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        fromDate = weekAgo.toISOString().split("T")[0];
+        fromDate = dayjs().subtract(7, "day").format("YYYY-MM-DD");
         break;
       case "month":
-        const monthAgo = new Date(now);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        fromDate = monthAgo.toISOString().split("T")[0];
+        fromDate = dayjs().subtract(1, "month").format("YYYY-MM-DD");
         break;
       case "year":
-        const yearAgo = new Date(now);
-        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-        fromDate = yearAgo.toISOString().split("T")[0];
+        fromDate = dayjs().subtract(1, "year").format("YYYY-MM-DD");
         break;
       case "all":
       default:
@@ -377,19 +372,27 @@ export function PaperHistoryTable() {
     const { filterFromDate, filterToDate } = state;
     if (!filterFromDate && !filterToDate) return "all";
 
-    const today = new Date().toISOString().split("T")[0];
-    if (filterFromDate === today && filterToDate === today) return "today";
+    const todayStr = dayjs().format("YYYY-MM-DD");
+    if (filterFromDate === todayStr && filterToDate === todayStr) return "today";
 
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const monthAgo = new Date();
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
-    const yearAgo = new Date();
-    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+    const weekAgoStr = dayjs().subtract(7, "day").format("YYYY-MM-DD");
+    if (filterFromDate === weekAgoStr && !filterToDate) return "week";
 
-    if (filterFromDate && new Date(filterFromDate) >= weekAgo) return "week";
-    if (filterFromDate && new Date(filterFromDate) >= monthAgo) return "month";
-    if (filterFromDate && new Date(filterFromDate) >= yearAgo) return "year";
+    const monthAgoStr = dayjs().subtract(1, "month").format("YYYY-MM-DD");
+    if (filterFromDate === monthAgoStr && !filterToDate) return "month";
+
+    const yearAgoStr = dayjs().subtract(1, "year").format("YYYY-MM-DD");
+    if (filterFromDate === yearAgoStr && !filterToDate) return "year";
+
+    // Fallback to ranges if not an exact match
+    if (filterFromDate) {
+      if (dayjs(filterFromDate).isAfter(dayjs().subtract(7, "day").subtract(1, "second")))
+        return "week";
+      if (dayjs(filterFromDate).isAfter(dayjs().subtract(1, "month").subtract(1, "second")))
+        return "month";
+      if (dayjs(filterFromDate).isAfter(dayjs().subtract(1, "year").subtract(1, "second")))
+        return "year";
+    }
 
     return "all";
   };

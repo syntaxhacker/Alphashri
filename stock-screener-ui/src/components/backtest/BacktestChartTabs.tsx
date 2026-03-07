@@ -107,7 +107,6 @@ export function BacktestChartTabs({
           </Box>
         )}
       </Box>
-
     </Box>
   );
 }

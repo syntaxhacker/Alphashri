@@ -93,13 +93,21 @@ export async function fetchTrades(
     const params = new URLSearchParams();
     params.append("limit", limit.toString());
     if (botId) params.append("bot_id", botId);
-    if (fromDate) params.append("date", fromDate);
+    if (fromDate) params.append("from_date", fromDate);
+    if (toDate) params.append("to_date", toDate);
     params.append("days_back", daysBack.toString());
 
     console.log("[fetchTrades] Calling API with params:", params.toString());
     const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?${params.toString()}`);
     const data = await response.json();
-    console.log("[fetchTrades] Response:", data.total_trades, "trades");
+    console.log("[fetchTrades] Raw Response data:", JSON.stringify(data));
+    console.log(
+      "[fetchTrades] Response stats:",
+      data.total_trades,
+      "total_trades,",
+      data.trades?.length,
+      "trades array length",
+    );
     const trades = data.trades || [];
     setTrades(trades);
     return trades;
@@ -278,9 +286,10 @@ export async function refreshHistoryData(
   setLoading(true);
 
   try {
+    // If fromDate is provided, daysBack is ignored by fetchTrades (due to API logic)
     await Promise.all([
       // Load a larger set so date-range filtering works reliably on the client.
-      fetchTrades(1000, botId, fromDate, toDate, daysBack),
+      fetchTrades(1000, botId, fromDate, toDate, fromDate ? 0 : daysBack),
       fetchPerformanceSummary(),
     ]);
   } catch (error) {

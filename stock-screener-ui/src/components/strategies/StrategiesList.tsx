@@ -11,11 +11,11 @@ export function StrategiesList({
   isLoading,
 }: StrategiesListProps) {
   const nonTemplates = strategies.filter((s) => !s.is_template);
-  
+
   // Determine the actual active strategy (prefer default if multiple or none active)
   const activeByFlag = nonTemplates.filter((s) => s.is_active);
-  let activeStrategy: typeof nonTemplates[0] | undefined;
-  
+  let activeStrategy: (typeof nonTemplates)[0] | undefined;
+
   if (activeByFlag.length === 1) {
     activeStrategy = activeByFlag[0];
   } else {
@@ -48,7 +48,7 @@ export function StrategiesList({
     return parent ? parent.name : `#${parentId}`;
   };
 
-  const isActive = (strategy: typeof nonTemplates[0]) => {
+  const isActive = (strategy: (typeof nonTemplates)[0]) => {
     return activeStrategy?.id === strategy.id;
   };
 

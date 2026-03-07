@@ -625,6 +625,24 @@ async def get_bot_status(
 
         snapshot = load_bot_snapshot(bot.id, user_id)
 
+        if not snapshot:
+            return BotStatusResponse(
+                bot_id=bot.uuid,
+                bot_name=bot.name,
+                running=running,
+                pid=pid,
+                portfolio={
+                    "initial_capital": 1000000,
+                    "cash": 1000000,
+                    "total_value": 1000000,
+                    "total_pnl": 0,
+                    "total_pnl_pct": 0,
+                },
+                strategies={},
+                positions=[],
+                last_update=datetime.now().isoformat(),
+            )
+
         return BotStatusResponse(
             bot_id=bot.uuid,  # Return UUID
             bot_name=bot.name,
@@ -729,7 +747,27 @@ async def get_bot_portfolio(
         snapshot = load_bot_snapshot(bot.id, user_id)
 
         if not snapshot:
-            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+            return {
+                "bot_id": bot.uuid,
+                "portfolio": {
+                    "initial_capital": 1000000,
+                    "cash": 1000000,
+                    "margin_used": 0,
+                    "position_value": 0,
+                    "unrealized_pnl": 0,
+                    "realized_pnl": 0,
+                    "total_value": 1000000,
+                    "total_pnl": 0,
+                    "total_pnl_pct": 0,
+                    "daily_pnl": 0,
+                    "daily_pnl_pct": 0,
+                    "total_positions": 0,
+                    "trades_count": 0,
+                },
+                "positions": [],
+                "strategies": {},
+                "timestamp": datetime.now().isoformat(),
+            }
 
         return {
             "bot_id": bot.uuid,
@@ -766,7 +804,11 @@ async def get_bot_positions(
         snapshot = load_bot_snapshot(bot.id, user_id)
 
         if not snapshot:
-            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+            return {
+                "bot_id": bot.uuid,
+                "positions": [],
+                "count": 0,
+            }
 
         positions = snapshot.get('positions', [])
 
@@ -809,7 +851,12 @@ async def get_bot_scan(
         snapshot = load_bot_snapshot(bot.id, user_id)
 
         if not snapshot:
-            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+            return {
+                "bot_id": bot.uuid,
+                "scan_items": [],
+                "count": 0,
+                "timestamp": datetime.now().isoformat(),
+            }
 
         scan_items = snapshot.get('scan_items', [])
 
@@ -861,7 +908,19 @@ async def get_bot_performance(
         snapshot = load_bot_snapshot(bot.id, user_id)
 
         if not snapshot:
-            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+            return {
+                "bot_id": bot.uuid,
+                "summary": {
+                    "total_pnl": 0,
+                    "total_pnl_pct": 0,
+                    "daily_pnl": 0,
+                    "total_trades": 0,
+                    "total_positions": 0,
+                },
+                "by_strategy": {},
+                "period_days": days,
+                "timestamp": datetime.now().isoformat(),
+            }
 
         portfolio = snapshot.get('portfolio', {})
         strategies = snapshot.get('strategies', {})
@@ -919,7 +978,11 @@ async def compare_strategy_performance(
         snapshot = load_bot_snapshot(bot.id, user_id)
 
         if not snapshot:
-            raise HTTPException(status_code=404, detail="Bot snapshot not found. Is the bot running?")
+            return {
+                "bot_id": bot.uuid,
+                "comparison": [],
+                "timestamp": datetime.now().isoformat(),
+            }
 
         strategies = snapshot.get('strategies', {})
 

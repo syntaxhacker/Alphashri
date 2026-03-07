@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import dayjs from "dayjs";
 import {
   Box,
   Grid,
@@ -104,7 +105,21 @@ export function PaperTradingView() {
       }
     } else if (view === "history") {
       stopLiveAutoRefresh();
-      refreshHistoryData();
+
+      const currentState = getPaperTradingState();
+      let fromStr = currentState.filterFromDate;
+      let toStr = currentState.filterToDate;
+
+      // If no dates are set, default to last 60 days
+      if (!fromStr && !toStr) {
+        fromStr = dayjs().subtract(60, "day").format("YYYY-MM-DD");
+        toStr = dayjs().format("YYYY-MM-DD");
+
+        setFilterFromDate(fromStr);
+        setFilterToDate(toStr);
+      }
+
+      refreshHistoryData(currentState.filterBot || activeBotId, fromStr, toStr);
     } else if (view === "settings") {
       stopLiveAutoRefresh();
       fetchStrategyConfig();
