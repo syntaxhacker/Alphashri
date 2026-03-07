@@ -133,6 +133,37 @@ test.describe("Navigation - App Navigation", () => {
     const classNames = await paperNav.getAttribute("class");
     expect(classNames).toContain("active");
   });
+
+  test("should toggle sidemenu collapse state", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+
+    const sidemenu = page.locator('[data-testid="sidemenu"]');
+
+    // Initial state: not collapsed (width should be larger)
+    const initialBox = await sidemenu.boundingBox();
+    expect(initialBox?.width).toBeGreaterThan(100);
+
+    // Click the toggle button (ChevronLeft icon button)
+    // Find the toggle button using its testid
+    const toggleBtn = page.locator('[data-testid="sidebar-collapse-toggle"]');
+    await toggleBtn.click();
+    await page.waitForTimeout(500);
+
+    // Verify it collapsed (width should be smaller, e.g., 80px)
+    const collapsedBox = await sidemenu.boundingBox();
+    expect(collapsedBox?.width).toBeLessThanOrEqual(100);
+
+    // Verify navigation still works while collapsed
+    await page.locator('[data-testid="nav-paper"]').click();
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible();
+
+    // Toggle back
+    await toggleBtn.click();
+    await page.waitForTimeout(500);
+    const restoredBox = await sidemenu.boundingBox();
+    expect(restoredBox?.width).toBeGreaterThan(100);
+  });
 });
 
 test.describe("Navigation - URL Routing", () => {

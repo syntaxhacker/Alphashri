@@ -48,7 +48,12 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
   return (
     <nav className={classes.navbar} data-testid="sidemenu">
       <AppShell.Section className={classes.header}>
-        <Flex justify={collapsed ? "center" : "space-between"} align="center" direction={collapsed ? "column" : "row"} gap={collapsed ? "xs" : 0}>
+        <Flex
+          justify={collapsed ? "center" : "space-between"}
+          align="center"
+          direction={collapsed ? "column" : "row"}
+          gap={collapsed ? "xs" : 0}
+        >
           {!collapsed ? (
             <Text fw={700} size="lg">
               🚀 Alphashri
@@ -64,7 +69,7 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
                 {colorScheme === "dark" ? <IconSun size={20} /> : <IconMoon size={20} />}
               </UnstyledButton>
             )}
-            <UnstyledButton onClick={onToggleCollapse}>
+            <UnstyledButton onClick={onToggleCollapse} data-testid="sidebar-collapse-toggle">
               {collapsed ? <IconChevronRight size={20} /> : <IconChevronLeft size={20} />}
             </UnstyledButton>
           </Group>
