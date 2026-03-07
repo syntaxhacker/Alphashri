@@ -1,4 +1,4 @@
-import { Box, Stack, Grid, Alert } from "@mantine/core";
+import { Box, Stack, Alert } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -318,18 +318,14 @@ export function BacktestPage() {
       </Box>
 
       <Box flex={1} style={{ minHeight: 0 }}>
-        <Grid h="100%" gutter="md">
-          <Grid.Col span={4}>
-            <Box h="100%" style={{ overflow: "hidden" }}>
-              {renderLeftPanel()}
-            </Box>
-          </Grid.Col>
-          <Grid.Col span={8}>
-            <Box h="100%" style={{ overflow: "hidden" }}>
-              {renderRightPanel()}
-            </Box>
-          </Grid.Col>
-        </Grid>
+        <Box style={{ display: "flex", gap: "var(--mantine-spacing-md)", height: "100%", alignItems: "stretch" }}>
+          <Box style={{ flex: "0 0 calc(33.333% - var(--mantine-spacing-md) * 2 / 3)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            {renderLeftPanel()}
+          </Box>
+          <Box style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            {renderRightPanel()}
+          </Box>
+        </Box>
       </Box>
     </Box>
   );

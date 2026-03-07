@@ -90,9 +90,9 @@ test.describe("Backtest View - Symbol Selection", () => {
 
     const symbolInput = page.locator('[data-testid="add-symbol-input"]');
     await symbolInput.fill("RELIANCE");
-    await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
-    await page.waitForTimeout(500);
+    const option = page.locator('[data-testid="symbol-option-RELIANCE"]');
+    await option.waitFor({ state: "visible", timeout: 5000 });
+    await option.click();
 
     await expect(page.locator('[data-testid="symbol-tag-RELIANCE"]')).toBeVisible();
   });
@@ -103,9 +103,9 @@ test.describe("Backtest View - Symbol Selection", () => {
 
     const symbolInput = page.locator('[data-testid="add-symbol-input"]');
     await symbolInput.fill("TCS");
-    await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
-    await page.waitForTimeout(500);
+    const option = page.locator('[data-testid="symbol-option-TCS"]');
+    await option.waitFor({ state: "visible", timeout: 5000 });
+    await option.click();
 
     const removeBtn = page.locator('[data-testid="remove-symbol-TCS"]');
     await removeBtn.click();
@@ -221,9 +221,9 @@ test.describe("Backtest View - Run Backtest", () => {
 
     const symbolInput = page.locator('[data-testid="add-symbol-input"]');
     await symbolInput.fill("RELIANCE");
-    await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
-    await page.waitForTimeout(300);
+    const option = page.locator('[data-testid="symbol-option-RELIANCE"]');
+    await option.waitFor({ state: "visible", timeout: 5000 });
+    await option.click();
 
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
     await runBtn.click();
@@ -290,9 +290,9 @@ test.describe("Backtest View - Charts", () => {
 
     const symbolInput = page.locator('[data-testid="add-symbol-input"]');
     await symbolInput.fill("RELIANCE");
-    await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
-    await page.waitForTimeout(300);
+    const option = page.locator('[data-testid="symbol-option-RELIANCE"]');
+    await option.waitFor({ state: "visible", timeout: 5000 });
+    await option.click();
 
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
     await runBtn.click();
@@ -307,9 +307,9 @@ test.describe("Backtest View - Charts", () => {
 
     const symbolInput = page.locator('[data-testid="add-symbol-input"]');
     await symbolInput.fill("RELIANCE");
-    await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
-    await page.waitForTimeout(300);
+    const option = page.locator('[data-testid="symbol-option-RELIANCE"]');
+    await option.waitFor({ state: "visible", timeout: 5000 });
+    await option.click();
 
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
     await runBtn.click();
@@ -402,9 +402,9 @@ test.describe("Backtest View - Summary", () => {
 
     const symbolInput = page.locator('[data-testid="add-symbol-input"]');
     await symbolInput.fill("RELIANCE");
-    await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
-    await page.waitForTimeout(300);
+    const option = page.locator('[data-testid="symbol-option-RELIANCE"]');
+    await option.waitFor({ state: "visible", timeout: 5000 });
+    await option.click();
 
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
     await runBtn.click();
