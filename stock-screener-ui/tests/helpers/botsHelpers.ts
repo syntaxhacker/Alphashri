@@ -41,12 +41,12 @@ export async function expectBotsViewVisible(page: Page): Promise<void> {
  * Get bot cards or table rows
  */
 export function getBotListItems(page: Page) {
-  return page.locator(".bot-card, .bots-table tr");
+  return page.locator('[data-testid^="bot-row-"], .mantine-Table-tr');
 }
 
 /**
  * Get bot status element
  */
 export function getBotStatus(page: Page) {
-  return page.locator(".bot-status, .status-badge");
+  return page.locator('[data-testid*="bot-status"], .mantine-Badge-root');
 }

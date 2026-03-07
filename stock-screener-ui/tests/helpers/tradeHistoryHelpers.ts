@@ -48,20 +48,16 @@ export async function navigateToTradeHistory(page: Page): Promise<void> {
 }
 
 /**
- * Select a bot from the dropdown by its ID
+ * Select a bot from the segmented control by its ID
  */
 export async function selectBot(page: Page, botId: string): Promise<void> {
-  const dropdown = page.locator(".bot-selector-dropdown");
-  await dropdown.waitFor({ state: "visible" });
-  await page.waitForFunction(
-    (sel) => {
-      const select = document.querySelector(sel);
-      return select && select.querySelectorAll("option[value]").length > 1;
-    },
-    ".bot-selector-dropdown",
-    { timeout: 10000 },
-  );
-  await dropdown.selectOption(botId);
+  // For Mantine SegmentedControl, we need to click the button with the bot ID value
+  const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
+  await segmentedControl.waitFor({ state: "visible", timeout: 10000 });
+
+  // Click the button with the bot ID
+  const botButton = segmentedControl.locator(`button[value="${botId}"]`);
+  await botButton.click();
   await page.waitForTimeout(500);
 }
 

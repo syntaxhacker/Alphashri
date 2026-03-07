@@ -51,13 +51,13 @@ test.describe("Paper Trading Settings", () => {
     await page.click("text=Paper Trading");
 
     // Wait for paper trading view to load
-    await expect(page.locator(".paper-trading-view")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 10000 });
 
     // Click on Settings tab
-    await page.click('button:has-text("Settings")');
+    await page.click('[data-testid="tab-settings"]');
 
     // Wait for settings panel to load
-    await expect(page.locator(".settings-panel")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="paper-settings-panel"]')).toBeVisible({ timeout: 10000 });
 
     // Verify initial Max Positions value is 5 (from mock)
     const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
@@ -109,10 +109,10 @@ test.describe("Paper Trading Settings", () => {
     await page.click("text=Paper Trading");
 
     // Click on Settings tab
-    await page.click('button:has-text("Settings")');
+    await page.click('[data-testid="tab-settings"]');
 
     // Wait for settings panel to load
-    await expect(page.locator(".settings-panel")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="paper-settings-panel"]')).toBeVisible({ timeout: 10000 });
 
     // Verify all sections are visible
     await expect(page.locator("h4:has-text('ORB Strategy')")).toBeVisible();
@@ -134,10 +134,10 @@ test.describe("Paper Trading Settings", () => {
     await page.click("text=Paper Trading");
 
     // Click on Settings tab
-    await page.click('button:has-text("Settings")');
+    await page.click('[data-testid="tab-settings"]');
 
     // Wait for settings panel to load
-    await expect(page.locator(".settings-panel")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="paper-settings-panel"]')).toBeVisible({ timeout: 10000 });
 
     // Change Max Positions to 3
     const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');

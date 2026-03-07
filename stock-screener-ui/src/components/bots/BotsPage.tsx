@@ -136,6 +136,7 @@ export function BotsPage() {
                 key={bot.id}
                 bg={state.selectedBot?.id === bot.id ? "rgba(34, 139, 230, 0.1)" : undefined}
                 data-testid={`bot-row-${bot.id}`}
+                className="bot-row"
               >
                 <Table.Td>
                   <Group gap="xs">
@@ -160,6 +161,7 @@ export function BotsPage() {
                     color={bot.running ? "green" : "gray"}
                     variant="light"
                     size="sm"
+                    data-testid={`bot-status-${bot.id}`}
                   >
                     {bot.running ? `Running (PID ${bot.pid})` : "Stopped"}
                   </Badge>
