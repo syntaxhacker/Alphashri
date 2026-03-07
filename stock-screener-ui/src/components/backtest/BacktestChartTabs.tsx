@@ -20,13 +20,6 @@ const ZOOM_OPTIONS = [
   { value: "1d", label: "1D" },
 ];
 
-const LEGEND_ITEMS = [
-  { id: "entry", label: "Entry", color: "#00FFFF" },
-  { id: "tp", label: "TP", color: "#FFFF00" },
-  { id: "sl", label: "SL", color: "#FF00FF" },
-  { id: "eod", label: "EOD", color: "#FFA500" },
-];
-
 export function BacktestChartTabs({
   symbols,
   selectedSymbol,
@@ -61,7 +54,7 @@ export function BacktestChartTabs({
     <Box
       data-testid="chart-container"
       h="100%"
-      style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+      style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
     >
       <Box mb="xs" flex="0 0 auto">
         <Group justify="space-between" align="center">
@@ -90,7 +83,7 @@ export function BacktestChartTabs({
         </Group>
       </Box>
 
-      <Box flex={1} style={{ minHeight: 0, position: "relative" }}>
+      <Box flex={1} style={{ minHeight: 0, position: "relative", overflow: "hidden" }}>
         {selectedSymbol ? (
           <BacktestChart
             symbol={selectedSymbol}
@@ -115,32 +108,6 @@ export function BacktestChartTabs({
         )}
       </Box>
 
-      <Box
-        data-testid="chart-legend"
-        mt="xs"
-        flex="0 0 auto"
-        style={{
-          display: "flex",
-          gap: "var(--mantine-spacing-md)",
-          justifyContent: "center",
-        }}
-      >
-        {LEGEND_ITEMS.map((item) => (
-          <Group key={item.id} gap={4} data-testid={`legend-${item.id}`}>
-            <Box
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: "50%",
-                backgroundColor: item.color,
-              }}
-            />
-            <Text size="xs" c="dimmed">
-              {item.label}
-            </Text>
-          </Group>
-        ))}
-      </Box>
     </Box>
   );
 }

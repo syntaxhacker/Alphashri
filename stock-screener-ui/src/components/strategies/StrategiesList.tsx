@@ -1,5 +1,5 @@
 import { Table, Group, Text, ActionIcon, Alert, Stack, Badge, Tooltip } from "@mantine/core";
-import { IconEdit, IconTrash, IconStar, IconAlertCircle } from "@tabler/icons-react";
+import { IconEdit, IconTrash, IconCheck, IconAlertCircle } from "@tabler/icons-react";
 import type { StrategiesListProps } from "./types";
 
 export function StrategiesList({
@@ -7,10 +7,21 @@ export function StrategiesList({
   templates,
   onEdit,
   onDelete,
+  onSetActive,
   isLoading,
 }: StrategiesListProps) {
-  // Filter out templates
   const nonTemplates = strategies.filter((s) => !s.is_template);
+  
+  // Determine the actual active strategy (prefer default if multiple or none active)
+  const activeByFlag = nonTemplates.filter((s) => s.is_active);
+  let activeStrategy: typeof nonTemplates[0] | undefined;
+  
+  if (activeByFlag.length === 1) {
+    activeStrategy = activeByFlag[0];
+  } else {
+    // Multiple active or none - prefer default
+    activeStrategy = nonTemplates.find((s) => s.is_default) || nonTemplates[0];
+  }
 
   if (isLoading) {
     return (
@@ -33,21 +44,25 @@ export function StrategiesList({
 
   const getParentName = (parentId: number | null): string => {
     if (!parentId) return "-";
-    const parent = templates.find((t) => t.id === parentId);
+    const parent = templates.find((t) => Number(t.id) === parentId || t.internal_id === parentId);
     return parent ? parent.name : `#${parentId}`;
+  };
+
+  const isActive = (strategy: typeof nonTemplates[0]) => {
+    return activeStrategy?.id === strategy.id;
   };
 
   const rows = nonTemplates.map((strategy) => (
     <Table.Tr
       key={strategy.id}
       data-testid={`strategy-row-${strategy.id}`}
-      className={strategy.is_default ? "default-strategy-row" : ""}
+      style={isActive(strategy) ? { backgroundColor: "var(--mantine-color-teal-1)" } : undefined}
     >
       <Table.Td>
         <Group gap="xs" wrap="nowrap">
-          {strategy.is_default && (
-            <Tooltip label="Default Strategy">
-              <IconStar size={14} color="var(--mantine-color-yellow-5)" />
+          {isActive(strategy) && (
+            <Tooltip label="Active Strategy">
+              <IconCheck size={14} color="var(--mantine-color-teal-5)" />
             </Tooltip>
           )}
           <Text fw={500} size="sm">
@@ -73,18 +88,31 @@ export function StrategiesList({
         <Text size="sm">{strategy.max_positions}</Text>
       </Table.Td>
       <Table.Td>
-        {strategy.is_default ? (
-          <Text size="sm" c="teal">
-            Yes
-          </Text>
+        {isActive(strategy) ? (
+          <Badge size="sm" color="teal" variant="light">
+            Active
+          </Badge>
         ) : (
           <Text size="sm" c="dimmed">
-            No
+            -
           </Text>
         )}
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
+          {!isActive(strategy) && (
+            <Tooltip label="Set as Active">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="teal"
+                onClick={() => onSetActive(strategy.internal_id ?? Number(strategy.id))}
+                data-testid="set-active-btn"
+              >
+                <IconCheck size={14} />
+              </ActionIcon>
+            </Tooltip>
+          )}
           <ActionIcon
             size="sm"
             variant="subtle"
@@ -99,10 +127,10 @@ export function StrategiesList({
             size="sm"
             variant="subtle"
             color="red"
-            onClick={() => onDelete(strategy.id)}
-            disabled={strategy.is_default}
+            onClick={() => onDelete(strategy.internal_id ?? Number(strategy.id))}
+            disabled={isActive(strategy)}
             data-testid="delete-strategy-btn"
-            title={strategy.is_default ? "Cannot delete default strategy" : "Delete"}
+            title={isActive(strategy) ? "Cannot delete active strategy" : "Delete"}
           >
             <IconTrash size={14} />
           </ActionIcon>
@@ -121,7 +149,7 @@ export function StrategiesList({
           <Table.Th>SL%</Table.Th>
           <Table.Th>TP%</Table.Th>
           <Table.Th>Max Positions</Table.Th>
-          <Table.Th>Default</Table.Th>
+          <Table.Th>Status</Table.Th>
           <Table.Th>Actions</Table.Th>
         </Table.Tr>
       </Table.Thead>

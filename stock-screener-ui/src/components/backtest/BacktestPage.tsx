@@ -1,4 +1,4 @@
-import { Box, Stack, Grid, Alert } from "@mantine/core";
+import { Box, Flex, Alert } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -224,8 +224,10 @@ export function BacktestPage() {
     }
 
     return (
-      <Stack gap="xs" h="100%">
-        <BacktestSummary totals={state.totals} />
+      <Flex direction="column" gap="xs" h="100%" style={{ minHeight: 0 }}>
+        <Box style={{ flex: "0 0 auto" }}>
+          <BacktestSummary totals={state.totals} />
+        </Box>
         <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
           <BacktestResultsTable
             results={sortedResults}
@@ -236,7 +238,7 @@ export function BacktestPage() {
             onSort={handleResultsSort}
           />
         </Box>
-      </Stack>
+      </Flex>
     );
   };
 
@@ -245,9 +247,18 @@ export function BacktestPage() {
       return null;
     }
 
+    const hasTradeHistory = Boolean(state.tradeHistory && state.tradeHistorySymbol);
+
     return (
-      <Stack gap="xs" h="100%">
-        <Box style={{ minHeight: 0, flex: "1 1 55%" }}>
+      <Flex direction="column" gap="md" h="100%" style={{ minHeight: 0 }}>
+        <Box
+          style={{
+            minHeight: 0,
+            flex: hasTradeHistory ? "1 1 50%" : "1 1 100%",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <BacktestChartTabs
             symbols={symbols}
             selectedSymbol={state.selectedChartSymbol}
@@ -259,8 +270,16 @@ export function BacktestPage() {
             onTradeClick={handleZoomToTrade}
           />
         </Box>
-        {state.tradeHistory && state.tradeHistorySymbol && (
-          <Box style={{ minHeight: 0, flex: "1 1 45%" }}>
+        {hasTradeHistory && (
+          <Box
+            style={{
+              minHeight: 0,
+              flex: "1 1 50%",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             <TradeHistoryTable
               symbol={state.tradeHistorySymbol}
               trades={state.tradeHistory}
@@ -272,17 +291,18 @@ export function BacktestPage() {
             />
           </Box>
         )}
-      </Stack>
+      </Flex>
     );
   };
 
   return (
     <Box
-      h="calc(100vh - var(--app-shell-header-height, 60px))" // Allow app-shell calculations to inform height
+      h="100%"
       style={{
         display: "flex",
         flexDirection: "column",
         padding: "var(--mantine-spacing-md)",
+        minHeight: 0,
         overflow: "hidden",
       }}
       data-testid="backtest-view"
@@ -322,20 +342,14 @@ export function BacktestPage() {
         />
       </Box>
 
-      <Box flex={1} style={{ minHeight: 0 }}>
-        <Grid h="100%" gutter="md">
-          <Grid.Col span={4}>
-            <Box h="100%" style={{ overflow: "hidden" }}>
-              {renderLeftPanel()}
-            </Box>
-          </Grid.Col>
-          <Grid.Col span={8}>
-            <Box h="100%" style={{ overflow: "hidden" }}>
-              {renderRightPanel()}
-            </Box>
-          </Grid.Col>
-        </Grid>
-      </Box>
+      <Flex flex={1} gap="md" style={{ minHeight: 0 }}>
+        <Box style={{ flex: "0 0 33.333%", minHeight: 0 }}>
+          {renderLeftPanel()}
+        </Box>
+        <Box style={{ flex: "1 1 66.666%", minHeight: 0 }}>
+          {renderRightPanel()}
+        </Box>
+      </Flex>
     </Box>
   );
 }

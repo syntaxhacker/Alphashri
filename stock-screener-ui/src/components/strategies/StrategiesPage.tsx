@@ -23,6 +23,7 @@ export function StrategiesPage({
   onCreateStrategy,
   onEditStrategy,
   onDeleteStrategy,
+  onSetActiveStrategy,
   onOpenCreateModal,
   onOpenEditModal,
   onCloseCreateModal,
@@ -79,6 +80,7 @@ export function StrategiesPage({
             templates={templates}
             onEdit={onOpenEditModal}
             onDelete={onDeleteStrategy}
+            onSetActive={onSetActiveStrategy}
             isLoading={isLoading}
           />
         );
@@ -127,7 +129,7 @@ export function StrategiesPage({
         onClose={onCloseEditModal}
         onSubmit={(data) => {
           if (editingStrategy) {
-            onEditStrategy(editingStrategy.id, data);
+            onEditStrategy(editingStrategy.internal_id ?? Number(editingStrategy.id), data);
           }
         }}
       />

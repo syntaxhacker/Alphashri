@@ -22,13 +22,8 @@ import {
 import { listStrategies } from "../../api/strategies";
 import type { StrategyConfig } from "../../types/paperTrading";
 
-interface StrategyOption {
-  value: string;
-  label: string;
-}
-
 export function PaperSettings() {
-  const [strategies, setStrategies] = useState<StrategyOption[]>([]);
+  const [strategies, setStrategies] = useState<StrategyConfig[]>([]);
   const [strategiesLoading, setStrategiesLoading] = useState(true);
 
   const state = getPaperTradingState();
@@ -38,15 +33,15 @@ export function PaperSettings() {
     const loadStrategies = async () => {
       try {
         const result = await listStrategies(false);
-        const activeStrategies = result.strategies.filter(
-          (s: StrategyConfig) => !s.is_template && s.is_active,
-        );
-        setStrategies(
-          activeStrategies.map((s: StrategyConfig) => ({
-            value: String(s.id),
-            label: s.is_default ? `${s.name} (Default)` : s.name,
-          })),
-        );
+        
+        const nonTemplates = result.strategies.filter((s: StrategyConfig) => !s.is_template);
+        setStrategies(nonTemplates);
+        
+        // Load the default strategy config
+        const defaultStrategy = nonTemplates.find((s: StrategyConfig) => s.is_default);
+        if (defaultStrategy) {
+          await fetchStrategyConfig(defaultStrategy.internal_id);
+        }
       } catch (error) {
         console.error("Failed to load strategies:", error);
       } finally {
@@ -55,10 +50,6 @@ export function PaperSettings() {
     };
 
     loadStrategies();
-  }, []);
-
-  useEffect(() => {
-    fetchStrategyConfig();
   }, []);
 
   const [, setForceUpdate] = useState(0);
@@ -74,10 +65,7 @@ export function PaperSettings() {
 
   const handleStrategyChange = useCallback(async (value: string | null) => {
     if (value) {
-      const strategyId = parseInt(value);
-      if (strategyId) {
-        await fetchStrategyConfig(strategyId);
-      }
+      await fetchStrategyConfig(Number(value));
     }
   }, []);
 
@@ -132,16 +120,10 @@ export function PaperSettings() {
   if (!strategyConfig) {
     return (
       <Card padding="md" radius="md" withBorder data-testid="settings-panel">
-        <Text c="dimmed">No configuration loaded.</Text>
-        <Button
-          variant="light"
-          size="xs"
-          mt="md"
-          onClick={() => fetchStrategyConfig()}
-          data-testid="load-config-button"
-        >
-          Load Config
-        </Button>
+        <Group justify="center" gap="sm">
+          <Loader size="sm" />
+          <Text c="dimmed">Loading configuration...</Text>
+        </Group>
       </Card>
     );
   }
@@ -186,9 +168,12 @@ export function PaperSettings() {
             <Select
               data-testid="strategy-selector"
               placeholder="Select strategy"
-              value={String(strategyConfig.id)}
+              value={strategyConfig.id != null ? String(strategyConfig.id) : null}
               onChange={handleStrategyChange}
-              data={strategies}
+              data={strategies.map((s) => ({
+                value: String(s.internal_id ?? s.id),
+                label: s.is_default ? `${s.name} (Default)` : s.name,
+              }))}
               disabled={strategiesLoading || configLoading}
               style={{ flex: 1 }}
               size="xs"

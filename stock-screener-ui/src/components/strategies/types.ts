@@ -31,6 +31,7 @@ export interface StrategiesPageProps {
   onCreateStrategy: (data: StrategyFormData) => void;
   onEditStrategy: (strategyId: number, data: StrategyFormData) => void;
   onDeleteStrategy: (strategyId: number) => void;
+  onSetActiveStrategy: (strategyId: number) => void;
   onOpenCreateModal: (template?: StrategyConfig) => void;
   onOpenEditModal: (strategy: StrategyConfig) => void;
   onCloseCreateModal: () => void;
@@ -64,6 +65,7 @@ export interface StrategiesListProps {
   templates: StrategyConfig[];
   onEdit: (strategy: StrategyConfig) => void;
   onDelete: (strategyId: number) => void;
+  onSetActive: (strategyId: number) => void;
   isLoading: boolean;
 }
 

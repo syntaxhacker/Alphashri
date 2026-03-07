@@ -432,7 +432,7 @@ function buildChartOption(data: SymbolChartData): any {
         ...(pivot_levels && pivot_levels.length > 0 ? ["R1", "PP", "S1"] : []),
         ...(orb_zones && orb_zones.length > 0 ? ["OR High", "OR Low"] : []),
       ],
-      bottom: 5,
+      bottom: 6,
       itemWidth: 14,
       itemHeight: 10,
       itemGap: 8,
@@ -445,8 +445,8 @@ function buildChartOption(data: SymbolChartData): any {
     grid: {
       left: "8%",
       right: "8%",
-      bottom: "22%",
-      top: "15%",
+      bottom: 82,
+      top: 44,
     },
     xAxis: {
       type: "category",
@@ -519,7 +519,7 @@ function buildChartOption(data: SymbolChartData): any {
         show: true,
         start: 0,
         end: 100,
-        bottom: 40,
+        bottom: 30,
         borderColor: "#333",
         backgroundColor: "#111",
         fillerColor: "rgba(0, 230, 118, 0.1)",
@@ -892,6 +892,7 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
 
     const option = buildChartOption(chartData);
     chartInstance.current.setOption(option);
+    chartInstance.current.resize();
 
     if (onTradeClick) {
       chartInstance.current.on("click", (params: any) => {
@@ -910,8 +911,18 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
     };
     window.addEventListener("resize", handleResize);
 
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            chartInstance.current?.resize();
+          })
+        : null;
+
+    resizeObserver?.observe(chartRef.current);
+
     return () => {
       window.removeEventListener("resize", handleResize);
+      resizeObserver?.disconnect();
       chartInstance.current?.dispose();
       chartInstances.delete(symbol);
       chartInstance.current = null;
@@ -957,7 +968,7 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
       ref={chartRef}
       data-testid="echarts-container"
       data-symbol={symbol}
-      style={{ width: "100%", height: "100%", minHeight: 300 }}
+      style={{ width: "100%", height: "100%", minHeight: 0 }}
     />
   );
 }

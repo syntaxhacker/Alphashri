@@ -82,6 +82,12 @@ export function useStrategiesState() {
     }
   }, []);
 
+  const handleSetActiveStrategy = useCallback((strategyId: number) => {
+    if ((window as any).setActiveStrategy) {
+      (window as any).setActiveStrategy(strategyId);
+    }
+  }, []);
+
   const handleClearError = useCallback(() => {
     strategiesState.clearError();
   }, []);
@@ -109,6 +115,7 @@ export function useStrategiesState() {
     onDeleteStrategy: handleDeleteStrategy,
     onCreateFromTemplate: handleCreateFromTemplate,
     onSelectStrategy: handleSelectStrategy,
+    onSetActiveStrategy: handleSetActiveStrategy,
     onClearError: handleClearError,
   };
 }

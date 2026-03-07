@@ -161,7 +161,13 @@ export function TradeHistoryTable({
     <Box
       className="trade-history-panel"
       data-testid="trade-history-panel"
-      style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
+        overflow: "hidden",
+      }}
     >
       <Group justify="space-between" p="sm" flex="0 0 auto" data-testid="trade-history-header">
         <Text fw={600} size="sm">
@@ -194,7 +200,7 @@ export function TradeHistoryTable({
         </Text>
       </Group>
 
-      <ScrollArea flex={1} type="auto" offsetScrollbars>
+      <ScrollArea flex={1} type="auto" offsetScrollbars style={{ minHeight: 0 }}>
         <Table
           striped
           highlightOnHover
