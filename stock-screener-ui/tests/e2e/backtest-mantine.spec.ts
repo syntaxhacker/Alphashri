@@ -122,7 +122,7 @@ async function setupBacktest(page: Page) {
   await symbolInput.fill("RELIANCE");
   await symbolInput.press("Enter");
   await page.waitForTimeout(300);
-  
+
   const runBtn = page.locator('[data-testid="run-backtest-btn"]');
   await runBtn.click();
   await page.waitForTimeout(2000);
@@ -154,7 +154,7 @@ test.describe("Backtest - Mantine Features", () => {
 
       const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
       await expect(zoomSelect).toBeVisible();
-      
+
       // Just verify the select works - actual zoom requires real chart data
       await zoomSelect.click();
       await page.waitForTimeout(300);
@@ -194,7 +194,7 @@ test.describe("Backtest - Mantine Features", () => {
       await setupBacktest(page);
 
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      
+
       if (await tradeHistoryPanel.isVisible()) {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
@@ -216,7 +216,7 @@ test.describe("Backtest - Mantine Features", () => {
       await setupBacktest(page);
 
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      
+
       if (await tradeHistoryPanel.isVisible()) {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
@@ -238,7 +238,7 @@ test.describe("Backtest - Mantine Features", () => {
       await setupBacktest(page);
 
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      
+
       if (await tradeHistoryPanel.isVisible()) {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
@@ -301,7 +301,7 @@ test.describe("Backtest - Mantine Features", () => {
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
       await runBtn.click();
       await page.waitForTimeout(500);
-      
+
       // After clicking, results should appear
       const resultsSummary = page.locator('[data-testid="results-summary"]');
       await expect(resultsSummary).toBeVisible();
@@ -483,7 +483,7 @@ test.describe("Backtest - Mantine Features", () => {
         if (await closeBtn.isVisible()) {
           await closeBtn.click();
           await page.waitForTimeout(500);
-          
+
           // Panel should be hidden
           await expect(tradeHistoryPanel).not.toBeVisible();
         }

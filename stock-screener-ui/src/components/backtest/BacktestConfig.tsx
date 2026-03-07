@@ -31,11 +31,7 @@ interface BacktestConfigProps {
   onRun: () => void;
 }
 
-function renderParamInput(
-  param: StrategyParam,
-  value: any,
-  onChange: (value: any) => void,
-) {
+function renderParamInput(param: StrategyParam, value: any, onChange: (value: any) => void) {
   const testId = `param-${param.key}`;
 
   if (param.type === "select") {
@@ -136,9 +132,7 @@ export function BacktestConfig({
           <Text size="xs" c="dimmed">
             {param.label}
           </Text>
-          {renderParamInput(param, params[param.key], (value) =>
-            onParamChange(param.key, value),
-          )}
+          {renderParamInput(param, params[param.key], (value) => onParamChange(param.key, value))}
         </Group>
       ))}
 

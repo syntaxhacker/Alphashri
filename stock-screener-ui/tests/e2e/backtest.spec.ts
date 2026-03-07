@@ -64,7 +64,7 @@ test.describe("Backtest View - Strategy Selection", () => {
     const strategySelect = page.locator('[data-testid="strategy-select"]');
     await strategySelect.click();
     await page.waitForTimeout(300);
-    const options = page.locator('[data-dropdown]');
+    const options = page.locator("[data-dropdown]");
     if ((await options.count()) > 0) {
       await options.locator("div").first().click();
     }
@@ -241,7 +241,22 @@ test.describe("Backtest View - Charts", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          results: [{ symbol: "RELIANCE", trades: 10, wins: 6, losses: 4, win_rate: 60, gross_pnl: 6000, total_costs: 1000, net_pnl: 5000, pf: 1.5, tp_exits: 5, sl_exits: 3, eod_exits: 2 }],
+          results: [
+            {
+              symbol: "RELIANCE",
+              trades: 10,
+              wins: 6,
+              losses: 4,
+              win_rate: 60,
+              gross_pnl: 6000,
+              total_costs: 1000,
+              net_pnl: 5000,
+              pf: 1.5,
+              tp_exits: 5,
+              sl_exits: 3,
+              eod_exits: 2,
+            },
+          ],
           totals: { gross_pnl: 6000, total_costs: 1000, net_pnl: 5000, trades: 10, win_rate: 60 },
           run_time: "2024-01-01T00:00:00Z",
         }),
@@ -309,7 +324,22 @@ test.describe("Backtest View - Summary", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          results: [{ symbol: "RELIANCE", trades: 10, wins: 6, losses: 4, win_rate: 60, gross_pnl: 6000, total_costs: 1000, net_pnl: 5000, pf: 1.5, tp_exits: 5, sl_exits: 3, eod_exits: 2 }],
+          results: [
+            {
+              symbol: "RELIANCE",
+              trades: 10,
+              wins: 6,
+              losses: 4,
+              win_rate: 60,
+              gross_pnl: 6000,
+              total_costs: 1000,
+              net_pnl: 5000,
+              pf: 1.5,
+              tp_exits: 5,
+              sl_exits: 3,
+              eod_exits: 2,
+            },
+          ],
           totals: { gross_pnl: 6000, total_costs: 1000, net_pnl: 5000, trades: 10, win_rate: 60 },
           run_time: "2024-01-01T00:00:00Z",
         }),
@@ -343,7 +373,22 @@ test.describe("Backtest View - Summary", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          results: [{ symbol: "RELIANCE", trades: 10, wins: 6, losses: 4, win_rate: 60, gross_pnl: 6000, total_costs: 1000, net_pnl: 5000, pf: 1.5, tp_exits: 5, sl_exits: 3, eod_exits: 2 }],
+          results: [
+            {
+              symbol: "RELIANCE",
+              trades: 10,
+              wins: 6,
+              losses: 4,
+              win_rate: 60,
+              gross_pnl: 6000,
+              total_costs: 1000,
+              net_pnl: 5000,
+              pf: 1.5,
+              tp_exits: 5,
+              sl_exits: 3,
+              eod_exits: 2,
+            },
+          ],
           totals: { gross_pnl: 6000, total_costs: 1000, net_pnl: 5000, trades: 10, win_rate: 60 },
           run_time: "2024-01-01T00:00:00Z",
         }),

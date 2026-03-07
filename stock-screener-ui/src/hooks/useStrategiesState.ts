@@ -11,7 +11,9 @@ export function useStrategiesState() {
     const unsubscribe = strategiesState.subscribe(() => {
       setTick((t) => t + 1);
     });
-    return () => { unsubscribe(); };
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const handleViewChange = useCallback((view: StrategyView) => {

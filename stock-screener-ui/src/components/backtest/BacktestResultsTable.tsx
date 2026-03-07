@@ -66,11 +66,7 @@ export function BacktestResultsTable({
           </Text>
           {isActive && (
             <span className={`sort-indicator ${sortDirection}`}>
-              {sortDirection === "asc" ? (
-                <IconArrowUp size={14} />
-              ) : (
-                <IconArrowDown size={14} />
-              )}
+              {sortDirection === "asc" ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />}
             </span>
           )}
         </Group>
@@ -141,9 +137,7 @@ export function BacktestResultsTable({
         <Table.Thead>
           <Table.Tr>{columns.map(renderHeader)}</Table.Tr>
         </Table.Thead>
-        <Table.Tbody data-testid="results-tbody">
-          {results.map(renderRow)}
-        </Table.Tbody>
+        <Table.Tbody data-testid="results-tbody">{results.map(renderRow)}</Table.Tbody>
       </Table>
     </div>
   );

@@ -15,7 +15,20 @@ function formatDateHuman(isoStr: string): string {
   const d = parseInt(day);
   const m = parseInt(month) - 1;
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
   const date = new Date(parseInt(year), m, d);
   const dayName = days[date.getDay()];
   const monthName = months[m];
@@ -132,18 +145,13 @@ export function TradeHistoryTable({
   const renderSortableTh = (column: string, label: string, testId?: string) => {
     const isActive = sortColumn === column;
     return (
-      <Table.Th
-        style={{ cursor: "pointer" }}
-        onClick={() => onSort(column)}
-        data-testid={testId}
-      >
+      <Table.Th style={{ cursor: "pointer" }} onClick={() => onSort(column)} data-testid={testId}>
         <Group gap={4} wrap="nowrap">
-          <Text size="xs" fw={500}>{label}</Text>
-          {isActive && (
-            sortDirection === "asc"
-              ? <IconArrowUp size={12} />
-              : <IconArrowDown size={12} />
-          )}
+          <Text size="xs" fw={500}>
+            {label}
+          </Text>
+          {isActive &&
+            (sortDirection === "asc" ? <IconArrowUp size={12} /> : <IconArrowDown size={12} />)}
         </Group>
       </Table.Th>
     );
@@ -174,11 +182,7 @@ export function TradeHistoryTable({
       <Group gap="md" p="xs" data-testid="trade-history-summary">
         <Text size="xs" data-testid="trade-summary-pnl">
           P&L:{" "}
-          <Text
-            component="span"
-            fw={600}
-            c={totalPnl >= 0 ? "green" : "red"}
-          >
+          <Text component="span" fw={600} c={totalPnl >= 0 ? "green" : "red"}>
             ₹{totalPnl.toFixed(0)}
           </Text>
         </Text>
@@ -201,7 +205,11 @@ export function TradeHistoryTable({
         >
           <Table.Thead>
             <Table.Tr>
-              <Table.Th><Text size="xs" fw={500}>#</Text></Table.Th>
+              <Table.Th>
+                <Text size="xs" fw={500}>
+                  #
+                </Text>
+              </Table.Th>
               {renderSortableTh("entry_time", "Time")}
               {renderSortableTh("side", "Side")}
               {renderSortableTh("quantity", "Qty")}
@@ -276,7 +284,8 @@ export function TradeHistoryTable({
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs" c={pnlPct >= 0 ? "green" : "red"}>
-                      {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
+                      {pnlPct >= 0 ? "+" : ""}
+                      {pnlPct.toFixed(2)}%
                     </Text>
                   </Table.Td>
                   <Table.Td>
@@ -286,10 +295,13 @@ export function TradeHistoryTable({
                     <Badge
                       size="xs"
                       color={
-                        t.exit_reason === "TP" ? "green" :
-                        t.exit_reason === "SL" ? "red" :
-                        t.exit_reason === "TRAILING_STOP" ? "orange" :
-                        "gray"
+                        t.exit_reason === "TP"
+                          ? "green"
+                          : t.exit_reason === "SL"
+                            ? "red"
+                            : t.exit_reason === "TRAILING_STOP"
+                              ? "orange"
+                              : "gray"
                       }
                     >
                       {t.exit_reason ?? "EOD"}

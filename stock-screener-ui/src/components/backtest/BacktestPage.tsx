@@ -95,9 +95,7 @@ export function BacktestPage() {
       }
 
       if (typeof aVal === "string" && typeof bVal === "string") {
-        return resultsSortDirection === "asc"
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
+        return resultsSortDirection === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       }
 
       return resultsSortDirection === "asc"
@@ -119,7 +117,7 @@ export function BacktestPage() {
         setResultsSortDirection("desc");
       }
     },
-    [resultsSortColumn]
+    [resultsSortColumn],
   );
 
   const handleTradeSort = useCallback(
@@ -131,7 +129,7 @@ export function BacktestPage() {
         setTradeSortDirection("desc");
       }
     },
-    [tradeSortColumn]
+    [tradeSortColumn],
   );
 
   const handleViewChartAndTrades = useCallback((symbol: string) => {
@@ -150,33 +148,30 @@ export function BacktestPage() {
   const handleZoomToTrade = useCallback(
     (tradeIndex: number) => {
       console.log("handleZoomToTrade called with tradeIndex:", tradeIndex);
-      
+
       // Zoom the chart
       const chartData = state.selectedChartSymbol
         ? state.chartData.get(state.selectedChartSymbol)
         : undefined;
       zoomToTrade(state.selectedChartSymbol || "", tradeIndex, chartData);
 
-  
       // Scroll to and highlight the trade row in the table
-      const row = document.querySelector(
-        `[data-trade-number="${tradeIndex + 1}"]`
-      ) as HTMLElement;
-  
+      const row = document.querySelector(`[data-trade-number="${tradeIndex + 1}"]`) as HTMLElement;
+
       if (row) {
         console.log("Found trade row:", row);
-        
+
         // Remove previous highlight
         document.querySelectorAll(".trade-row-highlighted").forEach((el) => {
           el.classList.remove("trade-row-highlighted");
         });
-  
+
         // Add highlight class
         row.classList.add("trade-row-highlighted");
-  
+
         // Scroll into view
         row.scrollIntoView({ behavior: "smooth", block: "center" });
-  
+
         // Remove highlight after 3 seconds
         setTimeout(() => {
           row.classList.remove("trade-row-highlighted");
@@ -185,7 +180,7 @@ export function BacktestPage() {
         console.log("Trade row not found for trade number:", tradeIndex + 1);
       }
     },
-    [state.selectedChartSymbol, state.chartData]
+    [state.selectedChartSymbol, state.chartData],
   );
 
   const handleCloseTradeHistory = useCallback(() => {

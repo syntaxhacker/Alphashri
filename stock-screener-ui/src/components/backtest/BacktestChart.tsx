@@ -46,7 +46,10 @@ function buildChartOption(data: SymbolChartData): any {
   const candleDateMap = new Map(candles.map((c, i) => [c.date, i]));
 
   if (trades.length > 0) {
-    console.log("DEBUG: Sample candle dates:", candles.slice(0, 3).map((c) => c.date));
+    console.log(
+      "DEBUG: Sample candle dates:",
+      candles.slice(0, 3).map((c) => c.date),
+    );
     console.log("DEBUG: Sample trade:", {
       time: trades[0].time,
       date: trades[0].date,
@@ -265,7 +268,7 @@ function buildChartOption(data: SymbolChartData): any {
             return `<span style="color:#26A69A">S1 (Support): ₹${params.value.toFixed(2)}</span>`;
           },
         },
-      }
+      },
     );
   }
 
@@ -302,7 +305,7 @@ function buildChartOption(data: SymbolChartData): any {
         silent: true,
         z: 5,
         lineStyle: { color: "#1E88E5", width: 1, type: "dashed" },
-      }
+      },
     );
   }
 
@@ -330,7 +333,20 @@ function buildChartOption(data: SymbolChartData): any {
           const [_year, month, day] = datePart.split("-");
           const d = parseInt(day);
           const m = parseInt(month) - 1;
-          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ];
           const suffix =
             d === 1 || d === 21 || d === 31
               ? "st"
@@ -447,7 +463,20 @@ function buildChartOption(data: SymbolChartData): any {
           const [, month, day] = datePart.split("-");
           const d = parseInt(day);
           const m = parseInt(month);
-          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ];
           const suffix =
             d === 1 || d === 21 || d === 31
               ? "st"
@@ -503,7 +532,11 @@ function buildChartOption(data: SymbolChartData): any {
 }
 
 // Export zoom to trade function for external use
-export function zoomToTrade(symbol: string, tradeIndex: number, chartData: SymbolChartData | undefined) {
+export function zoomToTrade(
+  symbol: string,
+  tradeIndex: number,
+  chartData: SymbolChartData | undefined,
+) {
   if (!chartData) return;
 
   const chart = chartInstances.get(symbol);
@@ -514,10 +547,10 @@ export function zoomToTrade(symbol: string, tradeIndex: number, chartData: Symbo
 
   // Get the entry and exit markers for this trade
   const entryMarker = chartData.trades.find(
-    (t) => t.type === "entry" && t.trade_id === tradeIndex + 1
+    (t) => t.type === "entry" && t.trade_id === tradeIndex + 1,
   );
   const exitMarker = chartData.trades.find(
-    (t) => t.type === "exit" && t.trade_id === tradeIndex + 1
+    (t) => t.type === "exit" && t.trade_id === tradeIndex + 1,
   );
 
   if (!entryMarker) {
@@ -535,9 +568,27 @@ export function zoomToTrade(symbol: string, tradeIndex: number, chartData: Symbo
   });
 
   // Debug: Log sample candle times and dates
-  console.log("zoomToTrade: Sample candles:", chartData.candles.slice(0, 3).map(c => ({ time: c.time, normalized: normalizeTime(c.time), date: c.date, date_raw: c.date_raw })));
-  console.log("zoomToTrade: candleDateMap sample dates:", Array.from(candleDateMap.keys()).slice(0, 5));
-  console.log("zoomToTrade: entryMarker:", { time: entryMarker.time, normalized: normalizeTime(entryMarker.time), date: entryMarker.date, candle_idx: entryMarker.candle_idx });
+  console.log(
+    "zoomToTrade: Sample candles:",
+    chartData.candles
+      .slice(0, 3)
+      .map((c) => ({
+        time: c.time,
+        normalized: normalizeTime(c.time),
+        date: c.date,
+        date_raw: c.date_raw,
+      })),
+  );
+  console.log(
+    "zoomToTrade: candleDateMap sample dates:",
+    Array.from(candleDateMap.keys()).slice(0, 5),
+  );
+  console.log("zoomToTrade: entryMarker:", {
+    time: entryMarker.time,
+    normalized: normalizeTime(entryMarker.time),
+    date: entryMarker.date,
+    candle_idx: entryMarker.candle_idx,
+  });
 
   // Find candle index - either from pre-computed candle_idx or by matching time
   let entryIdx = entryMarker.candle_idx;
@@ -548,26 +599,45 @@ export function zoomToTrade(symbol: string, tradeIndex: number, chartData: Symbo
     const entryTime = normalizeTime(entryMarker.time);
     entryIdx = candleTimeMap.get(entryTime);
     console.log("zoomToTrade: Looking for entryTime", entryTime, "found:", entryIdx);
-    console.log("zoomToTrade: candleTimeMap has", candleTimeMap.size, "entries, sample:", Array.from(candleTimeMap.entries()).slice(0, 3));
-    
+    console.log(
+      "zoomToTrade: candleTimeMap has",
+      candleTimeMap.size,
+      "entries, sample:",
+      Array.from(candleTimeMap.entries()).slice(0, 3),
+    );
+
     // If not found, try matching by date only (for daily candles)
     if (entryIdx === undefined && entryMarker.date) {
       entryIdx = candleDateMap.get(entryMarker.date);
       console.log("zoomToTrade: Looking for date", entryMarker.date, "found:", entryIdx);
-      console.log("zoomToTrade: candleDateMap has", candleDateMap.size, "entries, sample:", Array.from(candleDateMap.entries()).slice(0, 3));
+      console.log(
+        "zoomToTrade: candleDateMap has",
+        candleDateMap.size,
+        "entries, sample:",
+        Array.from(candleDateMap.entries()).slice(0, 3),
+      );
     }
   }
 
   if (exitIdx === undefined && exitMarker) {
     const exitTime = normalizeTime(exitMarker.time);
     exitIdx = candleTimeMap.get(exitTime);
-    
+
     if (exitIdx === undefined && exitMarker.date) {
       exitIdx = candleDateMap.get(exitMarker.date);
     }
   }
 
-  console.log("zoomToTrade: tradeIndex", tradeIndex, "entryIdx", entryIdx, "exitIdx", exitIdx, "entryMarker.date", entryMarker.date);
+  console.log(
+    "zoomToTrade: tradeIndex",
+    tradeIndex,
+    "entryIdx",
+    entryIdx,
+    "exitIdx",
+    exitIdx,
+    "entryMarker.date",
+    entryMarker.date,
+  );
 
   if (entryIdx === undefined) {
     console.warn("Could not find candle index for trade", tradeIndex + 1);
@@ -584,7 +654,7 @@ export function zoomToTrade(symbol: string, tradeIndex: number, chartData: Symbo
   // Zoom to full day for the selected trade
   let startIdx = entryIdx;
   let endIdx = exitIdx;
-  
+
   if (selectedDate) {
     const dayIndices = chartData.candles
       .map((c, idx) => ({ date: c.date, idx }))
@@ -631,11 +701,9 @@ export function zoomToTrade(symbol: string, tradeIndex: number, chartData: Symbo
     const levelLow = (selectedTrade as any).or_low ?? (selectedTrade as any).s1;
 
     const levelHighData = chartData.candles.map((c) =>
-      c.date === selectedDate ? levelHigh : null
+      c.date === selectedDate ? levelHigh : null,
     );
-    const levelLowData = chartData.candles.map((c) =>
-      c.date === selectedDate ? levelLow : null
-    );
+    const levelLowData = chartData.candles.map((c) => (c.date === selectedDate ? levelLow : null));
 
     const highlightEntryMarker = {
       value: [entryIdx, entryMarker.price],
@@ -662,52 +730,117 @@ export function zoomToTrade(symbol: string, tradeIndex: number, chartData: Symbo
       },
     };
 
-    const highlightExitMarker = exitMarker && exitIdx !== undefined ? {
-      value: [exitIdx, exitMarker.price],
-      symbol: "circle",
-      symbolSize: 28,
-      itemStyle: {
-        color:
-          (exitMarker.trade as any).exit_reason === "TP"
-            ? "#00E676"
-            : (exitMarker.trade as any).exit_reason === "SL"
-              ? "#FF1744"
-              : "#FFEA00",
-        borderColor: "#FFFFFF",
-        borderWidth: 4,
-        shadowBlur: 10,
-        shadowColor:
-          (exitMarker.trade as any).exit_reason === "TP"
-            ? "#00E676"
-            : (exitMarker.trade as any).exit_reason === "SL"
-              ? "#FF1744"
-              : "#FFEA00",
-      },
-      label: {
-        show: true,
-        position: "bottom",
-        distance: 8,
-        formatter: `● ${(exitMarker.trade as any).exit_reason || "Exit"}`,
-        color: "#FFFFFF",
-        fontSize: 12,
-        fontWeight: "bold",
-        backgroundColor: "rgba(0,0,0,0.7)",
-        padding: [4, 8],
-        borderRadius: 4,
-      },
-    } : null;
+    const highlightExitMarker =
+      exitMarker && exitIdx !== undefined
+        ? {
+            value: [exitIdx, exitMarker.price],
+            symbol: "circle",
+            symbolSize: 28,
+            itemStyle: {
+              color:
+                (exitMarker.trade as any).exit_reason === "TP"
+                  ? "#00E676"
+                  : (exitMarker.trade as any).exit_reason === "SL"
+                    ? "#FF1744"
+                    : "#FFEA00",
+              borderColor: "#FFFFFF",
+              borderWidth: 4,
+              shadowBlur: 10,
+              shadowColor:
+                (exitMarker.trade as any).exit_reason === "TP"
+                  ? "#00E676"
+                  : (exitMarker.trade as any).exit_reason === "SL"
+                    ? "#FF1744"
+                    : "#FFEA00",
+            },
+            label: {
+              show: true,
+              position: "bottom",
+              distance: 8,
+              formatter: `● ${(exitMarker.trade as any).exit_reason || "Exit"}`,
+              color: "#FFFFFF",
+              fontSize: 12,
+              fontWeight: "bold",
+              backgroundColor: "rgba(0,0,0,0.7)",
+              padding: [4, 8],
+              borderRadius: 4,
+            },
+          }
+        : null;
 
-    const connectLineData = exitIdx !== undefined
-      ? chartData.candles.map((c, i) => (i >= entryIdx! && i <= exitIdx! ? entryMarker.price : null))
-      : [];
+    const connectLineData =
+      exitIdx !== undefined
+        ? chartData.candles.map((c, i) =>
+            i >= entryIdx! && i <= exitIdx! ? entryMarker.price : null,
+          )
+        : [];
 
     chart.setOption({
       series: [
-        { id: "selected-or-high", name: "Selected Level High", type: "line", data: levelHighData, showSymbol: false, connectNulls: false, silent: true, z: 6, lineStyle: { color: "#42A5F5", width: 2, type: "dashed" }, tooltip: { show: false } },
-        { id: "selected-or-low", name: "Selected Level Low", type: "line", data: levelLowData, showSymbol: false, connectNulls: false, silent: true, z: 6, lineStyle: { color: "#1E88E5", width: 2, type: "dashed" }, tooltip: { show: false } },
-        ...(connectLineData.length > 0 ? [{ id: "trade-connect-line", name: "Trade Line", type: "line", data: connectLineData, showSymbol: false, connectNulls: false, silent: true, z: 15, lineStyle: { color: "#FFD700", width: 2, type: "solid", opacity: 0.6 }, tooltip: { show: false } }] : []),
-        { id: "highlight-entry", name: "Selected Entry", type: "scatter", data: [highlightEntryMarker], symbolSize: 32, z: 25, animation: true, animationDuration: 200 },
-        ...(highlightExitMarker ? [{ id: "highlight-exit", name: "Selected Exit", type: "scatter", data: [highlightExitMarker], symbolSize: 28, z: 25, animation: true, animationDuration: 200 }] : []),
+        {
+          id: "selected-or-high",
+          name: "Selected Level High",
+          type: "line",
+          data: levelHighData,
+          showSymbol: false,
+          connectNulls: false,
+          silent: true,
+          z: 6,
+          lineStyle: { color: "#42A5F5", width: 2, type: "dashed" },
+          tooltip: { show: false },
+        },
+        {
+          id: "selected-or-low",
+          name: "Selected Level Low",
+          type: "line",
+          data: levelLowData,
+          showSymbol: false,
+          connectNulls: false,
+          silent: true,
+          z: 6,
+          lineStyle: { color: "#1E88E5", width: 2, type: "dashed" },
+          tooltip: { show: false },
+        },
+        ...(connectLineData.length > 0
+          ? [
+              {
+                id: "trade-connect-line",
+                name: "Trade Line",
+                type: "line",
+                data: connectLineData,
+                showSymbol: false,
+                connectNulls: false,
+                silent: true,
+                z: 15,
+                lineStyle: { color: "#FFD700", width: 2, type: "solid", opacity: 0.6 },
+                tooltip: { show: false },
+              },
+            ]
+          : []),
+        {
+          id: "highlight-entry",
+          name: "Selected Entry",
+          type: "scatter",
+          data: [highlightEntryMarker],
+          symbolSize: 32,
+          z: 25,
+          animation: true,
+          animationDuration: 200,
+        },
+        ...(highlightExitMarker
+          ? [
+              {
+                id: "highlight-exit",
+                name: "Selected Exit",
+                type: "scatter",
+                data: [highlightExitMarker],
+                symbolSize: 28,
+                z: 25,
+                animation: true,
+                animationDuration: 200,
+              },
+            ]
+          : []),
       ],
     });
 
@@ -758,7 +891,7 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
 
     chartInstance.current = echartsLib.init(chartRef.current, "dark");
     chartInstances.set(symbol, chartInstance.current);
-    
+
     const option = buildChartOption(chartData);
     chartInstance.current.setOption(option);
 

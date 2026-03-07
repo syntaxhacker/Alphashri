@@ -1,6 +1,6 @@
-import { Tabs, Select, Group, Text, Box } from '@mantine/core';
-import { BacktestChart } from './BacktestChart';
-import type { SymbolChartData } from '../../types/backtest';
+import { Tabs, Select, Group, Text, Box } from "@mantine/core";
+import { BacktestChart } from "./BacktestChart";
+import type { SymbolChartData } from "../../types/backtest";
 
 export interface BacktestChartTabsProps {
   symbols: string[];
@@ -14,17 +14,17 @@ export interface BacktestChartTabsProps {
 }
 
 const ZOOM_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: '30d', label: '30D' },
-  { value: '7d', label: '7D' },
-  { value: '1d', label: '1D' },
+  { value: "all", label: "All" },
+  { value: "30d", label: "30D" },
+  { value: "7d", label: "7D" },
+  { value: "1d", label: "1D" },
 ];
 
 const LEGEND_ITEMS = [
-  { id: 'entry', label: 'Entry', color: '#00FFFF' },
-  { id: 'tp', label: 'TP', color: '#FFFF00' },
-  { id: 'sl', label: 'SL', color: '#FF00FF' },
-  { id: 'eod', label: 'EOD', color: '#FFA500' },
+  { id: "entry", label: "Entry", color: "#00FFFF" },
+  { id: "tp", label: "TP", color: "#FFFF00" },
+  { id: "sl", label: "SL", color: "#FF00FF" },
+  { id: "eod", label: "EOD", color: "#FFA500" },
 ];
 
 export function BacktestChartTabs({
@@ -42,12 +42,12 @@ export function BacktestChartTabs({
       <Box
         data-testid="chart-container"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           height: 400,
-          backgroundColor: 'var(--mantine-color-dark-6)',
-          borderRadius: 'var(--mantine-radius-md)',
+          backgroundColor: "var(--mantine-color-dark-6)",
+          borderRadius: "var(--mantine-radius-md)",
         }}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
@@ -58,7 +58,11 @@ export function BacktestChartTabs({
   const currentChartData = selectedSymbol ? chartDataMap.get(selectedSymbol) : null;
 
   return (
-    <Box data-testid="chart-container" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+    <Box
+      data-testid="chart-container"
+      h="100%"
+      style={{ display: "flex", flexDirection: "column" }}
+    >
       <Box mb="xs" flex="0 0 auto">
         <Group justify="space-between" align="center">
           <Tabs
@@ -68,11 +72,7 @@ export function BacktestChartTabs({
           >
             <Tabs.List>
               {symbols.map((symbol) => (
-                <Tabs.Tab
-                  key={symbol}
-                  value={symbol}
-                  data-testid={`chart-tab-${symbol}`}
-                >
+                <Tabs.Tab key={symbol} value={symbol} data-testid={`chart-tab-${symbol}`}>
                   {symbol}
                 </Tabs.Tab>
               ))}
@@ -102,12 +102,12 @@ export function BacktestChartTabs({
           <Box
             data-testid="chart-placeholder"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              backgroundColor: 'var(--mantine-color-dark-6)',
-              borderRadius: 'var(--mantine-radius-md)',
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              backgroundColor: "var(--mantine-color-dark-6)",
+              borderRadius: "var(--mantine-radius-md)",
             }}
           >
             <Text c="dimmed">Select a symbol</Text>
@@ -120,9 +120,9 @@ export function BacktestChartTabs({
         mt="xs"
         flex="0 0 auto"
         style={{
-          display: 'flex',
-          gap: 'var(--mantine-spacing-md)',
-          justifyContent: 'center',
+          display: "flex",
+          gap: "var(--mantine-spacing-md)",
+          justifyContent: "center",
         }}
       >
         {LEGEND_ITEMS.map((item) => (
@@ -131,7 +131,7 @@ export function BacktestChartTabs({
               style={{
                 width: 12,
                 height: 12,
-                borderRadius: '50%',
+                borderRadius: "50%",
                 backgroundColor: item.color,
               }}
             />
