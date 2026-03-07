@@ -224,7 +224,7 @@ export function BacktestPage() {
     }
 
     return (
-      <Stack gap="xs" style={{ flex: 1, minHeight: 0 }}>
+      <Stack gap="xs" style={{ flex: 1, minHeight: 0, height: "100%" }}>
         <BacktestSummary totals={state.totals} />
         <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
           <BacktestResultsTable
@@ -246,7 +246,7 @@ export function BacktestPage() {
     }
 
     return (
-      <Stack gap="xs" style={{ flex: 1, minHeight: 0 }}>
+      <Stack gap="xs" style={{ flex: 1, minHeight: 0, height: "100%" }}>
         <Box style={{ minHeight: 0, flex: "1 1 55%", display: "flex", flexDirection: "column" }}>
           <BacktestChartTabs
             symbols={symbols}
