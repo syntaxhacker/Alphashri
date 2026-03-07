@@ -27,7 +27,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <NavbarNested activePath={location.pathname} />
       </AppShell.Navbar>
 
-      <AppShell.Main bg={colors.background} c={colors.text} h="100%" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <AppShell.Main bg={colors.background} c={colors.text} style={{ overflow: "hidden" }}>
         {children}
       </AppShell.Main>
     </AppShell>
