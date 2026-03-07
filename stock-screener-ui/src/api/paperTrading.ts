@@ -81,17 +81,25 @@ export async function fetchPositions(): Promise<PaperPosition[]> {
   }
 }
 
-// Fetch trade history with optional bot filtering
+// Fetch trade history with optional bot and date filtering
 export async function fetchTrades(
   limit: number = 100,
   botId?: string | null,
+  fromDate?: string | null,
+  toDate?: string | null,
+  daysBack: number = 30,
 ): Promise<PaperTrade[]> {
   try {
     const params = new URLSearchParams();
     params.append("limit", limit.toString());
     if (botId) params.append("bot_id", botId);
+    if (fromDate) params.append("date", fromDate);
+    params.append("days_back", daysBack.toString());
+
+    console.log("[fetchTrades] Calling API with params:", params.toString());
     const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?${params.toString()}`);
     const data = await response.json();
+    console.log("[fetchTrades] Response:", data.total_trades, "trades");
     const trades = data.trades || [];
     setTrades(trades);
     return trades;
@@ -260,14 +268,19 @@ export async function stopPaperBot(): Promise<boolean> {
   }
 }
 
-// Refresh history data with optional bot filtering
-export async function refreshHistoryData(botId?: string | null): Promise<void> {
+// Refresh history data with optional bot and date filtering
+export async function refreshHistoryData(
+  botId?: string | null,
+  fromDate?: string | null,
+  toDate?: string | null,
+  daysBack: number = 60,
+): Promise<void> {
   setLoading(true);
 
   try {
     await Promise.all([
       // Load a larger set so date-range filtering works reliably on the client.
-      fetchTrades(1000, botId),
+      fetchTrades(1000, botId, fromDate, toDate, daysBack),
       fetchPerformanceSummary(),
     ]);
   } catch (error) {

@@ -520,7 +520,10 @@ export function PaperSettings() {
   );
 }
 
-function handleConfigValue(key: keyof StrategyConfig, value: number | string | boolean | undefined) {
+function handleConfigValue(
+  key: keyof StrategyConfig,
+  value: number | string | boolean | undefined,
+) {
   if (value !== undefined) {
     updateConfigValue(key, value as any);
   }

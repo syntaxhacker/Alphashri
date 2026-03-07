@@ -27,8 +27,10 @@ function formatChange(value: number | undefined | null): string {
 export function PaperWatchlistScan({ scanItems, onSymbolClick }: PaperWatchlistScanProps) {
   return (
     <Card shadow="sm" padding="md" radius="md" withBorder data-testid="watchlist-scan-card">
-      <Text fw={600} size="md" mb="md" data-testid="watchlist-header">Watchlist Scan</Text>
-      
+      <Text fw={600} size="md" mb="md" data-testid="watchlist-header">
+        Watchlist Scan
+      </Text>
+
       <Table striped highlightOnHover withTableBorder>
         <Table.Thead>
           <Table.Tr>
@@ -44,12 +46,14 @@ export function PaperWatchlistScan({ scanItems, onSymbolClick }: PaperWatchlistS
           {scanItems.length === 0 ? (
             <Table.Tr>
               <Table.Td colSpan={6}>
-                <Text c="dimmed" ta="center">No scan data yet</Text>
+                <Text c="dimmed" ta="center">
+                  No scan data yet
+                </Text>
               </Table.Td>
             </Table.Tr>
           ) : (
             scanItems.map((item) => (
-              <Table.Tr 
+              <Table.Tr
                 key={item.symbol}
                 onClick={() => onSymbolClick(item.symbol)}
                 style={{ cursor: "pointer" }}
@@ -60,15 +64,17 @@ export function PaperWatchlistScan({ scanItems, onSymbolClick }: PaperWatchlistS
                 </Table.Td>
                 <Table.Td>₹{formatCurrency(item.ltp)}</Table.Td>
                 <Table.Td>
-                  <Text c={item.change >= 0 ? "green" : "red"}>
-                    {formatChange(item.change)}
-                  </Text>
+                  <Text c={item.change >= 0 ? "green" : "red"}>{formatChange(item.change)}</Text>
                 </Table.Td>
                 <Table.Td>₹{formatCurrency(item.or_high)}</Table.Td>
                 <Table.Td>₹{formatCurrency(item.or_low)}</Table.Td>
                 <Table.Td>
                   {item.breakout_type === "bullish" && (
-                    <Badge color="green" variant="light" data-testid={`badge-bullish-${item.symbol}`}>
+                    <Badge
+                      color="green"
+                      variant="light"
+                      data-testid={`badge-bullish-${item.symbol}`}
+                    >
                       Bullish
                     </Badge>
                   )}
@@ -78,7 +84,11 @@ export function PaperWatchlistScan({ scanItems, onSymbolClick }: PaperWatchlistS
                     </Badge>
                   )}
                   {item.breakout_type === null && (
-                    <Badge color="gray" variant="light" data-testid={`badge-neutral-${item.symbol}`}>
+                    <Badge
+                      color="gray"
+                      variant="light"
+                      data-testid={`badge-neutral-${item.symbol}`}
+                    >
                       -
                     </Badge>
                   )}

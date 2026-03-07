@@ -37,12 +37,7 @@ interface StrategyAllocationRow {
   max_positions: number;
 }
 
-export function BotConfigModal({
-  opened,
-  bot,
-  availableStrategies,
-  onClose,
-}: BotConfigModalProps) {
+export function BotConfigModal({ opened, bot, availableStrategies, onClose }: BotConfigModalProps) {
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [maxPositions, setMaxPositions] = useState(10);
@@ -65,7 +60,7 @@ export function BotConfigModal({
           strategy_id: s.id,
           capital_allocation_pct: s.capital_allocation_pct * 100,
           max_positions: s.max_positions,
-        }))
+        })),
       );
     } else if (opened) {
       setName("");
@@ -97,17 +92,12 @@ export function BotConfigModal({
   const handleUpdateStrategy = (
     id: string,
     field: keyof StrategyAllocationRow,
-    value: string | number
+    value: string | number,
   ) => {
-    setStrategies(
-      strategies.map((s) => (s.id === id ? { ...s, [field]: value } : s))
-    );
+    setStrategies(strategies.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
   };
 
-  const totalAllocation = strategies.reduce(
-    (sum, s) => sum + s.capital_allocation_pct,
-    0
-  );
+  const totalAllocation = strategies.reduce((sum, s) => sum + s.capital_allocation_pct, 0);
   const isOverAllocated = totalAllocation > 100;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -217,8 +207,8 @@ export function BotConfigModal({
               Strategy Allocations
             </Text>
             <Text size="sm" c="dimmed" mb="sm">
-              Configure which strategies to run and their capital allocations.
-              Total allocation should not exceed 100%.
+              Configure which strategies to run and their capital allocations. Total allocation
+              should not exceed 100%.
             </Text>
 
             <Stack gap="sm" data-testid="strategy-allocations">
@@ -252,7 +242,7 @@ export function BotConfigModal({
                         handleUpdateStrategy(
                           strategy.id,
                           "capital_allocation_pct",
-                          Number(val) || 20
+                          Number(val) || 20,
                         )
                       }
                     />
@@ -262,11 +252,7 @@ export function BotConfigModal({
                       max={10}
                       value={strategy.max_positions}
                       onChange={(val) =>
-                        handleUpdateStrategy(
-                          strategy.id,
-                          "max_positions",
-                          Number(val) || 3
-                        )
+                        handleUpdateStrategy(strategy.id, "max_positions", Number(val) || 3)
                       }
                     />
                     <ActionIcon
@@ -312,11 +298,7 @@ export function BotConfigModal({
 
           {/* Actions */}
           <Group justify="flex-end">
-            <Button
-              variant="subtle"
-              onClick={handleClose}
-              data-testid="cancel-bot-config-btn"
-            >
+            <Button variant="subtle" onClick={handleClose} data-testid="cancel-bot-config-btn">
               Cancel
             </Button>
             <Button type="submit" data-testid="save-bot-config-btn">

@@ -14,8 +14,22 @@ import {
   Loader,
 } from "@mantine/core";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
-import type { BotConfig, BotStatus, BotTrade, BotPosition, PortfolioSummary, StrategyStatus } from "../../types/bots";
-import { loadBotStatus, loadBotTrades, startBotAction, stopBotAction, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
+import type {
+  BotConfig,
+  BotStatus,
+  BotTrade,
+  BotPosition,
+  PortfolioSummary,
+  StrategyStatus,
+} from "../../types/bots";
+import {
+  loadBotStatus,
+  loadBotTrades,
+  startBotAction,
+  stopBotAction,
+  startAutoRefresh,
+  stopAutoRefresh,
+} from "../../state/bots";
 
 interface BotStatusPanelProps {
   bot: BotConfig;
@@ -114,11 +128,7 @@ function StrategyStatusCard({
         <Text fw={600} size="sm">
           {strategy.strategy_name}
         </Text>
-        <Badge
-          color={strategy.status === "running" ? "green" : "gray"}
-          variant="light"
-          size="sm"
-        >
+        <Badge color={strategy.status === "running" ? "green" : "gray"} variant="light" size="sm">
           {strategy.status}
         </Badge>
       </Group>
@@ -139,8 +149,8 @@ function StrategyStatusCard({
               Capital Used
             </Text>
             <Text size="xs">
-              ₹{formatNumber(strategy.capital_used)} / ₹
-              {formatNumber(strategy.allocated_capital)} ({usedPct.toFixed(0)}%)
+              ₹{formatNumber(strategy.capital_used)} / ₹{formatNumber(strategy.allocated_capital)} (
+              {usedPct.toFixed(0)}%)
             </Text>
           </Group>
           <Progress value={Math.min(usedPct, 100)} size="sm" color="blue" />
@@ -197,11 +207,7 @@ function PositionsTable({ positions }: { positions: BotPosition[] }) {
                   <Text fw={600}>{p.symbol}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={p.side === "BUY" ? "green" : "red"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={p.side === "BUY" ? "green" : "red"} variant="light" size="sm">
                     {p.side}
                   </Badge>
                 </Table.Td>
@@ -296,11 +302,7 @@ function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () 
                     <Text fw={600}>{t.symbol}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge
-                      color={t.side === "BUY" ? "green" : "red"}
-                      variant="light"
-                      size="sm"
-                    >
+                    <Badge color={t.side === "BUY" ? "green" : "red"} variant="light" size="sm">
                       {t.side}
                     </Badge>
                   </Table.Td>
@@ -346,13 +348,7 @@ function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () 
   );
 }
 
-export function BotStatusPanel({
-  bot,
-  status,
-  trades,
-  onStart,
-  onStop,
-}: BotStatusPanelProps) {
+export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStatusPanelProps) {
   const handleRefresh = async () => {
     await Promise.all([loadBotStatus(bot.id), loadBotTrades(bot.id)]);
   };
@@ -384,11 +380,7 @@ export function BotStatusPanel({
               <Text fw={700} size="lg">
                 {bot.name}
               </Text>
-              <Badge
-                color={status?.running ? "green" : "gray"}
-                variant="light"
-                mt={4}
-              >
+              <Badge color={status?.running ? "green" : "gray"} variant="light" mt={4}>
                 {status?.running ? `● Running (PID ${status.pid})` : "○ Stopped"}
               </Badge>
             </div>
@@ -446,10 +438,7 @@ export function BotStatusPanel({
             <Grid>
               {Object.values(status.strategies).map((s) => (
                 <Grid.Col key={s.strategy_id} span={{ base: 12, sm: 6, md: 4 }}>
-                  <StrategyStatusCard
-                    strategy={s}
-                    isRunning={status?.running ?? false}
-                  />
+                  <StrategyStatusCard strategy={s} isRunning={status?.running ?? false} />
                 </Grid.Col>
               ))}
             </Grid>

@@ -294,10 +294,7 @@ export function PaperHistoryTable() {
     state.filterBot,
   ]);
 
-  const tradesByDate = useMemo(
-    () => groupTradesByDate(filteredTrades),
-    [filteredTrades],
-  );
+  const tradesByDate = useMemo(() => groupTradesByDate(filteredTrades), [filteredTrades]);
 
   const strategies = useMemo(() => getUniqueStrategies(state.trades), [state.trades]);
   const bots = useMemo(() => getUniqueBots(state.trades), [state.trades]);
@@ -360,11 +357,18 @@ export function PaperHistoryTable() {
 
     setFilterFromDate(fromDate);
     setFilterToDate(toDate);
-    
+
     // Convert empty string to null for API call
     const botId = state.filterBot || null;
-    console.log('[PaperHistoryTable] Quick filter:', period, 'fromDate:', fromDate, 'botId:', botId);
-    
+    console.log(
+      "[PaperHistoryTable] Quick filter:",
+      period,
+      "fromDate:",
+      fromDate,
+      "botId:",
+      botId,
+    );
+
     // Fetch from API with date filter
     refreshHistoryData(botId, fromDate, toDate);
   };
@@ -372,21 +376,21 @@ export function PaperHistoryTable() {
   const getCurrentPeriod = (): string => {
     const { filterFromDate, filterToDate } = state;
     if (!filterFromDate && !filterToDate) return "all";
-    
+
     const today = new Date().toISOString().split("T")[0];
     if (filterFromDate === today && filterToDate === today) return "today";
-    
+
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
     const yearAgo = new Date();
     yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-    
+
     if (filterFromDate && new Date(filterFromDate) >= weekAgo) return "week";
     if (filterFromDate && new Date(filterFromDate) >= monthAgo) return "month";
     if (filterFromDate && new Date(filterFromDate) >= yearAgo) return "year";
-    
+
     return "all";
   };
 
@@ -411,7 +415,11 @@ export function PaperHistoryTable() {
   const sortedDates = Object.keys(tradesByDate).sort((a, b) => b.localeCompare(a));
 
   return (
-    <Box h="100%" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }} data-testid="history-panel">
+    <Box
+      h="100%"
+      style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+      data-testid="history-panel"
+    >
       <Box flex="0 0 auto" mb="sm" style={{ flexShrink: 0 }}>
         <Group gap="md" justify="space-between">
           <Group gap="md">
@@ -464,23 +472,19 @@ export function PaperHistoryTable() {
             <Text fw={600}>Trade History ({filteredTrades.length} trades)</Text>
             <Group gap="md">
               <Text>
-                  Total:{" "}
-                  <Text
-                    component="span"
-                    fw={700}
-                    c={totalPnl >= 0 ? "green" : "red"}
-                  >
-                    ₹{formatNumber(totalPnl)}
-                  </Text>
+                Total:{" "}
+                <Text component="span" fw={700} c={totalPnl >= 0 ? "green" : "red"}>
+                  ₹{formatNumber(totalPnl)}
                 </Text>
-                <Badge color="green" variant="light">
-                  ▲{totalWins}
-                </Badge>
-                <Badge color="red" variant="light">
-                  ▼{totalLosses}
-                </Badge>
-              </Group>
+              </Text>
+              <Badge color="green" variant="light">
+                ▲{totalWins}
+              </Badge>
+              <Badge color="red" variant="light">
+                ▼{totalLosses}
+              </Badge>
             </Group>
+          </Group>
         </Card>
       </Box>
 

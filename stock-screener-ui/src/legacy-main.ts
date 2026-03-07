@@ -1,6 +1,7 @@
 /**
  * Main entry point for Alphashri legacy views
- * This handles backtest, paper, and bots views that still use string-based HTML rendering
+ * This handles bots view that still use string-based HTML rendering
+ * (backtest and paper have been converted to Mantine)
  */
 
 import "./style.css";
@@ -8,24 +9,8 @@ import "./style.css";
 // State management
 import * as state from "./state";
 
-// Backtest state and components
+// Backtest state (for checking current view only)
 import { subscribe as subscribeBacktest, getBacktestState } from "./state/backtest";
-import {
-  renderBacktestView,
-  initBacktestHandlers,
-  initBacktestCharts,
-} from "./components/backtest";
-import { fetchStrategies, fetchCosts } from "./api/backtest";
-
-// Paper Trading state and components
-import { subscribe as subscribePaperTrading } from "./state/paperTrading";
-import {
-  renderPaperTradingView,
-  initPaperTradingHandlers,
-  cleanupPaperTrading,
-  activatePaperTrading,
-} from "./components/paper-trading";
-import { initPaperChart } from "./components/paper-trading/chart";
 
 // Bots state and components
 import { renderBotsView, initBotsHandlers, cleanupBots } from "./components/bots";
@@ -64,19 +49,21 @@ function render() {
   const backtestState = getBacktestState();
   const currentView = backtestState.currentView;
 
-  // Skip HTML rendering for React-based views (screener, strategies, sector)
+  // Skip HTML rendering for React-based views (screener, strategies, sector, backtest, paper)
   // These are handled by React Router directly
-  if (currentView === "screener" || currentView === "strategies" || currentView === "sector") {
+  if (
+    currentView === "screener" ||
+    currentView === "strategies" ||
+    currentView === "sector" ||
+    currentView === "backtest" ||
+    currentView === "paper"
+  ) {
     return;
   }
 
-  // Render legacy views with string-based HTML
+  // Render legacy bots view with string-based HTML
   let mainContent: string;
-  if (currentView === "backtest") {
-    mainContent = renderBacktestView();
-  } else if (currentView === "paper") {
-    mainContent = renderPaperTradingView();
-  } else if (currentView === "bots") {
+  if (currentView === "bots") {
     mainContent = renderBotsView();
   } else {
     mainContent = "";
@@ -87,21 +74,6 @@ function render() {
       ${mainContent}
     </div>
   `;
-
-  // Initialize charts after render
-  if (currentView === "backtest") {
-    initBacktestCharts();
-  } else if (currentView === "paper") {
-    // Small delay to ensure DOM is ready
-    setTimeout(() => initPaperChart(), 100);
-  }
-
-  // Activate/deactivate paper polling based on active route/view
-  if (currentView === "paper" && lastRenderedView !== "paper") {
-    activatePaperTrading();
-  } else if (currentView !== "paper" && lastRenderedView === "paper") {
-    cleanupPaperTrading();
-  }
 
   // Cleanup bots view when leaving
   if (currentView !== "bots" && lastRenderedView === "bots") {
@@ -115,11 +87,8 @@ function render() {
 setRenderCallback(render);
 setApiRenderCallback(render);
 
-// Subscribe to backtest state changes
+// Subscribe to backtest state changes (to detect view changes)
 subscribeBacktest(render);
-
-// Subscribe to paper trading state changes
-subscribePaperTrading(render);
 
 // Subscribe to bots state changes
 subscribeBots(render);
@@ -236,20 +205,12 @@ document.addEventListener("keydown", (e) => {
 // Initial load
 loadScreeners(initProfileFilters).then(() => {
   // Initialize handlers
-  initBacktestHandlers();
-  initPaperTradingHandlers();
   initBotsHandlers();
   initPreviewChartHandlers();
-  fetchStrategies();
-  fetchCosts();
 
-  // Only fetch screener data if not on backtest or paper view
+  // Only fetch screener data if not on sector view
   const backtestState = getBacktestState();
-  if (
-    backtestState.currentView !== "backtest" &&
-    backtestState.currentView !== "paper" &&
-    backtestState.currentView !== "sector"
-  ) {
+  if (backtestState.currentView !== "sector") {
     fetchData(
       state.data?.provider || "upstox",
       state.data?.mode || "intraday",

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Box, Text, Group, Badge, Card, Select, Flex } from "@mantine/core";
-import {
-  getPaperTradingState,
-  setChartTimeframe,
-  subscribe,
-} from "../../state/paperTrading";
+import { getPaperTradingState, setChartTimeframe, subscribe } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
-import type { PaperChartData, CandleData, PaperTrade, PaperPosition } from "../../types/paperTrading";
+import type {
+  PaperChartData,
+  CandleData,
+  PaperTrade,
+  PaperPosition,
+} from "../../types/paperTrading";
 
 declare const echarts: any;
 
@@ -447,21 +448,13 @@ function PositionInfo({ position }: { position: PaperPosition }) {
 
   return (
     <Group gap="xs" data-testid="position-info" className={`position-info ${pnlClass}`}>
-      <Badge
-        size="sm"
-        variant="light"
-        color={position.side === "BUY" ? "green" : "red"}
-      >
+      <Badge size="sm" variant="light" color={position.side === "BUY" ? "green" : "red"}>
         {sideIcon} {position.side}
       </Badge>
       <Text size="sm" fw={500}>
         {position.quantity} @ ₹{position.entry_price.toFixed(2)}
       </Text>
-      <Text
-        size="sm"
-        fw={600}
-        c={position.pnl >= 0 ? "green" : "red"}
-      >
+      <Text size="sm" fw={600} c={position.pnl >= 0 ? "green" : "red"}>
         P&L: ₹{position.pnl.toFixed(0)} ({position.pnl_pct >= 0 ? "+" : ""}
         {position.pnl_pct.toFixed(2)}%)
       </Text>
@@ -469,13 +462,7 @@ function PositionInfo({ position }: { position: PaperPosition }) {
   );
 }
 
-function ChartLegend({
-  hasOrb,
-  hasWeek52,
-}: {
-  hasOrb: boolean;
-  hasWeek52: boolean;
-}) {
+function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolean }) {
   return (
     <Group gap="md" data-testid="chart-legend" style={{ padding: "8px 0" }}>
       <Group gap={4}>
@@ -610,14 +597,17 @@ export function PaperChart() {
     };
   }, [state.chartData, state.selectedSymbol]);
 
-  const handleTimeframeChange = useCallback(async (value: string | null) => {
-    if (!value) return;
-    setChartTimeframe(value);
+  const handleTimeframeChange = useCallback(
+    async (value: string | null) => {
+      if (!value) return;
+      setChartTimeframe(value);
 
-    if (state.selectedSymbol && state.chartData?.date) {
-      await fetchPaperChart(state.selectedSymbol, state.chartData.date, value);
-    }
-  }, [state.selectedSymbol, state.chartData?.date]);
+      if (state.selectedSymbol && state.chartData?.date) {
+        await fetchPaperChart(state.selectedSymbol, state.chartData.date, value);
+      }
+    },
+    [state.selectedSymbol, state.chartData?.date],
+  );
 
   if (!state.selectedSymbol) {
     return (

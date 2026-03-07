@@ -48,8 +48,7 @@ function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
   const orHigh = item.or_high;
   const orLow = item.or_low;
-  if (price == null || orHigh == null || orLow == null || orHigh <= 0 || orLow <= 0)
-    return 9999;
+  if (price == null || orHigh == null || orLow == null || orHigh <= 0 || orLow <= 0) return 9999;
 
   if (price <= orHigh && price >= orLow) {
     const toHigh = ((orHigh - price) / orHigh) * 100;
@@ -251,20 +250,14 @@ function WatchlistScan({ snapshot, selectedSymbol }: WatchlistScanProps) {
     );
   }
 
-  const scanTime = snapshot.timestamp
-    ? new Date(snapshot.timestamp).toLocaleTimeString()
-    : "-";
+  const scanTime = snapshot.timestamp ? new Date(snapshot.timestamp).toLocaleTimeString() : "-";
 
   let scanItems = snapshot.scan_items;
   if (state.selectedStrategyTab && state.selectedStrategyTab !== "all") {
-    scanItems = scanItems.filter(
-      (item) => item.status === state.selectedStrategyTab,
-    );
+    scanItems = scanItems.filter((item) => item.status === state.selectedStrategyTab);
   }
 
-  const rows = [...scanItems]
-    .sort((a, b) => nearBreakoutPct(a) - nearBreakoutPct(b))
-    .slice(0, 12);
+  const rows = [...scanItems].sort((a, b) => nearBreakoutPct(a) - nearBreakoutPct(b)).slice(0, 12);
 
   return (
     <Card shadow="sm" padding="md" radius="md" withBorder data-testid="watchlist-scan-card">
@@ -341,7 +334,14 @@ function StrategySummaryFooter({
   }));
 
   return (
-    <Card shadow="sm" padding="sm" radius="md" withBorder mt="md" data-testid="strategy-summary-footer">
+    <Card
+      shadow="sm"
+      padding="sm"
+      radius="md"
+      withBorder
+      mt="md"
+      data-testid="strategy-summary-footer"
+    >
       <Text fw={600} size="sm" mb="sm">
         Strategy Summary
       </Text>
@@ -422,14 +422,20 @@ export function PaperPositionsTable() {
   }
 
   const allSummary = calcStrategySummary(positions);
-  const filteredPositions =
-    activeTab === "all" ? positions : strategyGroups.get(activeTab) || [];
+  const filteredPositions = activeTab === "all" ? positions : strategyGroups.get(activeTab) || [];
 
   return (
     <Card shadow="sm" padding="md" radius="md" withBorder data-testid="positions-panel">
       <WatchlistScan snapshot={botSnapshot} selectedSymbol={selectedSymbol} />
 
-      <Card shadow="xs" padding="md" radius="md" withBorder mt="md" data-testid="positions-table-container">
+      <Card
+        shadow="xs"
+        padding="md"
+        radius="md"
+        withBorder
+        mt="md"
+        data-testid="positions-table-container"
+      >
         <Group justify="space-between" mb="md">
           <Text fw={600} size="md">
             Open Positions
@@ -442,25 +448,15 @@ export function PaperPositionsTable() {
         </Group>
 
         {isMultiStrategy && (
-          <Tabs
-            value={activeTab}
-            onChange={handleStrategyTabChange}
-            data-testid="strategy-tabs"
-          >
+          <Tabs value={activeTab} onChange={handleStrategyTabChange} data-testid="strategy-tabs">
             <Tabs.List>
-              <Tabs.Tab
-                value="all"
-                data-testid="strategy-tab-all"
-              >
+              <Tabs.Tab value="all" data-testid="strategy-tab-all">
                 <Group gap="xs">
                   <span>All</span>
                   <Badge size="sm" variant="filled" color="blue">
                     {positions.length}
                   </Badge>
-                  <Text
-                    size="xs"
-                    c={allSummary.totalPnl >= 0 ? "green" : "red"}
-                  >
+                  <Text size="xs" c={allSummary.totalPnl >= 0 ? "green" : "red"}>
                     {allSummary.totalPnl >= 0 ? "+" : ""}₹{formatNum(allSummary.totalPnl)}
                   </Text>
                 </Group>
@@ -479,10 +475,7 @@ export function PaperPositionsTable() {
                       <Badge size="sm" variant="filled" color="blue">
                         {summary.count}
                       </Badge>
-                      <Text
-                        size="xs"
-                        c={summary.totalPnl >= 0 ? "green" : "red"}
-                      >
+                      <Text size="xs" c={summary.totalPnl >= 0 ? "green" : "red"}>
                         {summary.totalPnl >= 0 ? "+" : ""}₹{formatNum(summary.totalPnl)}
                       </Text>
                     </Group>
@@ -494,10 +487,7 @@ export function PaperPositionsTable() {
         )}
 
         <div style={{ marginTop: "1rem" }}>
-          <PositionsTableBody
-            positions={filteredPositions}
-            selectedSymbol={selectedSymbol}
-          />
+          <PositionsTableBody positions={filteredPositions} selectedSymbol={selectedSymbol} />
         </div>
 
         {isMultiStrategy && activeTab === "all" && (

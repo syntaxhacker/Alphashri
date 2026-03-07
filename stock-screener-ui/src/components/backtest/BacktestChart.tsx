@@ -570,14 +570,12 @@ export function zoomToTrade(
   // Debug: Log sample candle times and dates
   console.log(
     "zoomToTrade: Sample candles:",
-    chartData.candles
-      .slice(0, 3)
-      .map((c) => ({
-        time: c.time,
-        normalized: normalizeTime(c.time),
-        date: c.date,
-        date_raw: c.date_raw,
-      })),
+    chartData.candles.slice(0, 3).map((c) => ({
+      time: c.time,
+      normalized: normalizeTime(c.time),
+      date: c.date,
+      date_raw: c.date_raw,
+    })),
   );
   console.log(
     "zoomToTrade: candleDateMap sample dates:",

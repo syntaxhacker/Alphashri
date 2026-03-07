@@ -290,6 +290,7 @@ async def get_positions(user: Optional["User"] = Depends(get_current_user_option
 async def get_trades(
     limit: int = 50,
     date: Optional[str] = None,
+    days_back: int = 7,
     symbol: Optional[str] = None,
     strategy: Optional[str] = None,
     bot_id: Optional[int] = None,
@@ -303,6 +304,9 @@ async def get_trades(
         journal_dir = Path(__file__).parent.parent / "journals" / str(user_id)
     else:
         journal_dir = Path(__file__).parent.parent / "journals"
+
+    print(f"[DEBUG get_trades] user_id={user_id}, journal_dir={journal_dir}, date={date}")
+    print(f"[DEBUG get_trades] journal_dir exists: {journal_dir.exists()}")
 
     all_trades = []
 
@@ -332,8 +336,8 @@ async def get_trades(
                 console.print(f"[yellow]Could not reload journal: {e}[/yellow]")
         all_trades = [asdict(t) for t in journal.trades]
 
-        # Load recent journal files (today + previous 7 days)
-        for i in range(0, 8):
+        # Load recent journal files (today + previous N days, configurable)
+        for i in range(0, days_back + 1):
             day_str = (datetime.now() - __import__('datetime').timedelta(days=i)).strftime('%Y%m%d')
             journal_file = journal_dir / f"journal_{day_str}.json"
             if not journal_file.exists():
