@@ -224,7 +224,7 @@ export function BacktestPage() {
     }
 
     return (
-      <Stack gap="xs" h="100%">
+      <Stack gap="xs" style={{ flex: 1, minHeight: 0 }}>
         <BacktestSummary totals={state.totals} />
         <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
           <BacktestResultsTable
@@ -246,8 +246,8 @@ export function BacktestPage() {
     }
 
     return (
-      <Stack gap="xs" h="100%">
-        <Box style={{ minHeight: 0, flex: "1 1 55%" }}>
+      <Stack gap="xs" style={{ flex: 1, minHeight: 0 }}>
+        <Box style={{ minHeight: 0, flex: "1 1 55%", display: "flex", flexDirection: "column" }}>
           <BacktestChartTabs
             symbols={symbols}
             selectedSymbol={state.selectedChartSymbol}
@@ -278,8 +278,7 @@ export function BacktestPage() {
 
   return (
     <Box
-      h="calc(100vh - var(--app-shell-header-height, 60px))" // Allow app-shell calculations to inform height
-      style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)", overflow: "hidden" }}
+      style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)", overflow: "hidden" }}
       data-testid="backtest-view"
     >
       {state.error && (

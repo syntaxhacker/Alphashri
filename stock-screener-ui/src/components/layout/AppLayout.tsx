@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { AppShell } from "@mantine/core";
 import { NavbarNested } from "./NavbarNested";
@@ -12,15 +11,11 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const colors = useThemeColors();
-  const [collapsed, setCollapsed] = useState(false);
 
   return (
     <AppShell
       header={{ height: 40 }}
-      navbar={{
-        width: collapsed ? 80 : 300,
-        breakpoint: "sm",
-      }}
+      navbar={{ width: 300, breakpoint: "sm" }}
       padding="md"
       h="100vh"
     >
@@ -29,14 +24,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       </AppShell.Header>
 
       <AppShell.Navbar>
-        <NavbarNested
-          activePath={location.pathname}
-          collapsed={collapsed}
-          onToggleCollapse={() => setCollapsed(!collapsed)}
-        />
+        <NavbarNested activePath={location.pathname} />
       </AppShell.Navbar>
 
-      <AppShell.Main bg={colors.background} c={colors.text} h="100%" style={{ overflow: "hidden" }}>
+      <AppShell.Main bg={colors.background} c={colors.text} h="100%" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {children}
       </AppShell.Main>
     </AppShell>
