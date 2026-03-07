@@ -51,13 +51,17 @@ test.describe("Paper Trading Settings", () => {
     await page.click("text=Paper Trading");
 
     // Wait for paper trading view to load
-    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
+      timeout: 10000,
+    });
 
     // Click on Settings tab
     await page.click('[data-testid="tab-settings"]');
 
     // Wait for settings panel to load
-    await expect(page.locator('[data-testid="paper-settings-panel"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({
+      timeout: 10000,
+    });
 
     // Verify initial Max Positions value is 5 (from mock)
     const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
@@ -72,13 +76,15 @@ test.describe("Paper Trading Settings", () => {
     // Trigger change event by pressing Enter or blurring
     await maxPositionsInput.press("Enter");
 
-    // Wait for state to update
+    // Wait for state to update and dirty flag to be set
     await page.waitForTimeout(100);
 
-    // Call save directly via window function (since button might be disabled due to reactivity)
-    await page.evaluate(() => {
-      return (window as any).saveStrategyConfig();
-    });
+    // Wait for the save button to be enabled (not disabled) since config is now dirty
+    const saveButton = page.locator('[data-testid="save-settings-button"]');
+    await expect(saveButton).toBeEnabled({ timeout: 5000 });
+
+    // Click the Save button
+    await saveButton.click();
 
     // Wait for save to complete
     await page.waitForTimeout(500);
@@ -94,7 +100,7 @@ test.describe("Paper Trading Settings", () => {
     await page.click('button:has-text("Settings")');
 
     // Wait for settings panel to load
-    await expect(page.locator(".settings-panel")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
 
     // Verify Max Positions is still 4 after refresh
     const maxPositionsAfterRefresh = page.locator('[data-testid="config-max-positions"]');
@@ -112,13 +118,15 @@ test.describe("Paper Trading Settings", () => {
     await page.click('[data-testid="tab-settings"]');
 
     // Wait for settings panel to load
-    await expect(page.locator('[data-testid="paper-settings-panel"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({
+      timeout: 10000,
+    });
 
-    // Verify all sections are visible
-    await expect(page.locator("h4:has-text('ORB Strategy')")).toBeVisible();
-    await expect(page.locator("h4:has-text('Risk Management')")).toBeVisible();
-    await expect(page.locator("h4:has-text('Runner Settings')")).toBeVisible();
-    await expect(page.locator("h4:has-text('Trading Costs')")).toBeVisible();
+    // Verify all sections are visible (Mantine uses Divider with labels)
+    await expect(page.locator("text=ORB Settings")).toBeVisible();
+    await expect(page.locator("text=Risk Management")).toBeVisible();
+    await expect(page.locator("text=Runner Settings")).toBeVisible();
+    await expect(page.locator("text=Trading Costs")).toBeVisible();
 
     // Verify key inputs exist with correct default values
     await expect(page.locator('[data-testid="config-sl-pct"]')).toHaveValue("0.4");
@@ -137,20 +145,21 @@ test.describe("Paper Trading Settings", () => {
     await page.click('[data-testid="tab-settings"]');
 
     // Wait for settings panel to load
-    await expect(page.locator('[data-testid="paper-settings-panel"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({
+      timeout: 10000,
+    });
 
     // Change Max Positions to 3
     const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
     await maxPositionsInput.fill("3");
     await expect(maxPositionsInput).toHaveValue("3");
 
-    // Accept the confirm dialog and call reset directly
+    // Set up dialog handler before clicking reset
     page.on("dialog", (dialog) => dialog.accept());
 
-    // Call reset directly via window function
-    await page.evaluate(() => {
-      return (window as any).resetStrategyConfig();
-    });
+    // Click the Reset button
+    const resetButton = page.locator('[data-testid="reset-settings-button"]');
+    await resetButton.click();
 
     // Wait for reset to complete
     await page.waitForTimeout(500);
@@ -163,7 +172,7 @@ test.describe("Paper Trading Settings", () => {
     await page.click('button:has-text("Settings")');
 
     // Wait for settings panel to load
-    await expect(page.locator(".settings-panel")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
 
     // Verify Max Positions is back to default (5)
     const maxPositionsAfterReset = page.locator('[data-testid="config-max-positions"]');

@@ -39,10 +39,23 @@ export async function navigateToPaperTradingWithBot(
   const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
   await segmentedControl.waitFor({ state: "visible", timeout: 10000 });
 
-  // Click the bot button
-  const botButton = segmentedControl.locator(`button[value="${botId}"]`);
-  await botButton.click();
-  await page.waitForTimeout(500);
+  // For Mantine SegmentedControl with radio buttons, click the label with the bot name
+  // If botId is a UUID or "2", click "Multi-Strategy Bot", otherwise click "Default"
+  const botName = botId === "default" || botId === "1" ? "Default" : "Multi-Strategy Bot";
+
+  // Try clicking the label with the bot name
+  const botLabel = segmentedControl.locator(`label:has-text("${botName}")`);
+  const count = await botLabel.count();
+
+  if (count > 0) {
+    await botLabel.first().click();
+  } else {
+    // Fallback: click directly on the visible text within the control
+    await segmentedControl.getByText(botName, { exact: false }).first().click();
+  }
+
+  // Wait for the bot to be selected and data to load
+  await page.waitForTimeout(1000);
 }
 
 /**

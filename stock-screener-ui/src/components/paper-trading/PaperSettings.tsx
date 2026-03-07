@@ -499,7 +499,7 @@ export function PaperSettings() {
             loading={configLoading}
             disabled={configLoading}
             leftSection={<IconRefresh size={16} />}
-            data-testid="reset-button"
+            data-testid="reset-settings-button"
           >
             Reset to Defaults
           </Button>
@@ -510,7 +510,7 @@ export function PaperSettings() {
             loading={configLoading}
             disabled={configLoading || !configDirty}
             leftSection={<IconDeviceFloppy size={16} />}
-            data-testid="save-button"
+            data-testid="save-settings-button"
           >
             {configDirty ? "Save Changes" : "Saved"}
           </Button>

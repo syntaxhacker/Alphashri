@@ -262,7 +262,12 @@ export function PaperTradingView() {
             <Text size="sm" c="dimmed">
               Status:
             </Text>
-            <Text size="sm" fw={500} c={state.botRunning ? "green" : "red"}>
+            <Text
+              size="sm"
+              fw={500}
+              c={state.botRunning ? "green" : "red"}
+              data-testid="bot-status"
+            >
               {state.botRunning ? `Running${state.botPid ? ` (${state.botPid})` : ""}` : "Stopped"}
             </Text>
           </Group>
