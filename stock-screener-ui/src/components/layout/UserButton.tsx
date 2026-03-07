@@ -12,7 +12,7 @@ declare global {
   }
 }
 
-export function UserButton() {
+export function UserButton({ collapsed }: { collapsed?: boolean }) {
   const user = window.__ALPHASHRI_USER__ || { displayName: "User", email: "user@example.com" };
 
   const handleLogout = () => {
@@ -24,19 +24,21 @@ export function UserButton() {
   return (
     <Menu position="right-start" offset={8}>
       <Menu.Target>
-        <UnstyledButton className={classes.user} data-testid="user-menu-trigger">
-          <Group>
+        <UnstyledButton className={classes.user} data-testid="user-menu-trigger" style={{ padding: collapsed ? "var(--mantine-spacing-xs)" : undefined }}>
+          <Group justify={collapsed ? "center" : "flex-start"}>
             <Avatar radius="xl" alt={user.displayName} />
 
-            <div style={{ flex: 1 }}>
-              <Text size="sm" fw={500}>
-                {user.displayName}
-              </Text>
+            {!collapsed && (
+              <div style={{ flex: 1 }}>
+                <Text size="sm" fw={500}>
+                  {user.displayName}
+                </Text>
 
-              <Text c="dimmed" size="xs">
-                {user.email}
-              </Text>
-            </div>
+                <Text c="dimmed" size="xs">
+                  {user.email}
+                </Text>
+              </div>
+            )}
           </Group>
         </UnstyledButton>
       </Menu.Target>
