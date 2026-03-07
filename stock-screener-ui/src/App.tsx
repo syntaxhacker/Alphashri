@@ -12,6 +12,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { SectorPage } from "./components/sector/SectorPage";
 import { ScreenerContainer } from "./containers/ScreenerContainer";
 import { StrategiesContainer } from "./containers/StrategiesContainer";
+import { BacktestPage } from "./components/backtest/mantine";
 
 // Wrapper for legacy views (backtest, paper, bots) that still use string-based HTML rendering
 function LegacyShell({ view }: { view: AppRouteView }) {
@@ -104,7 +105,7 @@ function AppContent() {
     <AppLayout>
       <Routes>
         <Route path="/" element={<ScreenerContainer />} />
-        <Route path="/backtest" element={<LegacyShell view="backtest" />} />
+        <Route path="/backtest" element={<BacktestPage />} />
         <Route path="/paper" element={<LegacyShell view="paper" />} />
         <Route path="/sector" element={<SectorPage />} />
         <Route path="/strategies" element={<StrategiesContainer />} />
