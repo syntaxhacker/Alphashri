@@ -10,7 +10,13 @@ interface NavbarLinksGroupProps {
   collapsed?: boolean;
 }
 
-export function NavbarLinksGroup({ icon: Icon, label, link, active, collapsed }: NavbarLinksGroupProps) {
+export function NavbarLinksGroup({
+  icon: Icon,
+  label,
+  link,
+  active,
+  collapsed,
+}: NavbarLinksGroupProps) {
   const navigate = useNavigate();
 
   const content = (
@@ -23,7 +29,9 @@ export function NavbarLinksGroup({ icon: Icon, label, link, active, collapsed }:
         backgroundColor: active ? "var(--mantine-color-blue-light)" : undefined,
         color: active ? "var(--mantine-color-blue-filled)" : undefined,
         justifyContent: collapsed ? "center" : "flex-start",
-        padding: collapsed ? "var(--mantine-spacing-xs)" : "var(--mantine-spacing-xs) var(--mantine-spacing-md)",
+        padding: collapsed
+          ? "var(--mantine-spacing-xs)"
+          : "var(--mantine-spacing-xs) var(--mantine-spacing-md)",
       }}
     >
       <Group justify={collapsed ? "center" : "space-between"} gap={0}>

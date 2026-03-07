@@ -279,7 +279,12 @@ export function BacktestPage() {
   return (
     <Box
       h="calc(100vh - var(--app-shell-header-height, 60px))" // Allow app-shell calculations to inform height
-      style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)", overflow: "hidden" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        padding: "var(--mantine-spacing-md)",
+        overflow: "hidden",
+      }}
       data-testid="backtest-view"
     >
       {state.error && (
