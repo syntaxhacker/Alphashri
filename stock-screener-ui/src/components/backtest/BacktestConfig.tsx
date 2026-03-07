@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import {
   Group,
   Select,
@@ -6,12 +6,12 @@ import {
   Checkbox,
   Button,
   Badge,
-  TextInput,
   Text,
   ActionIcon,
 } from "@mantine/core";
 import { IconX, IconPlayerPlay, IconRefresh } from "@tabler/icons-react";
 import type { Strategy, StrategyParam } from "../../types/backtest";
+import { SymbolSearch } from "../common/SymbolSearch.tsx";
 
 interface BacktestConfigProps {
   strategies: Strategy[];
@@ -89,26 +89,16 @@ export function BacktestConfig({
   onReset,
   onRun,
 }: BacktestConfigProps) {
-  const [newSymbol, setNewSymbol] = useState("");
-
   const strategy = strategies.find((s) => s.id === selectedStrategy);
 
-  const handleAddSymbol = useCallback(() => {
-    const symbol = newSymbol.trim().toUpperCase();
-    if (symbol && !selectedSymbols.includes(symbol)) {
-      onSymbolAdd(symbol);
-      setNewSymbol("");
-    }
-  }, [newSymbol, selectedSymbols, onSymbolAdd]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        handleAddSymbol();
+  const handleSymbolSelect = useCallback(
+    (symbol: string) => {
+      const upperSymbol = symbol.toUpperCase();
+      if (!selectedSymbols.includes(upperSymbol)) {
+        onSymbolAdd(upperSymbol);
       }
     },
-    [handleAddSymbol],
+    [selectedSymbols, onSymbolAdd],
   );
 
   return (
@@ -163,13 +153,12 @@ export function BacktestConfig({
               {symbol}
             </Badge>
           ))}
-          <TextInput
+          <SymbolSearch
             placeholder="+ Add"
-            value={newSymbol}
-            onChange={(e) => setNewSymbol(e.currentTarget.value)}
-            onKeyDown={handleKeyDown}
+            selectedSymbols={selectedSymbols}
+            onSelect={handleSymbolSelect}
+            width={100}
             size="xs"
-            w={80}
             data-testid="add-symbol-input"
           />
         </Group>

@@ -24,7 +24,11 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
   return (
     <Menu position="right-start" offset={8}>
       <Menu.Target>
-        <UnstyledButton className={classes.user} data-testid="user-menu-trigger" style={{ padding: collapsed ? "var(--mantine-spacing-xs)" : undefined }}>
+        <UnstyledButton
+          className={classes.user}
+          data-testid="user-menu-trigger"
+          style={{ padding: collapsed ? "var(--mantine-spacing-xs)" : undefined }}
+        >
           <Group justify={collapsed ? "center" : "flex-start"}>
             <Avatar radius="xl" alt={user.displayName} />
 

@@ -1,4 +1,4 @@
-import { Box, Stack, Alert, Grid, Flex } from "@mantine/core";
+import { Box, Stack, Grid, Alert } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -224,7 +224,7 @@ export function BacktestPage() {
     }
 
     return (
-      <Stack gap="xs" style={{ flex: 1, minHeight: 0, height: "100%" }}>
+      <Stack gap="xs" h="100%">
         <BacktestSummary totals={state.totals} />
         <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
           <BacktestResultsTable
@@ -246,8 +246,8 @@ export function BacktestPage() {
     }
 
     return (
-      <Stack gap="xs" style={{ flex: 1, minHeight: 0, height: "100%" }}>
-        <Flex direction="column" style={{ minHeight: 0, flex: "1 1 55%" }}>
+      <Stack gap="xs" h="100%">
+        <Box style={{ minHeight: 0, flex: "1 1 55%" }}>
           <BacktestChartTabs
             symbols={symbols}
             selectedSymbol={state.selectedChartSymbol}
@@ -258,7 +258,7 @@ export function BacktestPage() {
             chartLoading={state.chartLoading}
             onTradeClick={handleZoomToTrade}
           />
-        </Flex>
+        </Box>
         {state.tradeHistory && state.tradeHistorySymbol && (
           <Box style={{ minHeight: 0, flex: "1 1 45%" }}>
             <TradeHistoryTable
@@ -278,12 +278,8 @@ export function BacktestPage() {
 
   return (
     <Box
-      style={{
-        height: "calc(100vh - var(--app-shell-header-height, 40px) - var(--mantine-spacing-md) * 2)",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
+      h="calc(100vh - var(--app-shell-header-height, 60px))" // Allow app-shell calculations to inform height
+      style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)", overflow: "hidden" }}
       data-testid="backtest-view"
     >
       {state.error && (
@@ -323,13 +319,13 @@ export function BacktestPage() {
 
       <Box flex={1} style={{ minHeight: 0 }}>
         <Grid h="100%" gutter="md">
-          <Grid.Col span={4} style={{ display: "flex", flexDirection: "column" }}>
-            <Box style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <Grid.Col span={4}>
+            <Box h="100%" style={{ overflow: "hidden" }}>
               {renderLeftPanel()}
             </Box>
           </Grid.Col>
-          <Grid.Col span={8} style={{ display: "flex", flexDirection: "column" }}>
-            <Box style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <Grid.Col span={8}>
+            <Box h="100%" style={{ overflow: "hidden" }}>
               {renderRightPanel()}
             </Box>
           </Grid.Col>

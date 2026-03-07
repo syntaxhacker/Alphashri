@@ -1,4 +1,4 @@
-import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Box, Flex } from "@mantine/core";
+import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Box } from "@mantine/core";
 import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { Trade } from "../../types/backtest";
 
@@ -158,12 +158,10 @@ export function TradeHistoryTable({
   };
 
   return (
-    <Flex
+    <Box
       className="trade-history-panel"
       data-testid="trade-history-panel"
-      direction="column"
-      h="100%"
-      style={{ overflow: "hidden" }}
+      style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}
     >
       <Group justify="space-between" p="sm" flex="0 0 auto" data-testid="trade-history-header">
         <Text fw={600} size="sm">
@@ -315,6 +313,6 @@ export function TradeHistoryTable({
           </Table.Tbody>
         </Table>
       </ScrollArea>
-    </Flex>
+    </Box>
   );
 }

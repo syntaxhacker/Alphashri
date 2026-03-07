@@ -1,4 +1,4 @@
-import { Tabs, Select, Group, Text, Box, Flex } from "@mantine/core";
+import { Tabs, Select, Group, Text, Box } from "@mantine/core";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
 
@@ -58,11 +58,10 @@ export function BacktestChartTabs({
   const currentChartData = selectedSymbol ? chartDataMap.get(selectedSymbol) : null;
 
   return (
-    <Flex
+    <Box
       data-testid="chart-container"
       h="100%"
-      direction="column"
-      style={{ overflow: "hidden" }}
+      style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
     >
       <Box mb="xs" flex="0 0 auto">
         <Group justify="space-between" align="center">
@@ -142,6 +141,6 @@ export function BacktestChartTabs({
           </Group>
         ))}
       </Box>
-    </Flex>
+    </Box>
   );
 }
