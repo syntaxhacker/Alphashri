@@ -2,6 +2,21 @@
 
 echo "Running pre-commit checks..."
 
+# Run Python strategy unit tests
+echo "Running Python strategy unit tests..."
+cd stock-screener-ui
+uv run --python 3.11 pytest \
+  tests/test_orb_conservative.py \
+  tests/test_week52_target.py \
+  tests/test_week52_chaser.py \
+  -q --tb=short
+if [ $? -ne 0 ]; then
+  echo "❌ Strategy tests failed! Commit aborted."
+  exit 1
+fi
+echo "✅ Python strategy tests passed."
+cd ..
+
 cd stock-screener-ui
 
 # Get staged files (only .ts, .tsx, .js, .jsx, .css)

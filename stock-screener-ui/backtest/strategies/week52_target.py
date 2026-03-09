@@ -101,6 +101,7 @@ class Week52TargetNautilusStrategy(Strategy):
         self._entry_time: Optional[datetime] = None  # Entry timestamp
         self._bars_in_trade = 0
         self._bars_since_exit = self._cooldown_bars  # Start at cooldown so we can enter immediately
+        self._highest_price_since_entry: Optional[float] = None
         
         # Track 52W high
         self._52w_high: Optional[float] = None
@@ -168,12 +169,17 @@ class Week52TargetNautilusStrategy(Strategy):
             self._bars_in_trade += 1
             exit_reason = None
             
+            # Update peak price
+            if self._highest_price_since_entry is None or high_price > self._highest_price_since_entry:
+                self._highest_price_since_entry = high_price
+            
             # 1. Check if price closed above 52W high (target reached)
             if self._entry_52w_high and close_price > self._entry_52w_high:
                 # Price closed above 52W high - activate trailing
-                trailing_stop_price = close_price * (1 - self._trailing_stop_pct / 100)
-                if close_price <= trailing_stop_price:
-                    exit_reason = 'TRAILING_STOP'
+                if self._highest_price_since_entry:
+                    trailing_stop_price = self._highest_price_since_entry * (1 - self._trailing_stop_pct / 100)
+                    if close_price <= trailing_stop_price:
+                        exit_reason = 'TRAILING_STOP'
             
             # 2. Stop Loss - if price closes below entry × (100 - stop_loss_pct)%
             if not exit_reason and self._entry_price:
@@ -203,6 +209,7 @@ class Week52TargetNautilusStrategy(Strategy):
         self._in_position = True
         self._entry_price = float(price)  # Store as float
         self._entry_52w_high = float(self._52w_high) if self._52w_high else None  # Store 52W high at entry
+        self._highest_price_since_entry = float(price)
         self._entry_time = bar_time  # Store entry time
         self._bars_in_trade = 0
         self._bars_since_exit = 0
@@ -257,6 +264,7 @@ class Week52TargetNautilusStrategy(Strategy):
         self._in_position = False
         self._entry_price = None
         self._entry_52w_high = None
+        self._highest_price_since_entry = None
         self._entry_time = None
         self._bars_in_trade = 0
         self._bars_since_exit = 1  # Start cooldown
@@ -273,6 +281,7 @@ class Week52TargetNautilusStrategy(Strategy):
         self._in_position = False
         self._entry_price = None
         self._entry_52w_high = None
+        self._highest_price_since_entry = None
         self._bars_in_trade = 0
         self._bars_since_exit = 0
         self._price_history = []
