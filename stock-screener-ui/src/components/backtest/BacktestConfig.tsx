@@ -109,7 +109,6 @@ export function BacktestConfig({
   // Fetch symbol options when search changes
   useEffect(() => {
     if (debouncedSearch.trim().length < 1) {
-      setSymbolOptions([]);
       return;
     }
 
@@ -223,13 +222,12 @@ export function BacktestConfig({
 
         <Group gap={4} align="center">
           <MultiSelect
-            placeholder="Search symbols..."
-            searchable
-            searchValue={symbolSearch}
-            onSearchChange={setSymbolSearch}
             data={symbolOptions}
             value={selectedSymbols}
             onChange={onSymbolsChange}
+            searchable
+            searchValue={symbolSearch}
+            onSearchChange={setSymbolSearch}
             clearable
             hidePickedOptions
             size="xs"

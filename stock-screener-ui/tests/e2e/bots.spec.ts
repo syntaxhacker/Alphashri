@@ -320,6 +320,35 @@ test.describe("Bots View - Logs", () => {
 test.describe("Bots View - Assign Strategies", () => {
   test.beforeEach(async ({ page }) => {
     await setupBotsTest(page);
+
+    await page.route("**/api/bots", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: 1,
+            name: "Default Bot",
+            is_active: true,
+            running: false,
+            pid: null,
+            strategies: [{ id: 1, name: "ORB Conservative", capital_allocation_pct: 0.5 }],
+          },
+          {
+            id: 2,
+            name: "Multi-Strategy Bot",
+            is_active: true,
+            running: true,
+            pid: 12345,
+            strategies: [
+              { id: 1, name: "ORB Conservative", capital_allocation_pct: 0.3 },
+              { id: 2, name: "ORB Aggressive", capital_allocation_pct: 0.3 },
+              { id: 3, name: "52W Chaser", capital_allocation_pct: 0.4 },
+            ],
+          },
+        ]),
+      });
+    });
   });
 
   test("should show assigned strategies", async ({ page }) => {

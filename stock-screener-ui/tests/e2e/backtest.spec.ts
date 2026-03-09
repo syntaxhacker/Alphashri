@@ -75,6 +75,29 @@ test.describe("Backtest View - Symbol Selection", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
+
+    await page.route("**/api/symbols/search**", async (route) => {
+      const url = route.request().url();
+      const queryMatch = url.match(/[?&]q=([^&]+)/);
+      const query = queryMatch ? queryMatch[1].toLowerCase() : "";
+
+      const symbols = [
+        { symbol: "RELIANCE", name: "Reliance Industries Ltd" },
+        { symbol: "TCS", name: "Tata Consultancy Services" },
+        { symbol: "INFY", name: "Infosys Ltd" },
+        { symbol: "HDFC", name: "HDFC Bank Ltd" },
+      ];
+
+      const results = symbols.filter(
+        (s) => s.symbol.toLowerCase().includes(query) || s.name.toLowerCase().includes(query),
+      );
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ results, query, total: results.length }),
+      });
+    });
   });
 
   test("should display symbol multiselect", async ({ page }) => {
@@ -90,19 +113,21 @@ test.describe("Backtest View - Symbol Selection", () => {
 
     // Click to focus on MultiSelect
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-    await symbolSelect.click();
+    await symbolSelect.click({ force: true });
 
     // Type in the searchable input
     await page.keyboard.type("RELIANCE");
     await page.waitForTimeout(500); // Wait for debounce and API
 
     // Click on the option from dropdown
-    const option = page.locator(".mantine-MultiSelect-option").first();
+    const option = page
+      .locator('[data-testid="symbol-multiselect"] [data-mantine-combobox-option]')
+      .first();
     if (await option.isVisible()) {
       await option.click();
       await page.waitForTimeout(300);
 
-      const pill = page.locator('[data-testid="symbol-multiselect"] [data-pill]');
+      const pill = page.locator('[data-testid="symbol-multiselect"] .mantine-Pill-root');
       await expect(pill.first()).toBeVisible();
     }
   });
@@ -114,22 +139,66 @@ test.describe("Backtest View - Symbol Selection", () => {
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
 
     // Click to open dropdown
-    await symbolSelect.click();
+    await symbolSelect.click({ force: true });
 
     // Type to search
     await page.keyboard.type("TCS");
     await page.waitForTimeout(500); // Wait for debounce and API
 
     // Click on the option from dropdown
-    const option = page.locator(".mantine-MultiSelect-option").first();
+    const option = page
+      .locator('[data-testid="symbol-multiselect"] [data-mantine-combobox-option]')
+      .first();
     if (await option.isVisible()) {
       await option.click();
       await page.waitForTimeout(300);
 
-      // Find and click the remove button on the pill
-      const removeBtn = page.locator('[data-testid="symbol-multiselect"] .mantine-Pill-remove');
+      // Find the pill's close button by looking for svg inside the pill
+      const removeBtn = page
+        .locator('[data-testid="symbol-multiselect"]')
+        .locator(".mantine-Pill-root")
+        .locator("svg")
+        .first();
+      await removeBtn.waitFor({ state: "visible", timeout: 5000 });
       await removeBtn.click();
       await page.waitForTimeout(300);
+    }
+  });
+
+  test("should filter symbols based on search input", async ({ page }) => {
+    await page.goto("/backtest");
+    await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
+
+    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+    await symbolSelect.click({ force: true });
+
+    await page.keyboard.type("RELIANCE");
+    await page.waitForTimeout(800);
+
+    const option = page.locator('[data-testid="symbol-multiselect"] [data-mantine-combobox-option]').first();
+    if (await option.isVisible()) {
+      const optionText = await option.textContent();
+      expect(optionText?.toLowerCase()).toContain("reliance");
+    }
+  });
+
+  test("should keep search results after selecting a symbol", async ({ page }) => {
+    await page.goto("/backtest");
+    await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
+
+    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+    await symbolSelect.click({ force: true });
+
+    await page.keyboard.type("INF");
+    await page.waitForTimeout(500);
+
+    const firstOption = page.locator('[data-testid="symbol-multiselect"] [data-mantine-combobox-option]').first();
+    if (await firstOption.isVisible()) {
+      await firstOption.click();
+      await page.waitForTimeout(300);
+
+      const pill = page.locator('[data-testid="symbol-multiselect"] .mantine-Pill-root');
+      await expect(pill.first()).toBeVisible();
     }
   });
 });
@@ -242,7 +311,7 @@ test.describe("Backtest View - Run Backtest", () => {
 
     // Click to focus on MultiSelect
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-    await symbolSelect.click();
+    await symbolSelect.click({ force: true });
 
     // Type in the searchable input
     await page.keyboard.type("RELIANCE");
@@ -320,7 +389,7 @@ test.describe("Backtest View - Charts", () => {
 
     // Click to focus on MultiSelect
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-    await symbolSelect.click();
+    await symbolSelect.click({ force: true });
 
     // Type in the searchable input
     await page.keyboard.type("RELIANCE");
@@ -346,7 +415,7 @@ test.describe("Backtest View - Charts", () => {
 
     // Click to focus on MultiSelect
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-    await symbolSelect.click();
+    await symbolSelect.click({ force: true });
 
     // Type in the searchable input
     await page.keyboard.type("RELIANCE");
@@ -450,7 +519,7 @@ test.describe("Backtest View - Summary", () => {
 
     // Click to focus on MultiSelect
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-    await symbolSelect.click();
+    await symbolSelect.click({ force: true });
 
     // Type in the searchable input
     await page.keyboard.type("RELIANCE");

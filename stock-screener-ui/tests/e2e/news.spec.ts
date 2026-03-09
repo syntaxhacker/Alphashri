@@ -270,7 +270,7 @@ test.describe("News Panel - Source Switching", () => {
     // Mantine Select requires clicking to open dropdown, then clicking the option
     const sourceSelector = panel.locator(".news-source-select");
     await sourceSelector.click();
-    
+
     // Wait for dropdown to appear and click on Economic Times option
     await page.getByRole("option", { name: "Economic Times" }).click();
     await page.waitForTimeout(500);

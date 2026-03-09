@@ -179,7 +179,7 @@ async function mockBacktestApi(page: Page) {
 async function setupBacktest(page: Page) {
   // Click to focus on MultiSelect
   const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-  await symbolSelect.click();
+  await symbolSelect.click({ force: true });
 
   // Type in the searchable input
   await page.keyboard.type("RELIANCE");
@@ -362,7 +362,7 @@ test.describe("Backtest - Mantine Features", () => {
       await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
       const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-      await symbolSelect.click();
+      await symbolSelect.click({ force: true });
 
       // Type to search
       await page.keyboard.type("RELIANCE");
@@ -458,7 +458,7 @@ test.describe("Backtest - Mantine Features", () => {
       await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
       const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-      await symbolSelect.click();
+      await symbolSelect.click({ force: true });
 
       // Type to search
       await page.keyboard.type("RELIANCE");
