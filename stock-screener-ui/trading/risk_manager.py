@@ -111,14 +111,21 @@ class RiskManager:
         # Take the smaller
         shares = min(shares_by_risk, shares_by_capital)
 
+        if shares <= 0:
+            return 0
+
         # Check min/max trade value
         trade_value = shares * entry_price
         if trade_value < self.config.min_trade_value:
+            # Try to bump to min value
             shares = int(self.config.min_trade_value / entry_price)
+            # But don't exceed max capital per trade or total capital
+            if shares * entry_price > max_capital or shares * entry_price > capital:
+                return 0
         elif trade_value > self.config.max_trade_value:
             shares = int(self.config.max_trade_value / entry_price)
 
-        return max(1, shares)
+        return shares
 
     def can_open_position(
         self,
@@ -231,6 +238,10 @@ class RiskManager:
         result['shares'] = shares
         result['trade_value'] = round(trade_value, 2)
         result['risk_amount'] = round(risk_amount, 2)
+
+        if shares <= 0:
+            result['reason'] = "Insufficient capital for minimum trade size"
+            return result
 
         # Check if can open position
         can_open, reason = self.can_open_position(

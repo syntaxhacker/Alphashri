@@ -1249,27 +1249,19 @@ class TestErrorHandling:
 class TestBotCRUDUnit:
     """Unit tests for Bot CRUD operations."""
 
-    @pytest.mark.unit
-    @patch('api.bots.SessionLocal')
-    @patch('api.bots._db_available', True)
-    @patch('api.bots._auth_available', True)
-    @patch('api.bots.get_user_id', return_value=1)
-    def test_create_bot_duplicate_name(self, mock_get_user_id, mock_session, client):
+    @pytest.mark.integration
+    def test_create_bot_duplicate_name(self, client_with_db):
         """Test POST /api/bots with duplicate name."""
         bot_data = {
-            "name": "Test Bot 1",
+            "name": "Duplicate Bot",
             "is_active": True,
         }
 
-        mock_db = MagicMock()
-        existing = MagicMock()
-        existing.id = 1
-        existing.name = "Test Bot 1"
-        mock_db.query.return_value.filter.return_value.first.return_value = existing
-        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
-        mock_session.return_value.__exit__ = Mock(return_value=False)
+        # Create first bot
+        client_with_db.post("/api/bots", json=bot_data)
 
-        response = client.post("/api/bots", json=bot_data)
+        # Try to create second bot with same name
+        response = client_with_db.post("/api/bots", json=bot_data)
 
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"].lower()

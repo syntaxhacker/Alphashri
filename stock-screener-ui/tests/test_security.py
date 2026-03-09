@@ -200,6 +200,7 @@ def sample_bot(db, sample_strategy):
 # 1. AUTHENTICATION SECURITY TESTS
 # =============================================================================
 
+@pytest.mark.unit
 class TestPasswordHashing:
     """Tests for password hashing security with bcrypt."""
 
@@ -261,6 +262,7 @@ class TestPasswordHashing:
         assert verify_password(unicode_password, hashed) is True
 
 
+@pytest.mark.unit
 class TestJWTTokenSecurity:
     """Tests for JWT token validation and security."""
 

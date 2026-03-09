@@ -414,9 +414,14 @@ class GlobalRiskManager:
             shares = int(max_trade_value / entry_price)
             trade_value = shares * entry_price
 
-        result['shares'] = max(1, shares)
+        if shares <= 0:
+            result['reason'] = "Insufficient capital for minimum trade size"
+            return result
+
+        result['shares'] = shares
         result['trade_value'] = round(trade_value, 2)
         result['risk_amount'] = round(shares * risk, 2)
+
 
         # Now check if we can trade
         allowed, reason = self.can_trade(

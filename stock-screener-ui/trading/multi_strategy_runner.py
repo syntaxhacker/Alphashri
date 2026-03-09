@@ -141,18 +141,23 @@ class MultiStrategyRunner:
             max_total_capital_pct=self.bot_config.max_total_capital_pct,
         )
 
-        # Initialize strategies
-        self.strategies: Dict[int, StrategyRunner] = {}
-        self._load_strategies()
-
-        # Trading journal
-        self.journal = get_journal(user_id)
-
         # State tracking
         self.watchlist = []
         self.or_levels = {}
         self.cooldown_stocks: Dict[str, datetime] = {}  # {symbol: exit_time}
         self.snapshot_file = Path(f"/tmp/multi-strategy-bot-{self.user_id}-{self.bot_config.id}.json")
+
+        # Initialize strategies
+        self.strategies: Dict[int, StrategyRunner] = {}
+        self._load_strategies()
+
+        # Attempt to recover state from snapshot
+        self.load_snapshot()
+
+        # Trading journal
+        self.journal = get_journal(user_id)
+
+
 
         # Data fetcher (lazy loaded)
         self._screener = None
@@ -711,6 +716,39 @@ class MultiStrategyRunner:
 
         except Exception as e:
             console.print(f"[dim red]Error saving snapshot: {e}[/dim red]")
+
+    def load_snapshot(self):
+        """Load state from snapshot file if it exists."""
+        if not self.snapshot_file.exists():
+            return
+
+        try:
+            console.print(f"[cyan]Loading state from snapshot: {self.snapshot_file}[/cyan]")
+            snapshot = json.loads(self.snapshot_file.read_text())
+            
+            # Restore portfolio state
+            if 'portfolio' in snapshot:
+                p_state = snapshot['portfolio']
+                self.portfolio.restore_state(p_state)
+            
+            # Restore positions
+            if 'positions' in snapshot:
+                for pos_data in snapshot['positions']:
+                    self.portfolio.restore_position(pos_data)
+            
+            # Restore strategy statuses
+            if 'strategies' in snapshot:
+                for s_id_str, s_data in snapshot['strategies'].items():
+                    s_id = int(s_id_str)
+                    if s_id in self.strategies:
+                        self.strategies[s_id].status = s_data.get('status', 'pending')
+                        self.strategies[s_id].signals_generated = s_data.get('signals_generated', 0)
+                        self.strategies[s_id].trades_executed = s_data.get('trades_executed', 0)
+            
+            console.print(f"[green]✓ State restored from snapshot[/green]")
+        except Exception as e:
+            console.print(f"[red]Error loading snapshot: {e}[/red]")
+            console.print(traceback.format_exc())
 
     def display_status(self):
         """Display current trading status."""

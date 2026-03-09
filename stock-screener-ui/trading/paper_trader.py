@@ -130,6 +130,10 @@ class PaperTrader:
         config_name: str = None,
         strategy_id: int = 0,
         strategy_name: str = "",
+        # Slippage and Fill parameters
+        slippage_pct: float = 0.0005,      # 0.05% default slippage
+        fill_probability: float = 1.0,     # Probability of order being filled
+        max_fill_pct: float = 1.0,         # Maximum percentage of quantity that can be filled
     ):
         """
         Initialize paper trader.
@@ -180,6 +184,11 @@ class PaperTrader:
             self.sebi_pct = sebi_pct if sebi_pct is not None else 0.000001
             self.stamp_pct = stamp_pct if stamp_pct is not None else 0.00003
             self.gst_pct = gst_pct if gst_pct is not None else 0.18
+
+        # Slippage and fill parameters
+        self.slippage_pct = slippage_pct
+        self.fill_probability = fill_probability
+        self.max_fill_pct = max_fill_pct
 
         # Positions and orders
         self.positions: Dict[str, PaperPosition] = {}
@@ -358,26 +367,9 @@ class PaperTrader:
             )
             return order
 
-        # Calculate margin required
-        margin_required = price * quantity
-
-        # Check available cash
-        if margin_required > self.cash:
-            console.print(f"[red]Insufficient cash. Required: ₹{margin_required:,.0f}, Available: ₹{self.cash:,.0f}[/red]")
-            order = PaperOrder(
-                order_id=self._generate_order_id(),
-                symbol=symbol,
-                side=side,
-                quantity=quantity,
-                price=price,
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                timestamp=datetime.now(),
-                status=OrderStatus.CANCELLED,
-            )
-            return order
-
-        # Create order
+        import random
+        
+        # Create order skeleton
         order = PaperOrder(
             order_id=self._generate_order_id(),
             symbol=symbol,
@@ -389,9 +381,36 @@ class PaperTrader:
             timestamp=datetime.now(),
         )
 
+        # Check fill probability
+        if random.random() > self.fill_probability:
+            console.print(f"[yellow]⚠ Order for {symbol} failed to fill (probability check)[/yellow]")
+            order.status = OrderStatus.CANCELLED
+            return order
+
+        # Determine fill quantity (partial fills)
+        fill_pct = random.uniform(0.5, 1.0) if self.max_fill_pct < 1.0 else 1.0
+        fill_quantity = int(quantity * min(fill_pct, self.max_fill_pct))
+        
+        if fill_quantity == 0:
+            console.print(f"[yellow]⚠ Order for {symbol} cancelled (zero fill quantity)[/yellow]")
+            order.status = OrderStatus.CANCELLED
+            return order
+
+        # Update order with actual fill quantity if partial
+        order.quantity = fill_quantity
+
+        # Calculate fill price with slippage
+        if side == OrderSide.BUY:
+            fill_price = price * (1 + self.slippage_pct)
+        else:
+            fill_price = price * (1 - self.slippage_pct)
+
+
+        margin_required = fill_price * fill_quantity
+
         # Immediately fill (paper trading)
         order.status = OrderStatus.FILLED
-        order.fill_price = price
+        order.fill_price = fill_price
         order.fill_time = datetime.now()
 
         # Deduct margin
@@ -402,20 +421,22 @@ class PaperTrader:
         self.positions[symbol] = PaperPosition(
             symbol=symbol,
             side=side,
-            quantity=quantity,
-            entry_price=price,
+            quantity=fill_quantity,
+            entry_price=fill_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
             entry_time=datetime.now(),
-            current_price=price,
-            peak_price=price,
-            low_price=price,
+            current_price=fill_price,
+            peak_price=fill_price,
+            low_price=fill_price,
             strategy_id=self.strategy_id,
             strategy_name=self.strategy_name,
         )
 
-        console.print(f"[green]✓ Order filled: {side.value} {quantity} {symbol} @ ₹{price:.2f}[/green]")
-        console.print(f"   SL: ₹{stop_loss:.2f} | TP: ₹{take_profit:.2f}")
+        console.print(f"[green]✓ Order filled: {side.value} {fill_quantity}/{quantity} {symbol} @ ₹{fill_price:.2f}[/green]")
+        if fill_quantity < quantity:
+            console.print(f"   [yellow]Partial fill: {fill_quantity} of {quantity} shares[/yellow]")
+        console.print(f"   Slippage: {self.slippage_pct*100:.3f}% | SL: ₹{stop_loss:.2f} | TP: ₹{take_profit:.2f}")
 
         return order
 
@@ -493,19 +514,25 @@ class PaperTrader:
 
         position = self.positions[symbol]
 
-        # Calculate P&L
+        # Apply slippage on exit
         if position.side == OrderSide.BUY:
-            pnl = (exit_price - position.entry_price) * position.quantity
-            pnl_pct = (exit_price - position.entry_price) / position.entry_price * 100
+            actual_exit_price = exit_price * (1 - self.slippage_pct)
             exit_side = OrderSide.SELL
         else:
-            pnl = (position.entry_price - exit_price) * position.quantity
-            pnl_pct = (position.entry_price - exit_price) / position.entry_price * 100
+            actual_exit_price = exit_price * (1 + self.slippage_pct)
             exit_side = OrderSide.BUY
+
+        # Calculate P&L
+        if position.side == OrderSide.BUY:
+            pnl = (actual_exit_price - position.entry_price) * position.quantity
+            pnl_pct = (actual_exit_price - position.entry_price) / position.entry_price * 100
+        else:
+            pnl = (position.entry_price - actual_exit_price) * position.quantity
+            pnl_pct = (position.entry_price - actual_exit_price) / position.entry_price * 100
 
         # Calculate costs
         entry_costs = self.calculate_costs(position.entry_price, position.quantity, position.side)
-        exit_costs = self.calculate_costs(exit_price, position.quantity, exit_side)
+        exit_costs = self.calculate_costs(actual_exit_price, position.quantity, exit_side)
         total_costs = entry_costs['total'] + exit_costs['total']
 
         # Net P&L
@@ -518,7 +545,7 @@ class PaperTrader:
             side=position.side,
             quantity=position.quantity,
             entry_price=position.entry_price,
-            exit_price=exit_price,
+            exit_price=actual_exit_price,
             entry_time=position.entry_time,
             exit_time=datetime.now(),
             pnl=round(pnl, 2),
