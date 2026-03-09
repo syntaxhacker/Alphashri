@@ -39,7 +39,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await navigateToPaperTrading(page);
 
     // Verify bot selector is visible
-    await expect(page.locator(".bot-selector-dropdown")).toBeVisible();
+    await expect(page.locator('[data-testid="bot-selector-dropdown"]')).toBeVisible();
   });
 
   test.skip("should list available bots in dropdown", async ({ page }) => {

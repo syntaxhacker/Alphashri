@@ -267,12 +267,17 @@ test.describe("News Panel - Source Switching", () => {
     const panel = page.locator('[data-testid="news-panel"]');
     await expect(panel).toHaveClass(/open/, { timeout: 5000 });
 
+    // Mantine Select requires clicking to open dropdown, then clicking the option
     const sourceSelector = panel.locator(".news-source-select");
-    await sourceSelector.selectOption({ label: "Economic Times" });
+    await sourceSelector.click();
+    
+    // Wait for dropdown to appear and click on Economic Times option
+    await page.getByRole("option", { name: "Economic Times" }).click();
     await page.waitForTimeout(500);
 
-    const selectedValue = await sourceSelector.inputValue();
-    expect(selectedValue).toBe("economicstimes");
+    // Verify the select displays Economic Times (Mantine shows label in input)
+    const inputValue = await sourceSelector.locator("input").inputValue();
+    expect(inputValue).toBe("Economic Times");
   });
 });
 

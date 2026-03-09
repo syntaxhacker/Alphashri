@@ -73,6 +73,13 @@ class BaseStrategy(ABC):
         """
         pass
 
+    def get_visuals(self, trades: List[Dict], params: Dict) -> List[Dict]:
+        """
+        Return a list of chart visuals (overlays) for the given trades.
+        Each overlay is a dict with type, id, label, color, levels, etc.
+        """
+        return []
+
     def get_default_params(self) -> Dict:
         """Get default parameter values."""
         return {p.key: p.default for p in self.get_params()}

@@ -46,23 +46,23 @@ test.describe("Backtest View - Strategy Selection", () => {
     await page.goto("/backtest");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-    await expect(page.locator('[data-testid="strategy-select"]')).toBeVisible();
+    await expect(page.locator('[data-testid="variation-select"]')).toBeVisible();
   });
 
   test("should list available strategies", async ({ page }) => {
     await page.goto("/backtest");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-    const strategySelect = page.locator('[data-testid="strategy-select"]');
-    await expect(strategySelect).toBeVisible();
+    const variationSelect = page.locator('[data-testid="variation-select"]');
+    await expect(variationSelect).toBeVisible();
   });
 
   test("should select strategy from dropdown", async ({ page }) => {
     await page.goto("/backtest");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-    const strategySelect = page.locator('[data-testid="strategy-select"]');
-    await strategySelect.click();
+    const variationSelect = page.locator('[data-testid="variation-select"]');
+    await variationSelect.click();
     await page.waitForTimeout(300);
     const options = page.locator("[data-dropdown]");
     if ((await options.count()) > 0) {
@@ -77,39 +77,60 @@ test.describe("Backtest View - Symbol Selection", () => {
     await loginAsTestUser(page);
   });
 
-  test("should display symbol input", async ({ page }) => {
+  test("should display symbol multiselect", async ({ page }) => {
     await page.goto("/backtest");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-    await expect(page.locator('[data-testid="add-symbol-input"]')).toBeVisible();
+    await expect(page.locator('[data-testid="symbol-multiselect"]')).toBeVisible();
   });
 
   test("should add symbol to list", async ({ page }) => {
     await page.goto("/backtest");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-    const symbolInput = page.locator('[data-testid="add-symbol-input"]');
-    await symbolInput.fill("RELIANCE");
-    await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
-    await page.waitForTimeout(500);
+    // Click to focus on MultiSelect
+    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+    await symbolSelect.click();
 
-    await expect(page.locator('[data-testid="symbol-tag-RELIANCE"]')).toBeVisible();
+    // Type in the searchable input
+    await page.keyboard.type("RELIANCE");
+    await page.waitForTimeout(500); // Wait for debounce and API
+
+    // Click on the option from dropdown
+    const option = page.locator(".mantine-MultiSelect-option").first();
+    if (await option.isVisible()) {
+      await option.click();
+      await page.waitForTimeout(300);
+
+      const pill = page.locator('[data-testid="symbol-multiselect"] [data-pill]');
+      await expect(pill.first()).toBeVisible();
+    }
   });
 
   test("should remove symbol from list", async ({ page }) => {
     await page.goto("/backtest");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-    const symbolInput = page.locator('[data-testid="add-symbol-input"]');
-    await symbolInput.fill("TCS");
-    await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
-    await page.waitForTimeout(500);
+    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
 
-    const removeBtn = page.locator('[data-testid="remove-symbol-TCS"]');
-    await removeBtn.click();
-    await page.waitForTimeout(300);
+    // Click to open dropdown
+    await symbolSelect.click();
+
+    // Type to search
+    await page.keyboard.type("TCS");
+    await page.waitForTimeout(500); // Wait for debounce and API
+
+    // Click on the option from dropdown
+    const option = page.locator(".mantine-MultiSelect-option").first();
+    if (await option.isVisible()) {
+      await option.click();
+      await page.waitForTimeout(300);
+
+      // Find and click the remove button on the pill
+      const removeBtn = page.locator('[data-testid="symbol-multiselect"] .mantine-Pill-remove');
+      await removeBtn.click();
+      await page.waitForTimeout(300);
+    }
   });
 });
 
@@ -219,10 +240,19 @@ test.describe("Backtest View - Run Backtest", () => {
     await page.goto("/backtest");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-    const symbolInput = page.locator('[data-testid="add-symbol-input"]');
-    await symbolInput.fill("RELIANCE");
+    // Click to focus on MultiSelect
+    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+    await symbolSelect.click();
+
+    // Type in the searchable input
+    await page.keyboard.type("RELIANCE");
     await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
+
+    // Click on the option from dropdown
+    const option = page.locator(".mantine-MultiSelect-option").first();
+    if (await option.isVisible()) {
+      await option.click();
+    }
     await page.waitForTimeout(300);
 
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
@@ -288,10 +318,19 @@ test.describe("Backtest View - Charts", () => {
     await page.goto("/backtest");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-    const symbolInput = page.locator('[data-testid="add-symbol-input"]');
-    await symbolInput.fill("RELIANCE");
+    // Click to focus on MultiSelect
+    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+    await symbolSelect.click();
+
+    // Type in the searchable input
+    await page.keyboard.type("RELIANCE");
     await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
+
+    // Click on the option from dropdown
+    const option = page.locator(".mantine-MultiSelect-option").first();
+    if (await option.isVisible()) {
+      await option.click();
+    }
     await page.waitForTimeout(300);
 
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
@@ -305,10 +344,19 @@ test.describe("Backtest View - Charts", () => {
     await page.goto("/backtest");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-    const symbolInput = page.locator('[data-testid="add-symbol-input"]');
-    await symbolInput.fill("RELIANCE");
+    // Click to focus on MultiSelect
+    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+    await symbolSelect.click();
+
+    // Type in the searchable input
+    await page.keyboard.type("RELIANCE");
     await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
+
+    // Click on the option from dropdown
+    const option = page.locator(".mantine-MultiSelect-option").first();
+    if (await option.isVisible()) {
+      await option.click();
+    }
     await page.waitForTimeout(300);
 
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
@@ -400,10 +448,19 @@ test.describe("Backtest View - Summary", () => {
       });
     });
 
-    const symbolInput = page.locator('[data-testid="add-symbol-input"]');
-    await symbolInput.fill("RELIANCE");
+    // Click to focus on MultiSelect
+    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+    await symbolSelect.click();
+
+    // Type in the searchable input
+    await page.keyboard.type("RELIANCE");
     await page.waitForTimeout(500); // Wait for debounce and API
-    await symbolInput.press("Enter");
+
+    // Click on the option from dropdown
+    const option = page.locator(".mantine-MultiSelect-option").first();
+    if (await option.isVisible()) {
+      await option.click();
+    }
     await page.waitForTimeout(300);
 
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');

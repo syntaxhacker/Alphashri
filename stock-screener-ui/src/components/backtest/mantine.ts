@@ -7,3 +7,4 @@ export type { BacktestChartTabsProps } from "./BacktestChartTabs";
 export { BacktestChart } from "./BacktestChart";
 export { TradeHistoryTable } from "./TradeHistoryTable";
 export { BacktestPage } from "./BacktestPage";
+export { BacktestHistory } from "./BacktestHistory";

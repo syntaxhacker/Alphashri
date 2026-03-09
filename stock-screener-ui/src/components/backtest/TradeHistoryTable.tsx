@@ -6,11 +6,12 @@ function formatDateHuman(isoStr: string): string {
   if (!isoStr) return "-";
   const parts = isoStr.split("T");
   const datePart = parts[0];
-  const timePart = parts[1]
-    ?.replace("Z", "")
-    .replace(/\+00:00/g, "")
-    .replace(/\+05:30/g, "")
-    .substring(0, 5);
+  const timePart =
+    parts[1]
+      ?.replace("Z", "")
+      .replace(/\+00:00/g, "")
+      .replace(/\+05:30/g, "")
+      ?.substring(0, 5) ?? "";
   const [year, month, day] = datePart.split("-");
   const d = parseInt(day);
   const m = parseInt(month) - 1;
@@ -40,7 +41,7 @@ function formatDateHuman(isoStr: string): string {
         : d === 3 || d === 23
           ? "rd"
           : "th";
-  return `${d}${suffix} ${dayName} ${monthName} ${timePart}`;
+  return `${d}${suffix} ${dayName} ${monthName}${timePart ? " " + timePart : ""}`;
 }
 
 function formatDuration(mins: number): string {
@@ -59,6 +60,10 @@ function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"):
         aVal = a.entry_time || "";
         bVal = b.entry_time || "";
         break;
+      case "exit_time":
+        aVal = a.exit_time || "";
+        bVal = b.exit_time || "";
+        break;
       case "side":
         aVal = (a as any).side || "LONG";
         bVal = (b as any).side || "LONG";
@@ -76,8 +81,8 @@ function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"):
         bVal = b.exit_price;
         break;
       case "level_high":
-        aVal = a.or_high ?? a.r1 ?? a["52w_high"] ?? 0;
-        bVal = b.or_high ?? b.r1 ?? b["52w_high"] ?? 0;
+        aVal = a.or_high ?? a.r1 ?? a["52w_high"] ?? a["52w_high_entry"] ?? 0;
+        bVal = b.or_high ?? b.r1 ?? b["52w_high"] ?? b["52w_high_entry"] ?? 0;
         break;
       case "level_low":
         aVal = a.or_low ?? a.s1 ?? 0;
@@ -138,7 +143,9 @@ export function TradeHistoryTable({
   const totalPnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
   const wins = trades.filter((t) => t.net_pnl > 0).length;
   const winRate = trades.length > 0 ? ((wins / trades.length) * 100).toFixed(1) : "0";
-  const has52w = trades[0]?.["52w_high"] !== undefined && trades[0]?.["52w_high"] !== null;
+  const has52w =
+    (trades[0]?.["52w_high"] !== undefined && trades[0]?.["52w_high"] !== null) ||
+    (trades[0]?.["52w_high_entry"] !== undefined && trades[0]?.["52w_high_entry"] !== null);
 
   const getTradeIndex = (trade: Trade) => trades.indexOf(trade);
 
@@ -216,7 +223,8 @@ export function TradeHistoryTable({
                   #
                 </Text>
               </Table.Th>
-              {renderSortableTh("entry_time", "Time")}
+              {renderSortableTh("entry_time", "Entry")}
+              {renderSortableTh("exit_time", "Exit")}
               {renderSortableTh("side", "Side")}
               {renderSortableTh("quantity", "Qty")}
               {renderSortableTh("entry_price", "Entry")}
@@ -235,7 +243,7 @@ export function TradeHistoryTable({
               const tradeNumber = originalIndex + 1;
               const pnlPct = t.net_pnl_pct || (t.net_pnl / (t.entry_price * t.quantity)) * 100;
               const side = (t as any).side || "LONG";
-              const levelHigh = t.or_high ?? t.r1 ?? t["52w_high"] ?? 0;
+              const levelHigh = t.or_high ?? t.r1 ?? t["52w_high"] ?? t["52w_high_entry"] ?? 0;
               const levelLow = t.or_low ?? t.s1 ?? 0;
 
               return (
@@ -252,6 +260,9 @@ export function TradeHistoryTable({
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs">{formatDateHuman(t.entry_time)}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs">{formatDateHuman(t.exit_time)}</Text>
                   </Table.Td>
                   <Table.Td>
                     {side === "LONG" ? (

@@ -1,5 +1,5 @@
-import { Box, Flex, Alert } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { Box, Flex, Alert, Tabs } from "@mantine/core";
+import { IconAlertCircle, IconTable, IconHistory } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   BacktestConfig,
@@ -8,6 +8,7 @@ import {
   BacktestProgress,
   BacktestChartTabs,
   TradeHistoryTable,
+  BacktestHistory,
 } from "./mantine";
 import { zoomToTrade } from "./BacktestChart";
 import {
@@ -19,14 +20,14 @@ import {
   setTradeHistory,
   setError,
   setSelectedStrategy,
+  setSelectedVariation,
   setParam,
   setDays,
   setIncludeCosts,
-  addSymbol,
-  removeSymbol,
+  setSelectedSymbols,
   resetBacktestState,
 } from "../../state/backtest";
-import { runBacktest, fetchStrategies, fetchCosts } from "../../api/backtest";
+import { runBacktest, fetchStrategies, fetchCosts, fetchVariations } from "../../api/backtest";
 import { chartTradesToTrades } from "../../api/chartBuilder";
 import type { BacktestState } from "../../state/backtest";
 
@@ -36,17 +37,27 @@ export function BacktestPage() {
   const [resultsSortDirection, setResultsSortDirection] = useState<"asc" | "desc">("desc");
   const [tradeSortColumn, setTradeSortColumn] = useState("entry_time");
   const [tradeSortDirection, setTradeSortDirection] = useState<"asc" | "desc">("desc");
+  const [activeTab, setActiveTab] = useState<string | null>("results");
+  const [saveToHistory, setSaveToHistory] = useState(true);
 
   useEffect(() => {
     const unsubscribe = subscribe(() => {
       setState(getBacktestState());
     });
     fetchStrategies();
+    fetchVariations();
     fetchCosts();
     return () => {
       unsubscribe();
     };
   }, []);
+
+  // Switch to results tab when a backtest starts running
+  useEffect(() => {
+    if (state.isRunning) {
+      setActiveTab("results");
+    }
+  }, [state.isRunning]);
 
   // Auto-select first symbol when results load
   useEffect(() => {
@@ -105,8 +116,8 @@ export function BacktestPage() {
   }, [state.results, resultsSortColumn, resultsSortDirection]);
 
   const handleRunBacktest = useCallback(() => {
-    runBacktest();
-  }, []);
+    runBacktest(saveToHistory);
+  }, [saveToHistory]);
 
   const handleResultsSort = useCallback(
     (column: string) => {
@@ -191,54 +202,81 @@ export function BacktestPage() {
     setError(null);
   }, []);
 
+  const handleVariationChange = useCallback((variationId: string | null) => {
+    setSelectedVariation(variationId);
+  }, []);
+
   const symbols = state.results?.map((r) => r.symbol) ?? [];
 
   const renderLeftPanel = () => {
-    if (state.isRunning) {
-      return (
-        <BacktestProgress
-          progress={{
-            current: state.progress.current,
-            total: state.progress.total,
-            message: state.progress.message,
-          }}
-        />
-      );
-    }
-
-    if (!state.results || state.results.length === 0) {
-      return (
-        <Box
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            color: "var(--mantine-color-dimmed)",
-          }}
-          data-testid="results-empty"
-        >
-          No results yet. Run a backtest.
-        </Box>
-      );
-    }
-
     return (
-      <Flex direction="column" gap="xs" h="100%" style={{ minHeight: 0 }}>
-        <Box style={{ flex: "0 0 auto" }}>
-          <BacktestSummary totals={state.totals} />
-        </Box>
-        <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
-          <BacktestResultsTable
-            results={sortedResults}
-            selectedSymbol={state.selectedChartSymbol}
-            sortColumn={resultsSortColumn}
-            sortDirection={resultsSortDirection}
-            onRowClick={handleViewChartAndTrades}
-            onSort={handleResultsSort}
+      <Tabs
+        value={activeTab}
+        onChange={setActiveTab}
+        h="100%"
+        style={{ display: "flex", flexDirection: "column" }}
+      >
+        <Tabs.List flex="0 0 auto">
+          <Tabs.Tab value="results" leftSection={<IconTable size={14} />}>
+            Results
+          </Tabs.Tab>
+          <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>
+            History
+          </Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="results" flex={1} style={{ minHeight: 0, overflow: "hidden" }}>
+          {state.isRunning ? (
+            <BacktestProgress
+              progress={{
+                current: state.progress.current,
+                total: state.progress.total,
+                message: state.progress.message,
+              }}
+            />
+          ) : !state.results || state.results.length === 0 ? (
+            <Box
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                color: "var(--mantine-color-dimmed)",
+              }}
+              data-testid="results-empty"
+            >
+              No results yet. Run a backtest.
+            </Box>
+          ) : (
+            <Flex direction="column" gap="xs" h="100%" style={{ minHeight: 0 }}>
+              <Box style={{ flex: "0 0 auto" }}>
+                <BacktestSummary totals={state.totals} />
+              </Box>
+              <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
+                <BacktestResultsTable
+                  results={sortedResults}
+                  selectedSymbol={state.selectedChartSymbol}
+                  sortColumn={resultsSortColumn}
+                  sortDirection={resultsSortDirection}
+                  onRowClick={handleViewChartAndTrades}
+                  onSort={handleResultsSort}
+                />
+              </Box>
+            </Flex>
+          )}
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="history"
+          flex={1}
+          style={{ minHeight: 0, overflow: "auto", paddingTop: "var(--mantine-spacing-md)" }}
+        >
+          <BacktestHistory
+            active={activeTab === "history"}
+            onLoad={() => setActiveTab("results")}
           />
-        </Box>
-      </Flex>
+        </Tabs.Panel>
+      </Tabs>
     );
   };
 
@@ -325,20 +363,24 @@ export function BacktestPage() {
       <Box flex="0 0 auto" mb="md">
         <BacktestConfig
           strategies={state.strategies}
+          variations={state.variations}
           selectedStrategy={state.selectedStrategy}
+          selectedVariation={state.selectedVariation}
           params={state.params}
           selectedSymbols={state.selectedSymbols}
           days={state.days}
           includeCosts={state.includeCosts}
           isRunning={state.isRunning}
           onStrategyChange={setSelectedStrategy}
+          onVariationChange={handleVariationChange}
           onParamChange={setParam}
           onDaysChange={setDays}
           onIncludeCostsChange={setIncludeCosts}
-          onSymbolAdd={addSymbol}
-          onSymbolRemove={removeSymbol}
+          onSymbolsChange={setSelectedSymbols}
           onReset={resetBacktestState}
           onRun={handleRunBacktest}
+          saveToHistory={saveToHistory}
+          onSaveToHistoryChange={setSaveToHistory}
         />
       </Box>
 

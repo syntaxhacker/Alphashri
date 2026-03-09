@@ -105,6 +105,19 @@ class StrategyConfig(Base):
     cooldown_minutes = Column(Integer, default=30)  # Cooldown after position closes
     max_distance_from_or_pct = Column(Float, default=1.5)  # Max distance from OR levels
 
+    # 52W Chaser Parameters
+    entry_threshold_pct = Column(Float, default=3.0)  # Entry threshold from 52W high
+    enable_trailing_stop = Column(Boolean, default=False)  # Enable trailing stop
+    trailing_stop_pct = Column(Float, default=3.0)  # Trailing stop percentage
+    trailing_activation_pct = Column(Float, default=2.0)  # Trailing activation percentage
+    max_holding_days = Column(Integer, default=30)  # Max holding days for swing trades
+    cooldown_days = Column(Integer, default=30)  # Cooldown days after exit
+    enable_filters = Column(Boolean, default=False)  # Enable trend/momentum filters
+
+    # S/R Breakout Parameters
+    pivot_type = Column(String, default='classic')  # Pivot type: classic, fibonacci, camarilla
+    breakout_buffer_pct = Column(Float, default=0.1)  # Breakout buffer percentage
+
     # Cost Parameters (brokerage, taxes)
     brokerage_pct = Column(Float, default=0.0003)  # 0.03%
     min_brokerage = Column(Float, default=20)
@@ -155,6 +168,17 @@ class StrategyConfig(Base):
             # Runner Parameters
             "cooldown_minutes": self.cooldown_minutes,
             "max_distance_from_or_pct": self.max_distance_from_or_pct,
+            # 52W Chaser Parameters
+            "entry_threshold_pct": self.entry_threshold_pct,
+            "enable_trailing_stop": self.enable_trailing_stop,
+            "trailing_stop_pct": self.trailing_stop_pct,
+            "trailing_activation_pct": self.trailing_activation_pct,
+            "max_holding_days": self.max_holding_days,
+            "cooldown_days": self.cooldown_days,
+            "enable_filters": self.enable_filters,
+            # S/R Breakout Parameters
+            "pivot_type": self.pivot_type,
+            "breakout_buffer_pct": self.breakout_buffer_pct,
             # Cost Parameters
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
@@ -220,3 +244,73 @@ class BotConfig(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class BacktestResult(Base):
+    """Stored results of a backtest run.
+
+    Allows users to view history of backtests and compare results.
+    """
+    __tablename__ = "backtest_results"
+
+    id = Column(Integer, primary_key=True)
+    uuid = Column(String(36), unique=True, index=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    strategy_id = Column(String, nullable=False)  # e.g., "orb"
+    strategy_name = Column(String, nullable=False)  # User-friendly name
+    variation_id = Column(String, nullable=True)   # ID of the strategy variation used
+
+    # Parameters and configuration
+    parameters = Column(String, nullable=False)  # JSON serialized dict
+    symbols = Column(String, nullable=False)     # JSON serialized list
+
+    # Summary metrics
+    total_pnl = Column(Float, default=0.0)
+    total_pnl_pct = Column(Float, default=0.0)
+    win_rate = Column(Float, default=0.0)
+    total_trades = Column(Integer, default=0)
+    sharpe_ratio = Column(Float, nullable=True)
+    max_drawdown_pct = Column(Float, nullable=True)
+
+    # Detailed results
+    results_json = Column(String, nullable=False)  # JSON serialized detailed results per symbol
+    totals_json = Column(String, nullable=False)   # JSON serialized totals
+    chart_data_json = Column(String, nullable=True) # JSON serialized chart data (candles, trades, visuals)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    # Relationship
+    user = relationship("User", backref="backtest_results")
+
+    def __repr__(self):
+        return f"<BacktestResult(id={self.id}, uuid='{self.uuid}', strategy='{self.strategy_id}', pnl={self.total_pnl})>"
+
+    def to_dict(self, include_details=False) -> dict:
+        import json
+        data = {
+            "id": self.uuid,
+            "user_id": self.user_id,
+            "strategy_id": self.strategy_id,
+            "strategy_name": self.strategy_name,
+            "variation_id": self.variation_id,
+            "parameters": json.loads(self.parameters),
+            "symbols": json.loads(self.symbols),
+            "metrics": {
+                "total_pnl": self.total_pnl,
+                "total_pnl_pct": self.total_pnl_pct,
+                "win_rate": self.win_rate,
+                "total_trades": self.total_trades,
+                "sharpe_ratio": self.sharpe_ratio,
+                "max_drawdown_pct": self.max_drawdown_pct,
+            },
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+        if include_details:
+            data["results"] = json.loads(self.results_json)
+            data["totals"] = json.loads(self.totals_json)
+            if self.chart_data_json:
+                data["chart_data"] = json.loads(self.chart_data_json)
+
+        return data

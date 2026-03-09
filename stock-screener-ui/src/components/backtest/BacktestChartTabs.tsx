@@ -39,7 +39,7 @@ export function BacktestChartTabs({
           alignItems: "center",
           justifyContent: "center",
           height: 400,
-          backgroundColor: "var(--mantine-color-dark-6)",
+          backgroundColor: "var(--mantine-color-body)",
           borderRadius: "var(--mantine-radius-md)",
         }}
       >
@@ -99,7 +99,7 @@ export function BacktestChartTabs({
               alignItems: "center",
               justifyContent: "center",
               height: "100%",
-              backgroundColor: "var(--mantine-color-dark-6)",
+              backgroundColor: "var(--mantine-color-body)",
               borderRadius: "var(--mantine-radius-md)",
             }}
           >

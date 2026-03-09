@@ -101,10 +101,10 @@ export function BacktestResultsTable({
           <Text>{result.trades}</Text>
         </Table.Td>
         <Table.Td data-testid={`wr-${result.symbol}`}>
-          <Text c={wrColor}>{result.win_rate.toFixed(0)}%</Text>
+          <Text c={wrColor}>{(result.win_rate ?? 0).toFixed(0)}%</Text>
         </Table.Td>
         <Table.Td data-testid={`pf-${result.symbol}`}>
-          <Text>{result.pf.toFixed(1)}</Text>
+          <Text>{(result.pf ?? 0).toFixed(1)}</Text>
         </Table.Td>
         <Table.Td data-testid={`tpsl-${result.symbol}`}>
           <Group gap={2}>

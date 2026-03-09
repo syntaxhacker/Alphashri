@@ -542,7 +542,10 @@ class ORBStrategy(BaseStrategy):
                         if result.get('result'):
                             results.append(result['result'])
                         if result.get('trade_list'):
-                            chart_data[result['symbol']] = {'trades': result['trade_list']}
+                            chart_data[result['symbol']] = {
+                                'trades': result['trade_list'],
+                                'visuals': self.get_visuals(result['trade_list'], params)
+                            }
         else:
             for args in worker_args:
                 completed += 1
@@ -556,7 +559,10 @@ class ORBStrategy(BaseStrategy):
                     if result.get('result'):
                         results.append(result['result'])
                     if result.get('trade_list'):
-                        chart_data[result['symbol']] = {'trades': result['trade_list']}
+                        chart_data[result['symbol']] = {
+                            'trades': result['trade_list'],
+                            'visuals': self.get_visuals(result['trade_list'], params)
+                        }
 
         total_gross = sum(r['gross_pnl'] for r in results)
         total_costs = sum(r['total_costs'] for r in results)
@@ -585,4 +591,53 @@ class ORBStrategy(BaseStrategy):
             'candles': all_candles,
             'run_time': datetime.now().isoformat(),
         }
+
+    def get_visuals(self, trades: List[Dict], params: Dict) -> List[Dict]:
+        """Return ORB zones as chart visuals."""
+        if not trades:
+            return []
+
+        visuals = []
+        # Group trades by date to find OR zones
+        dates_seen = set()
+        for trade in trades:
+            trade_date = trade.get('date')
+            if trade_date and trade_date not in dates_seen:
+                dates_seen.add(trade_date)
+                or_high = trade.get('or_high')
+                or_low = trade.get('or_low')
+                
+                if or_high is not None and or_low is not None:
+                    or_minutes = params.get('or_minutes', 45)
+                    # Create ORB zone box
+                    visuals.append({
+                        'id': f"orb_{trade_date}",
+                        'type': 'box',
+                        'label': f'ORB ({or_minutes}m)',
+                        'color': 'rgba(0, 255, 157, 0.05)',
+                        'levels': {'top': or_high, 'bottom': or_low},
+                        'date': trade_date,
+                        'time_range': {'start': '09:15', 'end': f"{9 + (15 + or_minutes) // 60:02d}:{(15 + or_minutes) % 60:02d}"}
+                    })
+                    # Add boundary lines
+                    visuals.append({
+                        'id': f"orb_high_{trade_date}",
+                        'type': 'line',
+                        'label': 'OR High',
+                        'color': '#00ff9d',
+                        'value': or_high,
+                        'date': trade_date,
+                        'dash': [2, 2]
+                    })
+                    visuals.append({
+                        'id': f"orb_low_{trade_date}",
+                        'type': 'line',
+                        'label': 'OR Low',
+                        'color': '#ff4757',
+                        'value': or_low,
+                        'date': trade_date,
+                        'dash': [2, 2]
+                    })
+        
+        return visuals
 

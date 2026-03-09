@@ -22,7 +22,7 @@ import bcrypt
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db.database import SessionLocal
-from db.models import User, StrategyConfig, BotConfig, bot_strategies
+from db.models import User, StrategyConfig, BotConfig, bot_strategies, BacktestResult
 from trading.journal import TradeJournal
 
 from rich.console import Console
@@ -40,43 +40,102 @@ QA_USER_NAME = "QA Test User"
 
 INITIAL_CAPITAL = 1_000_000  # 10 Lakhs
 
-# Strategy configurations
+# Strategy templates (is_template=True)
+TEMPLATES = [
+    {
+        'name': 'ORB Template',
+        'strategy_type': 'ORB',
+        'description': 'Opening Range Breakout template',
+        'or_minutes': 45,
+        'sl_pct': 0.5,
+        'tp_pct': 1.5,
+    },
+    {
+        'name': 'S/R Template',
+        'strategy_type': 'SR_BREAKOUT',
+        'description': 'Support/Resistance Breakout template',
+        'pivot_type': 'classic',
+        'breakout_buffer_pct': 0.1,
+        'sl_pct': 0.5,
+        'tp_pct': 1.5,
+    },
+    {
+        'name': '52W Chaser Template',
+        'strategy_type': '52W_CHASER',
+        'description': '52-Week High Breakout template',
+        'entry_threshold_pct': 3.0,
+        'sl_pct': 3.0,
+        'take_profit_pct': 5.0,
+    },
+    {
+        'name': '52W Target Template',
+        'strategy_type': '52W_TARGET',
+        'description': 'Hold until 52W high reached with trailing stop',
+        'entry_threshold_pct': 2.0,
+        'trailing_stop_pct': 0.5,
+        'sl_pct': 2.0,
+    },
+]
+
+# Strategy variations (is_template=False)
 STRATEGIES = [
     {
         'name': 'ORB Conservative',
         'strategy_type': 'ORB',
+        'template_name': 'ORB Template',
         'description': 'Conservative ORB with tight SL',
         'or_minutes': 45,
         'sl_pct': 0.4,
         'tp_pct': 1.2,
-        'min_or_range_pct': 0.5,
-        'max_or_range_pct': 2.0,
         'max_positions': 3,
-        'max_capital_per_trade_pct': 0.08,
     },
     {
         'name': 'ORB Aggressive',
         'strategy_type': 'ORB',
+        'template_name': 'ORB Template',
         'description': 'Aggressive ORB with wider targets',
         'or_minutes': 30,
         'sl_pct': 0.6,
         'tp_pct': 1.8,
-        'min_or_range_pct': 1.0,
-        'max_or_range_pct': 3.0,
         'max_positions': 3,
-        'max_capital_per_trade_pct': 0.10,
     },
     {
-        'name': '52W Chaser',
-        'strategy_type': '52W_CHASER',
-        'description': 'Follow 52-week high breakouts',
-        'or_minutes': 45,
+        'name': 'Classic S/R Breakout',
+        'strategy_type': 'SR_BREAKOUT',
+        'template_name': 'S/R Template',
+        'description': 'Classic Pivot Point breakout',
+        'pivot_type': 'classic',
+        'breakout_buffer_pct': 0.1,
         'sl_pct': 0.5,
-        'tp_pct': 2.0,
-        'min_or_range_pct': 0.5,
-        'max_or_range_pct': 2.5,
+        'tp_pct': 1.5,
+        'max_positions': 3,
+    },
+    {
+        'name': '52W Chaser Swing',
+        'strategy_type': '52W_CHASER',
+        'template_name': '52W Chaser Template',
+        'description': 'Ride the 52W high breakouts',
+        'entry_threshold_pct': 2.0,
+        'sl_pct': 3.0,
+        'tp_pct': 10.0,  # Fixed: was take_profit_pct
         'max_positions': 2,
-        'max_capital_per_trade_pct': 0.05,
+        'enable_trailing_stop': True,
+        'trailing_stop_pct': 3.0,
+        'trailing_activation_pct': 5.0,
+        'max_holding_days': 45,
+        'cooldown_days': 30,
+        'enable_filters': False,
+    },
+    {
+        'name': '52W Target Swing',
+        'strategy_type': '52W_TARGET',
+        'template_name': '52W Target Template',
+        'description': 'Hold until 52W high reached',
+        'entry_threshold_pct': 2.0,
+        'trailing_stop_pct': 0.5,
+        'sl_pct': 2.0,
+        'max_holding_days': 15,
+        'cooldown_days': 7,
     },
 ]
 
@@ -122,59 +181,92 @@ def create_qa_user(db) -> User:
     return user
 
 
-def create_strategies(db, user_id: int) -> Dict:
-    """Create strategy configurations for QA user."""
-    strategies = {}
+def create_strategies(db) -> Dict[str, StrategyConfig]:
+    """Create templates and variations. Returns dict of {name: config}."""
+    results = {}
 
-    for strat_config in STRATEGIES:
-        # Check if exists
+    # 1. Create Templates
+    console.print("  [bold]Creating Templates...[/bold]")
+    for t_config in TEMPLATES:
         existing = db.query(StrategyConfig).filter(
-            StrategyConfig.name == strat_config['name']
+            StrategyConfig.name == t_config['name'],
+            StrategyConfig.is_template == True
         ).first()
 
         if existing:
-            console.print(f"  [dim]Strategy '{strat_config['name']}' already exists (ID: {existing.id})[/dim]")
-            strategies[existing.id] = existing
+            console.print(f"    [dim]Template '{t_config['name']}' already exists[/dim]")
+            results[t_config['name']] = existing
             continue
 
-        # Create new strategy
-        strategy = StrategyConfig(
-            name=strat_config['name'],
-            strategy_type=strat_config['strategy_type'],
-            description=strat_config.get('description', ''),
-            is_template=False,
-            is_default=False,
+        template = StrategyConfig(
+            name=t_config['name'],
+            strategy_type=t_config['strategy_type'],
+            description=t_config.get('description', ''),
+            is_template=True,
             is_active=True,
         )
-        # Copy all config fields
-        for key, value in strat_config.items():
+        for key, value in t_config.items():
             if key not in ['name', 'strategy_type', 'description']:
-                setattr(strategy, key, value)
+                setattr(template, key, value)
 
-        db.add(strategy)
+        db.add(template)
         db.commit()
-        db.refresh(strategy)
-        strategies[strategy.id] = strategy
-        console.print(f"  [green]✓ Created strategy '{strategy.name}' (ID: {strategy.id})[/green]")
+        db.refresh(template)
+        results[template.name] = template
+        console.print(f"    [green]✓ Created template '{template.name}'[/green]")
 
-    return strategies
+    # 2. Create Variations
+    console.print("  [bold]Creating Variations...[/bold]")
+    for s_config in STRATEGIES:
+        existing = db.query(StrategyConfig).filter(
+            StrategyConfig.name == s_config['name'],
+            StrategyConfig.is_template == False
+        ).first()
+
+        if existing:
+            console.print(f"    [dim]Variation '{s_config['name']}' already exists[/dim]")
+            results[s_config['name']] = existing
+            continue
+
+        template = results.get(s_config['template_name'])
+        variation = StrategyConfig(
+            name=s_config['name'],
+            strategy_type=s_config['strategy_type'],
+            description=s_config.get('description', ''),
+            parent_id=template.id if template else None,
+            is_template=False,
+            is_active=True,
+        )
+        for key, value in s_config.items():
+            if key not in ['name', 'strategy_type', 'description', 'template_name']:
+                setattr(variation, key, value)
+
+        db.add(variation)
+        db.commit()
+        db.refresh(variation)
+        results[variation.name] = variation
+        console.print(f"    [green]✓ Created variation '{variation.name}'[/green]")
+
+    return results
 
 
-def create_bot(db, strategies: Dict[int, StrategyConfig]) -> BotConfig:
+def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name: str = "Multi-ORB QA Bot") -> BotConfig:
     """Create multi-strategy bot with all strategies."""
 
     # Check if bot exists
     bot = db.query(BotConfig).filter(
-        BotConfig.name == "Multi-ORB QA Bot"
+        BotConfig.name == bot_name,
+        BotConfig.user_id == user_id
     ).first()
 
     if bot:
-        console.print(f"[yellow]Bot already exists (ID: {bot.id})[/yellow]")
+        console.print(f"[yellow]Bot '{bot_name}' already exists (ID: {bot.id})[/yellow]")
         return bot
 
     # Create bot
     bot = BotConfig(
-        name="Multi-ORB QA Bot",
+        name=bot_name,
+        user_id=user_id,
         is_active=True,
         max_total_positions=10,
         max_total_capital_pct=0.90,
@@ -182,13 +274,13 @@ def create_bot(db, strategies: Dict[int, StrategyConfig]) -> BotConfig:
     db.add(bot)
     db.commit()
     db.refresh(bot)
-    console.print(f"[green]✓ Created bot '{bot.name}' (ID: {bot.id})[/green]")
+    console.print(f"[green]✓ Created bot '{bot.name}' (ID: {bot.id}) for User {user_id}[/green]")
 
     # Add strategies to bot
     allocations = [0.40, 0.40, 0.15]  # Conservative, Aggressive, 52W Chaser
     for idx, (strategy_id, strategy) in enumerate(strategies.items()):
         allocation_pct = allocations[idx] if idx < len(allocations) else 0.15
-        max_positions = strategy.max_positions or 3
+        max_positions = getattr(strategy, 'max_positions', 3)
 
         db.execute(
             bot_strategies.insert().values(
@@ -199,7 +291,7 @@ def create_bot(db, strategies: Dict[int, StrategyConfig]) -> BotConfig:
             )
         )
     db.commit()
-    console.print(f"[green]✓ Added {len(strategies)} strategies to bot[/green]")
+    console.print(f"  [green]✓ Added {len(strategies)} strategies to bot[/green]")
 
     return bot
 
@@ -346,25 +438,28 @@ def print_summary(user: User, bot: BotConfig, strategies: Dict, trades: List[dic
 
 def clean_qa_data():
     """Clean existing QA data."""
+    from db.models import BacktestResult
     db = SessionLocal()
     try:
-        # Delete bot strategies
-        bot = db.query(BotConfig).filter(BotConfig.name == "Multi-ORB QA Bot").first()
-        if bot:
-            db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot.id))
-            db.delete(bot)
-            console.print("[yellow]Deleted existing bot[/yellow]")
+        # 1. Delete bots and their strategy links for both QA and Admin
+        for bot_name in ["Multi-ORB QA Bot", "Alpha Admin Bot"]:
+            bot = db.query(BotConfig).filter(BotConfig.name == bot_name).first()
+            if bot:
+                db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot.id))
+                db.delete(bot)
+                console.print(f"[yellow]Deleted existing bot '{bot_name}'[/yellow]")
 
-        # Delete strategies
-        for strat_config in STRATEGIES:
-            existing = db.query(StrategyConfig).filter(
-                StrategyConfig.name == strat_config['name']
-            ).first()
-            if existing:
-                db.delete(existing)
-                console.print(f"[yellow]Deleted strategy '{strat_config['name']}'[/yellow]")
+        # 2. Delete all strategy variations and templates
+        # (Variation have parent_id, templates don't)
+        # We delete variations first due to FK constraints if any (though logic handles it)
+        db.query(StrategyConfig).delete()
+        console.print("[yellow]Deleted all strategy variations and templates[/yellow]")
 
-        # Delete user
+        # 3. Delete Backtest results
+        db.query(BacktestResult).delete()
+        console.print("[yellow]Deleted all backtest results[/yellow]")
+
+        # 4. Delete user (only QA user, keep Admin)
         user = db.query(User).filter(User.email == QA_USER_EMAIL).first()
         if user:
             db.delete(user)
@@ -386,20 +481,28 @@ def seed_qa_data():
         console.print("[bold]Step 1: Creating QA User[/bold]")
         user = create_qa_user(db)
 
-        # 2. Create strategies
+        # 2. Create strategies (Templates + Variations)
         console.print("\n[bold]Step 2: Creating Strategies[/bold]")
-        strategies = create_strategies(db, user.id)
+        all_strategies = create_strategies(db)
+        
+        # Filter only variations for bots
+        variation_names = [s['name'] for s in STRATEGIES]
+        variations = {name: config for name, config in all_strategies.items() if name in variation_names}
 
-        # 3. Create bot
-        console.print("\n[bold]Step 3: Creating Multi-Strategy Bot[/bold]")
-        bot = create_bot(db, strategies)
+        # 3. Create bot for QA user
+        console.print("\n[bold]Step 3: Creating Multi-Strategy Bot for QA[/bold]")
+        bot = create_bot(db, variations, user.id)
 
-        # 4. Generate trades
-        console.print("\n[bold]Step 4: Generating Trades[/bold]")
-        trades = generate_trades(user.id, bot, strategies)
+        # 4. Create bot for Admin user (ID 2)
+        console.print("\n[bold]Step 4: Creating Multi-Strategy Bot for Admin[/bold]")
+        admin_bot = create_bot(db, variations, 2, "Alpha Admin Bot")
 
-        # 5. Print summary
-        print_summary(user, bot, strategies, trades)
+        # 5. Generate trades for QA user
+        console.print("\n[bold]Step 5: Generating Trades for QA[/bold]")
+        trades = generate_trades(user.id, bot, variations)
+
+        # 6. Print summary
+        print_summary(user, bot, variations, trades)
 
     finally:
         db.close()

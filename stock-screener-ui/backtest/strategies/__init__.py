@@ -5,6 +5,7 @@ Available strategies:
 - ORB: Opening Range Breakout
 - SR Breakout: Support & Resistance Breakout using Pivot Points
 - 52W Chaser: 52-Week High Breakout (Swing Trading)
+- 52W Target: Hold until 52W High reached
 - VWAP: Volume Weighted Average Price (future)
 - Momentum: Momentum-based entries (future)
 """
@@ -13,12 +14,14 @@ from .base import BaseStrategy, StrategyParam
 from .orb import ORBStrategy
 from .sr_breakout import SRBreakoutStrategy
 from .week52_chaser import Week52ChaserStrategy
+from .week52_target import Week52TargetStrategy
 
 # Strategy registry
 STRATEGIES = {
     'orb': ORBStrategy,
     'sr_breakout': SRBreakoutStrategy,
-    'week52_chaser': Week52ChaserStrategy,
+    '52w_chaser': Week52ChaserStrategy,
+    '52w_target': Week52TargetStrategy,
 }
 
 
@@ -46,6 +49,7 @@ __all__ = [
     'ORBStrategy',
     'SRBreakoutStrategy',
     'Week52ChaserStrategy',
+    'Week52TargetStrategy',
     'STRATEGIES',
     'get_strategy',
     'list_strategies',

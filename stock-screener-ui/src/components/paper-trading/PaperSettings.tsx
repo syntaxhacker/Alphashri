@@ -128,8 +128,19 @@ export function PaperSettings() {
     );
   }
 
-  console.log("PaperSettings - strategyConfig:", { id: strategyConfig.id, internal_id: (strategyConfig as any).internal_id, name: strategyConfig.name });
-  console.log("PaperSettings - dropdown data:", strategies.map((s) => ({ value: String(s.internal_id ?? s.id), name: s.name, is_default: s.is_default })));
+  console.log("PaperSettings - strategyConfig:", {
+    id: strategyConfig.id,
+    internal_id: (strategyConfig as any).internal_id,
+    name: strategyConfig.name,
+  });
+  console.log(
+    "PaperSettings - dropdown data:",
+    strategies.map((s) => ({
+      value: String(s.internal_id ?? s.id),
+      name: s.name,
+      is_default: s.is_default,
+    })),
+  );
 
   return (
     <Card padding="md" radius="md" withBorder data-testid="settings-panel">
@@ -171,7 +182,13 @@ export function PaperSettings() {
             <Select
               data-testid="strategy-selector"
               placeholder="Select strategy"
-              value={strategyConfig.internal_id != null ? String(strategyConfig.internal_id) : strategyConfig.id != null ? String(strategyConfig.id) : null}
+              value={
+                strategyConfig.internal_id != null
+                  ? String(strategyConfig.internal_id)
+                  : strategyConfig.id != null
+                    ? String(strategyConfig.id)
+                    : null
+              }
               onChange={handleStrategyChange}
               data={strategies.map((s) => ({
                 value: String(s.internal_id ?? s.id),

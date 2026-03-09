@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { Box, Text } from "@mantine/core";
+import { Box, Text, useMantineColorScheme } from "@mantine/core";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 
 declare const echarts: any;
@@ -29,14 +29,29 @@ interface BacktestChartProps {
   onTradeClick?: (tradeId: number) => void;
 }
 
-function buildChartOption(data: SymbolChartData): any {
-  const { candles, orb_zones, pivot_levels, trades } = data;
+function buildChartOption(data: SymbolChartData, isDark: boolean): any {
+  const { candles, orb_zones, pivot_levels, week52_levels, trades, visuals } = data;
+
+  if (!candles || !trades) {
+    console.warn("buildChartOption: Missing candles or trades data", data);
+    return {};
+  }
+
+  const bgColor = isDark ? "#0a0a0a" : "#ffffff";
+  const textColor = isDark ? "#e0e0e0" : "#333333";
+  const mutedColor = isDark ? "#888" : "#666666";
+  const borderColor = isDark ? "#333" : "#e0e0e0";
+  const splitLineColor = isDark ? "#222" : "#eeeeee";
+  const tooltipBg = isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
+  const dataZoomBg = isDark ? "#111" : "#f5f5f5";
 
   console.log("buildChartOption for", data.symbol, {
     candleCount: candles.length,
     orbZoneCount: orb_zones?.length || 0,
     pivotLevelCount: pivot_levels?.length || 0,
+    week52LevelCount: week52_levels?.length || 0,
     tradeCount: trades.length,
+    overlayCount: visuals?.overlays?.length || 0,
   });
 
   const candleData = candles.map((c) => [c.open, c.close, c.low, c.high]);
@@ -44,18 +59,6 @@ function buildChartOption(data: SymbolChartData): any {
 
   const candleTimeMap = new Map(candles.map((c, i) => [normalizeTime(c.time), i]));
   const candleDateMap = new Map(candles.map((c, i) => [c.date, i]));
-
-  if (trades.length > 0) {
-    console.log(
-      "DEBUG: Sample candle dates:",
-      candles.slice(0, 3).map((c) => c.date),
-    );
-    console.log("DEBUG: Sample trade:", {
-      time: trades[0].time,
-      date: trades[0].date,
-      normalizedTime: normalizeTime(trades[0].time),
-    });
-  }
 
   const getCandleIdx = (trade: ChartTrade): number | undefined => {
     if (trade.candle_idx !== undefined) return trade.candle_idx;
@@ -168,16 +171,6 @@ function buildChartOption(data: SymbolChartData): any {
       trade_id: t.trade_id,
     }));
 
-  console.log("Markers built:", {
-    entry: entryMarkers.length,
-    tp: tpMarkers.length,
-    sl: slMarkers.length,
-    eod: eodMarkers.length,
-    trailing: trailingMarkers.length,
-    maxHold: maxHoldMarkers.length,
-    new52w: new52wMarkers.length,
-  });
-
   const series: any[] = [
     {
       name: "Price",
@@ -199,168 +192,190 @@ function buildChartOption(data: SymbolChartData): any {
     { name: "52W", type: "scatter", data: new52wMarkers, symbolSize: 14, z: 10 },
   ];
 
-  // Add pivot levels for S/R Breakout strategy
-  if (pivot_levels && pivot_levels.length > 0) {
-    const r1Data = candles.map((c) => {
-      const level = pivot_levels.find((p) => p.date_raw === c.date);
-      return level ? level.r1 : null;
-    });
-    const s1Data = candles.map((c) => {
-      const level = pivot_levels.find((p) => p.date_raw === c.date);
-      return level ? level.s1 : null;
-    });
-    const ppData = candles.map((c) => {
-      const level = pivot_levels.find((p) => p.date_raw === c.date);
-      return level ? level.pp : null;
-    });
+  const legendData = ["Price", "Entry", "TP", "SL", "EOD", "Trailing", "MaxHold", "52W"];
 
-    series.push(
-      {
-        id: "pivot-r1",
-        name: "R1",
-        type: "line",
-        data: r1Data,
-        showSymbol: false,
-        connectNulls: false,
-        silent: true,
-        z: 5,
-        lineStyle: { color: "#EF5350", width: 1, type: "dashed" },
-        tooltip: {
-          show: true,
-          formatter: (params: any) => {
-            if (params.value === null) return "";
-            return `<span style="color:#EF5350">R1 (Resistance): ₹${params.value.toFixed(2)}</span>`;
+  // --- Dynamic Visuals (Standardized Overlays) ---
+  if (visuals?.overlays) {
+    visuals.overlays.forEach((overlay: any) => {
+      if (overlay.type === "line") {
+        const lineData = candles.map((c) =>
+          overlay.date && c.date === overlay.date ? overlay.value : null,
+        );
+
+        series.push({
+          id: overlay.id,
+          name: overlay.label,
+          type: "line",
+          data: lineData,
+          showSymbol: false,
+          connectNulls: false,
+          silent: true,
+          z: 5,
+          lineStyle: {
+            color: overlay.color,
+            width: 1,
+            type: overlay.dash ? "dashed" : "solid",
           },
-        },
-      },
-      {
-        id: "pivot-pp",
-        name: "PP",
-        type: "line",
-        data: ppData,
-        showSymbol: false,
-        connectNulls: false,
-        silent: true,
-        z: 5,
-        lineStyle: { color: "#AB47BC", width: 1, type: "dotted" },
-        tooltip: {
-          show: true,
-          formatter: (params: any) => {
-            if (params.value === null) return "";
-            return `<span style="color:#AB47BC">PP (Pivot): ₹${params.value.toFixed(2)}</span>`;
-          },
-        },
-      },
-      {
-        id: "pivot-s1",
-        name: "S1",
-        type: "line",
-        data: s1Data,
-        showSymbol: false,
-        connectNulls: false,
-        silent: true,
-        z: 5,
-        lineStyle: { color: "#26A69A", width: 1, type: "dashed" },
-        tooltip: {
-          show: true,
-          formatter: (params: any) => {
-            if (params.value === null) return "";
-            return `<span style="color:#26A69A">S1 (Support): ₹${params.value.toFixed(2)}</span>`;
-          },
-        },
-      },
-    );
+          tooltip: { show: true },
+        });
+
+        if (!legendData.includes(overlay.label)) {
+          legendData.push(overlay.label);
+        }
+      } else if (overlay.type === "box") {
+        const topData = candles.map((c) =>
+          overlay.date && c.date === overlay.date ? overlay.levels.top : null,
+        );
+
+        series.push({
+          id: `${overlay.id}_top`,
+          name: overlay.label,
+          type: "line",
+          data: topData,
+          showSymbol: false,
+          connectNulls: false,
+          silent: true,
+          z: 4,
+          lineStyle: { color: overlay.color, width: 0.5, opacity: 0.5, type: "dashed" },
+        });
+
+        if (!legendData.includes(overlay.label)) {
+          legendData.push(overlay.label);
+        }
+      }
+    });
   }
 
-  // Add ORB zones for ORB strategy
-  if (orb_zones && orb_zones.length > 0) {
-    const orHighData = candles.map((c) => {
-      const zone = orb_zones.find((z) => z.date_raw === c.date);
-      return zone ? zone.or_high : null;
-    });
-    const orLowData = candles.map((c) => {
-      const zone = orb_zones.find((z) => z.date_raw === c.date);
-      return zone ? zone.or_low : null;
-    });
+  // --- Legacy Visuals (Backward Compatibility) ---
+  if (!visuals?.overlays) {
+    // Add pivot levels for S/R Breakout strategy
+    if (pivot_levels && pivot_levels.length > 0) {
+      const r1Data = candles.map((c) => {
+        const level = pivot_levels.find((p) => p.date_raw === c.date);
+        return level ? level.r1 : null;
+      });
+      const s1Data = candles.map((c) => {
+        const level = pivot_levels.find((p) => p.date_raw === c.date);
+        return level ? level.s1 : null;
+      });
+      const ppData = candles.map((c) => {
+        const level = pivot_levels.find((p) => p.date_raw === c.date);
+        return level ? level.pp : null;
+      });
 
-    series.push(
-      {
-        id: "or-high",
-        name: "OR High",
+      series.push(
+        {
+          id: "pivot-r1",
+          name: "R1",
+          type: "line",
+          data: r1Data,
+          showSymbol: false,
+          silent: true,
+          z: 5,
+          lineStyle: { color: "#EF5350", width: 1, type: "dashed" },
+        },
+        {
+          id: "pivot-pp",
+          name: "PP",
+          type: "line",
+          data: ppData,
+          showSymbol: false,
+          silent: true,
+          z: 5,
+          lineStyle: { color: "#AB47BC", width: 1, type: "dotted" },
+        },
+        {
+          id: "pivot-s1",
+          name: "S1",
+          type: "line",
+          data: s1Data,
+          showSymbol: false,
+          silent: true,
+          z: 5,
+          lineStyle: { color: "#26A69A", width: 1, type: "dashed" },
+        },
+      );
+      legendData.push("R1", "PP", "S1");
+    }
+
+    // Add ORB zones for ORB strategy
+    if (orb_zones && orb_zones.length > 0) {
+      const orHighData = candles.map((c) => {
+        const zone = orb_zones.find((z) => z.date_raw === c.date);
+        return zone ? zone.or_high : null;
+      });
+      const orLowData = candles.map((c) => {
+        const zone = orb_zones.find((z) => z.date_raw === c.date);
+        return zone ? zone.or_low : null;
+      });
+
+      series.push(
+        {
+          id: "or-high",
+          name: "OR High",
+          type: "line",
+          data: orHighData,
+          showSymbol: false,
+          silent: true,
+          z: 5,
+          lineStyle: { color: "#42A5F5", width: 1, type: "dashed" },
+        },
+        {
+          id: "or-low",
+          name: "OR Low",
+          type: "line",
+          data: orLowData,
+          showSymbol: false,
+          silent: true,
+          z: 5,
+          lineStyle: { color: "#1E88E5", width: 1, type: "dashed" },
+        },
+      );
+      legendData.push("OR High", "OR Low");
+    }
+
+    // Add 52W high levels for 52W Chaser strategy
+    if (week52_levels && week52_levels.length > 0) {
+      console.log("Adding 52W levels to chart:", week52_levels);
+      const week52HighData = candles.map((c) => {
+        const level = week52_levels.find((l) => l.date_raw === c.date);
+        return level ? level["52w_high"] : null;
+      });
+      console.log(
+        "52W high data for chart:",
+        week52HighData.filter((v) => v !== null).length,
+        "values",
+      );
+
+      series.push({
+        id: "52w-high",
+        name: "52W High",
         type: "line",
-        data: orHighData,
+        data: week52HighData,
         showSymbol: false,
-        connectNulls: false,
         silent: true,
         z: 5,
-        lineStyle: { color: "#42A5F5", width: 1, type: "dashed" },
-      },
-      {
-        id: "or-low",
-        name: "OR Low",
-        type: "line",
-        data: orLowData,
-        showSymbol: false,
-        connectNulls: false,
-        silent: true,
-        z: 5,
-        lineStyle: { color: "#1E88E5", width: 1, type: "dashed" },
-      },
-    );
+        lineStyle: { color: "#FFD700", width: 2, type: "dashed" },
+      });
+      legendData.push("52W High");
+    }
   }
 
   return {
-    backgroundColor: "#0a0a0a",
+    backgroundColor: bgColor,
     title: {
       text: `${data.symbol} - Backtest Results`,
       left: "center",
-      textStyle: { fontSize: 14, color: "#e0e0e0" },
+      textStyle: { fontSize: 14, color: textColor },
     },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "cross", lineStyle: { color: "#666" } },
-      backgroundColor: "rgba(20, 20, 20, 0.95)",
-      borderColor: "#333",
+      backgroundColor: tooltipBg,
+      borderColor: borderColor,
       borderWidth: 1,
-      textStyle: { color: "#e0e0e0", fontSize: 10 },
+      textStyle: { color: textColor, fontSize: 10 },
       formatter: function (params: any) {
-        // Helper function to format date compact
-        const formatDateTimeCompact = (isoStr: string) => {
-          if (!isoStr) return "-";
-          const parts = isoStr.split("T");
-          const datePart = parts[0];
-          const timePart = parts[1]?.replace(/Z|\+00:00|\+05:30/g, "").substring(0, 5) || "";
-          const [_year, month, day] = datePart.split("-");
-          const d = parseInt(day);
-          const m = parseInt(month) - 1;
-          const months = [
-            "Jan",
-            "Feb",
-            "Mar",
-            "Apr",
-            "May",
-            "Jun",
-            "Jul",
-            "Aug",
-            "Sep",
-            "Oct",
-            "Nov",
-            "Dec",
-          ];
-          const suffix =
-            d === 1 || d === 21 || d === 31
-              ? "st"
-              : d === 2 || d === 22
-                ? "nd"
-                : d === 3 || d === 23
-                  ? "rd"
-                  : "th";
-          if (!timePart || timePart === "00:00") {
-            return `${d}${suffix} ${months[m]}`;
-          }
-          return `${d}${suffix} ${months[m]} ${timePart}`;
-        };
-
         // Find if this is a trade marker
         for (const p of params) {
           if (p.data && p.data.trade) {
@@ -374,9 +389,6 @@ function buildChartOption(data: SymbolChartData): any {
               <div style="padding: 6px 8px; font-family: 'SF Mono', Monaco, monospace; font-size: 10px; line-height: 1.4;">
                 <div style="color: #00BFFF; font-weight: bold; margin-bottom: 4px;">
                   Trade #${p.data.trade_id} | ${t.exit_reason}
-                </div>
-                <div style="color: #888; margin-bottom: 4px; font-size: 9px;">
-                  ${formatDateTimeCompact(t.entry_time)} → ${formatDateTimeCompact(t.exit_time)} (${holdStr})
                 </div>
                 <div style="display: flex; gap: 12px; margin-bottom: 2px;">
                   <span>Entry: <b>₹${t.entry_price.toFixed(0)}</b></span>
@@ -423,24 +435,13 @@ function buildChartOption(data: SymbolChartData): any {
       },
     },
     legend: {
-      data: [
-        "Price",
-        "Entry",
-        "TP",
-        "SL",
-        "EOD",
-        ...(pivot_levels && pivot_levels.length > 0 ? ["R1", "PP", "S1"] : []),
-        ...(orb_zones && orb_zones.length > 0 ? ["OR High", "OR Low"] : []),
-      ],
+      data: legendData,
       bottom: 6,
       itemWidth: 14,
       itemHeight: 10,
       itemGap: 8,
-      textStyle: { color: "#888", fontSize: 10 },
+      textStyle: { color: mutedColor, fontSize: 10 },
       type: "scroll",
-      pageIconColor: "#888",
-      pageIconInactiveColor: "#333",
-      pageTextStyle: { color: "#888", fontSize: 10 },
     },
     grid: {
       left: "8%",
@@ -452,80 +453,29 @@ function buildChartOption(data: SymbolChartData): any {
       type: "category",
       data: timeData,
       scale: true,
-      splitLine: { show: false, lineStyle: { color: "#222" } },
-      axisLine: { lineStyle: { color: "#333" } },
+      splitLine: { show: false },
+      axisLine: { lineStyle: { color: borderColor } },
       axisLabel: {
-        color: "#888",
+        color: mutedColor,
         rotate: 45,
-        formatter: function (value: string) {
-          if (!value || !value.includes("T")) return value;
-          const [datePart, timePart] = value.split("T");
-          const [, month, day] = datePart.split("-");
-          const d = parseInt(day);
-          const m = parseInt(month);
-          const months = [
-            "Jan",
-            "Feb",
-            "Mar",
-            "Apr",
-            "May",
-            "Jun",
-            "Jul",
-            "Aug",
-            "Sep",
-            "Oct",
-            "Nov",
-            "Dec",
-          ];
-          const suffix =
-            d === 1 || d === 21 || d === 31
-              ? "st"
-              : d === 2 || d === 22
-                ? "nd"
-                : d === 3 || d === 23
-                  ? "rd"
-                  : "th";
-          return `${d}${suffix} ${months[m - 1]} ${timePart || ""}`;
-        },
       },
     },
     yAxis: {
       type: "value",
       scale: true,
-      splitArea: {
-        show: true,
-        areaStyle: { color: ["rgba(255,255,255,0.02)", "rgba(255,255,255,0.01)"] },
-      },
-      splitLine: { lineStyle: { color: "#222" } },
-      axisLine: { lineStyle: { color: "#333" } },
+      splitArea: { show: true },
+      splitLine: { lineStyle: { color: splitLineColor } },
+      axisLine: { lineStyle: { color: borderColor } },
       axisLabel: {
-        color: "#888",
+        color: mutedColor,
         formatter: function (value: number) {
           return "₹" + value.toFixed(0);
         },
       },
     },
     dataZoom: [
-      {
-        type: "inside",
-        start: 0,
-        end: 100,
-        borderColor: "#333",
-        fillerColor: "rgba(0, 230, 118, 0.1)",
-        handleStyle: { color: "#00E676" },
-      },
-      {
-        type: "slider",
-        show: true,
-        start: 0,
-        end: 100,
-        bottom: 30,
-        borderColor: "#333",
-        backgroundColor: "#111",
-        fillerColor: "rgba(0, 230, 118, 0.1)",
-        handleStyle: { color: "#00E676" },
-        textStyle: { color: "#666" },
-      },
+      { type: "inside", start: 0, end: 100 },
+      { type: "slider", show: true, start: 0, end: 100, bottom: 30 },
     ],
     series,
   };
@@ -644,8 +594,12 @@ export function zoomToTrade(
 
   exitIdx = exitIdx ?? entryIdx;
   const selectedTrade = entryMarker.trade;
-  // Use entryMarker.date if available, otherwise extract from normalized time
-  const selectedDate = entryMarker.date || normalizeTime(entryMarker.time).split("T")[0];
+
+  // For multi-day trades (like 52W), use date range from entry to exit
+  // For same-day trades (like ORB), use just the entry date
+  const entryDate = entryMarker.date || normalizeTime(entryMarker.time).split("T")[0];
+  const exitDate =
+    exitMarker?.date || (exitMarker ? normalizeTime(exitMarker.time).split("T")[0] : entryDate);
 
   const totalCandles = chartData.candles.length;
 
@@ -653,10 +607,14 @@ export function zoomToTrade(
   let startIdx = entryIdx;
   let endIdx = exitIdx;
 
-  if (selectedDate) {
+  // Check if it's a same-day trade (ORB) or multi-day trade (52W)
+  const isSameDay = entryDate === exitDate;
+
+  if (isSameDay) {
+    // Same-day trade: zoom to just that day
     const dayIndices = chartData.candles
       .map((c, idx) => ({ date: c.date, idx }))
-      .filter((item) => item.date === selectedDate)
+      .filter((item) => item.date === entryDate)
       .map((item) => item.idx);
 
     if (dayIndices.length > 0) {
@@ -668,7 +626,8 @@ export function zoomToTrade(
       endIdx = Math.min(totalCandles - 1, exitIdx + padding);
     }
   } else {
-    const padding = 5;
+    // Multi-day trade: zoom to range from entry to exit
+    const padding = 3;
     startIdx = Math.max(0, entryIdx - padding);
     endIdx = Math.min(totalCandles - 1, exitIdx + padding);
   }
@@ -694,14 +653,29 @@ export function zoomToTrade(
   });
 
   // Show highlighted markers for the selected trade
-  if (selectedTrade && selectedDate) {
-    const levelHigh = (selectedTrade as any).or_high ?? (selectedTrade as any).r1;
+  if (selectedTrade && entryDate) {
+    const levelHigh =
+      (selectedTrade as any).or_high ??
+      (selectedTrade as any).r1 ??
+      (selectedTrade as any)["52w_high"];
     const levelLow = (selectedTrade as any).or_low ?? (selectedTrade as any).s1;
 
-    const levelHighData = chartData.candles.map((c) =>
-      c.date === selectedDate ? levelHigh : null,
-    );
-    const levelLowData = chartData.candles.map((c) => (c.date === selectedDate ? levelLow : null));
+    // For multi-day trades, show 52W high line for entire trade range
+    const level52wHigh = (selectedTrade as any)["52w_high"];
+    const show52wLine = !isSameDay && level52wHigh;
+
+    // Level high line: show on entry day
+    const levelHighData = chartData.candles.map((c) => (c.date === entryDate ? levelHigh : null));
+
+    // 52W high target line: show for entire trade range
+    const level52wHighData = show52wLine
+      ? chartData.candles.map((c, i) => {
+          // Show from entry day to exit day
+          return i >= entryIdx && i <= exitIdx ? level52wHigh : null;
+        })
+      : [];
+
+    const levelLowData = chartData.candles.map((c) => (c.date === entryDate ? levelLow : null));
 
     const highlightEntryMarker = {
       value: [entryIdx, entryMarker.price],
@@ -766,51 +740,68 @@ export function zoomToTrade(
           }
         : null;
 
-    const connectLineData =
-      exitIdx !== undefined
-        ? chartData.candles.map((c, i) =>
-            i >= entryIdx! && i <= exitIdx! ? entryMarker.price : null,
-          )
-        : [];
-
     chart.setOption({
       series: [
-        {
-          id: "selected-or-high",
-          name: "Selected Level High",
-          type: "line",
-          data: levelHighData,
-          showSymbol: false,
-          connectNulls: false,
-          silent: true,
-          z: 6,
-          lineStyle: { color: "#42A5F5", width: 2, type: "dashed" },
-          tooltip: { show: false },
-        },
-        {
-          id: "selected-or-low",
-          name: "Selected Level Low",
-          type: "line",
-          data: levelLowData,
-          showSymbol: false,
-          connectNulls: false,
-          silent: true,
-          z: 6,
-          lineStyle: { color: "#1E88E5", width: 2, type: "dashed" },
-          tooltip: { show: false },
-        },
-        ...(connectLineData.length > 0
+        ...(show52wLine && level52wHighData.length > 0
           ? [
               {
-                id: "trade-connect-line",
-                name: "Trade Line",
+                id: "selected-52w-high",
+                name: "52W High Target",
                 type: "line",
-                data: connectLineData,
+                data: level52wHighData,
                 showSymbol: false,
                 connectNulls: false,
                 silent: true,
-                z: 15,
-                lineStyle: { color: "#FFD700", width: 2, type: "solid", opacity: 0.6 },
+                z: 6,
+                markLine: {
+                  symbol: "none",
+                  label: {
+                    show: true,
+                    position: "end",
+                    formatter: `52W High: ₹${level52wHigh}`,
+                    color: "#FFD700",
+                    fontSize: 11,
+                    fontWeight: "bold",
+                    backgroundColor: "rgba(0,0,0,0.7)",
+                    padding: [2, 6],
+                    borderRadius: 3,
+                  },
+                  lineStyle: {
+                    color: "#FFD700",
+                    width: 2,
+                    type: "dashed",
+                  },
+                  data: [{ yAxis: level52wHigh }],
+                  animation: false,
+                },
+              },
+            ]
+          : []),
+        // Only show ORB/SR level lines for same-day trades (not 52W trades)
+        ...(!show52wLine
+          ? [
+              {
+                id: "selected-or-high",
+                name: "Selected Level High",
+                type: "line",
+                data: levelHighData,
+                showSymbol: false,
+                connectNulls: false,
+                silent: true,
+                z: 6,
+                lineStyle: { color: "#42A5F5", width: 2, type: "dashed" },
+                tooltip: { show: false },
+              },
+              {
+                id: "selected-or-low",
+                name: "Selected Level Low",
+                type: "line",
+                data: levelLowData,
+                showSymbol: false,
+                connectNulls: false,
+                silent: true,
+                z: 6,
+                lineStyle: { color: "#1E88E5", width: 2, type: "dashed" },
                 tooltip: { show: false },
               },
             ]
@@ -858,6 +849,8 @@ export function zoomToTrade(
 export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: BacktestChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<any>(null);
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
 
   useEffect(() => {
     if (!chartRef.current) {
@@ -887,10 +880,10 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
       chartInstance.current.dispose();
     }
 
-    chartInstance.current = echartsLib.init(chartRef.current, "dark");
+    chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
     chartInstances.set(symbol, chartInstance.current);
 
-    const option = buildChartOption(chartData);
+    const option = buildChartOption(chartData, isDark);
     chartInstance.current.setOption(option);
     chartInstance.current.resize();
 
@@ -927,7 +920,7 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
       chartInstances.delete(symbol);
       chartInstance.current = null;
     };
-  }, [chartData, onTradeClick, symbol]);
+  }, [chartData, onTradeClick, symbol, isDark]);
 
   if (isLoading) {
     return (
@@ -937,7 +930,7 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
           alignItems: "center",
           justifyContent: "center",
           height: "100%",
-          backgroundColor: "var(--mantine-color-dark-6)",
+          backgroundColor: "var(--mantine-color-body)",
           borderRadius: "var(--mantine-radius-md)",
         }}
       >
@@ -954,7 +947,7 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
           alignItems: "center",
           justifyContent: "center",
           height: "100%",
-          backgroundColor: "var(--mantine-color-dark-6)",
+          backgroundColor: "var(--mantine-color-body)",
           borderRadius: "var(--mantine-radius-md)",
         }}
       >

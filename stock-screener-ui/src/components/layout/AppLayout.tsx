@@ -1,9 +1,10 @@
 import { useLocation } from "react-router-dom";
-import { AppShell } from "@mantine/core";
+import { AppShell, Group, Box } from "@mantine/core";
 import { useState } from "react";
 import { NavbarNested } from "./NavbarNested";
 import { MarketTicker } from "./MarketTicker";
 import { useThemeColors } from "../../hooks/useThemeColors";
+import NewsPanel from "../news/NewsPanel";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -27,7 +28,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       h="100vh"
     >
       <AppShell.Header bg={colors.background} c={colors.text}>
-        <MarketTicker />
+        <Group justify="space-between" align="center" h="100%" px="xs">
+          <Box flex={1}>
+            <MarketTicker />
+          </Box>
+          <NewsPanel />
+        </Group>
       </AppShell.Header>
 
       <AppShell.Navbar>

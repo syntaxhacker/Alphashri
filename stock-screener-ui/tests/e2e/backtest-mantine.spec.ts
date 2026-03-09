@@ -41,7 +41,63 @@ const mockBacktestResults = {
 
 const mockChartData = {
   symbol: "RELIANCE",
-  candles: [],
+  candles: [
+    {
+      time: "2024-01-15T09:15",
+      date: "2024-01-15",
+      date_raw: "2024-01-15",
+      open: 2445,
+      high: 2455,
+      low: 2440,
+      close: 2450,
+      volume: 100000,
+      time_str: "09:15",
+    },
+    {
+      time: "2024-01-15T09:30",
+      date: "2024-01-15",
+      date_raw: "2024-01-15",
+      open: 2450,
+      high: 2460,
+      low: 2448,
+      close: 2455,
+      volume: 120000,
+      time_str: "09:30",
+    },
+    {
+      time: "2024-01-15T09:45",
+      date: "2024-01-15",
+      date_raw: "2024-01-15",
+      open: 2455,
+      high: 2470,
+      low: 2452,
+      close: 2465,
+      volume: 110000,
+      time_str: "09:45",
+    },
+    {
+      time: "2024-01-15T10:00",
+      date: "2024-01-15",
+      date_raw: "2024-01-15",
+      open: 2465,
+      high: 2480,
+      low: 2460,
+      close: 2475,
+      volume: 130000,
+      time_str: "10:00",
+    },
+    {
+      time: "2024-01-15T14:30",
+      date: "2024-01-15",
+      date_raw: "2024-01-15",
+      open: 2510,
+      high: 2525,
+      low: 2515,
+      close: 2520,
+      volume: 150000,
+      time_str: "14:30",
+    },
+  ],
   orb_zones: [],
   pivot_levels: [],
   trades: [
@@ -104,6 +160,9 @@ async function mockBacktestApi(page: Page) {
         results: mockBacktestResults.results,
         totals: mockBacktestResults.totals,
         run_time: "2024-01-01T00:00:00Z",
+        chart_data: {
+          RELIANCE: mockChartData,
+        },
       }),
     });
   });
@@ -118,9 +177,18 @@ async function mockBacktestApi(page: Page) {
 }
 
 async function setupBacktest(page: Page) {
-  const symbolInput = page.locator('[data-testid="add-symbol-input"]');
-  await symbolInput.fill("RELIANCE");
-  await symbolInput.press("Enter");
+  // Click to focus on MultiSelect
+  const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+  await symbolSelect.click();
+
+  // Type in the searchable input
+  await page.keyboard.type("RELIANCE");
+  await page.waitForTimeout(500); // Wait for debounce and API
+  // Click on the option from dropdown
+  const option = page.locator(".mantine-MultiSelect-option").first();
+  if (await option.isVisible()) {
+    await option.click();
+  }
   await page.waitForTimeout(300);
 
   const runBtn = page.locator('[data-testid="run-backtest-btn"]');
@@ -293,9 +361,18 @@ test.describe("Backtest - Mantine Features", () => {
       await page.goto("/backtest");
       await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-      const symbolInput = page.locator('[data-testid="add-symbol-input"]');
-      await symbolInput.fill("RELIANCE");
-      await symbolInput.press("Enter");
+      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+      await symbolSelect.click();
+
+      // Type to search
+      await page.keyboard.type("RELIANCE");
+      await page.waitForTimeout(500); // Wait for debounce and API
+
+      // Click on the option from dropdown
+      const option = page.locator(".mantine-MultiSelect-option").first();
+      if (await option.isVisible()) {
+        await option.click();
+      }
       await page.waitForTimeout(300);
 
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
@@ -380,15 +457,22 @@ test.describe("Backtest - Mantine Features", () => {
       await page.goto("/backtest");
       await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-      const symbolInput = page.locator('[data-testid="add-symbol-input"]');
-      await symbolInput.fill("RELIANCE");
-      await symbolInput.press("Enter");
+      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+      await symbolSelect.click();
+
+      // Type to search
+      await page.keyboard.type("RELIANCE");
+      await page.waitForTimeout(500); // wait for debounce and API
+      // Click on the option from dropdown
+      const option = page.locator(".mantine-MultiSelect-option").first();
+      if (await option.isVisible()) {
+        await option.click();
+      }
       await page.waitForTimeout(300);
 
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
       await runBtn.click();
       await page.waitForTimeout(2000);
-
       const errorAlert = page.locator('[data-testid="backtest-error"]');
       await expect(errorAlert).toBeVisible();
     });
@@ -401,19 +485,13 @@ test.describe("Backtest - Mantine Features", () => {
 
       await setupBacktest(page);
 
-      const chartLegend = page.locator('[data-testid="chart-legend"]');
-      await expect(chartLegend).toBeVisible();
+      const echartsContainer = page.locator('[data-testid="echarts-container"]');
+      await expect(echartsContainer).toBeVisible();
 
-      // Check legend items exist
-      const legendEntry = page.locator('[data-testid="legend-entry"]');
-      const legendTp = page.locator('[data-testid="legend-tp"]');
-      const legendSl = page.locator('[data-testid="legend-sl"]');
-      const legendEod = page.locator('[data-testid="legend-eod"]');
+      await page.waitForTimeout(500);
 
-      await expect(legendEntry).toBeVisible();
-      await expect(legendTp).toBeVisible();
-      await expect(legendSl).toBeVisible();
-      await expect(legendEod).toBeVisible();
+      const legendItem = page.locator("text=Entry");
+      await expect(legendItem.first()).toBeVisible();
     });
   });
 

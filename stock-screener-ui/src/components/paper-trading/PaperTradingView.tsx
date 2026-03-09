@@ -270,7 +270,6 @@ export function PaperTradingView() {
                 })),
               ]}
               data-testid="bot-selector-dropdown"
-              className="bot-selector-dropdown"
             />
           </Group>
           <Group gap="xs">

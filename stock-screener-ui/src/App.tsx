@@ -3,7 +3,6 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-
 import { setCurrentView } from "./state/backtest";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setCurrentView as setReduxView, type AppRouteView } from "./store/appSlice";
-import NewsPanel from "./components/news/NewsPanel";
 import ChartView from "./components/chart/ChartView";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
@@ -15,6 +14,7 @@ import { StrategiesContainer } from "./containers/StrategiesContainer";
 import { BacktestPage } from "./components/backtest/mantine";
 import { PaperTradingView } from "./components/paper-trading/mantine";
 import { BotsPage } from "./components/bots/mantine";
+import { NewsWebSocketProvider } from "./state/newsWebSocket";
 
 // Wrapper for legacy views (backtest, paper, bots) that still use string-based HTML rendering
 function LegacyShell({ view }: { view: AppRouteView }) {
@@ -115,7 +115,6 @@ function AppContent() {
         <Route path="/chart/:symbol" element={<ChartView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <NewsPanel />
       <NotificationContainer />
     </AppLayout>
   );
@@ -124,7 +123,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <NewsWebSocketProvider>
+        <AppContent />
+      </NewsWebSocketProvider>
     </AuthProvider>
   );
 }

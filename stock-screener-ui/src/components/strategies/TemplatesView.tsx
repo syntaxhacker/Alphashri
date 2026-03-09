@@ -51,15 +51,7 @@ export function TemplatesView({
 
 function TemplateCard({ template, variations, onCreateFromTemplate }: TemplateCardProps) {
   return (
-    <Card
-      className="template-card"
-      shadow="sm"
-      padding="md"
-      radius="sm"
-      withBorder
-      h="100%"
-      data-testid="strategy-card"
-    >
+    <Card shadow="sm" padding="md" radius="sm" withBorder h="100%" data-testid="strategy-card">
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start" wrap="nowrap">
           <Group gap="xs">
@@ -84,7 +76,7 @@ function TemplateCard({ template, variations, onCreateFromTemplate }: TemplateCa
             <Text size="xs" c="dimmed">
               Type:
             </Text>
-            <Text size="xs" fw={500} className="template-type">
+            <Text size="xs" fw={500}>
               {template.strategy_type}
             </Text>
           </Group>

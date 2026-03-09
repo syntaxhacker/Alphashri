@@ -8,8 +8,12 @@ interface BacktestSummaryProps {
 export function BacktestSummary({ totals }: BacktestSummaryProps) {
   if (!totals) return null;
 
-  const pnlColor = totals.net_pnl >= 0 ? "green" : "red";
-  const pnlSign = totals.net_pnl >= 0 ? "+" : "";
+  const netPnl = totals.net_pnl ?? 0;
+  const totalCosts = totals.total_costs ?? 0;
+  const winRate = totals.win_rate ?? 0;
+
+  const pnlColor = netPnl >= 0 ? "green" : "red";
+  const pnlSign = netPnl >= 0 ? "+" : "";
 
   return (
     <Group gap="sm" data-testid="results-summary">
@@ -18,7 +22,7 @@ export function BacktestSummary({ totals }: BacktestSummaryProps) {
           Net PnL
         </Text>
         <Text size="sm" fw={600} c={pnlColor}>
-          {pnlSign}₹{(totals.net_pnl / 1000).toFixed(1)}K
+          {pnlSign}₹{(netPnl / 1000).toFixed(1)}K
         </Text>
       </Group>
       <Group gap={4} data-testid="summary-costs">
@@ -26,7 +30,7 @@ export function BacktestSummary({ totals }: BacktestSummaryProps) {
           Costs
         </Text>
         <Text size="sm" fw={600} c="red">
-          ₹{(totals.total_costs / 1000).toFixed(1)}K
+          ₹{(totalCosts / 1000).toFixed(1)}K
         </Text>
       </Group>
       <Group gap={4} data-testid="summary-wr">
@@ -34,7 +38,7 @@ export function BacktestSummary({ totals }: BacktestSummaryProps) {
           WR
         </Text>
         <Text size="sm" fw={600}>
-          {totals.win_rate.toFixed(0)}%
+          {winRate.toFixed(0)}%
         </Text>
       </Group>
       <Group gap={4} data-testid="summary-trades">
@@ -42,7 +46,7 @@ export function BacktestSummary({ totals }: BacktestSummaryProps) {
           Trades
         </Text>
         <Text size="sm" fw={600}>
-          {totals.trades}
+          {totals.trades ?? 0}
         </Text>
       </Group>
     </Group>

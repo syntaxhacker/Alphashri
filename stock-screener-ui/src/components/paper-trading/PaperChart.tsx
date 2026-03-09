@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Box, Text, Group, Badge, Card, Select, Flex } from "@mantine/core";
+import { Box, Text, Group, Badge, Card, Select, Flex, useMantineColorScheme } from "@mantine/core";
 import { getPaperTradingState, setChartTimeframe, subscribe } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type {
@@ -18,12 +18,20 @@ const TIMEFRAME_OPTIONS = [
   { value: "1hour", label: "1H" },
 ];
 
-function buildChartOption(data: PaperChartData): any {
+function buildChartOption(data: PaperChartData, isDark: boolean): any {
   const { candles, trades, orb_levels, week52_levels, current_position } = data;
 
   if (!candles || candles.length === 0) {
     return {};
   }
+
+  const bgColor = isDark ? "#0a0a0a" : "#ffffff";
+  const textColor = isDark ? "#e0e0e0" : "#333333";
+  const mutedColor = isDark ? "#888" : "#666666";
+  const borderColor = isDark ? "#333" : "#e0e0e0";
+  const splitLineColor = isDark ? "#333" : "#eeeeee";
+  const axisLineColor = isDark ? "#444" : "#cccccc";
+  const tooltipBg = isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
 
   const ohlcData = candles.map((c: CandleData) => [c.open, c.close, c.low, c.high]);
 
@@ -206,20 +214,20 @@ function buildChartOption(data: PaperChartData): any {
   };
 
   return {
-    backgroundColor: "#0a0a0a",
+    backgroundColor: bgColor,
     animation: false,
     legend: {
       data: ["Price", "Entry", "TP Exit", "SL Exit", "Other Exit"],
       bottom: 10,
-      textStyle: { color: "#888" },
+      textStyle: { color: mutedColor },
     },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "cross" },
-      backgroundColor: "rgba(20, 20, 20, 0.95)",
-      borderColor: "#333",
+      backgroundColor: tooltipBg,
+      borderColor: borderColor,
       borderWidth: 1,
-      textStyle: { color: "#e0e0e0", fontSize: 10 },
+      textStyle: { color: textColor, fontSize: 10 },
       formatter: function (params: any[]) {
         for (const p of params) {
           if (p.data && p.data.trade) {
@@ -320,8 +328,8 @@ function buildChartOption(data: PaperChartData): any {
         type: "category",
         data: times,
         boundaryGap: true,
-        axisLine: { lineStyle: { color: "#444" } },
-        axisLabel: { color: "#888", fontSize: 10 },
+        axisLine: { lineStyle: { color: axisLineColor } },
+        axisLabel: { color: mutedColor, fontSize: 10 },
         splitLine: { show: false },
         min: "dataMin",
         max: "dataMax",
@@ -341,9 +349,9 @@ function buildChartOption(data: PaperChartData): any {
     yAxis: [
       {
         scale: true,
-        axisLine: { lineStyle: { color: "#444" } },
-        axisLabel: { color: "#888", fontSize: 10 },
-        splitLine: { lineStyle: { color: "#333" } },
+        axisLine: { lineStyle: { color: axisLineColor } },
+        axisLabel: { color: mutedColor, fontSize: 10 },
+        splitLine: { lineStyle: { color: splitLineColor } },
       },
       {
         scale: true,
@@ -552,6 +560,8 @@ export function PaperChart() {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<any>(null);
   const [, forceUpdate] = useState({});
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
 
   const state = getPaperTradingState();
 
@@ -580,9 +590,9 @@ export function PaperChart() {
       chartInstance.current.dispose();
     }
 
-    chartInstance.current = echartsLib.init(chartRef.current, "dark");
+    chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
 
-    const option = buildChartOption(state.chartData);
+    const option = buildChartOption(state.chartData, isDark);
     chartInstance.current.setOption(option);
 
     const handleResize = () => {
@@ -595,7 +605,7 @@ export function PaperChart() {
       chartInstance.current?.dispose();
       chartInstance.current = null;
     };
-  }, [state.chartData, state.selectedSymbol]);
+  }, [state.chartData, state.selectedSymbol, isDark]);
 
   const handleTimeframeChange = useCallback(
     async (value: string | null) => {
@@ -618,7 +628,7 @@ export function PaperChart() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "var(--mantine-color-dark-6)",
+          backgroundColor: "var(--mantine-color-body)",
         }}
       >
         <Box data-testid="chart-placeholder-content" style={{ textAlign: "center" }}>
@@ -640,7 +650,7 @@ export function PaperChart() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "var(--mantine-color-dark-6)",
+          backgroundColor: "var(--mantine-color-body)",
         }}
       >
         <Box data-testid="chart-loading" style={{ textAlign: "center" }}>
@@ -659,7 +669,7 @@ export function PaperChart() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "var(--mantine-color-dark-6)",
+          backgroundColor: "var(--mantine-color-body)",
         }}
       >
         <Box data-testid="chart-error" style={{ textAlign: "center" }}>
@@ -684,7 +694,7 @@ export function PaperChart() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "var(--mantine-color-dark-6)",
+          backgroundColor: "var(--mantine-color-body)",
         }}
       >
         <Box data-testid="chart-error" style={{ textAlign: "center" }}>
@@ -707,7 +717,7 @@ export function PaperChart() {
       style={{
         padding: 0,
         overflow: "hidden",
-        backgroundColor: "var(--mantine-color-dark-6)",
+        backgroundColor: "var(--mantine-color-body)",
         display: "flex",
         flexDirection: "column",
         minHeight: 0,

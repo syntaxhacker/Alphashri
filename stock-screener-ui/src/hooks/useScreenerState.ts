@@ -4,6 +4,7 @@ import { subscribe } from "../state";
 import { getUniqueSectors } from "../components/filters";
 import { getActiveProfileMeta, initProfileFilters } from "../components/profile";
 import { fetchData, setupAutoRefresh, loadScreeners } from "../api";
+import { initPreviewChartHandlers } from "../components/common/previewChart";
 
 export function useScreenerState() {
   const [, forceUpdate] = useState(0);
@@ -18,6 +19,9 @@ export function useScreenerState() {
 
   // Load data on mount
   useEffect(() => {
+    // Initialize preview chart handlers for hover/click functionality
+    initPreviewChartHandlers();
+
     // Initialize screeners if not loaded
     if (state.screenerOptions.length === 0) {
       loadScreeners(initProfileFilters).then(() => {

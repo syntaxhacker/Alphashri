@@ -11,6 +11,7 @@ import type {
 import { fetchWithAuth } from "../state/auth";
 
 const API_BASE = "http://localhost:8765";
+const WS_BASE = "ws://localhost:8765";
 
 /**
  * Fetch latest news from a source
@@ -64,5 +65,63 @@ export async function fetchNewsSources(): Promise<NewsSource[]> {
   } catch (error) {
     console.error("Failed to fetch news sources:", error);
     return [];
+  }
+}
+
+/**
+ * WebSocket message types for news updates
+ */
+export interface NewsWebSocketMessage {
+  type: "new_items" | "connected" | "ping";
+  source?: string;
+  items?: NewsItem[];
+  message?: string;
+  timestamp?: string;
+}
+
+export type NewsWebSocketCallback = (message: NewsWebSocketMessage) => void;
+
+/**
+ * Create a WebSocket connection for real-time news updates
+ * @param onMessage Callback function to handle incoming messages
+ * @param onConnect Optional callback when connection is established
+ * @param onDisconnect Optional callback when connection is lost
+ * @returns WebSocket instance or null if connection failed
+ */
+export function createNewsWebSocket(
+  onMessage: NewsWebSocketCallback,
+  onConnect?: () => void,
+  onDisconnect?: () => void,
+): WebSocket | null {
+  try {
+    const ws = new WebSocket(`${WS_BASE}/ws/news`);
+
+    ws.onopen = () => {
+      console.log("📰 News WebSocket connected");
+      onConnect?.();
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data: NewsWebSocketMessage = JSON.parse(event.data);
+        onMessage(data);
+      } catch (e) {
+        console.error("Failed to parse WebSocket message:", e);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("📰 News WebSocket error:", error);
+    };
+
+    ws.onclose = (event) => {
+      console.log(`📰 News WebSocket disconnected (code: ${event.code})`);
+      onDisconnect?.();
+    };
+
+    return ws;
+  } catch (error) {
+    console.error("Failed to create WebSocket:", error);
+    return null;
   }
 }
