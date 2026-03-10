@@ -93,6 +93,11 @@ def client(db):
         from api.auth import router as auth_router
         app = FastAPI()
         app.include_router(auth_router)
+        try:
+            from api.paper_trading import router as paper_router
+            app.include_router(paper_router)
+        except ImportError:
+            pass
 
     app.dependency_overrides[get_db] = lambda: db
     with TestClient(app) as test_client:
@@ -174,9 +179,10 @@ def sample_strategy(db):
 
 
 @pytest.fixture
-def sample_bot(db, sample_strategy):
+def sample_bot(db, test_user, sample_strategy):
     bot = BotConfig(
         name="Security Test Bot",
+        user_id=test_user.id,
         is_active=True,
         max_total_positions=5,
         max_total_capital_pct=0.50,
@@ -356,6 +362,7 @@ class TestJWTTokenSecurity:
         assert delta < timedelta(minutes=31)
 
 
+@pytest.mark.unit
 class TestSessionManagement:
     """Tests for session management security."""
 
@@ -431,6 +438,7 @@ class TestSessionManagement:
         assert len(sessions) >= 2
 
 
+@pytest.mark.unit
 class TestBruteForceProtection:
     """Tests for brute force attack protection."""
 
@@ -458,6 +466,7 @@ class TestBruteForceProtection:
 # 2. INPUT VALIDATION TESTS
 # =============================================================================
 
+@pytest.mark.unit
 class TestSQLInjection:
     """Tests for SQL injection prevention."""
 
@@ -502,6 +511,7 @@ class TestSQLInjection:
         db.commit()
 
 
+@pytest.mark.unit
 class TestXSSPrevention:
     """Tests for XSS prevention in API inputs."""
 
@@ -539,6 +549,7 @@ class TestXSSPrevention:
             assert data["name"] == xss_payload
 
 
+@pytest.mark.unit
 class TestPathTraversal:
     """Tests for path traversal prevention."""
 
@@ -565,6 +576,7 @@ class TestPathTraversal:
                not full_path.exists()
 
 
+@pytest.mark.unit
 class TestMalformedInput:
     """Tests for malformed input handling."""
 
@@ -607,6 +619,7 @@ class TestMalformedInput:
         assert response.status_code in [201, 422]
 
 
+@pytest.mark.unit
 class TestTypeCoercionAttacks:
     """Tests for type coercion attack prevention."""
 
@@ -644,6 +657,7 @@ class TestTypeCoercionAttacks:
 # 3. AUTHORIZATION TESTS
 # =============================================================================
 
+@pytest.mark.unit
 class TestUserIsolation:
     """Tests for user data isolation."""
 
@@ -677,6 +691,7 @@ class TestUserIsolation:
         assert result["sub"] == "999"
 
 
+@pytest.mark.unit
 class TestResourceOwnership:
     """Tests for resource ownership checks."""
 
@@ -701,6 +716,7 @@ class TestResourceOwnership:
         assert second_user.initial_capital == original_capital
 
 
+@pytest.mark.unit
 class TestPrivilegeEscalation:
     """Tests for privilege escalation prevention."""
 
@@ -750,6 +766,7 @@ class TestPrivilegeEscalation:
 # 4. API SECURITY TESTS
 # =============================================================================
 
+@pytest.mark.unit
 class TestErrorInformationDisclosure:
     """Tests for error message information disclosure."""
 
@@ -782,6 +799,7 @@ class TestErrorInformationDisclosure:
         assert "detail" in data
 
 
+@pytest.mark.unit
 class TestSensitiveDataExposure:
     """Tests for sensitive data exposure in responses."""
 

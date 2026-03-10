@@ -27,6 +27,7 @@ from trading.shared_portfolio import (
 )
 
 
+@pytest.mark.unit
 class TestOrderSide:
     """Tests for OrderSide enum."""
 
@@ -37,6 +38,7 @@ class TestOrderSide:
         assert OrderSide.SELL.value == "SELL"
 
 
+@pytest.mark.unit
 class TestStrategyAllocation:
     """Tests for StrategyAllocation dataclass."""
 
@@ -66,6 +68,7 @@ class TestStrategyAllocation:
         assert alloc.realized_pnl == 500.0
 
 
+@pytest.mark.unit
 class TestSharedPosition:
     """Tests for SharedPosition dataclass."""
 
@@ -111,6 +114,7 @@ class TestSharedPosition:
         assert pos.low_price == 3350.0
 
 
+@pytest.mark.unit
 class TestCompletedTrade:
     """Tests for CompletedTrade dataclass."""
 
@@ -136,6 +140,7 @@ class TestCompletedTrade:
         assert trade.tp_price == 0.0
 
 
+@pytest.mark.unit
 class TestSharedPortfolioManagerInit:
     """Tests for SharedPortfolioManager initialization."""
 
@@ -173,6 +178,7 @@ class TestSharedPortfolioManagerInit:
         assert portfolio.daily_trades == 0
 
 
+@pytest.mark.unit
 class TestStrategyAllocationMethods:
     """Tests for strategy allocation management."""
 
@@ -237,6 +243,7 @@ class TestStrategyAllocationMethods:
         assert portfolio.get_total_capital_used() == 0.0
 
 
+@pytest.mark.unit
 class TestPositionLimits:
     """Tests for position limit checks."""
 
@@ -352,6 +359,7 @@ class TestPositionLimits:
         assert portfolio.get_symbol_exposure("UNKNOWN") == 0.0
 
 
+@pytest.mark.unit
 class TestOpenPosition:
     """Tests for opening positions."""
 
@@ -467,6 +475,7 @@ class TestOpenPosition:
         assert portfolio.get_total_positions() == 3
 
 
+@pytest.mark.unit
 class TestClosePosition:
     """Tests for closing positions."""
 
@@ -700,6 +709,7 @@ class TestClosePosition:
         assert trade2.trade_id == "TRADE-000002"
 
 
+@pytest.mark.unit
 class TestUpdatePrices:
     """Tests for price updates and unrealized P&L."""
 
@@ -779,6 +789,7 @@ class TestUpdatePrices:
         assert portfolio.positions["2_TCS"].current_price == 3500.0
 
 
+@pytest.mark.unit
 class TestPortfolioStatus:
     """Tests for portfolio status reporting."""
 
@@ -873,6 +884,7 @@ class TestPortfolioStatus:
         assert len(positions) == 2
 
 
+@pytest.mark.unit
 class TestDailyTracking:
     """Tests for daily P&L tracking."""
 
@@ -906,6 +918,7 @@ class TestDailyTracking:
         assert portfolio.daily_trades == 0
 
 
+@pytest.mark.unit
 class TestMultiStrategyPositions:
     """Tests for managing positions across multiple strategies."""
 
@@ -954,6 +967,7 @@ class TestMultiStrategyPositions:
         assert "1_RELIANCE" not in portfolio.positions
 
 
+@pytest.mark.unit
 class TestEdgeCases:
     """Tests for edge cases and boundary conditions."""
 
@@ -1037,6 +1051,7 @@ class TestEdgeCases:
         assert positions == []
 
 
+@pytest.mark.unit
 class TestPnLCalculations:
     """Tests for P&L calculation accuracy."""
 
