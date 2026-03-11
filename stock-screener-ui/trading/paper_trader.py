@@ -131,7 +131,7 @@ class PaperTrader:
         strategy_id: int = 0,
         strategy_name: str = "",
         # Slippage and Fill parameters
-        slippage_pct: float = 0.0005,      # 0.05% default slippage
+        slippage_pct: float = 0,            # No slippage by default
         fill_probability: float = 1.0,     # Probability of order being filled
         max_fill_pct: float = 1.0,         # Maximum percentage of quantity that can be filled
     ):
@@ -405,8 +405,13 @@ class PaperTrader:
         else:
             fill_price = price * (1 - self.slippage_pct)
 
-
         margin_required = fill_price * fill_quantity
+
+        # Check insufficient cash
+        if margin_required > self.cash:
+            console.print(f"[yellow]⚠ Order for {symbol} cancelled (insufficient cash: need ₹{margin_required:.2f}, have ₹{self.cash:.2f})[/yellow]")
+            order.status = OrderStatus.CANCELLED
+            return order
 
         # Immediately fill (paper trading)
         order.status = OrderStatus.FILLED

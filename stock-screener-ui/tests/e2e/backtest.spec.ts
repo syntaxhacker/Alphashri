@@ -175,7 +175,9 @@ test.describe("Backtest View - Symbol Selection", () => {
     await page.keyboard.type("RELIANCE");
     await page.waitForTimeout(800);
 
-    const option = page.locator('[data-testid="symbol-multiselect"] [data-mantine-combobox-option]').first();
+    const option = page
+      .locator('[data-testid="symbol-multiselect"] [data-mantine-combobox-option]')
+      .first();
     if (await option.isVisible()) {
       const optionText = await option.textContent();
       expect(optionText?.toLowerCase()).toContain("reliance");
@@ -192,7 +194,9 @@ test.describe("Backtest View - Symbol Selection", () => {
     await page.keyboard.type("INF");
     await page.waitForTimeout(500);
 
-    const firstOption = page.locator('[data-testid="symbol-multiselect"] [data-mantine-combobox-option]').first();
+    const firstOption = page
+      .locator('[data-testid="symbol-multiselect"] [data-mantine-combobox-option]')
+      .first();
     if (await firstOption.isVisible()) {
       await firstOption.click();
       await page.waitForTimeout(300);

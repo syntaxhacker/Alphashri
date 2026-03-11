@@ -61,8 +61,8 @@ class TestListStrategies:
         assert data["count"] >= len(sample_strategies) + 1
 
         # Verify at least the template is included
-        template_ids = [s["id"] for s in data["strategies"] if s["is_template"]]
-        assert sample_template_strategy.id in template_ids
+        template_uuids = [s["id"] for s in data["strategies"] if s["is_template"]]
+        assert sample_template_strategy.uuid in template_uuids
 
     def test_filter_by_strategy_type(
         self, client: TestClient,
@@ -211,7 +211,7 @@ class TestGetStrategy:
 
         data = response.json()
         assert "strategy" in data
-        assert data["strategy"]["id"] == sample_strategy.id
+        assert data["strategy"]["id"] == sample_strategy.uuid
         assert data["strategy"]["name"] == sample_strategy.name
 
     def test_get_non_existent_strategy(self, client: TestClient):
@@ -460,11 +460,11 @@ class TestCreateStrategy:
         response = client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 200
 
-        strategy_id = response.json()["strategy"]["id"]
+        strategy_uuid = response.json()["strategy"]["id"]
 
-        # Verify in database
+        # Verify in database - API returns UUID as 'id'
         strategy = db.query(StrategyConfig).filter(
-            StrategyConfig.id == strategy_id
+            StrategyConfig.uuid == strategy_uuid
         ).first()
         assert strategy is not None
         assert strategy.name == "Persistence Test"
@@ -964,7 +964,7 @@ class TestGetStrategyVariations:
         assert "variations" in data
         assert "count" in data
 
-        assert data["parent"]["id"] == sample_template_strategy.id
+        assert data["parent"]["id"] == sample_template_strategy.uuid
         assert data["parent"]["is_template"] is True
 
     def test_get_variations_for_non_template(

@@ -18,7 +18,6 @@ Tests cover:
 
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
 from dataclasses import fields
 
 from trading.orb_signals import (
@@ -27,6 +26,25 @@ from trading.orb_signals import (
     ORBSignalGenerator,
     create_entry_signal,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_global_state():
+    """Reset any global module state before and after each test."""
+    import trading.orb_signals as orb_module
+    
+    original_config_available = getattr(orb_module, '_config_available', None)
+    
+    try:
+        from pytest_mock import _mock_cache
+        _mock_cache.clear()
+    except ImportError:
+        pass
+    
+    yield
+    
+    if original_config_available is not None:
+        orb_module._config_available = original_config_available
 
 
 # ============================================================================
@@ -716,240 +734,240 @@ class TestCheckExit:
         """Create a generator for testing."""
         return ORBSignalGenerator()
 
-    def test_long_exit_on_stop_loss(self, generator):
+    def test_long_exit_on_stop_loss(self, generator, mocker):
         """Test long exit when stop loss is hit."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="BUY",
-                entry_price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                current_price=98.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="BUY",
+            entry_price=100.0,
+            stop_loss=99.0,
+            take_profit=102.0,
+            current_price=98.5,
+        )
 
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
         assert signal.notes == "Stop loss hit"
 
-    def test_long_exit_on_take_profit(self, generator):
+    def test_long_exit_on_take_profit(self, generator, mocker):
         """Test long exit when take profit is hit."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="BUY",
-                entry_price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                current_price=102.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="BUY",
+            entry_price=100.0,
+            stop_loss=99.0,
+            take_profit=102.0,
+            current_price=102.5,
+        )
 
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
         assert signal.notes == "Take profit hit"
 
-    def test_short_exit_on_stop_loss(self, generator):
+    def test_short_exit_on_stop_loss(self, generator, mocker):
         """Test short exit when stop loss is hit."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="SELL",
-                entry_price=100.0,
-                stop_loss=101.0,
-                take_profit=98.0,
-                current_price=101.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="SELL",
+            entry_price=100.0,
+            stop_loss=101.0,
+            take_profit=98.0,
+            current_price=101.5,
+        )
 
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_EXIT
         assert signal.notes == "Stop loss hit"
 
-    def test_short_exit_on_take_profit(self, generator):
+    def test_short_exit_on_take_profit(self, generator, mocker):
         """Test short exit when take profit is hit."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="SELL",
-                entry_price=100.0,
-                stop_loss=101.0,
-                take_profit=98.0,
-                current_price=97.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="SELL",
+            entry_price=100.0,
+            stop_loss=101.0,
+            take_profit=98.0,
+            current_price=97.5,
+        )
 
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_EXIT
         assert signal.notes == "Take profit hit"
 
-    def test_no_exit_price_within_range_long(self, generator):
+    def test_no_exit_price_within_range_long(self, generator, mocker):
         """Test no exit for long when price is within SL/TP range."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="BUY",
-                entry_price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                current_price=100.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="BUY",
+            entry_price=100.0,
+            stop_loss=99.0,
+            take_profit=102.0,
+            current_price=100.5,
+        )
 
         assert signal is None
 
-    def test_no_exit_price_within_range_short(self, generator):
+    def test_no_exit_price_within_range_short(self, generator, mocker):
         """Test no exit for short when price is within SL/TP range."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="SELL",
-                entry_price=100.0,
-                stop_loss=101.0,
-                take_profit=98.0,
-                current_price=99.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="SELL",
+            entry_price=100.0,
+            stop_loss=101.0,
+            take_profit=98.0,
+            current_price=99.5,
+        )
 
         assert signal is None
 
-    def test_eod_force_exit_long(self, generator):
+    def test_eod_force_exit_long(self, generator, mocker):
         """Test EOD force exit for long position at 14:45."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 14, 45)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 14, 45)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="BUY",
-                entry_price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                current_price=100.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="BUY",
+            entry_price=100.0,
+            stop_loss=99.0,
+            take_profit=102.0,
+            current_price=100.5,
+        )
 
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
         assert "EOD force exit" in signal.notes
 
-    def test_eod_force_exit_short(self, generator):
+    def test_eod_force_exit_short(self, generator, mocker):
         """Test EOD force exit for short position at 14:45."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 14, 45)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 14, 45)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="SELL",
-                entry_price=100.0,
-                stop_loss=101.0,
-                take_profit=98.0,
-                current_price=99.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="SELL",
+            entry_price=100.0,
+            stop_loss=101.0,
+            take_profit=98.0,
+            current_price=99.5,
+        )
 
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_EXIT
         assert "EOD force exit" in signal.notes
 
-    def test_eod_force_exit_after_14_45(self, generator):
+    def test_eod_force_exit_after_14_45(self, generator, mocker):
         """Test EOD force exit for times after 14:45 but before 15:00."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 14, 50)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 14, 50)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="BUY",
-                entry_price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                current_price=100.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="BUY",
+            entry_price=100.0,
+            stop_loss=99.0,
+            take_profit=102.0,
+            current_price=100.5,
+        )
 
         assert signal is not None
         assert "EOD force exit" in signal.notes
 
-    def test_no_eod_exit_before_14_45(self, generator):
+    def test_no_eod_exit_before_14_45(self, generator, mocker):
         """Test no EOD exit before 14:45."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 14, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 14, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="BUY",
-                entry_price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                current_price=100.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="BUY",
+            entry_price=100.0,
+            stop_loss=99.0,
+            take_profit=102.0,
+            current_price=100.5,
+        )
 
         assert signal is None
 
-    def test_exit_signal_includes_prices(self, generator):
+    def test_exit_signal_includes_prices(self, generator, mocker):
         """Test that exit signal includes SL/TP prices."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="BUY",
-                entry_price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                current_price=98.5,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="BUY",
+            entry_price=100.0,
+            stop_loss=99.0,
+            take_profit=102.0,
+            current_price=98.5,
+        )
 
         assert signal.stop_loss == 99.0
         assert signal.take_profit == 102.0
         assert signal.price == 98.5
 
-    def test_long_exit_exact_stop_loss(self, generator):
+    def test_long_exit_exact_stop_loss(self, generator, mocker):
         """Test long exit when price is exactly at stop loss."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="BUY",
-                entry_price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                current_price=99.0,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="BUY",
+            entry_price=100.0,
+            stop_loss=99.0,
+            take_profit=102.0,
+            current_price=99.0,
+        )
 
         assert signal is not None
         assert signal.notes == "Stop loss hit"
 
-    def test_long_exit_exact_take_profit(self, generator):
+    def test_long_exit_exact_take_profit(self, generator, mocker):
         """Test long exit when price is exactly at take profit."""
-        with patch('trading.orb_signals.datetime') as mock_datetime:
-            mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        mock_datetime = mocker.patch('trading.orb_signals.datetime')
+        mock_datetime.now.return_value = datetime(2024, 1, 15, 10, 30)
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
-            signal = generator.check_exit(
-                symbol="TEST",
-                position_side="BUY",
-                entry_price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                current_price=102.0,
-            )
+        signal = generator.check_exit(
+            symbol="TEST",
+            position_side="BUY",
+            entry_price=100.0,
+            stop_loss=99.0,
+            take_profit=102.0,
+            current_price=102.0,
+        )
 
         assert signal is not None
         assert signal.notes == "Take profit hit"

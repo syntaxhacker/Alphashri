@@ -74,7 +74,8 @@ class BotUpdate(BaseModel):
 
 
 class BotResponse(BaseModel):
-    id: str  # UUID string
+    id: int  # integer primary key
+    uuid: str  # bot UUID
     name: str
     is_active: bool
     max_total_positions: int
@@ -82,8 +83,9 @@ class BotResponse(BaseModel):
     strategies: List[dict]
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
-    running: bool = False
-    pid: Optional[int] = None
+    status: Optional[str] = None
+    process_id: Optional[int] = None
+    error: Optional[str] = None
 
 
 class BotStatusResponse(BaseModel):
@@ -125,25 +127,44 @@ def validate_uuid(uuid_str: str) -> bool:
 
 
 def get_bot_by_uuid(bot_uuid: str, user_id: int, db: Session) -> BotConfig:
-    """Get bot by UUID, validating ownership."""
-    if not validate_uuid(bot_uuid):
-        raise HTTPException(status_code=400, detail=f"Invalid bot UUID: {bot_uuid}")
+    """Get bot by UUID or ID, validating ownership."""
+    # Use different filters depending on whether bot_uuid looks like a UUID or an integer
+    is_numeric = str(bot_uuid).isdigit()
+    
+    if is_numeric:
+        bot = db.query(BotConfig).filter(
+            BotConfig.id == int(bot_uuid),
+            BotConfig.user_id == user_id
+        ).first()
+    else:
+        if not validate_uuid(bot_uuid):
+            raise HTTPException(status_code=400, detail=f"Invalid bot UUID: {bot_uuid}")
+        bot = db.query(BotConfig).filter(
+            BotConfig.uuid == bot_uuid,
+            BotConfig.user_id == user_id
+        ).first()
 
-    bot = db.query(BotConfig).filter(
-        BotConfig.uuid == bot_uuid,
-        BotConfig.user_id == user_id
-    ).first()
     if not bot:
         raise HTTPException(status_code=404, detail=f"Bot {bot_uuid} not found")
     return bot
 
 
 def get_strategy_by_uuid(strategy_uuid: str, db: Session) -> StrategyConfig:
-    """Get strategy by UUID."""
-    if not validate_uuid(strategy_uuid):
-        raise HTTPException(status_code=400, detail=f"Invalid strategy UUID: {strategy_uuid}")
-
-    strategy = db.query(StrategyConfig).filter(StrategyConfig.uuid == strategy_uuid).first()
+    """Get strategy by UUID or integer ID."""
+    # Use different filters depending on whether strategy_uuid looks like a UUID or an integer
+    is_numeric = str(strategy_uuid).isdigit()
+    
+    if is_numeric:
+        strategy = db.query(StrategyConfig).filter(
+            StrategyConfig.id == int(strategy_uuid)
+        ).first()
+    else:
+        if not validate_uuid(strategy_uuid):
+            raise HTTPException(status_code=400, detail=f"Invalid strategy UUID: {strategy_uuid}")
+        strategy = db.query(StrategyConfig).filter(
+            StrategyConfig.uuid == strategy_uuid
+        ).first()
+    
     if not strategy:
         raise HTTPException(status_code=404, detail=f"Strategy {strategy_uuid} not found")
     return strategy
@@ -201,7 +222,8 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
             strategy = db.query(StrategyConfig).filter(StrategyConfig.id == row.strategy_id).first()
             if strategy:
                 strategies.append({
-                    'id': strategy.uuid,  # Return UUID
+                    'id': strategy.uuid,  # Return UUID for strategy identifier
+                    'strategy_id': strategy.uuid,
                     'name': strategy.name,
                     'strategy_type': strategy.strategy_type,
                     'max_positions': row.max_positions,
@@ -212,7 +234,8 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
             db.close()
 
     return BotResponse(
-        id=bot.uuid,  # Return UUID
+        id=bot.id,
+        uuid=str(bot.uuid) if bot.uuid else None,
         name=bot.name,
         is_active=bot.is_active,
         max_total_positions=bot.max_total_positions,
@@ -220,8 +243,8 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
         strategies=strategies,
         created_at=bot.created_at.isoformat() if bot.created_at else None,
         updated_at=bot.updated_at.isoformat() if bot.updated_at else None,
-        running=running,
-        pid=pid,
+        status="RUNNING" if running else "STOPPED",
+        process_id=pid if pid else None,
     )
 
 
@@ -316,13 +339,16 @@ async def create_bot(
             raise HTTPException(status_code=400, detail=f"Bot with name '{request.name}' already exists")
 
         total_allocation = sum(s.capital_allocation_pct for s in request.strategies)
-        if total_allocation > 1.0:
+        # Use round to handle floating point precision issues (e.g. 0.33 + 0.33 + 0.34 = 1.0000000000000002)
+        if round(total_allocation, 4) > 1.0:
             raise HTTPException(
                 status_code=400,
                 detail=f"Total capital allocation ({total_allocation:.0%}) exceeds 100%"
             )
 
+        import uuid as uuid_module
         bot = BotConfig(
+            uuid=str(uuid_module.uuid4()),
             name=request.name,
             user_id=user_id,
             is_active=request.is_active,
@@ -334,8 +360,7 @@ async def create_bot(
 
         for alloc in request.strategies:
             strategy = get_strategy_by_uuid(alloc.strategy_id, db)
-            if not strategy:
-                raise HTTPException(status_code=400, detail=f"Strategy {alloc.strategy_id} not found")
+            # get_strategy_by_uuid already raises 404 if not found
 
             db.execute(
                 bot_strategies.insert().values(
@@ -417,7 +442,8 @@ async def update_bot(
 
         if request.strategies is not None:
             total_allocation = sum(s.capital_allocation_pct for s in request.strategies)
-            if total_allocation > 1.0:
+            # Use round to handle floating point precision issues (e.g. 0.33 + 0.33 + 0.34 = 1.0000000000000002)
+            if round(total_allocation, 4) > 1.0:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Total capital allocation ({total_allocation:.0%}) exceeds 100%"
@@ -1170,12 +1196,18 @@ async def get_strategy_performance(
 
             all_strategy_perf = journal.get_strategy_performance(include_test=include_test)
 
-            with SessionLocal() as session:
-                result = session.execute(
+            # Use the injected db session if available, otherwise create a new one
+            if db is not None:
+                result = db.execute(
                     bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
                 ).fetchall()
-
                 bot_strategy_ids = [row.strategy_id for row in result]
+            else:
+                with SessionLocal() as session:
+                    result = session.execute(
+                        bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
+                    ).fetchall()
+                    bot_strategy_ids = [row.strategy_id for row in result]
 
             bot_performance = {
                 str(sid): perf

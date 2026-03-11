@@ -423,56 +423,92 @@ class TestStrategyConfigModel:
 class TestBotConfigModel:
     """Tests for BotConfig model."""
 
-    def test_bot_instantiation_minimal(self, db_session):
+    @pytest.fixture
+    def test_user(self, db_session):
+        """Create a test user for bot tests."""
+        user = User(email="bot_test@example.com", hashed_password="hashed")
+        db_session.add(user)
+        db_session.commit()
+        return user
+
+    def test_bot_instantiation_minimal(self, db_session, test_user):
         """Test creating BotConfig with minimal required fields."""
-        bot = BotConfig(name="test_bot")
+        bot = BotConfig(name="test_bot", user_id=test_user.id)
         db_session.add(bot)
         db_session.commit()
         
         assert bot.id is not None
+        assert bot.uuid is not None
         assert bot.name == "test_bot"
+        assert bot.user_id == test_user.id
 
-    def test_bot_name_unique_constraint(self, db_session):
-        """Test that name must be unique."""
-        bot1 = BotConfig(name="unique_bot")
-        bot2 = BotConfig(name="unique_bot")
+    def test_bot_name_unique_per_user(self, db_session, test_user):
+        """Test that name must be unique per user."""
+        bot1 = BotConfig(name="unique_bot", user_id=test_user.id)
+        bot2 = BotConfig(name="unique_bot", user_id=test_user.id)
         db_session.add_all([bot1, bot2])
         
         with pytest.raises(IntegrityError):
             db_session.commit()
 
-    def test_bot_name_required(self, db_session):
+    def test_bot_name_can_be_same_for_different_users(self, db_session):
+        """Test that different users can have bots with the same name."""
+        user1 = User(email="user1@example.com", hashed_password="h1")
+        user2 = User(email="user2@example.com", hashed_password="h2")
+        db_session.add_all([user1, user2])
+        db_session.commit()
+        
+        bot1 = BotConfig(name="same_name", user_id=user1.id)
+        bot2 = BotConfig(name="same_name", user_id=user2.id)
+        db_session.add_all([bot1, bot2])
+        db_session.commit()
+        
+        assert bot1.id != bot2.id
+        assert bot1.name == bot2.name
+
+    def test_bot_name_required(self, db_session, test_user):
         """Test that name is required."""
-        bot = BotConfig()
+        bot = BotConfig(user_id=test_user.id)
         db_session.add(bot)
         
         with pytest.raises(IntegrityError):
             db_session.commit()
 
-    def test_bot_default_values(self, db_session):
+    def test_bot_user_id_required(self, db_session):
+        """Test that user_id is required."""
+        bot = BotConfig(name="no_user_bot")
+        db_session.add(bot)
+        
+        with pytest.raises(IntegrityError):
+            db_session.commit()
+
+    def test_bot_default_values(self, db_session, test_user):
         """Test BotConfig default values."""
-        bot = BotConfig(name="defaults_bot")
+        bot = BotConfig(name="defaults_bot", user_id=test_user.id)
         db_session.add(bot)
         db_session.commit()
         
         assert bot.is_active is True
         assert bot.max_total_positions == 10
         assert bot.max_total_capital_pct == 0.80
+        assert bot.uuid is not None
 
-    def test_bot_repr(self, db_session):
+    def test_bot_repr(self, db_session, test_user):
         """Test BotConfig __repr__ method."""
-        bot = BotConfig(id=1, name="repr_bot")
+        bot = BotConfig(id=1, name="repr_bot", user_id=test_user.id)
         
         repr_str = repr(bot)
         
         assert "BotConfig" in repr_str
         assert "id=1" in repr_str
         assert "repr_bot" in repr_str
+        assert f"user_id={test_user.id}" in repr_str
 
-    def test_bot_to_dict(self, db_session):
+    def test_bot_to_dict(self, db_session, test_user):
         """Test BotConfig to_dict serialization."""
         bot = BotConfig(
             name="dict_bot",
+            user_id=test_user.id,
             is_active=False,
             max_total_positions=15,
             max_total_capital_pct=0.90
@@ -483,16 +519,19 @@ class TestBotConfigModel:
         result = bot.to_dict()
         
         assert result["name"] == "dict_bot"
+        assert result["user_id"] == test_user.id
         assert result["is_active"] is False
         assert result["max_total_positions"] == 15
         assert result["max_total_capital_pct"] == 0.90
+        assert "id" in result
+        assert "internal_id" in result
         assert "created_at" in result
         assert "updated_at" in result
         assert result["strategies"] == []
 
-    def test_bot_to_dict_with_strategies(self, db_session):
+    def test_bot_to_dict_with_strategies(self, db_session, test_user):
         """Test BotConfig to_dict with strategies."""
-        bot = BotConfig(name="bot_with_strategies")
+        bot = BotConfig(name="bot_with_strategies", user_id=test_user.id)
         strategy = StrategyConfig(name="strategy_for_bot", strategy_type="ORB")
         bot.strategies.append(strategy)
         db_session.add_all([bot, strategy])
@@ -504,9 +543,9 @@ class TestBotConfigModel:
         assert result["strategies"][0]["name"] == "strategy_for_bot"
         assert result["strategies"][0]["strategy_type"] == "ORB"
 
-    def test_bot_to_dict_with_none_dates(self):
+    def test_bot_to_dict_with_none_dates(self, test_user):
         """Test to_dict handles None dates gracefully."""
-        bot = BotConfig(name="no_dates_bot")
+        bot = BotConfig(name="no_dates_bot", user_id=test_user.id)
         bot.created_at = None
         bot.updated_at = None
         
@@ -519,9 +558,17 @@ class TestBotConfigModel:
 class TestBotStrategyRelationship:
     """Tests for Bot-Strategy many-to-many relationship."""
 
-    def test_bot_strategy_association(self, db_session):
+    @pytest.fixture
+    def test_user(self, db_session):
+        """Create a test user for bot tests."""
+        user = User(email="bot_rel@example.com", hashed_password="hashed")
+        db_session.add(user)
+        db_session.commit()
+        return user
+
+    def test_bot_strategy_association(self, db_session, test_user):
         """Test adding strategies to a bot."""
-        bot = BotConfig(name="multi_bot")
+        bot = BotConfig(name="multi_bot", user_id=test_user.id)
         strategy1 = StrategyConfig(name="s1", strategy_type="ORB")
         strategy2 = StrategyConfig(name="s2", strategy_type="EMA_CROSS")
         
@@ -535,11 +582,11 @@ class TestBotStrategyRelationship:
         assert strategy1 in bot.strategies
         assert strategy2 in bot.strategies
 
-    def test_strategy_multiple_bots(self, db_session):
+    def test_strategy_multiple_bots(self, db_session, test_user):
         """Test that a strategy can be used by multiple bots."""
         strategy = StrategyConfig(name="shared_strategy", strategy_type="ORB")
-        bot1 = BotConfig(name="bot1")
-        bot2 = BotConfig(name="bot2")
+        bot1 = BotConfig(name="bot1", user_id=test_user.id)
+        bot2 = BotConfig(name="bot2", user_id=test_user.id)
         
         bot1.strategies.append(strategy)
         bot2.strategies.append(strategy)
@@ -551,9 +598,9 @@ class TestBotStrategyRelationship:
         assert strategy in bot2.strategies
         assert len(strategy.bots) == 2
 
-    def test_remove_strategy_from_bot(self, db_session):
+    def test_remove_strategy_from_bot(self, db_session, test_user):
         """Test removing a strategy from a bot."""
-        bot = BotConfig(name="removal_bot")
+        bot = BotConfig(name="removal_bot", user_id=test_user.id)
         strategy = StrategyConfig(name="removable", strategy_type="ORB")
         
         bot.strategies.append(strategy)
@@ -638,7 +685,11 @@ class TestModelTimestamps:
 
     def test_bot_timestamps_auto_set(self, db_session):
         """Test that BotConfig timestamps are auto-set."""
-        bot = BotConfig(name="ts_bot")
+        user = User(email="bot_ts@example.com", hashed_password="hashed")
+        db_session.add(user)
+        db_session.commit()
+        
+        bot = BotConfig(name="ts_bot", user_id=user.id)
         db_session.add(bot)
         db_session.commit()
         
@@ -664,7 +715,11 @@ class TestModelSerialization:
 
     def test_bot_to_dict_datetime_format(self, db_session):
         """Test that bot to_dict serializes datetime to ISO format."""
-        bot = BotConfig(name="dt_bot")
+        user = User(email="bot_dt@example.com", hashed_password="hashed")
+        db_session.add(user)
+        db_session.commit()
+        
+        bot = BotConfig(name="dt_bot", user_id=user.id)
         db_session.add(bot)
         db_session.commit()
         
@@ -731,7 +786,11 @@ class TestEdgeCases:
 
     def test_bot_many_strategies(self, db_session):
         """Test Bot with many strategies."""
-        bot = BotConfig(name="many_strategies")
+        user = User(email="many_strats@example.com", hashed_password="hashed")
+        db_session.add(user)
+        db_session.commit()
+        
+        bot = BotConfig(name="many_strategies", user_id=user.id)
         strategies = [
             StrategyConfig(name=f"strategy_{i}", strategy_type="ORB")
             for i in range(10)
@@ -799,8 +858,12 @@ class TestModelQueries:
 
     def test_query_active_bots(self, db_session):
         """Test querying active bots."""
-        active = BotConfig(name="active_bot", is_active=True)
-        inactive = BotConfig(name="inactive_bot", is_active=False)
+        user = User(email="active_bots@example.com", hashed_password="h")
+        db_session.add(user)
+        db_session.commit()
+        
+        active = BotConfig(name="active_bot", user_id=user.id, is_active=True)
+        inactive = BotConfig(name="inactive_bot", user_id=user.id, is_active=False)
         db_session.add_all([active, inactive])
         db_session.commit()
         
@@ -925,7 +988,7 @@ class TestTableStructure:
         inspector = inspect(db_session.bind)
         columns = {col['name'] for col in inspector.get_columns('bot_configs')}
         
-        expected = {'id', 'name', 'is_active', 'max_total_positions',
+        expected = {'id', 'uuid', 'user_id', 'name', 'is_active', 'max_total_positions',
                    'max_total_capital_pct', 'created_at', 'updated_at'}
         
         assert expected.issubset(columns)

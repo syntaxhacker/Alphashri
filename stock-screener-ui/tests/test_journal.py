@@ -37,6 +37,16 @@ from trading.journal import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_journal_module_state():
+    _journals.clear()
+    import trading.journal as journal_module
+    journal_module._default_journal = None
+    yield
+    _journals.clear()
+    journal_module._default_journal = None
+
+
 @pytest.fixture
 def temp_journal_dir():
     """Create a temporary directory for journal files."""
@@ -1058,20 +1068,29 @@ class TestExportCSV:
         
         assert len(rows) == 0
     
-    def test_export_csv_missing_fieldnames_bug(self, journal_with_trades, temp_journal_dir):
-        """Test that demonstrates the CSV export bug with missing fieldnames.
+    def test_export_csv_includes_all_fields(self, journal_with_trades, temp_journal_dir):
+        """Test that CSV export includes all TradeRecord fields.
         
-        The source code's export_to_csv method has hardcoded fieldnames that don't
-        include newer TradeRecord fields (source, bot_id, bot_name, is_test).
-        This test documents the bug - trades with these fields set will cause
-        a ValueError when exported.
-        
-        See: trading/journal.py:490-496
-        
-        Expected fix: Add 'source', 'bot_id', 'bot_name', 'is_test' to fieldnames
+        Verifies that the export_to_csv method includes newer fields:
+        source, bot_id, bot_name, is_test.
         """
-        with pytest.raises(ValueError, match="dict contains fields not in fieldnames"):
-            journal_with_trades.export_to_csv()
+        filepath = journal_with_trades.export_to_csv()
+        
+        with open(filepath, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        
+        assert len(rows) == 3
+        
+        # Verify all expected fields are present
+        expected_fields = [
+            'trade_id', 'symbol', 'side', 'quantity',
+            'entry_price', 'exit_price', 'entry_time', 'exit_time',
+            'pnl', 'pnl_pct', 'exit_reason', 'costs', 'net_pnl',
+            'sl_price', 'tp_price', 'peak_price', 'low_price', 'notes',
+            'strategy_id', 'strategy_name', 'bot_id', 'bot_name', 'source', 'is_test'
+        ]
+        assert set(rows[0].keys()) == set(expected_fields)
 
 
 class TestLogBacktestTrades:

@@ -54,6 +54,7 @@ wandb/
 
 data_cache/
 *.json
+!package.json
 *.html
 
 # Upstox token (explicitly listed)

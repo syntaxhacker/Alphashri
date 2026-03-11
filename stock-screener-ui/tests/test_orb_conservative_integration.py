@@ -11,8 +11,10 @@ historical data to verify the following end-to-end behaviors:
 """
 
 import pytest
+import sys
 import pandas as pd
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 from backtest.engine import BacktestEngine
 from backtest.strategies.orb import ORBStrategy
@@ -77,6 +79,7 @@ def mock_conservative_data():
     df.set_index('datetime', inplace=True)
     return df
 
+
 @pytest.fixture
 def mock_screener_usage(monkeypatch, mock_conservative_data):
     """Mocks TVScreenerUsage to return our constructed DataFrame instead of hitting the Upstox API."""
@@ -86,17 +89,19 @@ def mock_screener_usage(monkeypatch, mock_conservative_data):
             return mock_conservative_data
             
         def fetch_intraday_data_v3(self, symbol, interval):
-            # Return empty or None so it doesn't double append
-            import pandas as pd
             return pd.DataFrame()
     
     class MockTVScreenerUsage:
         def __init__(self, enable_paper_trading=False):
             self.upstox_api = MockUpstoxAPI()
-            
-    # Mock the actual module import
-    import upstox_trader.screeners.tv_screen_usage
-    monkeypatch.setattr(upstox_trader.screeners.tv_screen_usage, "TVScreenerUsage", MockTVScreenerUsage)
+    
+    mock_module = MagicMock()
+    mock_module.TVScreenerUsage = MockTVScreenerUsage
+    sys.modules['upstox_trader'] = mock_module
+    sys.modules['upstox_trader.screeners'] = mock_module
+    sys.modules['upstox_trader.screeners.tv_screen_usage'] = mock_module
+    
+    yield MockTVScreenerUsage
 
 
 def test_orb_conservative_engine_integration(mock_screener_usage):

@@ -11,9 +11,21 @@ This test:
 
 import pytest
 import pandas as pd
+import sys
 from datetime import datetime, timedelta, timezone
 
 from backtest.strategies.week52_chaser import run_single_stock_backtest as run_single_stock_week52_chaser
+
+
+@pytest.fixture(autouse=True)
+def cleanup_upstox_mocks():
+    """Clean up any mocked upstox modules before/after test to ensure fresh imports."""
+    mods_to_clean = [k for k in sys.modules if k.startswith('upstox_trader')]
+    saved = {k: sys.modules.pop(k) for k in mods_to_clean if k in sys.modules}
+    yield
+    # Restore any mocks that were there before
+    for mod, val in saved.items():
+        sys.modules[mod] = val
 
 
 @pytest.fixture

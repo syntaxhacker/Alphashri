@@ -9,12 +9,12 @@ import sys
 import os
 import math
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path as PathlibPath
 from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
 
 # Add project root and scanners to path
-_script_dir = Path(__file__).parent.absolute()
+_script_dir = PathlibPath(__file__).parent.absolute()
 _project_root = _script_dir.parent
 _scanners_dir = _project_root / 'scanners'
 sys.path.insert(0, str(_project_root))
@@ -28,7 +28,7 @@ if env_file.exists():
     load_dotenv(env_file)
     print(f"Loaded environment from {env_file}")
 
-from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -956,7 +956,7 @@ def _load_instruments():
     instrument_paths = [
         _project_root / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
         _script_dir / 'nse_instruments.json',
-        Path(__file__).parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
+        PathlibPath(__file__).parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
     ]
 
     for path in instrument_paths:
@@ -1232,6 +1232,9 @@ async def get_chart_preview(
             'candles': [],
             'orb_zones': [],
             'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
             'error': 'API not available'
         }
 
@@ -1254,7 +1257,9 @@ async def get_chart_preview(
                 'candles': [],
                 'orb_zones': [],
                 'pivot_levels': [],
-                'timeframe': tf
+                'timeframe': tf,
+                'or_minutes': or_minutes,
+                'total_candles': 0,
             }
 
         # Calculate ORB zones from 1-min data before resampling
@@ -1285,6 +1290,9 @@ async def get_chart_preview(
             'candles': [],
             'orb_zones': [],
             'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
             'error': str(e)
         }
 
@@ -1312,6 +1320,11 @@ try:
     from api.strategies import router as strategies_router
     app.include_router(strategies_router)
     print("✅ Strategies API loaded at /api/strategies")
+except ImportError as e:
+    if "nautilus" in str(e).lower():
+        print(f"⚠️ Strategies API skipped (Nautilus Trader not installed): {e}")
+    else:
+        print(f"⚠️ Could not load strategies API: {e}")
 except Exception as e:
     print(f"⚠️ Could not load strategies API: {e}")
 
@@ -1366,10 +1379,23 @@ if str(_news_module_path) not in sys.path:
 
 try:
     from news_api import fetch_news, fetch_article_content, NEWS_SOURCES
+    
+    # Try loading the LLM analyzer
+    try:
+        from llm_analyzer import article_analyzer
+        _llm_available = True
+        print("✅ LLM Analyzer module loaded")
+    except ImportError as e:
+        _llm_available = False
+        article_analyzer = None
+        print(f"⚠️ LLM Analyzer module not available: {e}")
+        
     _news_available = True
     print("✅ News API module loaded")
 except ImportError as e:
     _news_available = False
+    _llm_available = False
+    article_analyzer = None
     print(f"⚠️ News API module not available: {e}")
 
 
@@ -1411,6 +1437,7 @@ news_ws_manager = NewsConnectionManager()
 async def news_poller_task():
     """Background task that polls news sources and broadcasts new items."""
     import asyncio
+    from news_api import fetch_article_content # Needed for full body extraction
 
     # Track last seen item ID per source
     last_seen_ids: Dict[str, str] = {}
@@ -1424,7 +1451,10 @@ async def news_poller_task():
                 await asyncio.sleep(60)
                 continue
 
-            for source_id in NEWS_SOURCES.keys() if NEWS_SOURCES else ['moneycontrol']:
+            # Correctly handle NEWS_SOURCES as a list (matching news_api.py)
+            source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
+            
+            for source_id in source_ids:
                 try:
                     items = fetch_news(source=source_id, limit=5)
                     if not items:
@@ -1449,12 +1479,46 @@ async def news_poller_task():
 
                         if new_items:
                             print(f"📰 Broadcasting {len(new_items)} new items from {source_id}")
+                            
+                            # Optional: Alert on high-impact news in background
+                            high_impact_items = []
+                            if _llm_available and article_analyzer:
+                                for item in new_items:
+                                    try:
+                                        # Only analyze if we think it's a major headline (skip short ones)
+                                        headline = item.get('headline', '')
+                                        url = item.get('sourceUrl', '')
+                                        if len(headline) > 30 and url:
+                                            # We need full content for good analysis, let's fetch it quickly
+                                            full_article = fetch_article_content(url)
+                                            content = full_article.get('description', '')
+                                            
+                                            analysis = article_analyzer.analyze_article(url, headline, content)
+                                            item['analysis'] = analysis
+                                            
+                                            # If impact score is high (>= 8), flag it
+                                            if analysis.get('impact_score', 0) >= 8:
+                                                high_impact_items.append(item)
+                                    except Exception as e:
+                                        print(f"Background analysis failed for {item.get('id')}: {e}")
+
+                            # Broadcast general new items
                             await news_ws_manager.broadcast({
                                 "type": "new_items",
                                 "source": source_id,
                                 "items": new_items,
                                 "timestamp": datetime.now().isoformat()
                             })
+                            
+                            # Broadcast high impact alerts
+                            if high_impact_items:
+                                print(f"🚨 Broadcasting {len(high_impact_items)} HIGH IMPACT alerts!")
+                                await news_ws_manager.broadcast({
+                                    "type": "high_impact_alert",
+                                    "source": source_id,
+                                    "items": high_impact_items,
+                                    "timestamp": datetime.now().isoformat()
+                                })
 
                         last_seen_ids[source_id] = current_top_id
 
@@ -1492,6 +1556,112 @@ async def get_news(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/news/sentiment/{symbol}")
+async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol to analyze")):
+    """
+    Fetch and analyze recent news for a specific stock to generate an aggregate sentiment score.
+    """
+    if not _news_available or not _llm_available:
+        raise HTTPException(status_code=503, detail="News/LLM API not available")
+
+    try:
+        # First, we need to gather news. Since we don't have a direct symbol search
+        # in the news API, we will fetch top news from all sources and filter by symbol.
+        from news_api import _aggregator, fetch_article_content
+        
+        # 1. Fetch top news across all sources
+        all_news = _aggregator.fetch_all(limit_per_source=15)
+        
+        # 2. Extract full content and find mentions of the symbol
+        relevant_articles = []
+        for news_item in all_news:
+            url = news_item.get('sourceUrl')
+            
+            # Fetch article content (this also does initial simple symbol extraction)
+            article = fetch_article_content(url)
+            
+            # Check if symbol is mentioned in headline, content, or extracted symbols
+            headline = article.get('headline', '')
+            content = article.get('description', '')
+            extracted_symbols = [s.get('code', '') for s in article.get('symbols', [])]
+            
+            if (symbol.upper() in headline.upper() or 
+                symbol.upper() in content.upper() or 
+                symbol.upper() in extracted_symbols):
+                relevant_articles.append({
+                    "url": url,
+                    "headline": headline,
+                    "content": content,
+                    "publishedAt": article.get('publishedAt')
+                })
+                
+            if len(relevant_articles) >= 5: # Limit to top 5 most recent for speed
+                break
+                
+        if not relevant_articles:
+             return {
+                 "symbol": symbol.upper(),
+                 "status": "NO_RECENT_NEWS",
+                 "sentiment_score": 0,
+                 "sentiment_label": "NEUTRAL",
+                 "articles_analyzed": 0,
+                 "trade_ideas": []
+             }
+             
+        # 3. Analyze each relevant article
+        total_impact = 0
+        sentiment_math = 0 # Bullish = 1, Bearish = -1
+        all_trade_ideas = []
+        analyzed_data = []
+        
+        for article in relevant_articles:
+            analysis = article_analyzer.analyze_article(
+                article['url'], article['headline'], article['content']
+            )
+            
+            # Aggregate stats
+            imp = analysis.get('impact_score', 0)
+            total_impact += imp
+            
+            sent = analysis.get('sentiment', 'NEUTRAL')
+            if sent == "BULLISH": sentiment_math += imp
+            elif sent == "BEARISH": sentiment_math -= imp
+            
+            # Collect trades related to this symbol
+            for trade in analysis.get('trade_ideas', []):
+                 if trade.get('symbol', '').upper() == symbol.upper() or symbol.upper() in trade.get('symbol', '').upper():
+                     all_trade_ideas.append(trade)
+                     
+            analyzed_data.append({
+                "headline": article['headline'],
+                "url": article['url'],
+                "sentiment": sent,
+                "impact": imp,
+                "summary": analysis.get('summary', '')
+            })
+            
+        # 4. Calculate Final Score (-100 to 100)
+        max_possible_impact = len(relevant_articles) * 10
+        raw_score = (sentiment_math / max_possible_impact) * 100 if max_possible_impact > 0 else 0
+        
+        if raw_score >= 30: label = "BULLISH"
+        elif raw_score <= -30: label = "BEARISH"
+        else: label = "NEUTRAL"
+
+        return {
+             "symbol": symbol.upper(),
+             "status": "SUCCESS",
+             "sentiment_score": round(raw_score, 1),
+             "sentiment_label": label,
+             "articles_analyzed": len(relevant_articles),
+             "trade_ideas": all_trade_ideas,
+             "articles": analyzed_data
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/news/article")
 async def get_news_article(url: str = Query(..., description="Article URL to fetch")):
     """
@@ -1505,6 +1675,43 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
         if 'error' in article:
             raise HTTPException(status_code=500, detail=article['error'])
         return article
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/news/analyze")
+async def analyze_news(url: str = Query(..., description="URL of the news article to analyze")):
+    """
+    Fetch a single news article by URL and analyze it using the LLM.
+    """
+    if not _news_available or not _llm_available:
+        raise HTTPException(status_code=503, detail="News/LLM API not available")
+        
+    try:
+        from news_api import fetch_article_content
+        
+        # 1. Fetch raw content
+        article_data = fetch_article_content(url)
+        
+        if 'error' in article_data:
+             raise HTTPException(status_code=500, detail=article_data['error'])
+             
+        headline = article_data.get('headline', '')
+        content = article_data.get('description', '')
+        
+        # 2. Analyze with LLM
+        analysis = article_analyzer.analyze_article(url, headline, content)
+        
+        # 3. Stitch together
+        return {
+            "url": url,
+            "headline": headline,
+            "content_preview": content[:200] + "..." if len(content) > 200 else content,
+            "analysis": analysis
+        }
+        
     except HTTPException:
         raise
     except Exception as e:

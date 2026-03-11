@@ -21,65 +21,38 @@ from pathlib import Path
 from typing import Generator, Optional
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
+from unittest.mock import MagicMock
 
 import pytest
 import jwt
 import pandas as pd
 import numpy as np
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool
 
-# Add project root to path
-# Go from tests/api/conftest.py to stock-screener-ui
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# Import with explicit path handling
-try:
-    from db.database import Base, get_db
-    from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
-    from api.auth import (
-        hash_password,
-        create_access_token,
-        create_refresh_token,
-        JWT_SECRET_KEY,
-        JWT_ALGORITHM,
-        ACCESS_TOKEN_EXPIRE_HOURS,
-        REFRESH_TOKEN_EXPIRE_DAYS,
-    )
-except ImportError as e:
-    # If absolute imports fail, try relative import for testing
-    import importlib.util
+# Standard imports
+from db.database import Base, get_db
+from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
+from api.auth import (
+    hash_password,
+    create_access_token,
+    create_refresh_token,
+    JWT_SECRET_KEY,
+    JWT_ALGORITHM,
+    ACCESS_TOKEN_EXPIRE_HOURS,
+    REFRESH_TOKEN_EXPIRE_DAYS,
+)
 
-    # Import auth module directly
-    auth_spec = importlib.util.spec_from_file_location(
-        "api.auth",
-        ROOT / "api" / "auth.py"
-    )
-    auth_module = importlib.util.module_from_spec(auth_spec)
-    sys.modules["api.auth"] = auth_module
-    auth_spec.loader.exec_module(auth_module)
 
-    # Get what we need from the module
-    hash_password = auth_module.hash_password
-    create_access_token = auth_module.create_access_token
-    create_refresh_token = auth_module.create_refresh_token
-    JWT_SECRET_KEY = auth_module.JWT_SECRET_KEY
-    JWT_ALGORITHM = auth_module.JWT_ALGORITHM
-    ACCESS_TOKEN_EXPIRE_HOURS = auth_module.ACCESS_TOKEN_EXPIRE_HOURS
-    REFRESH_TOKEN_EXPIRE_DAYS = auth_module.REFRESH_TOKEN_EXPIRE_DAYS
-
-    from db.database import Base, get_db
-    from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
-
-# Import the FastAPI app
-# We need to import after setting path
 try:
     from api_server_fastapi import app
 except ImportError:
-    # Fallback: create minimal app for testing
     from fastapi import FastAPI
     from api.auth import router as auth_router
     from api.options import router as options_router
@@ -88,73 +61,59 @@ except ImportError:
     app.include_router(options_router)
 
 
-# Test database configuration
-TEST_DB_DIR = tempfile.mkdtemp()
-TEST_DB_PATH = os.path.join(TEST_DB_DIR, "test_alphashri.db")
-
-# Create test engine with SQLite
-TEST_SQLALCHEMY_DATABASE_URL = f"sqlite:///{TEST_DB_PATH}"
-test_engine = create_engine(
-    TEST_SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
-
-# Test session factory
-TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
-
-def override_get_db():
-    """Override get_db dependency for testing."""
-    db = TestSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-# Override the dependency
-app.dependency_overrides[get_db] = override_get_db
+@pytest.fixture(scope="function")
+def test_engine():
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
 
 
 @pytest.fixture(scope="function")
-def db() -> Generator[Session, None, None]:
-    """
-    Create a fresh database for each test.
-
-    Ensures tests are independent and can run in any order.
-    """
-    # Create all tables
-    Base.metadata.create_all(bind=test_engine)
-
-    # Create session
-    session = TestSessionLocal()
-
+def db(test_engine) -> Generator[Session, None, None]:
+    TestSessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=test_engine
+    )
+    
+    connection = test_engine.connect()
+    transaction = connection.begin()
+    
+    session = TestSessionLocal(bind=connection)
+    
+    @event.listens_for(session, "after_transaction_end")
+    def restart_savepoint(db_session, transaction):
+        if transaction.nested and not transaction._parent.nested:
+            db_session.expire_all()
+            db_session.begin_nested()
+    
+    session.begin_nested()
+    
     yield session
-
-    # Cleanup: close session and drop all tables
+    
     session.close()
-    Base.metadata.drop_all(bind=test_engine)
+    transaction.rollback()
+    connection.close()
 
 
 @pytest.fixture(scope="function")
 def client(db: Session) -> TestClient:
-    """
-    Create a test client with database session.
-
-    The client is configured to use the test database.
-    """
     def override_get_db_for_client():
-        try:
-            yield db
-        finally:
-            pass
-
+        yield db
+    
     app.dependency_overrides[get_db] = override_get_db_for_client
 
-    with TestClient(app) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -793,21 +752,20 @@ def sample_template_strategy(db: Session) -> StrategyConfig:
     Create a sample template strategy for testing.
 
     This is the parent strategy that variations can be created from.
+    Note: is_default=False to avoid conflicts with default_strategy fixture.
     """
     strategy = StrategyConfig(
         name="ORB Template",
         strategy_type="ORB",
         is_template=True,
         is_active=True,
-        is_default=True,
+        is_default=False,
         description="Default ORB strategy template",
-        # ORB Parameters
         or_minutes=45,
         sl_pct=0.4,
         tp_pct=1.2,
         min_or_range_pct=0.5,
         max_or_range_pct=3.0,
-        # Risk Parameters
         max_positions=5,
         max_capital_per_trade_pct=0.10,
         max_daily_loss_pct=0.02,
@@ -815,7 +773,6 @@ def sample_template_strategy(db: Session) -> StrategyConfig:
         risk_per_trade_pct=0.01,
         min_trade_value=5000,
         max_trade_value=100000,
-        # Runner Parameters
         cooldown_minutes=30,
         max_distance_from_or_pct=1.5,
     )
@@ -1063,18 +1020,18 @@ def sample_journal_data() -> List[Dict[str, Any]]:
 
 
 @pytest.fixture
-def mock_load_all_trades(sample_journal_data: List[Dict[str, Any]], monkeypatch: pytest.MonkeyPatch) -> None:
+def mock_load_all_trades(sample_journal_data: List[Dict[str, Any]], monkeypatch: pytest.MonkeyPatch):
     """
     Mock the _load_all_trades function to return sample trade data.
 
     This fixture patches the journal loading in api.strategies module.
+    The monkeypatch automatically cleans up after the test.
     """
     def mock_load(user_id: int) -> List[Dict[str, Any]]:
-        """Mock implementation that returns sample trades."""
         return sample_journal_data
 
-    # Patch the function in the strategies module
     monkeypatch.setattr("api.strategies._load_all_trades", mock_load)
+    yield
 
 
 # ============================================================================
@@ -1233,3 +1190,6 @@ def multiple_bots(db: Session, sample_template_strategy: StrategyConfig) -> List
         db.refresh(bot)
 
     return bots
+
+
+
