@@ -1,0 +1,65 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+!RAILWAY_DEPLOYMENT.md
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Data cache (can be regenerated)
+upstox_trader/data_cache/
+*.csv
+
+# Reports (generated at runtime)
+reports/
+needs_review/
+
+# Local development
+.env
+.env.local
+
+# Heavy ML dependencies (not needed for trading)
+*.model
+*.pkl
+*.joblib
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Large files
+*.zip
+*.tar.gz
+
+# Test files
+tests/
+test_*.py
+*_test.py

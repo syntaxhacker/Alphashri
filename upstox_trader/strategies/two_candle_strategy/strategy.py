@@ -10,8 +10,8 @@ import numpy as np
 from datetime import time
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
-from ema_strategy import BaseStrategy
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
+from vectorbt.ema_strategy import BaseStrategy
 
 
 class FixedTwoCandleStrategy(BaseStrategy):

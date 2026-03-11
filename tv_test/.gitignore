@@ -1,0 +1,7 @@
+venv/
+*.pyc
+__pycache__/
+*.log
+.webhook_pid
+.ngrok_pid
+.DS_Store

@@ -171,7 +171,7 @@ def display_sector_table(sector_df: pd.DataFrame, title: str) -> None:
     console.print(f"[dim]Showing {len(sector_df)} sectors[/dim]")
 
 
-def render_watch_table(df: pd.DataFrame, alerts: List[Dict], mode: str) -> Table:
+def render_watch_table(df: pd.DataFrame, alerts: List[Dict], mode: str, currency_symbol: str = '₹') -> Table:
     """
     Build and return the Rich Table for watch data (pure renderer).
     The caller is responsible for console.print(table) and any extra sections.
@@ -198,7 +198,9 @@ def render_watch_table(df: pd.DataFrame, alerts: List[Dict], mode: str) -> Table
         'VOLUME_SURGE': "Live Market Monitor - Unusual Volume Activity",
         'CHANNEL_PLAY': "Live Market Monitor - Range-Bound Opportunities",
         'SECTOR_MOMENTUM': "Live Market Monitor - Sector Group Moves",
-        'QUICK_PROFIT': "Live Market Monitor - Quick Profit Scalps"
+        'QUICK_PROFIT': "Live Market Monitor - Quick Profit Scalps",
+        'FOMO_MOMENTUM': "Live Market Monitor - FOMO Momentum Trading",
+        'REALTIME_MOMENTUM': "Live Market Monitor - Real-Time Momentum Detection"
     }
     title = mode_titles.get(mode, "Live Market Monitor")
 
@@ -230,10 +232,20 @@ def render_watch_table(df: pd.DataFrame, alerts: List[Dict], mode: str) -> Table
         trend_val = row.get('trend', None)
         trend_display = _trend_display(trend_val)
 
+        # Extract symbol from ticker field (format: "NSE:SYMBOL" -> "SYMBOL")
+        symbol = str(row.get('ticker', ''))
+        if symbol.startswith('NSE:'):
+            symbol = symbol.replace('NSE:', '')
+        elif symbol.startswith('BSE:'):
+            symbol = symbol.replace('BSE:', '')
+        elif not symbol or symbol == 'N/A':
+            # Fallback to name field if ticker is not available
+            symbol = str(row.get('name', ''))[:12]
+
         table.add_row(
             f"{ticker_style}{ticker}",
-            str(row.get('name', ''))[:12],
-            f"₹{row.get('close', 0):,.2f}",
+            symbol[:12],  # Limit to 12 characters for display
+            f"{currency_symbol}{row.get('close', 0):,.2f}",
             _fmt_change(change_val),
             f"{row.get('volume', 0):,.0f}",
             _fmt_vol_ratio(vol_ratio),

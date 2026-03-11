@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from strategies.simple_real_strategy import SimpleTwoCandleStrategy
+from vectorbt.simple_real_strategy import SimpleTwoCandleStrategy
 from config_and_utils.free_indian_apis import UpstoxAPI
 from config import UPSTOX_CONFIG
 from rich.console import Console

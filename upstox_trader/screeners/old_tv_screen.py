@@ -21,7 +21,7 @@ from rich.columns import Columns
 from datetime import datetime
 import pandas as pd
 import argparse
-import time
+import time as time_module
 import threading
 import os
 from datetime import datetime, timedelta
@@ -94,11 +94,103 @@ def get_tradingview_cookies():
             console.print("[yellow]💡 Try refreshing the TradingView page and run script again[/yellow]")
             return None
 
+class TVWebhookServer:
+    """Direct webhook server for real-time TV alerts"""
+    def __init__(self, process_callback, log_file=None, port=5001):
+        self.process_callback = process_callback
+        self.log_file = log_file
+        self.port = port
+        self.running = False
+        self.thread = None
+        self.app = None
+        
+    def start(self):
+        """Start the webhook server in a separate thread"""
+        self.running = True
+        self.thread = threading.Thread(target=self._run_server, daemon=True)
+        self.thread.start()
+        console.print(f"[green]📡 Webhook server started on port {self.port}[/green]")
+        
+    def stop(self):
+        """Stop the webhook server"""
+        self.running = False
+        
+    def _run_server(self):
+        """Run the Flask webhook server"""
+        try:
+            from flask import Flask, request, jsonify
+            import json
+            
+            self.app = Flask(__name__)
+            
+            @self.app.route('/webhook', methods=['POST'])
+            def webhook_handler():
+                try:
+                    data = request.json
+                    from datetime import datetime
+                    
+                    # Log every webhook call
+                    if self.log_file:
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        symbol = data.get('symbol', 'UNKNOWN')
+                        action = data.get('action', 'UNKNOWN')
+                        price = data.get('price', '0')
+                        status = 'UNKNOWN'
+                        
+                        with open(self.log_file, 'a') as f:
+                            f.write(f"{timestamp},{symbol},{action},{price},")
+                    
+                    if data and data.get('action', '').upper() in ['BUY', 'LONG']:
+                        # Process immediately with callback
+                        if self.process_callback:
+                            self.process_callback([data])
+                        
+                        # Log success
+                        if self.log_file:
+                            with open(self.log_file, 'a') as f:
+                                f.write(f"SUCCESS\n")
+                        
+                        return jsonify({'status': 'success', 'message': 'BUY Alert processed'})
+                    elif data and data.get('action', '').upper() in ['SELL', 'SHORT']:
+                        # Process SELL as short position
+                        if self.process_callback:
+                            self.process_callback([data])
+                        
+                        # Log success
+                        if self.log_file:
+                            with open(self.log_file, 'a') as f:
+                                f.write(f"SUCCESS\n")
+                        
+                        return jsonify({'status': 'success', 'message': 'SELL Alert processed as short position'})
+                    else:
+                        # Log ignored
+                        if self.log_file:
+                            with open(self.log_file, 'a') as f:
+                                f.write(f"IGNORED\n")
+                        
+                        return jsonify({'status': 'ignored', 'message': 'Not a trading signal'})
+                except Exception as e:
+                    # Log error
+                    if self.log_file:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        with open(self.log_file, 'a') as f:
+                            f.write(f"ERROR: {str(e)}\n")
+                    
+                    return jsonify({'status': 'error', 'message': str(e)}), 500
+            
+            self.app.run(host='localhost', port=self.port, debug=False, threaded=True)
+        except ImportError:
+            console.print("[yellow]⚠️ Flask not available - webhook server disabled[/yellow]")
+        except Exception as e:
+            console.print(f"[red]Webhook server error: {e}[/red]")
+
 class TVScreenerUsage:
-    def __init__(self, market='in', enable_paper_trading=False):
+    def __init__(self, market='in', enable_paper_trading=False, consider_tv_alerts=False):
         self.cookies = get_tradingview_cookies()
         self.query = Query()
         
+                
         # Set market based on parameter
         if market.lower() == 'us':
             self.market = 'america'
@@ -108,6 +200,10 @@ class TVScreenerUsage:
             self.market = 'india'  # Default to India
             
         console.print(f"[blue]📊 Market: {self.market.upper()}[/blue]")
+        
+        # TV Alert integration - MUST be set before Upstox initialization
+        self.consider_tv_alerts = consider_tv_alerts
+        self.webhook_server = None
         
         # Initialize trade journaling
         self.journal_file = None
@@ -121,16 +217,15 @@ class TVScreenerUsage:
             console.print("[yellow]⚠️ Telegram alerts disabled - configure TELEGRAM_CONFIG[/yellow]")
         
         # Trading Time Configuration
-        self.trading_start_time = "09:20"  # Start trading at 9:20 AM
-        self.trading_end_time = "15:30"    # Stop trading at 3:30 PM (align with newer file)
-        
+        self.trading_start_time = "09:15"
+        self.trading_end_time = "14:00"    # Stop trading at 10:00 AM (align with newer file)
+
         # Simple Paper Trading integration (without full bot monitoring)
         self.paper_trading_enabled = enable_paper_trading
         self.live_trades = []  # Track live trades for display
         self.closed_trades = []  # Track closed trades with P&L
         self.positions = {}   # Simple position tracking
         self.current_prices = {}  # Track current prices
-        self.price_cache_timestamps = {}  # Track when prices were last fetched
         self.exchange_fallbacks = {}  # Track which symbols use fallback exchange
         self.trade_count = 0  # Track number of trades
 
@@ -142,6 +237,14 @@ class TVScreenerUsage:
         # Stop loss cooldown tracking (30 minutes)
         self.stop_loss_cooldown = {}
         self.stop_loss_cooldown_duration = 1800  # seconds
+        
+        # Loss-based cooling system - 30+ minute timeout after any loss
+        self.loss_cooldown = {}  # Track symbols that had losses: {symbol: timestamp}
+        self.loss_cooldown_duration = 1800  # 30 minutes in seconds (minimum)
+        
+        # Daily entry limits - max 10 entries per day per stock (increased for TV alerts)
+        self.daily_entry_count = {}  # Track entries per symbol per day: {symbol: {date: count}}
+        self.max_daily_entries_per_stock = 10
 
         # Setup signal handlers for graceful shutdown (bulk exit)
         self._setup_signal_handlers()
@@ -152,22 +255,163 @@ class TVScreenerUsage:
         self.monitor_thread = None
         self.stop_monitoring = threading.Event()
         
-        if self.paper_trading_enabled:
+        # Upstox API is required for either paper trading OR TV alerts (for price validation)
+        if self.paper_trading_enabled or self.consider_tv_alerts:
             try:
                 from config_and_utils.free_indian_apis import UpstoxAPI
+
+                # Initialize API first - it will create its own auth_handler and load token
                 self.upstox_api = UpstoxAPI(
                     api_key=UPSTOX_CONFIG.get('api_key'),
                     api_secret=UPSTOX_CONFIG.get('api_secret')
                 )
-                console.print("[green]✅ Paper Trading enabled (₹20,000 per trade) with live Upstox prices[/green]")
+
+                # MANDATORY: Check if authentication was loaded successfully
+                if not self.upstox_api.auth_handler.access_token:
+                    console.print("[yellow]🔑 No cached token found - starting authentication...[/yellow]")
+                    if not self.upstox_api.auth_handler.authenticate():
+                        console.print("[red]❌ Upstox authentication failed - cannot proceed[/red]")
+                        if self.consider_tv_alerts:
+                            console.print("[red]❌ TV alerts require valid Upstox authentication for price validation[/red]")
+                            console.print("[red]❌ Please check your UPSTOX_CONFIG credentials and restart[/red]")
+                        self.upstox_api = None
+                        if self.consider_tv_alerts:
+                            sys.exit(1)  # Exit if TV alerts enabled but auth fails
+                    else:
+                        console.print("[green]✅ Upstox authentication successful[/green]")
+                else:
+                    console.print("[green]✅ Upstox authentication loaded from cache[/green]")
+
+                # Setup real-time streaming for better price accuracy
+                self.realtime_streaming_enabled = self._setup_realtime_streaming()
+                if self.realtime_streaming_enabled:
+                    if self.paper_trading_enabled:
+                        console.print("[green]✅ Paper Trading enabled (₹20,000 per trade) with REAL-TIME Upstox streaming[/green]")
+                    if self.consider_tv_alerts:
+                        console.print("[green]✅ TV Alerts enabled with REAL-TIME Upstox price validation[/green]")
+                else:
+                    if self.paper_trading_enabled:
+                        console.print("[green]✅ Paper Trading enabled (₹20,000 per trade) with live Upstox prices[/green]")
+                    if self.consider_tv_alerts:
+                        console.print("[green]✅ TV Alerts enabled with Upstox price validation[/green]")
+                        
             except Exception as e:
-                console.print(f"[yellow]⚠️ Paper Trading enabled (₹20,000 per trade) - Upstox API unavailable: {e}[/yellow]")
+                console.print(f"[red]❌ Upstox API initialization failed: {e}[/red]")
+                if self.consider_tv_alerts:
+                    console.print("[red]❌ TV alerts require working Upstox API - cannot proceed[/red]")
+                    sys.exit(1)
+                self.upstox_api = None
+                self.realtime_streaming_enabled = False
         else:
-            console.print("[yellow]⚠️ Paper Trading disabled[/yellow]")
+            console.print("[yellow]⚠️ Paper Trading and TV Alerts disabled - Upstox API not required[/yellow]")
+            self.realtime_streaming_enabled = False
         
         # Display trading hours if paper trading is enabled
         if self.paper_trading_enabled:
             console.print(f"[cyan]⏰ Trading Hours: {self.trading_start_time} - {self.trading_end_time} IST[/cyan]")
+        
+        # TV Alert integration - already set earlier in __init__
+        self.webhook_server = None
+        
+        # Setup TV alert logging
+        self.tv_alerts_log = None
+        if self.consider_tv_alerts:
+            self._setup_tv_alerts_log()
+        
+        if self.consider_tv_alerts:
+            # Start direct webhook server for real-time alerts
+            self.webhook_server = TVWebhookServer(self._process_tv_alerts, self.tv_alerts_log)
+            self.webhook_server.start()
+            console.print("[green]✅ TV Alert monitoring enabled (Direct Webhook on port 5001)[/green]")
+        else:
+            console.print("[yellow]⚠️ TV Alert monitoring disabled[/yellow]")
+
+    
+    def _setup_realtime_streaming(self) -> bool:
+        """Setup real-time streaming for live price updates."""
+        if not self.upstox_api:
+            return False
+
+        try:
+            # Get symbols that we'll be monitoring (from watch mode or paper trading)
+            symbols_to_monitor = []
+
+            # Add symbols from live trades if paper trading is enabled
+            if self.paper_trading_enabled and hasattr(self, 'live_trades'):
+                symbols_to_monitor.extend([trade['symbol'] for trade in self.live_trades])
+
+            # Add symbols from active positions
+            if hasattr(self, 'positions'):
+                symbols_to_monitor.extend([symbol for symbol in self.positions.keys() if self.positions[symbol]])
+
+            # Remove duplicates and limit to reasonable number
+            symbols_to_monitor = list(set(symbols_to_monitor))[:20]  # Max 20 symbols
+
+            if not symbols_to_monitor:
+                # Default symbols for monitoring
+                symbols_to_monitor = ['RELIANCE', 'TCS', 'INFY']
+
+            # Setup streaming with tick handler
+            success = self.upstox_api.setup_realtime_streaming(
+                symbols_to_monitor,
+                callback=self._handle_realtime_tick
+            )
+
+            if success:
+                # Start the streaming
+                self.upstox_api.start_realtime_streaming()
+                console.print(f"[green]🔗 Real-time streaming active for {len(symbols_to_monitor)} symbols[/green]")
+                return True
+            else:
+                console.print("[yellow]⚠️ Real-time streaming setup failed - using individual API calls[/yellow]")
+                return False
+
+        except Exception as e:
+            console.print(f"[red]❌ Real-time streaming error: {e}[/red]")
+            return False
+
+    def _handle_realtime_tick(self, message):
+        """Handle real-time tick data for enhanced price accuracy."""
+        try:
+            if isinstance(message, dict) and 'feeds' in message:
+                feeds = message['feeds']
+
+                for instrument_key, data in feeds.items():
+                    if 'ltpc' in data and 'ltp' in data['ltpc']:
+                        price = float(data['ltpc']['ltp'])
+
+                        # Update our current prices with real-time data
+                        if hasattr(self, 'current_prices'):
+                            # Use the instrument_to_symbol_map for efficient reverse lookup
+                            symbol = self.upstox_api.instrument_to_symbol_map.get(instrument_key)
+                            if symbol:
+                                self.current_prices[symbol] = price
+
+        except Exception as e:
+            # Silent fail for tick processing - don't interrupt main logic
+            pass
+
+  
+    def _setup_tv_alerts_log(self):
+        """Setup TV alerts log file for daily webhook logging"""
+        from datetime import datetime
+        import os
+        
+        # Create logs directory if it doesn't exist
+        logs_dir = "logs"
+        if not os.path.exists(logs_dir):
+            os.makedirs(logs_dir)
+            
+        # Create log filename with date
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        self.tv_alerts_log = f"{logs_dir}/tv_alerts_{date_str}.log"
+        
+        # Write header if new file
+        if not os.path.exists(self.tv_alerts_log):
+            with open(self.tv_alerts_log, 'w') as f:
+                f.write(f"# TV Alerts Log - {date_str}\n")
+                f.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("# Format: timestamp,symbol,action,price,status\n")
     
     def setup_trade_journal(self):
         """Setup trade journal file with date and mode"""
@@ -189,10 +433,10 @@ class TVScreenerUsage:
             with open(self.journal_file, 'w') as f:
                 f.write(f"# Old TV Screener Trade Journal - {mode.upper()} Mode\n")
                 f.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("# Format: TIMESTAMP | ACTION | SYMBOL | PRICE | QTY | AMOUNT | ALERT_TYPE | P&L\n")
+                f.write("# Format: TIMESTAMP | ACTION_SIDE | SYMBOL | PRICE | QTY | AMOUNT | ALERT_TYPE | P&L\n")
                 f.write("-" * 80 + "\n")
     
-    def log_trade(self, action, symbol, price, qty, amount, alert_type, pnl_pct=None, pnl_amount=None):
+    def log_trade(self, action, symbol, price, qty, amount, alert_type, pnl_pct=None, pnl_amount=None, side=None):
         """Log trade to journal file"""
         if not self.journal_file:
             return
@@ -205,7 +449,12 @@ class TVScreenerUsage:
         if pnl_pct is not None:
             pnl_info = f" | P&L: {pnl_pct:+.2f}% (₹{pnl_amount:+,.0f})"
         
-        log_entry = f"{timestamp} | {action} | {symbol} | ₹{price:.2f} | {qty} | ₹{amount:,.0f} | {alert_type}{pnl_info}\n"
+        # Include side information in the action
+        action_with_side = action
+        if side:
+            action_with_side = f"{action}_{side}"
+        
+        log_entry = f"{timestamp} | {action_with_side} | {symbol} | ₹{price:.2f} | {qty} | ₹{amount:,.0f} | {alert_type}{pnl_info}\n"
         
         try:
             with open(self.journal_file, 'a') as f:
@@ -220,7 +469,7 @@ class TVScreenerUsage:
                 return 'neutral'  # No historical data available
                 
             # Get historical data with proper date range
-            from datetime import datetime, timedelta
+            from datetime import datetime as dt, time as dt_timedelta
             to_date = datetime.now().strftime('%Y-%m-%d')
             from_date = (datetime.now() - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
             
@@ -230,7 +479,9 @@ class TVScreenerUsage:
                     unit='days',
                     interval=1,
                     to_date=to_date,
-                    from_date=from_date
+                    from_date=from_date,
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
             else:  # hourly for shorter-term trend (limited to 90 days per documentation)
                 # Limit hourly lookback to 90 days max due to API constraints
@@ -241,7 +492,9 @@ class TVScreenerUsage:
                     unit='hours',
                     interval=1,
                     to_date=to_date,
-                    from_date=hourly_from_date
+                    from_date=hourly_from_date,
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
             
             if df is None or df.empty or len(df) < 10:
@@ -334,7 +587,7 @@ class TVScreenerUsage:
             # Try fallback with 15-minute data for 7 days if daily fails
             try:
                 console.print(f"[dim yellow]⚠️ Daily trend analysis failed for {symbol}, trying 15min fallback...[/dim yellow]")
-                from datetime import datetime, timedelta
+                from datetime import datetime as dt, time as dt_timedelta
                 to_date = datetime.now().strftime('%Y-%m-%d')
                 from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
                 
@@ -343,7 +596,9 @@ class TVScreenerUsage:
                     unit='minutes',
                     interval=15,
                     to_date=to_date,
-                    from_date=from_date
+                    from_date=from_date,
+                    exchange='NSE_EQ',
+                    instrument_type='EQ'
                 )
                 
                 if df is not None and not df.empty and len(df) >= 10:
@@ -367,9 +622,6 @@ class TVScreenerUsage:
 
     def _is_trading_hours(self):
         """Check if current time is within trading hours"""
-        if not self.paper_trading_enabled:
-            return True  # Always allow if paper trading is disabled
-
         try:
             from datetime import datetime
             now = datetime.now().time()
@@ -1276,11 +1528,11 @@ class TVScreenerUsage:
     # ==================== INTRADAY WATCH MODE ====================
     
     def wait_until_market_open(self):
-        """Wait until 9:20 AM before starting active monitoring"""
-        target_time = datetime.now().replace(hour=9, minute=20, second=0, microsecond=0)
+        """Wait until 9:15 AM before starting active monitoring"""
+        target_time = datetime.now().replace(hour=9, minute=15, second=0, microsecond=0)
         current_time = datetime.now()
         
-        # If we're past 9:20 AM today, start immediately
+        # If we're past 9:15 AM today, start immediately
         if current_time >= target_time:
             console.print("[green]✅ Market open time reached - starting active monitoring[/green]")
             return
@@ -1290,9 +1542,9 @@ class TVScreenerUsage:
         wait_minutes = int(wait_seconds // 60)
         wait_secs = int(wait_seconds % 60)
         
-        console.print(f"[yellow]⏰ Waiting until 9:20 AM to start active monitoring...[/yellow]")
+        console.print(f"[yellow]⏰ Waiting until time to start active monitoring...[/yellow]")
         console.print(f"[blue]Current time: {current_time.strftime('%H:%M:%S')}[/blue]")
-        console.print(f"[blue]Target time: 9:20:00[/blue]")
+        console.print(f"[blue]Target time: 9:15:00[/blue]")
         console.print(f"[yellow]Time remaining: {wait_minutes}m {wait_secs}s[/yellow]")
         console.print()
         
@@ -1314,12 +1566,12 @@ class TVScreenerUsage:
                 console.print(f"[blue]🕘 {mins}m {secs}s until active monitoring starts (9:20 AM)[/blue]")
                 console.print("[dim]Press Ctrl+C to stop[/dim]")
             
-            time.sleep(1)
+            time_module.sleep(1)
         
         # Clear screen and show start message
         os.system('clear' if os.name == 'posix' else 'cls')
         console.print("[green]🚀 9:20 AM reached - starting active monitoring mode![/green]")
-        time.sleep(2)
+        time_module.sleep(2)
     
     def intraday_watch_mode(self, refresh_interval=30, volume_threshold=2.0, price_threshold=3.0):
         """Watch mode for intraday trading - continuously monitors volume and price changes"""
@@ -1350,7 +1602,7 @@ class TVScreenerUsage:
         
         try:
             while True:
-                start_time = time.time()
+                start_time = time_module.time()
                 
                 # Clear screen for fresh update
                 os.system('clear' if os.name == 'posix' else 'cls')
@@ -1360,6 +1612,8 @@ class TVScreenerUsage:
                 console.print(f"[bold blue]📊 INTRADAY WATCH MODE - {current_time}[/bold blue]")
                 console.print(f"[dim]Refresh: {refresh_interval}s | Vol: {volume_threshold}x | Price: {price_threshold}%[/dim]")
                 console.print()
+                
+                # TV alerts processed directly via webhook callback
                 
                 # Get current market data
                 current_data = self._get_watch_data()
@@ -1377,18 +1631,21 @@ class TVScreenerUsage:
                     # Display current top movers
                     self._display_watch_data(current_data, alerts)
                     
+                    # Display performance metrics (every 30 seconds)
+                    self._display_performance_metrics()
+                    
                     # Store current data for next comparison
                     previous_data = current_data.copy()
                 else:
                     console.print("[red]❌ No data received - checking connection...[/red]")
                 
                 # Wait for next refresh
-                elapsed = time.time() - start_time
+                elapsed = time_module.time() - start_time
                 sleep_time = max(0, refresh_interval - elapsed)
                 
                 if sleep_time > 0:
                     console.print(f"[dim]Next refresh in {sleep_time:.1f}s... (Ctrl+C to stop)[/dim]")
-                    time.sleep(sleep_time)
+                    time_module.sleep(sleep_time)
                     
         except KeyboardInterrupt:
             console.print("\n[yellow]👋 Watch mode stopped by user[/yellow]")
@@ -1443,11 +1700,11 @@ class TVScreenerUsage:
             return alerts
             
         for _, row in current_data.iterrows():
-            ticker = row['ticker']
+            ticker = row['name']
             
             # Volume spike alert
             if row['relative_volume_10d_calc'] > volume_threshold:
-                prev_vol = previous_data[previous_data['ticker'] == ticker]['relative_volume_10d_calc'].values
+                prev_vol = previous_data[previous_data['name'] == ticker]['relative_volume_10d_calc'].values
                 if len(prev_vol) > 0 and row['relative_volume_10d_calc'] > prev_vol[0] * 1.2:
                     alerts.append({
                         'type': 'VOLUME_SPIKE',
@@ -1461,7 +1718,7 @@ class TVScreenerUsage:
             
             # Price movement alert
             if abs(row['change']) > price_threshold:
-                prev_change = previous_data[previous_data['ticker'] == ticker]['change'].values
+                prev_change = previous_data[previous_data['name'] == ticker]['change'].values
                 if len(prev_change) > 0 and abs(row['change']) > abs(prev_change[0]) * 1.1:
                     alerts.append({
                         'type': 'PRICE_MOVE',
@@ -1607,7 +1864,7 @@ class TVScreenerUsage:
             confidence = self._calculate_alert_confidence(alert)
             
             # Only trade if confidence is sufficient (50%+)
-            if confidence < 0.5:
+            if confidence < 0.7:
                 console.print(f"   [yellow]⚠️ Alert confidence too low ({confidence:.0%}) - skipping trade[/yellow]")
                 return
             
@@ -1644,6 +1901,24 @@ class TVScreenerUsage:
                         trade_side = 'SELL'
             
             if trade_side:
+                # RELAXED downtrend requirement for FOMO mode
+                if trade_side == 'SELL':
+                    # Create a mock row from alert data for downtrend confirmation
+                    mock_row = {
+                        'close': price,
+                        'change': alert.get('change', alert.get('current_change', 0)),
+                        'relative_volume_10d_calc': alert.get('volume_ratio', 1.0),
+                        'VWAP': alert.get('VWAP', price),
+                        'EMA20': alert.get('EMA20', price),
+                        'EMA50': alert.get('EMA50', price)
+                    }
+                    confirmed_downtrend = self._check_confirmed_downtrend_for_short(symbol, mock_row)
+                    rsi = alert.get('rsi', 50)
+                    # Only require confirmation for less extreme RSI (allow very overbought signals through)
+                    if not confirmed_downtrend and rsi < 85:
+                        console.print(f"[yellow]⚠️ {symbol}: SHORT signal but no confirmed downtrend - skipping[/yellow]")
+                        return
+                
                 # Check if we already have a position in this symbol
                 if symbol in self.positions and self.positions[symbol]:
                     console.print(f"   [yellow]⚠️ Already have position in {symbol} - skipping[/yellow]")
@@ -1675,7 +1950,7 @@ class TVScreenerUsage:
                         self.live_trades.pop(0)
                     
                     # Log trade to journal
-                    self.log_trade("ENTRY", symbol, price, quantity, quantity * price, f"{alert['type']}|trend:{trend}")
+                    self.log_trade("ENTRY", symbol, price, quantity, quantity * price, f"{alert['type']}|trend:{trend}", side=trade_side)
                     
                     trend_emoji = "📈" if trend in ['strong_bullish', 'bullish'] else "📉" if trend in ['strong_bearish', 'bearish'] else "➡️"
                     strategy_reason = f"bearish trend short" if trend in ['strong_bearish', 'bearish'] and trade_side == 'SELL' else f"signal-based {trade_side.lower()}"  
@@ -1724,12 +1999,68 @@ class TVScreenerUsage:
         
         return min(confidence, 0.95)  # Cap at 95%
     
+    def _check_daily_entry_limit(self, symbol):
+        """Check if symbol has reached daily entry limit (max 2 per day)"""
+        from datetime import date
+        today = date.today().isoformat()
+        
+        if symbol not in self.daily_entry_count:
+            return False, 0
+            
+        if today not in self.daily_entry_count[symbol]:
+            return False, 0
+            
+        entries_today = self.daily_entry_count[symbol][today]
+        if entries_today >= self.max_daily_entries_per_stock:
+            return True, entries_today
+            
+        return False, entries_today
+    
+    def _increment_daily_entry_count(self, symbol):
+        """Increment daily entry count for a symbol"""
+        from datetime import date
+        today = date.today().isoformat()
+        
+        if symbol not in self.daily_entry_count:
+            self.daily_entry_count[symbol] = {}
+            
+        if today not in self.daily_entry_count[symbol]:
+            self.daily_entry_count[symbol][today] = 0
+            
+        self.daily_entry_count[symbol][today] += 1
+    
+    def _check_loss_cooldown(self, symbol):
+        """Check if symbol is in loss-based cooldown (30+ minutes after loss)"""
+        if symbol not in self.loss_cooldown:
+            return False, 0
+            
+        current_time = datetime.now()
+        loss_time_diff = (current_time - self.loss_cooldown[symbol]).total_seconds()
+        
+        if loss_time_diff < self.loss_cooldown_duration:
+            cooldown_left = self.loss_cooldown_duration - loss_time_diff
+            return True, cooldown_left
+            
+        return False, 0
+    
     def _execute_screener_trade(self, symbol, side, alert, price, quantity, confidence, trend='neutral'):
         """Execute paper trade via bot"""
         try:
             # Check trading hours - prevent new trades outside market hours
             if not self._is_trading_hours():
                 console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Outside trading hours ({self.trading_start_time}-{self.trading_end_time})[/yellow]")
+                return False
+            
+            # Check daily entry limit (max 2 entries per day per stock)
+            at_limit, entries_today = self._check_daily_entry_limit(symbol)
+            if at_limit:
+                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Daily entry limit reached ({entries_today}/{self.max_daily_entries_per_stock})[/yellow]")
+                return False
+            
+            # Check loss-based cooldown (30+ minutes after any loss)
+            in_cooldown, cooldown_left = self._check_loss_cooldown(symbol)
+            if in_cooldown:
+                console.print(f"[yellow]⏰ TRADE BLOCKED: {symbol} - Loss cooldown active ({cooldown_left/60:.1f}m left)[/yellow]")
                 return False
             
             # Validate price against live Upstox price
@@ -1749,6 +2080,9 @@ class TVScreenerUsage:
             # Log the trade
             print(trade_log_msg)
             
+            # Volatility detection retained for other purposes, but stops are now fixed 0.5%
+            volatility_level = self._detect_volatility_level(symbol, price)
+            
             # Create position
             self.positions[symbol] = {
                 'side': side,
@@ -1759,6 +2093,7 @@ class TVScreenerUsage:
                 'highest_profit_pct': 0.0,
                 'highest_price': round(price, 2),
                 'trailing_stop_active': False,
+                'volatility': volatility_level,
                 'trailing_stop_pct': 0.0,
                 'trade_id': self.trade_count + 1,
                 'source': 'TV_SCREENER',
@@ -1768,6 +2103,9 @@ class TVScreenerUsage:
             
             self.trade_count += 1
             self.current_prices[symbol] = round(price, 2)
+            
+            # Increment daily entry count for this symbol
+            self._increment_daily_entry_count(symbol)
 
             # Calculate and store entry trading charges for accurate net P&L later
             try:
@@ -1826,7 +2164,7 @@ class TVScreenerUsage:
         table.add_column("Alert", style="bold red")
         
         for _, row in df.head(15).iterrows():
-            ticker = row['ticker']
+            ticker = row['name']
             is_alert = ticker in alert_tickers
             
             # Color coding for alerts
@@ -1896,19 +2234,31 @@ class TVScreenerUsage:
         console.print(trades_table)
     
     def _get_live_price_from_upstox(self, symbol, force_refresh=False):
-        """Get live price from Upstox API for a symbol with BSE fallback"""
+        """Enhanced live price fetching with real-time streaming support."""
         try:
+            # First try to get real-time price if streaming is active
+            if (hasattr(self, 'realtime_streaming_enabled') and
+                self.realtime_streaming_enabled and
+                self.upstox_api):
+
+                realtime_price = self.upstox_api.get_realtime_price(symbol)
+                if realtime_price:
+                    return realtime_price
+
+            # Fallback to existing price fetching logic
             if not (hasattr(self, 'upstox_api') and self.upstox_api):
                 console.print(f"[dim]ℹ️ No Upstox API available for {symbol}, using fallback price[/dim]")
                 return None
-                
-            # Check cache freshness (avoid excessive API calls)
-            current_time = time.time()
-            cache_duration = 10  # Cache for 10 seconds
             
-            if not force_refresh and symbol in self.price_cache_timestamps:
-                if current_time - self.price_cache_timestamps[symbol] < cache_duration:
-                    return self.current_prices.get(symbol)
+            # Authentication is guaranteed to be complete at script startup
+            # No additional checks needed for fast signal processing
+                
+                        
+            # Check if symbol is in blacklist of non-existent symbols to avoid repeated API calls
+            if not hasattr(self, '_symbol_blacklist'):
+                self._symbol_blacklist = set()
+            if symbol in self._symbol_blacklist:
+                return None
             
             # Validate and clean the symbol
             clean_symbol = symbol.strip().upper()
@@ -1924,10 +2274,7 @@ class TVScreenerUsage:
                     clean_symbol = clean_symbol[:-len(suffix)]
                     break
             
-            # Validate symbol format (should be 3-15 characters for Indian stocks)
-            if not (3 <= len(clean_symbol) <= 15):
-                console.print(f"[yellow]⚠️ Invalid symbol format for {symbol}: {clean_symbol} (length: {len(clean_symbol)})[/yellow]")
-                return None
+            # Symbol validation removed - accept all valid symbol formats
                 
             # Set default exchange if not specified
             if ':' not in symbol.strip().upper():
@@ -1945,11 +2292,14 @@ class TVScreenerUsage:
                     console.print(f"[green]✅ Found {clean_symbol} on {fallback_exchange} (fallback from {exchange})[/green]")
                     # Track fallback usage
                     self.exchange_fallbacks[symbol] = fallback_exchange
+                else:
+                    # Add to blacklist if not found on any exchange
+                    self._symbol_blacklist.add(symbol)
+                    console.print(f"[red]❌ Symbol {clean_symbol} not found on NSE or BSE - blacklisting[/red]")
             
             if price is not None:
-                # Update cache
+                # Update current prices
                 self.current_prices[symbol] = round(price, 2)
-                self.price_cache_timestamps[symbol] = current_time
                 return round(price, 2)
                 
         except Exception as e:
@@ -1957,7 +2307,7 @@ class TVScreenerUsage:
             if not hasattr(self, '_last_error_time'):
                 self._last_error_time = {}
             
-            current_time = time.time()
+            current_time = time_module.time()
             if symbol not in self._last_error_time or current_time - self._last_error_time[symbol] > 60:
                 console.print(f"[yellow]⚠️ Failed to get live price for {symbol}: {e}[/yellow]")
                 self._last_error_time[symbol] = current_time
@@ -1965,10 +2315,21 @@ class TVScreenerUsage:
         return None
     
     def _fetch_price_from_exchange(self, symbol, exchange):
-        """Fetch price from specific exchange with proper error handling"""
+        """Fetch price from specific exchange with proper error handling and suppressed output"""
         try:
+            # Check if market is open (9:15 AM - 3:30 PM) - fetch live prices during market hours
+            from datetime import datetime as dt, time as dt_time
+            
+            now = datetime.now().time()
+            market_open = dt_time(9, 15)  # 9:15 AM
+            market_close = dt_time(15, 30)  # 3:30 PM
+            
+            if not (market_open <= now <= market_close):
+                # Outside market hours - return None
+                return None
+            
             if not (hasattr(self, 'upstox_api') and self.upstox_api):
-                console.print(f"[dim]ℹ️ No Upstox API available for {symbol} on {exchange}[/dim]")
+                console.print(f"[red]❌ Upstox API unavailable for {symbol} on {exchange} - TSL monitoring affected[/red]")
                 return None
             
             # Map exchange to Upstox format
@@ -1979,17 +2340,11 @@ class TVScreenerUsage:
             
             upstox_exchange = exchange_map.get(exchange, 'NSE_EQ')
             
-            # Get latest intraday data (1-minute) to get current price
-            df = self.upstox_api.fetch_intraday_data_v3(
-                symbol=symbol, 
-                unit='minutes', 
-                interval=1,
-                exchange=upstox_exchange
-            )
+            # Get current price using real-time streaming
+            price = self.upstox_api.get_current_price_with_streaming(symbol)
             
-            if df is not None and not df.empty:
-                # Get the latest close price (most recent data point)
-                return float(df['close'].iloc[-1])
+            if price is not None:
+                return float(price)
                 
         except Exception as e:
             # Check for specific "instrument key not found" error
@@ -2001,6 +2356,246 @@ class TVScreenerUsage:
                 
         return None
 
+    def _get_live_prices_batch(self, symbols):
+        """Fetch live prices for multiple symbols using parallel processing with compact output"""
+        if not symbols:
+            return {}
+            
+        if not (hasattr(self, 'upstox_api') and self.upstox_api):
+            console.print("[yellow]⚠️ Upstox API unavailable - price fetching disabled[/yellow]")
+            return {}
+        
+        # Authentication is guaranteed to be complete at script startup
+        # No additional checks needed for fast signal processing
+        
+        import concurrent.futures
+        from datetime import datetime, time
+        import contextlib
+        import sys
+        import io
+        
+        # Check if market is open
+        now = datetime.now().time()
+        market_open = time(9, 15)
+        market_close = time(15, 30)
+        is_market_hours = market_open <= now <= market_close
+        
+        if not is_market_hours:
+            console.print("[dim]Market closed - price fetching disabled[/dim]")
+            return {}
+        
+        # Try to get all prices using real-time streaming first
+        batch_realtime_prices = self.upstox_api.get_batch_current_prices_with_streaming(symbols)
+        
+        if batch_realtime_prices and len(batch_realtime_prices) > 0:
+            console.print(f"[green]📡 Real-time streaming: {len(batch_realtime_prices)}/{len(symbols)} symbols[/green]")
+            return batch_realtime_prices
+        
+        # Fallback to individual API calls for symbols that don't have streaming data
+        symbols_to_fetch = symbols
+        
+        # Show compact batch summary with performance metrics
+        start_time = time_module.time()
+        console.print(f"[dim]🔄 Batch fetching {len(symbols_to_fetch)} symbols with {min(5, len(symbols_to_fetch))} threads...[/dim]")
+        
+        # Prepare fetch parameters for each symbol
+        fetch_params = []
+        for symbol in symbols_to_fetch:
+            # Determine exchange (use fallback if available)
+            exchange = self.exchange_fallbacks.get(symbol, 'NSE')
+            fetch_params.append((symbol, exchange))
+        
+        results = {}
+        success_count = 0
+        error_count = 0
+        
+        # Use ThreadPoolExecutor for parallel fetching - optimized based on stress test results
+        optimal_threads = min(5, len(symbols_to_fetch))  # Stress test showed 5 threads as optimal
+        with concurrent.futures.ThreadPoolExecutor(max_workers=optimal_threads) as executor:
+            # Submit all fetch tasks
+            future_to_symbol = {
+                executor.submit(self._fetch_price_from_exchange, symbol, exchange): (symbol, exchange)
+                for symbol, exchange in fetch_params
+            }
+            
+            # Collect results as they complete
+            for future in concurrent.futures.as_completed(future_to_symbol):
+                symbol, exchange = future_to_symbol[future]
+                try:
+                    price = future.result()
+                    if price is not None:
+                        results[symbol] = round(price, 2)
+                        # Update current prices
+                        self.current_prices[symbol] = round(price, 2)
+                        success_count += 1
+                        
+                        # Track fallback usage
+                        if exchange != self.exchange_fallbacks.get(symbol, 'NSE'):
+                            self.exchange_fallbacks[symbol] = exchange
+                    else:
+                        error_count += 1
+                            
+                except Exception as e:
+                    error_count += 1
+                    # Track error types for better diagnostics
+                    if not hasattr(self, '_batch_error_stats'):
+                        self._batch_error_stats = {}
+                    
+                    error_type = type(e).__name__
+                    if error_type not in self._batch_error_stats:
+                        self._batch_error_stats[error_type] = 0
+                    self._batch_error_stats[error_type] += 1
+        
+        # Show enhanced batch summary with performance metrics
+        end_time = time_module.time()
+        duration = end_time - start_time
+        throughput = success_count / duration if duration > 0 else 0
+        
+        if success_count > 0:
+            console.print(f"[dim]✅ Batch complete: {success_count}/{len(symbols_to_fetch)} symbols ({throughput:.1f} symbols/sec)[/dim]")
+        if error_count > 0:
+            console.print(f"[dim]⚠️ {error_count} symbols had errors[/dim]")
+            # Show error distribution if significant
+            if hasattr(self, '_batch_error_stats') and error_count > 2:
+                error_summary = ", ".join([f"{err}: {count}" for err, count in self._batch_error_stats.items()])
+                console.print(f"[dim]🔍 Error types: {error_summary}[/dim]")
+        
+        # Performance tracking for optimization
+        if not hasattr(self, '_batch_performance_stats'):
+            self._batch_performance_stats = []
+        
+        self._batch_performance_stats.append({
+            'timestamp': end_time,
+            'symbols_requested': len(symbols_to_fetch),
+            'symbols_success': success_count,
+            'duration': duration,
+            'throughput': throughput
+        })
+        
+        return results
+
+    def _get_batch_performance_summary(self):
+        """Get performance summary for batch operations"""
+        if not hasattr(self, '_batch_performance_stats') or not self._batch_performance_stats:
+            return None
+        
+        stats = self._batch_performance_stats
+        if len(stats) < 2:
+            return None
+        
+        # Calculate performance metrics
+        total_requests = sum(s['symbols_requested'] for s in stats)
+        total_success = sum(s['symbols_success'] for s in stats)
+        total_duration = sum(s['duration'] for s in stats)
+        avg_throughput = sum(s['throughput'] for s in stats) / len(stats)
+        
+        # Calculate success rate
+        success_rate = (total_success / total_requests * 100) if total_requests > 0 else 0
+        
+        # Calculate average time per symbol
+        avg_time_per_symbol = total_duration / total_success if total_success > 0 else 0
+        
+        return {
+            'total_batches': len(stats),
+            'total_symbols': total_requests,
+            'success_rate': success_rate,
+            'avg_throughput': avg_throughput,
+            'avg_time_per_symbol': avg_time_per_symbol,
+            'total_duration': total_duration
+        }
+
+    def _display_performance_metrics(self):
+        """Display batch performance metrics"""
+        perf_summary = self._get_batch_performance_summary()
+        if not perf_summary:
+            return
+        
+        # Only show performance metrics every 30 seconds to avoid clutter
+        current_time = time_module.time()
+        if hasattr(self, '_last_perf_display') and current_time - self._last_perf_display < 30:
+            return
+        
+        self._last_perf_display = current_time
+        
+        console.print(f"[dim]📊 Performance: {perf_summary['avg_throughput']:.1f} sym/s | "
+                     f"Success: {perf_summary['success_rate']:.0f}% | "
+                     f"Batches: {perf_summary['total_batches']}[/dim]")
+
+    def _process_tv_alerts(self, alerts=None):
+        """Process TV alerts and add symbols to active positions"""
+        if not self.consider_tv_alerts:
+            return
+            
+        if alerts is None:
+            # Called from main loop - no queue needed with direct webhook
+            return
+        else:
+            # Process directly (real-time callback)
+            alerts_to_process = alerts
+        
+        # Authentication is guaranteed to be complete at script startup
+        # No additional checks needed for fast signal processing
+        
+        for alert in alerts_to_process:
+            symbol = alert.get('symbol', '').strip()
+            if not symbol:
+                continue
+                
+            # Check if already in positions or sent alerts
+            if (symbol in self.positions and self.positions[symbol]):
+                console.print(f"[yellow]⚠️ TV Alert blocked: {symbol} - Already in positions[/yellow]")
+                continue
+            if symbol in self.sent_alerts:
+                console.print(f"[yellow]⚠️ TV Alert blocked: {symbol} - Already in sent alerts[/yellow]")
+                continue
+                
+            try:
+                # Get current price and action from alert
+                price = float(alert.get('price', 0))
+                if price <= 0:
+                    continue
+                    
+                action = alert.get('action', '').upper()
+                side = 'BUY' if action in ['BUY', 'LONG'] else 'SELL'
+                
+                # Standard position size (₹20,000)
+                position_size = 20000
+                quantity = int(position_size / price)
+                
+                # Create position from TV alert
+                self.positions[symbol] = {
+                    'side': side,
+                    'qty': quantity,
+                    'entry_price': round(price, 2),
+                    'timestamp': datetime.now(),
+                    'entry_time': datetime.now(),
+                    'highest_profit_pct': 0.0,
+                    'highest_price': round(price, 2),
+                    'trailing_stop_active': False,
+                    'volatility': 'LOW',
+                    'trailing_stop_pct': 0.0,
+                    'trade_id': self.trade_count + 1,
+                    'source': 'TV_ALERT',
+                    'alert_type': 'TV_WEBHOOK',
+                    'confidence': 1.0
+                }
+                
+                self.trade_count += 1
+                self.current_prices[symbol] = round(price, 2)
+                self.sent_alerts.add(symbol)
+                self.last_alert_time[symbol] = time_module.time()
+                
+                # Log the TV alert position
+                side_emoji = "🟢" if side == 'BUY' else "🔴"
+                console.print(f"[green]✅ TV Alert Position: {side_emoji} {symbol} {side} @ {price} (Qty: {quantity})[/green]")
+                
+                if self.journal_file:
+                    with open(self.journal_file, 'a') as f:
+                        f.write(f"TV_ALERT_ENTRY: {symbol} @ {price} Qty:{quantity} Time:{datetime.now()}\n")
+                        
+            except Exception as e:
+                console.print(f"[red]Error processing TV alert for {symbol}: {e}[/red]")
+
     def _display_active_positions(self):
         """Display active positions with live P&L from Upstox (net after estimated charges)"""
         active_positions = {k: v for k, v in self.positions.items() if v}
@@ -2008,6 +2603,10 @@ class TVScreenerUsage:
         if not active_positions:
             return
 
+        # Batch fetch prices for all active positions
+        symbols = list(active_positions.keys())
+        batch_prices = self._get_live_prices_batch(symbols)
+        
         console.print()
         positions_table = Table(title="📊 ACTIVE POSITIONS", show_header=True)
         positions_table.add_column("Symbol", style="bold", no_wrap=True)
@@ -2021,9 +2620,10 @@ class TVScreenerUsage:
         positions_table.add_column("Source", style="dim")
 
         for symbol, position in active_positions.items():
-            # Try to get live price from Upstox first, fallback to cached price
-            live_price = self._get_live_price_from_upstox(symbol)
-            current_price = live_price if live_price else self.current_prices.get(symbol, position['entry_price'])
+            # Use batch price, fallback to individual fetch
+            current_price = (batch_prices.get(symbol) or 
+                           self._get_live_price_from_upstox(symbol) or 
+                           self.current_prices.get(symbol, position['entry_price']))
 
             # Charges
             entry_charges = position.get('entry_charges', 0.0)
@@ -2046,6 +2646,7 @@ class TVScreenerUsage:
             side_emoji = "🟢" if position['side'] == 'BUY' else "🔴"
 
             # Price source indicator with exchange info
+            live_price = symbol in batch_prices or hasattr(self, 'upstox_api') and self.upstox_api
             if live_price:
                 price_indicator = "🔄" if symbol in self.exchange_fallbacks else "🟢"
                 current_price_display = f"{price_indicator}₹{current_price:,.2f}"
@@ -2074,7 +2675,7 @@ class TVScreenerUsage:
             )
 
         console.print(positions_table)
-        console.print("[dim]🟢 = Live price | 🔄 = Fallback exchange | 🔴 = Cached | 🎯 = Trailing Stop[/dim]")
+        console.print("[dim]🟢 = Live price | 🔄 = Fallback exchange | 🎯 = Trailing Stop[/dim]")
     
     def _display_closed_trades(self):
         """Display closed trades with P&L information in a table format"""
@@ -2142,8 +2743,10 @@ class TVScreenerUsage:
     
     def start_background_monitoring(self):
         """Start background thread for continuous live price monitoring and risk management"""
-        if not self.paper_trading_enabled or not self.upstox_api:
+        if not self.paper_trading_enabled:
             return
+        
+        # Start monitoring even if Upstox API has issues - display errors instead of stopping
         
         if self.background_monitor_active:
             console.print("[yellow]⚠️ Background monitoring already active[/yellow]")
@@ -2162,6 +2765,12 @@ class TVScreenerUsage:
             self.background_monitor_active = False
             if self.monitor_thread:
                 self.monitor_thread.join(timeout=2.0)
+
+            # Stop real-time streaming if active
+            if (hasattr(self, 'upstox_api') and self.upstox_api and
+                hasattr(self.upstox_api, 'stop_realtime_streaming')):
+                self.upstox_api.stop_realtime_streaming()
+
             console.print("[yellow]⏹️ Stopped background monitoring[/yellow]")
     
     def _background_monitor_loop(self):
@@ -2177,18 +2786,23 @@ class TVScreenerUsage:
                 if not active_positions:
                     continue
                 
+                # Batch fetch prices for all active positions first
+                symbols = list(active_positions.keys())
+                batch_prices = self._get_live_prices_batch(symbols)
+                
+                # Monitor each position with batch-fetched prices
                 for symbol, position in active_positions.items():
-                    self._monitor_position_risk(symbol, position)
+                    self._monitor_position_risk(symbol, position, batch_prices.get(symbol))
                     
             except Exception as e:
                 console.print(f"[red]❌ Error in background monitor: {e}[/red]")
                 continue
     
-    def _monitor_position_risk(self, symbol, position):
+    def _monitor_position_risk(self, symbol, position, pre_fetched_price=None):
         """Monitor individual position for risk management with progressive trailing stop and net P&L"""
         try:
-            # Get live price (force refresh for accuracy in risk management)
-            live_price = self._get_live_price_from_upstox(symbol, force_refresh=True)
+            # Use pre-fetched price if available, otherwise fetch individually
+            live_price = pre_fetched_price or self._get_live_price_from_upstox(symbol, force_refresh=True)
             if not live_price:
                 return
 
@@ -2210,13 +2824,35 @@ class TVScreenerUsage:
             entry_value = entry_price * position['qty']
             pnl_pct = (net_pnl / entry_value) * 100 if entry_value else 0.0
 
-            # Risk Management Rules
-            stop_loss_pct = -0.5  # 0.5% initial stop loss
-            take_profit_pct = 1.0  # 1% take profit threshold for intraday
-            quick_exit_pct = 1.0  # 1.0% quick exit threshold
+            # Check if this is a TV alert position for scalping
+            is_tv_alert = position.get('source') == 'TV_ALERT'
+            
+            if is_tv_alert:
+                # Use small SL/TP for TV alerts (scalping)
+                stop_loss_pct = -0.5  # 0.5% stop loss
+                take_profit_pct = 0.5  # 0.5% take profit (1:1 reward ratio for scalping)
+            else:
+                # Regular SL/TP for other positions
+                stop_loss_pct = -0.5  # 0.5% stop loss
+                take_profit_pct = 1.5  # 1.5% take profit threshold (1.5:1 reward ratio)
+            # Set quick exit threshold based on position type
+            quick_exit_pct = 0.3 if is_tv_alert else 1.0   # Much lower for TV alerts (scalping)
 
-            # Progressive trailing stop buffer (tightens with higher profits)
-            trailing_stop_buffer = self._get_progressive_trailing_buffer(abs(pnl_pct))
+            # Calculate trade duration for ultra-quick trailing determination
+            trade_duration_minutes = (datetime.now() - position.get('timestamp', datetime.now())).total_seconds() / 60
+            
+            # Determine if ultra-quick trailing should be active
+            ultra_quick_trailing = False
+            if trade_duration_minutes <= 3 and pnl_pct >= 0.8:  # 0.8% in 3 minutes
+                ultra_quick_trailing = True
+            elif trade_duration_minutes <= 5 and pnl_pct >= 1.0:  # 1.0% in 5 minutes
+                ultra_quick_trailing = True
+            elif trade_duration_minutes <= 10 and pnl_pct >= 1.5:  # 1.5% in 10 minutes
+                ultra_quick_trailing = True
+
+            # MUCH TIGHTER trailing stop buffer (aggressive profit locking)
+            # Use even tighter buffers for TV alerts (scalping)
+            trailing_stop_buffer = self._get_tighter_trailing_buffer(abs(pnl_pct), is_ultra_quick=ultra_quick_trailing, is_tv_alert=is_tv_alert)
 
             # Update highest profit and price tracking
             if pnl_pct > position.get('highest_profit_pct', 0.0):
@@ -2226,9 +2862,24 @@ class TVScreenerUsage:
             # Check for exit conditions
             should_exit = False
             exit_reason = ""
+            
+            # 0. Ultra-quick tight trailing activation for very fast profits (NO HARD EXITS)
+            if ultra_quick_trailing and not position.get('trailing_stop_active', False):
+                position['trailing_stop_active'] = True
+                position['best_profit_pct'] = pnl_pct
+                
+                # Determine trigger type for logging
+                if trade_duration_minutes <= 3:
+                    trigger_type = "ULTRA-QUICK"
+                elif trade_duration_minutes <= 5:
+                    trigger_type = "QUICK"
+                else:
+                    trigger_type = "FAST"
+                    
+                console.print(f"[green]🚀 {symbol}: {trigger_type} trailing activated at {pnl_pct:.2f}% in {trade_duration_minutes:.1f}m[/green]")
 
             # 1. Regular stop loss (if not in trailing mode)
-            if not position.get('trailing_stop_active', False) and pnl_pct <= stop_loss_pct:
+            elif not position.get('trailing_stop_active', False) and pnl_pct <= stop_loss_pct:
                 should_exit = True
                 exit_reason = f"STOP LOSS: {pnl_pct:.2f}%"
 
@@ -2295,12 +2946,18 @@ class TVScreenerUsage:
             console.print(f"[bold red]{exit_log}[/bold red]")
 
             # Log exit trade to journal
-            self.log_trade("EXIT", symbol, exit_price, position['qty'], exit_amount, reason, pnl_pct, pnl_amount)
+            exit_side = 'SELL' if position['side'] == 'BUY' else 'BUY'
+            self.log_trade("EXIT", symbol, exit_price, position['qty'], exit_amount, reason, pnl_pct, pnl_amount, side=exit_side)
 
             # If stop loss exit, add cooldown
             if "STOP LOSS" in reason:
                 self.stop_loss_cooldown[symbol] = datetime.now()
                 console.print(f"[dim red]🚫 Added {symbol} to 30-minute stop loss cooldown[/dim red]")
+            
+            # Add to loss cooldown for ANY loss (30+ minutes after loss)
+            if pnl_amount < 0:  # Any loss
+                self.loss_cooldown[symbol] = datetime.now()
+                console.print(f"[dim red]🚫 Added {symbol} to 30-minute loss cooldown (₹{pnl_amount:+,.0f})[/dim red]")
 
             # Add to live trades log
             self.live_trades.append({
@@ -2366,6 +3023,197 @@ class TVScreenerUsage:
             return tv_utils.get_progressive_trailing_buffer(profit_pct, volatility_adjustment)
         except Exception:
             return 1.0
+    
+    def _get_tighter_trailing_buffer(self, profit_pct, is_ultra_quick=False, is_tv_alert=False):
+        """MUCH TIGHTER trailing buffer for aggressive profit locking"""
+        # Ultra-tight trailing stops that lock in profits very quickly
+        
+        # TIGHTEST for TV alerts (scalping) - lock in profits immediately
+        if is_tv_alert:
+            if profit_pct >= 0.5:    # 0.5%+ profit: Lock in 90% (0.05% buffer)
+                return 0.05
+            elif profit_pct >= 0.3:  # 0.3%+ profit: Lock in 80% (0.1% buffer)
+                return 0.1
+            else:                    # < 0.3% profit: Minimal buffer
+                return 0.15
+        
+        # EVEN TIGHTER for ultra-quick trailing scenarios  
+        if is_ultra_quick:
+            if profit_pct >= 2.0:    # 2%+ profit: Lock in 95% (0.1% buffer)
+                return 0.1
+            elif profit_pct >= 1.5:  # 1.5%+ profit: Lock in 92% (0.15% buffer)  
+                return 0.15
+            elif profit_pct >= 1.0:  # 1%+ profit: Lock in 88% (0.2% buffer)
+                return 0.2
+            elif profit_pct >= 0.8:  # 0.8%+ profit: Lock in 85% (0.25% buffer)
+                return 0.25
+            else:                    # < 0.8% profit: Tight initial buffer
+                return 0.3
+        
+        # Regular tight trailing (original logic)
+        if profit_pct >= 2.0:    # 2%+ profit: Lock in 90% (0.2% buffer)
+            return 0.2
+        elif profit_pct >= 1.5:  # 1.5%+ profit: Lock in 85% (0.25% buffer)  
+            return 0.25
+        elif profit_pct >= 1.0:  # 1%+ profit: Lock in 80% (0.3% buffer)
+            return 0.3
+        elif profit_pct >= 0.8:  # 0.8%+ profit: Lock in 75% (0.35% buffer)
+            return 0.35
+        elif profit_pct >= 0.6:  # 0.6%+ profit: Lock in 65% (0.4% buffer)
+            return 0.4
+        elif profit_pct >= 0.4:  # 0.4%+ profit: Lock in 50% (0.45% buffer)
+            return 0.45
+        else:                    # < 0.4% profit: Initial buffer
+            return 0.5
+
+    def _detect_volatility_level(self, symbol, current_price):
+        """Detect volatility level for a stock to determine if ATR-based stops should be used"""
+        try:
+            if not hasattr(self, 'upstox_api') or not self.upstox_api:
+                return 'normal'  # Default to normal volatility
+            
+            from datetime import datetime as dt, time as dt_timedelta
+            import numpy as np
+            
+            # Get recent price data (10 days for volatility calculation)
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - timedelta(days=15)).strftime('%Y-%m-%d')
+            
+            df = self.upstox_api.fetch_historical_data_v3(
+                symbol=symbol,
+                unit='days',
+                interval=1,
+                to_date=to_date,
+                from_date=from_date,
+                exchange='NSE_EQ',
+                instrument_type='EQ'
+            )
+            
+            if df is None or df.empty or len(df) < 5:
+                return 'normal'  # Default if insufficient data
+            
+            # Calculate daily returns
+            df['returns'] = df['close'].pct_change()
+            
+            # Calculate volatility (standard deviation of returns)
+            volatility = df['returns'].std()
+            
+            # Calculate average daily range as % of price
+            df['daily_range_pct'] = ((df['high'] - df['low']) / df['close']) * 100
+            avg_daily_range = df['daily_range_pct'].mean()
+            
+            # Thresholds for volatility classification
+            high_vol_threshold = 0.03  # 3% daily volatility
+            high_range_threshold = 4.0  # 4% average daily range
+            
+            # Classify volatility
+            if volatility > high_vol_threshold or avg_daily_range > high_range_threshold:
+                console.print(f"[dim yellow]⚠️ {symbol} classified as HIGH volatility (Vol: {volatility:.3f}, Range: {avg_daily_range:.1f}%)[/dim yellow]")
+                return 'high'
+            else:
+                console.print(f"[dim green]✅ {symbol} classified as NORMAL volatility (Vol: {volatility:.3f}, Range: {avg_daily_range:.1f}%)[/dim green]")
+                return 'normal'
+                
+        except Exception as e:
+            console.print(f"[dim red]⚠️ Volatility detection failed for {symbol}: {e}[/dim red]")
+            return 'normal'  # Conservative default
+    
+    def _calculate_atr_based_stop(self, symbol, current_price, atr_multiplier=2.0):
+        """Calculate ATR-based stop loss for volatile stocks"""
+        try:
+            if not hasattr(self, 'upstox_api') or not self.upstox_api:
+                # Fallback to fixed percentage for volatile stocks
+                return current_price * 0.98  # 2% stop loss as fallback
+            
+            from datetime import datetime as dt, time as dt_timedelta
+            import numpy as np
+            
+            # Get historical data for ATR calculation (need at least 14 days)
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            
+            df = self.upstox_api.fetch_historical_data_v3(
+                symbol=symbol,
+                unit='days',
+                interval=1,
+                to_date=to_date,
+                from_date=from_date,
+                exchange='NSE_EQ',
+                instrument_type='EQ'
+            )
+            
+            if df is None or df.empty or len(df) < 14:
+                # Fallback to fixed percentage
+                return current_price * 0.98
+            
+            # Calculate True Range
+            df['high_low'] = df['high'] - df['low']
+            df['high_close_prev'] = np.abs(df['high'] - df['close'].shift(1))
+            df['low_close_prev'] = np.abs(df['low'] - df['close'].shift(1))
+            
+            df['true_range'] = df[['high_low', 'high_close_prev', 'low_close_prev']].max(axis=1)
+            
+            # Calculate ATR (14-period average)
+            atr = df['true_range'].rolling(window=14).mean().iloc[-1]
+            
+            if pd.isna(atr) or atr <= 0:
+                # Fallback to fixed percentage
+                return current_price * 0.98
+            
+            # ATR-based stop: current_price - (ATR * multiplier)
+            atr_stop = current_price - (atr * atr_multiplier)
+            
+            # Ensure stop is reasonable (not more than 5% below current price)
+            min_stop = current_price * 0.95
+            atr_stop = max(atr_stop, min_stop)
+            
+            console.print(f"[dim]ATR Stop for {symbol}: ₹{atr_stop:.2f} (ATR: {atr:.2f}, Current: ₹{current_price:.2f})[/dim]")
+            return atr_stop
+            
+        except Exception as e:
+            console.print(f"[dim red]⚠️ ATR calculation failed for {symbol}: {e}[/dim red]")
+            # Conservative fallback
+            return current_price * 0.98
+
+    def _check_confirmed_downtrend_for_short(self, symbol, row):
+        """Check if confirmed downtrend exists before allowing short (price < VWAP + bearish volume)"""
+        try:
+            current_price = row['close']
+            
+            # Get VWAP if available, otherwise estimate using volume-weighted price
+            vwap = row.get('VWAP', current_price)  # Fallback to current price if no VWAP
+            
+            # Check if price is below VWAP (bearish condition)
+            price_below_vwap = current_price < vwap
+            
+            # Check for bearish volume (volume above average with negative price action)
+            volume_ratio = row.get('relative_volume_10d_calc', 1.0)
+            change = row.get('change', 0)
+            
+            # Bearish volume: elevated volume (>1.2x) with negative or weak positive move
+            bearish_volume = volume_ratio > 1.2 and change < 1.0
+            
+            # Additional trend confirmation
+            ema20 = row.get('EMA20', current_price)
+            ema50 = row.get('EMA50', current_price)
+            
+            # Stronger confirmation: price below moving averages
+            below_ema20 = current_price < ema20
+            ema_bearish = ema20 < ema50  # 20 EMA below 50 EMA
+            
+            # Relaxed downtrend confirmation for FOMO mode
+            confirmed_downtrend = price_below_vwap or bearish_volume or (below_ema20 and ema_bearish)  # OR instead of AND
+            
+            if confirmed_downtrend:
+                console.print(f"[dim green]✅ {symbol}: Confirmed downtrend for short - Price<VWAP: {price_below_vwap}, Bearish Vol: {bearish_volume}[/dim green]")
+            else:
+                console.print(f"[dim yellow]⚠️ {symbol}: No confirmed downtrend - Price<VWAP: {price_below_vwap}, Bearish Vol: {bearish_volume}[/dim yellow]")
+            
+            return confirmed_downtrend
+            
+        except Exception as e:
+            console.print(f"[dim red]⚠️ Error checking downtrend for {symbol}: {e}[/dim red]")
+            return False  # Conservative approach - don't short if can't confirm
 
     def _calculate_trading_charges(self, trade_value, trade_type='intraday'):
         """Estimate trading charges; delegate to tv_utils when available"""
@@ -2469,7 +3317,7 @@ class TVScreenerUsage:
         
         for example in examples:
             self.run_example(example)
-            time.sleep(1)  # Small delay between examples
+            time_module.sleep(1)  # Small delay between examples
             console.print("\n" + "="*80 + "\n")
 
     # ==================== Signal/Exit Handling & Cleanup ====================
@@ -2486,6 +3334,14 @@ class TVScreenerUsage:
         """Handle shutdown signals"""
         console.print(f"\n[bold yellow]🛑 Signal received: {signal.Signals(signum).name if signum else 'EXIT'}[/bold yellow]")
         try:
+            if hasattr(self, 'webhook_server') and self.webhook_server:
+                self.webhook_server.stop()
+
+            # Stop real-time streaming if active
+            if (hasattr(self, 'upstox_api') and self.upstox_api and
+                hasattr(self.upstox_api, 'stop_realtime_streaming')):
+                self.upstox_api.stop_realtime_streaming()
+
             self._exit_all_positions("SCRIPT_STOPPED")
         except Exception as e:
             console.print(f"[red]Error during cleanup: {e}[/red]")
@@ -2495,6 +3351,14 @@ class TVScreenerUsage:
 
     def _cleanup_on_exit(self):
         """Cleanup function called on script exit"""
+        if hasattr(self, 'webhook_server') and self.webhook_server:
+            self.webhook_server.stop()
+
+        # Stop real-time streaming if active
+        if (hasattr(self, 'upstox_api') and self.upstox_api and
+            hasattr(self.upstox_api, 'stop_realtime_streaming')):
+            self.upstox_api.stop_realtime_streaming()
+
         if hasattr(self, 'positions') and self.positions:
             self._exit_all_positions("SCRIPT_EXIT")
 
@@ -2506,11 +3370,23 @@ class TVScreenerUsage:
 
         console.print(f"\n[bold red]🚨 EXITING ALL POSITIONS - Reason: {reason}[/bold red]")
 
+        # Stop real-time streaming before exiting positions
+        if (hasattr(self, 'upstox_api') and self.upstox_api and
+            hasattr(self.upstox_api, 'stop_realtime_streaming')):
+            self.upstox_api.stop_realtime_streaming()
+
         positions_to_exit = dict(self.positions)
+
+        # Batch fetch prices for all positions to exit
+        symbols = list(positions_to_exit.keys())
+        batch_prices = self._get_live_prices_batch(symbols)
+
         for symbol, position in positions_to_exit.items():
             try:
-                # Get current price for exit
-                current_price = self._get_live_price_from_upstox(symbol) or self.current_prices.get(symbol, position['entry_price'])
+                # Use batch price, fallback to individual fetch
+                current_price = (batch_prices.get(symbol) or
+                               self._get_live_price_from_upstox(symbol) or
+                               self.current_prices.get(symbol, position['entry_price']))
                 self._execute_exit_trade(symbol, position, current_price, f"{reason}: Bulk Exit")
                 # Remove from positions after successful exit
                 if symbol in self.positions:
@@ -2538,9 +3414,12 @@ def main():
     # Paper Trading Bot integration
     parser.add_argument('--enable-trading', action='store_true', help='Enable paper trading bot integration (₹20,000 per trade)')
     
+    # TV Alert integration
+    parser.add_argument('--consider-tv-alerts', action='store_true', help='Consider TradingView alerts from webhook for active positions')
+    
     args = parser.parse_args()
     
-    screener = TVScreenerUsage(market=args.market, enable_paper_trading=args.enable_trading)
+    screener = TVScreenerUsage(market=args.market, enable_paper_trading=args.enable_trading, consider_tv_alerts=args.consider_tv_alerts)
     
     if args.list_examples:
         screener.show_available_examples()

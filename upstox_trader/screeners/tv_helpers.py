@@ -3,45 +3,59 @@ from tradingview_screener import Query, col  # noqa: F401 (col imported for pote
 from rich.console import Console
 from rich.table import Table
 from datetime import datetime
+
 import pandas as pd
 
 console = Console()
 
 
-def get_tradingview_cookies():
+def get_tradingview_cookies(quiet: bool = False):
     """Get TradingView cookies from browser with Chrome then Firefox fallback."""
     try:
         # Try Chrome first
         cookies_raw = rookiepy.chrome(['.tradingview.com'])
         cookies = rookiepy.to_cookiejar(cookies_raw)
-        console.print("[green]Successfully loaded cookies from Chrome[/green]")
+        if not quiet:
+            console.print("[green]Successfully loaded cookies from Chrome[/green]")
 
         # Check if we have valid cookies
         if cookies_raw:
-            console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
+            if not quiet:
+                console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
         else:
-            console.print("[yellow]⚠️  No cookies found[/yellow]")
+            if not quiet:
+                console.print("[yellow]⚠️  No cookies found[/yellow]")
 
         return cookies
     except Exception:
-        console.print("[yellow]Chrome cookies failed, trying Firefox...[/yellow]")
+        if not quiet:
+            console.print("[yellow]Chrome cookies failed, trying Firefox...[/yellow]")
         try:
             cookies_raw = rookiepy.firefox(['.tradingview.com'])
             cookies = rookiepy.to_cookiejar(cookies_raw)
-            console.print("[green]Successfully loaded cookies from Firefox[/green]")
+            if not quiet:
+                console.print("[green]Successfully loaded cookies from Firefox[/green]")
 
             if cookies_raw:
-                console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
+                if not quiet:
+                    console.print("[green]✅ Found TradingView cookies - expecting live data[/green]")
             else:
-                console.print("[yellow]⚠️  No cookies found[/yellow]")
+                if not quiet:
+                    console.print("[yellow]⚠️  No cookies found[/yellow]")
 
             return cookies
         except Exception:
-            console.print("[red]Could not load cookies from any browser.[/red]")
-            console.print("[yellow]💡 Make sure you're logged into TradingView in your browser[/yellow]")
-            console.print("[yellow]💡 Try refreshing the TradingView page and run script again[/yellow]")
+            if not quiet:
+                console.print("[red]Could not load cookies from any browser.[/red]")
+                console.print("[yellow]💡 Make sure you're logged into TradingView in your browser[/yellow]")
+                console.print("[yellow]💡 Try refreshing the TradingView page and run script again[/yellow]")
             return None
 
+
+# Currency-aware formatters
+def get_currency_price_formatter(currency_symbol='₹'):
+    """Get a price formatter for the specified currency"""
+    return lambda x: f"{currency_symbol}{x:,.2f}"
 
 # Column configuration to eliminate DRY code
 COLUMN_CONFIG = {
@@ -143,17 +157,23 @@ COLUMN_CONFIG = {
 }
 
 
-def display_table(df: pd.DataFrame, title: str, max_rows: int = 15):
+def display_table(df: pd.DataFrame, title: str, max_rows: int = 15, currency_symbol: str = '₹'):
     """Display a generic dataframe in a formatted table, tailored for TradingView screener columns."""
     if df.empty:
         console.print(f"[red]No results found for {title}[/red]")
         return
 
+    # Create a copy of COLUMN_CONFIG with currency-aware price formatter
+    column_config = COLUMN_CONFIG.copy()
+    if 'close' in df.columns:
+        column_config['close'] = column_config['close'].copy()
+        column_config['close']['formatter'] = get_currency_price_formatter(currency_symbol)
+
     table = Table(title=title, show_header=True, header_style="bold magenta")
 
     # Add columns dynamically based on dataframe using configuration
     for col_name in df.columns:
-        config = COLUMN_CONFIG.get(col_name, {})
+        config = column_config.get(col_name, {})
         display_name = config.get('display_name', col_name)
         
         # Build column properties
@@ -173,7 +193,7 @@ def display_table(df: pd.DataFrame, title: str, max_rows: int = 15):
     for _, row in df.head(max_rows).iterrows():
         row_data = []
         for col_name in df.columns:
-            config = COLUMN_CONFIG.get(col_name, {})
+            config = column_config.get(col_name, {})
             value = row[col_name]
             
             # Use formatter if available, otherwise convert to string

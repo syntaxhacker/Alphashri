@@ -9,8 +9,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import sys
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 def get_prepost_market_data(limit=100, min_market_cap=500_000_000):
     """
@@ -330,125 +328,187 @@ def analyze_after_hours_sentiment(df):
                 print(f"      💡 Next day: Small gap down likely, reversal opportunity")
         print()
 
-def create_prepost_visualizations(df):
-    """Create visualizations for pre/post market analysis"""
-    
+
+def generate_tomorrow_watchlist(df):
+    """Generate tomorrow's watchlist with specific trading opportunities"""
+
     if df is None:
-        return
-    
-    print("📊 CREATING PRE/POST MARKET VISUALIZATIONS...")
-    
-    # Create figure with subplots
-    fig, axes = plt.subplots(2, 2, figsize=(20, 16))
-    fig.suptitle('📊 Pre/Post Market Analysis Dashboard', fontsize=20, fontweight='bold')
-    
-    # 1. Gap vs Regular Hours Performance
-    ax1 = axes[0, 0]
-    gap_change_data = df[df['gap'].notna() & df['change'].notna()].copy()
-    
-    if len(gap_change_data) > 10:
-        colors = ['green' if x > 0 else 'red' for x in gap_change_data['change']]
-        ax1.scatter(gap_change_data['gap'], gap_change_data['change'], 
-                   c=colors, alpha=0.6, s=60, edgecolor='black')
-        ax1.axhline(0, color='black', linestyle='-', alpha=0.5)
-        ax1.axvline(0, color='black', linestyle='-', alpha=0.5)
-        ax1.set_xlabel('Gap %')
-        ax1.set_ylabel('Regular Hours Change %')
-        ax1.set_title('📊 Gap vs Regular Hours Performance', fontsize=14, fontweight='bold')
-        ax1.grid(True, alpha=0.3)
-        
-        # Add correlation line if enough data
-        if len(gap_change_data) > 5:
-            z = np.polyfit(gap_change_data['gap'], gap_change_data['change'], 1)
-            p = np.poly1d(z)
-            ax1.plot(gap_change_data['gap'], p(gap_change_data['gap']), "r--", alpha=0.8)
-    else:
-        ax1.text(0.5, 0.5, 'Insufficient gap data', ha='center', va='center',
-                transform=ax1.transAxes, fontsize=12)
-    
-    # 2. Pre-market vs Regular Hours
-    ax2 = axes[0, 1]
-    premarket_data = df[df['premarket_change'].notna() & df['change'].notna()].copy()
-    
-    if len(premarket_data) > 5:
-        colors = ['blue' if abs(x) < 2 else 'orange' for x in premarket_data['premarket_change']]
-        ax2.scatter(premarket_data['premarket_change'], premarket_data['change'],
-                   c=colors, alpha=0.6, s=60, edgecolor='black')
-        ax2.axhline(0, color='black', linestyle='-', alpha=0.5)
-        ax2.axvline(0, color='black', linestyle='-', alpha=0.5)
-        ax2.set_xlabel('Pre-market Change %')
-        ax2.set_ylabel('Regular Hours Change %')
-        ax2.set_title('🕐 Pre-market vs Regular Hours', fontsize=14, fontweight='bold')
-        ax2.grid(True, alpha=0.3)
-        
-        # Add perfect correlation line
-        max_val = max(abs(premarket_data['premarket_change'].max()), 
-                     abs(premarket_data['change'].max()))
-        ax2.plot([-max_val, max_val], [-max_val, max_val], 'r--', alpha=0.7, 
-                label='Perfect Correlation')
-        ax2.legend()
-    else:
-        ax2.text(0.5, 0.5, 'Insufficient pre-market data', ha='center', va='center',
-                transform=ax2.transAxes, fontsize=12)
-    
-    # 3. Gap Distribution
-    ax3 = axes[1, 0]
-    gap_data = df[df['gap'].notna() & (df['gap'].abs() < 15)]['gap']
-    
-    if len(gap_data) > 0:
-        ax3.hist(gap_data, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
-        ax3.axvline(0, color='red', linestyle='-', linewidth=2, label='No Gap')
-        ax3.axvline(gap_data.mean(), color='orange', linestyle='--', linewidth=2,
-                   label=f'Mean: {gap_data.mean():.2f}%')
-        ax3.set_xlabel('Gap %')
-        ax3.set_ylabel('Frequency')
-        ax3.set_title('📊 Gap Distribution', fontsize=14, fontweight='bold')
-        ax3.legend()
-        ax3.grid(True, alpha=0.3)
-    else:
-        ax3.text(0.5, 0.5, 'No gap data', ha='center', va='center',
-                transform=ax3.transAxes, fontsize=12)
-    
-    # 4. Volume vs Gap Size
-    ax4 = axes[1, 1]
-    vol_gap_data = df[df['gap'].notna() & df['relative_volume_10d_calc'].notna()].copy()
-    
-    if len(vol_gap_data) > 5:
-        colors = ['red' if x < 0 else 'green' for x in vol_gap_data['gap']]
-        ax4.scatter(vol_gap_data['gap'].abs(), vol_gap_data['relative_volume_10d_calc'],
-                   c=colors, alpha=0.6, s=60, edgecolor='black')
-        ax4.set_xlabel('Absolute Gap %')
-        ax4.set_ylabel('Volume Ratio (vs 10d avg)')
-        ax4.set_title('📊 Gap Size vs Volume', fontsize=14, fontweight='bold')
-        ax4.set_yscale('log')
-        ax4.grid(True, alpha=0.3)
-        
-        # Add trend line
-        if len(vol_gap_data) > 10:
-            z = np.polyfit(vol_gap_data['gap'].abs(), 
-                          np.log(vol_gap_data['relative_volume_10d_calc']), 1)
-            p = np.poly1d(z)
-            x_trend = np.linspace(0, vol_gap_data['gap'].abs().max(), 100)
-            ax4.plot(x_trend, np.exp(p(x_trend)), "r--", alpha=0.8, label='Trend')
-            ax4.legend()
-    else:
-        ax4.text(0.5, 0.5, 'Insufficient volume/gap data', ha='center', va='center',
-                transform=ax4.transAxes, fontsize=12)
-    
-    plt.tight_layout()
-    plt.show()
+        return None
+
+    print("🎯 TOMORROW'S WATCHLIST:")
+    print("=" * 50)
+
+    watchlist = []
+
+    # 1. Gap and Go Opportunities (High conviction)
+    gap_and_go = df[
+        (df['gap'] > 2) &
+        (df['change'] > df['gap'] * 0.8) &  # Most of gap maintained
+        (df['relative_volume_10d_calc'] > 1.5) &
+        (df['RSI'] < 80)
+    ].copy()
+
+    if len(gap_and_go) > 0:
+        print("🚀 GAP AND GO (High Conviction):")
+        print("-" * 40)
+
+        for idx, row in gap_and_go.head(8).iterrows():
+            momentum = row['change'] - row['gap']
+            entry = row['close'] * 1.01
+            stop = row['close'] * 0.96
+            target = row['close'] * 1.08
+
+            watchlist.append({
+                'symbol': row['name'],
+                'strategy': 'Gap and Go',
+                'entry': entry,
+                'stop': stop,
+                'target': target,
+                'conviction': 'HIGH',
+                'reasoning': f"Gap {row['gap']:.1f}% → Change {row['change']:.1f}%"
+            })
+
+            print(f"  📈 {row['name']}: ${row['close']:.2f}")
+            print(f"      Gap: {row['gap']:.1f}% → Change: {row['change']:.1f}%")
+            print(f"      💡 Entry: ${entry:.2f} | Stop: ${stop:.2f} | Target: ${target:.2f}")
+            print(f"      🎯 Watch: 9:30-10:30 AM for continuation")
+            print()
+
+    # 2. Gap Fade/Reversal Opportunities
+    gap_fade = df[
+        (df['gap'].abs() > 2) &
+        (np.sign(df['gap']) != np.sign(df['change'])) &
+        (df['relative_volume_10d_calc'] > 2) &
+        (df['RSI'].between(30, 70))
+    ].copy()
+
+    if len(gap_fade) > 0:
+        print("🔄 GAP FADE/REVERSAL:")
+        print("-" * 30)
+
+        for idx, row in gap_fade.head(6).iterrows():
+            if row['gap'] > 0 and row['change'] < 0:
+                # Gap up faded - short opportunity
+                entry = row['close'] * 0.99
+                stop = row['close'] * 1.02
+                target = row['close'] * 0.94
+                strategy = "Gap Up Fade (Short)"
+
+                print(f"  📉 {row['name']}: ${row['close']:.2f}")
+                print(f"      Gapped up {row['gap']:.1f}% but closed down {row['change']:.1f}%")
+                print(f"      💡 Strategy: Short | Entry: ${entry:.2f} | Stop: ${stop:.2f} | Target: ${target:.2f}")
+                print(f"      🎯 Watch: First 30 min for continued downside")
+
+                watchlist.append({
+                    'symbol': row['name'],
+                    'strategy': strategy,
+                    'entry': entry,
+                    'stop': stop,
+                    'target': target,
+                    'conviction': 'MEDIUM',
+                    'reasoning': f"Gap up faded {row['gap']:.1f}% to {row['change']:.1f}%"
+                })
+            else:
+                # Gap down recovery - long opportunity
+                entry = row['close'] * 1.01
+                stop = row['close'] * 0.96
+                target = row['close'] * 1.06
+                strategy = "Gap Down Recovery (Long)"
+
+                print(f"  📈 {row['name']}: ${row['close']:.2f}")
+                print(f"      Gapped down {row['gap']:.1f}% but recovered to {row['change']:.1f}%")
+                print(f"      💡 Strategy: Long | Entry: ${entry:.2f} | Stop: ${stop:.2f} | Target: ${target:.2f}")
+                print(f"      🎯 Watch: 10:00-11:00 AM for bounce confirmation")
+
+                watchlist.append({
+                    'symbol': row['name'],
+                    'strategy': strategy,
+                    'entry': entry,
+                    'stop': stop,
+                    'target': target,
+                    'conviction': 'MEDIUM',
+                    'reasoning': f"Gap down recovered {row['gap']:.1f}% to {row['change']:.1f}%"
+                })
+            print()
+
+    # 3. After-hours momentum for next day
+    if 'postmarket_change' in df.columns:
+        ah_momentum = df[
+            (df['postmarket_change'].abs() > 2) &
+            (df['relative_volume_10d_calc'] > 1.2)
+        ].copy()
+
+        if len(ah_momentum) > 0:
+            print("🌙 AFTER-HOURS MOMENTUM:")
+            print("-" * 30)
+
+            for idx, row in ah_momentum.head(5).iterrows():
+                ah_dir = "UP" if row['postmarket_change'] > 0 else "DOWN"
+                gap_likely = "up" if row['postmarket_change'] > 0 else "down"
+
+                print(f"  {row['name']}: After-hours {ah_dir} {row['postmarket_change']:.1f}%")
+                print(f"    💡 Expect gap {gap_likely} tomorrow | Volume: {row['relative_volume_10d_calc']:.1f}x")
+                print(f"    🎯 Watch: Pre-market (4:00-9:30 AM) for direction")
+
+                watchlist.append({
+                    'symbol': row['name'],
+                    'strategy': f'After-hours {ah_dir} Setup',
+                    'entry': 0,  # Set in pre-market
+                    'stop': 0,   # Set in pre-market
+                    'target': 0, # Set in pre-market
+                    'conviction': 'MEDIUM',
+                    'reasoning': f'AH {row["postmarket_change"]:.1f}% move'
+                })
+                print()
+
+    # 4. Unusual volume alerts (potential news/catalyst)
+    unusual_volume = df[
+        (df['relative_volume_10d_calc'] > 3) &
+        (df['gap'].abs() < 2) &
+        (df['change'].abs() > 2)
+    ].copy()
+
+    if len(unusual_volume) > 0:
+        print("⚡ UNUSUAL VOLUME (Potential Catalyst):")
+        print("-" * 40)
+
+        for idx, row in unusual_volume.head(5).iterrows():
+            print(f"  {row['name']}: Volume {row['relative_volume_10d_calc']:.1f}x | Change {row['change']:.1f}%")
+            print(f"    💡 Check news/catalyst | Watch for follow-through")
+            print(f"    🎯 Monitor: First hour for direction confirmation")
+
+            watchlist.append({
+                'symbol': row['name'],
+                'strategy': 'Unusual Volume Setup',
+                'entry': row['close'] * (1.02 if row['change'] > 0 else 0.98),
+                'stop': row['close'] * (0.96 if row['change'] > 0 else 1.04),
+                'target': row['close'] * (1.08 if row['change'] > 0 else 0.92),
+                'conviction': 'LOW-MEDIUM',
+                'reasoning': f'Unusual volume {row["relative_volume_10d_calc"]:.1f}x'
+            })
+            print()
+
+    if not watchlist:
+        print("📊 No high-conviction setups for tomorrow")
+        print("💡 Monitor market in first 30 minutes for new opportunities")
+        return None
+
+    print(f"📋 TOTAL WATCHLIST ITEMS: {len(watchlist)}")
+    print("=" * 50)
+
+    return watchlist
 
 def generate_trading_alerts(df):
     """Generate specific trading alerts based on pre/post market data"""
-    
+
     if df is None:
         return
-    
+
     print("🚨 TRADING ALERTS & RECOMMENDATIONS:")
     print("=" * 50)
-    
+
     alerts = []
-    
+
     # Large gap alerts
     large_gaps = df[df['gap'].abs() > 3].copy()
     if len(large_gaps) > 0:
@@ -457,7 +517,7 @@ def generate_trading_alerts(df):
         for _, row in large_gaps.head(5).iterrows():
             gap_type = "UP ⬆️" if row['gap'] > 0 else "DOWN ⬇️"
             print(f"  {row['name']}: {gap_type} {row['gap']:.1f}% | Volume: {row['relative_volume_10d_calc']:.1f}x")
-    
+
     # High volume with small gaps (unusual activity)
     unusual_activity = df[(df['relative_volume_10d_calc'] > 3) & (df['gap'].abs() < 2)].copy()
     if len(unusual_activity) > 0:
@@ -466,24 +526,24 @@ def generate_trading_alerts(df):
         for _, row in unusual_activity.head(5).iterrows():
             print(f"  {row['name']}: Volume {row['relative_volume_10d_calc']:.1f}x | Small gap {row['gap']:.1f}%")
             print("    💡 Potential news or insider activity")
-    
+
     # Pre-market vs regular hours divergence
     if 'premarket_change' in df.columns:
         divergence = df[
-            (df['premarket_change'].abs() > 2) & 
+            (df['premarket_change'].abs() > 2) &
             (np.sign(df['premarket_change']) != np.sign(df['change'])) &
             (df['change'].abs() > 1)
         ].copy()
-        
+
         if len(divergence) > 0:
-            alerts.append("🔄 PRE-MARKET REVERSAL ALERT")  
+            alerts.append("🔄 PRE-MARKET REVERSAL ALERT")
             print("\n🔄 PRE-MARKET REVERSAL ALERT:")
             for _, row in divergence.head(3).iterrows():
                 pre_dir = "UP" if row['premarket_change'] > 0 else "DOWN"
                 reg_dir = "DOWN" if row['change'] < 0 else "UP"
                 print(f"  {row['name']}: Pre-market {pre_dir} {row['premarket_change']:.1f}% → Regular {reg_dir} {row['change']:.1f}%")
                 print("    💡 Sentiment reversal - monitor closely")
-    
+
     # After hours continuation setup
     if 'postmarket_change' in df.columns:
         ah_setup = df[df['postmarket_change'].abs() > 2].copy()
@@ -491,71 +551,105 @@ def generate_trading_alerts(df):
             alerts.append("🌙 AFTER-HOURS SETUP")
             print("\n🌙 AFTER-HOURS SETUP FOR TOMORROW:")
             for _, row in ah_setup.head(3).iterrows():
-                ah_dir = "UP ⬆️" if row['postmarket_change'] > 0 else "DOWN ⬇️" 
+                ah_dir = "UP ⬆️" if row['postmarket_change'] > 0 else "DOWN ⬇️"
                 print(f"  {row['name']}: After-hours {ah_dir} {row['postmarket_change']:.1f}%")
                 if row['postmarket_change'] > 0:
                     print("    💡 Watch for gap up tomorrow - continuation or fade play")
                 else:
                     print("    💡 Watch for gap down tomorrow - bounce or breakdown play")
-    
+
     if not alerts:
         print("📊 No major alerts at this time")
         print("💡 Monitor for gap opportunities and unusual volume activity")
-    
+
     print()
 
 def main():
     """Main execution function"""
-    
+
     # Default parameters
     limit = 100
     min_market_cap = 500_000_000
-    
+
     # Handle command line arguments
-    if len(sys.argv) > 1:
-        try:
-            limit = int(sys.argv[1])
-        except:
-            pass
-    
-    if len(sys.argv) > 2:
-        try:
-            min_market_cap = int(sys.argv[2])
-        except:
-            pass
-    
+    args = sys.argv[1:]
+    for i, arg in enumerate(args):
+        if arg == '--limit' and i + 1 < len(args):
+            try:
+                limit = int(args[i + 1])
+            except:
+                pass
+        elif arg == '--min-market-cap' and i + 1 < len(args):
+            try:
+                min_market_cap = int(args[i + 1])
+            except:
+                pass
+        elif arg.isdigit() and i == 0:  # Backward compatibility - first arg as limit
+            try:
+                limit = int(arg)
+            except:
+                pass
+
     # Get pre/post market data
     market_data = get_prepost_market_data(limit=limit, min_market_cap=min_market_cap)
-    
+
     if market_data is None:
         print("❌ Unable to retrieve market data")
         return
-    
+
     # Run analysis
     print(f"✅ Analyzing {len(market_data)} stocks for pre/post market patterns\n")
-    
+
     # Gap analysis
     gap_data = analyze_gap_patterns(market_data)
-    
+
     # Pre-market correlation
     correlation_data = analyze_prepost_correlation(market_data)
-    
+
     # Trading opportunities
     find_gap_trading_opportunities(market_data)
-    
+
     # After-hours sentiment
     analyze_after_hours_sentiment(market_data)
-    
-    # Generate visualizations
-    create_prepost_visualizations(market_data)
-    
+
+
+    # Generate tomorrow's watchlist
+    tomorrow_watchlist = generate_tomorrow_watchlist(market_data)
+
     # Trading alerts
     generate_trading_alerts(market_data)
-    
+
     # Save results
     filename = f"prepost_market_analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
     market_data.to_csv(filename, index=False)
     print(f"💾 Full analysis saved to: {filename}")
+
+    # Save watchlist if available
+    if tomorrow_watchlist:
+        watchlist_df = pd.DataFrame(tomorrow_watchlist)
+        watchlist_filename = f"tomorrow_watchlist_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+        watchlist_df.to_csv(watchlist_filename, index=False)
+        print(f"📋 Tomorrow's watchlist saved to: {watchlist_filename}")
+
+        print("\n🎯 TOMORROW'S KEY FOCUS:")
+        print("=" * 40)
+
+        # Summary of high conviction setups
+        high_conviction = [item for item in tomorrow_watchlist if item['conviction'] == 'HIGH']
+        if high_conviction:
+            print(f"🚨 HIGH PRIORITY ({len(high_conviction)} setups):")
+            for item in high_conviction[:3]:
+                print(f"   • {item['symbol']} - {item['strategy']}")
+                print(f"     Entry: ${item['entry']:.2f} | Target: ${item['target']:.2f}")
+
+        # Market preparation tips
+        print("\n⏰ MARKET PREP CHECKLIST:")
+        print("   ✅ Check pre-market futures (ES/NQ) for direction")
+        print("   ✅ Review after-hours earnings/news")
+        print("   ✅ Monitor VIX for volatility expectations")
+        print("   ✅ Set price alerts for watchlist entries")
+        print("   ✅ Prepare both long and short watchlists")
+    print("=" * 60)
 
 if __name__ == "__main__":
     main()
