@@ -453,7 +453,8 @@ class TestSRBreakoutStrategyMetadata:
 
     def test_pivot_type_param_options(self):
         params = SRBreakoutStrategy.get_params()
-        pivot_param = next(p for p in params if p.key == 'pivot_type')
+        pivot_param = next((p for p in params if p.key == 'pivot_type'), None)
+        assert pivot_param is not None
         
         assert pivot_param.type == 'select'
         assert 'classic' in pivot_param.options
@@ -462,13 +463,15 @@ class TestSRBreakoutStrategyMetadata:
 
     def test_enable_shorts_param_is_boolean(self):
         params = SRBreakoutStrategy.get_params()
-        shorts_param = next(p for p in params if p.key == 'enable_shorts')
+        shorts_param = next((p for p in params if p.key == 'enable_shorts'), None)
+        assert shorts_param is not None
         
         assert shorts_param.type == 'boolean'
 
     def test_trade_size_param_has_min_max(self):
         params = SRBreakoutStrategy.get_params()
-        trade_size_param = next(p for p in params if p.key == 'trade_size')
+        trade_size_param = next((p for p in params if p.key == 'trade_size'), None)
+        assert trade_size_param is not None
         
         assert trade_size_param.min == 1
         assert trade_size_param.max == 5000

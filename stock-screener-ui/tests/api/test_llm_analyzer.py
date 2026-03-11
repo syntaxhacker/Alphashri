@@ -16,9 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-# MOCK OPENAI SINCE IT MIGHT NOT BE INSTALLED GLOBALLY
-sys.modules['openai'] = MagicMock()
-
+# openai is mocked in conftest.py
 from llm_analyzer import ArticleAnalyzer
 
 @pytest.fixture

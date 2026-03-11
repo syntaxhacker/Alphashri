@@ -539,7 +539,7 @@ class TradeJournal:
                 'entry_price', 'exit_price', 'entry_time', 'exit_time',
                 'pnl', 'pnl_pct', 'exit_reason', 'costs', 'net_pnl',
                 'sl_price', 'tp_price', 'peak_price', 'low_price', 'notes',
-                'strategy_id', 'strategy_name'
+                'strategy_id', 'strategy_name', 'bot_id', 'bot_name', 'source', 'is_test'
             ])
             writer.writeheader()
             for trade in self.trades:

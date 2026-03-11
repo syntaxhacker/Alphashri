@@ -329,42 +329,39 @@ class TestSignalGenerationFlow:
         ]
 
         # Generate signals (mock the actual generation)
-        with patch('trading.orb_signals.ORBSignalGenerator.generate_signals') as mock_generate:
-            from trading.orb_signals import ORBSignal, SignalType
+        from trading.orb_signals import ORBSignal, SignalType
 
-            mock_signal1 = ORBSignal(
-                symbol="RELIANCE",
-                signal_type=SignalType.LONG_ENTRY,
-                price=2500.0,
-                stop_loss=2490.0,
-                take_profit=2530.0,
-                or_high=2495.0,
-                or_low=2480.0,
-                or_range=15.0,
-                or_range_pct=0.6,
-                timestamp=datetime.now(),
-            )
-            mock_signal2 = ORBSignal(
-                symbol="TCS",
-                signal_type=SignalType.LONG_ENTRY,
-                price=3800.0,
-                stop_loss=3785.0,
-                take_profit=3845.0,
-                or_high=3790.0,
-                or_low=3770.0,
-                or_range=20.0,
-                or_range_pct=0.53,
-                timestamp=datetime.now(),
-            )
+        mock_signal1 = ORBSignal(
+            symbol="RELIANCE",
+            signal_type=SignalType.LONG_ENTRY,
+            price=2500.0,
+            stop_loss=2490.0,
+            take_profit=2530.0,
+            or_high=2495.0,
+            or_low=2480.0,
+            or_range=15.0,
+            or_range_pct=0.6,
+            timestamp=datetime.now(),
+        )
+        mock_signal2 = ORBSignal(
+            symbol="TCS",
+            signal_type=SignalType.LONG_ENTRY,
+            price=3800.0,
+            stop_loss=3785.0,
+            take_profit=3845.0,
+            or_high=3790.0,
+            or_low=3770.0,
+            or_range=20.0,
+            or_range_pct=0.53,
+            timestamp=datetime.now(),
+        )
 
-            mock_generate.return_value = [mock_signal1, mock_signal2]
-
-            # This would normally be called by the bot runner
-            # For integration test, we verify the signal structure
-            assert mock_signal1.symbol == "RELIANCE"
-            signal_type = getattr(mock_signal1, 'signal_type', None) or getattr(mock_signal1, 'direction', None)
-            assert signal_type == SignalType.LONG_ENTRY
-            assert mock_signal1.stop_loss < mock_signal1.price < mock_signal1.take_profit
+        # This would normally be called by the bot runner
+        # For integration test, we verify the signal structure
+        assert mock_signal1.symbol == "RELIANCE"
+        signal_type = getattr(mock_signal1, 'signal_type', None) or getattr(mock_signal1, 'direction', None)
+        assert signal_type == SignalType.LONG_ENTRY
+        assert mock_signal1.stop_loss < mock_signal1.price < mock_signal1.take_profit
 
 
 class TestOrderPlacementFlow:
@@ -555,8 +552,7 @@ class TestPnLCalculationFlow:
         """
         import importlib.util
         import uuid as uuid_module
-        # Use the test_user fixture
-        user = test_user
+        # Use the user fixture (already passed as parameter)
         
         # Create two strategies with UUIDs
         strategy1 = StrategyConfig(
@@ -610,7 +606,7 @@ class TestPnLCalculationFlow:
         TradeJournal = journal_mod.TradeJournal
         
         temp_dir = tempfile.mkdtemp()
-        journal = TradeJournal(journal_dir=temp_dir, user_id=user.id)
+        journal = TradeJournal(journal_dir=temp_dir, user_id=test_user.id)
         
         # Seed journal with 4 trades (2 per strategy, net_pnl = 600 each)
         base_time = datetime.now()
@@ -667,7 +663,7 @@ class TestPnLCalculationFlow:
         with patch.object(sys.modules['trading.journal'], 'get_journal', return_value=journal):
             response = client.get(
                 f"/api/bots/{bot['uuid']}/strategy-performance",
-                params={"user_id_query": user.id}
+                params={"user_id_query": test_user.id}
             )
             
             assert response.status_code == 200

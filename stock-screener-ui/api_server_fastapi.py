@@ -1225,6 +1225,9 @@ async def get_chart_preview(
             'candles': [],
             'orb_zones': [],
             'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
             'error': 'API not available'
         }
 
@@ -1247,7 +1250,9 @@ async def get_chart_preview(
                 'candles': [],
                 'orb_zones': [],
                 'pivot_levels': [],
-                'timeframe': tf
+                'timeframe': tf,
+                'or_minutes': or_minutes,
+                'total_candles': 0,
             }
 
         # Calculate ORB zones from 1-min data before resampling
@@ -1278,6 +1283,9 @@ async def get_chart_preview(
             'candles': [],
             'orb_zones': [],
             'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
             'error': str(e)
         }
 
@@ -1416,7 +1424,10 @@ async def news_poller_task():
                 await asyncio.sleep(60)
                 continue
 
-            for source_id in NEWS_SOURCES.keys() if NEWS_SOURCES else ['moneycontrol']:
+            # Correctly handle NEWS_SOURCES as a list (matching news_api.py)
+            source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
+            
+            for source_id in source_ids:
                 try:
                     items = fetch_news(source=source_id, limit=5)
                     if not items:

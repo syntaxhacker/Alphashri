@@ -32,42 +32,15 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 # ============================================================================
-# Mock external unavailable modules BEFORE importing anything from the app
+# Mock class definitions (module-level, no side effects)
 # ============================================================================
-missing_mods = [
-    'upstox_trader',
-    'upstox_trader.config_and_utils',
-    'upstox_trader.config_and_utils.free_indian_apis',
-    'trending_upside',
-    'moneycontrol_scraper',
-    'scanners',
-    'nautilus_trader',
-    'nautilus_trader.backtest',
-    'nautilus_trader.config',
-    'nautilus_trader.model',
-    'nautilus_trader.model.enums',
-    'nautilus_trader.model.objects',
-    'nautilus_trader.model.identifiers',
-    'nautilus_trader.model.orders',
-    'backtest',
-    'backtest.api',
-    'backtest.run',
-    'backtest.data',
-    'api.market_ticker',
-]
-for mod in missing_mods:
-    if mod not in sys.modules:
-        sys.modules[mod] = MagicMock()
 
-# Mock SignalType enum (used by ORBSignal)
 class MockSignalType:
     LONG_ENTRY = "LONG_ENTRY"
     SHORT_ENTRY = "SHORT_ENTRY"
     LONG_EXIT = "LONG_EXIT"
     SHORT_EXIT = "SHORT_EXIT"
-sys.modules['nautilus_trader.model.enums'].SignalType = MockSignalType
 
-# Mock trading.orb_signals.ORBSignal
 class MockORBSignal:
     def __init__(self, symbol, price, stop_loss=None, take_profit=None, **kwargs):
         self.symbol = symbol
@@ -96,23 +69,115 @@ orb_signals_mock.ORBSignal = MockORBSignal
 orb_signals_mock.SignalType = MockSignalType
 orb_signals_mock.create_entry_signal = mock_create_entry_signal
 orb_signals_mock.ORBSignalGenerator = MockORBSignalGenerator
-sys.modules['trading.orb_signals'] = orb_signals_mock
-sys.modules['trading.orb_signals.ORBSignal'] = MockORBSignal
-
-# Mock scanners.pivot_levels
-scanners_mock = MagicMock()
-scanners_mock.pivot_levels.return_value = []
-sys.modules['scanners'] = scanners_mock
-sys.modules['scanners.pivot_levels'] = scanners_mock.pivot_levels
-
-# Mock trading submodules that have heavy dependencies
-for _mod in ['trading.paper_trader', 'trading.journal', 'trading.risk_manager', 'trading.multi_strategy_runner']:
-    if _mod not in sys.modules:
-        sys.modules[_mod] = MagicMock()
 
 
 # ============================================================================
-# Database configuration
+# Session-scoped fixture for sys.modules mocking with cleanup
+# ============================================================================
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_external_modules():
+    """Mock external unavailable modules for integration tests only.
+    
+    This fixture ensures proper test isolation by:
+    1. Saving original sys.modules state before mocking
+    2. Applying mocks only for the duration of this test session
+    3. Cleaning up by removing only the mocks we added
+    """
+    missing_mods = [
+        'upstox_trader',
+        'upstox_trader.config_and_utils',
+        'upstox_trader.config_and_utils.free_indian_apis',
+        'upstox_trader.screeners',
+        'upstox_trader.screeners.tv_screen_usage',
+        'trending_upside',
+        'moneycontrol_scraper',
+        'scanners',
+        'nautilus_trader',
+        'nautilus_trader.backtest',
+        'nautilus_trader.backtest.config',
+        'nautilus_trader.backtest.engine',
+        'nautilus_trader.config',
+        'nautilus_trader.model',
+        'nautilus_trader.model.enums',
+        'nautilus_trader.model.objects',
+        'nautilus_trader.model.identifiers',
+        'nautilus_trader.model.orders',
+        'nautilus_trader.model.instruments',
+        'nautilus_trader.model.core',
+        'nautilus_trader.model.currencies',
+        'nautilus_trader.model.data',
+        'nautilus_trader.persistence',
+        'nautilus_trader.persistence.wranglers',
+        'nautilus_trader.trading',
+        'nautilus_trader.trading.strategy',
+        'nautilus_trader.test_kit',
+        'nautilus_trader.test_kit.providers',
+        'api.market_ticker',
+    ]
+    
+    # Save original state
+    original_modules = {}
+    for mod in missing_mods:
+        if mod not in sys.modules:
+            original_modules[mod] = None
+        else:
+            original_modules[mod] = sys.modules[mod]
+    
+    # Save original for nautilus_trader.model.enums.SignalType
+    original_signal_type = getattr(sys.modules.get('nautilus_trader.model.enums', MagicMock()), 'SignalType', None)
+    
+    # Save original for scanners.pivot_levels
+    original_scanners = sys.modules.get('scanners', None)
+    original_pivot_levels = sys.modules.get('scanners.pivot_levels', None)
+    
+    # Apply mocks
+    for mod in missing_mods:
+        if mod not in sys.modules:
+            sys.modules[mod] = MagicMock()
+    
+    # Apply specific mocks (SignalType, etc)
+    sys.modules['nautilus_trader.model.enums'].SignalType = MockSignalType
+    
+    # Mock scanners.pivot_levels
+    scanners_mock = MagicMock()
+    scanners_mock.pivot_levels.return_value = []
+    sys.modules['scanners'] = scanners_mock
+    sys.modules['scanners.pivot_levels'] = scanners_mock.pivot_levels
+    
+    yield
+    
+    # Cleanup - restore original state for missing_mods
+    for mod, original in original_modules.items():
+        if original is None:
+            # We added this mock, remove it
+            if mod in sys.modules:
+                del sys.modules[mod]
+        else:
+            # Restore original
+            sys.modules[mod] = original
+    
+    # Restore SignalType
+    if 'nautilus_trader.model.enums' in sys.modules:
+        if original_signal_type is not None:
+            sys.modules['nautilus_trader.model.enums'].SignalType = original_signal_type
+        elif hasattr(sys.modules['nautilus_trader.model.enums'], 'SignalType'):
+            delattr(sys.modules['nautilus_trader.model.enums'], 'SignalType')
+    
+    # Restore scanners
+    if original_scanners is None:
+        if 'scanners' in sys.modules:
+            del sys.modules['scanners']
+    else:
+        sys.modules['scanners'] = original_scanners
+    
+    if original_pivot_levels is None:
+        if 'scanners.pivot_levels' in sys.modules:
+            del sys.modules['scanners.pivot_levels']
+    else:
+        sys.modules['scanners.pivot_levels'] = original_pivot_levels
+
+
 # ============================================================================
 # Database configuration
 # ============================================================================
@@ -281,6 +346,11 @@ def test_user(db: Session, test_password: str) -> User:
     db.commit()
     db.refresh(user)
     return user
+
+@pytest.fixture
+def user(test_user: User) -> User:
+    """Alias for test_user for tests that use 'user' parameter."""
+    return test_user
 
 @pytest.fixture
 def auth_tokens(client: TestClient, test_user: User, test_password: str) -> Dict[str, str]:

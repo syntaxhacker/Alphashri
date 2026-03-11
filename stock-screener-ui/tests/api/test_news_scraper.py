@@ -16,10 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'moneycontrol-scraper'))
 
-# MOCK SCRAPLING TO PREVENT GLOBAL IMPORT ERRORS
-sys.modules['scrapling'] = MagicMock()
-sys.modules['scrapling.fetchers'] = MagicMock()
-
+# scrapling is mocked in conftest.py
 from news_api import (
     BaseNewsScraper,
     NewsAggregator,

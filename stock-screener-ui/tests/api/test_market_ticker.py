@@ -78,12 +78,12 @@ def mock_ticker(mock_yfinance):
 @pytest.fixture
 def clear_cache():
     """Clear the ticker cache before each test."""
-    _ticker_cache.clear()
-    global _cache_timestamp
-    _cache_timestamp = 0
+    import api.market_ticker as market_ticker
+    market_ticker._ticker_cache.clear()
+    market_ticker._cache_timestamp = 0
     yield
-    _ticker_cache.clear()
-    _cache_timestamp = 0
+    market_ticker._ticker_cache.clear()
+    market_ticker._cache_timestamp = 0
 
 
 class TestMarketTickerEndpoints:
@@ -138,13 +138,15 @@ class TestMarketTickerEndpoints:
 
             data = symbol_data.get(yf_symbol, symbol_data['^NSEI'])
 
-            ticker.info = MagicMock()
-            ticker.info.currentPrice = data['currentPrice']
-            ticker.info.regularMarketPrice = data['currentPrice']
-            ticker.info.dayHigh = data['dayHigh']
-            ticker.info.dayLow = data['dayLow']
-            ticker.info.regularMarketPreviousClose = data['previousClose']
-            ticker.info.previousClose = data['previousClose']
+            ticker.info = {
+                'currentPrice': data['currentPrice'],
+                'regularMarketPrice': data['currentPrice'],
+                'dayHigh': data['dayHigh'],
+                'dayLow': data['dayLow'],
+                'regularMarketPreviousClose': data['previousClose'],
+                'previousClose': data['previousClose'],
+            }
+            ticker.history = MagicMock(return_value=None)
 
             return ticker
 
@@ -182,13 +184,15 @@ class TestMarketTickerEndpoints:
     async def test_get_ticker_by_symbol(self, mock_yfinance, clear_cache):
         """Test getting a specific ticker by symbol."""
         mock_ticker = MagicMock()
-        mock_ticker.info = MagicMock()
-        mock_ticker.info.currentPrice = 22500.50
-        mock_ticker.info.regularMarketPrice = 22500.50
-        mock_ticker.info.dayHigh = 22600.0
-        mock_ticker.info.dayLow = 22380.0
-        mock_ticker.info.regularMarketPreviousClose = 22374.75
-        mock_ticker.info.previousClose = 22374.75
+        mock_ticker.info = {
+            'currentPrice': 22500.50,
+            'regularMarketPrice': 22500.50,
+            'dayHigh': 22600.0,
+            'dayLow': 22380.0,
+            'regularMarketPreviousClose': 22374.75,
+            'previousClose': 22374.75,
+        }
+        mock_ticker.history = MagicMock(return_value=None)
 
         mock_yfinance.return_value = mock_ticker
 
@@ -220,13 +224,15 @@ class TestMarketTickerEndpoints:
         def counting_ticker_factory(s):
             call_count['count'] += 1
             ticker = MagicMock()
-            ticker.info = MagicMock()
-            ticker.info.currentPrice = 22500.50
-            ticker.info.regularMarketPrice = 22500.50
-            ticker.info.dayHigh = 22600.0
-            ticker.info.dayLow = 22380.0
-            ticker.info.regularMarketPreviousClose = 22374.75
-            ticker.info.previousClose = 22374.75
+            ticker.info = {
+                'currentPrice': 22500.50,
+                'regularMarketPrice': 22500.50,
+                'dayHigh': 22600.0,
+                'dayLow': 22380.0,
+                'regularMarketPreviousClose': 22374.75,
+                'previousClose': 22374.75,
+            }
+            ticker.history = MagicMock(return_value=None)
             return ticker
 
         mock_yfinance.side_effect = counting_ticker_factory
@@ -252,13 +258,15 @@ class TestMarketTickerEndpoints:
         def counting_ticker_factory(s):
             call_count['count'] += 1
             ticker = MagicMock()
-            ticker.info = MagicMock()
-            ticker.info.currentPrice = 22500.50
-            ticker.info.regularMarketPrice = 22500.50
-            ticker.info.dayHigh = 22600.0
-            ticker.info.dayLow = 22380.0
-            ticker.info.regularMarketPreviousClose = 22374.75
-            ticker.info.previousClose = 22374.75
+            ticker.info = {
+                'currentPrice': 22500.50,
+                'regularMarketPrice': 22500.50,
+                'dayHigh': 22600.0,
+                'dayLow': 22380.0,
+                'regularMarketPreviousClose': 22374.75,
+                'previousClose': 22374.75,
+            }
+            ticker.history = MagicMock(return_value=None)
             return ticker
 
         mock_yfinance.side_effect = counting_ticker_factory
@@ -294,13 +302,15 @@ class TestMarketTickerEndpoints:
                 raise Exception("Network error")
 
             ticker = MagicMock()
-            ticker.info = MagicMock()
-            ticker.info.currentPrice = 22500.50
-            ticker.info.regularMarketPrice = 22500.50
-            ticker.info.dayHigh = 22600.0
-            ticker.info.dayLow = 22380.0
-            ticker.info.regularMarketPreviousClose = 22374.75
-            ticker.info.previousClose = 22374.75
+            ticker.info = {
+                'currentPrice': 22500.50,
+                'regularMarketPrice': 22500.50,
+                'dayHigh': 22600.0,
+                'dayLow': 22380.0,
+                'regularMarketPreviousClose': 22374.75,
+                'previousClose': 22374.75,
+            }
+            ticker.history = MagicMock(return_value=None)
             return ticker
 
         mock_yfinance.side_effect = failing_ticker_factory
@@ -326,13 +336,15 @@ class TestMarketTickerEndpoints:
         """Test that all expected ticker symbols are included."""
         def mock_ticker_factory(s):
             ticker = MagicMock()
-            ticker.info = MagicMock()
-            ticker.info.currentPrice = 100.0
-            ticker.info.regularMarketPrice = 100.0
-            ticker.info.dayHigh = 105.0
-            ticker.info.dayLow = 95.0
-            ticker.info.regularMarketPreviousClose = 99.0
-            ticker.info.previousClose = 99.0
+            ticker.info = {
+                'currentPrice': 100.0,
+                'regularMarketPrice': 100.0,
+                'dayHigh': 105.0,
+                'dayLow': 95.0,
+                'regularMarketPreviousClose': 99.0,
+                'previousClose': 99.0,
+            }
+            ticker.history = MagicMock(return_value=None)
             return ticker
 
         mock_yfinance.side_effect = mock_ticker_factory
@@ -368,13 +380,15 @@ class TestMarketTickerEndpoints:
 
             def mock_ticker_factory(s):
                 ticker = MagicMock()
-                ticker.info = MagicMock()
-                ticker.info.currentPrice = case['current']
-                ticker.info.regularMarketPrice = case['current']
-                ticker.info.dayHigh = case['current'] + 5
-                ticker.info.dayLow = case['current'] - 5
-                ticker.info.regularMarketPreviousClose = case['prev_close']
-                ticker.info.previousClose = case['prev_close']
+                ticker.info = {
+                    'currentPrice': case['current'],
+                    'regularMarketPrice': case['current'],
+                    'dayHigh': case['current'] + 5,
+                    'dayLow': case['current'] - 5,
+                    'regularMarketPreviousClose': case['prev_close'],
+                    'previousClose': case['prev_close'],
+                }
+                ticker.history = MagicMock(return_value=None)
                 return ticker
 
             mock_yfinance.side_effect = mock_ticker_factory
@@ -391,13 +405,15 @@ class TestMarketTickerEndpoints:
         """Test that cache_age_seconds is included in response."""
         def mock_ticker_factory(s):
             ticker = MagicMock()
-            ticker.info = MagicMock()
-            ticker.info.currentPrice = 100.0
-            ticker.info.regularMarketPrice = 100.0
-            ticker.info.dayHigh = 105.0
-            ticker.info.dayLow = 95.0
-            ticker.info.regularMarketPreviousClose = 99.0
-            ticker.info.previousClose = 99.0
+            ticker.info = {
+                'currentPrice': 100.0,
+                'regularMarketPrice': 100.0,
+                'dayHigh': 105.0,
+                'dayLow': 95.0,
+                'regularMarketPreviousClose': 99.0,
+                'previousClose': 99.0,
+            }
+            ticker.history = MagicMock(return_value=None)
             return ticker
 
         mock_yfinance.side_effect = mock_ticker_factory
@@ -413,13 +429,15 @@ class TestMarketTickerEndpoints:
         """Test that timestamp and last_updated fields are populated."""
         def mock_ticker_factory(s):
             ticker = MagicMock()
-            ticker.info = MagicMock()
-            ticker.info.currentPrice = 100.0
-            ticker.info.regularMarketPrice = 100.0
-            ticker.info.dayHigh = 105.0
-            ticker.info.dayLow = 95.0
-            ticker.info.regularMarketPreviousClose = 99.0
-            ticker.info.previousClose = 99.0
+            ticker.info = {
+                'currentPrice': 100.0,
+                'regularMarketPrice': 100.0,
+                'dayHigh': 105.0,
+                'dayLow': 95.0,
+                'regularMarketPreviousClose': 99.0,
+                'previousClose': 99.0,
+            }
+            ticker.history = MagicMock(return_value=None)
             return ticker
 
         mock_yfinance.side_effect = mock_ticker_factory
@@ -437,13 +455,15 @@ class TestMarketTickerEndpoints:
         """Test that source field is correctly set."""
         def mock_ticker_factory(s):
             ticker = MagicMock()
-            ticker.info = MagicMock()
-            ticker.info.currentPrice = 100.0
-            ticker.info.regularMarketPrice = 100.0
-            ticker.info.dayHigh = 105.0
-            ticker.info.dayLow = 95.0
-            ticker.info.regularMarketPreviousClose = 99.0
-            ticker.info.previousClose = 99.0
+            ticker.info = {
+                'currentPrice': 100.0,
+                'regularMarketPrice': 100.0,
+                'dayHigh': 105.0,
+                'dayLow': 95.0,
+                'regularMarketPreviousClose': 99.0,
+                'previousClose': 99.0,
+            }
+            ticker.history = MagicMock(return_value=None)
             return ticker
 
         mock_yfinance.side_effect = mock_ticker_factory
@@ -458,13 +478,15 @@ class TestMarketTickerEndpoints:
         """Test the complete response structure."""
         def mock_ticker_factory(s):
             ticker = MagicMock()
-            ticker.info = MagicMock()
-            ticker.info.currentPrice = 100.0
-            ticker.info.regularMarketPrice = 100.0
-            ticker.info.dayHigh = 105.0
-            ticker.info.dayLow = 95.0
-            ticker.info.regularMarketPreviousClose = 99.0
-            ticker.info.previousClose = 99.0
+            ticker.info = {
+                'currentPrice': 100.0,
+                'regularMarketPrice': 100.0,
+                'dayHigh': 105.0,
+                'dayLow': 95.0,
+                'regularMarketPreviousClose': 99.0,
+                'previousClose': 99.0,
+            }
+            ticker.history = MagicMock(return_value=None)
             return ticker
 
         mock_yfinance.side_effect = mock_ticker_factory
@@ -513,13 +535,15 @@ class TestTickerHelperFunctions:
         from api.market_ticker import fetch_ticker_data
 
         mock_ticker = MagicMock()
-        mock_ticker.info = MagicMock()
-        mock_ticker.info.currentPrice = 22500.50
-        mock_ticker.info.regularMarketPrice = 22500.50
-        mock_ticker.info.dayHigh = 22600.0
-        mock_ticker.info.dayLow = 22380.0
-        mock_ticker.info.regularMarketPreviousClose = 22374.75
-        mock_ticker.info.previousClose = 22374.75
+        mock_ticker.info = {
+            'currentPrice': 22500.50,
+            'regularMarketPrice': 22500.50,
+            'dayHigh': 22600.0,
+            'dayLow': 22380.0,
+            'regularMarketPreviousClose': 22374.75,
+            'previousClose': 22374.75,
+        }
+        mock_ticker.history = MagicMock(return_value=None)
 
         mock_yfinance.return_value = mock_ticker
 

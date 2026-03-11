@@ -19,33 +19,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-# PREVENT EXTRANEOUS IMPORTS FROM CRASHING FASTAPI TESTS
-from unittest.mock import MagicMock
-
-def create_mock_module(name):
-    sys.modules[name] = MagicMock()
-
-create_mock_module('backtest')
-create_mock_module('backtest.api')
-create_mock_module('backtest.engine')
-create_mock_module('backtest.strategies')
-create_mock_module('backtest.strategies.orb')
-
-# MOCK NAUTILUS TRADER IMPORTS
-create_mock_module('nautilus_trader.model.events')
-create_mock_module('nautilus_trader.model.identifiers')
-create_mock_module('nautilus_trader.model.objects')
-create_mock_module('nautilus_trader.model.position')
-
-# MOCK EXTERNAL LIBS
-create_mock_module('scrapling')
-create_mock_module('scrapling.fetchers')
-create_mock_module('openai')
-
-# ADD SCRAPER PATH
-sys.path.insert(0, str(ROOT / 'moneycontrol-scraper'))
-
-# We need to import the app from the fastapi server
+# IMPORTS
 from api_server_fastapi import app, _news_available, _llm_available
 from fastapi.testclient import TestClient
 
