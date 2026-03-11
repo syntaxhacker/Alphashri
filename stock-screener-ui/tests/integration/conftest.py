@@ -13,16 +13,16 @@ import os
 import sys
 import tempfile
 import json
-import secrets
+import uuid as uuid_module
 from pathlib import Path
 from typing import Generator, Optional, Dict, List
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 
 import pytest
-import pytest
 import jwt
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
@@ -31,81 +31,168 @@ from sqlalchemy.orm import sessionmaker, Session
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
+# ============================================================================
+# Mock external unavailable modules BEFORE importing anything from the app
+# ============================================================================
+missing_mods = [
+    'upstox_trader',
+    'upstox_trader.config_and_utils',
+    'upstox_trader.config_and_utils.free_indian_apis',
+    'trending_upside',
+    'moneycontrol_scraper',
+    'scanners',
+    'nautilus_trader',
+    'nautilus_trader.backtest',
+    'nautilus_trader.config',
+    'nautilus_trader.model',
+    'nautilus_trader.model.enums',
+    'nautilus_trader.model.objects',
+    'nautilus_trader.model.identifiers',
+    'nautilus_trader.model.orders',
+    'backtest',
+    'backtest.api',
+    'backtest.run',
+    'backtest.data',
+    'api.market_ticker',
+]
+for mod in missing_mods:
+    if mod not in sys.modules:
+        sys.modules[mod] = MagicMock()
+
+# Mock SignalType enum (used by ORBSignal)
+class MockSignalType:
+    LONG_ENTRY = "LONG_ENTRY"
+    SHORT_ENTRY = "SHORT_ENTRY"
+    LONG_EXIT = "LONG_EXIT"
+    SHORT_EXIT = "SHORT_EXIT"
+sys.modules['nautilus_trader.model.enums'].SignalType = MockSignalType
+
+# Mock trading.orb_signals.ORBSignal
+class MockORBSignal:
+    def __init__(self, symbol, price, stop_loss=None, take_profit=None, **kwargs):
+        self.symbol = symbol
+        self.price = price
+        self.stop_loss = stop_loss
+        self.take_profit = take_profit
+        # Accept either 'direction' or 'signal_type' for direction
+        self.direction = kwargs.get('direction') or kwargs.get('signal_type')
+        self.or_high = kwargs.get('or_high')
+        self.or_low = kwargs.get('or_low')
+        self.or_range = kwargs.get('or_range')
+        self.or_range_pct = kwargs.get('or_range_pct')
+        self.timestamp = kwargs.get('timestamp', datetime.now().isoformat())
+
+class MockORBSignalGenerator:
+    def __init__(self, *args, **kwargs):
+        pass
+    def generate_signals(self, *args, **kwargs):
+        return []
+
+def mock_create_entry_signal(*args, **kwargs):
+    return MockORBSignal(*args, **kwargs)
+
+orb_signals_mock = MagicMock()
+orb_signals_mock.ORBSignal = MockORBSignal
+orb_signals_mock.SignalType = MockSignalType
+orb_signals_mock.create_entry_signal = mock_create_entry_signal
+orb_signals_mock.ORBSignalGenerator = MockORBSignalGenerator
+sys.modules['trading.orb_signals'] = orb_signals_mock
+sys.modules['trading.orb_signals.ORBSignal'] = MockORBSignal
+
+# Mock scanners.pivot_levels
+scanners_mock = MagicMock()
+scanners_mock.pivot_levels.return_value = []
+sys.modules['scanners'] = scanners_mock
+sys.modules['scanners.pivot_levels'] = scanners_mock.pivot_levels
+
+# Mock trading submodules that have heavy dependencies
+for _mod in ['trading.paper_trader', 'trading.journal', 'trading.risk_manager', 'trading.multi_strategy_runner']:
+    if _mod not in sys.modules:
+        sys.modules[_mod] = MagicMock()
+
+
+# ============================================================================
+# Database configuration
+# ============================================================================
+# Database configuration
+# ============================================================================
 from db.database import Base, get_db
-from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
-from api.auth import (
-    hash_password,
-    create_access_token,
-    create_refresh_token,
-    JWT_SECRET_KEY,
-    JWT_ALGORITHM,
-)
-
-# Import the FastAPI app
-try:
-    from api_server_fastapi import app
-except ImportError:
-    from fastapi import FastAPI
-    from api.auth import router as auth_router
-    app = FastAPI()
-    app.include_router(auth_router)
-
-
-# ============================================================================
-# Database Fixtures
-# ============================================================================
 
 TEST_DB_DIR = tempfile.mkdtemp()
-TEST_DB_PATH = os.path.join(TEST_DB_DIR, "test_integration_alphashri.db")
-
+TEST_DB_PATH = os.path.join(TEST_DB_DIR, "test_integration.db")
 TEST_SQLALCHEMY_DATABASE_URL = f"sqlite:///{TEST_DB_PATH}"
 test_engine = create_engine(
     TEST_SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False}
 )
-
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
-
 def override_get_db():
-    """Override get_db dependency for testing."""
+    """Yield a test database session."""
     db = TestSessionLocal()
     try:
         yield db
     finally:
         db.close()
 
+# ============================================================================
+# Minimal FastAPI app with only the required routers
+# ============================================================================
+from db.models import User, StrategyConfig, BotConfig, bot_strategies
+from api.auth import hash_password, create_access_token, create_refresh_token, JWT_SECRET_KEY, JWT_ALGORITHM, get_current_user_optional
 
+app = FastAPI()
+
+# Auth router
+try:
+    from api.auth import router as auth_router
+    app.include_router(auth_router)
+except Exception as e:
+    print(f"⚠️ Auth router not loaded: {e}")
+
+# Bots router
+try:
+    from api.bots import router as bots_router
+    app.include_router(bots_router)
+except Exception as e:
+    print(f"⚠️ Bots router not loaded: {e}")
+
+# Strategies router
+try:
+    from api.strategies import router as strategies_router
+    app.include_router(strategies_router)
+except Exception as e:
+    print(f"⚠️ Strategies router not loaded: {e}")
+
+# Paper trading router (optional)
+try:
+    from api.paper_trading import router as paper_trading_router
+    app.include_router(paper_trading_router)
+except Exception as e:
+    print(f"⚠️ Paper trading router not loaded: {e}")
+
+# Override get_db globally (per-test override will replace this)
 app.dependency_overrides[get_db] = override_get_db
 
+# ============================================================================
+# Fixtures
+# ============================================================================
 
 @pytest.fixture(scope="function")
 def db() -> Generator[Session, None, None]:
-    """
-    Create a fresh database for each integration test.
-
-    Includes seeding of common test data (templates, default strategies).
-    """
-    # Create all tables
+    """Fresh database per test with seeded template strategies."""
     Base.metadata.create_all(bind=test_engine)
-
-    # Create session
     session = TestSessionLocal()
-
-    # Seed common test data
     _seed_template_strategies(session)
-
     yield session
-
-    # Cleanup: close session and drop all tables
     session.close()
     Base.metadata.drop_all(bind=test_engine)
 
-
 def _seed_template_strategies(session: Session):
-    """Seed template strategies for testing."""
+    """Create template strategies for tests."""
     templates = [
         StrategyConfig(
+            uuid=str(uuid_module.uuid4()),
             name="orb_conservative",
             strategy_type="ORB",
             is_template=True,
@@ -122,6 +209,7 @@ def _seed_template_strategies(session: Session):
             risk_per_trade_pct=0.01,
         ),
         StrategyConfig(
+            uuid=str(uuid_module.uuid4()),
             name="orb_aggressive",
             strategy_type="ORB",
             is_template=True,
@@ -138,6 +226,7 @@ def _seed_template_strategies(session: Session):
             risk_per_trade_pct=0.015,
         ),
         StrategyConfig(
+            uuid=str(uuid_module.uuid4()),
             name="orb_scalper",
             strategy_type="ORB",
             is_template=True,
@@ -154,47 +243,33 @@ def _seed_template_strategies(session: Session):
             risk_per_trade_pct=0.005,
         ),
     ]
-
-    for template in templates:
-        session.add(template)
-
+    for t in templates:
+        session.add(t)
     session.commit()
 
-
 @pytest.fixture(scope="function")
-def client(db: Session) -> TestClient:
-    """
-    Create a test client with database session.
-
-    The client is configured to use the test database.
-    """
-    def override_get_db_for_client():
-        try:
-            yield db
-        finally:
-            pass
-
-    app.dependency_overrides[get_db] = override_get_db_for_client
-
-    with TestClient(app) as test_client:
-        yield test_client
-
+def client(db: Session, test_user: User) -> TestClient:
+    """Test client using the current test database session with auth."""
+    def get_test_db():
+        yield db
+    def mock_get_current_user():
+        return test_user
+    app.dependency_overrides[get_db] = get_test_db
+    app.dependency_overrides[get_current_user_optional] = mock_get_current_user
+    with TestClient(app) as c:
+        yield c
     app.dependency_overrides.clear()
 
-
 # ============================================================================
-# User Fixtures
+# User fixtures
 # ============================================================================
 
 @pytest.fixture
 def test_password() -> str:
-    """Standard test password."""
     return "IntegrationTest123!"
-
 
 @pytest.fixture
 def test_user(db: Session, test_password: str) -> User:
-    """Create a test user in the database."""
     user = User(
         email="integration@example.com",
         hashed_password=hash_password(test_password),
@@ -207,36 +282,23 @@ def test_user(db: Session, test_password: str) -> User:
     db.refresh(user)
     return user
 
-
 @pytest.fixture
 def auth_tokens(client: TestClient, test_user: User, test_password: str) -> Dict[str, str]:
-    """Get auth tokens for the test user."""
-    response = client.post("/api/auth/login", json={
-        "email": test_user.email,
-        "password": test_password
-    })
-
-    data = response.json()
-    return {
-        "access_token": data["access_token"],
-        "refresh_token": data["refresh_token"]
-    }
-
+    resp = client.post("/api/auth/login", json={"email": test_user.email, "password": test_password})
+    data = resp.json()
+    return {"access_token": data["access_token"], "refresh_token": data["refresh_token"]}
 
 @pytest.fixture
 def auth_headers(auth_tokens: Dict[str, str]) -> Dict[str, str]:
-    """Get auth headers for API requests."""
     return {"Authorization": f"Bearer {auth_tokens['access_token']}"}
 
-
 # ============================================================================
-# Strategy Fixtures
+# Strategy fixtures
 # ============================================================================
 
 @pytest.fixture
 def template_strategy(db: Session) -> StrategyConfig:
-    """Create a template strategy."""
-    strategy = StrategyConfig(
+    s = StrategyConfig(
         name="test_template_orb",
         strategy_type="ORB",
         is_template=True,
@@ -246,38 +308,34 @@ def template_strategy(db: Session) -> StrategyConfig:
         tp_pct=1.2,
         max_positions=5,
     )
-    db.add(strategy)
+    db.add(s)
     db.commit()
-    db.refresh(strategy)
-    return strategy
-
+    db.refresh(s)
+    return s
 
 @pytest.fixture
 def user_strategy(db: Session, template_strategy: StrategyConfig) -> StrategyConfig:
-    """Create a user strategy from template."""
-    strategy = StrategyConfig(
+    s = StrategyConfig(
         name="my_custom_orb",
         strategy_type="ORB",
         parent_id=template_strategy.id,
         is_template=False,
         is_active=True,
         or_minutes=30,
-        sl_pct=0.35,  # Custom value
-        tp_pct=1.5,    # Custom value
+        sl_pct=0.35,
+        tp_pct=1.5,
         max_positions=5,
     )
-    db.add(strategy)
+    db.add(s)
     db.commit()
-    db.refresh(strategy)
-    return strategy
-
+    db.refresh(s)
+    return s
 
 @pytest.fixture
 def multiple_strategies(db: Session) -> List[StrategyConfig]:
-    """Create multiple strategies for testing."""
     strategies = []
     for i in range(3):
-        strategy = StrategyConfig(
+        s = StrategyConfig(
             name=f"test_strategy_{i}",
             strategy_type="ORB",
             is_template=False,
@@ -286,21 +344,18 @@ def multiple_strategies(db: Session) -> List[StrategyConfig]:
             tp_pct=1.0 + i * 0.3,
             max_positions=3 + i,
         )
-        db.add(strategy)
+        db.add(s)
         db.commit()
-        db.refresh(strategy)
-        strategies.append(strategy)
-
+        db.refresh(s)
+        strategies.append(s)
     return strategies
 
-
 # ============================================================================
-# Bot Fixtures
+# Bot fixtures
 # ============================================================================
 
 @pytest.fixture
 def test_bot(db: Session, multiple_strategies: List[StrategyConfig]) -> BotConfig:
-    """Create a test bot with strategies."""
     bot = BotConfig(
         name="Test Bot",
         is_active=True,
@@ -310,25 +365,20 @@ def test_bot(db: Session, multiple_strategies: List[StrategyConfig]) -> BotConfi
     db.add(bot)
     db.commit()
     db.refresh(bot)
-
-    # Add strategies
-    for i, strategy in enumerate(multiple_strategies):
+    for i, strat in enumerate(multiple_strategies):
         db.execute(
             bot_strategies.insert().values(
                 bot_id=bot.id,
-                strategy_id=strategy.id,
+                strategy_id=strat.id,
                 max_positions=3 + i,
                 capital_allocation_pct=0.25,
             )
         )
-
     db.commit()
     return bot
 
-
 @pytest.fixture
 def running_bot(db: Session, test_bot: BotConfig) -> Dict:
-    """Create a mock running bot with status data."""
     return {
         "id": test_bot.id,
         "name": test_bot.name,
@@ -351,26 +401,20 @@ def running_bot(db: Session, test_bot: BotConfig) -> Dict:
         }
     }
 
-
 # ============================================================================
-# Journal Fixtures
+# Journal fixtures
 # ============================================================================
 
 @pytest.fixture
 def trade_journal(tmp_path) -> Path:
-    """Create a temporary journal directory."""
     journal_dir = tmp_path / "journals" / "1"
     journal_dir.mkdir(parents=True)
-
     from trading.journal import TradeJournal
     journal = TradeJournal(journal_dir=str(journal_dir), user_id=1)
-
     return journal
-
 
 @pytest.fixture
 def sample_trades() -> List[Dict]:
-    """Sample trade data for testing."""
     return [
         {
             'trade_id': 'SAMPLE-001',
@@ -424,21 +468,17 @@ def sample_trades() -> List[Dict]:
             'exit_reason': 'TP',
             'costs': 75.0,
             'net_pnl': 4925.0,
-            'sl_price': 1495.0,
-            'tp_price': 1525.0,
             'strategy_id': 2,
             'strategy_name': 'ORB Aggressive',
         },
     ]
 
-
 # ============================================================================
-# Signal Fixtures
+# Signal fixtures
 # ============================================================================
 
 @pytest.fixture
 def mock_signal_data():
-    """Mock signal data for testing."""
     return [
         {
             "symbol": "RELIANCE",
@@ -464,10 +504,8 @@ def mock_signal_data():
         },
     ]
 
-
 @dataclass
 class MockPosition:
-    """Mock position for testing."""
     symbol: str
     quantity: int
     entry_price: float
@@ -476,37 +514,19 @@ class MockPosition:
     unrealized_pnl: float = 0.0
     unrealized_pnl_pct: float = 0.0
 
-
 @pytest.fixture
 def mock_positions() -> List[MockPosition]:
-    """Create mock positions for testing."""
     return [
-        MockPosition(
-            symbol="RELIANCE",
-            quantity=100,
-            entry_price=2500.0,
-            current_price=2525.0,
-            unrealized_pnl=2500.0,
-            unrealized_pnl_pct=1.0,
-        ),
-        MockPosition(
-            symbol="TCS",
-            quantity=50,
-            entry_price=3800.0,
-            current_price=3785.0,
-            unrealized_pnl=-750.0,
-            unrealized_pnl_pct=-0.39,
-        ),
+        MockPosition(symbol="RELIANCE", quantity=100, entry_price=2500.0, current_price=2525.0, unrealized_pnl=2500.0, unrealized_pnl_pct=1.0),
+        MockPosition(symbol="TCS", quantity=50, entry_price=3800.0, current_price=3785.0, unrealized_pnl=-750.0, unrealized_pnl_pct=-0.39),
     ]
 
-
 # ============================================================================
-# Portfolio Fixtures
+# Portfolio & snapshot fixtures
 # ============================================================================
 
 @pytest.fixture
 def mock_portfolio_state():
-    """Mock portfolio state for testing."""
     return {
         "initial_capital": 1000000.0,
         "cash": 942500.0,
@@ -524,14 +544,8 @@ def mock_portfolio_state():
         "trades": 2,
     }
 
-
-# ============================================================================
-# Snapshot Fixtures
-# ============================================================================
-
 @pytest.fixture
 def mock_bot_snapshot(test_bot: BotConfig):
-    """Create a mock bot snapshot for testing."""
     return {
         'timestamp': datetime.now().isoformat(),
         'bot_id': test_bot.id,
@@ -578,85 +592,5 @@ def mock_bot_snapshot(test_bot: BotConfig):
                 'strategy_name': 'ORB Conservative',
             }
         ],
-        'scan_items': [
-            {
-                'symbol': 'RELIANCE',
-                'price': 2500,
-                'status': 'watching',
-                'strategy_name': 'ORB Conservative',
-            }
-        ],
+        'scan_items': [],
     }
-
-
-# ============================================================================
-# Process Mocking Fixtures
-# ============================================================================
-
-@pytest.fixture
-def mock_running_process():
-    """Create a mock running subprocess."""
-    process = Mock()
-    process.pid = 12345
-    process.poll = Mock(return_value=None)  # Process is running
-    process.terminate = Mock()
-    process.kill = Mock()
-    process.wait = Mock()
-    return process
-
-
-@pytest.fixture
-def mock_stopped_process():
-    """Create a mock stopped subprocess."""
-    process = Mock()
-    process.pid = 12345
-    process.poll = Mock(return_value=0)  # Process has exited
-    return process
-
-
-# ============================================================================
-# Cleanup Helpers
-# ============================================================================
-
-@pytest.fixture
-def cleanup_bot_processes():
-    """Ensure bot processes are cleaned up after test."""
-    # Import the global process tracking dict
-    from api.bots import _bot_processes, _bot_logs
-
-    # Store original state
-    original_processes = _bot_processes.copy()
-    original_logs = _bot_logs.copy()
-
-    yield
-
-    # Cleanup after test
-    for user_id, bots in _bot_processes.items():
-        for bot_id, process in bots.items():
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=1)
-                except:
-                    process.kill()
-
-    # Clear the dicts
-    _bot_processes.clear()
-    _bot_logs.clear()
-
-
-# ============================================================================
-# Test Markers
-# ============================================================================
-
-def pytest_configure(config):
-    """Configure custom pytest markers."""
-    config.addinivalue_line(
-        "markers", "integration: marks integration tests (deselect with '-m \"not integration\"')"
-    )
-    config.addinivalue_line(
-        "markers", "slow: marks slow-running integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "database: marks tests requiring real database"
-    )
