@@ -52,6 +52,7 @@ wandb/
 
 data_cache/
 *.json
+!package.json
 *.html
 
 # Configuration files with sensitive data
