@@ -54,6 +54,8 @@
     "@reduxjs/toolkit": "^2.11.2",
     "@tabler/icons-react": "^3.38.0",
     "dayjs": "^1.11.19",
+    "echarts": "^6.0.0",
+    "echarts-for-react": "^3.0.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-redux": "^9.2.0",
