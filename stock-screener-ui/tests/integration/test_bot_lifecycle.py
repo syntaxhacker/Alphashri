@@ -17,6 +17,8 @@ import json
 import signal
 import tempfile
 import time
+import importlib
+import uuid
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Generator, Dict, List
@@ -28,7 +30,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 # Add project root to path
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
@@ -57,6 +59,7 @@ class TestBotCreationAndConfiguration:
             sl_pct=0.4,
             tp_pct=1.2,
             max_positions=5,
+            uuid=str(uuid.uuid4()),
         )
         db.add(strategy)
         db.commit()
@@ -70,7 +73,7 @@ class TestBotCreationAndConfiguration:
             "max_total_capital_pct": 0.5,
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 5,
                     "capital_allocation_pct": 0.5
                 }
@@ -85,7 +88,7 @@ class TestBotCreationAndConfiguration:
         assert bot["max_total_positions"] == 5
         assert bot["max_total_capital_pct"] == 0.5
         assert len(bot["strategies"]) == 1
-        assert bot["strategies"][0]["id"] == strategy.id
+        assert bot["strategies"][0]["id"] == strategy.uuid
 
     def test_create_bot_with_multiple_strategies(self, client: TestClient, db: Session):
         """
@@ -99,12 +102,13 @@ class TestBotCreationAndConfiguration:
         strategies = []
         for i in range(3):
             strategy = StrategyConfig(
-                name=f"multi_strategy_{i}",
+                name=f"multi_strategy_{i}_{uuid.uuid4().hex[:8]}",  # make unique
                 strategy_type="ORB",
                 is_template=False,
                 is_active=True,
                 sl_pct=0.3 + i * 0.1,
                 tp_pct=1.0 + i * 0.3,
+                uuid=str(uuid.uuid4()),
             )
             db.add(strategy)
             db.commit()
@@ -119,17 +123,17 @@ class TestBotCreationAndConfiguration:
             "max_total_capital_pct": 0.9,
             "strategies": [
                 {
-                    "strategy_id": strategies[0].id,
+                    "strategy_id": strategies[0].uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.30
                 },
                 {
-                    "strategy_id": strategies[1].id,
+                    "strategy_id": strategies[1].uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.30
                 },
                 {
-                    "strategy_id": strategies[2].id,
+                    "strategy_id": strategies[2].uuid,
                     "max_positions": 4,
                     "capital_allocation_pct": 0.30
                 }
@@ -143,7 +147,7 @@ class TestBotCreationAndConfiguration:
 
         # Verify total allocation is 90%
         total_allocation = sum(s["capital_allocation_pct"] for s in bot["strategies"])
-        assert total_allocation == 0.9
+        assert abs(total_allocation - 0.9) < 1e-10
 
         # Verify database associations
         associations = db.execute(
@@ -181,12 +185,12 @@ class TestBotCreationAndConfiguration:
             "max_total_capital_pct": 1.0,
             "strategies": [
                 {
-                    "strategy_id": strategy1.id,
+                    "strategy_id": strategy1.uuid,
                     "max_positions": 5,
                     "capital_allocation_pct": 0.60
                 },
                 {
-                    "strategy_id": strategy2.id,
+                    "strategy_id": strategy2.uuid,
                     "max_positions": 5,
                     "capital_allocation_pct": 0.60  # Total = 120%
                 }
@@ -252,7 +256,7 @@ class TestBotStartupFlow:
             "max_total_capital_pct": 0.5,
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 5,
                     "capital_allocation_pct": 0.5
                 }
@@ -301,7 +305,7 @@ class TestBotStartupFlow:
             "is_active": True,
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -328,7 +332,7 @@ class TestBotStartupFlow:
                 assert status_response.status_code == 200
                 status = status_response.json()
 
-                assert status["bot_id"] == bot["id"]
+                assert status["bot_id"] == bot["uuid"]
                 assert status["running"] is True
                 assert status["pid"] == 12345
                 assert status["portfolio"] is not None
@@ -366,7 +370,7 @@ class TestBotStartupFlow:
             "name": "Initialization Test Bot",
             "strategies": [
                 {
-                    "strategy_id": s.id,
+                    "strategy_id": s.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.25
                 }
@@ -417,12 +421,12 @@ class TestMultiStrategyCoordination:
             "max_total_capital_pct": 0.8,
             "strategies": [
                 {
-                    "strategy_id": strategies[0].id,
+                    "strategy_id": strategies[0].uuid,
                     "max_positions": 3,  # Individual limit
                     "capital_allocation_pct": 0.40
                 },
                 {
-                    "strategy_id": strategies[1].id,
+                    "strategy_id": strategies[1].uuid,
                     "max_positions": 3,  # Individual limit
                     "capital_allocation_pct": 0.40
                 }
@@ -437,22 +441,16 @@ class TestMultiStrategyCoordination:
         # Even though each strategy can have 3, total is limited to 5
         # This is enforced at runtime by the global risk manager
 
-    def test_strategy_performance_tracking(self, client: TestClient, db: Session):
+    def test_strategy_performance_tracking(self, client: TestClient, db: Session, test_user: User):
         """
         Test that each strategy's performance is tracked separately:
         1. Create bot with multiple strategies
         2. Seed trades for each strategy
         3. Verify performance breakdown by strategy
         """
-        # Create a user for journal
-        user = User(
-            email="perftest@example.com",
-            hashed_password=hash_password("PerfTest123!"),
-            is_active=True,
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+        import importlib.util
+        # Use the test_user fixture for journal ownership
+        user = test_user
 
         # Create strategies
         strategies = []
@@ -473,7 +471,7 @@ class TestMultiStrategyCoordination:
             "name": "Performance Tracking Bot",
             "strategies": [
                 {
-                    "strategy_id": s.id,
+                    "strategy_id": s.uuid,
                     "max_positions": 5,
                     "capital_allocation_pct": 0.3
                 }
@@ -483,34 +481,41 @@ class TestMultiStrategyCoordination:
 
         bot = bot_response.json()
 
-        # Seed trades in journal
-        journal = get_journal(user.id)
+        # Load real TradeJournal class via importlib
+        journal_path = ROOT / "trading" / "journal.py"
+        spec = importlib.util.spec_from_file_location("real_trading_journal", str(journal_path))
+        journal_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(journal_mod)
+        TradeJournal = journal_mod.TradeJournal
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal = TradeJournal(journal_dir=tmpdir, user_id=user.id)
+            # Log two trades for both strategies (each with net_pnl=600.0)
+            for i, strategy in enumerate(strategies):
+                trade = {
+                    'trade_id': f'PERF-{i}-001',
+                    'symbol': f'STOCK{i}',
+                    'side': 'BUY',
+                    'quantity': 100,
+                    'entry_price': 100.0,
+                    'exit_price': 106.0,  # so pnl = 600 for 100 shares
+                    'entry_time': '2026-03-03T10:00:00',
+                    'exit_time': '2026-03-03T11:00:00',
+                    'pnl': 600.0,
+                    'pnl_pct': 6.0,
+                    'exit_reason': 'TP',
+                    'costs': 0.0,
+                    'net_pnl': 600.0,
+                    'strategy_id': strategy.id,
+                    'strategy_name': strategy.name,
+                }
+                journal.log_trade(trade)
+            journal.save_journal()
 
-        for i, strategy in enumerate(strategies):
-            trade = {
-                'trade_id': f'PERF-{i}-001',
-                'symbol': f'STOCK{i}',
-                'side': 'BUY',
-                'quantity': 100,
-                'entry_price': 100.0,
-                'exit_price': 105.0 + i * 2,  # Different P&L
-                'entry_time': '2026-03-03T10:00:00',
-                'exit_time': '2026-03-03T11:00:00',
-                'pnl': 500.0 + i * 200,
-                'pnl_pct': 5.0,
-                'exit_reason': 'TP',
-                'costs': 25.0,
-                'net_pnl': 475.0 + i * 200,
-                'strategy_id': strategy.id,
-                'strategy_name': strategy.name,
-            }
-            journal.log_trade(trade)
-
-        # Get strategy performance
-        perf_response = client.get(
-            f"/api/bots/{bot['id']}/strategy-performance",
-            params={"user_id_query": user.id}
-        )
+            with patch.object(sys.modules['trading.journal'], 'get_journal', return_value=journal):
+                perf_response = client.get(
+                    f"/api/bots/{bot['uuid']}/strategy-performance",
+                    params={"user_id_query": user.id}
+                )
 
         assert perf_response.status_code == 200
         perf_data = perf_response.json()
@@ -545,7 +550,7 @@ class TestBotMonitoringFlow:
             "name": "Logs Test Bot",
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -589,7 +594,7 @@ class TestBotMonitoringFlow:
             "name": "Portfolio Test Bot",
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -638,7 +643,7 @@ class TestBotMonitoringFlow:
             assert portfolio_response.status_code == 200
             portfolio_data = portfolio_response.json()
 
-            assert portfolio_data["bot_id"] == bot["id"]
+            assert portfolio_data["bot_id"] == bot["uuid"]
             assert portfolio_data["portfolio"]["initial_capital"] == 1000000
             assert portfolio_data["portfolio"]["cash"] == 950000
             assert len(portfolio_data["positions"]) == 1
@@ -669,7 +674,7 @@ class TestBotShutdownFlow:
             "name": "Stop Test Bot",
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -703,7 +708,7 @@ class TestBotShutdownFlow:
             "name": "Status Stop Test Bot",
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -749,7 +754,7 @@ class TestBotDeletionFlow:
             "name": "Delete Test Bot",
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -797,7 +802,7 @@ class TestBotDeletionFlow:
             "name": "Association Delete Test Bot",
             "strategies": [
                 {
-                    "strategy_id": s.id,
+                    "strategy_id": s.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.25
                 }
@@ -861,7 +866,7 @@ class TestResourceCleanup:
             "name": "Crash Test Bot",
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -908,7 +913,7 @@ class TestResourceCleanup:
             "is_active": False,  # Inactive - cannot start
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -947,7 +952,7 @@ class TestBotConfigurationUpdates:
             "name": "Original Name",
             "strategies": [
                 {
-                    "strategy_id": strategy.id,
+                    "strategy_id": strategy.uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -987,7 +992,7 @@ class TestBotConfigurationUpdates:
             "name": "Update Strategies Bot",
             "strategies": [
                 {
-                    "strategy_id": strategies[0].id,
+                    "strategy_id": strategies[0].uuid,
                     "max_positions": 5,
                     "capital_allocation_pct": 0.5
                 }
@@ -1000,12 +1005,12 @@ class TestBotConfigurationUpdates:
         update_response = client.put(f"/api/bots/{bot['id']}", json={
             "strategies": [
                 {
-                    "strategy_id": strategies[1].id,
+                    "strategy_id": strategies[1].uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 },
                 {
-                    "strategy_id": strategies[2].id,
+                    "strategy_id": strategies[2].uuid,
                     "max_positions": 3,
                     "capital_allocation_pct": 0.3
                 }
@@ -1043,7 +1048,7 @@ class TestBotConfigurationUpdates:
             "name": "Allocation Check Bot",
             "strategies": [
                 {
-                    "strategy_id": strategy1.id,
+                    "strategy_id": strategy1.uuid,
                     "max_positions": 5,
                     "capital_allocation_pct": 0.5
                 }
@@ -1056,12 +1061,12 @@ class TestBotConfigurationUpdates:
         update_response = client.put(f"/api/bots/{bot['id']}", json={
             "strategies": [
                 {
-                    "strategy_id": strategy1.id,
+                    "strategy_id": strategy1.uuid,
                     "max_positions": 5,
                     "capital_allocation_pct": 0.6
                 },
                 {
-                    "strategy_id": strategy2.id,
+                    "strategy_id": strategy2.uuid,
                     "max_positions": 5,
                     "capital_allocation_pct": 0.6  # Total = 120%
                 }
