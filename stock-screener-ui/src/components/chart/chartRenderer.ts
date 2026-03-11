@@ -16,13 +16,22 @@ export interface ChartRenderOptions {
   pivot_levels?: PivotLevel[];
   size: ChartSize;
   showPivots?: boolean;
+  isDark?: boolean;
 }
 
 /**
  * Build ECharts option for candlestick chart.
  */
 export function buildChartOption(options: ChartRenderOptions): any {
-  const { symbol, candles, orb_zones = [], pivot_levels = [], size, showPivots = false } = options;
+  const {
+    symbol,
+    candles,
+    orb_zones = [],
+    pivot_levels = [],
+    size,
+    showPivots = false,
+    isDark = true,
+  } = options;
 
   if (!candles || candles.length === 0) {
     return null;
@@ -30,6 +39,14 @@ export function buildChartOption(options: ChartRenderOptions): any {
 
   const isSmall = size === "preview";
   const isFull = size === "full";
+
+  const bgColor = isDark ? "#0a0a0a" : "#ffffff";
+  const textColor = isDark ? "#e0e0e0" : "#333333";
+  const mutedColor = isDark ? "#888" : "#666666";
+  const borderColor = isDark ? "#333" : "#e0e0e0";
+  const splitLineColor = isDark ? "#222" : "#eeeeee";
+  const tooltipBg = isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
+  const dataZoomBg = isDark ? "#111" : "#f5f5f5";
 
   // Build candlestick data
   const candleData = candles.map((c) => [c.open, c.close, c.low, c.high]);
@@ -44,16 +61,16 @@ export function buildChartOption(options: ChartRenderOptions): any {
 
   // Base configuration
   const chartOption: any = {
-    backgroundColor: "#0a0a0a",
-    animation: !isSmall, // Disable animation for preview
+    backgroundColor: bgColor,
+    animation: !isSmall,
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "cross", lineStyle: { color: "#666" } },
-      backgroundColor: "rgba(20, 20, 20, 0.95)",
-      borderColor: "#333",
+      backgroundColor: tooltipBg,
+      borderColor: borderColor,
       borderWidth: 1,
-      textStyle: { color: "#e0e0e0", fontSize: isSmall ? 10 : 12 },
-      formatter: (params: any) => formatTooltip(params, candles),
+      textStyle: { color: textColor, fontSize: isSmall ? 10 : 12 },
+      formatter: (params: any) => formatTooltip(params, candles, isDark),
     },
     grid: {
       left: isSmall ? 40 : 50,
@@ -66,10 +83,10 @@ export function buildChartOption(options: ChartRenderOptions): any {
       data: timeData,
       scale: true,
       splitLine: { show: false },
-      axisLine: { lineStyle: { color: "#333" } },
+      axisLine: { lineStyle: { color: borderColor } },
       axisLabel: {
         show: !isSmall,
-        color: "#888",
+        color: mutedColor,
         rotate: 45,
         fontSize: 10,
         formatter: (value: string) => formatTimeLabel(value),
@@ -78,10 +95,10 @@ export function buildChartOption(options: ChartRenderOptions): any {
     yAxis: {
       type: "value",
       scale: true,
-      splitLine: { lineStyle: { color: "#222" } },
-      axisLine: { lineStyle: { color: "#333" } },
+      splitLine: { lineStyle: { color: splitLineColor } },
+      axisLine: { lineStyle: { color: borderColor } },
       axisLabel: {
-        color: "#888",
+        color: mutedColor,
         fontSize: isSmall ? 10 : 11,
         formatter: (value: number) => "₹" + value.toFixed(0),
       },
@@ -150,16 +167,14 @@ export function buildChartOption(options: ChartRenderOptions): any {
     ],
   };
 
-  // Add title for expanded/full
   if (!isSmall) {
     chartOption.title = {
       text: `${symbol}`,
       left: "center",
-      textStyle: { fontSize: isFull ? 16 : 13, color: "#e0e0e0" },
+      textStyle: { fontSize: isFull ? 16 : 13, color: textColor },
     };
   }
 
-  // Add legend for expanded/full
   if (!isSmall) {
     chartOption.legend = {
       data: ["Price", "OR High", "OR Low", ...(showPivots ? ["R1", "PP", "S1"] : [])],
@@ -167,11 +182,10 @@ export function buildChartOption(options: ChartRenderOptions): any {
       itemWidth: 14,
       itemHeight: 10,
       itemGap: 8,
-      textStyle: { color: "#888", fontSize: 10 },
+      textStyle: { color: mutedColor, fontSize: 10 },
     };
   }
 
-  // Add data zoom for expanded/full
   if (!isSmall) {
     chartOption.dataZoom = [
       {
@@ -187,11 +201,11 @@ export function buildChartOption(options: ChartRenderOptions): any {
               start: 0,
               end: 100,
               bottom: 10,
-              borderColor: "#333",
-              backgroundColor: "#111",
+              borderColor: borderColor,
+              backgroundColor: dataZoomBg,
               fillerColor: "rgba(0, 230, 118, 0.1)",
               handleStyle: { color: "#00E676" },
-              textStyle: { color: "#666" },
+              textStyle: { color: mutedColor },
             },
           ]
         : []),
@@ -324,7 +338,7 @@ function formatTimeLabel(value: string): string {
 /**
  * Format tooltip content.
  */
-function formatTooltip(params: any, candles: PreviewCandle[]): string {
+function formatTooltip(params: any, candles: PreviewCandle[], isDark: boolean): string {
   const candle = params.find((p: any) => p.seriesType === "candlestick");
   if (!candle) return "";
 
@@ -334,9 +348,10 @@ function formatTooltip(params: any, candles: PreviewCandle[]): string {
 
   const change = c.open > 0 ? (((c.close - c.open) / c.open) * 100).toFixed(2) : "0";
   const changeColor = c.close >= c.open ? "#00E676" : "#FF1744";
+  const textColor = isDark ? "#e0e0e0" : "#333333";
 
   return `
-    <div style="padding: 4px 6px; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; line-height: 1.3;">
+    <div style="padding: 4px 6px; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; line-height: 1.3; color: ${textColor};">
       <div style="font-weight: bold; margin-bottom: 2px;">${c.date} ${c.time_str}</div>
       <div>O: ₹${c.open.toFixed(0)} H: ₹${c.high.toFixed(0)} L: ₹${c.low.toFixed(0)} C: ₹${c.close.toFixed(0)}</div>
       <div style="color: ${changeColor};">${c.close >= c.open ? "+" : ""}${change}%</div>

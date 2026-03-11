@@ -4,14 +4,20 @@
 
 import type {
   Strategy,
+  StrategyVariation,
   BacktestResponse,
   SymbolChartData,
   BacktestProgress,
   CostBreakdown,
+  BacktestHistoryItem,
+  BacktestHistoryDetails,
+  BacktestResult,
+  BacktestTotals,
 } from "../types/backtest";
 import {
   setStrategies,
   setStrategiesLoading,
+  setVariations,
   setResults,
   setRunning,
   setProgress,
@@ -25,6 +31,23 @@ import { buildChartData } from "./chartBuilder";
 import { fetchWithAuth } from "../state/auth";
 
 const API_BASE = "http://localhost:8765";
+
+// Calculate totals from results
+function calculateTotals(results: BacktestResult[]): BacktestTotals {
+  const totalTrades = results.reduce((sum, r) => sum + (r.trades || 0), 0);
+  const totalWins = results.reduce((sum, r) => sum + (r.wins || 0), 0);
+  const totalGrossPnl = results.reduce((sum, r) => sum + (r.gross_pnl || 0), 0);
+  const totalCosts = results.reduce((sum, r) => sum + (r.total_costs || 0), 0);
+  const winRate = totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0;
+
+  return {
+    trades: totalTrades,
+    gross_pnl: totalGrossPnl,
+    total_costs: totalCosts,
+    net_pnl: totalGrossPnl - totalCosts,
+    win_rate: winRate,
+  };
+}
 
 // Fetch available strategies
 export async function fetchStrategies(): Promise<Strategy[]> {
@@ -42,6 +65,23 @@ export async function fetchStrategies(): Promise<Strategy[]> {
   } catch (error) {
     console.error("Failed to fetch strategies:", error);
     setStrategiesLoading(false);
+    return [];
+  }
+}
+
+// Fetch strategy variations from database
+export async function fetchVariations(): Promise<StrategyVariation[]> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/strategies/variations`);
+    const data = await response.json();
+
+    if (Array.isArray(data)) {
+      setVariations(data);
+      return data;
+    }
+    return [];
+  } catch (error) {
+    console.error("Failed to fetch variations:", error);
     return [];
   }
 }
@@ -64,7 +104,7 @@ export async function fetchCosts(): Promise<CostBreakdown | null> {
 }
 
 // Run backtest
-export async function runBacktest(): Promise<BacktestResponse | null> {
+export async function runBacktest(saveToHistory = false): Promise<BacktestResponse | null> {
   const state = getBacktestState();
 
   setRunning(true);
@@ -78,22 +118,27 @@ export async function runBacktest(): Promise<BacktestResponse | null> {
       },
       body: JSON.stringify({
         strategy: state.selectedStrategy,
+        variation_id: state.selectedVariation,
         symbols: state.selectedSymbols,
         params: state.params,
         days: state.days,
         include_costs: state.includeCosts,
+        save_to_history: saveToHistory,
       }),
     });
 
-    const data: BacktestResponse & { chart_data?: any; candles?: any } = await response.json();
+    const data: BacktestResponse & { chart_data?: any; candles?: any; saved_uuid?: string } =
+      await response.json();
 
     if (data.error) {
       setError(data.error);
       return null;
     }
 
-    if (data.results && data.totals) {
-      setResults(data.results, data.totals);
+    if (data.results) {
+      // Calculate totals if not provided (single stock backtest)
+      const totals = data.totals || calculateTotals(data.results);
+      setResults(data.results, totals);
 
       // Process chart data from response
       if (data.chart_data) {
@@ -101,15 +146,21 @@ export async function runBacktest(): Promise<BacktestResponse | null> {
         for (const symbol of Object.keys(data.chart_data)) {
           const symbolChartData = data.chart_data[symbol];
 
-          // Check if API already built full chart data (has pivot_levels, orb_zones, etc.)
-          if (symbolChartData.pivot_levels || symbolChartData.orb_zones) {
+          // Check if API already built full chart data (has pivot_levels, orb_zones, week52_levels, etc.)
+          if (
+            symbolChartData.pivot_levels ||
+            symbolChartData.orb_zones ||
+            symbolChartData.week52_levels
+          ) {
             // API already built the chart data, use it directly
             console.log(
               `Using pre-built chart data for ${symbol}:`,
               symbolChartData.candles?.length || 0,
               "candles,",
               symbolChartData.trades?.length || 0,
-              "trades",
+              "trades,",
+              "week52_levels:",
+              symbolChartData.week52_levels?.length || 0,
             );
             setChartData(symbol, symbolChartData);
           } else if (data.candles && symbolChartData.trades) {
@@ -192,5 +243,44 @@ export async function fetchResults(): Promise<BacktestResponse | null> {
   } catch (error) {
     console.error("Failed to fetch results:", error);
     return null;
+  }
+}
+
+// --- History Methods ---
+
+// Fetch backtest history list
+export async function fetchBacktestHistory(): Promise<BacktestHistoryItem[]> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/history`);
+    const data = await response.json();
+    return data.history || [];
+  } catch (error) {
+    console.error("Failed to fetch backtest history:", error);
+    return [];
+  }
+}
+
+// Fetch detailed backtest from history
+export async function fetchBacktestDetails(uuid: string): Promise<BacktestHistoryDetails | null> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/history/${uuid}`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch backtest details:", error);
+    return null;
+  }
+}
+
+// Delete backtest from history
+export async function deleteBacktest(uuid: string): Promise<boolean> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/history/${uuid}`, {
+      method: "DELETE",
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Failed to delete backtest:", error);
+    return false;
   }
 }

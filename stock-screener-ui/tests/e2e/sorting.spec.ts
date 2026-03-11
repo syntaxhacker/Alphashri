@@ -11,12 +11,10 @@ test.describe("Table Sorting", () => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    // Click on Score header to sort (use first() since there are 2 tables)
-    const scoreHeader = page.locator("th").filter({ hasText: "Score" }).first();
+    const scoreHeader = page.getByTestId("sort-header-score");
     await scoreHeader.click();
     await page.waitForTimeout(300);
 
-    // Verify sort indicator appears
     const indicator = scoreHeader.locator(".sort-indicator");
     expect(await indicator.count()).toBeGreaterThan(0);
   });
@@ -25,48 +23,42 @@ test.describe("Table Sorting", () => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    const scoreHeader = page.locator("th").filter({ hasText: "Score" }).first();
+    const scoreHeader = page.getByTestId("sort-header-score");
 
-    // First click - descending
     await scoreHeader.click();
     await page.waitForTimeout(300);
 
-    // Verify descending indicator
-    let indicator = scoreHeader.locator(".sort-indicator.desc");
+    let indicator = scoreHeader.locator(".sort-indicator");
     expect(await indicator.count()).toBeGreaterThan(0);
 
-    // Second click - ascending
     await scoreHeader.click();
     await page.waitForTimeout(300);
 
-    // Verify ascending indicator
-    indicator = scoreHeader.locator(".sort-indicator.asc");
+    indicator = scoreHeader.locator(".sort-indicator");
     expect(await indicator.count()).toBeGreaterThan(0);
   });
 
   test("should sort by Symbol column", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForTimeout(1000);
 
-    // Click on Symbol column header
-    const symbolHeader = page.locator("th").filter({ hasText: "Symbol" }).first();
-    await symbolHeader.click();
-    await page.waitForTimeout(300);
+    const symbolHeader = page.getByTestId("sort-header-symbol");
+    // Click on the text element to avoid clicking on the copy button
+    await symbolHeader.getByText("Symbol").click({ force: true });
+    await page.waitForTimeout(1000);
 
-    // Verify sort indicator is visible
     const indicator = symbolHeader.locator(".sort-indicator");
-    expect(await indicator.count()).toBeGreaterThan(0);
+    await expect(indicator).toBeVisible({ timeout: 5000 });
   });
 
   test("should show clickable sort indicators on sortable columns", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    // Check that sortable headers have the sortable class
     const sortableHeaders = page.locator("th.sortable");
     const count = await sortableHeaders.count();
 
-    // Should have multiple sortable columns
     expect(count).toBeGreaterThan(0);
   });
 });

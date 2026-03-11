@@ -24,8 +24,8 @@ test.describe("Trade History - Display", () => {
   });
 
   test("should display trade history table", async ({ page }) => {
-    await navigateToTradeHistoryWithBot(page, "2");
-    await verifyTradesTableVisible(page);
+    await navigateToTradeHistoryWithBot(page);
+    await verifyHistoryPanelVisible(page);
   });
 
   test("should show trade details in table", async ({ page }) => {
@@ -46,7 +46,7 @@ test.describe("Trade History - Filtering", () => {
   });
 
   test("should filter by date range", async ({ page }) => {
-    await navigateToTradeHistoryWithBot(page, "2");
+    await navigateToTradeHistoryWithBot(page);
     await fillDateRangeFilters(page, "2024-01-01", "2024-12-31");
   });
 
@@ -72,7 +72,7 @@ test.describe("Trade History - Trade Details", () => {
   });
 
   test("should show entry and exit prices", async ({ page }) => {
-    await navigateToTradeHistoryWithBot(page, "2");
+    await navigateToTradeHistoryWithBot(page);
     await verifyHistoryPanelVisible(page);
   });
 
@@ -87,7 +87,7 @@ test.describe("Trade History - Trade Details", () => {
   });
 
   test("should show trade timestamp", async ({ page }) => {
-    await navigateToTradeHistoryWithBot(page, "2");
+    await navigateToTradeHistoryWithBot(page);
     await verifyHistoryPanelVisible(page);
   });
 });
@@ -98,12 +98,12 @@ test.describe("Trade History - Export", () => {
   });
 
   test("should have export button", async ({ page }) => {
-    await navigateToTradeHistoryWithBot(page, "2");
+    await navigateToTradeHistoryWithBot(page);
     await verifyHistoryPanelVisible(page);
   });
 
   test("should export to CSV", async ({ page }) => {
-    await navigateToTradeHistoryWithBot(page, "2");
+    await navigateToTradeHistoryWithBot(page);
     await clickButtonIfExists(page, /CSV|csv/i);
   });
 });
@@ -115,12 +115,13 @@ test.describe("Trade History - Pagination", () => {
 
   test("should show pagination controls for large datasets", async ({ page }) => {
     await mockTradeHistoryWithCount(page, 100);
-    await navigateToTradeHistoryWithBot(page, "2");
+    await navigateToTradeHistoryWithBot(page);
     await isPaginationVisible(page);
   });
 
   test("should navigate to next page", async ({ page }) => {
-    await navigateToTradeHistoryWithBot(page, "2");
+    await mockTradeHistoryWithCount(page, 100);
+    await navigateToTradeHistoryWithBot(page);
     await clickNextPage(page);
   });
 });

@@ -118,48 +118,6 @@ export function renderHeader(): string {
   `;
 }
 
-export function renderFilters(sectors: string[]): string {
-  const profileFilterDefs = state.profileMetaById[state.activeScreener]?.filters || [];
-
-  return `
-    <div class="filters" data-testid="filters">
-      <label>Score ≥ <input type="number" id="minScore" data-testid="min-score-input" value="${state.filters.minScore}" min="0" max="100" step="5" onchange="window.updateFilter('minScore', this.value)"></label>
-      <label>Price ≤ <input type="number" id="maxPrice" data-testid="max-price-input" value="${state.filters.maxPrice}" min="100" max="10000" step="100" onchange="window.updateFilter('maxPrice', this.value)"></label>
-      <label>Return ≥ <input type="number" id="minReturn" data-testid="min-return-input" value="${state.filters.minReturn}" min="-50" max="50" step="1" onchange="window.updateFilter('minReturn', this.value)"></label>
-      <label>Sector <select id="sectorFilter" data-testid="sector-select" onchange="window.updateFilter('sector', this.value)">
-        <option value="">All</option>
-        ${sectors.map((s) => `<option value="${s}" ${state.filters.sector === s ? "selected" : ""}>${s}</option>`).join("")}
-      </select></label>
-      ${profileFilterDefs
-        .map(
-          (f) => `
-        <label>${f.label} ${
-          f.type === "select"
-            ? `
-          <select data-testid="profile-filter-${f.key}" onchange="window.updateProfileFilter('${f.key}', this.value)">
-            ${(f.options || []).map((opt) => `<option value="${opt}" ${state.profileFilterValues[f.key] === opt ? "selected" : ""}>${opt}</option>`).join("")}
-          </select>
-        `
-            : `
-          <input
-            type="${f.type === "number" ? "number" : "text"}"
-            data-testid="profile-filter-${f.key}"
-            value="${state.profileFilterValues[f.key] ?? f.default ?? ""}"
-            ${f.min !== undefined ? `min="${f.min}"` : ""}
-            ${f.max !== undefined ? `max="${f.max}"` : ""}
-            ${f.step !== undefined ? `step="${f.step}"` : ""}
-            onchange="window.updateProfileFilter('${f.key}', this.value)"
-          >
-        `
-        }</label>
-      `,
-        )
-        .join("")}
-      <button data-testid="reset-filters-btn" onclick="window.resetFilters()" style="padding:2px 8px;font-size:10px">Reset</button>
-    </div>
-  `;
-}
-
 export function renderFooter(): string {
   return `
     <div class="footer" data-testid="footer">

@@ -4,7 +4,8 @@
 
 // Strategy configuration from database
 export interface StrategyConfig {
-  id: number;
+  id: string; // UUID from backend
+  internal_id?: number; // Internal integer ID
   name: string;
   strategy_type: string;
   parent_id: number | null;

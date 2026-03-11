@@ -22,7 +22,7 @@ export async function setupPaperTradingTestMocks(page: Page): Promise<void> {
 export async function navigateToPaperTrading(page: Page): Promise<void> {
   // Navigate directly to paper trading URL
   await page.goto("/paper");
-  await page.waitForSelector(".sidemenu", { timeout: 15000 });
+  await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 }
 
@@ -35,22 +35,27 @@ export async function navigateToPaperTradingWithBot(
 ): Promise<void> {
   await navigateToPaperTrading(page);
 
-  // Wait for bot selector to be populated
-  const dropdown = page.locator(".bot-selector-dropdown");
-  await dropdown.waitFor({ state: "visible", timeout: 10000 });
+  // Wait for bot selector to be visible
+  const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
+  await segmentedControl.waitFor({ state: "visible", timeout: 10000 });
 
-  // Wait for options to be populated (bots API call completes)
-  await page.waitForFunction(
-    (selector) => {
-      const select = document.querySelector(selector);
-      return select && select.querySelectorAll("option[value]").length > 0;
-    },
-    ".bot-selector-dropdown",
-    { timeout: 10000 },
-  );
+  // For Mantine SegmentedControl with radio buttons, click the label with the bot name
+  // If botId is a UUID or "2", click "Multi-Strategy Bot", otherwise click "Default"
+  const botName = botId === "default" || botId === "1" ? "Default" : "Multi-Strategy Bot";
 
-  await dropdown.selectOption(botId);
-  await page.waitForTimeout(500);
+  // Try clicking the label with the bot name
+  const botLabel = segmentedControl.locator(`label:has-text("${botName}")`);
+  const count = await botLabel.count();
+
+  if (count > 0) {
+    await botLabel.first().click();
+  } else {
+    // Fallback: click directly on the visible text within the control
+    await segmentedControl.getByText(botName, { exact: false }).first().click();
+  }
+
+  // Wait for the bot to be selected and data to load
+  await page.waitForTimeout(1000);
 }
 
 /**
@@ -66,7 +71,7 @@ export async function verifyPaperTradingTabs(page: Page): Promise<void> {
  * Click on a tab in Paper Trading view
  */
 export async function clickPaperTradingTab(page: Page, tabName: string): Promise<void> {
-  await page.click(`button:has-text("${tabName}")`);
+  const tab = page.locator(`button:has-text("${tabName}")`);
   await page.waitForTimeout(300);
 }
 

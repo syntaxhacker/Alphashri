@@ -1,12 +1,6 @@
-/**
- * Chart View Component
- *
- * Full page chart view at /chart/:symbol
- * Shows candlestick chart with timeframe and OR minutes controls.
- */
-
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useMantineColorScheme } from "@mantine/core";
 import { fetchChartPreview, ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption } from "./chartRenderer";
 
@@ -27,6 +21,8 @@ const OR_MINUTES = [
 const ChartView: React.FC = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const navigate = useNavigate();
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
 
   const [data, setData] = useState<ChartPreviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,6 +82,7 @@ const ChartView: React.FC = () => {
       pivot_levels: data.pivot_levels,
       size: "full",
       showPivots,
+      isDark,
     });
 
     if (!chartOption) {
@@ -94,7 +91,10 @@ const ChartView: React.FC = () => {
     }
 
     // Initialize chart
-    chartInstanceRef.current = (window as any).echarts.init(chartRef.current);
+    chartInstanceRef.current = (window as any).echarts.init(
+      chartRef.current,
+      isDark ? "dark" : null,
+    );
     chartInstanceRef.current.setOption(chartOption);
 
     // Handle resize
@@ -107,7 +107,7 @@ const ChartView: React.FC = () => {
       window.removeEventListener("resize", handleResize);
       chartInstanceRef.current?.dispose();
     };
-  }, [data, showPivots, loading]);
+  }, [data, showPivots, loading, isDark]);
 
   if (!symbol) {
     return (

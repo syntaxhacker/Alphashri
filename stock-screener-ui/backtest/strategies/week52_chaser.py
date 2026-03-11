@@ -142,7 +142,7 @@ class Week52ChaserNautilusStrategy(Strategy):
         self._historical_df = config.historical_df
 
         # 52W high indicator
-        self._high_52w = Week52HighIndicator(period=252, min_periods=100)
+        self._high_52w = Week52HighIndicator(period=252, min_periods=20)
 
         # State tracking
         self._instrument_id = config.instrument_id
@@ -204,7 +204,9 @@ class Week52ChaserNautilusStrategy(Strategy):
 
         # ENTRY CONDITIONS
         if not self._in_position and not in_cooldown:
-            if 0 < distance_to_52w_pct <= self._entry_threshold_pct:
+            # Entry on breakout (price at or above 52W high) 
+            # OR if within threshold of 52W high
+            if distance_to_52w_pct <= self._entry_threshold_pct:
                 # Check filters if enabled
                 if self._enable_filters:
                     if not self._check_entry_filters(close_price, bar_time):
@@ -331,15 +333,17 @@ class Week52ChaserNautilusStrategy(Strategy):
         # Calculate hold duration in days
         hold_days = self._bars_in_trade  # Since we're using daily bars
 
-        # For daily strategy, use date-only format (no time component)
-        entry_date_str = self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None
-        exit_date_str = bar_time.strftime('%Y-%m-%d')
+        # Use datetime format for compatibility with chart and table
+        entry_date_str = self._current_entry_time.strftime('%Y-%m-%dT%H:%M') if self._current_entry_time else None
+        exit_date_str = bar_time.strftime('%Y-%m-%dT%H:%M')
+        # Keep date-only for the date field (used for matching with candles)
+        entry_date_only = self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None
 
         self.trades.append({
             'entry_price': round(self._entry_price, 2),
             'exit_price': round(price, 2),
-            'entry_time': entry_date_str,  # Date only for daily strategy
-            'exit_time': exit_date_str,    # Date only for daily strategy
+            'entry_time': entry_date_str,
+            'exit_time': exit_date_str,
             'quantity': self._trade_size,
             'gross_pnl': round(gross_pnl, 2),
             'gross_pnl_pct': round(pnl_pct, 2),
@@ -348,7 +352,7 @@ class Week52ChaserNautilusStrategy(Strategy):
             'net_pnl_pct': round(net_pnl_pct, 2),
             'exit_reason': reason,
             'hold_duration_minutes': hold_days * 24 * 60,  # Convert days to minutes for UI consistency
-            'date': entry_date_str,
+            'date': entry_date_only,
             'side': 'LONG',
             '52w_high': round(self._entry_52w_high, 2),
             'trailing_active': self._trailing_stop_active,
@@ -724,7 +728,10 @@ class Week52ChaserStrategy(BaseStrategy):
                         if result.get('candles'):
                             all_candles[result['symbol']] = result['candles']
                         if result.get('trade_list'):
-                            chart_data[result['symbol']] = {'trades': result['trade_list']}
+                            chart_data[result['symbol']] = {
+                                'trades': result['trade_list'],
+                                'visuals': self.get_visuals(result['trade_list'], params)
+                            }
         else:
             for args in worker_args:
                 completed += 1
@@ -736,7 +743,10 @@ class Week52ChaserStrategy(BaseStrategy):
                     if result.get('candles'):
                         all_candles[result['symbol']] = result['candles']
                     if result.get('trade_list'):
-                        chart_data[result['symbol']] = {'trades': result['trade_list']}
+                        chart_data[result['symbol']] = {
+                            'trades': result['trade_list'],
+                            'visuals': self.get_visuals(result['trade_list'], params)
+                        }
 
         total_gross = sum(r['gross_pnl'] for r in results)
         total_costs = sum(r['total_costs'] for r in results)
@@ -746,7 +756,7 @@ class Week52ChaserStrategy(BaseStrategy):
         total_win_rate = (total_wins / total_trades * 100) if total_trades > 0 else 0
 
         return {
-            'strategy': 'week52_chaser',
+            'strategy': '52w_chaser',
             'config': {
                 'symbols': symbols,
                 'days': days,
@@ -765,3 +775,31 @@ class Week52ChaserStrategy(BaseStrategy):
             'candles': all_candles,
             'run_time': datetime.now().isoformat(),
         }
+
+    def get_visuals(self, trades: List[Dict], params: Dict) -> List[Dict]:
+        """Return 52-week high levels as chart visuals."""
+        if not trades:
+            return []
+
+        visuals = []
+        # Group trades by date to find 52W high levels
+        dates_seen = set()
+        for trade in trades:
+            trade_date = trade.get('date')
+            if trade_date and trade_date not in dates_seen:
+                dates_seen.add(trade_date)
+                high_52w = trade.get('52w_high')
+                
+                if high_52w is not None:
+                    # 52W High line
+                    visuals.append({
+                        'id': f"h52w_{trade_date}",
+                        'type': 'line',
+                        'label': '52W High',
+                        'color': '#ff9f43',
+                        'value': high_52w,
+                        'date': trade_date,
+                        'dash': [4, 4]
+                    })
+        
+        return visuals

@@ -95,7 +95,7 @@ async def list_templates(
     db: Session = Depends(get_db),
     user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """List all strategy templates."""
+    """List all active template strategies."""
     templates = db.query(StrategyConfig).filter(
         StrategyConfig.is_template == True,
         StrategyConfig.is_active == True,
@@ -105,6 +105,19 @@ async def list_templates(
         "templates": [t.to_dict() for t in templates],
         "count": len(templates),
     }
+
+
+@router.get("/variations")
+async def list_all_variations(
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    """List all strategy variations and templates for selection."""
+    variations = db.query(StrategyConfig).filter(
+        StrategyConfig.is_active == True,
+    ).order_by(StrategyConfig.is_template.desc(), StrategyConfig.strategy_type, StrategyConfig.name).all()
+
+    return [v.to_dict() for v in variations]
 
 
 @router.get("/{strategy_id}")

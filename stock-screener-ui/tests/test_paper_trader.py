@@ -1142,3 +1142,60 @@ class TestIntegrationScenarios:
         trade = trader.trades[0]
         assert trade.exit_reason == ExitReason.TAKE_PROFIT
         assert trade.pnl > 0
+
+
+@pytest.mark.unit
+class TestPaperTraderSimulations:
+    """Tests for slippage and partial fill simulations in PaperTrader."""
+
+    def test_slippage_on_entry_buy(self):
+        """Test slippage is correctly applied to buy entry price."""
+        # 1% slippage
+        trader = PaperTrader(initial_capital=1_000_000, slippage_pct=0.01)
+        order = trader.place_order("TEST", OrderSide.BUY, 100, 1000.0, 900.0, 1100.0)
+        
+        # Fill price should be 1000 * (1.01) = 1010
+        assert order.fill_price == 1010.0
+        assert trader.positions["TEST"].entry_price == 1010.0
+
+    def test_slippage_on_entry_sell(self):
+        """Test slippage is correctly applied to sell entry price."""
+        # 1% slippage
+        trader = PaperTrader(initial_capital=1_000_000, slippage_pct=0.01)
+        order = trader.place_order("TEST", OrderSide.SELL, 100, 1000.0, 1100.0, 900.0)
+        
+        # Fill price should be 1000 * (0.99) = 990
+        assert order.fill_price == 990.0
+        assert trader.positions["TEST"].entry_price == 990.0
+
+    def test_slippage_on_exit_buy(self):
+        """Test slippage is correctly applied to buy exit price."""
+        trader = PaperTrader(initial_capital=1_000_000, slippage_pct=0.01)
+        trader.place_order("TEST", OrderSide.BUY, 100, 1000.0, 900.0, 1100.0)
+        
+        # Exit at 1050 with 1% slippage -> 1050 * 0.99 = 1039.5
+        trade = trader.close_position("TEST", 1050.0)
+        assert trade.exit_price == 1039.5
+
+    def test_partial_fill_simulation(self):
+        """Test partial fill simulation when max_fill_pct < 1.0."""
+        # Set max_fill_pct to 0.7, so fills should be between 50% and 70%
+        # (Our implementation does random.uniform(0.5, 1.0) * max_fill_pct if max_fill_pct < 1.0)
+        # Wait, our implementation was: fill_pct = random.uniform(0.5, 1.0) if self.max_fill_pct < 1.0 else 1.0
+        # fill_quantity = int(quantity * min(fill_pct, self.max_fill_pct))
+        trader = PaperTrader(initial_capital=1_000_000, max_fill_pct=0.7, slippage_pct=0)
+        order = trader.place_order("TEST", OrderSide.BUY, 100, 1000.0, 900.0, 1100.0)
+        
+        assert order.quantity <= 70
+        assert order.quantity >= 50
+        assert trader.positions["TEST"].quantity == order.quantity
+
+    def test_fill_probability_failure(self):
+        """Test order cancellation when fill probability fails."""
+        # 0% fill probability
+        trader = PaperTrader(initial_capital=1_000_000, fill_probability=0.0)
+        order = trader.place_order("TEST", OrderSide.BUY, 100, 1000.0, 900.0, 1100.0)
+        
+        assert order.status == OrderStatus.CANCELLED
+        assert "TEST" not in trader.positions
+

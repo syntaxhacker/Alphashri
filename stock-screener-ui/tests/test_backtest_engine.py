@@ -70,7 +70,7 @@ class TestListStrategies:
         strategy_ids = [s['id'] for s in strategies]
         assert 'orb' in strategy_ids
         assert 'sr_breakout' in strategy_ids
-        assert 'week52_chaser' in strategy_ids
+        assert '52w_chaser' in strategy_ids
 
     def test_list_strategies_structure(self):
         """Test that each strategy has required fields."""

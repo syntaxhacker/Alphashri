@@ -9,19 +9,19 @@ import sys
 import os
 import math
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path as PathlibPath
 from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
 
 # Add project root and scanners to path
-_script_dir = Path(__file__).parent.absolute()
+_script_dir = PathlibPath(__file__).parent.absolute()
 _project_root = _script_dir.parent
 _scanners_dir = _project_root / 'scanners'
 sys.path.insert(0, str(_project_root))
 sys.path.insert(0, str(_scanners_dir))
 sys.path.insert(0, str(_script_dir))
 
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -31,7 +31,10 @@ from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
 import trending_upside
 
 # Import backtest module
-from backtest.api import BacktestRequestHandler, handle_get_strategies, handle_get_costs, handle_run_backtest
+from backtest.api import (
+    BacktestRequestHandler, handle_get_strategies, handle_get_costs, handle_run_backtest,
+    list_backtest_history, get_backtest_history_details, delete_backtest_history
+)
 
 # Thread pool for parallel API calls
 MAX_WORKERS = 10
@@ -669,15 +672,18 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
 # Pydantic models for backtest API
 class BacktestRunRequest(BaseModel):
     strategy: str = 'orb'
+    variation_id: Optional[str] = None
     symbols: List[str]
     params: Dict[str, Any] = {}
     days: int = 90
     include_costs: bool = True
+    save_to_history: bool = False
 
 
 # FastAPI app
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
     print(f'🚀 Alphashri API starting...')
     # Initialize database
     from db.database import init_db
@@ -685,7 +691,13 @@ async def lifespan(app: FastAPI):
     print("✅ Database initialized")
     # Preload instruments at startup
     _load_instruments()
+    # Start background news poller
+    news_poller = asyncio.create_task(news_poller_task())
+    print("📰 News poller started")
     yield
+    # Cleanup on shutdown
+    news_poller.cancel()
+    print("📰 News poller stopped")
 
 app = FastAPI(title="Alphashri API", lifespan=lifespan)
 
@@ -798,6 +810,9 @@ async def run_backtest(
     include_chart_data: bool = Query(False, description="Include candle/chart data in response (default: False for smaller responses)")
 ):
     body = request.model_dump()
+    # Add user_id for history tracking (default to 1 for now)
+    body['user_id'] = 1
+    
     _backtest_handler.progress_state['running'] = True
     _backtest_handler.progress_state['current'] = 0
     _backtest_handler.progress_state['total'] = len(body.get('symbols', []))
@@ -819,11 +834,13 @@ async def run_backtest(
     # Build response - exclude large data by default
     response = {
         'strategy': result.get('strategy'),
+        'variation_id': result.get('variation_id'),
         'config': result.get('config'),
         'results': result.get('results'),
         'totals': result.get('totals'),
         'skipped_stocks': result.get('skipped_stocks', []),
         'run_time': result.get('run_time'),
+        'saved_uuid': result.get('saved_uuid'),
     }
 
     # Only include chart data if explicitly requested
@@ -833,12 +850,17 @@ async def run_backtest(
         candles = result.get('candles', {})
         chart_data_raw = result.get('chart_data', {})
         or_minutes = result.get('config', {}).get('params', {}).get('or_minutes', 45)
+        strategy = result.get('strategy', '')
+
+        # For 52W Chaser strategy, include rolling 52W high line
+        include_52w_line = strategy == '52w_chaser'
 
         full_chart_data = {}
         for symbol, trades_data in chart_data_raw.items():
             if symbol in candles and trades_data.get('trades'):
                 full_chart_data[symbol] = build_chart_data_for_symbol(
-                    symbol, candles[symbol], trades_data['trades'], or_minutes
+                    symbol, candles[symbol], trades_data['trades'], or_minutes,
+                    include_52w_line=include_52w_line
                 )
 
         response['candles'] = candles
@@ -860,9 +882,17 @@ async def get_chart_data(symbol: str):
     try:
         candles_df = _backtest_handler.backtest_cache['candles'][symbol]
         trades = _backtest_handler.backtest_cache['chart_data'][symbol]['trades']
-        or_minutes = _backtest_handler.backtest_cache.get('config', {}).get('params', {}).get('or_minutes', 45)
+        config = _backtest_handler.backtest_cache.get('config', {})
+        or_minutes = config.get('params', {}).get('or_minutes', 45)
+        strategy = config.get('strategy', '')
 
-        chart_data = build_chart_data_for_symbol(symbol, candles_df, trades, or_minutes)
+        # For 52W Chaser strategy, include rolling 52W high line
+        include_52w_line = strategy == '52w_chaser'
+
+        chart_data = build_chart_data_for_symbol(
+            symbol, candles_df, trades, or_minutes,
+            include_52w_line=include_52w_line
+        )
         return _sanitize_for_json(chart_data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -874,6 +904,30 @@ async def get_results():
         'results': _backtest_handler.backtest_cache.get('results', []),
         'config': _backtest_handler.backtest_cache.get('config', {}),
     }
+
+
+@app.get("/api/backtest/history")
+async def get_backtest_history():
+    # In a real app, we'd get user_id from auth token
+    user_id = 1
+    history = list_backtest_history(user_id)
+    return _sanitize_for_json({'history': history})
+
+
+@app.get("/api/backtest/history/{uuid}")
+async def get_backtest_details(uuid: str):
+    details = get_backtest_history_details(uuid)
+    if not details:
+        raise HTTPException(status_code=404, detail="Backtest not found")
+    return _sanitize_for_json(details)
+
+
+@app.delete("/api/backtest/history/{uuid}")
+async def delete_backtest(uuid: str):
+    success = delete_backtest_history(uuid)
+    if not success:
+        raise HTTPException(status_code=404, detail="Backtest not found or could not be deleted")
+    return {'status': 'success'}
 
 
 # ============================================
@@ -895,7 +949,7 @@ def _load_instruments():
     instrument_paths = [
         _project_root / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
         _script_dir / 'nse_instruments.json',
-        Path(__file__).parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
+        PathlibPath(__file__).parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
     ]
 
     for path in instrument_paths:
@@ -1171,6 +1225,9 @@ async def get_chart_preview(
             'candles': [],
             'orb_zones': [],
             'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
             'error': 'API not available'
         }
 
@@ -1193,7 +1250,9 @@ async def get_chart_preview(
                 'candles': [],
                 'orb_zones': [],
                 'pivot_levels': [],
-                'timeframe': tf
+                'timeframe': tf,
+                'or_minutes': or_minutes,
+                'total_candles': 0,
             }
 
         # Calculate ORB zones from 1-min data before resampling
@@ -1224,6 +1283,9 @@ async def get_chart_preview(
             'candles': [],
             'orb_zones': [],
             'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
             'error': str(e)
         }
 
@@ -1251,6 +1313,11 @@ try:
     from api.strategies import router as strategies_router
     app.include_router(strategies_router)
     print("✅ Strategies API loaded at /api/strategies")
+except ImportError as e:
+    if "nautilus" in str(e).lower():
+        print(f"⚠️ Strategies API skipped (Nautilus Trader not installed): {e}")
+    else:
+        print(f"⚠️ Could not load strategies API: {e}")
 except Exception as e:
     print(f"⚠️ Could not load strategies API: {e}")
 
@@ -1285,11 +1352,157 @@ if str(_news_module_path) not in sys.path:
 
 try:
     from news_api import fetch_news, fetch_article_content, NEWS_SOURCES
+    
+    # Try loading the LLM analyzer
+    try:
+        from llm_analyzer import article_analyzer
+        _llm_available = True
+        print("✅ LLM Analyzer module loaded")
+    except ImportError as e:
+        _llm_available = False
+        article_analyzer = None
+        print(f"⚠️ LLM Analyzer module not available: {e}")
+        
     _news_available = True
     print("✅ News API module loaded")
 except ImportError as e:
     _news_available = False
+    _llm_available = False
+    article_analyzer = None
     print(f"⚠️ News API module not available: {e}")
+
+
+# ============================================
+# WebSocket Connection Manager for News
+# ============================================
+
+class NewsConnectionManager:
+    """Manages WebSocket connections for real-time news updates."""
+
+    def __init__(self):
+        self.active_connections: set = set()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.add(websocket)
+        print(f"📰 News WebSocket connected. Active connections: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.discard(websocket)
+        print(f"📰 News WebSocket disconnected. Active connections: {len(self.active_connections)}")
+
+    async def broadcast(self, message: dict):
+        """Broadcast message to all connected clients."""
+        disconnected = set()
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                disconnected.add(connection)
+        # Clean up disconnected clients
+        self.active_connections -= disconnected
+
+
+# Global WebSocket manager instance
+news_ws_manager = NewsConnectionManager()
+
+
+async def news_poller_task():
+    """Background task that polls news sources and broadcasts new items."""
+    import asyncio
+    from news_api import fetch_article_content # Needed for full body extraction
+
+    # Track last seen item ID per source
+    last_seen_ids: Dict[str, str] = {}
+
+    # Wait a bit for server to fully start
+    await asyncio.sleep(5)
+
+    while True:
+        try:
+            if not _news_available:
+                await asyncio.sleep(60)
+                continue
+
+            # Correctly handle NEWS_SOURCES as a list (matching news_api.py)
+            source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
+            
+            for source_id in source_ids:
+                try:
+                    items = fetch_news(source=source_id, limit=5)
+                    if not items:
+                        continue
+
+                    current_top_id = items[0].get('id')
+                    last_id = last_seen_ids.get(source_id)
+
+                    # First time seeing this source - just record the ID
+                    if last_id is None:
+                        last_seen_ids[source_id] = current_top_id
+                        continue
+
+                    # Check for new items
+                    if current_top_id != last_id:
+                        # Find items that are newer than last seen
+                        new_items = []
+                        for item in items:
+                            if item.get('id') == last_id:
+                                break
+                            new_items.append(item)
+
+                        if new_items:
+                            print(f"📰 Broadcasting {len(new_items)} new items from {source_id}")
+                            
+                            # Optional: Alert on high-impact news in background
+                            high_impact_items = []
+                            if _llm_available and article_analyzer:
+                                for item in new_items:
+                                    try:
+                                        # Only analyze if we think it's a major headline (skip short ones)
+                                        headline = item.get('headline', '')
+                                        url = item.get('sourceUrl', '')
+                                        if len(headline) > 30 and url:
+                                            # We need full content for good analysis, let's fetch it quickly
+                                            full_article = fetch_article_content(url)
+                                            content = full_article.get('description', '')
+                                            
+                                            analysis = article_analyzer.analyze_article(url, headline, content)
+                                            item['analysis'] = analysis
+                                            
+                                            # If impact score is high (>= 8), flag it
+                                            if analysis.get('impact_score', 0) >= 8:
+                                                high_impact_items.append(item)
+                                    except Exception as e:
+                                        print(f"Background analysis failed for {item.get('id')}: {e}")
+
+                            # Broadcast general new items
+                            await news_ws_manager.broadcast({
+                                "type": "new_items",
+                                "source": source_id,
+                                "items": new_items,
+                                "timestamp": datetime.now().isoformat()
+                            })
+                            
+                            # Broadcast high impact alerts
+                            if high_impact_items:
+                                print(f"🚨 Broadcasting {len(high_impact_items)} HIGH IMPACT alerts!")
+                                await news_ws_manager.broadcast({
+                                    "type": "high_impact_alert",
+                                    "source": source_id,
+                                    "items": high_impact_items,
+                                    "timestamp": datetime.now().isoformat()
+                                })
+
+                        last_seen_ids[source_id] = current_top_id
+
+                except Exception as e:
+                    print(f"⚠️ Error polling news source {source_id}: {e}")
+
+        except Exception as e:
+            print(f"⚠️ News poller error: {e}")
+
+        # Poll every 60 seconds
+        await asyncio.sleep(60)
 
 
 @app.get("/api/news")
@@ -1316,6 +1529,112 @@ async def get_news(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/news/sentiment/{symbol}")
+async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol to analyze")):
+    """
+    Fetch and analyze recent news for a specific stock to generate an aggregate sentiment score.
+    """
+    if not _news_available or not _llm_available:
+        raise HTTPException(status_code=503, detail="News/LLM API not available")
+
+    try:
+        # First, we need to gather news. Since we don't have a direct symbol search
+        # in the news API, we will fetch top news from all sources and filter by symbol.
+        from news_api import _aggregator, fetch_article_content
+        
+        # 1. Fetch top news across all sources
+        all_news = _aggregator.fetch_all(limit_per_source=15)
+        
+        # 2. Extract full content and find mentions of the symbol
+        relevant_articles = []
+        for news_item in all_news:
+            url = news_item.get('sourceUrl')
+            
+            # Fetch article content (this also does initial simple symbol extraction)
+            article = fetch_article_content(url)
+            
+            # Check if symbol is mentioned in headline, content, or extracted symbols
+            headline = article.get('headline', '')
+            content = article.get('description', '')
+            extracted_symbols = [s.get('code', '') for s in article.get('symbols', [])]
+            
+            if (symbol.upper() in headline.upper() or 
+                symbol.upper() in content.upper() or 
+                symbol.upper() in extracted_symbols):
+                relevant_articles.append({
+                    "url": url,
+                    "headline": headline,
+                    "content": content,
+                    "publishedAt": article.get('publishedAt')
+                })
+                
+            if len(relevant_articles) >= 5: # Limit to top 5 most recent for speed
+                break
+                
+        if not relevant_articles:
+             return {
+                 "symbol": symbol.upper(),
+                 "status": "NO_RECENT_NEWS",
+                 "sentiment_score": 0,
+                 "sentiment_label": "NEUTRAL",
+                 "articles_analyzed": 0,
+                 "trade_ideas": []
+             }
+             
+        # 3. Analyze each relevant article
+        total_impact = 0
+        sentiment_math = 0 # Bullish = 1, Bearish = -1
+        all_trade_ideas = []
+        analyzed_data = []
+        
+        for article in relevant_articles:
+            analysis = article_analyzer.analyze_article(
+                article['url'], article['headline'], article['content']
+            )
+            
+            # Aggregate stats
+            imp = analysis.get('impact_score', 0)
+            total_impact += imp
+            
+            sent = analysis.get('sentiment', 'NEUTRAL')
+            if sent == "BULLISH": sentiment_math += imp
+            elif sent == "BEARISH": sentiment_math -= imp
+            
+            # Collect trades related to this symbol
+            for trade in analysis.get('trade_ideas', []):
+                 if trade.get('symbol', '').upper() == symbol.upper() or symbol.upper() in trade.get('symbol', '').upper():
+                     all_trade_ideas.append(trade)
+                     
+            analyzed_data.append({
+                "headline": article['headline'],
+                "url": article['url'],
+                "sentiment": sent,
+                "impact": imp,
+                "summary": analysis.get('summary', '')
+            })
+            
+        # 4. Calculate Final Score (-100 to 100)
+        max_possible_impact = len(relevant_articles) * 10
+        raw_score = (sentiment_math / max_possible_impact) * 100 if max_possible_impact > 0 else 0
+        
+        if raw_score >= 30: label = "BULLISH"
+        elif raw_score <= -30: label = "BEARISH"
+        else: label = "NEUTRAL"
+
+        return {
+             "symbol": symbol.upper(),
+             "status": "SUCCESS",
+             "sentiment_score": round(raw_score, 1),
+             "sentiment_label": label,
+             "articles_analyzed": len(relevant_articles),
+             "trade_ideas": all_trade_ideas,
+             "articles": analyzed_data
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/news/article")
 async def get_news_article(url: str = Query(..., description="Article URL to fetch")):
     """
@@ -1335,6 +1654,43 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/news/analyze")
+async def analyze_news(url: str = Query(..., description="URL of the news article to analyze")):
+    """
+    Fetch a single news article by URL and analyze it using the LLM.
+    """
+    if not _news_available or not _llm_available:
+        raise HTTPException(status_code=503, detail="News/LLM API not available")
+        
+    try:
+        from news_api import fetch_article_content
+        
+        # 1. Fetch raw content
+        article_data = fetch_article_content(url)
+        
+        if 'error' in article_data:
+             raise HTTPException(status_code=500, detail=article_data['error'])
+             
+        headline = article_data.get('headline', '')
+        content = article_data.get('description', '')
+        
+        # 2. Analyze with LLM
+        analysis = article_analyzer.analyze_article(url, headline, content)
+        
+        # 3. Stitch together
+        return {
+            "url": url,
+            "headline": headline,
+            "content_preview": content[:200] + "..." if len(content) > 200 else content,
+            "analysis": analysis
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/news/sources")
 async def get_news_sources():
     """
@@ -1346,10 +1702,37 @@ async def get_news_sources():
     return {'sources': NEWS_SOURCES}
 
 
+@app.websocket("/ws/news")
+async def websocket_news(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time news updates.
+    Sends new news items as they're detected by the background poller.
+    """
+    await news_ws_manager.connect(websocket)
+    try:
+        # Send initial connection confirmation
+        await websocket.send_json({
+            "type": "connected",
+            "message": "Connected to news updates",
+            "timestamp": datetime.now().isoformat()
+        })
+
+        # Keep connection alive and handle any client messages
+        while True:
+            data = await websocket.receive_text()
+            # Can handle client commands here if needed (e.g., subscribe to specific sources)
+
+    except WebSocketDisconnect:
+        news_ws_manager.disconnect(websocket)
+    except Exception as e:
+        print(f"📰 WebSocket error: {e}")
+        news_ws_manager.disconnect(websocket)
+
+
 if __name__ == '__main__':
     print(f'🚀 Alphashri FastAPI running on http://localhost:8765')
     print(f'   API docs: http://localhost:8765/docs')
     print(f'   Screener API: http://localhost:8765/api/screener')
     print(f'   Backtest API: http://localhost:8765/api/backtest/strategies')
     print(f'   Paper Trading API: http://localhost:8765/api/paper/portfolio')
-    uvicorn.run(app, host="localhost", port=8765, reload=True)
+    uvicorn.run(app, host="localhost", port=8765)

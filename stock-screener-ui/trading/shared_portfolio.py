@@ -541,6 +541,42 @@ class SharedPortfolioManager:
             for pos in self.positions.values()
         ]
 
+    def restore_state(self, state: dict):
+        """Restore portfolio state from serialized data."""
+        self.cash = state.get('cash', self.initial_capital)
+        self.daily_pnl = state.get('daily_pnl', 0.0)
+        self.daily_trades = state.get('daily_trades', 0)
+
+    def restore_position(self, pos_data: dict):
+        """Restore a position from serialized data."""
+        symbol = pos_data['symbol']
+        strategy_id = pos_data['strategy_id']
+        key = f"{strategy_id}_{symbol}"
+        
+        if key in self.positions:
+            return
+
+        pos = SharedPosition(
+            symbol=symbol,
+            side=OrderSide(pos_data['side']),
+            quantity=pos_data['quantity'],
+            entry_price=pos_data['entry_price'],
+            stop_loss=pos_data['stop_loss'],
+            take_profit=pos_data['take_profit'],
+            entry_time=datetime.fromisoformat(pos_data['entry_time']),
+            strategy_id=strategy_id,
+            strategy_name=pos_data['strategy_name'],
+            current_price=pos_data.get('current_price', pos_data['entry_price']),
+        )
+        
+        self.positions[key] = pos
+        
+        # Update strategy attribution
+        if strategy_id in self.strategy_allocations:
+            entry_value = pos.entry_price * pos.quantity
+            self.strategy_allocations[strategy_id].capital_used += entry_value
+            self.strategy_allocations[strategy_id].positions_count += 1
+
     def reset_daily(self):
         """Reset daily tracking."""
         self.daily_pnl = 0.0

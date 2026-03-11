@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { setupApiMocks, testUser } from "../mocks/apiResponses";
 
+async function openUserMenu(page: import("@playwright/test").Page) {
+  await page.locator('[data-testid="user-menu-trigger"]').click();
+  await expect(page.locator('[data-testid="logout-button"]')).toBeVisible();
+}
+
 test.describe("Authentication - Login", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
@@ -62,9 +67,8 @@ test.describe("Authentication - Login", () => {
     // Click login using data-testid
     await page.locator('[data-testid="login-submit-btn"]').click();
 
-    // Should navigate to main app
-    await page.waitForSelector("#legacy-root", { timeout: 10000 });
-    await expect(page.locator('[data-testid="sidemenu"]')).toBeVisible();
+    // Should navigate to main app - wait for sidemenu to appear
+    await expect(page.locator('[data-testid="sidemenu"]')).toBeVisible({ timeout: 10000 });
   });
 
   test("should show error message with invalid credentials", async ({ page }) => {
@@ -185,8 +189,8 @@ test.describe("Authentication - Register", () => {
     // Click register button using data-testid
     await page.locator('[data-testid="register-button"]').click();
 
-    // Should navigate to main app
-    await page.waitForSelector("#legacy-root", { timeout: 10000 });
+    // Should navigate to main app - wait for sidemenu to appear
+    await expect(page.locator('[data-testid="sidemenu"]')).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -218,13 +222,15 @@ test.describe("Authentication - Logout", () => {
     });
   });
 
-  test("should show user info in sidemenu", async ({ page }) => {
+  test("should show user info in navbar footer", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
 
     // Should show user info
-    await expect(page.locator(".sidemenu-user")).toBeVisible();
-    await expect(page.locator(".sidemenu-user-name")).toContainText("TestUser");
+    await expect(page.locator('[data-testid="user-menu-trigger"]')).toContainText("TestUser");
+    await expect(page.locator('[data-testid="user-menu-trigger"]')).toContainText(
+      "test@alphashri.dev",
+    );
   });
 
   test("should logout when clicking sign out", async ({ page }) => {
@@ -240,7 +246,7 @@ test.describe("Authentication - Logout", () => {
       });
     });
 
-    // Click sign out button using data-testid
+    await openUserMenu(page);
     await page.locator('[data-testid="logout-button"]').click();
 
     // Should show login form using data-testid
@@ -256,6 +262,7 @@ test.describe("Authentication - Logout", () => {
       await route.fulfill({ status: 200, body: "{}" });
     });
 
+    await openUserMenu(page);
     await page.locator('[data-testid="logout-button"]').click();
     await page.waitForTimeout(1000);
 

@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from .strategies import list_strategies, get_strategy
 from .costs import get_cost_breakdown
@@ -46,6 +46,102 @@ def handle_get_costs() -> Dict:
     }
 
 
+def save_backtest_result(user_id: int, result: Dict) -> Optional[str]:
+    """Save backtest result to database."""
+    from db.database import SessionLocal
+    from db.models import BacktestResult
+    import json
+
+    db = SessionLocal()
+    try:
+        strategy_id = result.get('strategy', 'unknown')
+        variation_id = result.get('variation_id')
+        config = result.get('config', {})
+        totals = result.get('totals', {})
+        results = result.get('results', [])
+        chart_data = result.get('chart_data', {})
+        
+        # Extract name from strategy list if possible
+        strategies = list_strategies()
+        strategy_name = next((s['name'] for s in strategies if s['id'] == strategy_id), strategy_id)
+
+        backtest = BacktestResult(
+            user_id=user_id,
+            strategy_id=strategy_id,
+            strategy_name=strategy_name,
+            variation_id=variation_id,
+            parameters=json.dumps({**config.get('params', {}), 'days': config.get('days', 90)}),
+            symbols=json.dumps(config.get('symbols', [])),
+            total_pnl=totals.get('net_pnl', 0.0),
+            total_pnl_pct=totals.get('net_pnl_pct', 0.0),
+            win_rate=totals.get('win_rate', 0.0),
+            total_trades=totals.get('trades', 0),
+            sharpe_ratio=totals.get('sharpe_ratio'),
+            max_drawdown_pct=totals.get('max_drawdown_pct'),
+            results_json=json.dumps(results),
+            totals_json=json.dumps(totals),
+            chart_data_json=json.dumps(chart_data)
+        )
+        db.add(backtest)
+        db.commit()
+        db.refresh(backtest)
+        return backtest.uuid
+    except Exception as e:
+        print(f"Error saving backtest: {e}")
+        db.rollback()
+        return None
+    finally:
+        db.close()
+
+
+def list_backtest_history(user_id: int) -> List[Dict]:
+    """List backtest history for a user."""
+    from db.database import SessionLocal
+    from db.models import BacktestResult
+
+    db = SessionLocal()
+    try:
+        history = db.query(BacktestResult).filter(BacktestResult.user_id == user_id).order_by(BacktestResult.created_at.desc()).all()
+        return [b.to_dict() for b in history]
+    finally:
+        db.close()
+
+
+def get_backtest_history_details(uuid: str) -> Optional[Dict]:
+    """Get full details of a saved backtest."""
+    from db.database import SessionLocal
+    from db.models import BacktestResult
+
+    db = SessionLocal()
+    try:
+        backtest = db.query(BacktestResult).filter(BacktestResult.uuid == uuid).first()
+        if backtest:
+            return backtest.to_dict(include_details=True)
+        return None
+    finally:
+        db.close()
+
+
+def delete_backtest_history(uuid: str) -> bool:
+    """Delete a saved backtest."""
+    from db.database import SessionLocal
+    from db.models import BacktestResult
+
+    db = SessionLocal()
+    try:
+        backtest = db.query(BacktestResult).filter(BacktestResult.uuid == uuid).first()
+        if backtest:
+            db.delete(backtest)
+            db.commit()
+            return True
+        return False
+    except Exception:
+        db.rollback()
+        return False
+    finally:
+        db.close()
+
+
 def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
     """
     Handle POST /api/backtest/run
@@ -62,7 +158,10 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
     params = body.get('params', {})
     days = body.get('days', 90)
     include_costs = body.get('include_costs', True)
-    log_to_journal = body.get('log_to_journal', False)  # New parameter
+    log_to_journal = body.get('log_to_journal', False)
+    save_to_history = body.get('save_to_history', False)
+    user_id = body.get('user_id', 1)  # Default to admin user for now
+    variation_id = body.get('variation_id')
 
     params['include_costs'] = include_costs
 
@@ -92,13 +191,14 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
     # Run backtest
     try:
         result = strategy.run(symbols, days, params, progress_callback)
+        result['variation_id'] = variation_id
 
         # Optionally log trades to journal
         if log_to_journal and result.get('chart_data'):
             try:
                 from trading.journal import get_journal
                 # Use default user (admin) for backtest journal logging
-                journal = get_journal(1)
+                journal = get_journal(user_id)
                 total_logged = 0
 
                 for symbol, data in result['chart_data'].items():
@@ -114,8 +214,16 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
             except Exception as e:
                 result['journal_error'] = str(e)
 
+        # Optionally save to history
+        if save_to_history:
+            saved_uuid = save_backtest_result(user_id, result)
+            if saved_uuid:
+                result['saved_uuid'] = saved_uuid
+
         return _sanitize_for_json(result)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {'error': str(e)}
 
 

@@ -235,6 +235,7 @@ export interface BotInfo {
 // Strategy configuration from database
 export interface StrategyConfig {
   id?: string; // UUID string
+  internal_id?: number; // Internal integer ID
   name: string;
   strategy_type: string;
   is_active: boolean;

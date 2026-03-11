@@ -3,12 +3,20 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-
 import { setCurrentView } from "./state/backtest";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setCurrentView as setReduxView, type AppRouteView } from "./store/appSlice";
-import NewsPanel from "./components/news/NewsPanel";
 import ChartView from "./components/chart/ChartView";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
 import { NotificationContainer } from "./components/NotificationContainer";
+import { AppLayout } from "./components/layout/AppLayout";
+import { SectorPage } from "./components/sector/SectorPage";
+import { ScreenerContainer } from "./containers/ScreenerContainer";
+import { StrategiesContainer } from "./containers/StrategiesContainer";
+import { BacktestPage } from "./components/backtest/mantine";
+import { PaperTradingView } from "./components/paper-trading/mantine";
+import { BotsPage } from "./components/bots/mantine";
+import { NewsWebSocketProvider } from "./state/newsWebSocket";
 
+// Wrapper for legacy views (backtest, paper, bots) that still use string-based HTML rendering
 function LegacyShell({ view }: { view: AppRouteView }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -16,7 +24,7 @@ function LegacyShell({ view }: { view: AppRouteView }) {
   const currentReduxView = useAppSelector((state) => state.app.currentView);
 
   useEffect(() => {
-    // Load existing non-React app once (it mounts into #legacy-root).
+    // Load legacy app once
     void import("./legacy-main");
   }, []);
 
@@ -48,7 +56,13 @@ function LegacyShell({ view }: { view: AppRouteView }) {
     };
   }, [navigate, location.pathname]);
 
-  return <div id="legacy-root" data-view={currentReduxView} />;
+  return (
+    <div
+      id="app-content"
+      data-view={currentReduxView}
+      style={{ height: "100%", display: "flex", flexDirection: "column" }}
+    />
+  );
 }
 
 function AuthScreen() {
@@ -64,7 +78,6 @@ function AuthScreen() {
 function AppContent() {
   const { isAuthenticated, loading, user, logout } = useAuth();
 
-  // Update window user info for legacy sidemenu
   useEffect(() => {
     if (user) {
       (window as any).__ALPHASHRI_USER__ = {
@@ -77,7 +90,6 @@ function AppContent() {
     }
   }, [user, logout]);
 
-  // Show loading spinner while checking auth
   if (loading) {
     return (
       <div className="auth-loading">
@@ -87,33 +99,33 @@ function AppContent() {
     );
   }
 
-  // Show auth screen if not authenticated
   if (!isAuthenticated) {
     return <AuthScreen />;
   }
 
   return (
-    <>
+    <AppLayout>
       <Routes>
-        <Route path="/" element={<LegacyShell view="screener" />} />
-        <Route path="/backtest" element={<LegacyShell view="backtest" />} />
-        <Route path="/paper" element={<LegacyShell view="paper" />} />
-        <Route path="/sector" element={<LegacyShell view="sector" />} />
-        <Route path="/strategies" element={<LegacyShell view="strategies" />} />
-        <Route path="/bots" element={<LegacyShell view="bots" />} />
+        <Route path="/" element={<ScreenerContainer />} />
+        <Route path="/backtest" element={<BacktestPage />} />
+        <Route path="/paper" element={<PaperTradingView />} />
+        <Route path="/sector" element={<SectorPage />} />
+        <Route path="/strategies" element={<StrategiesContainer />} />
+        <Route path="/bots" element={<BotsPage />} />
         <Route path="/chart/:symbol" element={<ChartView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <NewsPanel />
       <NotificationContainer />
-    </>
+    </AppLayout>
   );
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <NewsWebSocketProvider>
+        <AppContent />
+      </NewsWebSocketProvider>
     </AuthProvider>
   );
 }

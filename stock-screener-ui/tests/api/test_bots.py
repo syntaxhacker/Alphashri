@@ -377,11 +377,12 @@ class TestBotCRUD:
 
         bot = data[0]
         assert "id" in bot
+        assert "uuid" in bot
         assert "name" in bot
         assert "is_active" in bot
         assert "max_total_positions" in bot
         assert "strategies" in bot
-        assert "running" in bot
+        assert "status" in bot
 
     @pytest.mark.integration
     def test_list_bots_empty(self, client_with_db):
@@ -469,10 +470,10 @@ class TestBotCRUD:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == test_bot.uuid
+        assert data["uuid"] == test_bot.uuid
         assert "name" in data
         assert "strategies" in data
-        assert "running" in data
+        assert "status" in data
 
     @pytest.mark.integration
     def test_get_nonexistent_bot(self, client_with_db):
@@ -844,8 +845,11 @@ class TestPortfolioAndPositions:
         with patch('api.bots.load_bot_snapshot', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/portfolio")
 
-            assert response.status_code == 404
-            assert "not found" in response.json()["detail"].lower()
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
+            assert "portfolio" in data
+            assert "positions" in data
 
     @pytest.mark.integration
     def test_get_bot_positions(self, client_with_db, test_bot):
@@ -914,7 +918,11 @@ class TestPortfolioAndPositions:
         with patch('api.bots.load_bot_snapshot', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/positions")
 
-            assert response.status_code == 404
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
+            assert data["positions"] == []
+            assert data["count"] == 0
 
     @pytest.mark.integration
     def test_get_bot_scan(self, client_with_db, test_bot):
@@ -961,7 +969,11 @@ class TestPortfolioAndPositions:
         with patch('api.bots.load_bot_snapshot', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/scan")
 
-            assert response.status_code == 404
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
+            assert data["scan_items"] == []
+            assert data["count"] == 0
 
 
 # ============================================================================
@@ -1013,7 +1025,11 @@ class TestPerformanceEndpoints:
         with patch('api.bots.load_bot_snapshot', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance")
 
-            assert response.status_code == 404
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
+            assert "summary" in data
+            assert data["summary"]["total_pnl"] == 0
 
     @pytest.mark.integration
     def test_get_bot_performance_custom_days(self, client_with_db, test_bot, test_strategy):
@@ -1075,7 +1091,11 @@ class TestPerformanceEndpoints:
         with patch('api.bots.load_bot_snapshot', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance/compare")
 
-            assert response.status_code == 404
+            assert response.status_code == 200
+            data = response.json()
+            assert data["bot_id"] == test_bot.uuid
+            assert "comparison" in data
+            assert data["comparison"] == []
 
     @pytest.mark.integration
     def test_get_bot_trades(self, client_with_db, test_bot, test_strategy):
@@ -1249,27 +1269,19 @@ class TestErrorHandling:
 class TestBotCRUDUnit:
     """Unit tests for Bot CRUD operations."""
 
-    @pytest.mark.unit
-    @patch('api.bots.SessionLocal')
-    @patch('api.bots._db_available', True)
-    @patch('api.bots._auth_available', True)
-    @patch('api.bots.get_user_id', return_value=1)
-    def test_create_bot_duplicate_name(self, mock_get_user_id, mock_session, client):
+    @pytest.mark.integration
+    def test_create_bot_duplicate_name(self, client_with_db):
         """Test POST /api/bots with duplicate name."""
         bot_data = {
-            "name": "Test Bot 1",
+            "name": "Duplicate Bot",
             "is_active": True,
         }
 
-        mock_db = MagicMock()
-        existing = MagicMock()
-        existing.id = 1
-        existing.name = "Test Bot 1"
-        mock_db.query.return_value.filter.return_value.first.return_value = existing
-        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
-        mock_session.return_value.__exit__ = Mock(return_value=False)
+        # Create first bot
+        client_with_db.post("/api/bots", json=bot_data)
 
-        response = client.post("/api/bots", json=bot_data)
+        # Try to create second bot with same name
+        response = client_with_db.post("/api/bots", json=bot_data)
 
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"].lower()

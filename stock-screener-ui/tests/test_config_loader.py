@@ -31,6 +31,7 @@ from trading.config_loader import (
 # StrategyConfigData Dataclass Tests
 # ============================================================================
 
+@pytest.mark.unit
 class TestStrategyConfigDataDefaults:
     """Tests for StrategyConfigData default values."""
 
@@ -129,6 +130,7 @@ class TestStrategyConfigDataDefaults:
         assert config.max_positions == 10
 
 
+@pytest.mark.unit
 class TestStrategyConfigDataFromDbModel:
     """Tests for StrategyConfigData.from_db_model() class method."""
 
@@ -288,6 +290,7 @@ class TestStrategyConfigDataFromDbModel:
         assert config.parent_id == 1
 
 
+@pytest.mark.unit
 class TestStrategyConfigDataToDict:
     """Tests for StrategyConfigData.to_dict() method."""
 

@@ -10,6 +10,8 @@ import type {
   StrategiesView,
   StrategyPerformance,
   BotConfig,
+  StrategyCreate,
+  StrategyUpdate,
 } from "../types/strategies";
 import * as api from "../api/strategies";
 
@@ -131,10 +133,32 @@ export async function loadInitialData(): Promise<void> {
       api.listStrategies(true),
     ]);
 
+    let strategies = strategiesResult.strategies;
+
+    // Auto-activate default strategy if no active strategy exists
+    const nonTemplates = strategies.filter((s) => !s.is_template);
+    const hasActive = nonTemplates.some((s) => s.is_active);
+    if (!hasActive && nonTemplates.length > 0) {
+      const defaultStrategy = nonTemplates.find((s) => s.is_default) || nonTemplates[0];
+      if (defaultStrategy) {
+        const strategyId = defaultStrategy.internal_id ?? Number(defaultStrategy.id);
+        try {
+          await api.updateStrategy(strategyId, { is_active: true });
+          // Update local state
+          strategies = strategies.map((s) => ({
+            ...s,
+            is_active: s.id === defaultStrategy.id,
+          }));
+        } catch (error) {
+          console.error("Failed to auto-activate default strategy:", error);
+        }
+      }
+    }
+
     state = {
       ...state,
       templates: templatesResult.templates,
-      strategies: strategiesResult.strategies,
+      strategies: strategies,
       isLoading: false,
     };
     notify();
@@ -172,7 +196,7 @@ export async function loadStrategy(strategyId: number): Promise<void> {
 }
 
 // Create a new strategy
-export async function createStrategy(data: api.StrategyCreate): Promise<StrategyConfig | null> {
+export async function createStrategy(data: StrategyCreate): Promise<StrategyConfig | null> {
   setLoading(true);
   setError(null);
   try {
@@ -200,7 +224,7 @@ export async function createStrategy(data: api.StrategyCreate): Promise<Strategy
 // Update a strategy
 export async function updateStrategy(
   strategyId: number,
-  data: api.StrategyUpdate,
+  data: StrategyUpdate,
 ): Promise<StrategyConfig | null> {
   setLoading(true);
   setError(null);
@@ -274,13 +298,15 @@ export async function loadAllPerformance(): Promise<void> {
   // Load performance for each non-template strategy
   for (const strategy of state.strategies) {
     if (!strategy.is_template) {
+      // Use internal_id (integer) instead of id (uuid) for API calls
+      const strategyId = strategy.internal_id ?? Number(strategy.id);
       try {
-        const perf = await api.getStrategyPerformance(strategy.id);
+        const perf = await api.getStrategyPerformance(strategyId);
         performanceResults.push(perf);
       } catch (error) {
         // Add placeholder for strategies with no trades
         performanceResults.push({
-          strategy_id: strategy.id,
+          strategy_id: strategyId,
           strategy_name: strategy.name,
           total_trades: 0,
           winners: 0,
@@ -373,7 +399,8 @@ export function selectStrategy(strategy: StrategyConfig | null): void {
   state = { ...state, selectedStrategy: strategy, performance: null };
   notify();
   if (strategy) {
-    loadPerformance(strategy.id);
+    const strategyId = strategy.internal_id ?? Number(strategy.id);
+    loadPerformance(strategyId);
   }
 }
 

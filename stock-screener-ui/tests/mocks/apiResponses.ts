@@ -612,7 +612,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
         },
         {
           id: BOT_UUID_2,
-          name: "Multi-ORB Test Bot",
+          name: "Multi-Strategy Bot",
           strategies: [
             { id: STRATEGY_UUID_1, name: "ORB Conservative", allocation: 0.5 },
             { id: STRATEGY_UUID_2, name: "ORB Aggressive", allocation: 0.5 },

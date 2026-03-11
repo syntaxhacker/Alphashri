@@ -114,7 +114,7 @@ class TestBacktestStrategiesEndpoint:
 
         strategies = result['strategies']
         assert isinstance(strategies, list)
-        assert len(strategies) >= 3  # orb, sr_breakout, week52_chaser
+        assert len(strategies) >= 3  # orb, sr_breakout, 52w_chaser
 
         # Check default strategy
         assert result['default'] == 'orb'
@@ -145,7 +145,8 @@ class TestBacktestStrategiesEndpoint:
 
         assert 'orb' in strategy_ids
         assert 'sr_breakout' in strategy_ids
-        assert 'week52_chaser' in strategy_ids
+        assert '52w_chaser' in strategy_ids
+        assert '52w_target' in strategy_ids
 
     def test_orb_strategy_params(self):
         """Test ORB strategy has expected parameters."""
@@ -156,7 +157,7 @@ class TestBacktestStrategiesEndpoint:
         param_keys = [p['key'] for p in orb_strategy['params']]
 
         # Expected ORB parameters
-        expected_params = ['or_minutes', 'sl_pct', 'tp_pct', 'min_or_range_pct']
+        expected_params = ['or_minutes', 'timeframe', 'stop_loss_pct', 'take_profit_pct', 'trade_size', 'cooldown_bars', 'enable_shorts']
         for param in expected_params:
             assert param in param_keys
 
@@ -351,7 +352,7 @@ class TestBacktestRunEndpoint:
     def test_run_backtest_invalid_params(self, mock_get_strategy):
         """Test running backtest with invalid parameters returns error."""
         mock_strategy = MagicMock()
-        mock_strategy.validate_params.return_value = ['Invalid ORB minutes']
+        mock_strategy.return_value.validate_params.return_value = ['Invalid ORB minutes']
         mock_get_strategy.return_value = mock_strategy
 
         body = {
@@ -370,8 +371,9 @@ class TestBacktestRunEndpoint:
     def test_run_backtest_success(self, mock_get_strategy, mock_strategy_result):
         """Test running backtest successfully."""
         mock_strategy = MagicMock()
-        mock_strategy.validate_params.return_value = []
-        mock_strategy.run.return_value = mock_strategy_result
+        mock_strategy_instance = mock_strategy.return_value
+        mock_strategy_instance.validate_params.return_value = []
+        mock_strategy_instance.run.return_value = mock_strategy_result
         mock_get_strategy.return_value = mock_strategy
 
         body = {
@@ -396,13 +398,14 @@ class TestBacktestRunEndpoint:
         assert 'error' not in result
 
         # Check strategy was called
-        mock_strategy.run.assert_called_once()
+        mock_strategy_instance.run.assert_called_once()
 
     @patch('backtest.api.get_strategy')
     def test_run_backtest_progress_tracking(self, mock_get_strategy):
         """Test that progress is tracked during backtest."""
         mock_strategy = MagicMock()
-        mock_strategy.validate_params.return_value = []
+        mock_strategy_instance = mock_strategy.return_value
+        mock_strategy_instance.validate_params.return_value = []
 
         def run_with_progress(symbols, days, params, callback):
             # Simulate progress updates
@@ -411,7 +414,7 @@ class TestBacktestRunEndpoint:
                 callback(1, 1, 'Complete')
             return {'results': []}
 
-        mock_strategy.run = run_with_progress
+        mock_strategy_instance.run = run_with_progress
         mock_get_strategy.return_value = mock_strategy
 
         body = {
@@ -440,8 +443,9 @@ class TestBacktestRunEndpoint:
     def test_run_backtest_with_costs(self, mock_get_strategy):
         """Test running backtest with costs included."""
         mock_strategy = MagicMock()
-        mock_strategy.validate_params.return_value = []
-        mock_strategy.run.return_value = {
+        mock_strategy_instance = mock_strategy.return_value
+        mock_strategy_instance.validate_params.return_value = []
+        mock_strategy_instance.run.return_value = {
             'results': [],
             'config': {}
         }
@@ -459,8 +463,8 @@ class TestBacktestRunEndpoint:
 
         # Check that include_costs was passed to strategy
         # The run should be called with params containing include_costs
-        mock_strategy.run.assert_called_once()
-        call_args = mock_strategy.run.call_args
+        mock_strategy_instance.run.assert_called_once()
+        call_args = mock_strategy_instance.run.call_args
         params = call_args[0][2]  # Third argument is params
         assert params.get('include_costs') is True
 
@@ -468,8 +472,9 @@ class TestBacktestRunEndpoint:
     def test_run_backtest_exception_handling(self, mock_get_strategy):
         """Test that exceptions during backtest are handled gracefully."""
         mock_strategy = MagicMock()
-        mock_strategy.validate_params.return_value = []
-        mock_strategy.run.side_effect = Exception("Database error")
+        mock_strategy_instance = mock_strategy.return_value
+        mock_strategy_instance.validate_params.return_value = []
+        mock_strategy_instance.run.side_effect = Exception("Database error")
         mock_get_strategy.return_value = mock_strategy
 
         body = {
@@ -640,8 +645,8 @@ class TestBacktestRequestHandler:
 
         result = backtest_handler.handle_request('POST', '/api/backtest/run', {}, body)
 
-        assert 'running' in result
-        assert backtest_handler.progress_state['running'] is True
+        assert 'results' in result
+        assert backtest_handler.progress_state['running'] is False
 
     def test_handle_request_get_strategies(self, backtest_handler):
         """Test handle_request for GET /api/backtest/strategies."""
@@ -681,7 +686,8 @@ class TestBacktestIntegration:
         """Test complete backtest workflow: run -> progress -> chart -> results."""
         # Setup mock strategy
         mock_strategy = MagicMock()
-        mock_strategy.validate_params.return_value = []
+        mock_strategy_instance = mock_strategy.return_value
+        mock_strategy_instance.validate_params.return_value = []
 
         mock_result = {
             'results': [{'symbol': 'RELIANCE', 'trades': 3, 'net_pnl': 1500}],
@@ -704,7 +710,7 @@ class TestBacktestIntegration:
                 }
             }
         }
-        mock_strategy.run.return_value = mock_result
+        mock_strategy_instance.run.return_value = mock_result
         mock_get_strategy.return_value = mock_strategy
 
         # Step 1: Run backtest

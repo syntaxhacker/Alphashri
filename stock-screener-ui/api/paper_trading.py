@@ -290,13 +290,17 @@ async def get_positions(user: Optional["User"] = Depends(get_current_user_option
 async def get_trades(
     limit: int = 50,
     date: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    days_back: int = 7,
     symbol: Optional[str] = None,
     strategy: Optional[str] = None,
-    bot_id: Optional[int] = None,
+    bot_id: Optional[str] = None,
     user: Optional["User"] = Depends(get_current_user_optional),
 ):
     """Get trade history from journal with filters."""
     from trading.journal import TradeJournal
+    from datetime import timedelta
 
     user_id = _get_user_id(user)
     if user_id:
@@ -317,16 +321,41 @@ async def get_trades(
                 all_trades = [asdict(t) for t in temp_journal.trades]
             except Exception as e:
                 console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
+    elif from_date:
+        # Load trades from a date range
+        start_dt = datetime.strptime(from_date, '%Y-%m-%d')
+        if to_date:
+            end_dt = datetime.strptime(to_date, '%Y-%m-%d')
+        else:
+            end_dt = datetime.now()
+        
+        current_dt = start_dt
+        while current_dt <= end_dt:
+            date_str = current_dt.strftime('%Y%m%d')
+            journal_file = journal_dir / f"journal_{date_str}.json"
+            if journal_file.exists():
+                temp_journal = TradeJournal(user_id=user_id)
+                try:
+                    temp_journal.load_journal(str(journal_file))
+                    all_trades.extend([asdict(t) for t in temp_journal.trades])
+                except Exception:
+                    pass
+            current_dt += timedelta(days=1)
     else:
-        # No date filter - merge in-memory journal + journal files (including today)
-        # In-memory journal can be stale when runner writes from another process,
-        # so we always load today's file as source of truth and dedupe.
-        journal = get_journal(user_id)
+        # No specific date or from_date - use days_back
+        today = datetime.now().strftime('%Y%m%d')
+        journal = TradeJournal(user_id=user_id)
+        journal_file = journal_dir / f"journal_{today}.json"
+        if journal_file.exists():
+            try:
+                journal.load_journal(str(journal_file))
+            except Exception as e:
+                console.print(f"[yellow]Could not reload journal: {e}[/yellow]")
         all_trades = [asdict(t) for t in journal.trades]
 
-        # Load recent journal files (today + previous 7 days)
-        for i in range(0, 8):
-            day_str = (datetime.now() - __import__('datetime').timedelta(days=i)).strftime('%Y%m%d')
+        # Load recent journal files
+        for i in range(0, days_back + 1):
+            day_str = (datetime.now() - timedelta(days=i)).strftime('%Y%m%d')
             journal_file = journal_dir / f"journal_{day_str}.json"
             if not journal_file.exists():
                 continue
@@ -337,19 +366,18 @@ async def get_trades(
             except Exception:
                 pass
 
-        # Deduplicate merged trades across memory/file sources.
-        # trade_id can repeat across runner restarts, so include times/symbol/qty.
-        deduped = {}
-        for t in all_trades:
-            key = (
-                t.get('symbol'),
-                t.get('side'),
-                t.get('quantity'),
-                t.get('entry_time'),
-                t.get('exit_time'),
-            )
-            deduped[key] = t
-        all_trades = list(deduped.values())
+    # Deduplicate trades
+    deduped = {}
+    for t in all_trades:
+        key = (
+            t.get('symbol'),
+            t.get('side'),
+            t.get('quantity'),
+            t.get('entry_time'),
+            t.get('exit_time'),
+        )
+        deduped[key] = t
+    all_trades = list(deduped.values())
 
     # Apply filters
     filtered_trades = all_trades
@@ -362,8 +390,17 @@ async def get_trades(
         filtered_trades = [t for t in filtered_trades if strategy.lower() in (t.get('notes') or '').lower()]
 
     if bot_id:
-        # Filter by bot_id
-        filtered_trades = [t for t in filtered_trades if t.get('bot_id') == bot_id]
+        # Filter by bot_id - handle 'default' string and convert bot_id from query to same type as trade data
+        if bot_id == "default":
+            # For default bot, we might want trades where bot_id is 0 or None
+            filtered_trades = [t for t in filtered_trades if t.get('bot_id') in (0, None, "0")]
+        else:
+            # Try numeric comparison first, then string
+            try:
+                numeric_bot_id = int(bot_id)
+                filtered_trades = [t for t in filtered_trades if t.get('bot_id') == numeric_bot_id]
+            except ValueError:
+                filtered_trades = [t for t in filtered_trades if str(t.get('bot_id')) == str(bot_id)]
 
     # Sort by exit time descending
     filtered_trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)

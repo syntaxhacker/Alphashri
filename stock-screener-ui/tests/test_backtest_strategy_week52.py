@@ -375,15 +375,17 @@ class TestWeek52ChaserStrategyMetadata:
         """Test: Entry threshold has correct defaults."""
         params = Week52ChaserStrategy.get_params()
         entry_threshold = next(
-            p for p in params if p.key == "entry_threshold_pct"
+            (p for p in params if p.key == "entry_threshold_pct"), None
         )
+        assert entry_threshold is not None
         assert entry_threshold.default == 3.0
         assert entry_threshold.type == "number"
 
     def test_stop_loss_param_defaults(self):
         """Test: Stop loss has correct defaults."""
         params = Week52ChaserStrategy.get_params()
-        sl = next(p for p in params if p.key == "stop_loss_pct")
+        sl = next((p for p in params if p.key == "stop_loss_pct"), None)
+        assert sl is not None
         assert sl.default == 3.0
         assert sl.min == 1.0
         assert sl.max == 8.0
@@ -391,13 +393,15 @@ class TestWeek52ChaserStrategyMetadata:
     def test_take_profit_param_defaults(self):
         """Test: Take profit has correct defaults."""
         params = Week52ChaserStrategy.get_params()
-        tp = next(p for p in params if p.key == "take_profit_pct")
+        tp = next((p for p in params if p.key == "take_profit_pct"), None)
+        assert tp is not None
         assert tp.default == 5.0
 
     def test_trailing_stop_is_boolean(self):
         """Test: Enable trailing stop is boolean type."""
         params = Week52ChaserStrategy.get_params()
-        ts = next(p for p in params if p.key == "enable_trailing_stop")
+        ts = next((p for p in params if p.key == "enable_trailing_stop"), None)
+        assert ts is not None
         assert ts.type == "boolean"
         assert ts.default is False
 
@@ -944,7 +948,8 @@ class TestTrailingStopLogic:
     def test_trailing_stop_disabled_by_default_in_params(self):
         """Test: Trailing stop disabled by default in strategy params."""
         params = Week52ChaserStrategy.get_params()
-        enable_trailing = next(p for p in params if p.key == "enable_trailing_stop")
+        enable_trailing = next((p for p in params if p.key == "enable_trailing_stop"), None)
+        assert enable_trailing is not None
         assert enable_trailing.default is False
 
     def test_trailing_stop_activation_price(self):
@@ -1121,7 +1126,8 @@ class TestFilterLogic:
     def test_filters_disabled_by_default(self):
         """Test: Filters disabled by default."""
         params = Week52ChaserStrategy.get_params()
-        enable_filters = next(p for p in params if p.key == "enable_filters")
+        enable_filters = next((p for p in params if p.key == "enable_filters"), None)
+        assert enable_filters is not None
         assert enable_filters.default is False
 
 

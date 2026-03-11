@@ -23,7 +23,7 @@ export async function setupTradeHistoryMocks(page: Page): Promise<void> {
 export async function navigateToPaperTrading(page: Page): Promise<void> {
   // Navigate directly to paper trading URL
   await page.goto("/paper");
-  await page.waitForSelector(".sidemenu", { timeout: 20000 });
+  await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 20000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 30000 });
 }
 
@@ -48,22 +48,67 @@ export async function navigateToTradeHistory(page: Page): Promise<void> {
 }
 
 /**
- * Select a bot from the dropdown by its ID
+ * Navigate to the Live Positions tab
+ */
+export async function navigateToLiveTab(page: Page): Promise<void> {
+  const tabButton = page.locator('[data-testid="tab-live"]');
+  await tabButton.click();
+  // Wait for the live panel to appear
+  await page.waitForSelector('[data-testid="paper-left-panel"]', { timeout: 20000 });
+}
+
+/**
+ * Select a bot from the segmented control by its ID
+ * Note: Bot selector only appears in "live" view, so we need to ensure we're on that view first
  */
 export async function selectBot(page: Page, botId: string): Promise<void> {
-  await page.locator(".bot-selector-dropdown").selectOption(botId);
+  // First ensure we're on the live tab where the bot selector is visible
+  const livePanel = page.locator('[data-testid="paper-left-panel"]');
+  const isLiveView = await livePanel.isVisible().catch(() => false);
+
+  if (!isLiveView) {
+    await navigateToLiveTab(page);
+  }
+
+  // For Mantine SegmentedControl, we need to click the label that corresponds to the input with the bot ID value
+  // Mantine uses input elements with data-value attribute internally
+  const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
+  await segmentedControl.waitFor({ state: "visible", timeout: 10000 });
+
+  // Click the input/label with the bot ID - Mantine SegmentedControl uses data-value on inputs
+  const botInput = segmentedControl.locator(`input[data-value="${botId}"]`);
+  const botLabel = segmentedControl.locator(`label:has(input[data-value="${botId}"])`);
+
+  // Try clicking the label (which is the visible part users click)
+  const count = await botLabel.count();
+  if (count > 0) {
+    await botLabel.click();
+  } else {
+    // Fallback: click directly on the visible text label within the control
+    await segmentedControl
+      .getByText(botId === "default" ? "Default" : "Multi-Strategy Bot", { exact: false })
+      .first()
+      .click();
+  }
   await page.waitForTimeout(500);
 }
 
 /**
  * Navigate to Trade History and select a specific bot
+ * The bot selector is only available in live view, so we:
+ * 1. Navigate to paper trading
+ * 2. Select the bot in live view
+ * 3. Then switch to history view
  */
 export async function navigateToTradeHistoryWithBot(
   page: Page,
-  botId: string = "2",
+  botId: string = "550e8400-e29b-41d4-a716-446655440000",
 ): Promise<void> {
-  await navigateToTradeHistory(page);
+  await navigateToPaperTrading(page);
+  // Select bot while in live view (where the selector is visible)
   await selectBot(page, botId);
+  // Now switch to history view
+  await navigateToTradeHistoryTab(page);
 }
 
 /**

@@ -23,9 +23,10 @@ export async function gotoStrategiesView(page: Page): Promise<void> {
 
 /**
  * Get the create strategy button locator
+ * Uses specific data-testid to avoid matching template "Create Variation" buttons
  */
 export function getCreateStrategyButton(page: Page): Locator {
-  return page.locator('button:has-text("Create"), button:has-text("New Strategy")');
+  return page.locator('[data-testid="create-strategy-btn"]');
 }
 
 /**
@@ -46,7 +47,8 @@ export function getDeleteButton(page: Page, index: number = 0): Locator {
  * Get the modal locator
  */
 export function getModal(page: Page): Locator {
-  return page.locator(".modal, .strategy-form-modal");
+  // Return only visible modals to avoid strict mode violations
+  return page.locator(".modal:visible, .strategy-form-modal:visible").first();
 }
 
 /**

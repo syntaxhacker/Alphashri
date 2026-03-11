@@ -37,6 +37,16 @@ from trading.journal import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_journal_module_state():
+    _journals.clear()
+    import trading.journal as journal_module
+    journal_module._default_journal = None
+    yield
+    _journals.clear()
+    journal_module._default_journal = None
+
+
 @pytest.fixture
 def temp_journal_dir():
     """Create a temporary directory for journal files."""
@@ -135,6 +145,7 @@ def journal_with_trades(journal, sample_trade_dict):
     return journal
 
 
+@pytest.mark.unit
 class TestTradeRecord:
     """Tests for TradeRecord dataclass."""
 
@@ -219,6 +230,7 @@ class TestTradeRecord:
         assert d['pnl'] == 10000.0
 
 
+@pytest.mark.unit
 class TestTradeJournalInit:
     """Tests for TradeJournal initialization."""
 
@@ -262,6 +274,7 @@ class TestTradeJournalInit:
         assert journal.daily_summaries == {}
 
 
+@pytest.mark.unit
 class TestLogTrade:
     """Tests for log_trade method."""
 
@@ -1055,20 +1068,29 @@ class TestExportCSV:
         
         assert len(rows) == 0
     
-    def test_export_csv_missing_fieldnames_bug(self, journal_with_trades, temp_journal_dir):
-        """Test that demonstrates the CSV export bug with missing fieldnames.
+    def test_export_csv_includes_all_fields(self, journal_with_trades, temp_journal_dir):
+        """Test that CSV export includes all TradeRecord fields.
         
-        The source code's export_to_csv method has hardcoded fieldnames that don't
-        include newer TradeRecord fields (source, bot_id, bot_name, is_test).
-        This test documents the bug - trades with these fields set will cause
-        a ValueError when exported.
-        
-        See: trading/journal.py:490-496
-        
-        Expected fix: Add 'source', 'bot_id', 'bot_name', 'is_test' to fieldnames
+        Verifies that the export_to_csv method includes newer fields:
+        source, bot_id, bot_name, is_test.
         """
-        with pytest.raises(ValueError, match="dict contains fields not in fieldnames"):
-            journal_with_trades.export_to_csv()
+        filepath = journal_with_trades.export_to_csv()
+        
+        with open(filepath, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        
+        assert len(rows) == 3
+        
+        # Verify all expected fields are present
+        expected_fields = [
+            'trade_id', 'symbol', 'side', 'quantity',
+            'entry_price', 'exit_price', 'entry_time', 'exit_time',
+            'pnl', 'pnl_pct', 'exit_reason', 'costs', 'net_pnl',
+            'sl_price', 'tp_price', 'peak_price', 'low_price', 'notes',
+            'strategy_id', 'strategy_name', 'bot_id', 'bot_name', 'source', 'is_test'
+        ]
+        assert set(rows[0].keys()) == set(expected_fields)
 
 
 class TestLogBacktestTrades:
@@ -1284,3 +1306,69 @@ class TestEdgeCases:
         perf = journal.get_strategy_performance()
         
         assert perf[0]['strategy_name'] == 'Unknown'
+
+
+@pytest.mark.unit
+class TestPerformanceSummaryCalculations:
+    """Tests for complex performance metrics in get_performance_summary."""
+
+    def test_performance_summary_with_consistent_wins(self, journal):
+        """Test metrics with consistent wins (low drawdown, high Sharpe)."""
+        # 10 wins of 1% each (10,000 P&L on 1,000,000 capital)
+        for i in range(10):
+            journal.log_trade({
+                'symbol': 'TEST', 'side': 'BUY', 'quantity': 100,
+                'entry_price': 100, 'exit_price': 101,
+                'entry_time': f'2024-01-{i+1:02d}', 'exit_time': f'2024-01-{i+1:02d}',
+                'pnl': 10000, 'pnl_pct': 1.0, 'costs': 0, 'net_pnl': 10000,
+                'exit_reason': 'TP'
+            })
+        
+        summary = journal.get_performance_summary()
+        assert summary['net_pnl'] == 100000
+        assert summary['win_rate'] == 100.0
+        assert summary['max_drawdown'] == 0
+        # Sharpe should be 0 because stdev of and constant [1.0, 1.0...] is 0
+        assert summary['sharpe_ratio'] == 0 
+
+    def test_performance_summary_with_drawdown(self, journal):
+        """Test max drawdown calculation."""
+        # Win 50k, then lose 30k, then win 20k
+        trades = [
+            {'pnl': 50000, 'pnl_pct': 5.0},
+            {'pnl': -30000, 'pnl_pct': -3.0}, # Drawdown: 30k
+            {'pnl': 20000, 'pnl_pct': 2.0},
+        ]
+        for i, t in enumerate(trades):
+            journal.log_trade({
+                'symbol': 'TEST', 'side': 'BUY', 'quantity': 1,
+                'entry_price': 100, 'exit_price': 105 if t['pnl'] > 0 else 95,
+                'entry_time': f'2024-01-{i+1:02d}', 'exit_time': f'2024-01-{i+1:02d}',
+                'pnl': t['pnl'], 'pnl_pct': t['pnl_pct'], 'costs': 0, 'net_pnl': t['pnl'],
+                'exit_reason': 'MANUAL'
+            })
+        
+        summary = journal.get_performance_summary()
+        assert summary['max_drawdown'] == 30000
+        # Peak equity was 1,050,000. Current after 2nd trade was 1,020,000. 
+        # Drawdown % = (30,000 / 1,050,000) * 100 = 2.857...
+        assert 2.85 <= summary['max_drawdown_pct'] <= 2.86
+
+    def test_performance_summary_with_volatility(self, journal):
+        """Test Sharpe Ratio with volatile returns."""
+        # 5% win, 1% loss, 4% win, 2% loss
+        trades = [5.0, -1.0, 4.0, -2.0]
+        for i, pnl_pct in enumerate(trades):
+            journal.log_trade({
+                'symbol': 'TEST', 'side': 'BUY', 'quantity': 1,
+                'entry_price': 100, 'exit_price': 110,
+                'entry_time': f'2024-02-{i+1:02d}', 'exit_time': f'2024-02-{i+1:02d}',
+                'pnl': 1000, 'pnl_pct': pnl_pct, 'costs': 0, 'net_pnl': 1000,
+                'exit_reason': 'MANUAL'
+            })
+        
+        summary = journal.get_performance_summary()
+        assert summary['sharpe_ratio'] != 0
+        # Mean = 1.5, Stdev = 3.415, Sharpe = (1.5 / 3.415) * sqrt(252) approx 6.97
+        assert summary['sharpe_ratio'] > 0
+

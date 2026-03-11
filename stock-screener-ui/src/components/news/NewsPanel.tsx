@@ -1,23 +1,40 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Button,
+  CloseButton,
+  Group,
+  Indicator,
+  Overlay,
+  ScrollArea,
+  Select,
+  Stack,
+  Text,
+  Title,
+  Anchor,
+  Card,
+  Divider,
+  Tooltip,
+  Loader,
+} from "@mantine/core";
+import { IconRefresh, IconArrowLeft, IconExternalLink, IconNews } from "@tabler/icons-react";
 import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-types";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
+import { useNewsWebSocket } from "../../state/newsWebSocket";
 
-// LocalStorage keys
 const LS_READ_IDS = "news_read_ids";
 const LS_LAST_SEEN_ID = "news_last_seen_id";
 const LS_AUTO_REFRESH = "news_auto_refresh";
 
-// Auto-refresh intervals in milliseconds
 const AUTO_REFRESH_INTERVALS = [
-  { label: "Off", value: 0 },
-  { label: "1m", value: 60000 },
-  { label: "5m", value: 300000 },
-  { label: "10m", value: 600000 },
+  { label: "Off", value: "0" },
+  { label: "1m", value: "60000" },
+  { label: "5m", value: "300000" },
+  { label: "10m", value: "600000" },
 ];
 
-/**
- * Format relative time from ISO timestamp
- */
 function formatTimeAgo(isoString: string): string {
   try {
     const date = new Date(isoString);
@@ -37,17 +54,11 @@ function formatTimeAgo(isoString: string): string {
   }
 }
 
-/**
- * Truncate text to specified length
- */
 function truncateText(text: string, maxLength: number): string {
   if (!text || text.length <= maxLength) return text;
   return text.slice(0, maxLength).trim() + "...";
 }
 
-/**
- * Get read article IDs from localStorage
- */
 function getReadIds(): Set<string> {
   try {
     const stored = localStorage.getItem(LS_READ_IDS);
@@ -58,35 +69,34 @@ function getReadIds(): Set<string> {
   return new Set();
 }
 
-/**
- * Save read article IDs to localStorage
- */
 function saveReadIds(ids: Set<string>): void {
   try {
-    // Keep only last 500 IDs to avoid storage bloat
     const arr = Array.from(ids).slice(-500);
     localStorage.setItem(LS_READ_IDS, JSON.stringify(arr));
   } catch {}
 }
 
-/**
- * News Panel Component
- * Slide-in panel showing news from multiple sources
- */
 export default function NewsPanel() {
+  // Get WebSocket state from context
+  const {
+    connected: wsConnected,
+    newsItems: wsNewsItems,
+    hasNewArticles,
+    clearNewArticlesFlag,
+    addNewsItems,
+  } = useNewsWebSocket();
+
   const [isOpen, setIsOpen] = useState(false);
-  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [localNewsItems, setLocalNewsItems] = useState<NewsItem[]>([]);
   const [sources, setSources] = useState<NewsSource[]>([]);
   const [selectedSource, setSelectedSource] = useState("moneycontrol");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Article view state
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
   const [articleContent, setArticleContent] = useState<ArticleResponse | null>(null);
   const [articleLoading, setArticleLoading] = useState(false);
 
-  // Unread tracking
   const [readIds, setReadIds] = useState<Set<string>>(getReadIds);
   const [lastSeenId, setLastSeenId] = useState<string | null>(() => {
     try {
@@ -96,31 +106,36 @@ export default function NewsPanel() {
     }
   });
 
-  // Auto-refresh
-  const [autoRefreshMs, setAutoRefreshMs] = useState<number>(() => {
+  const [autoRefreshMs, setAutoRefreshMs] = useState<string>(() => {
     try {
       const stored = localStorage.getItem(LS_AUTO_REFRESH);
-      return stored ? parseInt(stored, 10) : 0;
+      return stored || "0";
     } catch {
-      return 0;
+      return "0";
     }
   });
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Calculate unread count (articles newer than last seen, not yet read)
+  // Merge WebSocket news items with local items, preferring WS items
+  const newsItems = wsNewsItems.length > 0 ? wsNewsItems : localNewsItems;
+
   const unreadCount = newsItems.filter((item) => {
     if (readIds.has(item.id)) return false;
-    // If no lastSeenId, all are unread until panel is opened
     return true;
   }).length;
 
-  // Load sources on mount
   useEffect(() => {
     fetchNewsSources().then(setSources);
   }, []);
 
-  // Load news function
+  // Clear pulse animation when panel opens
+  useEffect(() => {
+    if (isOpen) {
+      clearNewArticlesFlag();
+    }
+  }, [isOpen, clearNewArticlesFlag]);
+
   const loadNews = useCallback(
     async (isAutoRefresh = false) => {
       if (isAutoRefresh) {
@@ -132,7 +147,12 @@ export default function NewsPanel() {
 
       try {
         const items = await fetchNews(selectedSource, 30);
-        setNewsItems(items);
+        // If we have WS items, add the fetched items to the context
+        if (wsNewsItems.length > 0) {
+          addNewsItems(items);
+        } else {
+          setLocalNewsItems(items);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load news");
       } finally {
@@ -140,15 +160,13 @@ export default function NewsPanel() {
         setIsRefreshing(false);
       }
     },
-    [selectedSource],
+    [selectedSource, wsNewsItems.length, addNewsItems],
   );
 
-  // Initial load when panel opens
   useEffect(() => {
     if (isOpen) {
       loadNews();
 
-      // Mark current top article as last seen
       if (newsItems.length > 0 && newsItems[0].id !== lastSeenId) {
         const newLastSeenId = newsItems[0].id;
         setLastSeenId(newLastSeenId);
@@ -159,17 +177,17 @@ export default function NewsPanel() {
     }
   }, [isOpen, selectedSource]);
 
-  // Auto-refresh effect
   useEffect(() => {
     if (autoRefreshRef.current) {
       clearInterval(autoRefreshRef.current);
       autoRefreshRef.current = null;
     }
 
-    if (autoRefreshMs > 0) {
+    const ms = parseInt(autoRefreshMs, 10);
+    if (ms > 0) {
       autoRefreshRef.current = setInterval(() => {
         loadNews(true);
-      }, autoRefreshMs);
+      }, ms);
     }
 
     return () => {
@@ -179,16 +197,13 @@ export default function NewsPanel() {
     };
   }, [autoRefreshMs, loadNews]);
 
-  // Save auto-refresh setting
   useEffect(() => {
     try {
-      localStorage.setItem(LS_AUTO_REFRESH, autoRefreshMs.toString());
+      localStorage.setItem(LS_AUTO_REFRESH, autoRefreshMs);
     } catch {}
   }, [autoRefreshMs]);
 
-  // Handle article click
   const handleArticleClick = async (item: NewsItem) => {
-    // Mark as read
     const newReadIds = new Set(readIds);
     newReadIds.add(item.id);
     setReadIds(newReadIds);
@@ -208,25 +223,21 @@ export default function NewsPanel() {
     }
   };
 
-  // Handle back to list
   const handleBack = () => {
     setSelectedArticle(null);
     setArticleContent(null);
   };
 
-  // Close panel
   const handleClose = () => {
     setIsOpen(false);
     setSelectedArticle(null);
     setArticleContent(null);
   };
 
-  // Handle symbol click
   const handleSymbolClick = (symbol: NewsSymbol) => {
     window.open(symbol.url, "_blank", "noopener,noreferrer");
   };
 
-  // Mark all as read
   const handleMarkAllRead = () => {
     const newReadIds = new Set(readIds);
     newsItems.forEach((item) => newReadIds.add(item.id));
@@ -234,189 +245,288 @@ export default function NewsPanel() {
     saveReadIds(newReadIds);
   };
 
-  // Cycle auto-refresh interval
-  const cycleAutoRefresh = () => {
-    const currentIndex = AUTO_REFRESH_INTERVALS.findIndex((i) => i.value === autoRefreshMs);
-    const nextIndex = (currentIndex + 1) % AUTO_REFRESH_INTERVALS.length;
-    setAutoRefreshMs(AUTO_REFRESH_INTERVALS[nextIndex].value);
-  };
+  const sourceData =
+    sources.length > 0
+      ? sources.map((s) => ({ value: s.id, label: s.name }))
+      : [{ value: "moneycontrol", label: "Moneycontrol" }];
 
   const currentRefreshLabel =
     AUTO_REFRESH_INTERVALS.find((i) => i.value === autoRefreshMs)?.label || "Off";
 
   return (
     <>
-      {/* Toggle Button */}
-      <button
-        className="news-toggle-btn"
-        data-testid="news-toggle-btn"
-        onClick={() => setIsOpen(!isOpen)}
-        title="Open news panel"
+      <Indicator
+        color={hasNewArticles ? "green" : "red"}
+        size={16}
+        label={unreadCount > 99 ? "99+" : unreadCount}
+        disabled={unreadCount === 0 || isOpen}
+        offset={4}
+        className={hasNewArticles ? "news-badge-pulse" : undefined}
       >
-        NEWS
-        {unreadCount > 0 && !isOpen && (
-          <span className="news-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
-        )}
-      </button>
+        <Button
+          variant="filled"
+          color="blue"
+          size="xs"
+          onClick={() => setIsOpen(!isOpen)}
+          data-testid="news-toggle-btn"
+          title="Open news panel"
+          leftSection={<IconNews size={16} />}
+        >
+          NEWS
+        </Button>
+      </Indicator>
 
-      {/* Overlay */}
-      {isOpen && <div className="news-overlay visible" onClick={handleClose} />}
+      {isOpen && (
+        <Overlay
+          color="#000"
+          backgroundOpacity={0.5}
+          onClick={handleClose}
+          zIndex={100}
+          data-testid="news-overlay"
+          className="news-overlay"
+        />
+      )}
 
-      {/* Panel */}
-      <div className={`news-panel ${isOpen ? "open" : ""}`} data-testid="news-panel">
+      <Box
+        pos="fixed"
+        top={0}
+        right={isOpen ? 0 : -400}
+        w={400}
+        h="100vh"
+        bg="var(--mantine-color-body)"
+        className={isOpen ? "open" : undefined}
+        style={{
+          zIndex: 200,
+          transition: "right 0.3s ease",
+          borderLeft: "1px solid var(--mantine-color-default-border)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+        data-testid="news-panel"
+      >
         {selectedArticle ? (
-          // Article View
-          <div className="news-article" data-testid="news-article">
-            <div className="news-article-header">
-              <button className="news-article-back" onClick={handleBack}>
-                {"<"} Back
-              </button>
-              <button className="news-close-btn" onClick={handleClose}>
-                x
-              </button>
-            </div>
-
-            <div className="news-article-title">{selectedArticle.headline}</div>
-
-            <div className="news-article-meta">
-              {articleContent?.source || selectedArticle.source} |{" "}
-              {formatTimeAgo(articleContent?.publishedAt || selectedArticle.publishedAt)}
-            </div>
-
-            {/* Stock Symbols Section */}
-            {articleContent?.symbols && articleContent.symbols.length > 0 && (
-              <div className="news-symbols">
-                <div className="news-symbols-label">Stocks mentioned:</div>
-                <div className="news-symbols-list">
-                  {articleContent.symbols.map((symbol, idx) => (
-                    <button
-                      key={idx}
-                      className="news-symbol-tag"
-                      onClick={() => handleSymbolClick(symbol)}
-                      title={`View ${symbol.name} on Moneycontrol`}
-                    >
-                      {symbol.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="news-article-content">
-              {articleLoading ? (
-                <div className="news-loading">Loading article...</div>
-              ) : articleContent?.description ? (
-                articleContent.description.split("\n\n").map((para, idx) => (
-                  <p key={idx} style={{ marginBottom: "12px" }}>
-                    {para}
-                  </p>
-                ))
-              ) : (
-                <div className="news-empty">Unable to load article content.</div>
-              )}
-            </div>
-
-            <div className="news-article-link">
-              <a
-                href={selectedArticle.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "#00ff9d", fontSize: "11px" }}
+          <Stack gap={0} h="100%">
+            <Group
+              p="sm"
+              justify="space-between"
+              style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+            >
+              <Button
+                variant="subtle"
+                size="xs"
+                leftSection={<IconArrowLeft size={14} />}
+                onClick={handleBack}
               >
-                Open Original {"->"}
-              </a>
-            </div>
-          </div>
+                Back
+              </Button>
+              <CloseButton onClick={handleClose} />
+            </Group>
+
+            <ScrollArea flex={1} p="md">
+              <Stack gap="md">
+                <Title order={4}>{selectedArticle.headline}</Title>
+
+                <Text size="xs" c="dimmed">
+                  {articleContent?.source || selectedArticle.source} |{" "}
+                  {formatTimeAgo(articleContent?.publishedAt || selectedArticle.publishedAt)}
+                </Text>
+
+                {articleContent?.symbols && articleContent.symbols.length > 0 && (
+                  <div>
+                    <Text size="xs" c="dimmed" mb="xs">
+                      Stocks mentioned:
+                    </Text>
+                    <Group gap="xs">
+                      {articleContent.symbols.map((symbol, idx) => (
+                        <Badge
+                          key={idx}
+                          variant="light"
+                          style={{ cursor: "pointer" }}
+                          onClick={() => handleSymbolClick(symbol)}
+                        >
+                          {symbol.name}
+                        </Badge>
+                      ))}
+                    </Group>
+                  </div>
+                )}
+
+                <Divider />
+
+                {articleLoading ? (
+                  <Group justify="center" py="xl">
+                    <Loader size="sm" />
+                    <Text c="dimmed">Loading article...</Text>
+                  </Group>
+                ) : articleContent?.description ? (
+                  <Stack gap="sm">
+                    {articleContent.description.split("\n\n").map((para, idx) => (
+                      <Text key={idx} size="sm">
+                        {para}
+                      </Text>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Text c="dimmed" ta="center" py="xl">
+                    Unable to load article content.
+                  </Text>
+                )}
+
+                {selectedArticle.sourceUrl && (
+                  <Anchor
+                    href={selectedArticle.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    size="xs"
+                  >
+                    <Group gap={4}>
+                      Open Original <IconExternalLink size={12} />
+                    </Group>
+                  </Anchor>
+                )}
+              </Stack>
+            </ScrollArea>
+          </Stack>
         ) : (
-          // List View
-          <>
-            <div className="news-header">
-              <span className="news-title">
-                NEWS
-                {isRefreshing && <span className="news-refreshing-indicator">...</span>}
-              </span>
-              <button className="news-close-btn" onClick={handleClose}>
-                x
-              </button>
-            </div>
+          <Stack gap={0} h="100%">
+            <Group
+              p="sm"
+              justify="space-between"
+              style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+            >
+              <Group gap="xs">
+                <Text fw={600}>NEWS</Text>
+                {wsConnected && (
+                  <Tooltip label="Live updates connected">
+                    <Box w={6} h={6} bg="green" style={{ borderRadius: "50%" }} />
+                  </Tooltip>
+                )}
+                {isRefreshing && <Loader size="xs" />}
+              </Group>
+              <CloseButton
+                onClick={handleClose}
+                className="news-close-btn"
+                data-testid="news-close-btn"
+              />
+            </Group>
 
-            <div className="news-toolbar">
-              <select
-                className="news-source-select"
+            <Group
+              p="sm"
+              gap="xs"
+              style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+            >
+              <Select
+                size="xs"
                 value={selectedSource}
-                onChange={(e) => setSelectedSource(e.target.value)}
-              >
-                {sources.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-                {sources.length === 0 && <option value="moneycontrol">Moneycontrol</option>}
-              </select>
+                onChange={(v) => v && setSelectedSource(v)}
+                data={sourceData}
+                style={{ flex: 1 }}
+                className="news-source-select"
+                data-testid="news-source-select"
+              />
 
-              <button
-                className="news-refresh-btn"
-                onClick={() => loadNews()}
-                disabled={loading}
-                title="Refresh news"
-              >
-                {loading ? "..." : "R"}
-              </button>
+              <Tooltip label="Refresh">
+                <ActionIcon
+                  variant="light"
+                  size="sm"
+                  onClick={() => loadNews()}
+                  loading={loading}
+                  className="news-refresh-btn"
+                  data-testid="news-refresh-btn"
+                >
+                  <IconRefresh size={14} />
+                </ActionIcon>
+              </Tooltip>
 
-              <button
-                className={`news-autorefresh-btn ${autoRefreshMs > 0 ? "active" : ""}`}
-                onClick={cycleAutoRefresh}
-                title={`Auto-refresh: ${currentRefreshLabel}`}
-              >
-                {currentRefreshLabel}
-              </button>
+              <Select
+                size="xs"
+                value={autoRefreshMs}
+                onChange={(v) => v && setAutoRefreshMs(v)}
+                data={AUTO_REFRESH_INTERVALS}
+                w={60}
+              />
 
               {unreadCount > 0 && (
-                <button
-                  className="news-markread-btn"
+                <Badge
+                  variant="light"
+                  color="blue"
+                  style={{ cursor: "pointer" }}
                   onClick={handleMarkAllRead}
-                  title="Mark all as read"
                 >
                   {unreadCount} unread
-                </button>
+                </Badge>
               )}
-            </div>
+            </Group>
 
-            <div className="news-list">
+            <ScrollArea flex={1}>
               {loading && newsItems.length === 0 ? (
-                <div className="news-loading">Loading news...</div>
+                <Group justify="center" py="xl">
+                  <Loader size="sm" />
+                  <Text c="dimmed">Loading news...</Text>
+                </Group>
               ) : error ? (
-                <div className="news-empty">{error}</div>
+                <Text c="red" ta="center" py="xl">
+                  {error}
+                </Text>
               ) : newsItems.length === 0 ? (
-                <div className="news-empty">No news available</div>
+                <Text c="dimmed" ta="center" py="xl">
+                  No news available
+                </Text>
               ) : (
-                newsItems.map((item) => {
-                  const isUnread = !readIds.has(item.id);
-                  return (
-                    <div
-                      key={item.id}
-                      className={`news-item ${isUnread ? "unread" : ""}`}
-                      data-testid="news-item"
-                      onClick={() => handleArticleClick(item)}
-                    >
-                      <div className="news-item-headline">
-                        {isUnread && <span className="news-unread-dot" />}
-                        {item.headline}
-                      </div>
-                      {item.description && (
-                        <div className="news-item-desc">{truncateText(item.description, 120)}</div>
-                      )}
-                      <div className="news-item-meta">
-                        <span>{item.source}</span>
-                      </div>
-                    </div>
-                  );
-                })
+                <Stack gap={0}>
+                  {newsItems.map((item) => {
+                    const isUnread = !readIds.has(item.id);
+                    return (
+                      <Card
+                        key={item.id}
+                        padding="sm"
+                        className={isUnread ? "unread" : undefined}
+                        style={{
+                          cursor: "pointer",
+                          borderLeft: isUnread
+                            ? "3px solid var(--mantine-color-blue-6)"
+                            : undefined,
+                        }}
+                        onClick={() => handleArticleClick(item)}
+                        data-testid="news-item"
+                      >
+                        <Group gap="xs" wrap="nowrap">
+                          {isUnread && (
+                            <Box
+                              w={6}
+                              h={6}
+                              bg="blue"
+                              style={{ borderRadius: "50%", flexShrink: 0 }}
+                            />
+                          )}
+                          <Stack gap={4} flex={1}>
+                            <Text
+                              size="sm"
+                              fw={isUnread ? 600 : 400}
+                              lineClamp={2}
+                              className="news-item-headline"
+                            >
+                              {item.headline}
+                            </Text>
+                            {item.description && (
+                              <Text size="xs" c="dimmed" lineClamp={2} className="news-item-desc">
+                                {truncateText(item.description, 120)}
+                              </Text>
+                            )}
+                            <Text size="xs" c="dimmed" className="news-item-meta">
+                              {item.source}
+                            </Text>
+                          </Stack>
+                        </Group>
+                      </Card>
+                    );
+                  })}
+                </Stack>
               )}
-            </div>
-          </>
+            </ScrollArea>
+          </Stack>
         )}
-      </div>
+      </Box>
     </>
   );
 }

@@ -682,7 +682,10 @@ class SRBreakoutStrategy(BaseStrategy):
                         if result.get('candles'):
                             all_candles[result['symbol']] = result['candles']
                         if result.get('trade_list'):
-                            chart_data[result['symbol']] = {'trades': result['trade_list']}
+                            chart_data[result['symbol']] = {
+                                'trades': result['trade_list'],
+                                'visuals': self.get_visuals(result['trade_list'], params)
+                            }
         else:
             for args in worker_args:
                 completed += 1
@@ -694,7 +697,10 @@ class SRBreakoutStrategy(BaseStrategy):
                     if result.get('candles'):
                         all_candles[result['symbol']] = result['candles']
                     if result.get('trade_list'):
-                        chart_data[result['symbol']] = {'trades': result['trade_list']}
+                        chart_data[result['symbol']] = {
+                            'trades': result['trade_list'],
+                            'visuals': self.get_visuals(result['trade_list'], params)
+                        }
 
         total_gross = sum(r['gross_pnl'] for r in results)
         total_costs = sum(r['total_costs'] for r in results)
@@ -723,3 +729,57 @@ class SRBreakoutStrategy(BaseStrategy):
             'candles': all_candles,
             'run_time': datetime.now().isoformat(),
         }
+
+    def get_visuals(self, trades: List[Dict], params: Dict) -> List[Dict]:
+        """Return Pivot Point levels as chart visuals."""
+        if not trades:
+            return []
+
+        visuals = []
+        # Group trades by date to find Pivot levels
+        dates_seen = set()
+        for trade in trades:
+            trade_date = trade.get('date')
+            if trade_date and trade_date not in dates_seen:
+                dates_seen.add(trade_date)
+                pp = trade.get('pp')
+                r1 = trade.get('r1')
+                s1 = trade.get('s1')
+                
+                pivot_type = params.get('pivot_type', 'classic').capitalize()
+                
+                if pp is not None:
+                    # Pivot Point line
+                    visuals.append({
+                        'id': f"pp_{trade_date}",
+                        'type': 'line',
+                        'label': f'PP ({pivot_type})',
+                        'color': '#ff9f43',
+                        'value': pp,
+                        'date': trade_date,
+                        'dash': [4, 4]
+                    })
+                if r1 is not None:
+                    # Resistance 1 line
+                    visuals.append({
+                        'id': f"r1_{trade_date}",
+                        'type': 'line',
+                        'label': 'R1',
+                        'color': '#ee5253',
+                        'value': r1,
+                        'date': trade_date,
+                        'dash': [2, 2]
+                    })
+                if s1 is not None:
+                    # Support 1 line
+                    visuals.append({
+                        'id': f"s1_{trade_date}",
+                        'type': 'line',
+                        'label': 'S1',
+                        'color': '#10ac84',
+                        'value': s1,
+                        'date': trade_date,
+                        'dash': [2, 2]
+                    })
+        
+        return visuals

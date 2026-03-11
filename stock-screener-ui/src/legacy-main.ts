@@ -1,46 +1,25 @@
 /**
- * Main entry point for Alphashri
+ * Main entry point for Alphashri legacy views
+ * This handles bots view that still use string-based HTML rendering
+ * (backtest and paper have been converted to Mantine)
  */
 
 import "./style.css";
-import {
-  COLUMN_LABELS,
-  COLUMN_TOOLTIPS,
-  NUMERIC_COLUMNS,
-  getColumnKeysForProfile,
-} from "./ui_schema";
 
 // State management
 import * as state from "./state";
 
-// Backtest state and components
+// Backtest state (for checking current view only)
 import { subscribe as subscribeBacktest, getBacktestState } from "./state/backtest";
-import { renderSidemenu, initSidemenu } from "./components/sidemenu";
-import {
-  renderBacktestView,
-  initBacktestHandlers,
-  initBacktestCharts,
-} from "./components/backtest";
-import { fetchStrategies, fetchCosts } from "./api/backtest";
 
-// Paper Trading state and components
-import { subscribe as subscribePaperTrading } from "./state/paperTrading";
-import {
-  renderPaperTradingView,
-  initPaperTradingHandlers,
-  cleanupPaperTrading,
-  activatePaperTrading,
-} from "./components/paper-trading";
-import { initPaperChart } from "./components/paper-trading/chart";
-import { renderSectorAnalysisView } from "./components/sector-analysis";
-import {
-  renderStrategiesView,
-  initStrategiesHandlers,
-  cleanupStrategies,
-} from "./components/strategies";
-import { subscribe as subscribeStrategies } from "./state/strategies";
+// Bots state and components
 import { renderBotsView, initBotsHandlers, cleanupBots } from "./components/bots";
 import { subscribe as subscribeBots } from "./state/bots";
+
+// Strategies state (for window functions used by React components)
+import * as strategiesState from "./state/strategies";
+
+// Common
 import { initPreviewChartHandlers } from "./components/common/previewChart";
 import type { AppView } from "./types/backtest";
 
@@ -56,197 +35,60 @@ import {
 } from "./api";
 
 // Components
-import {
-  applyFilters,
-  sortStocks,
-  handleSort,
-  renderSortableHeader,
-  getUniqueSectors,
-} from "./components/filters";
-import { renderStockRow } from "./components/table";
-import { renderSummaryStrip } from "./components/summary";
-import { renderTradingListBlock } from "./components/tradinglist";
-import {
-  getActiveProfileMeta,
-  getSectionLabels,
-  initProfileFilters,
-  applyProfileFilters,
-} from "./components/profile";
-import {
-  renderNotificationsHtml,
-  renderScreenerNav,
-  renderHeader,
-  renderFilters,
-  renderFooter,
-} from "./components/header";
-import { renderMarketTicker } from "./components/market-ticker";
-import {
-  fetchMarketTicker,
-  initMarketTickerRefresh,
-  clearMarketTickerCache,
-} from "./state/marketTicker";
-
-function getTableHeaders(screener: string, touched: boolean): string {
-  return getColumnKeysForProfile(screener, touched)
-    .map((key) =>
-      renderSortableHeader(
-        COLUMN_LABELS[key],
-        key,
-        NUMERIC_COLUMNS.has(key) ? "num" : "",
-        COLUMN_TOOLTIPS[key] || "",
-      ),
-    )
-    .join("");
-}
+import { handleSort } from "./components/filters";
+import { getActiveProfileMeta, initProfileFilters } from "./components/profile";
 
 let lastRenderedView: AppView | null = null;
 
 function render() {
-  const app = document.querySelector<HTMLDivElement>("#legacy-root")!;
+  const app = document.querySelector<HTMLDivElement>("#app-content");
+  if (!app) {
+    return;
+  }
+
   const backtestState = getBacktestState();
   const currentView = backtestState.currentView;
 
-  // Render with sidemenu
+  // Skip HTML rendering for React-based views (screener, strategies, sector, backtest, paper)
+  // These are handled by React Router directly
+  if (
+    currentView === "screener" ||
+    currentView === "strategies" ||
+    currentView === "sector" ||
+    currentView === "backtest" ||
+    currentView === "paper"
+  ) {
+    return;
+  }
+
+  // Render legacy bots view with string-based HTML
   let mainContent: string;
-  if (currentView === "backtest") {
-    mainContent = renderBacktestView();
-  } else if (currentView === "paper") {
-    mainContent = renderPaperTradingView();
-  } else if (currentView === "sector") {
-    mainContent = renderSectorAnalysisView();
-  } else if (currentView === "strategies") {
-    mainContent = renderStrategiesView();
-  } else if (currentView === "bots") {
+  if (currentView === "bots") {
     mainContent = renderBotsView();
   } else {
-    mainContent = renderScreenerView();
+    mainContent = "";
   }
 
   app.innerHTML = `
-    ${renderMarketTicker()}
-    <div class="app-layout">
-      ${renderSidemenu()}
-      <div class="app-main">
-        ${mainContent}
-      </div>
+    <div class="app-main">
+      ${mainContent}
     </div>
   `;
-
-  // Initialize charts after render
-  if (currentView === "backtest") {
-    initBacktestCharts();
-  } else if (currentView === "paper") {
-    // Small delay to ensure DOM is ready
-    setTimeout(() => initPaperChart(), 100);
-  }
-
-  // Activate/deactivate paper polling based on active route/view
-  if (currentView === "paper" && lastRenderedView !== "paper") {
-    activatePaperTrading();
-  } else if (currentView !== "paper" && lastRenderedView === "paper") {
-    cleanupPaperTrading();
-  }
-
-  // Cleanup strategies view when leaving
-  if (currentView !== "strategies" && lastRenderedView === "strategies") {
-    cleanupStrategies();
-  }
 
   // Cleanup bots view when leaving
   if (currentView !== "bots" && lastRenderedView === "bots") {
     cleanupBots();
   }
+
   lastRenderedView = currentView;
-}
-
-// Initialize market ticker on first load
-initMarketTickerRefresh();
-
-function renderScreenerView(): string {
-  if (state.error) {
-    return `
-      <div class="header">
-        <div class="title">🚀 Alphashri</div>
-        <div class="controls">
-          <button onclick="window.refresh()">Retry</button>
-        </div>
-      </div>
-      <div class="error">${state.error}</div>
-    `;
-  }
-
-  const allStocks = [...(state.data?.approaching || []), ...(state.data?.touched || [])];
-  const sectors = getUniqueSectors(allStocks);
-  const approaching = sortStocks(applyProfileFilters(applyFilters(state.data?.approaching || [])));
-  const touched = sortStocks(applyProfileFilters(applyFilters(state.data?.touched || [])));
-  const sectionLabels = getSectionLabels();
-
-  // Show loading indicator only when loading AND no data exists (i.e., screener switch)
-  // When refreshing same screener, keep showing existing table
-  const showLoading = state.isLoading && !state.data;
-
-  const tableContent = showLoading
-    ? `<div class="loading" data-testid="table-loading">🔄 Loading ${state.activeScreener} data...</div>`
-    : `${
-        approaching.length > 0
-          ? `
-      <div class="section-title" data-testid="primary-section-title">${sectionLabels.primary} (${approaching.length}${approaching.length < (state.data?.approaching?.length || 0) ? ` of ${state.data?.approaching?.length}` : ""})</div>
-      <table data-testid="stocks-table">
-        <thead>
-          <tr>
-            ${getTableHeaders(state.activeScreener, false)}
-          </tr>
-        </thead>
-        <tbody data-testid="stocks-tbody">
-          ${approaching.map((s) => renderStockRow(s, false, state.activeScreener)).join("")}
-        </tbody>
-      </table>
-      ${renderTradingListBlock("tradingListPrimary", approaching)}
-    `
-          : '<div class="empty" data-testid="empty-state">No stocks matching filters</div>'
-      }
-    ${
-      touched.length > 0
-        ? `
-      <div class="section-title touched" data-testid="secondary-section-title">${sectionLabels.secondary} (${touched.length}${touched.length < (state.data?.touched?.length || 0) ? ` of ${state.data?.touched?.length}` : ""})</div>
-      <table data-testid="touched-table">
-        <thead>
-          <tr>
-            ${getTableHeaders(state.activeScreener, true)}
-          </tr>
-        </thead>
-        <tbody data-testid="touched-tbody">
-          ${touched.map((s) => renderStockRow(s, true, state.activeScreener)).join("")}
-        </tbody>
-      </table>
-      ${renderTradingListBlock("tradingListSecondary", touched)}
-    `
-        : ""
-    }`;
-
-  return `
-    ${renderNotificationsHtml()}
-    ${renderScreenerNav()}
-    ${renderHeader()}
-    ${renderFilters(sectors)}
-    ${state.data?.summary && state.data.summary.length > 0 ? renderSummaryStrip(state.data.summary) : ""}
-    ${tableContent}
-    ${renderFooter()}
-  `;
 }
 
 // Set render callback for modules that need to trigger re-renders
 setRenderCallback(render);
 setApiRenderCallback(render);
 
-// Subscribe to backtest state changes
+// Subscribe to backtest state changes (to detect view changes)
 subscribeBacktest(render);
-
-// Subscribe to paper trading state changes
-subscribePaperTrading(render);
-
-// Subscribe to strategies state changes
-subscribeStrategies(render);
 
 // Subscribe to bots state changes
 subscribeBots(render);
@@ -320,6 +162,25 @@ subscribeBots(render);
   }
 };
 
+// Strategy management window functions (called from React components)
+(window as any).createStrategy = async (data: any) => {
+  await strategiesState.createStrategy(data);
+};
+
+(window as any).updateStrategy = async (strategyId: number, data: any) => {
+  await strategiesState.updateStrategy(strategyId, data);
+};
+
+(window as any).deleteStrategy = async (strategyId: number) => {
+  if (confirm("Are you sure you want to delete this strategy?")) {
+    await strategiesState.deleteStrategyAction(strategyId);
+  }
+};
+
+(window as any).viewStrategyDetails = async (strategyId: number) => {
+  await strategiesState.loadStrategy(strategyId);
+};
+
 // Keyboard shortcuts
 document.addEventListener("keydown", (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
@@ -343,23 +204,13 @@ document.addEventListener("keydown", (e) => {
 
 // Initial load
 loadScreeners(initProfileFilters).then(() => {
-  // Initialize navigation and handlers
-  initSidemenu();
-  initBacktestHandlers();
-  initPaperTradingHandlers();
-  initStrategiesHandlers();
+  // Initialize handlers
   initBotsHandlers();
   initPreviewChartHandlers();
-  fetchStrategies();
-  fetchCosts();
 
-  // Only fetch screener data if not on backtest or paper view
+  // Only fetch screener data if not on sector view
   const backtestState = getBacktestState();
-  if (
-    backtestState.currentView !== "backtest" &&
-    backtestState.currentView !== "paper" &&
-    backtestState.currentView !== "sector"
-  ) {
+  if (backtestState.currentView !== "sector") {
     fetchData(
       state.data?.provider || "upstox",
       state.data?.mode || "intraday",

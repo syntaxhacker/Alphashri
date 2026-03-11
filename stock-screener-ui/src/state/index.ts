@@ -13,6 +13,18 @@ import type {
 } from "../types";
 import { DEFAULT_FILTERS, DEFAULT_AUTO_REFRESH_SECONDS } from "../constants";
 
+// Subscriber mechanism for React hooks
+const subscribers: Set<() => void> = new Set();
+
+export function subscribe(callback: () => void): () => void {
+  subscribers.add(callback);
+  return () => subscribers.delete(callback);
+}
+
+function notifySubscribers() {
+  subscribers.forEach((callback) => callback());
+}
+
 // Data state
 export let data: ScreenerData | null = null;
 export let isLoading = false;
@@ -47,14 +59,17 @@ export let recentAddedSymbols: Record<string, number> = {};
 // Setters
 export function setData(newData: ScreenerData | null) {
   data = newData;
+  notifySubscribers();
 }
 
 export function setIsLoading(loading: boolean) {
   isLoading = loading;
+  notifySubscribers();
 }
 
 export function setError(err: string | null) {
   error = err;
+  notifySubscribers();
 }
 
 export function setAutoRefreshInterval(interval: ReturnType<typeof setInterval> | null) {
@@ -63,10 +78,12 @@ export function setAutoRefreshInterval(interval: ReturnType<typeof setInterval> 
 
 export function setAutoRefreshSeconds(seconds: number) {
   autoRefreshSeconds = seconds;
+  notifySubscribers();
 }
 
 export function setFilters(newFilters: Filters) {
   filters = newFilters;
+  notifySubscribers();
 }
 
 export function updateFilter(key: keyof Filters, value: string | number) {
@@ -75,6 +92,7 @@ export function updateFilter(key: keyof Filters, value: string | number) {
   } else {
     filters[key] = value as number;
   }
+  notifySubscribers();
 }
 
 export function setSortColumn(column: string | null) {
@@ -87,10 +105,12 @@ export function setSortDirection(direction: SortDirection) {
 
 export function setScreenerOptions(options: ScreenerOption[]) {
   screenerOptions = options;
+  notifySubscribers();
 }
 
 export function setActiveScreener(screener: string) {
   activeScreener = screener;
+  notifySubscribers();
 }
 
 export function setProfileMetaById(meta: Record<string, ProfileMeta>) {
@@ -136,4 +156,5 @@ export function setRecentAddedSymbols(symbols: Record<string, number>) {
 
 export function resetFilters() {
   filters = { ...DEFAULT_FILTERS };
+  notifySubscribers();
 }

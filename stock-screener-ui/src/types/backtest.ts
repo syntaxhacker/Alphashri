@@ -23,6 +23,18 @@ export interface Strategy {
   params: StrategyParam[];
 }
 
+export interface StrategyVariation {
+  id: string;
+  internal_id: number;
+  name: string;
+  strategy_type: string;
+  description: string;
+  is_template: boolean;
+  is_default: boolean;
+  // Generic params bucket
+  [key: string]: any;
+}
+
 // Backtest configuration
 export interface BacktestConfig {
   strategy: string;
@@ -98,6 +110,31 @@ export interface PivotLevels {
   s3?: number; // Support 3
 }
 
+export interface Week52Levels {
+  date: string;
+  date_raw: string;
+  "52w_high": number;
+  trailing_active?: boolean;
+}
+
+export interface SymbolChartData {
+  symbol: string;
+  candles: CandleData[];
+  orb_zones: ORBZone[];
+  pivot_levels: PivotLevels[]; // S/R Breakout pivot levels
+  week52_levels: Week52Levels[]; // 52W Chaser levels
+  trades: ChartTrade[];
+  visuals?: {
+    overlays: any[];
+  };
+  date_range: {
+    start: string;
+    end: string;
+  };
+  total_candles: number;
+  total_trades: number;
+}
+
 export interface ChartTrade {
   trade_id: number;
   type: "entry" | "exit";
@@ -139,7 +176,11 @@ export interface SymbolChartData {
   candles: CandleData[];
   orb_zones: ORBZone[];
   pivot_levels: PivotLevels[]; // S/R Breakout pivot levels
+  week52_levels: Week52Levels[]; // 52W Chaser levels
   trades: ChartTrade[];
+  visuals?: {
+    overlays: any[];
+  };
   date_range: {
     start: string;
     end: string;
@@ -155,6 +196,32 @@ export interface BacktestProgress {
   message: string;
   running: boolean;
   updated?: string;
+}
+
+// History types
+export interface BacktestHistoryItem {
+  id: string;
+  user_id: number;
+  strategy_id: string;
+  strategy_name: string;
+  parameters: Record<string, any>;
+  symbols: string[];
+  metrics: {
+    total_pnl: number;
+    total_pnl_pct: number;
+    win_rate: number;
+    total_trades: number;
+    sharpe_ratio?: number;
+    max_drawdown_pct?: number;
+  };
+  created_at: string;
+}
+
+export interface BacktestHistoryDetails extends BacktestHistoryItem {
+  results: BacktestResult[];
+  totals: BacktestTotals;
+  variation_id?: string | null;
+  chart_data?: Record<string, SymbolChartData>;
 }
 
 // Trading costs

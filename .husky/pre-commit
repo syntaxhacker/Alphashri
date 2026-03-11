@@ -2,6 +2,16 @@
 
 echo "Running pre-commit checks..."
 
+# Run Python unit tests
+echo "Running Python unit tests..."
+cd stock-screener-ui
+uv run --python 3.11 pytest -m unit -q --tb=short
+if [ $? -ne 0 ]; then
+  echo "❌ Python unit tests failed! Commit aborted."
+  exit 1
+fi
+echo "✅ Python unit tests passed."
+
 cd stock-screener-ui
 
 # Get staged files (only .ts, .tsx, .js, .jsx, .css)

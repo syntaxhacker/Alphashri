@@ -24,6 +24,10 @@ export interface BacktestState {
   strategies: Strategy[];
   strategiesLoading: boolean;
 
+  // Available variations
+  variations: StrategyVariation[];
+  selectedVariation: string | null;
+
   // Current config
   selectedStrategy: string;
   selectedSymbols: string[];
@@ -61,6 +65,9 @@ export const initialBacktestState: BacktestState = {
 
   strategies: [],
   strategiesLoading: false,
+
+  variations: [],
+  selectedVariation: null,
 
   selectedStrategy: "orb",
   selectedSymbols: ["NETWEB", "SBILIFE"],
@@ -145,8 +152,148 @@ export function setStrategiesLoading(loading: boolean) {
   notify();
 }
 
+// Variation management
+export function setVariations(variations: StrategyVariation[]) {
+  state = { ...state, variations };
+  notify();
+}
+
+/**
+ * Set the selected variation ID directly (used for history loading)
+ */
+export function setSelectedVariationId(variationId: string | null) {
+  state = { ...state, selectedVariation: variationId };
+  notify();
+}
+
+export function setSelectedVariation(variationId: string | null) {
+  const variation = state.variations.find((v) => v.id === variationId);
+  if (variation) {
+    // Define which params each strategy type supports
+    const strategyParamKeys: Record<string, string[]> = {
+      orb: [
+        "or_minutes",
+        "sl_pct",
+        "tp_pct",
+        "max_positions",
+        "timeframe",
+        "trade_size",
+        "cooldown_bars",
+        "enable_shorts",
+      ],
+      sr_breakout: [
+        "breakout_buffer_pct",
+        "pivot_type",
+        "sl_pct",
+        "tp_pct",
+        "max_positions",
+        "trade_size",
+      ],
+      "52w_chaser": [
+        "entry_threshold_pct",
+        "sl_pct",
+        "tp_pct",
+        "enable_trailing_stop",
+        "trailing_stop_pct",
+        "trailing_activation_pct",
+        "max_holding_days",
+        "cooldown_days",
+        "trade_size",
+        "enable_filters",
+      ],
+      "52w_target": [
+        "entry_threshold_pct",
+        "sl_pct",
+        "trailing_stop_pct",
+        "max_holding_days",
+        "cooldown_days",
+        "trade_size",
+      ],
+    };
+
+    const strategyType = variation.strategy_type.toLowerCase();
+    const keysToKeep = strategyParamKeys[strategyType] || [];
+
+    const cleanParams: Record<string, any> = {};
+    for (const key of keysToKeep) {
+      if (variation[key] !== undefined) {
+        // Special case mapping: sl_pct in DB is stop_loss_pct in backtest params
+        if (key === "sl_pct") cleanParams["stop_loss_pct"] = variation[key];
+        else if (key === "tp_pct") cleanParams["take_profit_pct"] = variation[key];
+        else cleanParams[key] = variation[key];
+      }
+    }
+
+    // Get default params for the strategy to ensure all required params have values
+    const strategyDefaults = getStrategyDefaults(strategyType);
+
+    state = {
+      ...state,
+      selectedVariation: variationId,
+      selectedStrategy: strategyType,
+      // Replace params completely: start with defaults, then override with variation params
+      params: { ...strategyDefaults, ...cleanParams },
+    };
+  } else {
+    state = { ...state, selectedVariation: variationId };
+  }
+  notify();
+}
+
+// Helper function to get default params for a strategy
+function getStrategyDefaults(strategyId: string): Record<string, any> {
+  const defaults: Record<string, any> = {
+    orb: {
+      or_minutes: 45,
+      timeframe: "5",
+      stop_loss_pct: 0.5,
+      take_profit_pct: 1.5,
+      trade_size: 100,
+      cooldown_bars: 3,
+      enable_shorts: false,
+      max_positions: 5,
+    },
+    sr_breakout: {
+      pivot_type: "classic",
+      breakout_buffer_pct: 0.1,
+      stop_loss_pct: 0.5,
+      take_profit_pct: 1.5,
+      trade_size: 100,
+      max_positions: 3,
+    },
+    "52w_chaser": {
+      entry_threshold_pct: 3.0,
+      stop_loss_pct: 3.0,
+      take_profit_pct: 5.0,
+      enable_trailing_stop: false,
+      trailing_stop_pct: 3.0,
+      trailing_activation_pct: 2.0,
+      max_holding_days: 30,
+      cooldown_days: 30,
+      trade_size: 100,
+      enable_filters: false,
+    },
+    "52w_target": {
+      entry_threshold_pct: 2.0,
+      stop_loss_pct: 2.0,
+      trailing_stop_pct: 0.5,
+      max_holding_days: 15,
+      cooldown_days: 7,
+      trade_size: 100,
+    },
+  };
+  return defaults[strategyId] || {};
+}
+
 export function setSelectedStrategy(strategyId: string) {
-  state = { ...state, selectedStrategy: strategyId };
+  // Reset params to strategy defaults when switching strategies
+  const strategyDefaults = getStrategyDefaults(strategyId);
+  state = {
+    ...state,
+    selectedStrategy: strategyId,
+    selectedVariation: null,
+    params: strategyDefaults,
+  };
   notify();
 }
 
@@ -179,6 +326,16 @@ export function setParam(key: string, value: number | string | boolean) {
   notify();
 }
 
+export function setParams(params: Record<string, number | string | boolean>) {
+  console.log("setParams called with:", params);
+  state = {
+    ...state,
+    params: { ...params },
+  };
+  console.log("State after setParams:", state.params);
+  notify();
+}
+
 export function setDays(days: number) {
   state = { ...state, days };
   notify();
@@ -197,6 +354,10 @@ export function setResults(results: BacktestResult[], totals: BacktestTotals) {
     totals,
     isRunning: false,
     progress: { current: 0, total: 0, message: "", running: false },
+    chartData: new Map(),
+    selectedChartSymbol: null,
+    tradeHistory: null,
+    tradeHistorySymbol: null,
   };
   notify();
 }
@@ -228,6 +389,20 @@ export function setShowCharts(show: boolean) {
 
 export function setSelectedChartSymbol(symbol: string | null) {
   state = { ...state, selectedChartSymbol: symbol };
+  notify();
+}
+
+export function setChartDataBatch(dataMap: Record<string, SymbolChartData>) {
+  const newChartData = new Map(state.chartData);
+  for (const [symbol, data] of Object.entries(dataMap)) {
+    newChartData.set(symbol, data);
+  }
+
+  state = {
+    ...state,
+    chartData: newChartData,
+    chartLoading: false,
+  };
   notify();
 }
 

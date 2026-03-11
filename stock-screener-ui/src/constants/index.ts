@@ -8,7 +8,7 @@ export const SCREENERS_URL = "http://localhost:8765/api/screeners";
 
 // Timing constants
 export const NEW_ROW_HIGHLIGHT_MS = 12000;
-export const DEFAULT_AUTO_REFRESH_SECONDS = 30;
+export const DEFAULT_AUTO_REFRESH_SECONDS = 60;
 
 // Default filter values
 export const DEFAULT_FILTERS = {

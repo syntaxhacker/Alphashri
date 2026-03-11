@@ -202,7 +202,13 @@ class TradeJournal:
                 'avg_win': 0,
                 'avg_loss': 0,
                 'profit_factor': 0,
+                'sharpe_ratio': 0,
+                'max_drawdown': 0,
+                'max_drawdown_pct': 0,
             }
+
+        import math
+        import statistics
 
         winners = [t for t in self.trades if t.net_pnl > 0]
         losers = [t for t in self.trades if t.net_pnl <= 0]
@@ -219,6 +225,42 @@ class TradeJournal:
 
         profit_factor = total_wins / total_losses if total_losses > 0 else float('inf')
 
+        # Calculate Sharpe Ratio (Simplified from trade P&L %)
+        returns_pct = [t.pnl_pct for t in self.trades]
+        if len(returns_pct) > 1:
+            mean_return = statistics.mean(returns_pct)
+            stdev_return = statistics.stdev(returns_pct)
+            sharpe_ratio = (mean_return / stdev_return) * math.sqrt(252) if stdev_return > 0 else 0
+        else:
+            sharpe_ratio = 0
+
+        # Calculate Max Drawdown
+        cumulative_pnl = 0
+        peak = 0
+        max_drawdown = 0
+        
+        # We assume initial capital of 1,000,000 for PCT calculation if not available
+        initial_capital = 1000000 
+        current_equity = initial_capital
+        peak_equity = initial_capital
+        max_drawdown_pct = 0
+
+        for t in self.trades:
+            cumulative_pnl += t.net_pnl
+            current_equity = initial_capital + cumulative_pnl
+            
+            if current_equity > peak_equity:
+                peak_equity = current_equity
+            
+            drawdown = peak_equity - current_equity
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
+            
+            if peak_equity > 0:
+                drawdown_pct = (drawdown / peak_equity) * 100
+                if drawdown_pct > max_drawdown_pct:
+                    max_drawdown_pct = drawdown_pct
+
         return {
             'total_trades': len(self.trades),
             'winners': len(winners),
@@ -230,6 +272,9 @@ class TradeJournal:
             'avg_win': round(avg_win, 2),
             'avg_loss': round(avg_loss, 2),
             'profit_factor': round(profit_factor, 2),
+            'sharpe_ratio': round(sharpe_ratio, 2),
+            'max_drawdown': round(max_drawdown, 2),
+            'max_drawdown_pct': round(max_drawdown_pct, 2),
         }
 
     def get_symbol_performance(self) -> Dict[str, dict]:
@@ -385,6 +430,8 @@ class TradeJournal:
         table.add_row("Avg Win", f"₹{summary['avg_win']:,.0f}")
         table.add_row("Avg Loss", f"₹{summary['avg_loss']:,.0f}")
         table.add_row("Profit Factor", f"{summary['profit_factor']:.2f}")
+        table.add_row("Sharpe Ratio", f"{summary['sharpe_ratio']:.2f}")
+        table.add_row("Max Drawdown", f"₹{summary['max_drawdown']:,.0f} ({summary['max_drawdown_pct']:.2f}%)")
 
         console.print(table)
 
@@ -492,7 +539,7 @@ class TradeJournal:
                 'entry_price', 'exit_price', 'entry_time', 'exit_time',
                 'pnl', 'pnl_pct', 'exit_reason', 'costs', 'net_pnl',
                 'sl_price', 'tp_price', 'peak_price', 'low_price', 'notes',
-                'strategy_id', 'strategy_name'
+                'strategy_id', 'strategy_name', 'bot_id', 'bot_name', 'source', 'is_test'
             ])
             writer.writeheader()
             for trade in self.trades:

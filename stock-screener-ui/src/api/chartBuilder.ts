@@ -17,6 +17,7 @@ import type {
   ORBZone,
   PivotLevels,
   Trade,
+  Week52Levels,
 } from "../types/backtest";
 
 interface RawCandle {
@@ -51,6 +52,11 @@ interface RawTrade {
   s1?: number; // Support 1
   r2?: number; // Resistance 2
   s2?: number; // Support 2
+  // 52W Chaser strategy fields
+  "52w_high"?: number;
+  // 52W Target strategy fields
+  "52w_high_entry"?: number;
+  trailing_active?: boolean;
 }
 
 export function buildChartData(
@@ -70,6 +76,9 @@ export function buildChartData(
   // Extract pivot levels from trades (for S/R Breakout strategy)
   const pivotLevels = extractPivotLevels(rawTrades);
 
+  // Extract 52W high levels from trades (for 52W Chaser strategy)
+  const week52Levels = extractWeek52Levels(rawTrades);
+
   const trades = formatTradeMarkers(rawTrades, candles);
 
   const startDates = candles.map((c) => c.date_raw).filter((d) => d);
@@ -77,7 +86,7 @@ export function buildChartData(
   const endDate = startDates[startDates.length - 1] || null;
 
   console.log(
-    `buildChartData: ${candles.length} candles, ${orbZones.length} ORB zones, ${pivotLevels.length} pivot levels, ${trades.length} trade markers`,
+    `buildChartData: ${candles.length} candles, ${orbZones.length} ORB zones, ${pivotLevels.length} pivot levels, ${week52Levels.length} 52W levels, ${trades.length} trade markers`,
   );
 
   return {
@@ -85,6 +94,7 @@ export function buildChartData(
     candles,
     orb_zones: orbZones,
     pivot_levels: pivotLevels,
+    week52_levels: week52Levels,
     trades,
     date_range: {
       start: startDate,
@@ -226,6 +236,31 @@ function extractPivotLevels(trades: RawTrade[]): PivotLevels[] {
 }
 
 /**
+ * Extract 52W high levels from trades (for 52W Chaser strategy).
+ * 52W high is the same for all trades on the same day.
+ */
+function extractWeek52Levels(trades: RawTrade[]): Week52Levels[] {
+  const levelsByDate = new Map<string, Week52Levels>();
+
+  for (const trade of trades) {
+    // Support both 52w_chaser (52w_high) and 52w_target (52w_high_entry)
+    const week52High = trade["52w_high_entry"] ?? trade["52w_high"];
+    if (week52High !== undefined && week52High !== null) {
+      if (!levelsByDate.has(trade.date)) {
+        levelsByDate.set(trade.date, {
+          date: trade.date,
+          date_raw: trade.date,
+          "52w_high": week52High,
+          trailing_active: trade.trailing_active,
+        });
+      }
+    }
+  }
+
+  return Array.from(levelsByDate.values());
+}
+
+/**
  * Format trade markers. Match trade times to candle times.
  * Trade times are IST without timezone: "2025-10-27T11:25:00"
  * Candle times are already converted to IST comparable format
@@ -247,14 +282,19 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
     // Normalize to "YYYY-MM-DDTHH:MM"
     const entryNormalized = normalizeTradeTime(trade.entry_time);
     const exitNormalized = normalizeTradeTime(trade.exit_time);
+    // Use date-only format for matching with daily candles
+    const entryDateOnly = normalizeTradeTimeToDate(trade.entry_time);
+    const exitDateOnly = normalizeTradeTimeToDate(trade.exit_time);
 
     if (idx < 3) {
-      console.log(`Trade ${idx + 1}: ${trade.entry_time} -> ${entryNormalized}`);
+      console.log(
+        `Trade ${idx + 1}: ${trade.entry_time} -> ${entryNormalized} -> date: ${entryDateOnly}`,
+      );
     }
 
-    // Find candle index
-    const entryCandleIdx = candleTimeMap.get(entryNormalized);
-    const exitCandleIdx = candleTimeMap.get(exitNormalized);
+    // Find candle index using date-only matching for daily candles
+    const entryCandleIdx = candleTimeMap.get(entryDateOnly);
+    const exitCandleIdx = candleTimeMap.get(exitDateOnly);
 
     if (entryCandleIdx === undefined) {
       console.warn(`Entry time not found: ${entryNormalized}`);
@@ -340,6 +380,18 @@ function normalizeTradeTime(time: string): string {
     .replace(/\+05:30$/, "")
     .replace(/Z$/, "")
     .substring(0, 16); // "YYYY-MM-DDTHH:MM"
+}
+
+/**
+ * Normalize trade time to date-only format for matching with daily candles
+ * Input: "2025-10-27T11:25:00" or "2025-10-27"
+ * Output: "2025-10-27T00:00"
+ */
+function normalizeTradeTimeToDate(time: string): string {
+  if (!time) return "";
+  // Extract just the date part and append 00:00 for daily candle matching
+  const datePart = time.split("T")[0];
+  return `${datePart}T00:00`;
 }
 
 // Helper to convert chart trades to Trade[] for modal

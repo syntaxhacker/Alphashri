@@ -183,7 +183,7 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
                 'r2': trade.get('r2'),
                 's2': trade.get('s2'),
                 # 52W Chaser fields
-                '52w_high': trade.get('52w_high'),
+                '52w_high': trade.get('52w_high') or trade.get('52w_high_entry'),
                 'trailing_active': trade.get('trailing_active'),
             }
         })
@@ -198,11 +198,14 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
             'NEW_52W_HIGH': '#00BCD4',  # Cyan
         }.get(trade['exit_reason'], '#FFC107')
 
+        # Extract exit date from exit_time for proper matching
+        exit_date = trade.get('exit_time', '')[:10] if trade.get('exit_time') else trade.get('date', '')
+
         markers.append({
             'trade_id': idx + 1,
             'type': 'exit',
             'time': trade.get('exit_time'),
-            'date': trade.get('date'),
+            'date': exit_date,
             'price': trade['exit_price'],
             'marker': {
                 'symbol': 'circle',
@@ -231,7 +234,7 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
                 'r2': trade.get('r2'),
                 's2': trade.get('s2'),
                 # 52W Chaser fields
-                '52w_high': trade.get('52w_high'),
+                '52w_high': trade.get('52w_high') or trade.get('52w_high_entry'),
                 'trailing_active': trade.get('trailing_active'),
             }
         })
@@ -301,11 +304,73 @@ def extract_52w_levels(trades: List[Dict]) -> List[Dict]:
     return levels
 
 
+def calculate_52w_high_series(candles_df: pd.DataFrame, period: int = 252) -> List[Dict]:
+    """
+    Calculate rolling 52-week high for each candle.
+
+    Args:
+        candles_df: DataFrame with OHLCV data (indexed by time) or dict format
+        period: Rolling period in days (default 252 trading days = ~1 year)
+
+    Returns:
+        List of dicts with date and 52w_high for each candle
+    """
+    if candles_df is None:
+        return []
+
+    # Handle dict format first (before checking .empty which fails on dict)
+    if isinstance(candles_df, dict):
+        highs = candles_df.get('high', [])
+        indices = candles_df.get('index', [])
+        if not highs or not indices:
+            return []
+
+        # Convert to series for rolling calculation
+        high_series = pd.Series(highs)
+        rolling_high = high_series.rolling(window=period, min_periods=1).max()
+
+        levels = []
+        for i, idx in enumerate(indices):
+            try:
+                time_str = str(idx).replace('Z', '').replace('+00:00', '')
+                dt = datetime.fromisoformat(time_str)
+                levels.append({
+                    'date': dt.strftime('%Y-%m-%d'),
+                    'date_raw': dt.strftime('%Y-%m-%d'),
+                    '52w_high': round(float(rolling_high.iloc[i]), 2),
+                })
+            except:
+                continue
+        return levels
+
+    # Handle DataFrame format
+    if candles_df.empty:
+        return []
+
+        levels = []
+        for idx, row in candles_df.iterrows():
+            dt = idx
+            if hasattr(dt, 'tz_localize') and dt.tz is not None:
+                dt = dt.tz_localize(None)
+
+            date_str = dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt)[:10]
+            levels.append({
+                'date': date_str,
+                'date_raw': date_str,
+                '52w_high': round(float(rolling_high.loc[idx]), 2),
+            })
+
+        return levels
+
+    return levels
+
+
 def build_chart_data_for_symbol(
     symbol: str,
     candles_df: pd.DataFrame,
     trades: List[Dict],
-    or_minutes: int = 45
+    or_minutes: int = 45,
+    include_52w_line: bool = False
 ) -> Dict:
     """
     Build complete chart data for a single symbol.
@@ -315,6 +380,7 @@ def build_chart_data_for_symbol(
         candles_df: DataFrame with OHLCV data
         trades: List of trade dicts
         or_minutes: OR period in minutes
+        include_52w_line: Whether to calculate rolling 52W high for all candles
 
     Returns:
         Dict with candles, orb_zones, pivot_levels, 52w_levels, and trades for charting
@@ -323,7 +389,13 @@ def build_chart_data_for_symbol(
     orb_zones = format_orb_zones(candles, or_minutes)
     trade_markers = format_trade_markers(trades)
     pivot_levels = extract_pivot_levels(trades)
-    week52_levels = extract_52w_levels(trades)
+
+    # For 52W Chaser, calculate rolling 52W high for all candles (continuous line)
+    # Otherwise just extract from trades (for markers)
+    if include_52w_line:
+        week52_levels = calculate_52w_high_series(candles_df, period=252)
+    else:
+        week52_levels = extract_52w_levels(trades)
 
     # Determine date range
     if candles:
