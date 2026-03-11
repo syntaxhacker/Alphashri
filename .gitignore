@@ -40,7 +40,9 @@ ENV/
 .DS_Store
 
 # Environment variables
-.env 
+.env
+.env.local
+.env.*.local
 
 cache/
 
@@ -53,6 +55,9 @@ wandb/
 data_cache/
 *.json
 *.html
+
+# Upstox token (explicitly listed)
+.upstox_token.json
 
 # Configuration files with sensitive data
 config.py

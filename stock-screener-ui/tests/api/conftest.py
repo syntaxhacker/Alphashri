@@ -82,8 +82,10 @@ except ImportError:
     # Fallback: create minimal app for testing
     from fastapi import FastAPI
     from api.auth import router as auth_router
+    from api.options import router as options_router
     app = FastAPI()
     app.include_router(auth_router)
+    app.include_router(options_router)
 
 
 # Test database configuration

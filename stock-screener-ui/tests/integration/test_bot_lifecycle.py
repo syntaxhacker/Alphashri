@@ -17,6 +17,7 @@ import json
 import signal
 import tempfile
 import time
+import importlib
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Generator, Dict, List
@@ -444,6 +445,13 @@ class TestMultiStrategyCoordination:
         2. Seed trades for each strategy
         3. Verify performance breakdown by strategy
         """
+        # Load real TradeJournal class via importlib to bypass conftest mock
+        import importlib.util
+        journal_path = ROOT / "trading" / "journal.py"
+        spec = importlib.util.spec_from_file_location("real_trading_journal", str(journal_path))
+        journal_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(journal_mod)
+        TradeJournal = journal_mod.TradeJournal
         # Create a user for journal
         user = User(
             email="perftest@example.com",
@@ -483,34 +491,36 @@ class TestMultiStrategyCoordination:
 
         bot = bot_response.json()
 
-        # Seed trades in journal
-        journal = get_journal(user.id)
 
-        for i, strategy in enumerate(strategies):
-            trade = {
-                'trade_id': f'PERF-{i}-001',
-                'symbol': f'STOCK{i}',
-                'side': 'BUY',
-                'quantity': 100,
-                'entry_price': 100.0,
-                'exit_price': 105.0 + i * 2,  # Different P&L
-                'entry_time': '2026-03-03T10:00:00',
-                'exit_time': '2026-03-03T11:00:00',
-                'pnl': 500.0 + i * 200,
-                'pnl_pct': 5.0,
-                'exit_reason': 'TP',
-                'costs': 25.0,
-                'net_pnl': 475.0 + i * 200,
-                'strategy_id': strategy.id,
-                'strategy_name': strategy.name,
-            }
-            journal.log_trade(trade)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal = TradeJournal(journal_dir=tmpdir, user_id=user.id)
+            # Log two trades for both strategies (each with net_pnl=600.0)
+            for i, strategy in enumerate(strategies):
+                trade = {
+                    'trade_id': f'PERF-{i}-001',
+                    'symbol': f'STOCK{i}',
+                    'side': 'BUY',
+                    'quantity': 100,
+                    'entry_price': 100.0,
+                    'exit_price': 106.0,  # so pnl = 600 for 100 shares
+                    'entry_time': '2026-03-03T10:00:00',
+                    'exit_time': '2026-03-03T11:00:00',
+                    'pnl': 600.0,
+                    'pnl_pct': 6.0,
+                    'exit_reason': 'TP',
+                    'costs': 0.0,
+                    'net_pnl': 600.0,
+                    'strategy_id': strategy.id,
+                    'strategy_name': strategy.name,
+                }
+                journal.log_trade(trade)
+            journal.save_journal()
 
-        # Get strategy performance
-        perf_response = client.get(
-            f"/api/bots/{bot['id']}/strategy-performance",
-            params={"user_id_query": user.id}
-        )
+            with patch('trading.journal.get_journal', return_value=journal):
+                perf_response = client.get(
+                    f"/api/bots/{bot['uuid']}/strategy-performance",
+                    params={"user_id_query": user.id}
+                )
 
         assert perf_response.status_code == 200
         perf_data = perf_response.json()

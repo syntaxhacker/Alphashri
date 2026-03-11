@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT))
 
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
 from api.auth import hash_password
-from trading.journal import TradeJournal, TradeRecord
+
 
 
 class TestStrategyCreationFlow:
@@ -610,8 +610,19 @@ class TestTradeJournalingFlow:
 
     def test_journal_persistence(self, tmp_path):
         """Test that journal persists to file and can be loaded."""
+        from pathlib import Path
+        import importlib.util
+        ROOT = Path(__file__).resolve().parents[3]
+        journal_path = ROOT / "trading" / "journal.py"
+        spec = importlib.util.spec_from_file_location("real_trading_journal", str(journal_path))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        TradeJournal = mod.TradeJournal
+        
         # Create journal in temp directory
         journal_dir = str(tmp_path / "journals" / "1")
+        # Ensure directory exists before creating TradeJournal
+        Path(journal_dir).mkdir(parents=True, exist_ok=True)
         journal = TradeJournal(journal_dir=journal_dir, user_id=1)
 
         # Log a trade
@@ -790,6 +801,7 @@ class TestErrorRecoveryInTrading:
             }
             mock_trader.get_portfolio_summary = Mock(return_value=portfolio_data)
             mock_trader.get_portfolio_status = Mock(return_value=portfolio_data)
+            mock_trader.positions = {}
             mock_get_trader.side_effect = None
             mock_get_trader.return_value = mock_trader
 
@@ -805,9 +817,7 @@ class TestMultiStrategyCoordination:
         Test that multiple strategies coordinate:
         1. Bot enforces global position limits
         2. Strategies respect capital allocations
-        3. Cross-strategy risk management works
         """
-        # Create two strategies
         strategy1 = StrategyConfig(
             name="coord_orb_1",
             strategy_type="ORB",
