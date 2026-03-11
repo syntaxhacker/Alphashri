@@ -1,0 +1,103 @@
+import { Box, Text, useMantineTheme, Group, Skeleton, Stack } from "@mantine/core";
+import { useEffect, useState, useMemo } from "react";
+
+interface HistoryPoint {
+  time: string;
+  price: number;
+}
+
+export function LiveSpotChart({ underlying }: { underlying: string }) {
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const theme = useMantineTheme();
+
+  useEffect(() => {
+    async function fetchHistory() {
+      try {
+        const res = await fetch(`http://localhost:8765/api/options/spot-history/${underlying}`);
+        const data = await res.json();
+        if (data.history) setHistory(data.history);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchHistory();
+  }, [underlying]);
+
+  const svgParams = useMemo(() => {
+    if (history.length < 2) return null;
+    const prices = history.map((h) => h.price);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min || 1;
+
+    const width = 200;
+    const height = 40;
+    const padding = 2;
+
+    const points = history
+      .map((h, i) => {
+        const x = (i / (history.length - 1)) * width;
+        const y = height - ((h.price - min) / range) * (height - padding * 2) - padding;
+        return `${x},${y}`;
+      })
+      .join(" ");
+
+    return { points, min, max, lastPrice: history[history.length - 1].price };
+  }, [history]);
+
+  if (loading) return <Skeleton h={40} w={200} radius="sm" />;
+  if (!svgParams) return null;
+
+  const isPositive = history[history.length - 1].price >= history[0].price;
+  const color = isPositive ? theme.colors.green[6] : theme.colors.red[6];
+
+  return (
+    <Group gap="xs" wrap="nowrap">
+      <Box style={{ position: "relative" }}>
+        <svg width="200" height="40" style={{ display: "block" }}>
+          <defs>
+            <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+              <stop offset="100%" stopColor={color} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <polyline
+            fill="none"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            points={svgParams.points}
+            style={{
+              strokeDasharray: 1000,
+              strokeDashoffset: 1000,
+              animation: "dash 2s ease-out forwards",
+            }}
+          />
+          <path
+            d={`M 0,40 L ${svgParams.points} L 200,40 Z`}
+            fill="url(#gradient)"
+            style={{ opacity: 0, animation: "fadeIn 1s ease-out 1s forwards" }}
+          />
+        </svg>
+        <style>
+          {`
+            @keyframes dash { to { stroke-dashoffset: 0; } }
+            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+          `}
+        </style>
+      </Box>
+      <Stack gap={0}>
+        <Text size="xs" fw={700} c={color}>
+          {svgParams.lastPrice.toFixed(2)}
+        </Text>
+        <Text size="10px" c="dimmed">
+          Trend (5m)
+        </Text>
+      </Stack>
+    </Group>
+  );
+}
