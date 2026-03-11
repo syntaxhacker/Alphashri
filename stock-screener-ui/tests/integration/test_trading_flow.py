@@ -31,7 +31,7 @@ sys.path.insert(0, str(ROOT))
 
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
 from api.auth import hash_password
-from trading.journal import TradeJournal, TradeRecord
+
 
 
 @pytest.fixture
@@ -778,6 +778,7 @@ class TestTradeJournalingFlow:
         """Test that journal persists to file and can be loaded."""
         from pathlib import Path
         from datetime import datetime
+        import importlib.util
 
         # Create journal in temp directory
         journal_dir = str(tmp_path / "journals" / "1")
@@ -785,7 +786,6 @@ class TestTradeJournalingFlow:
         Path(journal_dir).mkdir(parents=True, exist_ok=True)
 
         # Load real TradeJournal class dynamically to avoid conftest mock
-        import importlib.util
         ROOT = Path(__file__).resolve().parents[2]
         journal_path = ROOT / "trading" / "journal.py"
         spec = importlib.util.spec_from_file_location("real_trading_journal", str(journal_path))
@@ -1034,9 +1034,7 @@ class TestMultiStrategyCoordination:
         Test that multiple strategies coordinate:
         1. Bot enforces global position limits
         2. Strategies respect capital allocations
-        3. Cross-strategy risk management works
         """
-        # Create two strategies
         strategy1 = StrategyConfig(
             name="coord_orb_1",
             strategy_type="ORB",
