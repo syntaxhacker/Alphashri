@@ -3,7 +3,8 @@ Database models for Alphashri
 """
 
 import uuid
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Table, UniqueConstraint
+from typing import Optional
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, Table, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -314,3 +315,96 @@ class BacktestResult(Base):
                 data["chart_data"] = json.loads(self.chart_data_json)
 
         return data
+
+
+class BrokerConnection(Base):
+    """Broker connection tokens for OAuth integrations.
+
+    Stores broker access tokens for trading APIs.
+    user_id=NULL indicates a shared token for all users.
+    """
+    __tablename__ = "broker_connections"
+
+    id = Column(Integer, primary_key=True)
+    broker_name = Column(String(50), nullable=False, index=True)
+    access_token = Column(Text, nullable=False)
+    token_timestamp = Column(DateTime, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", backref="broker_connections")
+
+    def __repr__(self):
+        return f"<BrokerConnection(id={self.id}, broker='{self.broker_name}', user_id={self.user_id})>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "broker_name": self.broker_name,
+            "access_token": self.access_token,
+            "token_timestamp": self.token_timestamp.isoformat() if self.token_timestamp else None,
+            "user_id": self.user_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+def get_shared_broker_token(broker_name: str) -> Optional[dict]:
+    """Returns token data for shared (user_id=NULL) broker connection."""
+    from .database import SessionLocal
+    db = SessionLocal()
+    try:
+        connection = db.query(BrokerConnection).filter(
+            BrokerConnection.broker_name == broker_name,
+            BrokerConnection.user_id.is_(None)
+        ).first()
+        return connection.to_dict() if connection else None
+    finally:
+        db.close()
+
+
+def save_broker_token(broker_name: str, access_token: str, user_id: Optional[int] = None) -> BrokerConnection:
+    """Save or update a broker token. Returns the BrokerConnection instance."""
+    from datetime import datetime
+    from .database import SessionLocal
+    db = SessionLocal()
+    try:
+        connection = db.query(BrokerConnection).filter(
+            BrokerConnection.broker_name == broker_name,
+            BrokerConnection.user_id == user_id
+        ).first()
+        if connection:
+            connection.access_token = access_token
+            connection.token_timestamp = datetime.utcnow()
+        else:
+            connection = BrokerConnection(
+                broker_name=broker_name,
+                access_token=access_token,
+                token_timestamp=datetime.utcnow(),
+                user_id=user_id
+            )
+            db.add(connection)
+        db.commit()
+        db.refresh(connection)
+        return connection
+    finally:
+        db.close()
+
+
+def delete_broker_token(broker_name: str, user_id: Optional[int] = None) -> bool:
+    """Delete a broker token. Returns True if deleted, False if not found."""
+    from .database import SessionLocal
+    db = SessionLocal()
+    try:
+        connection = db.query(BrokerConnection).filter(
+            BrokerConnection.broker_name == broker_name,
+            BrokerConnection.user_id == user_id
+        ).first()
+        if connection:
+            db.delete(connection)
+            db.commit()
+            return True
+        return False
+    finally:
+        db.close()

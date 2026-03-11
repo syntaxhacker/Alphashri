@@ -5,6 +5,8 @@ import {
   IconBuildingFactory,
   IconChartBar,
   IconRobot,
+  IconChartArea,
+  IconSettings,
   IconSun,
   IconMoon,
   IconChevronLeft,
@@ -29,6 +31,8 @@ const navItems = [
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },
   { label: "Bots", icon: IconRobot, link: "/bots" },
+  { label: "Options", icon: IconChartArea, link: "/options" },
+  { label: "Settings", icon: IconSettings, link: "/settings" },
 ];
 
 export function NavbarNested({ activePath, collapsed, onToggleCollapse }: NavbarNestedProps) {
@@ -42,6 +46,7 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
       link={item.link}
       active={activePath === item.link}
       collapsed={collapsed}
+      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
     />
   ));
 

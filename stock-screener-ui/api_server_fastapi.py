@@ -21,6 +21,13 @@ sys.path.insert(0, str(_project_root))
 sys.path.insert(0, str(_scanners_dir))
 sys.path.insert(0, str(_script_dir))
 
+# Load environment variables from .env.local
+from dotenv import load_dotenv
+env_file = _project_root / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
+    print(f"Loaded environment from {env_file}")
+
 from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1339,6 +1346,26 @@ try:
     print("✅ Bots API loaded at /api/bots")
 except Exception as e:
     print(f"⚠️ Could not load bots API: {e}")
+
+
+# Include brokers router (OAuth endpoints)
+try:
+    from api.brokers import router as brokers_router
+    app.include_router(brokers_router)
+    print("✅ Brokers API loaded at /api/brokers")
+except Exception as e:
+    print(f"⚠️ Could not load brokers API: {e}")
+
+# ============================================
+# Options API
+# ============================================
+
+try:
+    from api.options import router as options_router
+    app.include_router(options_router)
+    print("✅ Options API loaded at /api/options")
+except Exception as e:
+    print(f"⚠️ Could not load options API: {e}")
 
 
 # ============================================

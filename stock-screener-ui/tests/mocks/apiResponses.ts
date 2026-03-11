@@ -778,3 +778,154 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
     });
   });
 }
+
+// Options API mocks
+export async function setupOptionsMocks(page: import("@playwright/test").Page) {
+  // Mock underlyings
+  await page.route("**/api/options/underlyings", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        underlyings: [
+          {
+            symbol: "NIFTY",
+            name: "Nifty 50",
+            instrument_key: "NSE_INDEX|Nifty 50",
+            lot_size: 50,
+            tick_size: 0.05,
+          },
+          {
+            symbol: "BANKNIFTY",
+            name: "Nifty Bank",
+            instrument_key: "NSE_INDEX|Nifty Bank",
+            lot_size: 15,
+            tick_size: 0.05,
+          },
+        ],
+      }),
+    });
+  });
+
+  // Mock expiries
+  await page.route("**/api/options/expiries/*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        underlying: "NIFTY",
+        expiries: [
+          { date: "2026-03-12", weekly: true, days_to_expiry: 2 },
+          { date: "2026-03-19", weekly: true, days_to_expiry: 9 },
+        ],
+      }),
+    });
+  });
+
+  // Mock option chain
+  await page.route("**/api/options/chain/*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        underlying: "NIFTY",
+        expiry: "2026-03-12",
+        spot: 24000.5,
+        timestamp: new Date().toISOString(),
+        summary: {
+          pcr: 0.95,
+          max_pain: 24000,
+          expected_move: { upper: 24200, lower: 23800, range: 200 },
+          total_ce_oi: 1000000,
+          total_pe_oi: 950000,
+          dte: 2,
+        },
+        chain: [
+          {
+            strike: 23900,
+            ce: {
+              trading_symbol: "NIFTY26MAR23900CE",
+              strike_price: 23900,
+              instrument_type: "CE",
+              market_data: {
+                ltp: 150,
+                volume: 10000,
+                oi: 50000,
+                prev_oi: 45000,
+                bid_price: 148,
+                ask_price: 152,
+              },
+              option_greeks: { delta: 0.6, iv: 18, theta: -5, gamma: 0.001, vega: 10 },
+              sentiment: { type: "Long Buildup", color: "green", label: "LB" },
+            },
+            pe: {
+              trading_symbol: "NIFTY26MAR23900PE",
+              strike_price: 23900,
+              instrument_type: "PE",
+              market_data: {
+                ltp: 40,
+                volume: 5000,
+                oi: 20000,
+                prev_oi: 22000,
+                bid_price: 38,
+                ask_price: 42,
+              },
+              option_greeks: { delta: -0.4, iv: 20, theta: -4, gamma: 0.001, vega: 8 },
+              sentiment: { type: "Long Unwinding", color: "orange", label: "LU" },
+            },
+          },
+          {
+            strike: 24000,
+            ce: {
+              trading_symbol: "NIFTY26MAR24000CE",
+              strike_price: 24000,
+              instrument_type: "CE",
+              market_data: {
+                ltp: 80,
+                volume: 20000,
+                oi: 100000,
+                prev_oi: 80000,
+                bid_price: 78,
+                ask_price: 82,
+              },
+              option_greeks: { delta: 0.5, iv: 17, theta: -6, gamma: 0.002, vega: 12 },
+              sentiment: { type: "Long Buildup", color: "green", label: "LB" },
+            },
+            pe: {
+              trading_symbol: "NIFTY26MAR24000PE",
+              strike_price: 24000,
+              instrument_type: "PE",
+              market_data: {
+                ltp: 80,
+                volume: 15000,
+                oi: 80000,
+                prev_oi: 75000,
+                bid_price: 78,
+                ask_price: 82,
+              },
+              option_greeks: { delta: -0.5, iv: 19, theta: -5, gamma: 0.002, vega: 11 },
+              sentiment: { type: "Short Buildup", color: "red", label: "SB" },
+            },
+          },
+        ],
+      }),
+    });
+  });
+
+  // Mock spot history
+  await page.route("**/api/options/spot-history/*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        underlying: "NIFTY",
+        history: [
+          { time: "2026-03-10T09:15:00", price: 23950 },
+          { time: "2026-03-10T09:20:00", price: 24000.5 },
+        ],
+      }),
+    });
+  });
+}

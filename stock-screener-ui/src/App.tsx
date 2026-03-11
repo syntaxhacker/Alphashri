@@ -14,6 +14,8 @@ import { StrategiesContainer } from "./containers/StrategiesContainer";
 import { BacktestPage } from "./components/backtest/mantine";
 import { PaperTradingView } from "./components/paper-trading/mantine";
 import { BotsPage } from "./components/bots/mantine";
+import { OptionsContainer } from "./components/options/OptionsContainer";
+import { SettingsPage } from "./components/settings/SettingsPage";
 import { NewsWebSocketProvider } from "./state/newsWebSocket";
 
 // Wrapper for legacy views (backtest, paper, bots) that still use string-based HTML rendering
@@ -112,6 +114,8 @@ function AppContent() {
         <Route path="/sector" element={<SectorPage />} />
         <Route path="/strategies" element={<StrategiesContainer />} />
         <Route path="/bots" element={<BotsPage />} />
+        <Route path="/options" element={<OptionsContainer />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/chart/:symbol" element={<ChartView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
