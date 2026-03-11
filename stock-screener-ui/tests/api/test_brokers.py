@@ -33,6 +33,7 @@ class TestGetBrokerStatus:
 
     def test_status_returns_disconnected_when_no_token(self, client: TestClient, db: Session):
         """Test: Returns disconnected when no token exists."""
+        delete_broker_token("upstox", user_id=None)
         response = client.get("/api/brokers/status")
 
         assert response.status_code == 200
