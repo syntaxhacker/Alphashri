@@ -76,11 +76,14 @@ We rely heavily on fixtures defined in `tests/api/conftest.py`:
 ## 6. How to Run
 ```bash
 # Run all tests
-uv run pytest
+uv run --python 3.11 pytest
+
+# Run unit tests only (used in pre-commit)
+uv run --python 3.11 pytest -m unit -q --tb=short
 
 # Run a specific file with verbose output
-uv run pytest tests/api/test_options.py -v
+uv run --python 3.11 pytest tests/api/test_options.py -v
 
 # Run tests matching a specific name
-uv run pytest -k "sentiment"
+uv run --python 3.11 pytest -k "sentiment"
 ```
