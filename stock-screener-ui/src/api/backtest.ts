@@ -30,7 +30,7 @@ import {
 import { buildChartData } from "./chartBuilder";
 import { fetchWithAuth } from "../state/auth";
 
-const API_BASE = "http://localhost:8765";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
 // Calculate totals from results
 function calculateTotals(results: BacktestResult[]): BacktestTotals {

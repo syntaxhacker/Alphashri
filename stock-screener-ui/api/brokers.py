@@ -210,7 +210,7 @@ async def upstox_callback(code: str = Query(...)):
                 except Exception:
                     pass
             
-            return RedirectResponse(url="http://localhost:5173/settings?upstox=connected")
+            return RedirectResponse(url=f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/settings?upstox=connected")
     
     except httpx.RequestError as e:
         print(f"❌ Request error: {str(e)}")

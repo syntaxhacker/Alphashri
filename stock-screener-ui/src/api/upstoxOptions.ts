@@ -1,6 +1,6 @@
 import { fetchWithAuth } from "../state/auth";
 
-const API_BASE = "http://localhost:8765";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
 export interface OptionGreeks {
   delta: number;

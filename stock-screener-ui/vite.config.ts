@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -10,14 +11,14 @@ const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(file
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
   plugins: [react()],
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8765',
-        changeOrigin: true
-      }
-    }
-  },
+   server: {
+     proxy: {
+       '/api': {
+         target: process.env.VITE_API_BASE_URL || 'http://127.0.0.1:8765',
+         changeOrigin: true
+       }
+     }
+   },
   test: {
     projects: [{
       extends: true,

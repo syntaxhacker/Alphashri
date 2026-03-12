@@ -1,7 +1,7 @@
 import { Box, Group, Text, Button, Anchor, Stack } from "@mantine/core";
 import { IconExternalLink, IconBook } from "@tabler/icons-react";
 
-const API_BASE = "http://localhost:8765";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
 export function SectorPage() {
   return (

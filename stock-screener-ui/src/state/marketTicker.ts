@@ -27,7 +27,8 @@ export interface MarketTickerData {
   error: string | null;
 }
 
-const MARKET_TICKER_API = "http://localhost:8765/api/market-ticker";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+const MARKET_TICKER_API = `${API_BASE}/api/market-ticker`;
 
 // Cache for ticker data
 let _tickerCache: MarketTickerData | null;

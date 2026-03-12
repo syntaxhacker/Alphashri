@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import type { NewsItem, NewsWebSocketMessage } from "../components/news/news-types";
 
-const WS_BASE = "ws://localhost:8765";
+const WS_BASE = import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8765";
 
 interface NewsWebSocketContextType {
   connected: boolean;

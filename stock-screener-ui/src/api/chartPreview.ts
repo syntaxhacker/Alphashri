@@ -6,7 +6,7 @@
 
 import { fetchWithAuth } from "../state/auth";
 
-const API_BASE = "http://localhost:8765/api/chart/preview";
+const API_BASE = import.meta.env.VITE_API_BASE_URL + "/api/chart/preview" || "http://localhost:8765/api/chart/preview";
 
 export interface PreviewCandle {
   time: string; // "2025-10-24T09:15"

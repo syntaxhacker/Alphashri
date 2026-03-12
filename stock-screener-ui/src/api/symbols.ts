@@ -7,7 +7,8 @@
 
 import { fetchWithAuth } from "../state/auth";
 
-const API_BASE = "http://localhost:8765/api/symbols";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+const SYMBOLS_BASE = `${API_BASE}/api/symbols`;
 
 export interface SymbolResult {
   symbol: string; // Trading symbol (e.g., "TATASTEEL")

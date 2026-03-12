@@ -11,18 +11,19 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
   const [loading, setLoading] = useState(true);
   const theme = useMantineTheme();
 
-  useEffect(() => {
-    async function fetchHistory() {
-      try {
-        const res = await fetch(`http://localhost:8765/api/options/spot-history/${underlying}`);
-        const data = await res.json();
-        if (data.history) setHistory(data.history);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    }
+   useEffect(() => {
+     async function fetchHistory() {
+       try {
+         const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+         const res = await fetch(`${API_BASE}/api/options/spot-history/${underlying}`);
+         const data = await res.json();
+         if (data.history) setHistory(data.history);
+       } catch (e) {
+         console.error(e);
+       } finally {
+         setLoading(false);
+       }
+     }
     fetchHistory();
   }, [underlying]);
 
