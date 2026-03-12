@@ -7,6 +7,11 @@ import type {
   NewsSource,
   NewsResponse,
   ArticleResponse,
+  SymbolChartData,
+  SymbolArticlesResponse,
+  SymbolMapping,
+  NewsStatsResponse,
+  NewsArticle,
 } from "../components/news/news-types";
 import { fetchWithAuth } from "../state/auth";
 
@@ -122,6 +127,145 @@ export function createNewsWebSocket(
     return ws;
   } catch (error) {
     console.error("Failed to create WebSocket:", error);
+    return null;
+  }
+}
+
+/**
+ * Get chart data for a symbol mentioned in news
+ */
+export async function fetchSymbolChart(
+  symbol: string,
+  days: number = 30,
+): Promise<SymbolChartData | null> {
+  try {
+    const response = await fetchWithAuth(
+      `${API_BASE}/api/news/symbols/${encodeURIComponent(symbol)}/chart?days=${days}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch chart: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch symbol chart:", error);
+    return null;
+  }
+}
+
+/**
+ * Get articles for a specific symbol
+ */
+export async function fetchArticlesForSymbol(
+  symbol: string,
+  limit: number = 10,
+): Promise<SymbolArticlesResponse | null> {
+  try {
+    const response = await fetchWithAuth(
+      `${API_BASE}/api/news/symbols/${encodeURIComponent(symbol)}/articles?limit=${limit}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch articles: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch articles for symbol:", error);
+    return null;
+  }
+}
+
+/**
+ * Get article by ID with symbols
+ */
+export async function fetchArticleById(articleId: number): Promise<NewsArticle | null> {
+  try {
+    const response = await fetchWithAuth(
+      `${API_BASE}/api/news/articles/${articleId}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch article: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch article by ID:", error);
+    return null;
+  }
+}
+
+/**
+ * Get recent stored articles
+ */
+export async function fetchRecentArticles(
+  hours: number = 24,
+  source?: string,
+  limit: number = 50,
+): Promise<{ total: number; articles: NewsArticle[] } | null> {
+  try {
+    let url = `${API_BASE}/api/news/recent?hours=${hours}&limit=${limit}`;
+    if (source) {
+      url += `&source=${encodeURIComponent(source)}`;
+    }
+    const response = await fetchWithAuth(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch recent articles: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch recent articles:", error);
+    return null;
+  }
+}
+
+/**
+ * Search articles
+ */
+export async function searchArticles(
+  query: string,
+  limit: number = 20,
+): Promise<{ query: string; total: number; articles: NewsArticle[] } | null> {
+  try {
+    const response = await fetchWithAuth(
+      `${API_BASE}/api/news/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to search articles: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to search articles:", error);
+    return null;
+  }
+}
+
+/**
+ * Map a symbol to see how it maps to an instrument
+ */
+export async function mapSymbol(symbol: string): Promise<SymbolMapping | null> {
+  try {
+    const response = await fetchWithAuth(
+      `${API_BASE}/api/news/map/${encodeURIComponent(symbol)}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to map symbol: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to map symbol:", error);
+    return null;
+  }
+}
+
+/**
+ * Get news stats
+ */
+export async function fetchNewsStats(): Promise<NewsStatsResponse | null> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/news/stats`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch stats: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch news stats:", error);
     return null;
   }
 }

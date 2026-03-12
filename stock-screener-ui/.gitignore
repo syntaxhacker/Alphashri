@@ -46,6 +46,9 @@ htmlcov/
 *.egg-info/
 .eggs/
 
+# Embedding cache (generated, can be regenerated)
+services/.embedding_cache/
+
 # Test outputs
 test-results/
 playwright-report/

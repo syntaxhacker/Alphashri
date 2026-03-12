@@ -37,5 +37,8 @@ def get_db():
 
 def init_db():
     """Initialize database tables."""
-    from .models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection  # noqa: F401
+    from .models import (
+        User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection,
+        NewsArticle, NewsSymbolMention
+    )  # noqa: F401
     Base.metadata.create_all(bind=engine)

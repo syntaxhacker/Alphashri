@@ -692,17 +692,15 @@ class BacktestRunRequest(BaseModel):
 async def lifespan(app: FastAPI):
     import asyncio
     print(f'🚀 Alphashri API starting...')
-    # Initialize database
     from db.database import init_db
     init_db()
     print("✅ Database initialized")
-    # Preload instruments at startup
     _load_instruments()
-    # Start background news poller
     news_poller = asyncio.create_task(news_poller_task())
     print("📰 News poller started")
+    asyncio.create_task(news_startup_prefetch())
+    print("📰 News prefetch scheduled")
     yield
-    # Cleanup on shutdown
     news_poller.cancel()
     print("📰 News poller stopped")
 
@@ -1369,6 +1367,18 @@ except Exception as e:
 
 
 # ============================================
+# News Charts API
+# ============================================
+
+try:
+    from api.news_charts import router as news_charts_router
+    app.include_router(news_charts_router)
+    print("✅ News Charts API loaded at /api/news")
+except Exception as e:
+    print(f"⚠️ Could not load news charts API: {e}")
+
+
+# ============================================
 # News API
 # ============================================
 
@@ -1434,15 +1444,89 @@ class NewsConnectionManager:
 news_ws_manager = NewsConnectionManager()
 
 
-async def news_poller_task():
-    """Background task that polls news sources and broadcasts new items."""
-    import asyncio
-    from news_api import fetch_article_content # Needed for full body extraction
+async def news_startup_prefetch():
+    """Prefetch recent articles from all sources on startup."""
+    if not _news_available:
+        print("📰 News not available, skipping prefetch")
+        return
+    
+    from services.news_persistence import get_persistence_service
+    persistence = get_persistence_service()
+    
+    stats = persistence.get_article_stats()
+    existing_count = stats.get('total_articles', 0)
+    
+    if existing_count > 50:
+        print(f"📰 DB already has {existing_count} articles, skipping prefetch")
+        return
+    
+    print(f"📰 Starting prefetch (DB has {existing_count} articles)...")
+    
+    source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
+    total_saved = 0
+    
+    for source_id in source_ids:
+        try:
+            items = fetch_news(source=source_id, limit=15)
+            if not items:
+                continue
+            
+            for item in items:
+                try:
+                    url = item.get('sourceUrl', '')
+                    headline = item.get('headline', '')
+                    
+                    if not url or len(headline) < 30:
+                        continue
+                    
+                    if persistence.get_article_by_url(url):
+                        continue
+                    
+                    from news_api import fetch_article_content
+                    full_article = fetch_article_content(url)
+                    content = full_article.get('description', '')
+                    symbols = full_article.get('symbols', [])
+                    
+                    analysis = None
+                    if _llm_available and article_analyzer:
+                        try:
+                            analysis = article_analyzer.analyze_article(url, headline, content)
+                        except Exception as e:
+                            print(f"LLM analysis failed for {url[:50]}: {e}")
+                    
+                    persistence.save_article(
+                        url=url,
+                        headline=headline,
+                        content=content,
+                        source=source_id,
+                        source_url=url,
+                        symbols=symbols,
+                        sentiment=analysis.get('sentiment') if analysis else None,
+                        impact_score=analysis.get('impact_score') if analysis else None,
+                        analysis=analysis
+                    )
+                    total_saved += 1
+                    
+                except Exception as e:
+                    pass
+            
+            print(f"📰 Prefetched from {source_id}")
+            
+        except Exception as e:
+            print(f"⚠️ Prefetch error for {source_id}: {e}")
+    
+    print(f"📰 Prefetch complete: {total_saved} new articles saved")
 
-    # Track last seen item ID per source
+
+async def news_poller_task():
+    """Background task that polls news sources, analyzes with LLM, and persists to DB."""
+    import asyncio
+    from news_api import fetch_article_content
+    from services.news_persistence import get_persistence_service
+
+    persistence = get_persistence_service()
     last_seen_ids: Dict[str, str] = {}
 
-    # Wait a bit for server to fully start
     await asyncio.sleep(5)
 
     while True:
@@ -1451,26 +1535,22 @@ async def news_poller_task():
                 await asyncio.sleep(60)
                 continue
 
-            # Correctly handle NEWS_SOURCES as a list (matching news_api.py)
             source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
             
             for source_id in source_ids:
                 try:
-                    items = fetch_news(source=source_id, limit=5)
+                    items = fetch_news(source=source_id, limit=20)
                     if not items:
                         continue
 
                     current_top_id = items[0].get('id')
                     last_id = last_seen_ids.get(source_id)
 
-                    # First time seeing this source - just record the ID
                     if last_id is None:
                         last_seen_ids[source_id] = current_top_id
                         continue
 
-                    # Check for new items
                     if current_top_id != last_id:
-                        # Find items that are newer than last seen
                         new_items = []
                         for item in items:
                             if item.get('id') == last_id:
@@ -1478,31 +1558,58 @@ async def news_poller_task():
                             new_items.append(item)
 
                         if new_items:
-                            print(f"📰 Broadcasting {len(new_items)} new items from {source_id}")
+                            print(f"📰 Processing {len(new_items)} new items from {source_id}")
                             
-                            # Optional: Alert on high-impact news in background
                             high_impact_items = []
-                            if _llm_available and article_analyzer:
-                                for item in new_items:
+                            saved_count = 0
+                            
+                            for item in new_items:
+                                try:
+                                    headline = item.get('headline', '')
+                                    url = item.get('sourceUrl', '')
+                                    
+                                    if not url or len(headline) < 30:
+                                        continue
+                                    
+                                    existing = persistence.get_article_by_url(url)
+                                    if existing:
+                                        continue
+                                    
+                                    full_article = fetch_article_content(url)
+                                    content = full_article.get('description', '')
+                                    symbols = full_article.get('symbols', [])
+                                    
+                                    analysis = None
+                                    if _llm_available and article_analyzer:
+                                        analysis = article_analyzer.analyze_article(url, headline, content)
+                                        item['analysis'] = analysis
+                                        
+                                        if analysis.get('impact_score', 0) >= 8:
+                                            high_impact_items.append(item)
+                                    
                                     try:
-                                        # Only analyze if we think it's a major headline (skip short ones)
-                                        headline = item.get('headline', '')
-                                        url = item.get('sourceUrl', '')
-                                        if len(headline) > 30 and url:
-                                            # We need full content for good analysis, let's fetch it quickly
-                                            full_article = fetch_article_content(url)
-                                            content = full_article.get('description', '')
-                                            
-                                            analysis = article_analyzer.analyze_article(url, headline, content)
-                                            item['analysis'] = analysis
-                                            
-                                            # If impact score is high (>= 8), flag it
-                                            if analysis.get('impact_score', 0) >= 8:
-                                                high_impact_items.append(item)
-                                    except Exception as e:
-                                        print(f"Background analysis failed for {item.get('id')}: {e}")
+                                        persistence.save_article(
+                                            url=url,
+                                            headline=headline,
+                                            content=content,
+                                            source=source_id,
+                                            source_url=url,
+                                            published_at=None,
+                                            symbols=symbols,
+                                            sentiment=analysis.get('sentiment') if analysis else None,
+                                            impact_score=analysis.get('impact_score') if analysis else None,
+                                            analysis=analysis
+                                        )
+                                        saved_count += 1
+                                    except Exception as save_err:
+                                        print(f"Failed to save article: {save_err}")
+                                        
+                                except Exception as e:
+                                    print(f"Background processing failed for {item.get('id')}: {e}")
 
-                            # Broadcast general new items
+                            if saved_count > 0:
+                                print(f"💾 Saved {saved_count} new articles to DB")
+
                             await news_ws_manager.broadcast({
                                 "type": "new_items",
                                 "source": source_id,
@@ -1510,7 +1617,6 @@ async def news_poller_task():
                                 "timestamp": datetime.now().isoformat()
                             })
                             
-                            # Broadcast high impact alerts
                             if high_impact_items:
                                 print(f"🚨 Broadcasting {len(high_impact_items)} HIGH IMPACT alerts!")
                                 await news_ws_manager.broadcast({
@@ -1528,7 +1634,6 @@ async def news_poller_task():
         except Exception as e:
             print(f"⚠️ News poller error: {e}")
 
-        # Poll every 60 seconds
         await asyncio.sleep(60)
 
 
@@ -1666,6 +1771,7 @@ async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol
 async def get_news_article(url: str = Query(..., description="Article URL to fetch")):
     """
     Fetch full content of a specific news article.
+    Also persists the article to the database with LLM analysis and symbol mappings.
     """
     if not _news_available:
         raise HTTPException(status_code=503, detail="News API not available")
@@ -1674,6 +1780,78 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
         article = fetch_article_content(url)
         if 'error' in article:
             raise HTTPException(status_code=500, detail=article['error'])
+        
+        # Initialize analysis data
+        analysis_data = None
+        sentiment = None
+        impact_score = None
+        symbols = article.get('symbols', [])
+        
+        # Always run LLM analysis if available and content is sufficient
+        headline = article.get('headline', '')
+        content = article.get('description', '')
+        
+        if _llm_available and article_analyzer and content and len(content) > 100:
+            try:
+                print(f"🤖 Analyzing article via LLM: {headline[:50]}...")
+                analysis_data = article_analyzer.analyze_article(url, headline, content)
+                
+                sentiment = analysis_data.get('sentiment')
+                impact_score = analysis_data.get('impact_score')
+                
+                # If no symbols from scraper, use LLM entities
+                if not symbols:
+                    key_entities = analysis_data.get('key_entities', [])
+                    if key_entities:
+                        symbols = [{'code': entity, 'name': entity} for entity in key_entities]
+                        print(f"📊 LLM extracted {len(key_entities)} entities: {key_entities}")
+                        
+            except Exception as e:
+                print(f"⚠️ LLM analysis failed: {e}")
+        
+        # Persist article with analysis
+        try:
+            from services.news_persistence import get_persistence_service
+            from services.news_instrument_mapper import get_mapper
+            
+            persistence = get_persistence_service()
+            mapper = get_mapper()
+            
+            published_at = None
+            if article.get('publishedAt'):
+                try:
+                    published_at = datetime.fromisoformat(article['publishedAt'].replace('Z', '+00:00'))
+                except:
+                    pass
+            
+            enriched_symbols = mapper.map_symbols(symbols)
+            
+            saved_article = persistence.save_article(
+                url=url,
+                headline=headline,
+                content=content,
+                source=article.get('source', 'unknown'),
+                source_url=url,
+                published_at=published_at,
+                symbols=enriched_symbols,
+                sentiment=sentiment,
+                impact_score=impact_score,
+                analysis=analysis_data
+            )
+            
+            article['id'] = saved_article.id
+            article['symbols'] = enriched_symbols
+            article['sentiment'] = sentiment
+            article['impact_score'] = impact_score
+            if analysis_data:
+                article['summary'] = analysis_data.get('summary')
+                article['key_points'] = analysis_data.get('key_points')
+                article['key_entities'] = analysis_data.get('key_entities')
+                article['trade_ideas'] = analysis_data.get('trade_ideas')
+            
+        except Exception as persist_error:
+            print(f"⚠️ Could not persist article: {persist_error}")
+        
         return article
     except HTTPException:
         raise

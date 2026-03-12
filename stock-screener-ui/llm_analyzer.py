@@ -12,7 +12,7 @@ load_dotenv()
 class ArticleAnalyzer:
     """Class to analyze financial news articles using OpenRouter LLMs with SQLite caching."""
     
-    def __init__(self, model_name: str = "z-ai/glm-4.5-air:free", db_path: str = "db/llm_cache.db"):
+    def __init__(self, model_name: str = "stepfun/step-3.5-flash:free", db_path: str = "db/llm_cache.db"):
         api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
             print("WARNING: OPENROUTER_API_KEY environment variable not set. Analysis will fail.")
@@ -95,20 +95,30 @@ class ArticleAnalyzer:
         
         system_prompt = """
 You are a highly skilled financial analyst AI. Your job is to analyze the provided news article and output a strict JSON object containing the following keys exactly:
-- "summary": A concise 2-3 sentence summary of the core financial news or event.
-- "sentiment": The overall market sentiment of the article. Must be exactly one of: "BULLISH", "BEARISH", or "NEUTRAL".
-- "impact_score": An integer from 1 to 10 estimating the potential market-moving impact of this news (1 = trivial, 10 = massive market shock).
-- "key_entities": A list of strings of the most important companies, individuals, or assets mentioned.
-- "trade_ideas": A list of objects containing potential trades. If no clear trades exist, return an empty list. Format:
-    [
-      {
-        "symbol": "Company Name or Ticker",
-        "direction": "LONG" or "SHORT",
-        "reasoning": "1 sentence explanation."
-      }
-    ]
 
-Return ONLY valid JSON. Do not wrap it in markdown code blocks like ```json ... ```. Just the raw JSON object.
+- "summary": A concise 2-3 sentence summary of the core financial news or event.
+- "key_points": An array of 3-5 strings, where each string is a key takeaway from the article. Be specific and actionable.
+- "sentiment": The overall market sentiment. Must be exactly "BULLISH", "BEARISH", or "NEUTRAL".
+- "impact_score": An integer 1-10 rating potential market impact.
+- "key_entities": An array of strings listing important companies,  individuals, or assets mentioned. Example: ["Reliance Industries", "Mukesh Ambani", "Nifty 50"]
+- "trade_ideas": An array of objects with potential trading opportunities:
+  [
+    {
+      "symbol": "RELIANCE",
+      "direction": "LONG",
+      "reasoning": "Why this trade makes sense"
+    }
+  ]
+
+Return ONLY valid JSON. No markdown. Example output:
+{
+  "summary": "Summary text here",
+  "key_points": ["Point 1", "Point 2", "Point 3"],
+  "sentiment": "BULLISH",
+  "impact_score": 7,
+  "key_entities": ["Company A", "Company B"],
+  "trade_ideas": [{"symbol": "RELIANCE", "direction": "LONG", "reasoning": "Strong earnings"}]
+}
 """
         
         user_prompt = f"Headline: {headline}\n\nContent: {content}"
@@ -141,6 +151,7 @@ Return ONLY valid JSON. Do not wrap it in markdown code blocks like ```json ... 
             # Ensure required keys exist with default fallbacks
             result = {
                 "summary": analysis_data.get("summary", "Summary unavailable."),
+                "key_points": analysis_data.get("key_points", []),
                 "sentiment": analysis_data.get("sentiment", "NEUTRAL").upper(),
                 "impact_score": int(analysis_data.get("impact_score", 0)),
                 "key_entities": analysis_data.get("key_entities", []),

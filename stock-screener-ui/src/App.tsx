@@ -17,6 +17,7 @@ import { BotsPage } from "./components/bots/mantine";
 import { OptionsContainer } from "./components/options/OptionsContainer";
 import { SettingsPage } from "./components/settings/SettingsPage";
 import { NewsWebSocketProvider } from "./state/newsWebSocket";
+import NewsPage from "./pages/NewsPage";
 
 // Wrapper for legacy views (backtest, paper, bots) that still use string-based HTML rendering
 function LegacyShell({ view }: { view: AppRouteView }) {
@@ -116,6 +117,7 @@ function AppContent() {
         <Route path="/bots" element={<BotsPage />} />
         <Route path="/options" element={<OptionsContainer />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/news" element={<NewsPage />} />
         <Route path="/chart/:symbol" element={<ChartView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

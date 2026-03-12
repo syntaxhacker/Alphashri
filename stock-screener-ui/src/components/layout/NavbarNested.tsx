@@ -11,6 +11,7 @@ import {
   IconMoon,
   IconChevronLeft,
   IconChevronRight,
+  IconNews,
 } from "@tabler/icons-react";
 import { Group, ScrollArea, Text, UnstyledButton, AppShell, Flex } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
@@ -26,6 +27,7 @@ interface NavbarNestedProps {
 
 const navItems = [
   { label: "Screener", icon: IconRocket, link: "/" },
+  { label: "News", icon: IconNews, link: "/news" },
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },
   { label: "Paper Trading", icon: IconChartDots, link: "/paper" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },

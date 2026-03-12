@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ActionIcon,
   Badge,
@@ -8,6 +9,7 @@ import {
   Group,
   Indicator,
   Overlay,
+  Paper,
   ScrollArea,
   Select,
   Stack,
@@ -19,7 +21,7 @@ import {
   Tooltip,
   Loader,
 } from "@mantine/core";
-import { IconRefresh, IconArrowLeft, IconExternalLink, IconNews } from "@tabler/icons-react";
+import { IconRefresh, IconArrowLeft, IconExternalLink, IconNews, IconChartLine } from "@tabler/icons-react";
 import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-types";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
 import { useNewsWebSocket } from "../../state/newsWebSocket";
@@ -77,6 +79,8 @@ function saveReadIds(ids: Set<string>): void {
 }
 
 export default function NewsPanel() {
+  const navigate = useNavigate();
+  
   // Get WebSocket state from context
   const {
     connected: wsConnected,
@@ -234,8 +238,12 @@ export default function NewsPanel() {
     setArticleContent(null);
   };
 
-  const handleSymbolClick = (symbol: NewsSymbol) => {
-    window.open(symbol.url, "_blank", "noopener,noreferrer");
+ const handleSymbolClick = (symbol: NewsSymbol) => {
+    if (symbol.instrument_key && symbol.trading_symbol) {
+      navigate(`/chart/${symbol.trading_symbol}`);
+    } else if (symbol.url) {
+      window.open(symbol.url, "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleMarkAllRead = () => {
@@ -338,14 +346,26 @@ export default function NewsPanel() {
                     </Text>
                     <Group gap="xs">
                       {articleContent.symbols.map((symbol, idx) => (
-                        <Badge
+                        <Tooltip
                           key={idx}
-                          variant="light"
-                          style={{ cursor: "pointer" }}
-                          onClick={() => handleSymbolClick(symbol)}
+                          label={
+                            symbol.instrument_key
+                              ? `View ${symbol.trading_symbol} chart`
+                              : `Open ${symbol.code} on Moneycontrol`
+                          }
                         >
-                          {symbol.name}
-                        </Badge>
+                          <Badge
+                            variant="light"
+                            color={symbol.instrument_key ? "blue" : "gray"}
+                            style={{ cursor: "pointer" }}
+                            onClick={() => handleSymbolClick(symbol)}
+                          >
+                            {symbol.name || symbol.code}
+                            {symbol.instrument_key && (
+                              <IconChartLine size={12} style={{ marginLeft: 4 }} />
+                            )}
+                          </Badge>
+                        </Tooltip>
                       ))}
                     </Group>
                   </div>
@@ -383,47 +403,42 @@ export default function NewsPanel() {
                       Open Original <IconExternalLink size={12} />
                     </Group>
                   </Anchor>
-                )}
-              </Stack>
-            </ScrollArea>
-          </Stack>
-        ) : (
-          <Stack gap={0} h="100%">
-            <Group
-              p="sm"
-              justify="space-between"
-              style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
-            >
-              <Group gap="xs">
-                <Text fw={600}>NEWS</Text>
-                {wsConnected && (
-                  <Tooltip label="Live updates connected">
-                    <Box w={6} h={6} bg="green" style={{ borderRadius: "50%" }} />
-                  </Tooltip>
-                )}
-                {isRefreshing && <Loader size="xs" />}
-              </Group>
-              <CloseButton
-                onClick={handleClose}
-                className="news-close-btn"
-                data-testid="news-close-btn"
-              />
-            </Group>
+                 )}
+               </Stack>
+             </ScrollArea>
+           </Stack>
+         ) : (
+           <Stack gap={0} h="100%">
+             <Paper withBorder p="sm" mb="xs">
+               <Group justify="space-between">
+                 <Group gap="xs">
+                   <Text fw={600}>NEWS</Text>
+                   {wsConnected && (
+                     <Tooltip label="Live updates connected">
+                       <Box w={6} h={6} bg="green" style={{ borderRadius: "50%" }} />
+                     </Tooltip>
+                   )}
+                   {isRefreshing && <Loader size="xs" />}
+                 </Group>
+                 <CloseButton
+                   onClick={handleClose}
+                   className="news-close-btn"
+                   data-testid="news-close-btn"
+                 />
+               </Group>
+             </Paper>
 
-            <Group
-              p="sm"
-              gap="xs"
-              style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
-            >
-              <Select
-                size="xs"
-                value={selectedSource}
-                onChange={(v) => v && setSelectedSource(v)}
-                data={sourceData}
-                style={{ flex: 1 }}
-                className="news-source-select"
-                data-testid="news-source-select"
-              />
+             <Paper withBorder p="sm">
+               <Group gap="xs">
+                 <Select
+                   size="xs"
+                   value={selectedSource}
+                   onChange={(v) => v && setSelectedSource(v)}
+                   data={sourceData}
+                   style={{ flex: 1 }}
+                   className="news-source-select"
+                   data-testid="news-source-select"
+                 />
 
               <Tooltip label="Refresh">
                 <ActionIcon
@@ -522,10 +537,11 @@ export default function NewsPanel() {
                     );
                   })}
                 </Stack>
-              )}
-            </ScrollArea>
-          </Stack>
-        )}
+               )}
+             </ScrollArea>
+           </Paper>
+           </Stack>
+         )}
       </Box>
     </>
   );
