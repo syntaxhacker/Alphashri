@@ -1935,9 +1935,10 @@ async def websocket_news(websocket: WebSocket):
 
 
 if __name__ == '__main__':
-    print(f'🚀 Alphashri FastAPI running on http://localhost:8765')
-    print(f'   API docs: http://localhost:8765/docs')
-    print(f'   Screener API: http://localhost:8765/api/screener')
-    print(f'   Backtest API: http://localhost:8765/api/backtest/strategies')
-    print(f'   Paper Trading API: http://localhost:8765/api/paper/portfolio')
-    uvicorn.run(app, host="localhost", port=8765)
+    port = int(os.getenv("PORT", 8765))
+    print(f'🚀 Alphashri FastAPI running on http://localhost:{port}')
+    print(f'   API docs: http://localhost:{port}/docs')
+    print(f'   Screener API: http://localhost:{port}/api/screener')
+    print(f'   Backtest API: http://localhost:{port}/api/backtest/strategies')
+    print(f'   Paper Trading API: http://localhost:{port}/api/paper/portfolio')
+    uvicorn.run(app, host="localhost", port=port)

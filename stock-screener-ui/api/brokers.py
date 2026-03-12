@@ -137,7 +137,7 @@ async def upstox_auth():
             detail="UPSTOX_API_KEY (or UPSTOX_CLIENT_ID) and UPSTOX_API_SECRET (or UPSTOX_CLIENT_SECRET) must be set in environment"
         )
     
-    redirect_uri = "http://localhost:8765/api/brokers/upstox/callback"
+    redirect_uri = f"{os.getenv('API_BASE_URL', 'http://localhost:8765')}/api/brokers/upstox/callback"
     
     auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={api_key}&redirect_uri={redirect_uri}"
     
@@ -161,7 +161,7 @@ async def upstox_callback(code: str = Query(...)):
             detail="UPSTOX_API_KEY (or UPSTOX_CLIENT_ID) and UPSTOX_API_SECRET (or UPSTOX_CLIENT_SECRET) must be set in environment"
         )
     
-    redirect_uri = "http://localhost:8765/api/brokers/upstox/callback"
+    redirect_uri = f"{os.getenv('API_BASE_URL', 'http://localhost:8765')}/api/brokers/upstox/callback"
     
     token_url = f"{UPSTOX_BASE}/login/authorization/token"
     
