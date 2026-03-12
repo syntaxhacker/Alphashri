@@ -468,8 +468,8 @@ class NewsSymbolMention(Base):
     article_id = Column(Integer, ForeignKey("news_articles.id"), nullable=False, index=True)
     
     symbol_code = Column(String(50), nullable=False)
-    trading_symbol = Column(String(50), nullable=True, index=True)
-    instrument_key = Column(String(100), nullable=True, index=True)
+    trading_symbol = Column(String(50), nullable=True)
+    instrument_key = Column(String(100), nullable=True)
     company_name = Column(String(200), nullable=True)
     match_confidence = Column(Float, nullable=True)
     match_method = Column(String(20), nullable=True)

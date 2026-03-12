@@ -26,7 +26,7 @@ import jwt
 import bcrypt
 from fastapi.testclient import TestClient
 from fastapi import HTTPException, status
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, StaticPool
 from sqlalchemy.orm import sessionmaker, Session
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,17 +49,18 @@ from api.auth import (
 
 
 # =============================================================================
-# Test Configuration
+# Test Configuration - Use in-memory SQLite for isolation
 # =============================================================================
 
-TEST_DB_DIR = tempfile.mkdtemp()
-TEST_DB_PATH = os.path.join(TEST_DB_DIR, "test_security.db")
-TEST_SQLALCHEMY_DATABASE_URL = f"sqlite:///{TEST_DB_PATH}"
+# Use in-memory database for test isolation (consistent with conftest.py)
+TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 test_engine = create_engine(
     TEST_SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool
 )
+
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 

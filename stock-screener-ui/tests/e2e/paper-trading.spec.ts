@@ -26,14 +26,14 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test.beforeEach(async ({ page }) => {
     await setupPaperTradingTest(page);
   });
-  test("should display paper trading view with tabs", async ({ page }) => {
-    await navigateToPaperTrading(page);
+   test("should display paper trading view with tabs", async ({ page }) => {
+     await navigateToPaperTrading(page);
 
-    // Verify tabs are visible
-    await expect(page.locator('button:has-text("Live Positions")')).toBeVisible();
-    await expect(page.locator('button:has-text("Trade History")')).toBeVisible();
-    await expect(page.locator('button:has-text("Settings")')).toBeVisible();
-  });
+     // Verify tabs are visible
+     await expect(page.locator('[data-testid="tab-live"]')).toBeVisible();
+     await expect(page.locator('[data-testid="trade-history-tab"]')).toBeVisible();
+     await expect(page.locator('[data-testid="tab-settings"]')).toBeVisible();
+   });
 
   test("should display bot selector dropdown", async ({ page }) => {
     await navigateToPaperTrading(page);
