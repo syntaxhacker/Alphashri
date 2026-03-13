@@ -1354,6 +1354,14 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load brokers API: {e}")
 
+# Include sector router
+try:
+    from api.sector import router as sector_router
+    app.include_router(sector_router)
+    print("✅ Sector API loaded at /api/sector")
+except Exception as e:
+    print(f"⚠️ Could not load sector API: {e}")
+
 # ============================================
 # Options API
 # ============================================
@@ -1440,9 +1448,78 @@ class NewsConnectionManager:
         self.active_connections -= disconnected
 
 
-# Global WebSocket manager instance
+# Global WebSocket manager instances
 news_ws_manager = NewsConnectionManager()
 
+class SectorConnectionManager:
+    """Manages WebSocket connections for real-time sector updates."""
+    def __init__(self):
+        self.active_connections: set = set()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.add(websocket)
+        print(f"📊 Sector WebSocket connected. Active connections: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.discard(websocket)
+        print(f"📊 Sector WebSocket disconnected. Active connections: {len(self.active_connections)}")
+
+    async def broadcast(self, message: dict):
+        disconnected = set()
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                disconnected.add(connection)
+        self.active_connections -= disconnected
+
+sector_ws_manager = SectorConnectionManager()
+
+async def sector_poller_task():
+    """Background task that polls sector performance and broadcasts updates."""
+    import asyncio
+    from api.sector import get_sector_performance
+    
+    await asyncio.sleep(10) # Wait for server start
+
+    while True:
+        try:
+            # Poll both markets
+            for market in ["india", "america"]:
+                try:
+                    data = await get_sector_performance(market=market)
+                    await sector_ws_manager.broadcast({
+                        "type": "sector_update",
+                        "market": market,
+                        "data": _sanitize_for_json(data.model_dump()),
+                        "timestamp": datetime.now().isoformat()
+                    })
+                except Exception as e:
+                    print(f"⚠️ Error polling sector data for {market}: {e}")
+            
+            # Update every 60 seconds
+            await asyncio.sleep(60)
+        except Exception as e:
+            print(f"⚠️ Sector poller error: {e}")
+            await asyncio.sleep(10)
+
+@app.websocket("/ws/sector")
+async def websocket_sector(websocket: WebSocket):
+    await sector_ws_manager.connect(websocket)
+    try:
+        await websocket.send_json({
+            "type": "connected",
+            "message": "Connected to sector updates",
+            "timestamp": datetime.now().isoformat()
+        })
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        sector_ws_manager.disconnect(websocket)
+    except Exception as e:
+        print(f"📊 Sector WebSocket error: {e}")
+        sector_ws_manager.disconnect(websocket)
 
 async def news_startup_prefetch():
     """Prefetch recent articles from all sources on startup."""

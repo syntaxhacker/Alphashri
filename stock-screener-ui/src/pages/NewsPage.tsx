@@ -87,20 +87,21 @@ interface ArticleContent {
 
 export default function NewsPage() {
   const navigate = useNavigate();
-  
+
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [sources, setSources] = useState<NewsSource[]>([]);
   const [selectedSource, setSelectedSource] = useState<string>("moneycontrol");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
   const [articleContent, setArticleContent] = useState<ArticleContent | null>(null);
   const [articleLoading, setArticleLoading] = useState(false);
 
-  const sourceData = sources.length > 0
-    ? sources.map((s) => ({ value: s.id, label: s.name }))
-    : [{ value: "moneycontrol", label: "Moneycontrol" }];
+  const sourceData =
+    sources.length > 0
+      ? sources.map((s) => ({ value: s.id, label: s.name }))
+      : [{ value: "moneycontrol", label: "Moneycontrol" }];
 
   useEffect(() => {
     fetchNewsSources().then(setSources);
@@ -156,10 +157,10 @@ export default function NewsPage() {
     const config = SENTIMENT_CONFIG[sentiment] || SENTIMENT_CONFIG.NEUTRAL;
     const Icon = config.icon;
     return (
-      <Badge 
-        color={config.color} 
-        variant="light" 
-        leftSection={<Icon size={12} />} 
+      <Badge
+        color={config.color}
+        variant="light"
+        leftSection={<Icon size={12} />}
         data-testid="sentiment-badge"
         size="lg"
       >
@@ -178,7 +179,11 @@ export default function NewsPage() {
           thickness={5}
           roundCaps
           sections={[{ value: score * 10, color }]}
-          label={<Text size="sm" fw={700}>{score}</Text>}
+          label={
+            <Text size="sm" fw={700}>
+              {score}
+            </Text>
+          }
           data-testid="impact-score"
         />
       </Tooltip>
@@ -190,16 +195,16 @@ export default function NewsPage() {
     return (
       <Card key={idx} padding="md" withBorder data-testid="trade-idea">
         <Group justify="space-between" mb="sm">
-          <Badge 
-            color={isLong ? "green" : "red"} 
-            variant="filled"
-            size="sm"
-          >
+          <Badge color={isLong ? "green" : "red"} variant="filled" size="sm">
             {idea.direction}
           </Badge>
-          <Text size="sm" fw={600}>{idea.symbol}</Text>
+          <Text size="sm" fw={600}>
+            {idea.symbol}
+          </Text>
         </Group>
-        <Text size="sm" c="dimmed">{idea.reasoning}</Text>
+        <Text size="sm" c="dimmed">
+          {idea.reasoning}
+        </Text>
       </Card>
     );
   };
@@ -242,84 +247,90 @@ export default function NewsPage() {
                     </Group>
                   )}
 
-                   {articleContent?.summary && (
-                     <Alert
-                       icon={<IconInfoCircle size={16} />}
-                       title="Summary"
-                       color="blue"
-                       variant="light"
-                     >
-                       <Text size="sm">{articleContent.summary}</Text>
-                     </Alert>
-                   )}
+                  {articleContent?.summary && (
+                    <Alert
+                      icon={<IconInfoCircle size={16} />}
+                      title="Summary"
+                      color="blue"
+                      variant="light"
+                    >
+                      <Text size="sm">{articleContent.summary}</Text>
+                    </Alert>
+                  )}
 
-                   {articleContent?.key_points && articleContent.key_points.length > 0 && (
-                     <Stack gap="sm">
-                       <Group gap="xs">
-                         <ThemeIcon size="sm" variant="light" color="green">
-                           <IconTarget size={14} />
-                         </ThemeIcon>
-                         <Text size="sm" fw={600}>Key Takeaways</Text>
-                       </Group>
-                       <List size="sm" withPadding ml="md">
-                         {articleContent.key_points.map((point, idx) => (
-                           <List.Item key={idx}>
-                             <Text size="sm">{point}</Text>
-                           </List.Item>
-                         ))}
-                       </List>
-                     </Stack>
-                   )}
+                  {articleContent?.key_points && articleContent.key_points.length > 0 && (
+                    <Stack gap="sm">
+                      <Group gap="xs">
+                        <ThemeIcon size="sm" variant="light" color="green">
+                          <IconTarget size={14} />
+                        </ThemeIcon>
+                        <Text size="sm" fw={600}>
+                          Key Takeaways
+                        </Text>
+                      </Group>
+                      <List size="sm" withPadding ml="md">
+                        {articleContent.key_points.map((point, idx) => (
+                          <List.Item key={idx}>
+                            <Text size="sm">{point}</Text>
+                          </List.Item>
+                        ))}
+                      </List>
+                    </Stack>
+                  )}
 
-                   {articleContent?.symbols && articleContent.symbols.length > 0 && (
-                     <Stack gap="xs">
-                       <Text size="sm" fw={500}>Stocks mentioned:</Text>
-                       <Group gap="xs" wrap="wrap">
-                         {articleContent.symbols.map((symbol, idx) => (
-                           <Tooltip
-                             key={idx}
-                             label={
-                               symbol.instrument_key
-                                 ? `View ${symbol.trading_symbol} chart`
-                                 : `View details`
-                             }
-                             position="top"
-                           >
-                             <Badge
-                               variant="light"
-                               color={symbol.instrument_key ? "blue" : "gray"}
-                               size="sm"
-                               radius="sm"
-                               style={{ cursor: "pointer" }}
-                               onClick={() => handleSymbolClick(symbol)}
-                               rightSection={
-                                 symbol.instrument_key ? (
-                                   <IconChartLine size={12} style={{ marginLeft: 4 }} />
-                                 ) : undefined
-                               }
-                               data-testid="symbol-badge"
-                             >
-                               {symbol.name || symbol.code}
-                             </Badge>
-                           </Tooltip>
-                         ))}
-                       </Group>
-                     </Stack>
-                   )}
+                  {articleContent?.symbols && articleContent.symbols.length > 0 && (
+                    <Stack gap="xs">
+                      <Text size="sm" fw={500}>
+                        Stocks mentioned:
+                      </Text>
+                      <Group gap="xs" wrap="wrap">
+                        {articleContent.symbols.map((symbol, idx) => (
+                          <Tooltip
+                            key={idx}
+                            label={
+                              symbol.instrument_key
+                                ? `View ${symbol.trading_symbol} chart`
+                                : `View details`
+                            }
+                            position="top"
+                          >
+                            <Badge
+                              variant="light"
+                              color={symbol.instrument_key ? "blue" : "gray"}
+                              size="sm"
+                              radius="sm"
+                              style={{ cursor: "pointer" }}
+                              onClick={() => handleSymbolClick(symbol)}
+                              rightSection={
+                                symbol.instrument_key ? (
+                                  <IconChartLine size={12} style={{ marginLeft: 4 }} />
+                                ) : undefined
+                              }
+                              data-testid="symbol-badge"
+                            >
+                              {symbol.name || symbol.code}
+                            </Badge>
+                          </Tooltip>
+                        ))}
+                      </Group>
+                    </Stack>
+                  )}
 
-                   {articleContent?.trade_ideas && articleContent.trade_ideas.length > 0 && (
-                     <Stack gap="sm">
-                       <Group gap="xs">
-                         <ThemeIcon size="sm" variant="light" color="orange">
-                           <IconTrendingUp size={14} />
-                         </ThemeIcon>
-                         <Text size="sm" fw={600}>Trade Ideas</Text>
-                       </Group>
-                       <Stack gap="xs">
-                         {articleContent.trade_ideas.map((idea, idx) => renderTradeIdea(idea, idx))}
-                       </Stack>
-                     </Stack>
-                   )}
+                  {articleContent?.trade_ideas && articleContent.trade_ideas.length > 0 && (
+                    <Stack gap="sm">
+                      <Group gap="xs">
+                        <ThemeIcon size="sm" variant="light" color="orange">
+                          <IconTrendingUp size={14} />
+                        </ThemeIcon>
+                        <Text size="sm" fw={600}>
+                          Trade Ideas
+                        </Text>
+                      </Group>
+                      <Stack gap="xs">
+                        {articleContent.trade_ideas.map((idea, idx) => renderTradeIdea(idea, idx))}
+                      </Stack>
+                    </Stack>
+                  )}
 
                   <Divider />
 
@@ -403,21 +414,17 @@ export default function NewsPage() {
                       <Text size="sm" fw={500} lineClamp={2} style={{ flex: 1 }}>
                         {item.headline}
                       </Text>
-                      <Badge
-                        color={SOURCE_COLORS[item.source] || "gray"}
-                        variant="light"
-                        size="sm"
-                      >
+                      <Badge color={SOURCE_COLORS[item.source] || "gray"} variant="light" size="sm">
                         {item.source}
                       </Badge>
                     </Group>
-                    
+
                     {item.description && (
                       <Text size="xs" c="dimmed" lineClamp={2}>
                         {item.description}
                       </Text>
                     )}
-                    
+
                     <Text size="xs" c="dimmed">
                       {formatTimeAgo(item.publishedAt)}
                     </Text>

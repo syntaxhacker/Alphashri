@@ -54,7 +54,7 @@ fi
 
 # Run the tests (using mocked API responses)
 echo "Running Playwright tests..."
-bun run test --reporter=list
+bun run test
 
 # Capture exit code
 TEST_EXIT_CODE=$?

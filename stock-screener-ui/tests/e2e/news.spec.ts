@@ -1,8 +1,5 @@
 import { test, expect } from "@playwright/test";
-import {
-  setupApiMocks,
-  loginAsTestUser,
-} from "../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 
 const mockNewsSources = [
   { id: "moneycontrol", name: "Moneycontrol", url: "https://www.moneycontrol.com" },
@@ -17,14 +14,16 @@ const mockNewsItems = [
   {
     id: "news-1",
     headline: "Reliance Industries hits all-time high on strong Q3 results",
-    description: "Reliance Industries surged to a record high after reporting better-than-expected quarterly earnings.",
+    description:
+      "Reliance Industries surged to a record high after reporting better-than-expected quarterly earnings.",
     source: "moneycontrol",
     sourceUrl: "https://www.moneycontrol.com/news/article-1",
     publishedAt: new Date(Date.now() - 30 * 60000).toISOString(),
     fetchedAt: new Date().toISOString(),
     sentiment: "BULLISH",
     impact_score: 8,
-    summary: "Reliance reported strong Q3 results with 15% revenue growth driven by retail and digital services.",
+    summary:
+      "Reliance reported strong Q3 results with 15% revenue growth driven by retail and digital services.",
     key_points: [
       "Revenue grew 15% YoY to Rs 2.4 lakh crore",
       "Jio added 10 million new subscribers",
@@ -36,7 +35,12 @@ const mockNewsItems = [
       { symbol: "RELIANCE", direction: "LONG", reasoning: "Strong earnings and growth momentum" },
     ],
     symbols: [
-      { code: "RI", name: "Reliance Industries", trading_symbol: "RELIANCE", instrument_key: "NSE_EQ|INE002A01018" },
+      {
+        code: "RI",
+        name: "Reliance Industries",
+        trading_symbol: "RELIANCE",
+        instrument_key: "NSE_EQ|INE002A01018",
+      },
     ],
   },
   {
@@ -63,7 +67,12 @@ const mockNewsItems = [
     ],
     symbols: [
       { code: "TCS", name: "TCS", trading_symbol: "TCS", instrument_key: "NSE_EQ|INE467B01029" },
-      { code: "INFY", name: "Infosys", trading_symbol: "INFY", instrument_key: "NSE_EQ|INE009A01021" },
+      {
+        code: "INFY",
+        name: "Infosys",
+        trading_symbol: "INFY",
+        instrument_key: "NSE_EQ|INE009A01021",
+      },
     ],
   },
   {
@@ -145,7 +154,7 @@ async function setupNewsMocks(page: import("@playwright/test").Page) {
         total_symbol_mentions: 50,
         mapped_symbols: 35,
         unmapped_symbols: 15,
-        sources: mockNewsSources.map(s => s.id),
+        sources: mockNewsSources.map((s) => s.id),
       }),
     });
   });
@@ -154,8 +163,9 @@ async function setupNewsMocks(page: import("@playwright/test").Page) {
     const url = new URL(route.request().url());
     const query = url.searchParams.get("q") || "";
     const filtered = mockNewsItems.filter(
-      item => item.headline.toLowerCase().includes(query.toLowerCase()) ||
-              item.description.toLowerCase().includes(query.toLowerCase())
+      (item) =>
+        item.headline.toLowerCase().includes(query.toLowerCase()) ||
+        item.description.toLowerCase().includes(query.toLowerCase()),
     );
     await route.fulfill({
       status: 200,
@@ -448,7 +458,7 @@ test.describe("News Page - Sentiment Display", () => {
     await page.waitForTimeout(1000);
 
     const bullishBadge = page.locator('[data-testid="sentiment-badge"]:has-text("BULLISH")');
-    if (await bullishBadge.count() > 0) {
+    if ((await bullishBadge.count()) > 0) {
       await expect(bullishBadge.first()).toBeVisible();
     }
   });
@@ -459,7 +469,7 @@ test.describe("News Page - Sentiment Display", () => {
     await page.waitForTimeout(1000);
 
     const bearishBadge = page.locator('[data-testid="sentiment-badge"]:has-text("BEARISH")');
-    if (await bearishBadge.count() > 0) {
+    if ((await bearishBadge.count()) > 0) {
       await expect(bearishBadge.first()).toBeVisible();
     }
   });
@@ -478,7 +488,7 @@ test.describe("News Page - Impact Score Display", () => {
     await page.waitForTimeout(1000);
 
     const impactScore = page.locator('[data-testid="impact-score"]');
-    if (await impactScore.count() > 0) {
+    if ((await impactScore.count()) > 0) {
       await expect(impactScore.first()).toBeVisible();
     }
   });
@@ -535,8 +545,11 @@ test.describe("News Page - Article Detail", () => {
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
     await page.waitForTimeout(1000);
 
-    const bullishItem = page.locator('[data-testid="news-list-item"]').filter({ hasText: "Reliance" }).first();
-    if (await bullishItem.count() > 0) {
+    const bullishItem = page
+      .locator('[data-testid="news-list-item"]')
+      .filter({ hasText: "Reliance" })
+      .first();
+    if ((await bullishItem.count()) > 0) {
       await bullishItem.click();
       await page.waitForTimeout(1000);
 
@@ -550,8 +563,11 @@ test.describe("News Page - Article Detail", () => {
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
     await page.waitForTimeout(1000);
 
-    const bullishItem = page.locator('[data-testid="news-list-item"]').filter({ hasText: "Reliance" }).first();
-    if (await bullishItem.count() > 0) {
+    const bullishItem = page
+      .locator('[data-testid="news-list-item"]')
+      .filter({ hasText: "Reliance" })
+      .first();
+    if ((await bullishItem.count()) > 0) {
       await bullishItem.click();
       await page.waitForTimeout(1000);
 
@@ -565,8 +581,11 @@ test.describe("News Page - Article Detail", () => {
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
     await page.waitForTimeout(1000);
 
-    const firstNewsItem = page.locator('[data-testid="news-list-item"]').filter({ hasText: "Reliance" }).first();
-    if (await firstNewsItem.count() > 0) {
+    const firstNewsItem = page
+      .locator('[data-testid="news-list-item"]')
+      .filter({ hasText: "Reliance" })
+      .first();
+    if ((await firstNewsItem.count()) > 0) {
       await firstNewsItem.click();
       await page.waitForTimeout(1000);
 
@@ -619,7 +638,7 @@ test.describe("News Page - Search", () => {
     await page.waitForTimeout(1000);
 
     const searchInput = page.locator('input[placeholder*="Search"]');
-    if (await searchInput.count() > 0) {
+    if ((await searchInput.count()) > 0) {
       await searchInput.fill("Reliance");
       await page.waitForTimeout(1000);
 
@@ -643,7 +662,7 @@ test.describe("News Page - Source Filtering", () => {
     await page.waitForTimeout(1000);
 
     const sourceSelector = page.locator('[data-testid="source-selector"]');
-    if (await sourceSelector.count() > 0) {
+    if ((await sourceSelector.count()) > 0) {
       await sourceSelector.click();
       await page.getByRole("option", { name: "Economic Times" }).click();
       await page.waitForTimeout(1000);
@@ -665,7 +684,9 @@ test.describe("News Page - Loading States", () => {
     await page.goto("/news");
 
     const loader = page.locator('[data-testid="news-loader"]');
-    await expect(loader).toBeVisible({ timeout: 5000 }).catch(() => {});
+    await expect(loader)
+      .toBeVisible({ timeout: 5000 })
+      .catch(() => {});
   });
 });
 

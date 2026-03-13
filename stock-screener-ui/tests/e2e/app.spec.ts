@@ -99,9 +99,9 @@ test.describe("Paper Trading Settings", () => {
     // Verify Max Positions is still 4 after refresh
     const maxPositionsAfterRefresh = page.locator('[data-testid="config-max-positions"]');
     await expect(maxPositionsAfterRefresh).toHaveValue("4");
-   });
+  });
 
-   test("should display all settings sections", async ({ page }) => {
+  test("should display all settings sections", async ({ page }) => {
     // Navigate to the app
     await page.goto("/");
 
@@ -128,48 +128,48 @@ test.describe("Paper Trading Settings", () => {
     await expect(page.locator('[data-testid="config-cooldown"]')).toHaveValue("30");
   });
 
-   test("should reset settings to defaults", async ({ page }) => {
-     // Navigate to the app
-     await page.goto("/");
+  test("should reset settings to defaults", async ({ page }) => {
+    // Navigate to the app
+    await page.goto("/");
 
-     // Click on Paper Trading in the nav
-     await page.click("text=Paper Trading");
+    // Click on Paper Trading in the nav
+    await page.click("text=Paper Trading");
 
-     // Click on Settings tab
-     await page.click('[data-testid="tab-settings"]');
+    // Click on Settings tab
+    await page.click('[data-testid="tab-settings"]');
 
-     // Wait for settings panel to load
-     await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({
-       timeout: 10000,
-     });
+    // Wait for settings panel to load
+    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({
+      timeout: 10000,
+    });
 
-     // Change Max Positions to 3
-     const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
-     await maxPositionsInput.fill("3");
-     await expect(maxPositionsInput).toHaveValue("3");
+    // Change Max Positions to 3
+    const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
+    await maxPositionsInput.fill("3");
+    await expect(maxPositionsInput).toHaveValue("3");
 
-     // Set up dialog handler before clicking reset
-     page.on("dialog", (dialog) => dialog.accept());
+    // Set up dialog handler before clicking reset
+    page.on("dialog", (dialog) => dialog.accept());
 
-     // Click the Reset button
-     const resetButton = page.locator('[data-testid="reset-settings-button"]');
-     await resetButton.click();
+    // Click the Reset button
+    const resetButton = page.locator('[data-testid="reset-settings-button"]');
+    await resetButton.click();
 
-     // Wait for reset to complete
-     await page.waitForTimeout(500);
+    // Wait for reset to complete
+    await page.waitForTimeout(500);
 
-     // Refresh to get the reset values from the mock
-     await page.reload();
+    // Refresh to get the reset values from the mock
+    await page.reload();
 
-     // Navigate back to settings (use specific testid for tab)
-     await page.click("text=Paper Trading");
-     await page.click('[data-testid="tab-settings"]');
+    // Navigate back to settings (use specific testid for tab)
+    await page.click("text=Paper Trading");
+    await page.click('[data-testid="tab-settings"]');
 
-     // Wait for settings panel to load
-     await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
+    // Wait for settings panel to load
+    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
 
-     // Verify Max Positions is back to default (5)
-     const maxPositionsAfterReset = page.locator('[data-testid="config-max-positions"]');
-     await expect(maxPositionsAfterReset).toHaveValue("5");
-   });
+    // Verify Max Positions is back to default (5)
+    const maxPositionsAfterReset = page.locator('[data-testid="config-max-positions"]');
+    await expect(maxPositionsAfterReset).toHaveValue("5");
+  });
 });

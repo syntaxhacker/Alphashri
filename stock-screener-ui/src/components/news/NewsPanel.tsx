@@ -21,7 +21,13 @@ import {
   Tooltip,
   Loader,
 } from "@mantine/core";
-import { IconRefresh, IconArrowLeft, IconExternalLink, IconNews, IconChartLine } from "@tabler/icons-react";
+import {
+  IconRefresh,
+  IconArrowLeft,
+  IconExternalLink,
+  IconNews,
+  IconChartLine,
+} from "@tabler/icons-react";
 import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-types";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
 import { useNewsWebSocket } from "../../state/newsWebSocket";
@@ -80,7 +86,7 @@ function saveReadIds(ids: Set<string>): void {
 
 export default function NewsPanel() {
   const navigate = useNavigate();
-  
+
   // Get WebSocket state from context
   const {
     connected: wsConnected,
@@ -238,7 +244,7 @@ export default function NewsPanel() {
     setArticleContent(null);
   };
 
- const handleSymbolClick = (symbol: NewsSymbol) => {
+  const handleSymbolClick = (symbol: NewsSymbol) => {
     if (symbol.instrument_key && symbol.trading_symbol) {
       navigate(`/chart/${symbol.trading_symbol}`);
     } else if (symbol.url) {
@@ -403,145 +409,145 @@ export default function NewsPanel() {
                       Open Original <IconExternalLink size={12} />
                     </Group>
                   </Anchor>
-                 )}
-               </Stack>
-             </ScrollArea>
-           </Stack>
-         ) : (
-           <Stack gap={0} h="100%">
-             <Paper withBorder p="sm" mb="xs">
-               <Group justify="space-between">
-                 <Group gap="xs">
-                   <Text fw={600}>NEWS</Text>
-                   {wsConnected && (
-                     <Tooltip label="Live updates connected">
-                       <Box w={6} h={6} bg="green" style={{ borderRadius: "50%" }} />
-                     </Tooltip>
-                   )}
-                   {isRefreshing && <Loader size="xs" />}
-                 </Group>
-                 <CloseButton
-                   onClick={handleClose}
-                   className="news-close-btn"
-                   data-testid="news-close-btn"
-                 />
-               </Group>
-             </Paper>
-
-             <Paper withBorder p="sm">
-               <Group gap="xs">
-                 <Select
-                   size="xs"
-                   value={selectedSource}
-                   onChange={(v) => v && setSelectedSource(v)}
-                   data={sourceData}
-                   style={{ flex: 1 }}
-                   className="news-source-select"
-                   data-testid="news-source-select"
-                 />
-
-              <Tooltip label="Refresh">
-                <ActionIcon
-                  variant="light"
-                  size="sm"
-                  onClick={() => loadNews()}
-                  loading={loading}
-                  className="news-refresh-btn"
-                  data-testid="news-refresh-btn"
-                >
-                  <IconRefresh size={14} />
-                </ActionIcon>
-              </Tooltip>
-
-              <Select
-                size="xs"
-                value={autoRefreshMs}
-                onChange={(v) => v && setAutoRefreshMs(v)}
-                data={AUTO_REFRESH_INTERVALS}
-                w={60}
-              />
-
-              {unreadCount > 0 && (
-                <Badge
-                  variant="light"
-                  color="blue"
-                  style={{ cursor: "pointer" }}
-                  onClick={handleMarkAllRead}
-                >
-                  {unreadCount} unread
-                </Badge>
-              )}
-            </Group>
-
-            <ScrollArea flex={1}>
-              {loading && newsItems.length === 0 ? (
-                <Group justify="center" py="xl">
-                  <Loader size="sm" />
-                  <Text c="dimmed">Loading news...</Text>
+                )}
+              </Stack>
+            </ScrollArea>
+          </Stack>
+        ) : (
+          <Stack gap={0} h="100%">
+            <Paper withBorder p="sm" mb="xs">
+              <Group justify="space-between">
+                <Group gap="xs">
+                  <Text fw={600}>NEWS</Text>
+                  {wsConnected && (
+                    <Tooltip label="Live updates connected">
+                      <Box w={6} h={6} bg="green" style={{ borderRadius: "50%" }} />
+                    </Tooltip>
+                  )}
+                  {isRefreshing && <Loader size="xs" />}
                 </Group>
-              ) : error ? (
-                <Text c="red" ta="center" py="xl">
-                  {error}
-                </Text>
-              ) : newsItems.length === 0 ? (
-                <Text c="dimmed" ta="center" py="xl">
-                  No news available
-                </Text>
-              ) : (
-                <Stack gap={0}>
-                  {newsItems.map((item) => {
-                    const isUnread = !readIds.has(item.id);
-                    return (
-                      <Card
-                        key={item.id}
-                        padding="sm"
-                        className={isUnread ? "unread" : undefined}
-                        style={{
-                          cursor: "pointer",
-                          borderLeft: isUnread
-                            ? "3px solid var(--mantine-color-blue-6)"
-                            : undefined,
-                        }}
-                        onClick={() => handleArticleClick(item)}
-                        data-testid="news-item"
-                      >
-                        <Group gap="xs" wrap="nowrap">
-                          {isUnread && (
-                            <Box
-                              w={6}
-                              h={6}
-                              bg="blue"
-                              style={{ borderRadius: "50%", flexShrink: 0 }}
-                            />
-                          )}
-                          <Stack gap={4} flex={1}>
-                            <Text
-                              size="sm"
-                              fw={isUnread ? 600 : 400}
-                              lineClamp={2}
-                              className="news-item-headline"
-                            >
-                              {item.headline}
-                            </Text>
-                            {item.description && (
-                              <Text size="xs" c="dimmed" lineClamp={2} className="news-item-desc">
-                                {truncateText(item.description, 120)}
-                              </Text>
+                <CloseButton
+                  onClick={handleClose}
+                  className="news-close-btn"
+                  data-testid="news-close-btn"
+                />
+              </Group>
+            </Paper>
+
+            <Paper withBorder p="sm">
+              <Group gap="xs">
+                <Select
+                  size="xs"
+                  value={selectedSource}
+                  onChange={(v) => v && setSelectedSource(v)}
+                  data={sourceData}
+                  style={{ flex: 1 }}
+                  className="news-source-select"
+                  data-testid="news-source-select"
+                />
+
+                <Tooltip label="Refresh">
+                  <ActionIcon
+                    variant="light"
+                    size="sm"
+                    onClick={() => loadNews()}
+                    loading={loading}
+                    className="news-refresh-btn"
+                    data-testid="news-refresh-btn"
+                  >
+                    <IconRefresh size={14} />
+                  </ActionIcon>
+                </Tooltip>
+
+                <Select
+                  size="xs"
+                  value={autoRefreshMs}
+                  onChange={(v) => v && setAutoRefreshMs(v)}
+                  data={AUTO_REFRESH_INTERVALS}
+                  w={60}
+                />
+
+                {unreadCount > 0 && (
+                  <Badge
+                    variant="light"
+                    color="blue"
+                    style={{ cursor: "pointer" }}
+                    onClick={handleMarkAllRead}
+                  >
+                    {unreadCount} unread
+                  </Badge>
+                )}
+              </Group>
+
+              <ScrollArea flex={1}>
+                {loading && newsItems.length === 0 ? (
+                  <Group justify="center" py="xl">
+                    <Loader size="sm" />
+                    <Text c="dimmed">Loading news...</Text>
+                  </Group>
+                ) : error ? (
+                  <Text c="red" ta="center" py="xl">
+                    {error}
+                  </Text>
+                ) : newsItems.length === 0 ? (
+                  <Text c="dimmed" ta="center" py="xl">
+                    No news available
+                  </Text>
+                ) : (
+                  <Stack gap={0}>
+                    {newsItems.map((item) => {
+                      const isUnread = !readIds.has(item.id);
+                      return (
+                        <Card
+                          key={item.id}
+                          padding="sm"
+                          className={isUnread ? "unread" : undefined}
+                          style={{
+                            cursor: "pointer",
+                            borderLeft: isUnread
+                              ? "3px solid var(--mantine-color-blue-6)"
+                              : undefined,
+                          }}
+                          onClick={() => handleArticleClick(item)}
+                          data-testid="news-item"
+                        >
+                          <Group gap="xs" wrap="nowrap">
+                            {isUnread && (
+                              <Box
+                                w={6}
+                                h={6}
+                                bg="blue"
+                                style={{ borderRadius: "50%", flexShrink: 0 }}
+                              />
                             )}
-                            <Text size="xs" c="dimmed" className="news-item-meta">
-                              {item.source}
-                            </Text>
-                          </Stack>
-                        </Group>
-                      </Card>
-                    );
-                  })}
-                </Stack>
-               )}
-             </ScrollArea>
-           </Paper>
-           </Stack>
-         )}
+                            <Stack gap={4} flex={1}>
+                              <Text
+                                size="sm"
+                                fw={isUnread ? 600 : 400}
+                                lineClamp={2}
+                                className="news-item-headline"
+                              >
+                                {item.headline}
+                              </Text>
+                              {item.description && (
+                                <Text size="xs" c="dimmed" lineClamp={2} className="news-item-desc">
+                                  {truncateText(item.description, 120)}
+                                </Text>
+                              )}
+                              <Text size="xs" c="dimmed" className="news-item-meta">
+                                {item.source}
+                              </Text>
+                            </Stack>
+                          </Group>
+                        </Card>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </ScrollArea>
+            </Paper>
+          </Stack>
+        )}
       </Box>
     </>
   );

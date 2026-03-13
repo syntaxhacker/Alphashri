@@ -1,4 +1,4 @@
-import { Stack, Alert, Box, Button } from "@mantine/core";
+import { Stack, Alert, Box, Button, Title, Text } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useMemo } from "react";
 import { ScreenerNav } from "./ScreenerNav";
@@ -48,13 +48,30 @@ interface ScreenerPageProps {
   onFilterChange: (key: string, value: any) => void;
   onResetFilters: () => void;
 
-  stocks: Stock[];
-  touchedSymbols: Set<string>;
+  approachingStocks: Stock[];
+  touchedStocks: Stock[];
 
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
 
   error?: string | null;
+}
+
+function sortStocks(
+  stocks: Stock[],
+  sortColumn: string | null,
+  sortDirection: "asc" | "desc",
+): Stock[] {
+  if (!sortColumn) return stocks;
+  return [...stocks].sort((a, b) => {
+    const aVal = a[sortColumn];
+    const bVal = b[sortColumn];
+    if (aVal === bVal) return 0;
+    if (aVal === null || aVal === undefined) return 1;
+    if (bVal === null || bVal === undefined) return -1;
+    const comparison = aVal < bVal ? -1 : 1;
+    return sortDirection === "asc" ? comparison : -comparison;
+  });
 }
 
 export function ScreenerPage({
@@ -76,8 +93,8 @@ export function ScreenerPage({
   profileFilters,
   onFilterChange,
   onResetFilters,
-  stocks,
-  touchedSymbols,
+  approachingStocks,
+  touchedStocks,
   onSymbolClick,
   onSymbolHover,
   error,
@@ -85,21 +102,15 @@ export function ScreenerPage({
   const [sortColumn, setSortColumn] = useState<string | null>("score");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
-  const sortedStocks = useMemo(() => {
-    if (!sortColumn) return stocks;
+  const sortedApproaching = useMemo(
+    () => sortStocks(approachingStocks, sortColumn, sortDirection),
+    [approachingStocks, sortColumn, sortDirection],
+  );
 
-    return [...stocks].sort((a, b) => {
-      const aVal = a[sortColumn];
-      const bVal = b[sortColumn];
-
-      if (aVal === bVal) return 0;
-      if (aVal === null || aVal === undefined) return 1;
-      if (bVal === null || bVal === undefined) return -1;
-
-      const comparison = aVal < bVal ? -1 : 1;
-      return sortDirection === "asc" ? comparison : -comparison;
-    });
-  }, [stocks, sortColumn, sortDirection]);
+  const sortedTouched = useMemo(
+    () => sortStocks(touchedStocks, sortColumn, sortDirection),
+    [touchedStocks, sortColumn, sortDirection],
+  );
 
   const handleSortChange = (column: string) => {
     if (sortColumn === column) {
@@ -111,6 +122,8 @@ export function ScreenerPage({
   };
 
   const columns = getColumnsForScreener(activeScreener);
+  const emptySet = new Set<string>();
+  const totalStocks = approachingStocks.length + touchedStocks.length;
 
   const renderContent = () => {
     if (isLoading) {
@@ -136,22 +149,60 @@ export function ScreenerPage({
       );
     }
 
-    if (sortedStocks.length === 0) {
+    if (totalStocks === 0) {
       return <ScreenerEmpty />;
     }
 
     return (
-      <ScreenerTable
-        stocks={sortedStocks}
-        columns={columns}
-        touchedSymbols={touchedSymbols}
-        sortColumn={sortColumn}
-        sortDirection={sortDirection}
-        onSortChange={handleSortChange}
-        onSymbolClick={onSymbolClick}
-        onSymbolHover={onSymbolHover}
-        screenerType={activeScreener}
-      />
+      <Stack gap="xl" style={{ height: "100%", overflow: "auto" }}>
+        {sortedApproaching.length > 0 && (
+          <Box>
+            <Stack gap="xs" mb="sm">
+              <Title order={5} c="blue">
+                ⏳ Approaching ({sortedApproaching.length})
+              </Title>
+              <Text size="xs" c="dimmed">
+                Stocks nearing but have not yet touched the 52W high
+              </Text>
+            </Stack>
+            <ScreenerTable
+              stocks={sortedApproaching}
+              columns={columns}
+              touchedSymbols={emptySet}
+              sortColumn={sortColumn}
+              sortDirection={sortDirection}
+              onSortChange={handleSortChange}
+              onSymbolClick={onSymbolClick}
+              onSymbolHover={onSymbolHover}
+              screenerType={activeScreener}
+            />
+          </Box>
+        )}
+
+        {sortedTouched.length > 0 && (
+          <Box>
+            <Stack gap="xs" mb="sm">
+              <Title order={5} c="green">
+                ✅ Touched ({sortedTouched.length})
+              </Title>
+              <Text size="xs" c="dimmed">
+                Stocks that have touched or broken out of the 52W high
+              </Text>
+            </Stack>
+            <ScreenerTable
+              stocks={sortedTouched}
+              columns={columns}
+              touchedSymbols={new Set(sortedTouched.map((s) => s.symbol))}
+              sortColumn={sortColumn}
+              sortDirection={sortDirection}
+              onSortChange={handleSortChange}
+              onSymbolClick={onSymbolClick}
+              onSymbolHover={onSymbolHover}
+              screenerType={activeScreener}
+            />
+          </Box>
+        )}
+      </Stack>
     );
   };
 
