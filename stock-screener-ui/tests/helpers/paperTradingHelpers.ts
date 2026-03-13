@@ -54,8 +54,16 @@ export async function navigateToPaperTradingWithBot(
     await segmentedControl.getByText(botName, { exact: false }).first().click();
   }
 
-  // Wait for the bot to be selected and data to load
-  await page.waitForTimeout(1000);
+  // Wait for positions to load
+  await page.waitForFunction(
+    () => {
+      const loadingText = document.body.textContent;
+      return !loadingText?.includes("Loading positions...");
+    },
+    { timeout: 15000 },
+  );
+
+  await page.waitForTimeout(300);
 }
 
 /**

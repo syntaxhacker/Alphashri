@@ -16,6 +16,8 @@ import type {
   BotInfo,
 } from "../types/paperTrading";
 
+import { deleteTrade } from "../api/paperTrading";
+
 // Initial state
 export const initialPaperTradingState: PaperTradingState = {
   currentView: "live",
@@ -296,7 +298,6 @@ export function setFilterBot(botId: string | null) {
 // Trade deletion action
 export async function deleteTradeAction(tradeId: string): Promise<boolean> {
   try {
-    const { deleteTrade } = await import("../api/paperTrading");
     await deleteTrade(tradeId);
     // Remove from local state
     state = {

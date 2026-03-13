@@ -10,8 +10,17 @@ const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(file
 
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
-  plugins: [react()],
-   server: {
+  plugins: [
+    react(),
+  ],
+  css: {
+    transformer: 'postcss'
+  },
+  build: {
+    cssMinify: 'esbuild',
+    chunkSizeWarningLimit: 2000
+  },
+  server: {
      proxy: {
        '/api': {
          target: process.env.VITE_API_BASE_URL || 'http://127.0.0.1:8765',

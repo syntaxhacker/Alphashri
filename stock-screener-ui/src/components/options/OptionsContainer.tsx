@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useOptionsState } from "../../hooks/useOptionsState";
-import OptionsPage from "./OptionsPage";
+import { OptionsPage } from "./OptionsPage";
 
 export function OptionsContainer() {
   const options = useOptionsState();

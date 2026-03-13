@@ -75,5 +75,3 @@ export function OptionsPage({
     </Box>
   );
 }
-
-export default OptionsPage;
