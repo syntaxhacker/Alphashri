@@ -188,9 +188,9 @@ export function PaperTradingView() {
 
   const renderLiveView = () => {
     return (
-      <Grid h="100%" gutter="md">
+      <Grid h="100%" gutter="md" className="paper-live-view" id="live-view-grid">
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Stack gap="xs" h="100%" data-testid="paper-left-panel">
+          <Stack gap="xs" h="100%" className="paper-left-panel" id="left-panel" data-testid="paper-left-panel">
             <PaperPortfolioCard
               portfolio={state.portfolio as any}
               isMultiStrategy={state.availableBots.length > 0}
@@ -202,7 +202,7 @@ export function PaperTradingView() {
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Box h="100%" style={{ overflow: "hidden" }} data-testid="paper-right-panel">
+          <Box h="100%" className="paper-right-panel" id="right-panel" style={{ overflow: "hidden" }} data-testid="paper-right-panel">
             <PaperChart />
           </Box>
         </Grid.Col>
@@ -213,6 +213,8 @@ export function PaperTradingView() {
   const renderHistoryView = () => {
     return (
       <Box
+        className="paper-history-view"
+        id="history-view"
         style={{ display: "flex", gap: "var(--mantine-spacing-md)", height: "100%" }}
         data-testid="paper-history-panel"
       >
@@ -244,7 +246,7 @@ export function PaperTradingView() {
 
   const renderSettingsView = () => {
     return (
-      <Box h="100%" data-testid="paper-settings-panel">
+      <Box h="100%" className="paper-settings-view" id="settings-view" data-testid="paper-settings-panel">
         <PaperSettings />
       </Box>
     );
@@ -259,7 +261,7 @@ export function PaperTradingView() {
               Bot:
             </Text>
             <SegmentedControl
-              size="xs"
+              size="sm"
               value={activeBotId || "default"}
               onChange={handleBotSelect}
               data={[
@@ -363,6 +365,8 @@ export function PaperTradingView() {
   return (
     <Box
       h="100%"
+      className="paper-trading-view"
+      id="paper-trading-main"
       style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
       data-testid="paper-trading-view"
     >
@@ -380,12 +384,14 @@ export function PaperTradingView() {
         </Alert>
       )}
 
-      <Box flex="0 0 auto" mb="md">
+      <Box flex="0 0 auto" mb="md" className="paper-trading-header" id="paper-header">
         <Stack gap="sm">
           <Group justify="space-between" align="center">
             <Tabs
               value={state.currentView}
               onChange={handleViewChange}
+              className="paper-trading-tabs"
+              id="paper-tabs"
               data-testid="paper-trading-tabs"
             >
               <Tabs.List>
@@ -396,7 +402,7 @@ export function PaperTradingView() {
                 >
                   Live Positions
                   {state.positions.length > 0 && (
-                    <Text span ml={4} size="xs" c="blue">
+                    <Text span ml={4} size="sm" c="blue">
                       ({state.positions.length})
                     </Text>
                   )}
@@ -408,7 +414,7 @@ export function PaperTradingView() {
                 >
                   Trade History
                   {state.trades.length > 0 && (
-                    <Text span ml={4} size="xs" c="blue">
+                    <Text span ml={4} size="sm" c="blue">
                       ({state.trades.length})
                     </Text>
                   )}
@@ -428,7 +434,7 @@ export function PaperTradingView() {
         </Stack>
       </Box>
 
-      <Box flex={1} style={{ minHeight: 0 }}>
+      <Box flex={1} style={{ minHeight: 0 }} className="paper-content-area" id="paper-content">
         {state.currentView === "live" && renderLiveView()}
         {state.currentView === "history" && renderHistoryView()}
         {state.currentView === "settings" && renderSettingsView()}

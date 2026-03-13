@@ -19,14 +19,16 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
       value={activeScreener}
       onChange={onChange}
       data-testid="screener-nav"
+      id="screener-nav"
+      className="screener-nav"
       data={options.map((option) => ({
         value: option.id,
         label: option.description ? (
           <Tooltip label={option.description} withArrow>
-            <span>{option.label}</span>
+            <span data-testid={`screener-nav-option-${option.id}`}>{option.label}</span>
           </Tooltip>
         ) : (
-          option.label
+          <span data-testid={`screener-nav-option-${option.id}`}>{option.label}</span>
         ),
       }))}
     />

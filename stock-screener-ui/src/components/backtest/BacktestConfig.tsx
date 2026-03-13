@@ -47,7 +47,7 @@ function renderParamInput(param: StrategyParam, value: any, onChange: (value: an
         value={value ?? param.default}
         onChange={(v) => v && onChange(v)}
         data={(param.options || []).map((opt) => ({ value: opt, label: opt }))}
-        size="xs"
+        size="sm"
         w={80}
       />
     );
@@ -59,7 +59,7 @@ function renderParamInput(param: StrategyParam, value: any, onChange: (value: an
         data-testid={testId}
         checked={value ?? param.default}
         onChange={(e) => onChange(e.currentTarget.checked)}
-        size="xs"
+        size="sm"
       />
     );
   }
@@ -72,7 +72,7 @@ function renderParamInput(param: StrategyParam, value: any, onChange: (value: an
       min={param.min}
       max={param.max}
       step={param.step ?? 1}
-      size="xs"
+      size="sm"
       w={70}
     />
   );
@@ -145,16 +145,18 @@ export function BacktestConfig({
   ];
 
   return (
-    <Paper p="sm" radius="sm" withBorder data-testid="strategy-config">
+    <Paper id="config-form" className="backtest-config" p="sm" radius="sm" withBorder data-testid="strategy-config">
       <Stack gap="xs">
-        <Group gap="xs" align="center">
+        <Group gap="xs" align="center" className="config-controls-row">
           <Select
+            id="variation-select"
+            className="config-variation-select"
             data-testid="variation-select"
             placeholder="Select Strategy or Template"
             value={selectedVariation}
             onChange={(v) => onVariationChange(v)}
             data={selectData}
-            size="xs"
+            size="sm"
             w={250}
             clearable
             searchable
@@ -162,7 +164,7 @@ export function BacktestConfig({
 
           {strategy?.params.map((param) => (
             <Group key={param.key} gap={4} align="center">
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 {param.label}
               </Text>
               {renderParamInput(param, params[param.key], (value) =>
@@ -178,10 +180,10 @@ export function BacktestConfig({
             min={30}
             max={365}
             step={30}
-            size="xs"
+            size="sm"
             w={65}
             leftSection={
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 D
               </Text>
             }
@@ -192,7 +194,7 @@ export function BacktestConfig({
             label="Costs"
             checked={includeCosts}
             onChange={(e) => onIncludeCostsChange(e.currentTarget.checked)}
-            size="xs"
+            size="sm"
           />
 
           <Checkbox
@@ -200,16 +202,16 @@ export function BacktestConfig({
             label="Save"
             checked={saveToHistory}
             onChange={(e) => onSaveToHistoryChange(e.currentTarget.checked)}
-            size="xs"
+            size="sm"
           />
 
-          <Button variant="light" size="xs" onClick={onReset} data-testid="reset-btn" color="gray">
+          <Button variant="light" size="sm" onClick={onReset} data-testid="reset-btn" color="gray">
             Reset
           </Button>
 
           <Button
             variant="filled"
-            size="xs"
+            size="sm"
             onClick={onRun}
             disabled={isRunning || selectedSymbols.length === 0}
             loading={isRunning}
@@ -220,8 +222,10 @@ export function BacktestConfig({
           </Button>
         </Group>
 
-        <Group gap={4} align="center">
+        <Group gap={4} align="center" className="config-symbols-row">
           <MultiSelect
+            id="symbol-multiselect"
+            className="config-symbol-multiselect"
             data={symbolOptions}
             value={selectedSymbols}
             onChange={onSymbolsChange}
@@ -230,14 +234,14 @@ export function BacktestConfig({
             onSearchChange={setSymbolSearch}
             clearable
             hidePickedOptions
-            size="xs"
+            size="sm"
             w={300}
             nothingFoundMessage="No symbols found"
             maxDropdownHeight={200}
             data-testid="symbol-multiselect"
           />
           {selectedSymbols.length === 0 && (
-            <Text size="xs" c="orange">
+            <Text size="sm" c="orange">
               Add at least 1 symbol
             </Text>
           )}

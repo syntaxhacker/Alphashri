@@ -138,7 +138,7 @@ export function SectorPage() {
       return (
         <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red">
           {error}
-          <Button variant="light" color="red" size="xs" mt="md" onClick={() => loadData(market)}>
+          <Button variant="light" color="red" size="sm" mt="md" onClick={() => loadData(market)}>
             Retry
           </Button>
         </Alert>
@@ -160,8 +160,8 @@ export function SectorPage() {
       <Stack gap="md" h="100%">
         {/* Summary Cards */}
         <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-          <Card withBorder padding="sm" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+          <Card withBorder padding="sm" radius="md" id="sector-top-card" data-testid="sector-top-card">
+            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Top Sector
             </Text>
             <Text size="lg" fw={700} c="green">
@@ -172,8 +172,8 @@ export function SectorPage() {
             </Text>
           </Card>
 
-          <Card withBorder padding="sm" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+          <Card withBorder padding="sm" radius="md" id="sector-breadth-card" data-testid="sector-breadth-card">
+            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Market Breadth
             </Text>
             <Group gap="xs" mt={4}>
@@ -186,8 +186,8 @@ export function SectorPage() {
             </Group>
           </Card>
 
-          <Card withBorder padding="sm" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+          <Card withBorder padding="sm" radius="md" id="sector-weakest-card" data-testid="sector-weakest-card">
+            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Weakest Sector
             </Text>
             <Text size="lg" fw={700} c="red">
@@ -201,13 +201,13 @@ export function SectorPage() {
 
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" style={{ flex: 1, minHeight: 0 }}>
           {/* Sector Table */}
-          <Box style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <Box style={{ overflow: "hidden", display: "flex", flexDirection: "column" }} id="sector-table-container" data-testid="sector-table-container">
             <Group justify="space-between" mb="xs">
               <Title order={4}>📊 Sector Performance</Title>
               {data.last_updated && (
                 <Group gap={4}>
                   <IconClock size={12} color="gray" />
-                  <Text size="xs" c="dimmed">
+                  <Text size="sm" c="dimmed">
                     {new Date(data.last_updated).toLocaleTimeString()}
                   </Text>
                 </Group>
@@ -224,6 +224,8 @@ export function SectorPage() {
               withBorder
               padding="sm"
               radius="md"
+              id="sector-alerts-card"
+              data-testid="sector-alerts-card"
               style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
             >
               <Group justify="space-between" mb="xs">
@@ -249,10 +251,10 @@ export function SectorPage() {
                         }
                       >
                         <Group justify="space-between">
-                          <Text size="xs" fw={700}>
+                          <Text size="sm" fw={700}>
                             [{alert.timestamp}] {alert.sector}
                           </Text>
-                          <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="xs">
+                          <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="sm">
                             {alert.direction} ({alert.delta > 0 ? "+" : ""}
                             {alert.delta.toFixed(2)}%)
                           </Badge>
@@ -268,6 +270,8 @@ export function SectorPage() {
               withBorder
               padding="sm"
               radius="md"
+              id="sector-interval-movers-card"
+              data-testid="sector-interval-movers-card"
               style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
             >
               <Group justify="space-between" mb="xs">
@@ -280,7 +284,7 @@ export function SectorPage() {
                     Collecting baseline for interval moves...
                   </Text>
                 ) : (
-                  <Table striped highlightOnHover size="xs">
+                  <Table striped highlightOnHover size="sm">
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>Stock</Table.Th>
@@ -317,6 +321,8 @@ export function SectorPage() {
   return (
     <Box
       h="100%"
+      id="sector-page"
+      className="sector-page"
       style={{ display: "flex", flexDirection: "column" }}
       data-testid="sector-analysis-view"
     >
@@ -334,24 +340,26 @@ export function SectorPage() {
               </Text>
             </div>
             <Group gap="xs">
-              <SegmentedControl
-                value={market}
-                onChange={(v) => setMarket(v as any)}
-                data={[
-                  { label: "India", value: "india" },
-                  { label: "US", value: "america" },
-                ]}
-                size="xs"
-              />
-              <Button
-                variant="light"
-                size="xs"
-                leftSection={<IconRefresh size={14} />}
-                onClick={() => loadData(market)}
-                loading={loading}
-              >
-                Refresh
-              </Button>
+               <SegmentedControl
+                 value={market}
+                 onChange={(v) => setMarket(v as any)}
+                 data={[
+                   { label: "India", value: "india" },
+                   { label: "US", value: "america" },
+                 ]}
+                 size="sm"
+                 data-testid="sector-market-selector"
+               />
+               <Button
+                 variant="light"
+                 size="sm"
+                 leftSection={<IconRefresh size={14} />}
+                 onClick={() => loadData(market)}
+                 loading={loading}
+                 data-testid="sector-refresh-btn"
+               >
+                 Refresh
+               </Button>
             </Group>
           </Group>
 

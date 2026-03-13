@@ -16,33 +16,33 @@ export function BacktestSummary({ totals }: BacktestSummaryProps) {
   const pnlSign = netPnl >= 0 ? "+" : "";
 
   return (
-    <Group gap="sm" data-testid="results-summary">
-      <Group gap={4} data-testid="summary-net-pnl">
-        <Text size="xs" c="dimmed">
+    <Group id="backtest-summary" className="backtest-summary" gap="sm" data-testid="results-summary">
+      <Group gap={4} className="summary-item summary-net-pnl" data-testid="summary-net-pnl">
+        <Text size="sm" c="dimmed">
           Net PnL
         </Text>
         <Text size="sm" fw={600} c={pnlColor}>
           {pnlSign}₹{(netPnl / 1000).toFixed(1)}K
         </Text>
       </Group>
-      <Group gap={4} data-testid="summary-costs">
-        <Text size="xs" c="dimmed">
+      <Group gap={4} className="summary-item summary-costs" data-testid="summary-costs">
+        <Text size="sm" c="dimmed">
           Costs
         </Text>
         <Text size="sm" fw={600} c="red">
           ₹{(totalCosts / 1000).toFixed(1)}K
         </Text>
       </Group>
-      <Group gap={4} data-testid="summary-wr">
-        <Text size="xs" c="dimmed">
+      <Group gap={4} className="summary-item summary-wr" data-testid="summary-wr">
+        <Text size="sm" c="dimmed">
           WR
         </Text>
         <Text size="sm" fw={600}>
           {winRate.toFixed(0)}%
         </Text>
       </Group>
-      <Group gap={4} data-testid="summary-trades">
-        <Text size="xs" c="dimmed">
+      <Group gap={4} className="summary-item summary-trades" data-testid="summary-trades">
+        <Text size="sm" c="dimmed">
           Trades
         </Text>
         <Text size="sm" fw={600}>

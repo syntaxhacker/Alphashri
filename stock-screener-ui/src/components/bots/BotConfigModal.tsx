@@ -144,11 +144,12 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       title={isEdit ? "Edit Bot" : "Create New Bot"}
       size="lg"
       data-testid="bot-config-modal"
+      id="bot-config-modal"
     >
       <form onSubmit={handleSubmit} data-testid="bot-config-form">
         <Stack gap="md">
-          {/* Basic Info */}
-          <div>
+           {/* Basic Info */}
+          <div className="bot-config-section" data-testid="bot-config-basic-info">
             <Text fw={600} mb="xs">
               Basic Information
             </Text>
@@ -173,8 +174,8 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
 
           <Divider />
 
-          {/* Global Limits */}
-          <div>
+           {/* Global Limits */}
+          <div className="bot-config-section" data-testid="bot-config-global-limits">
             <Text fw={600} mb="xs">
               Global Limits
             </Text>
@@ -201,8 +202,8 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
 
           <Divider />
 
-          {/* Strategy Allocations */}
-          <div>
+           {/* Strategy Allocations */}
+          <div className="bot-config-section" data-testid="bot-config-strategies">
             <Text fw={600} mb="xs">
               Strategy Allocations
             </Text>

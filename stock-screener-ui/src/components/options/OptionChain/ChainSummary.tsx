@@ -58,17 +58,29 @@ export function ChainSummary({
   };
 
   return (
-    <Group grow gap="md" data-testid="chain-summary">
-      <Paper p="sm" radius="md" style={paperStyle}>
+    <Group
+      id="chain-summary"
+      className="chain-summary"
+      grow
+      gap="md"
+      data-testid="chain-summary"
+    >
+      <Paper
+        p="sm"
+        radius="md"
+        style={paperStyle}
+        className="chain-summary-card chain-summary-pcr"
+        data-testid="options-chain-summary-pcr"
+      >
         <Group justify="space-between" wrap="nowrap">
           <Stack gap={0}>
-            <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
+            <Text size="sm" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
               PCR (Sentiment)
             </Text>
             <Text size="xl" fw={800} c={pcrColor}>
               {stats.pcr.toFixed(2)}
             </Text>
-            <Text size="xs" c={pcrColor} fw={500}>
+            <Text size="sm" c={pcrColor} fw={500}>
               {stats.pcr > 1 ? "Bullish Bias" : "Bearish Bias"}
             </Text>
           </Stack>
@@ -90,9 +102,15 @@ export function ChainSummary({
         </Group>
       </Paper>
 
-      <Paper p="sm" radius="md" style={paperStyle}>
+      <Paper
+        p="sm"
+        radius="md"
+        style={paperStyle}
+        className="chain-summary-card chain-summary-range"
+        data-testid="options-chain-summary-range"
+      >
         <Stack gap={0}>
-          <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
+          <Text size="sm" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
             Market Range (Expected)
           </Text>
           {stats.expectedMove ? (
@@ -100,7 +118,7 @@ export function ChainSummary({
               <Text size="md" fw={800} c="blue.6">
                 {stats.expectedMove.lower} - {stats.expectedMove.upper}
               </Text>
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 +/- {stats.expectedMove.range} points expected
               </Text>
             </Stack>
@@ -110,26 +128,32 @@ export function ChainSummary({
             </Text>
           )}
           <Divider my={4} />
-          <Group gap="xs">
-            <Text size="10px" fw={700} c="red.6">
+          <Group gap="xs" className="chain-support-resistance" data-testid="options-chain-support-resistance">
+            <Text size="sm" fw={700} c="red.6">
               RES: {stats.resistanceStrike}
             </Text>
-            <Text size="10px" fw={700} c="green.6">
+            <Text size="sm" fw={700} c="green.6">
               SUP: {stats.supportStrike}
             </Text>
           </Group>
         </Stack>
       </Paper>
 
-      <Paper p="sm" radius="md" style={paperStyle}>
+      <Paper
+        p="sm"
+        radius="md"
+        style={paperStyle}
+        className="chain-summary-card chain-summary-max-pain"
+        data-testid="options-chain-summary-max-pain"
+      >
         <Stack gap={0}>
-          <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
+          <Text size="sm" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
             Max Pain
           </Text>
           <Text size="xl" fw={800} c="orange.6">
             {stats.maxPain}
           </Text>
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Institutional target
           </Text>
         </Stack>

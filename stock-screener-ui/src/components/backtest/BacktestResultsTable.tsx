@@ -123,7 +123,7 @@ export function BacktestResultsTable({
 
   if (!results || results.length === 0) {
     return (
-      <div data-testid="results-empty">
+      <div className="results-empty" data-testid="results-empty">
         <Text c="dimmed" ta="center" py="md">
           No results yet. Run a backtest.
         </Text>
@@ -132,8 +132,8 @@ export function BacktestResultsTable({
   }
 
   return (
-    <div data-testid="results-table-wrapper">
-      <Table striped highlightOnHover withTableBorder stickyHeader>
+    <div id="results-table" className="backtest-results-table" data-testid="results-table-wrapper">
+      <Table striped highlightOnHover withTableBorder stickyHeader className="results-table">
         <Table.Thead>
           <Table.Tr>{columns.map(renderHeader)}</Table.Tr>
         </Table.Thead>

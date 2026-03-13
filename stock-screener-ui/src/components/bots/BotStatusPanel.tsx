@@ -72,13 +72,13 @@ function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
         <Grid.Col span={6}>
           <Stack gap="xs">
             <div>
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 Capital
               </Text>
               <Text fw={600}>₹{formatNumber(portfolio.initial_capital)}</Text>
             </div>
             <div>
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 Cash
               </Text>
               <Text fw={600}>₹{formatNumber(portfolio.cash)}</Text>
@@ -88,18 +88,18 @@ function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
         <Grid.Col span={6}>
           <Stack gap="xs">
             <div>
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 Positions
               </Text>
               <Text fw={600}>{portfolio.total_positions}</Text>
             </div>
             <div>
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 Total P&L
               </Text>
               <Text fw={600} c={pnlColor}>
                 {portfolio.total_pnl >= 0 ? "+" : ""}₹{formatNumber(portfolio.total_pnl)}
-                <Text span size="xs" ml={4}>
+                <Text span size="sm" ml={4}>
                   ({portfolio.total_pnl_pct >= 0 ? "+" : ""}
                   {portfolio.total_pnl_pct.toFixed(2)}%)
                 </Text>
@@ -135,20 +135,20 @@ function StrategyStatusCard({
 
       <Stack gap="xs">
         <Group justify="space-between">
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Positions
           </Text>
-          <Text size="xs">
+          <Text size="sm">
             {strategy.positions_count}/{strategy.max_positions}
           </Text>
         </Group>
 
         <div>
           <Group justify="space-between" mb={4}>
-            <Text size="xs" c="dimmed">
+            <Text size="sm" c="dimmed">
               Capital Used
             </Text>
-            <Text size="xs">
+            <Text size="sm">
               ₹{formatNumber(strategy.capital_used)} / ₹{formatNumber(strategy.allocated_capital)} (
               {usedPct.toFixed(0)}%)
             </Text>
@@ -157,19 +157,19 @@ function StrategyStatusCard({
         </div>
 
         <Group justify="space-between">
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             P&L
           </Text>
-          <Text size="xs" fw={600} c={pnlColor}>
+          <Text size="sm" fw={600} c={pnlColor}>
             {strategy.total_pnl >= 0 ? "+" : ""}₹{formatNumber(strategy.total_pnl)}
           </Text>
         </Group>
 
         <Group justify="space-between">
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Trades
           </Text>
-          <Text size="xs">{strategy.trades_count}</Text>
+          <Text size="sm">{strategy.trades_count}</Text>
         </Group>
       </Stack>
     </Card>
@@ -217,14 +217,14 @@ function PositionsTable({ positions }: { positions: BotPosition[] }) {
                 <Table.Td>
                   <Text c={pnlColor} fw={600}>
                     {p.unrealized_pnl >= 0 ? "+" : ""}₹{formatNumber(p.unrealized_pnl)}
-                    <Text span size="xs" ml={4}>
+                    <Text span size="sm" ml={4}>
                       ({p.unrealized_pnl_pct >= 0 ? "+" : ""}
                       {p.unrealized_pnl_pct.toFixed(2)}%)
                     </Text>
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="xs" c="dimmed">
+                  <Text size="sm" c="dimmed">
                     SL: ₹{p.stop_loss.toFixed(2)}
                     <br />
                     TP: ₹{p.take_profit.toFixed(2)}
@@ -312,7 +312,7 @@ function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () 
                   <Table.Td>
                     <Text c={pnlColor} fw={600}>
                       {t.pnl >= 0 ? "+" : ""}₹{formatNumber(t.pnl)}
-                      <Text span size="xs" ml={4}>
+                      <Text span size="sm" ml={4}>
                         ({t.pnl_pct >= 0 ? "+" : ""}
                         {t.pnl_pct.toFixed(2)}%)
                       </Text>
@@ -371,16 +371,16 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
   };
 
   return (
-    <Box data-testid="bot-status-panel" data-bot-id={bot.id}>
+    <Box data-testid="bot-status-panel" data-bot-id={bot.id} id="bot-status-panel" className="bot-status-panel">
       <Stack gap="md">
         {/* Bot Header */}
-        <Card shadow="sm" padding="md" radius="md" withBorder>
+        <Card shadow="sm" padding="md" radius="md" withBorder id="bot-header-card" data-testid="bot-header-card">
           <Group justify="space-between">
             <div>
-              <Text fw={700} size="lg">
+              <Text fw={700} size="lg" data-testid="bot-name">
                 {bot.name}
               </Text>
-              <Badge color={status?.running ? "green" : "gray"} variant="light" mt={4}>
+              <Badge color={status?.running ? "green" : "gray"} variant="light" mt={4} data-testid="bot-running-badge">
                 {status?.running ? `● Running (PID ${status.pid})` : "○ Stopped"}
               </Badge>
             </div>
@@ -422,7 +422,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
         {status?.portfolio ? (
           <PortfolioSummaryCard portfolio={status.portfolio} />
         ) : (
-          <Card shadow="sm" padding="md" radius="md" withBorder>
+          <Card shadow="sm" padding="md" radius="md" withBorder id="portfolio-placeholder" data-testid="portfolio-placeholder">
             <Text c="dimmed" ta="center">
               Start the bot to see live portfolio data
             </Text>
@@ -455,7 +455,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
 
         {/* Last Update */}
         {status?.last_update && (
-          <Text size="xs" c="dimmed" ta="center">
+          <Text size="sm" c="dimmed" ta="center" data-testid="bot-last-update">
             Last update: {new Date(status.last_update).toLocaleTimeString()}
           </Text>
         )}

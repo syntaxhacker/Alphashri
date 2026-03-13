@@ -225,7 +225,7 @@ export function BacktestPage() {
           </Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="results" flex={1} style={{ minHeight: 0, overflow: "hidden" }}>
+        <Tabs.Panel value="results" className="backtest-results-panel" flex={1} style={{ minHeight: 0, overflow: "hidden" }}>
           {state.isRunning ? (
             <BacktestProgress
               progress={{
@@ -248,7 +248,7 @@ export function BacktestPage() {
               No results yet. Run a backtest.
             </Box>
           ) : (
-            <Flex direction="column" gap="xs" h="100%" style={{ minHeight: 0 }}>
+            <Flex direction="column" gap="xs" h="100%" className="backtest-results-content" style={{ minHeight: 0 }}>
               <Box style={{ flex: "0 0 auto" }}>
                 <BacktestSummary totals={state.totals} />
               </Box>
@@ -268,6 +268,7 @@ export function BacktestPage() {
 
         <Tabs.Panel
           value="history"
+          className="backtest-history-panel"
           flex={1}
           style={{ minHeight: 0, overflow: "auto", paddingTop: "var(--mantine-spacing-md)" }}
         >
@@ -335,6 +336,8 @@ export function BacktestPage() {
 
   return (
     <Box
+      id="backtest-main"
+      className="backtest-page"
       h="100%"
       style={{
         display: "flex",
@@ -360,7 +363,7 @@ export function BacktestPage() {
         </Alert>
       )}
 
-      <Box flex="0 0 auto" mb="md">
+      <Box id="backtest-config-section" className="backtest-config-section" flex="0 0 auto" mb="md">
         <BacktestConfig
           strategies={state.strategies}
           variations={state.variations}
@@ -384,9 +387,9 @@ export function BacktestPage() {
         />
       </Box>
 
-      <Flex flex={1} gap="md" style={{ minHeight: 0 }}>
-        <Box style={{ flex: "0 0 33.333%", minHeight: 0 }}>{renderLeftPanel()}</Box>
-        <Box style={{ flex: "1 1 66.666%", minHeight: 0 }}>{renderRightPanel()}</Box>
+      <Flex id="backtest-panels" className="backtest-panels" flex={1} gap="md" style={{ minHeight: 0 }}>
+        <Box id="backtest-left-panel" className="backtest-left-panel" style={{ flex: "0 0 33.333%", minHeight: 0 }}>{renderLeftPanel()}</Box>
+        <Box id="backtest-right-panel" className="backtest-right-panel" style={{ flex: "1 1 66.666%", minHeight: 0 }}>{renderRightPanel()}</Box>
       </Flex>
     </Box>
   );

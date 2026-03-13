@@ -8,6 +8,7 @@ import {
   Tabs,
   Button,
   Tooltip as MantineTooltip,
+  useMantineTheme,
 } from "@mantine/core";
 import {
   IconRefresh,
@@ -17,6 +18,7 @@ import {
   IconHelpCircle,
   IconClock,
 } from "@tabler/icons-react";
+import { fontWeights } from "../../../theme";
 import { useDisclosure } from "@mantine/hooks";
 import dayjs from "dayjs";
 import { OptionChainHeader } from "./OptionChainHeader";
@@ -62,14 +64,27 @@ export function OptionChainPanel({
   timestamp,
   summary,
 }: OptionChainPanelProps) {
+  const theme = useMantineTheme();
   const [guideOpened, { open, close }] = useDisclosure(false);
 
   return (
-    <Stack gap="md" style={{ height: "100%" }} data-testid="options-chain-panel">
+    <Stack
+      id="chain-panel"
+      className="option-chain-panel"
+      gap="md"
+      style={{ height: "100%" }}
+      data-testid="options-chain-panel"
+    >
       <OptionChainGuide opened={guideOpened} onClose={close} />
 
       {/* Header Row */}
-      <Group justify="space-between" wrap="nowrap">
+      <Group
+        id="chain-header"
+        className="option-chain-header"
+        justify="space-between"
+        wrap="nowrap"
+        data-testid="options-chain-header"
+      >
         <Group gap="sm" wrap="nowrap">
           <Text size="lg" fw={600} style={{ whiteSpace: "nowrap" }}>
             Option Chain
@@ -79,7 +94,13 @@ export function OptionChainPanel({
             <MantineTooltip
               label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}
             >
-              <Badge variant="light" color="gray" leftSection={<IconClock size={12} />}>
+              <Badge
+                variant="light"
+                color="gray"
+                leftSection={<IconClock size={12} />}
+                className="chain-timestamp-badge"
+                data-testid="options-chain-timestamp"
+              >
                 {dayjs(timestamp).format("HH:mm:ss")}
               </Badge>
             </MantineTooltip>
@@ -92,17 +113,19 @@ export function OptionChainPanel({
             size="compact-xs"
             leftSection={<IconHelpCircle size={14} />}
             onClick={open}
+            className="chain-guide-btn"
             data-testid="open-guide-btn"
           >
             Guide
           </Button>
-          <Text size="sm" c="dimmed">
+          <Text size="sm" c="dimmed" className="chain-selection-label" data-testid="options-chain-selection">
             {selectedUnderlying} · {selectedExpiry}
           </Text>
           <IconRefresh
             size={18}
             style={{ cursor: "pointer", opacity: loading ? 0.5 : 1 }}
             onClick={() => !loading && refreshChain()}
+            className="chain-refresh-icon"
             data-testid="refresh-chain-btn"
           />
         </Group>
@@ -123,6 +146,8 @@ export function OptionChainPanel({
       {/* Error State */}
       {error && (
         <Alert
+          id="chain-error"
+          className="chain-error-alert"
           icon={<IconAlertCircle size={16} />}
           color="red"
           variant="light"
@@ -134,12 +159,20 @@ export function OptionChainPanel({
 
       {/* Content */}
       {loading && strikeMatrix.length === 0 ? (
-        <Group justify="center" py="xl" data-testid="chain-loading">
+        <Group
+          id="chain-loading"
+          className="chain-loading-state"
+          justify="center"
+          py="xl"
+          data-testid="chain-loading"
+        >
           <Loader size="md" />
           <Text c="dimmed">Loading option chain...</Text>
         </Group>
       ) : strikeMatrix.length === 0 ? (
         <Alert
+          id="chain-no-data"
+          className="chain-no-data-alert"
           icon={<IconAlertCircle size={16} />}
           color="yellow"
           variant="light"
@@ -149,14 +182,17 @@ export function OptionChainPanel({
         </Alert>
       ) : (
         <Tabs
+          id="chain-view-tabs"
+          className="chain-view-tabs"
           defaultValue="table"
           variant="pills"
-          styles={{ tab: { fontSize: 11, fontWeight: 600 } }}
+          styles={{ tab: { fontSize: theme.fontSizes.sm, fontWeight: fontWeights.semibold } }}
           data-testid="chain-view-tabs"
         >
-          <Tabs.List mb="sm">
+          <Tabs.List className="chain-view-tabs-list" mb="sm" data-testid="options-chain-view-tabs-list">
             <Tabs.Tab
               value="table"
+              className="chain-view-tab"
               leftSection={<IconTable size={14} />}
               data-testid="chain-tab-table"
             >
@@ -164,6 +200,7 @@ export function OptionChainPanel({
             </Tabs.Tab>
             <Tabs.Tab
               value="analysis"
+              className="chain-view-tab"
               leftSection={<IconChartBar size={14} />}
               data-testid="chain-tab-analysis"
             >
@@ -171,7 +208,7 @@ export function OptionChainPanel({
             </Tabs.Tab>
           </Tabs.List>
 
-          <Tabs.Panel value="table">
+          <Tabs.Panel value="table" className="chain-tab-panel" data-testid="options-chain-table-panel">
             <Stack gap="md">
               <ChainSummary
                 strikeMatrix={strikeMatrix}
@@ -188,7 +225,7 @@ export function OptionChainPanel({
             </Stack>
           </Tabs.Panel>
 
-          <Tabs.Panel value="analysis">
+          <Tabs.Panel value="analysis" className="chain-tab-panel" data-testid="options-chain-analysis-panel">
             <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
           </Tabs.Panel>
         </Tabs>

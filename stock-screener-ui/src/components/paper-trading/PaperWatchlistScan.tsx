@@ -26,12 +26,12 @@ function formatChange(value: number | undefined | null): string {
 
 export function PaperWatchlistScan({ scanItems, onSymbolClick }: PaperWatchlistScanProps) {
   return (
-    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="watchlist-scan-card">
-      <Text fw={600} size="md" mb="md" data-testid="watchlist-header">
+    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="watchlist-scan-card" className="paper-watchlist-scan-card" id="watchlist-scan-card">
+      <Text fw={600} size="md" mb="md" data-testid="watchlist-header" className="paper-watchlist-header" id="watchlist-header">
         Watchlist Scan
       </Text>
 
-      <Table striped highlightOnHover withTableBorder>
+      <Table striped highlightOnHover withTableBorder className="paper-watchlist-table" id="watchlist-table">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Symbol</Table.Th>

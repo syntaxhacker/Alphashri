@@ -47,6 +47,9 @@ export function ScreenerFilters({
           max={filter.max}
           step={filter.step}
           style={{ minWidth: 120 }}
+          data-testid={`filter-${filter.key}`}
+          id={`filter-${filter.key}`}
+          className={`filter-input filter-${filter.key}`}
         />
       );
     }
@@ -61,6 +64,9 @@ export function ScreenerFilters({
           data={filter.options}
           clearable
           style={{ minWidth: 140 }}
+          data-testid={`filter-${filter.key}`}
+          id={`filter-${filter.key}`}
+          className={`filter-select filter-${filter.key}`}
         />
       );
     }
@@ -69,8 +75,8 @@ export function ScreenerFilters({
   };
 
   return (
-    <Paper withBorder p="md" mb="md" data-testid="screener-filters">
-      <Group gap="md" wrap="wrap" align="flex-end">
+    <Paper withBorder p="md" mb="md" id="filter-panel" className="screener-filters" data-testid="screener-filters">
+      <Group gap="md" wrap="wrap" align="flex-end" className="filter-controls" data-testid="filter-controls">
         <NumberInput
           label="Min Score"
           value={minScore}
@@ -80,6 +86,8 @@ export function ScreenerFilters({
           step={1}
           style={{ minWidth: 100 }}
           data-testid="min-score-input"
+          id="min-score-filter"
+          className="filter-input min-score-filter"
         />
 
         <NumberInput
@@ -90,6 +98,8 @@ export function ScreenerFilters({
           step={1}
           style={{ minWidth: 100 }}
           data-testid="max-price-input"
+          id="max-price-filter"
+          className="filter-input max-price-filter"
         />
 
         <NumberInput
@@ -100,6 +110,8 @@ export function ScreenerFilters({
           decimalScale={2}
           style={{ minWidth: 120 }}
           data-testid="min-return-input"
+          id="min-return-filter"
+          className="filter-input min-return-filter"
         />
 
         <Select
@@ -111,11 +123,13 @@ export function ScreenerFilters({
           placeholder="All sectors"
           style={{ minWidth: 160 }}
           data-testid="sector-select"
+          id="sector-filter"
+          className="filter-select sector-filter"
         />
 
         {profileFilters.map(renderProfileFilter)}
 
-        <Button variant="subtle" onClick={onReset} data-testid="reset-filters-btn">
+        <Button variant="subtle" onClick={onReset} data-testid="reset-filters-btn" id="reset-filters" className="reset-filters-btn">
           Reset
         </Button>
       </Group>

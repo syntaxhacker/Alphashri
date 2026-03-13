@@ -25,20 +25,20 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card" data-testid="login-form">
-        <div className="auth-header">
+    <div className="auth-container" id="login-container" data-testid="login-container">
+      <div className="auth-card" data-testid="login-form" id="login-card">
+        <div className="auth-header" data-testid="auth-header">
           <h1>🚀 Alphashri</h1>
           <p>Sign in to your account</p>
         </div>
 
         {error && (
-          <div className="auth-error" data-testid="auth-error">
+          <div className="auth-error" data-testid="auth-error" id="login-error">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form" id="login-form-element">
           <div className="form-group">
             <label htmlFor="email">Email</label>
             <input
@@ -79,7 +79,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
         </form>
 
         {onSwitchToRegister && (
-          <div className="auth-footer">
+          <div className="auth-footer" data-testid="login-footer">
             <p>Don't have an account?</p>
             <button
               type="button"
@@ -138,20 +138,20 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
   const displayError = formError || error;
 
   return (
-    <div className="auth-container">
-      <div className="auth-card" data-testid="register-form">
-        <div className="auth-header">
+    <div className="auth-container" id="register-container" data-testid="register-container">
+      <div className="auth-card" data-testid="register-form" id="register-card">
+        <div className="auth-header" data-testid="auth-header">
           <h1>🚀 Alphashri</h1>
           <p>Create your account</p>
         </div>
 
         {displayError && (
-          <div className="auth-error" data-testid="auth-error">
+          <div className="auth-error" data-testid="auth-error" id="register-error">
             {displayError}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form" id="register-form-element">
           <div className="form-group">
             <label htmlFor="reg-email">Email</label>
             <input
@@ -220,9 +220,9 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
         </form>
 
         {onSwitchToLogin && (
-          <div className="auth-footer">
+          <div className="auth-footer" data-testid="register-footer">
             <p>Already have an account?</p>
-            <button type="button" className="auth-link-button" onClick={handleSwitch}>
+            <button type="button" className="auth-link-button" onClick={handleSwitch} data-testid="login-link">
               Sign In
             </button>
           </div>

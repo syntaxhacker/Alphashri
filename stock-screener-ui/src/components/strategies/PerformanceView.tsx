@@ -21,7 +21,7 @@ export function PerformanceView({
 }: PerformanceViewProps) {
   if (isLoading) {
     return (
-      <Stack align="center" gap="md" mt="xl">
+      <Stack align="center" gap="md" mt="xl" className="performance-view-loading">
         <div className="spinner" data-testid="strategies-loading" />
         <Text size="sm" c="dimmed">
           Loading performance data...
@@ -37,6 +37,8 @@ export function PerformanceView({
         title="No Performance Data"
         color="yellow"
         mt="xl"
+        className="performance-view-empty"
+        data-testid="performance-empty-state"
       >
         No performance data available. Strategies need to have executed trades to show performance.
       </Alert>
@@ -75,7 +77,7 @@ export function PerformanceView({
             <Text size="sm" c="teal">
               {perf.winners}
             </Text>
-            <Text size="xs" c="dimmed">
+            <Text size="sm" c="dimmed">
               /
             </Text>
             <Text size="sm" c="red">
@@ -84,7 +86,7 @@ export function PerformanceView({
           </Group>
         </Table.Td>
         <Table.Td>
-          <Badge size="xs" color={winRate >= 50 ? "teal" : "red"} variant="light">
+          <Badge size="sm" color={winRate >= 50 ? "teal" : "red"} variant="light">
             {winRate.toFixed(1)}%
           </Badge>
         </Table.Td>
@@ -99,33 +101,51 @@ export function PerformanceView({
   });
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" className="performance-view" id="performance-view" data-testid="performance-view">
       <Title order={4}>Performance Summary</Title>
 
-      {/* Summary Cards */}
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-        <Card shadow="sm" padding="md" radius="sm" withBorder>
+      <SimpleGrid
+        cols={{ base: 1, sm: 2, lg: 4 }}
+        spacing="md"
+        className="performance-summary-cards"
+        data-testid="performance-summary-cards"
+      >
+        <Card
+          shadow="sm"
+          padding="md"
+          radius="sm"
+          withBorder
+          className="performance-card performance-card-trades"
+          data-testid="performance-card-trades"
+        >
           <Stack gap={4}>
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Total Trades
             </Text>
             <Text size="xl" fw={500}>
               {totalTrades}
             </Text>
             <Group gap={4}>
-              <Text size="xs" c="teal">
+              <Text size="sm" c="teal">
                 {totalWinners} W
               </Text>
-              <Text size="xs" c="red">
+              <Text size="sm" c="red">
                 {totalLosers} L
               </Text>
             </Group>
           </Stack>
         </Card>
 
-        <Card shadow="sm" padding="md" radius="sm" withBorder>
+        <Card
+          shadow="sm"
+          padding="md"
+          radius="sm"
+          withBorder
+          className="performance-card performance-card-winrate"
+          data-testid="performance-card-winrate"
+        >
           <Stack gap={4}>
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Win Rate
             </Text>
             <Text size="xl" fw={500} c={overallWinRate >= 50 ? "teal" : "red"}>
@@ -134,14 +154,21 @@ export function PerformanceView({
             <Progress
               value={overallWinRate}
               color={overallWinRate >= 50 ? "teal" : "red"}
-              size="xs"
+              size="sm"
             />
           </Stack>
         </Card>
 
-        <Card shadow="sm" padding="md" radius="sm" withBorder>
+        <Card
+          shadow="sm"
+          padding="md"
+          radius="sm"
+          withBorder
+          className="performance-card performance-card-pnl"
+          data-testid="performance-card-pnl"
+        >
           <Stack gap={4}>
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Total P&L
             </Text>
             <Text size="xl" fw={500} c={totalPnl >= 0 ? "teal" : "red"}>
@@ -154,35 +181,55 @@ export function PerformanceView({
               ) : (
                 <IconTrendingDown size={14} color="var(--mantine-color-red-6)" />
               )}
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 Net P&L
               </Text>
             </Group>
           </Stack>
         </Card>
 
-        <Card shadow="sm" padding="md" radius="sm" withBorder>
+        <Card
+          shadow="sm"
+          padding="md"
+          radius="sm"
+          withBorder
+          className="performance-card performance-card-strategies"
+          data-testid="performance-card-strategies"
+        >
           <Stack gap={4}>
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Active Strategies
             </Text>
             <Text size="xl" fw={500}>
               {performance.length}
             </Text>
-            <Text size="xs" c="dimmed">
+            <Text size="sm" c="dimmed">
               With trade data
             </Text>
           </Stack>
         </Card>
       </SimpleGrid>
 
-      {/* Performance Table */}
-      <Card shadow="sm" padding="md" radius="sm" withBorder>
+      <Card
+        shadow="sm"
+        padding="md"
+        radius="sm"
+        withBorder
+        className="performance-table-card"
+        data-testid="performance-table-card"
+      >
         <Title order={5} mb="md">
           Strategy Performance
         </Title>
-        <Table striped highlightOnHover withTableBorder>
-          <Table.Thead>
+        <Table
+          striped
+          highlightOnHover
+          withTableBorder
+          className="performance-table"
+          id="performance-table"
+          data-testid="performance-table"
+        >
+          <Table.Thead className="performance-table-header" data-testid="performance-table-header">
             <Table.Tr>
               <Table.Th>Strategy</Table.Th>
               <Table.Th>Total Trades</Table.Th>
@@ -191,7 +238,9 @@ export function PerformanceView({
               <Table.Th>Net P&L</Table.Th>
             </Table.Tr>
           </Table.Thead>
-          <Table.Tbody>{rows}</Table.Tbody>
+          <Table.Tbody className="performance-table-body" data-testid="performance-table-body">
+            {rows}
+          </Table.Tbody>
         </Table>
       </Card>
     </Stack>

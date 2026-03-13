@@ -76,33 +76,37 @@ export const colors = {
   warning: virtualColor({ name: "warning", dark: "orange", light: "orange" }),
 };
 
+export const APP_FONT_FAMILY = "Roboto, Poppins, system-ui, sans-serif";
+
 export const theme = createTheme({
   primaryColor: "teal",
   primaryShade: { light: 5, dark: 6 },
   colors,
   defaultRadius: "sm",
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  fontFamily: APP_FONT_FAMILY,
+  fontFamilyMonospace: "ui-monospace, monospace",
   fontSizes: {
-    xs: "10px",
-    sm: "11px",
-    md: "12px",
-    lg: "14px",
-    xl: "16px",
+    sm: "12px",
+    md: "14px",
+    lg: "16px",
+    xl: "20px",
+  },
+  headings: {
+    fontFamily: APP_FONT_FAMILY,
+    fontWeight: "600",
+    sizes: {
+      h1: { fontSize: "20px", lineHeight: "1.3" },
+      h2: { fontSize: "16px", lineHeight: "1.3" },
+      h3: { fontSize: "14px", lineHeight: "1.3" },
+      h4: { fontSize: "12px", lineHeight: "1.3" },
+      h5: { fontSize: "12px", lineHeight: "1.3" },
+      h6: { fontSize: "12px", lineHeight: "1.3" },
+    },
   },
   components: {
     Button: {
       defaultProps: {
-        size: "xs",
-      },
-    },
-    Select: {
-      defaultProps: {
-        size: "xs",
-      },
-    },
-    NumberInput: {
-      defaultProps: {
-        size: "xs",
+        size: "sm",
       },
     },
     NavLink: {
@@ -110,7 +114,52 @@ export const theme = createTheme({
         variant: "light",
       },
     },
+    Input: {
+      defaultProps: {
+        size: "sm",
+      },
+    },
+    NumberInput: {
+      defaultProps: {
+        size: "sm",
+      },
+    },
+    Select: {
+      defaultProps: {
+        size: "sm",
+      },
+    },
+    TextInput: {
+      defaultProps: {
+        size: "sm",
+      },
+    },
+    Textarea: {
+      defaultProps: {
+        size: "sm",
+      },
+    },
+    Tabs: {
+      defaultProps: {
+        variant: "pills",
+      },
+    },
+  },
+  other: {
+    fontWeights: {
+      normal: 400,
+      medium: 500,
+      semibold: 600,
+      bold: 700,
+    },
   },
 });
 
 export type AppTheme = typeof theme;
+
+export const fontWeights = {
+  normal: 400,
+  medium: 500,
+  semibold: 600,
+  bold: 700,
+};

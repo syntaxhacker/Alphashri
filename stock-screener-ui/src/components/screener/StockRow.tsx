@@ -85,7 +85,7 @@ export function StockRow({
 
     if (column.key === "symbol") {
       return (
-        <Group gap={4} wrap="nowrap">
+        <Group gap={4} wrap="nowrap" className="symbol-cell" data-testid={`symbol-cell-${stock.symbol}`}>
           <Tooltip label="Click for details">
             <Anchor
               component="button"
@@ -93,6 +93,8 @@ export function StockRow({
               onClick={() => handleClick(stock.symbol)}
               onMouseEnter={(e) => handleMouseEnter(e, stock.symbol)}
               onMouseLeave={handleMouseLeave}
+              className="symbol-link"
+              data-testid={`symbol-link-${stock.symbol}`}
             >
               {stock.symbol}
             </Anchor>
@@ -102,18 +104,20 @@ export function StockRow({
               <ActionIcon
                 variant="subtle"
                 color={copied ? "teal" : "gray"}
-                size="xs"
+                size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   copy();
                 }}
+                className="copy-symbol-btn"
+                data-testid={`copy-symbol-btn-${stock.symbol}`}
               >
                 {copied ? <IconCheck size={10} /> : <IconCopy size={10} />}
               </ActionIcon>
             )}
           </CopyButton>
           {isTouched && (
-            <Badge size="xs" variant="light" color="blue">
+            <Badge size="sm" variant="light" color="blue" className="touched-badge" data-testid={`touched-badge-${stock.symbol}`}>
               Touched
             </Badge>
           )}
@@ -124,7 +128,7 @@ export function StockRow({
     if (column.key === "score" || column.type === "badge") {
       const scoreValue = typeof value === "number" ? value : 0;
       return (
-        <Badge color={getScoreColor(scoreValue)} variant="light">
+        <Badge color={getScoreColor(scoreValue)} variant="light" className="score-badge" data-testid={`score-badge-${stock.symbol}`}>
           {scoreValue}
         </Badge>
       );
@@ -133,7 +137,7 @@ export function StockRow({
     if (column.type === "number") {
       const color = getValueColor(value);
       return (
-        <Text c={color} fw={500}>
+        <Text c={color} fw={500} className="number-cell" data-testid={`number-cell-${stock.symbol}-${column.key}`}>
           {formatNumber(value)}
         </Text>
       );
@@ -143,9 +147,11 @@ export function StockRow({
   };
 
   return (
-    <Table.Tr>
+    <Table.Tr id={`stock-row-${stock.symbol}`} className={`stock-row ${isTouched ? 'touched' : 'approaching'}`} data-testid={`stock-row-${stock.symbol}`}>
       {columns.map((column) => (
-        <Table.Td key={column.key}>{renderCell(column)}</Table.Td>
+        <Table.Td key={column.key} className={`stock-cell cell-${column.key}`} data-testid={`cell-${stock.symbol}-${column.key}`}>
+          {renderCell(column)}
+        </Table.Td>
       ))}
     </Table.Tr>
   );

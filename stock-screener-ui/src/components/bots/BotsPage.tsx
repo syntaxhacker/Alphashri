@@ -104,22 +104,22 @@ export function BotsPage() {
 
   const renderBotsList = () => {
     if (state.bots.length === 0) {
-      return (
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Stack align="center" gap="xs">
-            <Text size="xl">🤖</Text>
-            <Text fw={600}>No bots configured</Text>
-            <Text size="sm" c="dimmed">
-              Click "New Bot" to create one
-            </Text>
-          </Stack>
-        </Card>
-      );
+    return (
+      <Card shadow="sm" padding="lg" radius="md" withBorder id="bots-empty-state" data-testid="bots-empty-state">
+        <Stack align="center" gap="xs">
+          <Text size="xl">🤖</Text>
+          <Text fw={600}>No bots configured</Text>
+          <Text size="sm" c="dimmed">
+            Click "New Bot" to create one
+          </Text>
+        </Stack>
+      </Card>
+    );
     }
 
     return (
-      <Card shadow="sm" padding="md" radius="md" withBorder>
-        <Table striped highlightOnHover>
+      <Card shadow="sm" padding="md" radius="md" withBorder id="bots-list-card" data-testid="bots-list-card">
+        <Table striped highlightOnHover id="bots-table" data-testid="bots-table">
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Name</Table.Th>
@@ -238,6 +238,8 @@ export function BotsPage() {
   return (
     <Box
       h="100%"
+      id="bots-page"
+      className="bots-page"
       style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
       data-testid="bots-view"
     >
@@ -255,9 +257,9 @@ export function BotsPage() {
         </Alert>
       )}
 
-      <Box flex="0 0 auto" mb="md">
+       <Box flex="0 0 auto" mb="md" className="bots-header">
         <Group justify="space-between" align="center">
-          <Tabs value={currentView} onChange={handleViewChange}>
+          <Tabs value={currentView} onChange={handleViewChange} id="bots-tabs" data-testid="bots-tabs">
             <Tabs.List>
               <Tabs.Tab
                 value="list"

@@ -26,8 +26,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       }}
       padding="md"
       h="100vh"
+      id="app-shell"
+      data-testid="app-shell"
     >
-      <AppShell.Header bg={colors.background} c={colors.text}>
+      <AppShell.Header bg={colors.background} c={colors.text} id="app-header" data-testid="app-header">
         <Group justify="space-between" align="center" h="100%" px="xs">
           <Box flex={1}>
             <MarketTicker />
@@ -36,7 +38,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar>
+      <AppShell.Navbar id="app-navbar" data-testid="app-navbar">
         <NavbarNested
           activePath={location.pathname}
           collapsed={collapsed}
@@ -44,7 +46,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         />
       </AppShell.Navbar>
 
-      <AppShell.Main bg={colors.background} c={colors.text} h="100%" style={{ overflow: "hidden" }}>
+      <AppShell.Main bg={colors.background} c={colors.text} h="100%" style={{ overflow: "hidden" }} id="app-main" data-testid="app-main">
         {children}
       </AppShell.Main>
     </AppShell>

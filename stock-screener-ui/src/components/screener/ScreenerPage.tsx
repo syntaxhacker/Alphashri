@@ -132,17 +132,18 @@ export function ScreenerPage({
 
     if (error) {
       return (
-        <Stack gap="md" align="center">
+        <Stack gap="md" align="center" className="screener-error-container" data-testid="screener-error-container">
           <Alert
             icon={<IconAlertCircle size={16} />}
             title="Error"
             color="red"
             variant="filled"
             data-testid="screener-error"
+            className="screener-alert"
           >
             {error}
           </Alert>
-          <Button onClick={onRefresh} variant="light" color="red">
+          <Button onClick={onRefresh} variant="light" color="red" data-testid="screener-retry-btn">
             Retry
           </Button>
         </Stack>
@@ -156,12 +157,12 @@ export function ScreenerPage({
     return (
       <Stack gap="xl" style={{ height: "100%", overflow: "auto" }}>
         {sortedApproaching.length > 0 && (
-          <Box>
+          <Box id="approaching-section" className="screener-section approaching-section" data-testid="screener-approaching-section">
             <Stack gap="xs" mb="sm">
-              <Title order={5} c="blue">
+              <Title order={5} c="blue" className="section-title" data-testid="approaching-title">
                 ⏳ Approaching ({sortedApproaching.length})
               </Title>
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed" className="section-description">
                 Stocks nearing but have not yet touched the 52W high
               </Text>
             </Stack>
@@ -180,12 +181,12 @@ export function ScreenerPage({
         )}
 
         {sortedTouched.length > 0 && (
-          <Box>
+          <Box id="touched-section" className="screener-section touched-section" data-testid="screener-touched-section">
             <Stack gap="xs" mb="sm">
-              <Title order={5} c="green">
+              <Title order={5} c="green" className="section-title" data-testid="touched-title">
                 ✅ Touched ({sortedTouched.length})
               </Title>
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed" className="section-description">
                 Stocks that have touched or broken out of the 52W high
               </Text>
             </Stack>
@@ -209,10 +210,12 @@ export function ScreenerPage({
   return (
     <Box
       h="100%"
+      id="screener-main"
+      className="screener-page"
       style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
       data-testid="screener-page"
     >
-      <Box flex="0 0 auto">
+      <Box flex="0 0 auto" className="screener-controls" data-testid="screener-controls">
         <Stack gap="md">
           <ScreenerNav
             options={screenerOptions}
@@ -247,7 +250,7 @@ export function ScreenerPage({
         </Stack>
       </Box>
 
-      <Box flex={1} style={{ minHeight: 0 }}>
+      <Box flex={1} id="screener-content" className="screener-content" style={{ minHeight: 0 }} data-testid="screener-content">
         {renderContent()}
       </Box>
     </Box>

@@ -1,4 +1,4 @@
-import { Paper, Text, Group, useMantineColorScheme } from "@mantine/core";
+import { Paper, Text, Group, useMantineColorScheme, useMantineTheme } from "@mantine/core";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 
@@ -7,6 +7,7 @@ interface IVSkewChartProps {
 }
 
 export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
+  const theme = useMantineTheme();
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -29,7 +30,7 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
       },
       backgroundColor: isDark ? "#25262b" : "#fff",
       borderColor: isDark ? "#373a40" : "#dee2e6",
-      textStyle: { color: isDark ? "#c1c2c5" : "#000", fontSize: 11 },
+      textStyle: { color: isDark ? "#c1c2c5" : "#000", fontSize: theme.fontSizes.sm },
     },
     grid: {
       top: 10,
@@ -40,12 +41,12 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
     xAxis: {
       type: "category",
       data: chartData.map((d) => d.strike),
-      axisLabel: { color: "gray", fontSize: 9 },
+      axisLabel: { color: "gray", fontSize: theme.fontSizes.sm },
       axisLine: { lineStyle: { color: isDark ? "#373a40" : "#dee2e6" } },
     },
     yAxis: {
       type: "value",
-      axisLabel: { color: "gray", fontSize: 9, formatter: "{value}%" },
+      axisLabel: { color: "gray", fontSize: theme.fontSizes.sm, formatter: "{value}%" },
       splitLine: { lineStyle: { color: isDark ? "#1a1b1e" : "#f1f3f5", type: "dashed" } },
     },
     series: [
@@ -78,16 +79,27 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
   };
 
   return (
-    <Paper p="md" radius="md" style={paperStyle}>
-      <Group justify="space-between" mb="sm">
-        <Text size="xs" fw={800} c="blue.6" style={{ letterSpacing: "0.5px" }}>
+    <Paper
+      p="md"
+      radius="md"
+      style={paperStyle}
+      className="iv-skew-chart-panel"
+      data-testid="options-iv-skew-chart"
+    >
+      <Group justify="space-between" mb="sm" className="iv-skew-header">
+        <Text size="sm" fw={800} c="blue.6" style={{ letterSpacing: "0.5px" }}>
           VOLATILITY SMILE (IV SKEW)
         </Text>
-        <Text size="10px" c="dimmed">
+        <Text size="sm" c="dimmed">
           Predicts market turbulence
         </Text>
       </Group>
-      <ReactECharts option={option} style={{ height: "160px" }} opts={{ renderer: "svg" }} />
+      <ReactECharts
+        option={option}
+        style={{ height: "160px" }}
+        opts={{ renderer: "svg" }}
+        className="iv-skew-chart"
+      />
     </Paper>
   );
 }

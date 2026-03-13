@@ -144,6 +144,7 @@ export function StrategyForm({
   return (
     <Modal
       className="strategy-form-modal"
+      id="strategy-form-modal"
       opened={opened}
       onClose={onClose}
       title={<Title order={4}>{mode === "create" ? "Create Strategy" : "Edit Strategy"}</Title>}
@@ -152,14 +153,23 @@ export function StrategyForm({
     >
       <form
         data-strategy-form
+        className="strategy-form"
+        id="strategy-form"
+        data-testid="strategy-form"
         onSubmit={(e) => {
           e.preventDefault();
           handleSubmit();
         }}
       >
-        <Stack gap="md">
+        <Stack gap="md" className="strategy-form-content">
           {template && (
-            <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+            <Alert
+              icon={<IconInfoCircle size={16} />}
+              color="blue"
+              variant="light"
+              className="strategy-form-template-info"
+              data-testid="strategy-form-template-info"
+            >
               <Text size="sm">
                 Creating strategy from template{" "}
                 <Text fw={500} span>
@@ -185,6 +195,7 @@ export function StrategyForm({
             defaultValue={initialValues.strategy_type}
             disabled={mode === "edit"}
             required
+            data-testid="strategy-type-input"
           />
 
           <TextInput
@@ -192,16 +203,23 @@ export function StrategyForm({
             name="description"
             placeholder="Optional description"
             defaultValue={initialValues.description}
+            data-testid="strategy-description-input"
           />
 
-          <Tabs defaultValue="orb">
-            <Tabs.List>
-              <Tabs.Tab value="orb">ORB Params</Tabs.Tab>
-              <Tabs.Tab value="risk">Risk Mgmt</Tabs.Tab>
-              <Tabs.Tab value="runner">Runner</Tabs.Tab>
+          <Tabs defaultValue="orb" className="strategy-form-tabs" data-testid="strategy-form-tabs">
+            <Tabs.List className="strategy-form-tabs-list" data-testid="strategy-form-tabs-list">
+              <Tabs.Tab value="orb" data-testid="strategy-tab-orb">
+                ORB Params
+              </Tabs.Tab>
+              <Tabs.Tab value="risk" data-testid="strategy-tab-risk">
+                Risk Mgmt
+              </Tabs.Tab>
+              <Tabs.Tab value="runner" data-testid="strategy-tab-runner">
+                Runner
+              </Tabs.Tab>
             </Tabs.List>
 
-            <Tabs.Panel value="orb">
+            <Tabs.Panel value="orb" className="strategy-form-tab-panel" data-testid="strategy-panel-orb">
               <Stack gap="sm" mt="sm">
                 <Group grow>
                   <NumberInput
@@ -212,6 +230,7 @@ export function StrategyForm({
                     max={60}
                     suffix=" min"
                     required
+                    data-testid="strategy-or-minutes-input"
                   />
                   <NumberInput
                     label="Stop Loss %"
@@ -222,6 +241,7 @@ export function StrategyForm({
                     step={0.1}
                     suffix="%"
                     required
+                    data-testid="strategy-sl-pct-input"
                   />
                 </Group>
                 <Group grow>
@@ -234,6 +254,7 @@ export function StrategyForm({
                     step={0.1}
                     suffix="%"
                     required
+                    data-testid="strategy-tp-pct-input"
                   />
                   <NumberInput
                     label="Min OR Range %"
@@ -243,6 +264,7 @@ export function StrategyForm({
                     max={5}
                     step={0.1}
                     suffix="%"
+                    data-testid="strategy-min-or-range-input"
                   />
                 </Group>
                 <NumberInput
@@ -253,11 +275,12 @@ export function StrategyForm({
                   max={10}
                   step={0.1}
                   suffix="%"
+                  data-testid="strategy-max-or-range-input"
                 />
               </Stack>
             </Tabs.Panel>
 
-            <Tabs.Panel value="risk">
+            <Tabs.Panel value="risk" className="strategy-form-tab-panel" data-testid="strategy-panel-risk">
               <Stack gap="sm" mt="sm">
                 <Group grow>
                   <NumberInput
@@ -267,6 +290,7 @@ export function StrategyForm({
                     min={1}
                     max={20}
                     required
+                    data-testid="strategy-max-positions-input"
                   />
                   <NumberInput
                     label="Capital Per Trade %"
@@ -275,6 +299,7 @@ export function StrategyForm({
                     min={1}
                     max={100}
                     suffix="%"
+                    data-testid="strategy-capital-per-trade-input"
                   />
                 </Group>
                 <Group grow>
@@ -285,6 +310,7 @@ export function StrategyForm({
                     min={1}
                     max={50}
                     suffix="%"
+                    data-testid="strategy-max-daily-loss-input"
                   />
                   <NumberInput
                     label="Max Total Exposure %"
@@ -293,6 +319,7 @@ export function StrategyForm({
                     min={1}
                     max={100}
                     suffix="%"
+                    data-testid="strategy-max-exposure-input"
                   />
                 </Group>
                 <Group grow>
@@ -304,6 +331,7 @@ export function StrategyForm({
                     max={10}
                     step={0.1}
                     suffix="%"
+                    data-testid="strategy-risk-per-trade-input"
                   />
                   <NumberInput
                     label="Cooldown Minutes"
@@ -312,12 +340,13 @@ export function StrategyForm({
                     min={1}
                     max={240}
                     suffix=" min"
+                    data-testid="strategy-cooldown-input"
                   />
                 </Group>
               </Stack>
             </Tabs.Panel>
 
-            <Tabs.Panel value="runner">
+            <Tabs.Panel value="runner" className="strategy-form-tab-panel" data-testid="strategy-panel-runner">
               <Stack gap="sm" mt="sm">
                 <Group grow>
                   <NumberInput
@@ -328,6 +357,7 @@ export function StrategyForm({
                     max={100000}
                     step={1000}
                     prefix="₹"
+                    data-testid="strategy-min-trade-value-input"
                   />
                   <NumberInput
                     label="Max Trade Value"
@@ -337,6 +367,7 @@ export function StrategyForm({
                     max={500000}
                     step={5000}
                     prefix="₹"
+                    data-testid="strategy-max-trade-value-input"
                   />
                 </Group>
                 <NumberInput
@@ -347,17 +378,19 @@ export function StrategyForm({
                   max={10}
                   step={0.1}
                   suffix="%"
+                  data-testid="strategy-max-distance-input"
                 />
               </Stack>
             </Tabs.Panel>
           </Tabs>
 
-          <Group justify="flex-end" mt="md">
+          <Group justify="flex-end" mt="md" className="strategy-form-actions" data-testid="strategy-form-actions">
             <Group gap="xs">
               <button
                 type="button"
-                className="mantine-UnstyledButton-root mantine-Button-root mantine-Button--variant-light"
+                className="mantine-UnstyledButton-root mantine-Button-root mantine-Button--variant-light strategy-form-cancel-btn"
                 onClick={onClose}
+                data-testid="strategy-cancel-btn"
               >
                 <span className="mantine-Button-inner">
                   <span className="mantine-Button-label">Cancel</span>
@@ -365,7 +398,7 @@ export function StrategyForm({
               </button>
               <button
                 type="submit"
-                className="mantine-UnstyledButton-root mantine-Button-root mantine-Button--variant-filled"
+                className="mantine-UnstyledButton-root mantine-Button-root mantine-Button--variant-filled strategy-form-submit-btn"
                 data-testid="submit-strategy-btn"
               >
                 <span className="mantine-Button-inner">

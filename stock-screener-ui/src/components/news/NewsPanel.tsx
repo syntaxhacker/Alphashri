@@ -280,7 +280,7 @@ export default function NewsPanel() {
         <Button
           variant="filled"
           color="blue"
-          size="xs"
+          size="sm"
           onClick={() => setIsOpen(!isOpen)}
           data-testid="news-toggle-btn"
           title="Open news panel"
@@ -308,7 +308,8 @@ export default function NewsPanel() {
         w={400}
         h="100vh"
         bg="var(--mantine-color-body)"
-        className={isOpen ? "open" : undefined}
+        className={`news-panel ${isOpen ? "open" : ""}`}
+        id="news-panel"
         style={{
           zIndex: 200,
           transition: "right 0.3s ease",
@@ -319,35 +320,37 @@ export default function NewsPanel() {
         data-testid="news-panel"
       >
         {selectedArticle ? (
-          <Stack gap={0} h="100%">
+          <Stack gap={0} h="100%" className="news-article-view" data-testid="news-article-view">
             <Group
               p="sm"
               justify="space-between"
+              className="news-article-header"
               style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
             >
               <Button
                 variant="subtle"
-                size="xs"
+                size="sm"
                 leftSection={<IconArrowLeft size={14} />}
                 onClick={handleBack}
+                data-testid="news-article-back-btn"
               >
                 Back
               </Button>
               <CloseButton onClick={handleClose} />
             </Group>
 
-            <ScrollArea flex={1} p="md">
+            <ScrollArea flex={1} p="md" className="news-article-content">
               <Stack gap="md">
-                <Title order={4}>{selectedArticle.headline}</Title>
+                <Title order={4} data-testid="news-article-headline">{selectedArticle.headline}</Title>
 
-                <Text size="xs" c="dimmed">
+                <Text size="sm" c="dimmed" data-testid="news-article-meta">
                   {articleContent?.source || selectedArticle.source} |{" "}
                   {formatTimeAgo(articleContent?.publishedAt || selectedArticle.publishedAt)}
                 </Text>
 
                 {articleContent?.symbols && articleContent.symbols.length > 0 && (
-                  <div>
-                    <Text size="xs" c="dimmed" mb="xs">
+                  <div className="news-article-symbols" data-testid="news-article-symbols">
+                    <Text size="sm" c="dimmed" mb="xs">
                       Stocks mentioned:
                     </Text>
                     <Group gap="xs">
@@ -365,6 +368,7 @@ export default function NewsPanel() {
                             color={symbol.instrument_key ? "blue" : "gray"}
                             style={{ cursor: "pointer" }}
                             onClick={() => handleSymbolClick(symbol)}
+                            data-testid={`news-symbol-${symbol.code}`}
                           >
                             {symbol.name || symbol.code}
                             {symbol.instrument_key && (
@@ -403,7 +407,7 @@ export default function NewsPanel() {
                     href={selectedArticle.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    size="xs"
+                    size="sm"
                   >
                     <Group gap={4}>
                       Open Original <IconExternalLink size={12} />
@@ -414,17 +418,17 @@ export default function NewsPanel() {
             </ScrollArea>
           </Stack>
         ) : (
-          <Stack gap={0} h="100%">
-            <Paper withBorder p="sm" mb="xs">
+          <Stack gap={0} h="100%" className="news-list-view" data-testid="news-list-view">
+            <Paper withBorder p="sm" mb="xs" id="news-panel-header" data-testid="news-panel-header">
               <Group justify="space-between">
                 <Group gap="xs">
                   <Text fw={600}>NEWS</Text>
                   {wsConnected && (
                     <Tooltip label="Live updates connected">
-                      <Box w={6} h={6} bg="green" style={{ borderRadius: "50%" }} />
+                      <Box w={6} h={6} bg="green" style={{ borderRadius: "50%" }} data-testid="news-ws-indicator" />
                     </Tooltip>
                   )}
-                  {isRefreshing && <Loader size="xs" />}
+                  {isRefreshing && <Loader size="sm" />}
                 </Group>
                 <CloseButton
                   onClick={handleClose}
@@ -434,10 +438,10 @@ export default function NewsPanel() {
               </Group>
             </Paper>
 
-            <Paper withBorder p="sm">
+            <Paper withBorder p="sm" id="news-panel-controls" data-testid="news-panel-controls">
               <Group gap="xs">
                 <Select
-                  size="xs"
+                  size="sm"
                   value={selectedSource}
                   onChange={(v) => v && setSelectedSource(v)}
                   data={sourceData}
@@ -460,11 +464,12 @@ export default function NewsPanel() {
                 </Tooltip>
 
                 <Select
-                  size="xs"
+                  size="sm"
                   value={autoRefreshMs}
                   onChange={(v) => v && setAutoRefreshMs(v)}
                   data={AUTO_REFRESH_INTERVALS}
                   w={60}
+                  data-testid="news-auto-refresh-select"
                 />
 
                 {unreadCount > 0 && (
@@ -473,35 +478,36 @@ export default function NewsPanel() {
                     color="blue"
                     style={{ cursor: "pointer" }}
                     onClick={handleMarkAllRead}
+                    data-testid="news-unread-badge"
                   >
                     {unreadCount} unread
                   </Badge>
                 )}
               </Group>
 
-              <ScrollArea flex={1}>
+              <ScrollArea flex={1} className="news-items-container">
                 {loading && newsItems.length === 0 ? (
-                  <Group justify="center" py="xl">
+                  <Group justify="center" py="xl" data-testid="news-loading">
                     <Loader size="sm" />
                     <Text c="dimmed">Loading news...</Text>
                   </Group>
                 ) : error ? (
-                  <Text c="red" ta="center" py="xl">
+                  <Text c="red" ta="center" py="xl" data-testid="news-error">
                     {error}
                   </Text>
                 ) : newsItems.length === 0 ? (
-                  <Text c="dimmed" ta="center" py="xl">
+                  <Text c="dimmed" ta="center" py="xl" data-testid="news-empty">
                     No news available
                   </Text>
                 ) : (
-                  <Stack gap={0}>
+                  <Stack gap={0} className="news-items-list">
                     {newsItems.map((item) => {
                       const isUnread = !readIds.has(item.id);
                       return (
                         <Card
                           key={item.id}
                           padding="sm"
-                          className={isUnread ? "unread" : undefined}
+                          className={`news-item-card ${isUnread ? "unread" : ""}`}
                           style={{
                             cursor: "pointer",
                             borderLeft: isUnread
@@ -530,11 +536,11 @@ export default function NewsPanel() {
                                 {item.headline}
                               </Text>
                               {item.description && (
-                                <Text size="xs" c="dimmed" lineClamp={2} className="news-item-desc">
+                                <Text size="sm" c="dimmed" lineClamp={2} className="news-item-desc">
                                   {truncateText(item.description, 120)}
                                 </Text>
                               )}
-                              <Text size="xs" c="dimmed" className="news-item-meta">
+                              <Text size="sm" c="dimmed" className="news-item-meta">
                                 {item.source}
                               </Text>
                             </Stack>

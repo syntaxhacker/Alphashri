@@ -53,8 +53,8 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
   ));
 
   return (
-    <nav className={classes.navbar} data-testid="sidemenu">
-      <AppShell.Section className={classes.header}>
+    <nav className={classes.navbar} data-testid="sidemenu" id="navbar-nested">
+      <AppShell.Section className={classes.header} id="navbar-header" data-testid="navbar-header">
         <Flex
           justify={collapsed ? "center" : "space-between"}
           align="center"
@@ -62,17 +62,17 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
           gap={collapsed ? "xs" : 0}
         >
           {!collapsed ? (
-            <Text fw={700} size="lg">
+            <Text fw={700} size="lg" id="app-logo">
               🚀 Alphashri
             </Text>
           ) : (
-            <Text fw={700} size="lg">
+            <Text fw={700} size="lg" id="app-logo-collapsed">
               🚀
             </Text>
           )}
-          <Group gap="xs">
+          <Group gap="xs" id="navbar-controls">
             {!collapsed && (
-              <UnstyledButton onClick={toggleColorScheme}>
+              <UnstyledButton onClick={toggleColorScheme} data-testid="theme-toggle-btn">
                 {colorScheme === "dark" ? <IconSun size={20} /> : <IconMoon size={20} />}
               </UnstyledButton>
             )}
@@ -83,11 +83,11 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
         </Flex>
       </AppShell.Section>
 
-      <AppShell.Section grow component={ScrollArea} className={classes.links}>
+      <AppShell.Section grow component={ScrollArea} className={classes.links} id="navbar-links" data-testid="navbar-links">
         <div className={classes.linksInner}>{links}</div>
       </AppShell.Section>
 
-      <AppShell.Section className={classes.footer}>
+      <AppShell.Section className={classes.footer} id="navbar-footer" data-testid="navbar-footer">
         <UserButton collapsed={collapsed} />
       </AppShell.Section>
     </nav>

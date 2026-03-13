@@ -46,7 +46,11 @@ export function OptionsPage({
   summary,
 }: OptionsPageProps) {
   return (
-    <Box data-testid="options-view">
+    <Box
+      id="options-main"
+      className="options-page"
+      data-testid="options-view"
+    >
       <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "chain" && (
@@ -69,9 +73,17 @@ export function OptionsPage({
         />
       )}
 
-      {activeTab === "positions" && <PositionsPanel positions={positions || []} />}
+      {activeTab === "positions" && (
+        <Box id="positions-container" className="options-tab-content" data-testid="options-positions-tab">
+          <PositionsPanel positions={positions || []} />
+        </Box>
+      )}
 
-      {activeTab === "greeks" && <GreeksPanel />}
+      {activeTab === "greeks" && (
+        <Box id="greeks-container" className="options-tab-content" data-testid="options-greeks-tab">
+          <GreeksPanel />
+        </Box>
+      )}
     </Box>
   );
 }

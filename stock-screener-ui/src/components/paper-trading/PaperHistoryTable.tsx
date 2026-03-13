@@ -145,7 +145,7 @@ function DayGroup({
   const pnlSign = dayPnl >= 0 ? "+" : "";
 
   return (
-    <Card shadow="xs" padding="xs" withBorder data-testid={`day-group-${date}`}>
+    <Card shadow="xs" padding="xs" withBorder data-testid={`day-group-${date}`} className="paper-day-group" id={`day-group-${date}`}>
       <Group
         justify="space-between"
         onClick={onToggle}
@@ -406,7 +406,7 @@ export function PaperHistoryTable() {
 
   if (state.isLoading && state.trades.length === 0) {
     return (
-      <Card shadow="sm" padding="md" radius="md" withBorder data-testid="history-panel">
+      <Card shadow="sm" padding="md" radius="md" withBorder data-testid="history-panel" className="paper-history-panel" id="history-panel">
         <Group justify="center" gap="md">
           <Loader size="sm" />
           <Text c="dimmed">Loading trade history...</Text>
@@ -420,10 +420,12 @@ export function PaperHistoryTable() {
   return (
     <Box
       h="100%"
+      className="paper-history-container"
+      id="history-container"
       style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
       data-testid="history-panel"
     >
-      <Box flex="0 0 auto" mb="sm" style={{ flexShrink: 0 }}>
+      <Box flex="0 0 auto" mb="sm" style={{ flexShrink: 0 }} className="paper-history-filters" id="history-filters">
         <Group gap="md" justify="space-between">
           <Group gap="md">
             {bots.length > 1 && (
@@ -463,14 +465,14 @@ export function PaperHistoryTable() {
               { value: "year", label: "Year" },
               { value: "all", label: "All" },
             ]}
-            size="xs"
+            size="sm"
             data-testid="quick-filter"
           />
         </Group>
       </Box>
 
-      <Box flex="0 0 auto" mb="sm" style={{ flexShrink: 0 }}>
-        <Card shadow="sm" padding="sm" radius="md" withBorder data-testid="trades-header">
+      <Box flex="0 0 auto" mb="sm" style={{ flexShrink: 0 }} className="paper-history-summary" id="history-summary">
+        <Card shadow="sm" padding="sm" radius="md" withBorder data-testid="trades-header" className="paper-trades-header" id="trades-header">
           <Group justify="space-between">
             <Text fw={600}>Trade History ({filteredTrades.length} trades)</Text>
             <Group gap="md">
@@ -491,7 +493,7 @@ export function PaperHistoryTable() {
         </Card>
       </Box>
 
-      <Box flex={1} style={{ minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
+      <Box flex={1} style={{ minHeight: 0, overflowY: "auto", overflowX: "hidden" }} className="paper-history-list" id="history-list">
         {filteredTrades.length === 0 ? (
           <Card shadow="sm" padding="lg" radius="md" withBorder>
             <Stack align="center" gap="xs">
@@ -503,7 +505,7 @@ export function PaperHistoryTable() {
             </Stack>
           </Card>
         ) : (
-          <Stack gap="sm" data-testid="trades-table-container">
+          <Stack gap="sm" data-testid="trades-table-container" className="paper-trades-list" id="trades-list">
             {sortedDates.map((date) => (
               <DayGroup
                 key={date}

@@ -88,12 +88,15 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
 
   return (
     <Paper
+      id="option-alerts"
+      className="option-alerts-panel"
       p="md"
       withBorder
       radius="md"
       style={{ background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))" }}
+      data-testid="options-alerts-panel"
     >
-      <Group justify="space-between" mb="md">
+      <Group justify="space-between" mb="md" className="alerts-header" data-testid="options-alerts-header">
         <Group gap="xs">
           <ThemeIcon color="orange" variant="light">
             <IconBellRinging size={18} />
@@ -102,36 +105,38 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
             LIVE SMART MONEY ALERTS
           </Text>
         </Group>
-        <Badge variant="dot" color="green" size="sm">
+        <Badge variant="dot" color="green" size="sm" className="alerts-status-badge">
           Scanning Live
         </Badge>
       </Group>
 
       {alerts.length === 0 ? (
-        <Box py="xl" style={{ textAlign: "center" }}>
-          <Text size="xs" c="dimmed">
+        <Box py="xl" style={{ textAlign: "center" }} className="alerts-empty-state" data-testid="options-alerts-empty">
+          <Text size="sm" c="dimmed">
             Waiting for unusual activity patterns...
           </Text>
         </Box>
       ) : (
-        <Timeline active={0} bulletSize={24} lineWidth={2}>
+        <Timeline active={0} bulletSize={24} lineWidth={2} className="alerts-timeline" data-testid="options-alerts-timeline">
           {alerts.map((alert, i) => (
             <Timeline.Item
               key={i}
               bullet={alert.icon}
               color={alert.color}
+              className="alert-item"
+              data-testid={`options-alert-item-${i}`}
               title={
                 <Group justify="space-between">
                   <Text size="sm" fw={700}>
                     {alert.title}
                   </Text>
-                  <Badge size="xs" color={alert.intensity === "Critical" ? "red" : "blue"}>
+                  <Badge size="sm" color={alert.intensity === "Critical" ? "red" : "blue"}>
                     {alert.intensity}
                   </Badge>
                 </Group>
               }
             >
-              <Text size="xs" c="dimmed" mt={4}>
+              <Text size="sm" c="dimmed" mt={4}>
                 {alert.description}
               </Text>
             </Timeline.Item>
@@ -145,8 +150,10 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
         bg="light-dark(blue.0, dark.6)"
         radius="xs"
         style={{ border: "1px dashed var(--mantine-color-blue-4)" }}
+        className="alerts-profit-tip"
+        data-testid="options-alerts-profit-tip"
       >
-        <Text size="xs" fw={600} c="blue.7">
+        <Text size="sm" fw={600} c="blue.7">
           💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick
           bullish trade. When a "Wall" appears, expect the price to reverse from that strike.
         </Text>

@@ -33,6 +33,8 @@ export function BacktestChartTabs({
   if (symbols.length === 0) {
     return (
       <Box
+        id="chart-container"
+        className="backtest-chart-tabs backtest-chart-empty"
         data-testid="chart-container"
         style={{
           display: "flex",
@@ -52,11 +54,13 @@ export function BacktestChartTabs({
 
   return (
     <Box
+      id="chart-container"
+      className="backtest-chart-tabs"
       data-testid="chart-container"
       h="100%"
       style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
     >
-      <Box mb="xs" flex="0 0 auto">
+      <Box mb="xs" flex="0 0 auto" className="chart-tabs-header">
         <Group justify="space-between" align="center">
           <Tabs
             value={selectedSymbol}
@@ -73,17 +77,19 @@ export function BacktestChartTabs({
           </Tabs>
 
           <Select
+            id="chart-zoom-select"
+            className="chart-zoom-select"
             value={zoomValue}
             onChange={(value) => value && onZoomChange(value)}
             data={ZOOM_OPTIONS}
             data-testid="chart-zoom-select"
             w={100}
-            size="xs"
+            size="sm"
           />
         </Group>
       </Box>
 
-      <Box flex={1} style={{ minHeight: 0, position: "relative", overflow: "hidden" }}>
+      <Box flex={1} className="chart-tabs-content" style={{ minHeight: 0, position: "relative", overflow: "hidden" }}>
         {selectedSymbol ? (
           <BacktestChart
             symbol={selectedSymbol}

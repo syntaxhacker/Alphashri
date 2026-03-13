@@ -27,18 +27,19 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
         <UnstyledButton
           className={classes.user}
           data-testid="user-menu-trigger"
+          id="user-button"
           style={{ padding: collapsed ? "var(--mantine-spacing-xs)" : undefined }}
         >
           <Group justify={collapsed ? "center" : "flex-start"}>
-            <Avatar radius="xl" alt={user.displayName} />
+            <Avatar radius="xl" alt={user.displayName} data-testid="user-avatar" />
 
             {!collapsed && (
-              <div style={{ flex: 1 }}>
-                <Text size="sm" fw={500}>
+              <div style={{ flex: 1 }} className="user-info">
+                <Text size="sm" fw={500} data-testid="user-display-name">
                   {user.displayName}
                 </Text>
 
-                <Text c="dimmed" size="xs">
+                <Text c="dimmed" size="sm" data-testid="user-email">
                   {user.email}
                 </Text>
               </div>
@@ -47,7 +48,7 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
         </UnstyledButton>
       </Menu.Target>
 
-      <Menu.Dropdown>
+      <Menu.Dropdown data-testid="user-menu-dropdown">
         <Menu.Item
           leftSection={<IconLogout style={{ width: rem(14), height: rem(14) }} />}
           onClick={handleLogout}

@@ -6,5 +6,9 @@ export function OptionsContainer() {
   const options = useOptionsState();
   const [activeTab, setActiveTab] = useState<string>("chain");
 
-  return <OptionsPage activeTab={activeTab} setActiveTab={setActiveTab} {...options} />;
+  return (
+    <div id="options-container" className="options-container" data-testid="options-container">
+      <OptionsPage activeTab={activeTab} setActiveTab={setActiveTab} {...options} />
+    </div>
+  );
 }

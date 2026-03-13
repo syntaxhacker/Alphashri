@@ -10,11 +10,13 @@ import {
   Divider,
   Badge,
   useMantineColorScheme,
+  useMantineTheme,
 } from "@mantine/core";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { OptionAlerts } from "./OptionAlerts";
 import { IVSkewChart } from "./IVSkewChart";
+import { fontWeights } from "../../../theme";
 
 interface OIAnalysisProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -22,6 +24,7 @@ interface OIAnalysisProps {
 }
 
 export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
+  const theme = useMantineTheme();
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -70,11 +73,11 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
       axisPointer: { type: "shadow" },
       backgroundColor: isDark ? "#25262b" : "#fff",
       borderColor: isDark ? "#373a40" : "#dee2e6",
-      textStyle: { color: isDark ? "#c1c2c5" : "#000", fontSize: 11 },
+      textStyle: { color: isDark ? "#c1c2c5" : "#000", fontSize: theme.fontSizes.sm },
     },
     legend: {
       data: ["Call OI Chg", "Put OI Chg"],
-      textStyle: { color: "gray", fontSize: 10 },
+      textStyle: { color: "gray", fontSize: theme.fontSizes.sm },
       bottom: 0,
     },
     grid: {
@@ -91,7 +94,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
     yAxis: {
       type: "category",
       data: analysisData.chartData.map((d) => d.strike),
-      axisLabel: { color: "gray", fontSize: 10, fontWeight: 600 },
+      axisLabel: { color: "gray", fontSize: theme.fontSizes.sm, fontWeight: fontWeights.semibold },
       axisLine: { show: false },
       axisTick: { show: false },
     },
@@ -128,35 +131,54 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
   };
 
   return (
-    <Stack gap="lg" data-testid="oi-analysis">
+    <Stack
+      id="oi-analysis"
+      className="oi-analysis"
+      gap="lg"
+      data-testid="oi-analysis"
+    >
       <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        <Stack gap="md">
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" className="oi-analysis-grid">
+        <Stack gap="md" className="oi-analysis-left">
           <IVSkewChart strikeMatrix={strikeMatrix} />
 
           {/* OI Spikes List */}
-          <Paper p="md" radius="md" style={paperStyle}>
+          <Paper
+            p="md"
+            radius="md"
+            style={paperStyle}
+            className="oi-spikes-panel"
+            data-testid="options-oi-spikes-panel"
+          >
             <Text size="sm" fw={800} mb="md" c="blue.6" style={{ letterSpacing: "0.5px" }}>
               🔥 INTENSITY (OI SPIKES)
             </Text>
-            <Stack gap="xs">
+            <Stack gap="xs" className="oi-spikes-list" data-testid="options-oi-spikes-list">
               {analysisData.spikes.map((s, i) => (
-                <Group key={i} justify="space-between" p="xs" wrap="nowrap" style={itemStyle}>
+                <Group
+                  key={i}
+                  justify="space-between"
+                  p="xs"
+                  wrap="nowrap"
+                  style={itemStyle}
+                  className="oi-spike-item"
+                  data-testid={`options-oi-spike-${i}`}
+                >
                   <Stack gap={0}>
                     <Group gap={5}>
-                      <Text size="xs" fw={800} c={s.type === "CE" ? "green.7" : "red.7"}>
+                      <Text size="sm" fw={800} c={s.type === "CE" ? "green.7" : "red.7"}>
                         {s.type} {s.strike}
                       </Text>
                       <Badge
-                        size="xs"
+                        size="sm"
                         variant="light"
                         color={s.activityType === "Speculative" ? "pink" : "indigo"}
                       >
                         {s.activityType}
                       </Badge>
                     </Group>
-                    <Text size="xs" c="dimmed">
+                    <Text size="sm" c="dimmed">
                       {s.contract.trading_symbol}
                     </Text>
                   </Stack>
@@ -164,7 +186,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
                     <Text size="sm" fw={800} c="orange.7">
                       +{s.changePct.toFixed(1)}%
                     </Text>
-                    <Text size="xs" c="dimmed">
+                    <Text size="sm" c="dimmed">
                       +{Math.round(s.change / 1000)}k
                     </Text>
                   </Stack>
@@ -174,9 +196,15 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
           </Paper>
         </Stack>
 
-        <Stack gap="md">
+        <Stack gap="md" className="oi-analysis-right">
           {/* OI Distribution Chart */}
-          <Paper p="md" radius="md" style={paperStyle}>
+          <Paper
+            p="md"
+            radius="md"
+            style={paperStyle}
+            className="oi-distribution-panel"
+            data-testid="options-oi-distribution-panel"
+          >
             <Text size="sm" fw={800} mb="md" c="blue.6" style={{ letterSpacing: "0.5px" }}>
               📊 OI CHANGE DISTRIBUTION
             </Text>
@@ -184,6 +212,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
               option={distributionOption}
               style={{ height: "400px" }}
               opts={{ renderer: "svg" }}
+              className="oi-distribution-chart"
             />
           </Paper>
 
@@ -192,6 +221,8 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
             p="md"
             radius="md"
             style={{ ...paperStyle, borderLeft: "4px solid var(--mantine-color-blue-6)", flex: 1 }}
+            className="oi-sentiment-panel"
+            data-testid="options-oi-sentiment-panel"
           >
             <Group align="flex-start" wrap="nowrap">
               <Box>
@@ -207,7 +238,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
                   {analysisData.spikes[0]?.activityType === "Positional"
                     ? " This looks like a long-term directional bet by institutional players."
                     : " This is likely high-frequency intraday churn or hedging activity."}
-                  <Text component="span" display="block" mt={5} c="dimmed" size="xs">
+                  <Text component="span" display="block" mt={5} c="dimmed" size="sm">
                     PCR is currently signaling a{" "}
                     <Text component="span" fw={700}>
                       {Math.max(...analysisData.chartData.map((d) => d.peChange)) >

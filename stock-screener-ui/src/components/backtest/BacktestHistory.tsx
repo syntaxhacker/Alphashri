@@ -147,7 +147,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (loading) {
     return (
-      <Group justify="center" py="xl">
+      <Group justify="center" py="xl" className="backtest-history-loading" data-testid="backtest-history-loading">
         <Loader size="md" />
         <Text>Loading history...</Text>
       </Group>
@@ -156,7 +156,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (error) {
     return (
-      <Alert icon={<IconAlertCircle size="1rem" />} title="Error" color="red">
+      <Alert icon={<IconAlertCircle size="1rem" />} title="Error" color="red" className="backtest-history-error" data-testid="backtest-history-error">
         {error}
       </Alert>
     );
@@ -164,7 +164,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (history.length === 0) {
     return (
-      <Card withBorder padding="xl" radius="md">
+      <Card withBorder padding="xl" radius="md" className="backtest-history-empty" data-testid="backtest-history-empty">
         <Stack align="center" gap="xs">
           <IconDatabase size={40} color="gray" />
           <Text size="lg" fw={500}>
@@ -179,34 +179,36 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
   }
 
   return (
-    <Stack gap="md">
-      <Group justify="space-between">
+    <Stack id="backtest-history" className="backtest-history" gap="md" data-testid="backtest-history">
+      <Group justify="space-between" className="history-header">
         <Text size="sm" c="dimmed">
           {history.length} backtest{history.length !== 1 ? "s" : ""} saved
         </Text>
-        <Group gap="xs">
+        <Group gap="xs" className="history-actions">
           <Button
-            size="xs"
+            size="sm"
             variant="light"
             color="red"
             leftSection={<IconTrash size={14} />}
             onClick={handleClearAll}
             disabled={history.length === 0}
+            data-testid="history-clear-all-btn"
           >
             Clear All
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="light"
             leftSection={<IconRefresh size={14} />}
             onClick={loadHistory}
             loading={loading}
+            data-testid="history-refresh-btn"
           >
             Refresh
           </Button>
         </Group>
       </Group>
-      <Table highlightOnHover verticalSpacing="sm">
+      <Table highlightOnHover verticalSpacing="sm" className="history-table" data-testid="history-table">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Date</Table.Th>
@@ -218,9 +220,9 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
             <Table.Th>Actions</Table.Th>
           </Table.Tr>
         </Table.Thead>
-        <Table.Tbody>
+        <Table.Tbody data-testid="history-tbody">
           {history.map((item) => (
-            <Table.Tr key={item.id}>
+            <Table.Tr key={item.id} className="history-row" data-testid={`history-row-${item.id}`}>
               <Table.Td>
                 <Text size="sm">{new Date(item.created_at).toLocaleString()}</Text>
               </Table.Td>
@@ -258,10 +260,11 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
                     variant="light"
                     leftSection={<IconExternalLink size={14} />}
                     onClick={() => handleLoad(item.id)}
+                    data-testid={`history-load-btn-${item.id}`}
                   >
                     Load
                   </Button>
-                  <ActionIcon variant="subtle" color="red" onClick={() => handleDelete(item.id)}>
+                  <ActionIcon variant="subtle" color="red" onClick={() => handleDelete(item.id)} data-testid={`history-delete-btn-${item.id}`}>
                     <IconTrash size={16} />
                   </ActionIcon>
                 </Group>

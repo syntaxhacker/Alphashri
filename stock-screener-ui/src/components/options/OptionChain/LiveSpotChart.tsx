@@ -56,9 +56,9 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
   const color = isPositive ? theme.colors.green[6] : theme.colors.red[6];
 
   return (
-    <Group gap="xs" wrap="nowrap">
-      <Box style={{ position: "relative" }}>
-        <svg width="200" height="40" style={{ display: "block" }}>
+    <Group gap="xs" wrap="nowrap" className="live-spot-chart" data-testid="options-live-spot-chart">
+      <Box style={{ position: "relative" }} className="spot-chart-svg-container">
+        <svg width="200" height="40" style={{ display: "block" }} className="spot-chart-svg">
           <defs>
             <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity="0.3" />
@@ -91,11 +91,11 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
           `}
         </style>
       </Box>
-      <Stack gap={0}>
-        <Text size="xs" fw={700} c={color}>
+      <Stack gap={0} className="spot-chart-info" data-testid="options-spot-chart-info">
+        <Text size="sm" fw={700} c={color} className="spot-price-value">
           {svgParams.lastPrice.toFixed(2)}
         </Text>
-        <Text size="10px" c="dimmed">
+        <Text size="sm" c="dimmed" className="spot-trend-label">
           Trend (5m)
         </Text>
       </Stack>

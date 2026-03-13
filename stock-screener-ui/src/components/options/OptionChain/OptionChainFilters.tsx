@@ -8,7 +8,13 @@ export function OptionChainFilters({
   setFilters: (f: any) => void;
 }) {
   return (
-    <Group gap="md" wrap="nowrap">
+    <Group
+      id="chain-filters"
+      className="chain-filters"
+      gap="md"
+      wrap="nowrap"
+      data-testid="options-chain-filters"
+    >
       <Select
         label="Type"
         style={{ flex: 1 }}
@@ -19,6 +25,7 @@ export function OptionChainFilters({
           { value: "CE", label: "Calls Only" },
           { value: "PE", label: "Puts Only" },
         ]}
+        className="filter-type-select"
         data-testid="option-type-select"
       />
       <Select
@@ -31,9 +38,10 @@ export function OptionChainFilters({
           { value: "ITM", label: "ITM" },
           { value: "OTM", label: "OTM" },
         ]}
+        className="filter-moneyness-select"
         data-testid="moneyness-select"
       />
-      <Group style={{ flex: 2 }} align="flex-end">
+      <Group className="filter-strike-range" style={{ flex: 2 }} align="flex-end" data-testid="options-strike-range-group">
         <NumberInput
           label="Strike Min"
           style={{ flex: 1 }}
@@ -41,6 +49,7 @@ export function OptionChainFilters({
           onChange={(val) =>
             setFilters({ strikeRange: [val as number, filters.strikeRange?.[1] ?? 100000] })
           }
+          className="filter-strike-min"
           data-testid="strike-min-input"
         />
         <NumberInput
@@ -50,6 +59,7 @@ export function OptionChainFilters({
           onChange={(val) =>
             setFilters({ strikeRange: [filters.strikeRange?.[0] ?? 0, val as number] })
           }
+          className="filter-strike-max"
           data-testid="strike-max-input"
         />
       </Group>

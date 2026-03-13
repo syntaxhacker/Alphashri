@@ -44,15 +44,18 @@ export function NotificationItem({ notification, onDismiss }: NotificationItemPr
       role="alert"
       aria-live="polite"
       aria-atomic="true"
+      data-testid={`notification-${notification.type}`}
+      data-notification-id={notification.id}
     >
       <span className="toast-icon" aria-hidden="true">
         {config.icon}
       </span>
-      <span className="toast-message">{notification.message}</span>
+      <span className="toast-message" data-testid="notification-message">{notification.message}</span>
       <button
         className="toast-dismiss"
         onClick={() => onDismiss(notification.id)}
         aria-label="Dismiss notification"
+        data-testid="notification-dismiss-btn"
       >
         ✕
       </button>

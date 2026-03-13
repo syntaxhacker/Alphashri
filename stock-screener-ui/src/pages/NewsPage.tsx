@@ -210,9 +210,9 @@ export default function NewsPage() {
   };
 
   return (
-    <Container size="lg" py="md" data-testid="news-page">
+    <Container size="lg" py="md" data-testid="news-page" id="news-page" className="news-page">
       {selectedArticle ? (
-        <Stack gap="md" data-testid="article-detail">
+        <Stack gap="md" data-testid="article-detail" id="article-detail" className="article-detail">
           <Group>
             <ActionIcon variant="subtle" onClick={handleBack} data-testid="back-button">
               <IconArrowLeft size={20} />
@@ -220,15 +220,15 @@ export default function NewsPage() {
             <Title order={4}>Article Analysis</Title>
           </Group>
 
-          <Paper p="md" withBorder>
+          <Paper p="md" withBorder id="article-content" data-testid="article-content">
             <Stack gap="md">
-              <Title order={4}>{selectedArticle.headline}</Title>
+              <Title order={4} data-testid="article-title">{selectedArticle.headline}</Title>
 
               <Group gap="md">
                 <Badge color={SOURCE_COLORS[selectedArticle.source] || "gray"} variant="light">
                   {selectedArticle.source}
                 </Badge>
-                <Text size="xs" c="dimmed">
+                <Text size="sm" c="dimmed">
                   {formatTimeAgo(articleContent?.publishedAt || selectedArticle.publishedAt)}
                 </Text>
               </Group>
@@ -366,15 +366,15 @@ export default function NewsPage() {
           </Paper>
         </Stack>
       ) : (
-        <Stack gap="md">
-          <Group justify="space-between">
+        <Stack gap="md" id="news-feed" data-testid="news-feed">
+          <Group justify="space-between" className="news-feed-header">
             <Title order={2}>News Feed</Title>
-            <ActionIcon variant="light" onClick={loadNews} loading={loading}>
+            <ActionIcon variant="light" onClick={loadNews} loading={loading} data-testid="news-feed-refresh-btn">
               <IconRefresh size={18} />
             </ActionIcon>
           </Group>
 
-          <Group gap="md">
+          <Group gap="md" className="news-feed-controls">
             <Select
               value={selectedSource}
               onChange={(v) => v && setSelectedSource(v)}
@@ -420,12 +420,12 @@ export default function NewsPage() {
                     </Group>
 
                     {item.description && (
-                      <Text size="xs" c="dimmed" lineClamp={2}>
+                      <Text size="sm" c="dimmed" lineClamp={2}>
                         {item.description}
                       </Text>
                     )}
 
-                    <Text size="xs" c="dimmed">
+                    <Text size="sm" c="dimmed">
                       {formatTimeAgo(item.publishedAt)}
                     </Text>
                   </Stack>

@@ -9,9 +9,11 @@ import {
   Progress,
   Stack,
   ActionIcon,
+  useMantineTheme,
 } from "@mantine/core";
 import { memo, useEffect, useRef } from "react";
 import { IconTarget, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
+import { theme, fontWeights } from "../../../theme";
 import { getMoneyness } from "../../../utils/options";
 import type { OptionContract } from "../../../api/upstoxOptions";
 
@@ -45,7 +47,7 @@ function getOIBgColor(oi: number, maxOI: number, type: "CE" | "PE"): string {
     : `rgba(250, 82, 82, ${intensity * 0.2})`;
 }
 
-const styles = {
+const getStyles = (theme: { fontSizes: { sm: string; md: string } }) => ({
   container: {
     display: "flex",
     flexDirection: "column" as const,
@@ -68,8 +70,8 @@ const styles = {
   headerCell: {
     padding: "10px 4px",
     textAlign: "center" as const,
-    fontWeight: 700,
-    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    fontSize: theme.fontSizes.md,
     letterSpacing: "0.5px",
     color: "light-dark(var(--mantine-color-black), var(--mantine-color-dark-0))",
   },
@@ -85,9 +87,9 @@ const styles = {
   subHeaderCell: {
     padding: "4px 2px",
     textAlign: "center" as const,
-    fontSize: 9,
+    fontSize: theme.fontSizes.sm,
     color: "var(--mantine-color-dimmed)",
-    fontWeight: 600,
+    fontWeight: fontWeights.semibold,
     textTransform: "uppercase" as const,
   },
   row: {
@@ -101,7 +103,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 11,
+    fontSize: theme.fontSizes.sm,
     cursor: "pointer",
     minHeight: 40,
   },
@@ -125,7 +127,7 @@ const styles = {
     background: "light-dark(var(--mantine-color-yellow-1), var(--mantine-color-yellow-9))",
     color: "light-dark(var(--mantine-color-yellow-9), var(--mantine-color-white))",
   },
-};
+});
 
 function OptionColumn({
   contract,
@@ -133,13 +135,16 @@ function OptionColumn({
   spotPrice,
   maxOI,
   onRowClick,
+  theme,
 }: {
   contract: OptionContract | null;
   type: "CE" | "PE";
   spotPrice: number | null;
   maxOI: number;
   onRowClick: (c: OptionContract) => void;
+  theme: { fontSizes: { sm: string; md: string } };
 }) {
+  const styles = getStyles(theme);
   if (!contract) {
     return (
       <Box style={{ display: "contents" }}>
@@ -207,29 +212,29 @@ function OptionColumn({
   const tooltipContent = (
     <Box p="xs">
       <Group justify="space-between" mb={5}>
-        <Text size="xs" fw={700} c={type === "CE" ? "green" : "red"}>
+        <Text size="sm" fw={700} c={type === "CE" ? "green" : "red"}>
           {contract.trading_symbol}
         </Text>
-        <Badge size="xs" color={sentiment.color} variant="filled">
+        <Badge size="sm" color={sentiment.color} variant="filled">
           {sentiment.type}
         </Badge>
       </Group>
-      <Text size="xs">
+      <Text size="sm">
         OI: {oi.toLocaleString()} ({oiChange >= 0 ? "+" : ""}
         {oiChange.toLocaleString()})
       </Text>
-      <Text size="xs" c={oiChange >= 0 ? "green" : "red"}>
+      <Text size="sm" c={oiChange >= 0 ? "green" : "red"}>
         OI Change %: {oiChangePct.toFixed(2)}%
       </Text>
       <Box mt={5} style={{ borderTop: "1px solid #eee" }} pt={5}>
-        <Text size="xs">Delta: {delta.toFixed(3)}</Text>
-        <Text size="xs">Theta: {(g?.theta ?? 0).toFixed(2)}</Text>
-        <Text size="xs">Gamma: {(g?.gamma ?? 0).toFixed(5)}</Text>
-        <Text size="xs">Vega: {(g?.vega ?? 0).toFixed(2)}</Text>
-        <Text size="xs">IV: {iv.toFixed(2)}%</Text>
+        <Text size="sm">Delta: {delta.toFixed(3)}</Text>
+        <Text size="sm">Theta: {(g?.theta ?? 0).toFixed(2)}</Text>
+        <Text size="sm">Gamma: {(g?.gamma ?? 0).toFixed(5)}</Text>
+        <Text size="sm">Vega: {(g?.vega ?? 0).toFixed(2)}</Text>
+        <Text size="sm">IV: {iv.toFixed(2)}%</Text>
       </Box>
       <Box mt={5} style={{ borderTop: "1px solid #eee" }} pt={5}>
-        <Text size="xs">
+        <Text size="sm">
           Bid: {m?.bid_price} | Ask: {m?.ask_price}
         </Text>
       </Box>
@@ -253,7 +258,6 @@ function OptionColumn({
               ...styles.cell,
               ...itmStyle,
               position: "relative",
-              background: itmStyle.background,
               fontWeight: cell.fw,
               borderRight: i < 4 && type === "CE" ? "1px solid rgba(0,0,0,0.02)" : undefined,
               borderLeft: i > 0 && type === "PE" ? "1px solid rgba(0,0,0,0.02)" : undefined,
@@ -278,16 +282,16 @@ function OptionColumn({
 
             <Stack gap={0} align="center" style={{ zIndex: 1, width: "100%" }}>
               <Group gap={2} wrap="nowrap" align="center" justify="center">
-                <Text size="xs" fw={cell.fw} c={cell.c as any} style={{ textAlign: "center" }}>
+                <Text size="sm" fw={cell.fw} c={cell.c as any} style={{ textAlign: "center" }}>
                   {cell.value}
                 </Text>
                 {cell.badge && (
                   <Badge
-                    size="xs"
+                    size="sm"
                     variant="light"
                     color={cell.badge.color}
                     px={2}
-                    style={{ fontSize: 7, height: 12 }}
+                    style={{ fontSize: theme.fontSizes.sm, height: 12 }}
                   >
                     {cell.badge.label}
                   </Badge>
@@ -299,7 +303,7 @@ function OptionColumn({
                 <Box w="70%" mt={2}>
                   <Progress
                     value={Math.abs(delta) * 100}
-                    size="xs"
+                    size="sm"
                     color={type === "CE" ? "green" : "red"}
                     radius="xl"
                     styles={{ root: { backgroundColor: "transparent", height: 2 } }}
@@ -320,6 +324,8 @@ function OptionChainTableInner({
   spotPrice,
   onRowClick,
 }: OptionChainTableProps) {
+  const theme = useMantineTheme();
+  const styles = getStyles(theme);
   const { optionType } = filters;
   const maxCE_OI = Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0), 1);
   const maxPE_OI = Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.oi ?? 0), 1);
@@ -355,9 +361,15 @@ function OptionChainTableInner({
   }, [spotPrice, strikeMatrix.length]);
 
   return (
-    <Box style={{ ...styles.container, position: "relative" }} data-testid="options-chain-table">
+    <Box
+      id="option-chain-table"
+      className="option-chain-table"
+      style={{ ...styles.container, position: "relative" }}
+      data-testid="options-chain-table"
+    >
       {/* Quick Scroll Actions */}
       <Box
+        className="chain-scroll-actions"
         style={{
           position: "absolute",
           right: 20,
@@ -367,6 +379,7 @@ function OptionChainTableInner({
           flexDirection: "column",
           gap: 8,
         }}
+        data-testid="options-chain-scroll-actions"
       >
         <Tooltip label="Scroll to Top" position="left">
           <ActionIcon
@@ -375,6 +388,8 @@ function OptionChainTableInner({
             size="lg"
             radius="xl"
             onClick={() => scrollToEdge("top")}
+            className="scroll-action-btn"
+            data-testid="options-scroll-top-btn"
           >
             <IconArrowUp size={18} />
           </ActionIcon>
@@ -387,6 +402,8 @@ function OptionChainTableInner({
             radius="xl"
             onClick={() => scrollToATM("smooth")}
             style={{ boxShadow: "var(--mantine-shadow-md)" }}
+            className="scroll-action-btn scroll-atm-btn"
+            data-testid="options-scroll-atm-btn"
           >
             <IconTarget size={22} />
           </ActionIcon>
@@ -398,6 +415,8 @@ function OptionChainTableInner({
             size="lg"
             radius="xl"
             onClick={() => scrollToEdge("bottom")}
+            className="scroll-action-btn"
+            data-testid="options-scroll-bottom-btn"
           >
             <IconArrowDown size={18} />
           </ActionIcon>
@@ -405,16 +424,16 @@ function OptionChainTableInner({
       </Box>
 
       {/* Main Header */}
-      <Box style={styles.header}>
-        <Box style={{ ...styles.headerCell, color: "var(--mantine-color-green-6)" }}>
+      <Box className="chain-table-header" style={styles.header} data-testid="options-chain-table-header">
+        <Box className="chain-header-cell chain-calls-header" style={{ ...styles.headerCell, color: "var(--mantine-color-green-6)" }}>
           CALLS (CE)
         </Box>
-        <Box style={styles.headerCell}>STRIKE</Box>
-        <Box style={{ ...styles.headerCell, color: "var(--mantine-color-red-6)" }}>PUTS (PE)</Box>
+        <Box className="chain-header-cell chain-strike-header" style={styles.headerCell}>STRIKE</Box>
+        <Box className="chain-header-cell chain-puts-header" style={{ ...styles.headerCell, color: "var(--mantine-color-red-6)" }}>PUTS (PE)</Box>
       </Box>
 
       {/* Symmetrical Sub-Header */}
-      <Box style={styles.subHeader}>
+      <Box className="chain-table-subheader" style={styles.subHeader} data-testid="options-chain-table-subheader">
         {/* CE columns: OI, CHNG, VOL, IV, LTP */}
         <Box style={styles.subHeaderCell}>OI</Box>
         <Box style={styles.subHeaderCell}>OI CHG</Box>
@@ -433,13 +452,26 @@ function OptionChainTableInner({
         <Box style={styles.subHeaderCell}>OI</Box>
       </Box>
 
-      <ScrollArea style={{ flex: 1 }} type="hover" scrollbars="y" viewportRef={viewportRef}>
-        <Box style={{ minWidth: 800, paddingBottom: 150 }}>
+      <ScrollArea
+        className="chain-table-scrollarea"
+        style={{ flex: 1 }}
+        type="hover"
+        scrollbars="y"
+        viewportRef={viewportRef}
+        data-testid="options-chain-table-scrollarea"
+      >
+        <Box className="chain-table-body" style={{ minWidth: 800, paddingBottom: 150 }}>
           {strikeMatrix.map(({ strike, ce, pe }) => {
             const isATM = spotPrice && Math.abs(strike - spotPrice) < 25;
 
             return (
-              <Box key={strike} ref={isATM ? atmRowRef : null} style={styles.row}>
+              <Box
+                key={strike}
+                ref={isATM ? atmRowRef : null}
+                className={`chain-row ${isATM ? 'chain-row-atm' : ''}`}
+                style={styles.row}
+                data-testid={`options-chain-row-${strike}`}
+              >
                 {/* CALLS */}
                 <OptionColumn
                   contract={ce}
@@ -447,14 +479,16 @@ function OptionChainTableInner({
                   spotPrice={spotPrice}
                   maxOI={maxCE_OI}
                   onRowClick={onRowClick}
+                  theme={theme}
                 />
 
                 {/* STRIKE */}
                 <Box
+                  className={`strike-cell ${isATM ? 'strike-cell-atm' : ''}`}
                   style={{ ...styles.strikeCell, ...(isATM ? styles.atmHighlight : {}) }}
                   data-testid="strike-cell"
                 >
-                  <Text size="xs" fw={800}>
+                  <Text size="sm" fw={800}>
                     {strike}
                   </Text>
                 </Box>
@@ -466,6 +500,7 @@ function OptionChainTableInner({
                   spotPrice={spotPrice}
                   maxOI={maxPE_OI}
                   onRowClick={onRowClick}
+                  theme={theme}
                 />
               </Box>
             );
@@ -475,6 +510,7 @@ function OptionChainTableInner({
 
       {/* Footer / Legend */}
       <Flex
+        className="chain-table-footer"
         p="xs"
         justify="space-between"
         align="center"
@@ -482,37 +518,38 @@ function OptionChainTableInner({
           borderTop: "1px solid var(--mantine-color-gray-3)",
           background: "var(--mantine-color-gray-0)",
         }}
+        data-testid="options-chain-table-footer"
       >
-        <Group gap="xl">
-          <Group gap={5}>
+        <Group gap="xl" className="chain-legend">
+          <Group gap={5} className="chain-legend-item" data-testid="options-legend-itm">
             <Box w={10} h={10} bg="rgba(255, 249, 219, 0.4)" style={{ border: "1px solid #ddd" }} />
-            <Text size="xs" c="dimmed">
+            <Text size="sm" c="dimmed">
               ITM (In The Money)
             </Text>
           </Group>
-          <Group gap={5}>
+          <Group gap={5} className="chain-legend-item" data-testid="options-legend-atm">
             <Box w={10} h={10} bg="var(--mantine-color-yellow-1)" />
-            <Text size="xs" c="dimmed">
+            <Text size="sm" c="dimmed">
               ATM (At The Money)
             </Text>
           </Group>
-          <Group gap={15}>
-            <Badge size="xs" variant="outline" color="green">
+          <Group gap={15} className="chain-legend-badges" data-testid="options-legend-badges">
+            <Badge size="sm" variant="outline" color="green">
               LB: Long Buildup
             </Badge>
-            <Badge size="xs" variant="outline" color="red">
+            <Badge size="sm" variant="outline" color="red">
               SB: Short Buildup
             </Badge>
-            <Badge size="xs" variant="outline" color="cyan">
+            <Badge size="sm" variant="outline" color="cyan">
               SC: Short Covering
             </Badge>
-            <Badge size="xs" variant="outline" color="orange">
+            <Badge size="sm" variant="outline" color="orange">
               LU: Long Unwinding
             </Badge>
           </Group>
         </Group>
         {spotPrice && (
-          <Text size="xs" fw={600}>
+          <Text size="sm" fw={600} className="chain-spot-price" data-testid="options-chain-spot-price">
             Spot:{" "}
             <Text component="span" c="blue">
               {spotPrice.toFixed(2)}

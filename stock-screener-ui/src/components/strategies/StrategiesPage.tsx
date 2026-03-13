@@ -36,7 +36,7 @@ export function StrategiesPage({
   const renderContent = () => {
     if (error) {
       return (
-        <Stack gap="md" align="center" mt="xl">
+        <Stack gap="md" align="center" mt="xl" className="strategies-error-container">
           <Alert
             icon={<IconAlertCircle size={16} />}
             title="Error"
@@ -46,16 +46,17 @@ export function StrategiesPage({
           >
             {error}
           </Alert>
-          <Group gap="xs">
+          <Group gap="xs" className="strategies-error-actions">
             <Button
               onClick={onRefresh}
               variant="light"
               color="red"
               leftSection={<IconRefresh size={14} />}
+              data-testid="strategies-retry-btn"
             >
               Retry
             </Button>
-            <Button onClick={onClearError} variant="subtle">
+            <Button onClick={onClearError} variant="subtle" data-testid="strategies-dismiss-btn">
               Dismiss
             </Button>
           </Group>
@@ -101,27 +102,28 @@ export function StrategiesPage({
   return (
     <Box
       h="100%"
+      className="strategies-page"
+      id="strategies-main"
       style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
       data-testid="strategies-view"
     >
-      <Box flex="0 0 auto">
+      <Box flex="0 0 auto" className="strategies-nav-container" data-testid="strategies-nav-container">
         <StrategiesNav activeView={activeView} onChange={onViewChange} />
       </Box>
 
-      <Box flex={1} style={{ minHeight: 0 }}>
+      <Box flex={1} className="strategies-content" id="strategies-content" style={{ minHeight: 0 }} data-testid="strategies-content">
         {renderContent()}
       </Box>
 
-      {/* Create Modal */}
       <StrategyForm
         mode="create"
         template={parentTemplate}
         opened={showCreateModal}
         onClose={onCloseCreateModal}
         onSubmit={onCreateStrategy}
+        data-testid="strategies-create-modal"
       />
 
-      {/* Edit Modal */}
       <StrategyForm
         mode="edit"
         strategy={editingStrategy}
@@ -132,6 +134,7 @@ export function StrategiesPage({
             onEditStrategy(editingStrategy.internal_id ?? Number(editingStrategy.id), data);
           }
         }}
+        data-testid="strategies-edit-modal"
       />
     </Box>
   );

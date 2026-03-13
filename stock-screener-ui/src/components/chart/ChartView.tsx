@@ -119,17 +119,17 @@ const ChartView: React.FC = () => {
   }
 
   return (
-    <div className="chart-view" data-testid="chart-view">
-      <div className="chart-view-header">
-        <button className="back-btn" onClick={() => navigate(-1)}>
+    <div className="chart-view" data-testid="chart-view" id="chart-view">
+      <div className="chart-view-header" id="chart-header" data-testid="chart-header">
+        <button className="back-btn" onClick={() => navigate(-1)} data-testid="chart-back-btn">
           ← Back
         </button>
-        <h2 className="chart-title">{symbol}</h2>
+        <h2 className="chart-title" data-testid="chart-title">{symbol}</h2>
 
-        <div className="chart-controls">
+        <div className="chart-controls" id="chart-controls" data-testid="chart-controls">
           <div className="control-group">
             <label>Timeframe:</label>
-            <select value={timeframe} onChange={(e) => setTimeframe(parseInt(e.target.value))}>
+            <select value={timeframe} onChange={(e) => setTimeframe(parseInt(e.target.value))} data-testid="chart-timeframe-select">
               {TIMEFRAMES.map((tf) => (
                 <option key={tf.value} value={tf.value}>
                   {tf.label}
@@ -140,7 +140,7 @@ const ChartView: React.FC = () => {
 
           <div className="control-group">
             <label>OR:</label>
-            <select value={orMinutes} onChange={(e) => setOrMinutes(parseInt(e.target.value))}>
+            <select value={orMinutes} onChange={(e) => setOrMinutes(parseInt(e.target.value))} data-testid="chart-or-select">
               {OR_MINUTES.map((or) => (
                 <option key={or.value} value={or.value}>
                   {or.label}
@@ -155,6 +155,7 @@ const ChartView: React.FC = () => {
                 type="checkbox"
                 checked={showPivots}
                 onChange={(e) => setShowPivots(e.target.checked)}
+                data-testid="chart-pivots-checkbox"
               />
               Pivots
             </label>
@@ -162,17 +163,17 @@ const ChartView: React.FC = () => {
         </div>
       </div>
 
-      <div className="chart-view-body">
+      <div className="chart-view-body" id="chart-body" data-testid="chart-body">
         {loading && (
-          <div className="chart-loading">
+          <div className="chart-loading" data-testid="chart-loading">
             <p>Loading chart...</p>
           </div>
         )}
 
         {error && (
-          <div className="chart-error">
+          <div className="chart-error" data-testid="chart-error">
             <p>{error}</p>
-            <button onClick={() => window.location.reload()}>Retry</button>
+            <button onClick={() => window.location.reload()} data-testid="chart-retry-btn">Retry</button>
           </div>
         )}
 
@@ -181,13 +182,14 @@ const ChartView: React.FC = () => {
             ref={chartRef}
             className="chart-container-full"
             data-testid="candlestick-chart"
+            id="candlestick-chart"
             style={{ width: "100%", height: "100%" }}
           />
         )}
       </div>
 
       {data && (
-        <div className="chart-view-footer">
+        <div className="chart-view-footer" id="chart-footer" data-testid="chart-footer">
           <span>{data.candles.length} candles</span>
           <span>•</span>
           <span>TF: {timeframe}m</span>

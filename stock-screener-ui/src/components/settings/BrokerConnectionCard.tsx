@@ -44,17 +44,17 @@ export function BrokerConnectionCard({
     status?.connected && (status.expires_in_hours === null || status.expires_in_hours >= 0);
 
   return (
-    <Card shadow="sm" padding="lg" radius="md" withBorder>
+    <Card shadow="sm" padding="lg" radius="md" withBorder id="broker-connection-card" data-testid="broker-connection-card">
       <Stack gap="md">
         <Group justify="space-between">
           <Text fw={600} size="lg">
             Upstox Connection
           </Text>
-          {getStatusBadge(status)}
+          <span data-testid="broker-status-badge">{getStatusBadge(status)}</span>
         </Group>
 
         {isConnected && status?.expires_in_hours !== null && (
-          <Text size="sm" c="dimmed">
+          <Text size="sm" c="dimmed" data-testid="broker-expires-text">
             Expires in {formatExpiresIn(status.expires_in_hours)}
           </Text>
         )}

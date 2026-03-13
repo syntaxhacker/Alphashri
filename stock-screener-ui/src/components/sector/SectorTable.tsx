@@ -32,7 +32,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
     }
 
     return (
-      <Table.Tr key={row.sector}>
+      <Table.Tr key={row.sector} data-testid={`sector-row-${row.sector.toLowerCase().replace(/\s+/g, "-")}`}>
         <Table.Td fw={700}>{row.sector}</Table.Td>
         <Table.Td align="right">
           <Text c={pnlColor} fw={700}>
@@ -44,7 +44,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
           <Group justify="center">{getMovementBar(row.avg_change)}</Group>
         </Table.Td>
         <Table.Td align="center">
-          <Text c={adColor} size="xs" fw={600}>
+          <Text c={adColor} size="sm" fw={600}>
             {row.advances} : {row.declines}
           </Text>
         </Table.Td>
@@ -54,7 +54,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
           </Badge>
         </Table.Td>
         <Table.Td>
-          <Text size="xs" c="dimmed" lineClamp={1}>
+          <Text size="sm" c="dimmed" lineClamp={1}>
             {row.top_movers}
           </Text>
         </Table.Td>
@@ -64,7 +64,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
 
   return (
     <ScrollArea h="100%" offsetScrollbars>
-      <Table striped highlightOnHover withTableBorder stickyHeader>
+      <Table striped highlightOnHover withTableBorder stickyHeader id="sector-table" data-testid="sector-table">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Sector</Table.Th>

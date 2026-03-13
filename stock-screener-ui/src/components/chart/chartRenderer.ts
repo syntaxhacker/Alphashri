@@ -6,6 +6,7 @@
  */
 
 import type { PreviewCandle, ORBZone, PivotLevel } from "../../api/chartPreview";
+import { theme } from "../../theme";
 
 export type ChartSize = "preview" | "expanded" | "full";
 
@@ -32,6 +33,9 @@ export function buildChartOption(options: ChartRenderOptions): any {
     showPivots = false,
     isDark = true,
   } = options;
+
+  const fontSizes = theme.fontSizes;
+  const fontFamily = theme.fontFamily;
 
   if (!candles || candles.length === 0) {
     return null;
@@ -69,7 +73,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
       backgroundColor: tooltipBg,
       borderColor: borderColor,
       borderWidth: 1,
-      textStyle: { color: textColor, fontSize: isSmall ? 10 : 12 },
+      textStyle: { color: textColor, fontSize: isSmall ? fontSizes.sm : fontSizes.md },
       formatter: (params: any) => formatTooltip(params, candles, isDark),
     },
     grid: {
@@ -88,7 +92,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
         show: !isSmall,
         color: mutedColor,
         rotate: 45,
-        fontSize: 10,
+        fontSize: fontSizes.sm,
         formatter: (value: string) => formatTimeLabel(value),
       },
     },
@@ -99,7 +103,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
       axisLine: { lineStyle: { color: borderColor } },
       axisLabel: {
         color: mutedColor,
-        fontSize: isSmall ? 10 : 11,
+        fontSize: isSmall ? fontSizes.sm : fontSizes.sm,
         formatter: (value: number) => "₹" + value.toFixed(0),
       },
     },
@@ -171,7 +175,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
     chartOption.title = {
       text: `${symbol}`,
       left: "center",
-      textStyle: { fontSize: isFull ? 16 : 13, color: textColor },
+      textStyle: { fontSize: isFull ? fontSizes.xl : fontSizes.lg, color: textColor },
     };
   }
 
@@ -182,7 +186,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
       itemWidth: 14,
       itemHeight: 10,
       itemGap: 8,
-      textStyle: { color: mutedColor, fontSize: 10 },
+      textStyle: { color: mutedColor, fontSize: fontSizes.sm },
     };
   }
 
@@ -349,9 +353,11 @@ function formatTooltip(params: any, candles: PreviewCandle[], isDark: boolean): 
   const change = c.open > 0 ? (((c.close - c.open) / c.open) * 100).toFixed(2) : "0";
   const changeColor = c.close >= c.open ? "#00E676" : "#FF1744";
   const textColor = isDark ? "#e0e0e0" : "#333333";
+  const fontFamily = theme.fontFamily;
+  const fontSizes = theme.fontSizes;
 
   return `
-    <div style="padding: 4px 6px; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; line-height: 1.3; color: ${textColor};">
+    <div style="padding: 4px 6px; font-family: ${fontFamily}; font-size: ${fontSizes.sm}; line-height: 1.3; color: ${textColor};">
       <div style="font-weight: bold; margin-bottom: 2px;">${c.date} ${c.time_str}</div>
       <div>O: ₹${c.open.toFixed(0)} H: ₹${c.high.toFixed(0)} L: ₹${c.low.toFixed(0)} C: ₹${c.close.toFixed(0)}</div>
       <div style="color: ${changeColor};">${c.close >= c.open ? "+" : ""}${change}%</div>

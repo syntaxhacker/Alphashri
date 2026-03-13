@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { Box, Text, useMantineColorScheme } from "@mantine/core";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
+import { theme } from "../../theme";
 
 declare const echarts: any;
 
@@ -31,6 +32,8 @@ interface BacktestChartProps {
 
 function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   const { candles, orb_zones, pivot_levels, week52_levels, trades, visuals } = data;
+  const fontSizes = theme.fontSizes;
+  const fontFamily = theme.fontFamily;
 
   if (!candles || !trades) {
     console.warn("buildChartOption: Missing candles or trades data", data);
@@ -366,7 +369,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     title: {
       text: `${data.symbol} - Backtest Results`,
       left: "center",
-      textStyle: { fontSize: 14, color: textColor },
+      textStyle: { fontSize: fontSizes.lg, color: textColor },
     },
     tooltip: {
       trigger: "axis",
@@ -374,7 +377,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       backgroundColor: tooltipBg,
       borderColor: borderColor,
       borderWidth: 1,
-      textStyle: { color: textColor, fontSize: 10 },
+      textStyle: { color: textColor, fontSize: fontSizes.sm },
       formatter: function (params: any) {
         // Find if this is a trade marker
         for (const p of params) {
@@ -386,7 +389,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
             const pnlColor = t.net_pnl >= 0 ? "#00E676" : "#FF1744";
 
             return `
-              <div style="padding: 6px 8px; font-family: 'SF Mono', Monaco, monospace; font-size: 10px; line-height: 1.4;">
+              <div style="padding: 6px 8px; fontFamily: fontFamily; font-size: fontSizes.sm; line-height: 1.4;">
                 <div style="color: #00BFFF; font-weight: bold; margin-bottom: 4px;">
                   Trade #${p.data.trade_id} | ${t.exit_reason}
                 </div>
@@ -416,7 +419,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
           const changeColor = c.close >= c.open ? "#00E676" : "#FF1744";
 
           return `
-            <div style="padding: 6px 8px; font-family: 'SF Mono', Monaco, monospace; font-size: 10px; line-height: 1.4;">
+            <div style="padding: 6px 8px; fontFamily: fontFamily; font-size: fontSizes.sm; line-height: 1.4;">
               <div style="font-weight: bold; margin-bottom: 4px;">${c.date} ${c.time_str}</div>
               <div style="display: flex; gap: 12px;">
                 <span>O: ₹${c.open.toFixed(0)}</span>
@@ -440,7 +443,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       itemWidth: 14,
       itemHeight: 10,
       itemGap: 8,
-      textStyle: { color: mutedColor, fontSize: 10 },
+      textStyle: { color: mutedColor, fontSize: fontSizes.sm },
       type: "scroll",
     },
     grid: {
@@ -694,7 +697,7 @@ export function zoomToTrade(
         distance: 8,
         formatter: `▼ Entry #${tradeIndex + 1}`,
         color: "#FFD700",
-        fontSize: 12,
+        fontSize: fontSizes.md,
         fontWeight: "bold",
         backgroundColor: "rgba(0,0,0,0.7)",
         padding: [4, 8],
@@ -731,7 +734,7 @@ export function zoomToTrade(
               distance: 8,
               formatter: `● ${(exitMarker.trade as any).exit_reason || "Exit"}`,
               color: "#FFFFFF",
-              fontSize: 12,
+              fontSize: fontSizes.md,
               fontWeight: "bold",
               backgroundColor: "rgba(0,0,0,0.7)",
               padding: [4, 8],
@@ -760,7 +763,7 @@ export function zoomToTrade(
                     position: "end",
                     formatter: `52W High: ₹${level52wHigh}`,
                     color: "#FFD700",
-                    fontSize: 11,
+                    fontSize: fontSizes.sm,
                     fontWeight: "bold",
                     backgroundColor: "rgba(0,0,0,0.7)",
                     padding: [2, 6],
@@ -925,6 +928,8 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
   if (isLoading) {
     return (
       <Box
+        className="backtest-chart-loading"
+        data-testid="backtest-chart-loading"
         style={{
           display: "flex",
           alignItems: "center",
@@ -942,6 +947,8 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
   if (!chartData) {
     return (
       <Box
+        className="backtest-chart-empty"
+        data-testid="backtest-chart-empty"
         style={{
           display: "flex",
           alignItems: "center",
@@ -959,6 +966,8 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
   return (
     <Box
       ref={chartRef}
+      id={`backtest-chart-${symbol}`}
+      className="backtest-chart"
       data-testid="echarts-container"
       data-symbol={symbol}
       style={{ width: "100%", height: "100%", minHeight: 0 }}

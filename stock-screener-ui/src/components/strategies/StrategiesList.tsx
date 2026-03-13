@@ -25,7 +25,7 @@ export function StrategiesList({
 
   if (isLoading) {
     return (
-      <Stack align="center" gap="md" mt="xl">
+      <Stack align="center" gap="md" mt="xl" className="strategy-list-loading">
         <div className="spinner" data-testid="strategies-loading" />
         <Text size="sm" c="dimmed">
           Loading strategies...
@@ -36,7 +36,14 @@ export function StrategiesList({
 
   if (nonTemplates.length === 0) {
     return (
-      <Alert icon={<IconAlertCircle size={16} />} title="No Strategies" color="yellow" mt="xl">
+      <Alert
+        icon={<IconAlertCircle size={16} />}
+        title="No Strategies"
+        color="yellow"
+        mt="xl"
+        className="strategy-list-empty"
+        data-testid="strategies-empty-state"
+      >
         No strategy variations created yet. Create one from a template.
       </Alert>
     );
@@ -71,7 +78,7 @@ export function StrategiesList({
         </Group>
       </Table.Td>
       <Table.Td>
-        <Badge size="xs" variant="light">
+        <Badge size="sm" variant="light">
           {strategy.strategy_type}
         </Badge>
       </Table.Td>
@@ -140,8 +147,16 @@ export function StrategiesList({
   ));
 
   return (
-    <Table striped highlightOnHover withTableBorder withColumnBorders>
-      <Table.Thead>
+    <Table
+      striped
+      highlightOnHover
+      withTableBorder
+      withColumnBorders
+      className="strategy-list-table"
+      id="strategy-list"
+      data-testid="strategy-list-table"
+    >
+      <Table.Thead className="strategy-list-header" data-testid="strategy-list-header">
         <Table.Tr>
           <Table.Th>Name</Table.Th>
           <Table.Th>Type</Table.Th>
@@ -153,7 +168,9 @@ export function StrategiesList({
           <Table.Th>Actions</Table.Th>
         </Table.Tr>
       </Table.Thead>
-      <Table.Tbody>{rows}</Table.Tbody>
+      <Table.Tbody className="strategy-list-body" data-testid="strategy-list-body">
+        {rows}
+      </Table.Tbody>
     </Table>
   );
 }

@@ -32,7 +32,7 @@ export function PaperPortfolioCard({
 }: PaperPortfolioCardProps) {
   if (!portfolio) {
     return (
-      <Card shadow="sm" padding="md" radius="md" withBorder data-testid="portfolio-card">
+      <Card shadow="sm" padding="md" radius="md" withBorder data-testid="portfolio-card" className="paper-portfolio-card" id="portfolio-card">
         <Text c="dimmed" ta="center">
           Loading portfolio...
         </Text>
@@ -44,10 +44,10 @@ export function PaperPortfolioCard({
   const pnlSign = portfolio.day_pnl >= 0 ? "+" : "";
 
   return (
-    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="portfolio-card">
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" data-testid="portfolio-row-1">
+    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="portfolio-card" className="paper-portfolio-card" id="portfolio-card">
+      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" data-testid="portfolio-row-1" className="portfolio-row" id="portfolio-row-1">
         <Group gap="xs">
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Total Value
           </Text>
           <Text size="md" fw={600}>
@@ -55,7 +55,7 @@ export function PaperPortfolioCard({
           </Text>
         </Group>
         <Group gap="xs">
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Cash
           </Text>
           <Text size="md" fw={600}>
@@ -63,7 +63,7 @@ export function PaperPortfolioCard({
           </Text>
         </Group>
         <Group gap="xs">
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Margin Used
           </Text>
           <Text size="md" fw={600}>
@@ -72,9 +72,9 @@ export function PaperPortfolioCard({
         </Group>
       </SimpleGrid>
 
-      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="md" data-testid="portfolio-row-2">
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="md" data-testid="portfolio-row-2" className="portfolio-row" id="portfolio-row-2">
         <Group gap="xs">
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Day P&L
           </Text>
           <Text size="md" fw={600} c={pnlColor}>
@@ -82,7 +82,7 @@ export function PaperPortfolioCard({
           </Text>
         </Group>
         <Group gap="xs">
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Positions
           </Text>
           <Badge variant="light" color="blue">
@@ -92,7 +92,7 @@ export function PaperPortfolioCard({
       </SimpleGrid>
 
       {isMultiStrategy && strategySummaries.length > 0 && (
-        <Group gap="xs" mt="md" data-testid="strategy-summaries">
+        <Group gap="xs" mt="md" data-testid="strategy-summaries" className="portfolio-strategies" id="strategy-summaries">
           {strategySummaries.map((summary) => (
             <Badge
               key={summary.strategy_name}

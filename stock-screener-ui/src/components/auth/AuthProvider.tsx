@@ -318,8 +318,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={value} data-testid="auth-provider">
-      {children}
-    </AuthContext.Provider>
+    <div id="auth-provider" data-testid="auth-provider">
+      <AuthContext.Provider value={value}>
+        {children}
+      </AuthContext.Provider>
+    </div>
   );
 }

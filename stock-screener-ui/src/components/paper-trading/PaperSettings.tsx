@@ -83,7 +83,7 @@ export function PaperSettings() {
 
   if (configLoading && !strategyConfig) {
     return (
-      <Card padding="md" radius="md" withBorder data-testid="settings-panel">
+      <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings" id="paper-settings">
         <Group justify="center" gap="sm">
           <Loader size="sm" />
           <Text c="dimmed">Loading configuration...</Text>
@@ -94,7 +94,7 @@ export function PaperSettings() {
 
   if (configError && !strategyConfig) {
     return (
-      <Card padding="md" radius="md" withBorder data-testid="settings-panel">
+      <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings paper-settings-error" id="paper-settings">
         <Alert
           icon={<IconAlertCircle size={16} />}
           title="Error"
@@ -106,7 +106,7 @@ export function PaperSettings() {
         </Alert>
         <Button
           variant="light"
-          size="xs"
+          size="sm"
           mt="md"
           onClick={() => fetchStrategyConfig()}
           data-testid="retry-button"
@@ -119,7 +119,7 @@ export function PaperSettings() {
 
   if (!strategyConfig) {
     return (
-      <Card padding="md" radius="md" withBorder data-testid="settings-panel">
+      <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings" id="paper-settings">
         <Group justify="center" gap="sm">
           <Loader size="sm" />
           <Text c="dimmed">Loading configuration...</Text>
@@ -143,7 +143,7 @@ export function PaperSettings() {
   );
 
   return (
-    <Card padding="md" radius="md" withBorder data-testid="settings-panel">
+    <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings" id="paper-settings">
       {configError && (
         <Alert
           icon={<IconAlertCircle size={16} />}
@@ -157,7 +157,7 @@ export function PaperSettings() {
         </Alert>
       )}
 
-      <Group justify="space-between" mb="md">
+      <Group justify="space-between" mb="md" className="paper-settings-header" id="settings-header">
         <div>
           <Text fw={600} size="lg">
             Strategy Configuration
@@ -173,8 +173,8 @@ export function PaperSettings() {
         )}
       </Group>
 
-      <Stack gap="md">
-        <Card padding="sm" radius="sm" withBorder variant="default">
+      <Stack gap="md" className="paper-settings-content" id="settings-content">
+        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="strategy-section">
           <Text fw={500} size="sm" mb="xs">
             Active Strategy
           </Text>
@@ -196,11 +196,11 @@ export function PaperSettings() {
               }))}
               disabled={strategiesLoading || configLoading}
               style={{ flex: 1 }}
-              size="xs"
+              size="sm"
             />
             <Button
               variant="light"
-              size="xs"
+              size="sm"
               disabled={strategiesLoading || configLoading}
               data-testid="manage-strategies-button"
             >
@@ -208,15 +208,15 @@ export function PaperSettings() {
             </Button>
           </Group>
           {strategyConfig.description && (
-            <Text size="xs" c="dimmed" mt="xs">
+            <Text size="sm" c="dimmed" mt="xs">
               {strategyConfig.description}
             </Text>
           )}
         </Card>
 
-        <Divider label="ORB Settings" labelPosition="left" />
+        <Divider label="ORB Settings" labelPosition="left" className="paper-settings-divider" />
 
-        <Card padding="sm" radius="sm" withBorder variant="default">
+        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="orb-section">
           <Text fw={500} size="sm" mb="xs">
             Opening Range Breakout
           </Text>
@@ -230,7 +230,7 @@ export function PaperSettings() {
               min={15}
               max={120}
               step={15}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Stop Loss %"
@@ -241,7 +241,7 @@ export function PaperSettings() {
               min={0.1}
               max={5}
               step={0.1}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Take Profit %"
@@ -252,7 +252,7 @@ export function PaperSettings() {
               min={0.1}
               max={10}
               step={0.1}
-              size="xs"
+              size="sm"
             />
           </Group>
           <Group grow mt="sm">
@@ -265,7 +265,7 @@ export function PaperSettings() {
               min={0.1}
               max={5}
               step={0.1}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Max OR Range %"
@@ -276,14 +276,14 @@ export function PaperSettings() {
               min={1}
               max={10}
               step={0.5}
-              size="xs"
+              size="sm"
             />
           </Group>
         </Card>
 
-        <Divider label="Risk Management" labelPosition="left" />
+        <Divider label="Risk Management" labelPosition="left" className="paper-settings-divider" />
 
-        <Card padding="sm" radius="sm" withBorder variant="default">
+        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="risk-section">
           <Text fw={500} size="sm" mb="xs">
             Risk Parameters
           </Text>
@@ -297,7 +297,7 @@ export function PaperSettings() {
               min={1}
               max={10}
               step={1}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Capital/Trade %"
@@ -308,7 +308,7 @@ export function PaperSettings() {
               min={5}
               max={25}
               step={1}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Daily Loss %"
@@ -319,7 +319,7 @@ export function PaperSettings() {
               min={1}
               max={10}
               step={1}
-              size="xs"
+              size="sm"
             />
           </Group>
           <Group grow mt="sm">
@@ -332,7 +332,7 @@ export function PaperSettings() {
               min={20}
               max={100}
               step={5}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Risk/Trade %"
@@ -343,7 +343,7 @@ export function PaperSettings() {
               min={0.5}
               max={5}
               step={0.5}
-              size="xs"
+              size="sm"
             />
           </Group>
           <Group grow mt="sm">
@@ -356,7 +356,7 @@ export function PaperSettings() {
               min={1000}
               max={50000}
               step={1000}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Max Trade Value"
@@ -367,14 +367,14 @@ export function PaperSettings() {
               min={10000}
               max={500000}
               step={10000}
-              size="xs"
+              size="sm"
             />
           </Group>
         </Card>
 
-        <Divider label="Runner Settings" labelPosition="left" />
+        <Divider label="Runner Settings" labelPosition="left" className="paper-settings-divider" />
 
-        <Card padding="sm" radius="sm" withBorder variant="default">
+        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="runner-section">
           <Text fw={500} size="sm" mb="xs">
             Runner Configuration
           </Text>
@@ -388,7 +388,7 @@ export function PaperSettings() {
               min={0}
               max={120}
               step={5}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Max Distance from OR %"
@@ -399,14 +399,14 @@ export function PaperSettings() {
               min={0.5}
               max={5}
               step={0.25}
-              size="xs"
+              size="sm"
             />
           </Group>
         </Card>
 
-        <Divider label="Trading Costs" labelPosition="left" />
+        <Divider label="Trading Costs" labelPosition="left" className="paper-settings-divider" />
 
-        <Card padding="sm" radius="sm" withBorder variant="default">
+        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="costs-section">
           <Text fw={500} size="sm" mb="xs">
             Cost Parameters
           </Text>
@@ -420,7 +420,7 @@ export function PaperSettings() {
               min={0}
               max={1}
               step={0.01}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Min Brokerage"
@@ -431,7 +431,7 @@ export function PaperSettings() {
               min={0}
               max={100}
               step={1}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="STT %"
@@ -442,7 +442,7 @@ export function PaperSettings() {
               min={0}
               max={0.1}
               step={0.001}
-              size="xs"
+              size="sm"
             />
           </Group>
           <Group grow mt="sm">
@@ -455,7 +455,7 @@ export function PaperSettings() {
               min={0}
               max={0.01}
               step={0.0001}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="SEBI %"
@@ -466,7 +466,7 @@ export function PaperSettings() {
               min={0}
               max={0.01}
               step={0.0001}
-              size="xs"
+              size="sm"
             />
             <NumberInput
               label="Stamp %"
@@ -477,7 +477,7 @@ export function PaperSettings() {
               min={0}
               max={0.01}
               step={0.0001}
-              size="xs"
+              size="sm"
             />
           </Group>
           <Group grow mt="sm">
@@ -490,12 +490,12 @@ export function PaperSettings() {
               min={0}
               max={30}
               step={1}
-              size="xs"
+              size="sm"
             />
           </Group>
         </Card>
 
-        <Group justify="flex-end" gap="sm">
+        <Group justify="flex-end" gap="sm" className="paper-settings-actions" id="settings-actions">
           <Button
             variant="light"
             color="gray"

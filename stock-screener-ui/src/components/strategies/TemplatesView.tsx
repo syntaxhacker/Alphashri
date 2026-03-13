@@ -10,7 +10,7 @@ export function TemplatesView({
 }: TemplatesViewProps) {
   if (isLoading) {
     return (
-      <Stack align="center" gap="md" mt="xl">
+      <Stack align="center" gap="md" mt="xl" className="templates-view-loading">
         <div className="spinner" data-testid="strategies-loading" />
         <Text size="sm" c="dimmed">
           Loading strategy templates...
@@ -21,16 +21,28 @@ export function TemplatesView({
 
   if (templates.length === 0) {
     return (
-      <Alert icon={<IconAlertCircle size={16} />} title="No Templates" color="yellow" mt="xl">
+      <Alert
+        icon={<IconAlertCircle size={16} />}
+        title="No Templates"
+        color="yellow"
+        mt="xl"
+        className="templates-view-empty"
+        data-testid="templates-empty-state"
+      >
         No strategy templates found. Run the migration script to create templates.
       </Alert>
     );
   }
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" className="templates-view" id="templates-view" data-testid="templates-view">
       <Title order={4}>Strategy Templates</Title>
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+      <SimpleGrid
+        cols={{ base: 1, sm: 2, lg: 3 }}
+        spacing="md"
+        className="templates-grid"
+        data-testid="templates-grid"
+      >
         {templates.map((template) => {
           const variations = strategies.filter(
             (s) => s.parent_id === template.id && !s.is_template,
@@ -51,66 +63,75 @@ export function TemplatesView({
 
 function TemplateCard({ template, variations, onCreateFromTemplate }: TemplateCardProps) {
   return (
-    <Card shadow="sm" padding="md" radius="sm" withBorder h="100%" data-testid="strategy-card">
-      <Stack gap="xs">
-        <Group justify="space-between" align="flex-start" wrap="nowrap">
+    <Card
+      shadow="sm"
+      padding="md"
+      radius="sm"
+      withBorder
+      h="100%"
+      className="template-card"
+      data-testid="strategy-card"
+    >
+      <Stack gap="xs" className="template-card-content">
+        <Group justify="space-between" align="flex-start" wrap="nowrap" className="template-card-header">
           <Group gap="xs">
             <IconSettings size={18} color="var(--mantine-color-teal-6)" />
-            <Text fw={500} size="md">
+            <Text fw={500} size="md" className="template-card-name">
               {template.name}
             </Text>
           </Group>
-          <Badge color="teal" variant="light" size="xs">
+          <Badge color="teal" variant="light" size="sm" className="template-card-badge">
             Template
           </Badge>
         </Group>
 
         {template.description && (
-          <Text size="sm" c="dimmed" lineClamp={2}>
+          <Text size="sm" c="dimmed" lineClamp={2} className="template-card-description">
             {template.description}
           </Text>
         )}
 
-        <Stack gap={4} mt="xs">
+        <Stack gap={4} mt="xs" className="template-card-params">
           <Group gap={6}>
-            <Text size="xs" c="dimmed">
+            <Text size="sm" c="dimmed">
               Type:
             </Text>
-            <Text size="xs" fw={500}>
+            <Text size="sm" fw={500}>
               {template.strategy_type}
             </Text>
           </Group>
           <Group gap={6}>
-            <Text size="xs" c="dimmed">
+            <Text size="sm" c="dimmed">
               SL:
             </Text>
-            <Text size="xs">{template.sl_pct}%</Text>
-            <Text size="xs" c="dimmed">
+            <Text size="sm">{template.sl_pct}%</Text>
+            <Text size="sm" c="dimmed">
               TP:
             </Text>
-            <Text size="xs">{template.tp_pct}%</Text>
-            <Text size="xs" c="dimmed">
+            <Text size="sm">{template.tp_pct}%</Text>
+            <Text size="sm" c="dimmed">
               Max Pos:
             </Text>
-            <Text size="xs">{template.max_positions}</Text>
+            <Text size="sm">{template.max_positions}</Text>
           </Group>
         </Stack>
 
-        <Group gap="xs" mt="sm">
+        <Group gap="xs" mt="sm" className="template-card-actions">
           <Button
-            size="xs"
+            size="sm"
             variant="light"
             leftSection={<IconPlus size={14} />}
             onClick={() => onCreateFromTemplate(template)}
             fullWidth
             data-testid="create-from-template-btn"
+            className="template-card-create-btn"
           >
             Create Variation
           </Button>
         </Group>
 
         {variations.length > 0 && (
-          <Text size="xs" c="dimmed" mt="xs">
+          <Text size="sm" c="dimmed" mt="xs" className="template-card-variations">
             {variations.length} variation{variations.length !== 1 ? "s" : ""} created
           </Text>
         )}

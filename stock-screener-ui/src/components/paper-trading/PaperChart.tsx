@@ -8,6 +8,7 @@ import type {
   PaperTrade,
   PaperPosition,
 } from "../../types/paperTrading";
+import { theme } from "../../theme";
 
 declare const echarts: any;
 
@@ -20,6 +21,8 @@ const TIMEFRAME_OPTIONS = [
 
 function buildChartOption(data: PaperChartData, isDark: boolean): any {
   const { candles, trades, orb_levels, week52_levels, current_position } = data;
+  const fontSizes = theme.fontSizes;
+  const fontFamily = theme.fontFamily;
 
   if (!candles || candles.length === 0) {
     return {};
@@ -152,7 +155,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
           formatter: "LIVE",
           position: "top",
           color: "#fff",
-          fontSize: 10,
+          fontSize: fontSizes.sm,
         },
       });
     }
@@ -180,13 +183,13 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
       name: "OR High",
       yAxis: orb_levels.or_high,
       lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
-      label: { formatter: "OR High", position: "start", color: "#2196F3", fontSize: 10 },
+      label: { formatter: "OR High", position: "start", color: "#2196F3", fontSize: fontSizes.sm },
     });
     markLines.push({
       name: "OR Low",
       yAxis: orb_levels.or_low,
       lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
-      label: { formatter: "OR Low", position: "start", color: "#2196F3", fontSize: 10 },
+      label: { formatter: "OR Low", position: "start", color: "#2196F3", fontSize: fontSizes.sm },
     });
   }
 
@@ -195,14 +198,14 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
       name: "52W High",
       yAxis: week52_levels.high_52w,
       lineStyle: { color: "#E91E63", type: "dashed", width: 2 },
-      label: { formatter: "52W High", position: "start", color: "#E91E63", fontSize: 10 },
+      label: { formatter: "52W High", position: "start", color: "#E91E63", fontSize: fontSizes.sm },
     });
     if (week52_levels.low_52w > 0) {
       markLines.push({
         name: "52W Low",
         yAxis: week52_levels.low_52w,
         lineStyle: { color: "#9C27B0", type: "dashed", width: 1 },
-        label: { formatter: "52W Low", position: "start", color: "#9C27B0", fontSize: 10 },
+        label: { formatter: "52W Low", position: "start", color: "#9C27B0", fontSize: fontSizes.sm },
       });
     }
   }
@@ -227,7 +230,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
       backgroundColor: tooltipBg,
       borderColor: borderColor,
       borderWidth: 1,
-      textStyle: { color: textColor, fontSize: 10 },
+      textStyle: { color: textColor, fontSize: fontSizes.sm },
       formatter: function (params: any[]) {
         for (const p of params) {
           if (p.data && p.data.trade) {
@@ -238,7 +241,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
               const pos = t as PaperPosition;
               const pnlColor = pos.pnl >= 0 ? "#00E676" : "#FF1744";
               return `
-                <div style="padding: 6px 8px; font-family: 'SF Mono', Monaco, monospace; font-size: 10px; line-height: 1.4;">
+                <div style="padding: 6px 8px; fontFamily: fontFamily; font-size: fontSizes.sm; line-height: 1.4;">
                   <div style="color: #00BFFF; font-weight: bold; margin-bottom: 4px;">
                     LIVE POSITION | ${pos.side}
                   </div>
@@ -264,11 +267,11 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
               const formatTime = (iso: string) => iso.split("T")[1]?.substring(0, 5) || iso;
 
               return `
-                <div style="padding: 6px 8px; font-family: 'SF Mono', Monaco, monospace; font-size: 10px; line-height: 1.4;">
+                <div style="padding: 6px 8px; fontFamily: fontFamily; font-size: fontSizes.sm; line-height: 1.4;">
                   <div style="color: #00BFFF; font-weight: bold; margin-bottom: 4px;">
                     Trade | ${trade.side} | ${trade.exit_reason}
                   </div>
-                  <div style="color: #888; margin-bottom: 4px; font-size: 9px;">
+                  <div style="color: #888; margin-bottom: 4px; font-size: fontSizes.sm;">
                     ${formatTime(trade.entry_time)} → ${formatTime(trade.exit_time)}
                   </div>
                   <div style="display: flex; gap: 12px; margin-bottom: 2px;">
@@ -298,7 +301,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
           const timeStr = c.time.split("T")[1]?.substring(0, 5) || c.time;
 
           return `
-            <div style="padding: 6px 8px; font-family: 'SF Mono', Monaco, monospace; font-size: 10px; line-height: 1.4;">
+            <div style="padding: 6px 8px; fontFamily: fontFamily; font-size: fontSizes.sm; line-height: 1.4;">
               <div style="font-weight: bold; margin-bottom: 4px;">${timeStr}</div>
               <div style="display: flex; gap: 12px;">
                 <span>O: ₹${c.open.toFixed(2)}</span>
@@ -329,7 +332,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
         data: times,
         boundaryGap: true,
         axisLine: { lineStyle: { color: axisLineColor } },
-        axisLabel: { color: mutedColor, fontSize: 10 },
+        axisLabel: { color: mutedColor, fontSize: fontSizes.sm },
         splitLine: { show: false },
         min: "dataMin",
         max: "dataMax",
@@ -350,7 +353,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
       {
         scale: true,
         axisLine: { lineStyle: { color: axisLineColor } },
-        axisLabel: { color: mutedColor, fontSize: 10 },
+        axisLabel: { color: mutedColor, fontSize: fontSizes.sm },
         splitLine: { lineStyle: { color: splitLineColor } },
       },
       {
@@ -387,7 +390,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
                 data: markLines,
                 label: {
                   color: "#fff",
-                  fontSize: 10,
+                  fontSize: fontSizes.sm,
                 },
               }
             : undefined,
@@ -455,7 +458,7 @@ function PositionInfo({ position }: { position: PaperPosition }) {
   const sideIcon = position.side === "BUY" ? "▲" : "▼";
 
   return (
-    <Group gap="xs" data-testid="position-info" className={`position-info ${pnlClass}`}>
+    <Group gap="xs" data-testid="position-info" className={`position-info paper-position-info ${pnlClass}`} id={`position-info-${position.symbol}`}>
       <Badge size="sm" variant="light" color={position.side === "BUY" ? "green" : "red"}>
         {sideIcon} {position.side}
       </Badge>
@@ -472,7 +475,7 @@ function PositionInfo({ position }: { position: PaperPosition }) {
 
 function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolean }) {
   return (
-    <Group gap="md" data-testid="chart-legend" style={{ padding: "8px 0" }}>
+    <Group gap="md" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend" style={{ padding: "8px 0" }}>
       <Group gap={4}>
         <Box
           className="legend-marker entry"
@@ -484,7 +487,7 @@ function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolea
             display: "inline-block",
           }}
         />
-        <Text size="xs" c="dimmed">
+        <Text size="sm" c="dimmed">
           Entry
         </Text>
       </Group>
@@ -499,7 +502,7 @@ function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolea
             display: "inline-block",
           }}
         />
-        <Text size="xs" c="dimmed">
+        <Text size="sm" c="dimmed">
           TP
         </Text>
       </Group>
@@ -514,7 +517,7 @@ function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolea
             display: "inline-block",
           }}
         />
-        <Text size="xs" c="dimmed">
+        <Text size="sm" c="dimmed">
           SL
         </Text>
       </Group>
@@ -530,7 +533,7 @@ function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolea
               display: "inline-block",
             }}
           />
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             OR
           </Text>
         </Group>
@@ -547,7 +550,7 @@ function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolea
               display: "inline-block",
             }}
           />
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             52W High
           </Text>
         </Group>
@@ -623,6 +626,8 @@ export function PaperChart() {
     return (
       <Card
         data-testid="paper-chart-container"
+        className="paper-chart-container paper-chart-empty"
+        id="paper-chart"
         style={{
           height: "100%",
           display: "flex",
@@ -645,6 +650,8 @@ export function PaperChart() {
     return (
       <Card
         data-testid="paper-chart-container"
+        className="paper-chart-container paper-chart-loading"
+        id="paper-chart"
         style={{
           height: "100%",
           display: "flex",
@@ -664,6 +671,8 @@ export function PaperChart() {
     return (
       <Card
         data-testid="paper-chart-container"
+        className="paper-chart-container paper-chart-error"
+        id="paper-chart"
         style={{
           height: "100%",
           display: "flex",
@@ -689,6 +698,8 @@ export function PaperChart() {
     return (
       <Card
         data-testid="paper-chart-container"
+        className="paper-chart-container paper-chart-no-data"
+        id="paper-chart"
         style={{
           height: "100%",
           display: "flex",
@@ -713,6 +724,8 @@ export function PaperChart() {
   return (
     <Card
       data-testid="paper-chart-container"
+      className="paper-chart-container"
+      id="paper-chart"
       h="100%"
       style={{
         padding: 0,
@@ -723,7 +736,7 @@ export function PaperChart() {
         minHeight: 0,
       }}
     >
-      <Box data-testid="paper-chart-header" p="sm" pb={0} style={{ flex: "0 0 auto" }}>
+      <Box data-testid="paper-chart-header" className="paper-chart-header" id="chart-header" p="sm" pb={0} style={{ flex: "0 0 auto" }}>
         <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
           <Group gap="sm">
             <Text fw={600} size="lg">
@@ -731,7 +744,7 @@ export function PaperChart() {
             </Text>
             <Select
               data-testid="paper-chart-timeframe"
-              size="xs"
+              size="sm"
               value={state.chartTimeframe}
               onChange={handleTimeframeChange}
               data={TIMEFRAME_OPTIONS}
@@ -752,10 +765,12 @@ export function PaperChart() {
       <Box
         ref={chartRef}
         data-testid="paper-echarts"
+        className="paper-chart-canvas"
+        id="echarts-container"
         style={{ flex: 1, width: "100%", minHeight: 0 }}
       />
 
-      <Box px="sm" pb="sm" style={{ flex: "0 0 auto" }}>
+      <Box px="sm" pb="sm" className="paper-chart-footer" id="chart-footer" style={{ flex: "0 0 auto" }}>
         <ChartLegend
           hasOrb={!!state.chartData.orb_levels}
           hasWeek52={!!state.chartData.week52_levels}

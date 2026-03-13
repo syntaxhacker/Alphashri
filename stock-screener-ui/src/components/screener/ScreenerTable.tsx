@@ -38,12 +38,13 @@ export function ScreenerTable({
         style={{ cursor: "pointer" }}
         onClick={() => onSortChange(column.key)}
         data-testid={`sort-header-${column.key}`}
-        className="sortable"
+        className={`screener-table-header-cell sortable ${sortColumn === column.key ? 'sorted' : ''}`}
+        id={`header-${column.key}`}
       >
         <Group gap={4} wrap="nowrap">
           <Text>{column.label}</Text>
           {sortColumn === column.key && (
-            <span className={`sort-indicator ${sortDirection}`}>
+            <span className={`sort-indicator ${sortDirection}`} data-testid={`sort-indicator-${column.key}`}>
               {sortDirection === "asc" ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />}
             </span>
           )}
@@ -54,11 +55,13 @@ export function ScreenerTable({
                   <ActionIcon
                     variant="subtle"
                     color={copied ? "teal" : "gray"}
-                    size="xs"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       copy();
                     }}
+                    data-testid="copy-all-symbols-btn"
+                    className="copy-all-symbols-btn"
                   >
                     {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
                   </ActionIcon>
@@ -72,12 +75,12 @@ export function ScreenerTable({
   };
 
   return (
-    <ScrollArea h="100%" offsetScrollbars type="always">
-      <Table striped highlightOnHover withTableBorder stickyHeader>
-        <Table.Thead>
+    <ScrollArea h="100%" offsetScrollbars type="always" className="screener-table-scroll" data-testid="screener-table-scroll">
+      <Table striped highlightOnHover withTableBorder stickyHeader id="screener-table" className="screener-table" data-testid="screener-table">
+        <Table.Thead className="screener-table-header" data-testid="screener-table-header">
           <Table.Tr>{columns.map(renderHeader)}</Table.Tr>
         </Table.Thead>
-        <Table.Tbody>
+        <Table.Tbody className="screener-table-body" data-testid="screener-table-body">
           {stocks.map((stock) => (
             <StockRow
               key={stock.symbol}

@@ -76,6 +76,8 @@ export function MarketTicker() {
       <Box
         bg={background}
         data-testid="market-ticker"
+        id="market-ticker"
+        className="market-ticker market-ticker-loading"
         style={{
           borderBottom: `1px solid ${border}`,
           padding: `${theme.spacing.xs} ${theme.spacing.md}`,
@@ -95,12 +97,14 @@ export function MarketTicker() {
       <Box
         bg={background}
         data-testid="market-ticker"
+        id="market-ticker"
+        className="market-ticker market-ticker-error"
         style={{
           borderBottom: `1px solid ${border}`,
           padding: `${theme.spacing.xs} ${theme.spacing.md}`,
         }}
       >
-        <Text size="xs" c="dimmed">
+        <Text size="sm" c="dimmed">
           Market data unavailable
         </Text>
       </Box>
@@ -120,13 +124,15 @@ export function MarketTicker() {
     <Box
       bg={background}
       data-testid="market-ticker"
+      id="market-ticker"
+      className="market-ticker"
       style={{
         borderBottom: `1px solid ${border}`,
         padding: `${theme.spacing.xs} ${theme.spacing.md}`,
         overflowX: "auto",
       }}
     >
-      <Group gap="md" wrap="nowrap">
+      <Group gap="md" wrap="nowrap" className="market-ticker-items">
         {sortedSymbols.map((symbol) => {
           const item = tickers[symbol];
           const label = getTickerLabel(symbol);
@@ -136,18 +142,18 @@ export function MarketTicker() {
           const isPositive = change >= 0;
 
           return (
-            <Group key={symbol} gap="xs" wrap="nowrap">
-              <Text size="xs" fw={600} c="dimmed">
+            <Group key={symbol} gap="xs" wrap="nowrap" className="market-ticker-item" data-testid={`ticker-${symbol.replace(/[\\^\\=]/g, "").toLowerCase()}`}>
+              <Text size="sm" fw={600} c="dimmed">
                 {label}
               </Text>
-              <Text size="xs" fw={700}>
+              <Text size="sm" fw={700}>
                 {price.toLocaleString("en-IN", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
               </Text>
-              <Badge
-                size="xs"
+<Badge
+                 size="sm"
                 color={isPositive ? "green" : "red"}
                 variant="light"
                 leftSection={
@@ -160,7 +166,7 @@ export function MarketTicker() {
             </Group>
           );
         })}
-        <Text size="xs" c="dimmed" ml="auto">
+        <Text size="sm" c="dimmed" ml="auto" data-testid="market-ticker-updated">
           Updated: {lastUpdated}
         </Text>
       </Group>

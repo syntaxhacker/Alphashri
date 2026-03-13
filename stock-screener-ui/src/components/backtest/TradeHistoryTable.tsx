@@ -154,7 +154,7 @@ export function TradeHistoryTable({
     return (
       <Table.Th style={{ cursor: "pointer" }} onClick={() => onSort(column)} data-testid={testId}>
         <Group gap={4} wrap="nowrap">
-          <Text size="xs" fw={500}>
+          <Text size="sm" fw={500}>
             {label}
           </Text>
           {isActive &&
@@ -166,6 +166,7 @@ export function TradeHistoryTable({
 
   return (
     <Box
+      id="trade-history-table"
       className="trade-history-panel"
       data-testid="trade-history-panel"
       style={{
@@ -193,33 +194,34 @@ export function TradeHistoryTable({
       </Group>
 
       <Group gap="md" p="xs" data-testid="trade-history-summary">
-        <Text size="xs" data-testid="trade-summary-pnl">
+        <Text size="sm" data-testid="trade-summary-pnl">
           P&L:{" "}
           <Text component="span" fw={600} c={totalPnl >= 0 ? "green" : "red"}>
             ₹{totalPnl.toFixed(0)}
           </Text>
         </Text>
-        <Text size="xs" data-testid="trade-summary-wr">
+        <Text size="sm" data-testid="trade-summary-wr">
           WR: {winRate}%
         </Text>
-        <Text size="xs" data-testid="trade-summary-wins">
+        <Text size="sm" data-testid="trade-summary-wins">
           Wins: {wins}/{trades.length}
         </Text>
       </Group>
 
-      <ScrollArea flex={1} type="auto" offsetScrollbars style={{ minHeight: 0 }}>
+      <ScrollArea flex={1} type="auto" offsetScrollbars style={{ minHeight: 0 }} className="trade-history-scroll">
         <Table
           striped
           highlightOnHover
           withTableBorder
           data-testid="trade-history-table"
           className="trade-history-table"
+          id="trade-history-data-table"
           style={{ minWidth: "100%" }}
         >
           <Table.Thead>
             <Table.Tr>
               <Table.Th>
-                <Text size="xs" fw={500}>
+                <Text size="sm" fw={500}>
                   #
                 </Text>
               </Table.Th>
@@ -256,61 +258,61 @@ export function TradeHistoryTable({
                   bg={t.net_pnl >= 0 ? undefined : "rgba(255, 0, 0, 0.05)"}
                 >
                   <Table.Td>
-                    <Text size="xs">{tradeNumber}</Text>
+                    <Text size="sm">{tradeNumber}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">{formatDateHuman(t.entry_time)}</Text>
+                    <Text size="sm">{formatDateHuman(t.entry_time)}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">{formatDateHuman(t.exit_time)}</Text>
+                    <Text size="sm">{formatDateHuman(t.exit_time)}</Text>
                   </Table.Td>
                   <Table.Td>
                     {side === "LONG" ? (
-                      <Text size="xs" c="green">
+                      <Text size="sm" c="green">
                         <IconArrowUp size={12} style={{ marginRight: 2 }} />
                         LONG
                       </Text>
                     ) : (
-                      <Text size="xs" c="red">
+                      <Text size="sm" c="red">
                         <IconArrowDown size={12} style={{ marginRight: 2 }} />
                         SHORT
                       </Text>
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">{t.quantity ?? 0}</Text>
+                    <Text size="sm">{t.quantity ?? 0}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">₹{(t.entry_price ?? 0).toFixed(0)}</Text>
+                    <Text size="sm">₹{(t.entry_price ?? 0).toFixed(0)}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">₹{levelHigh.toFixed(2)}</Text>
+                    <Text size="sm">₹{levelHigh.toFixed(2)}</Text>
                   </Table.Td>
                   {!has52w && (
                     <Table.Td>
-                      <Text size="xs">₹{levelLow.toFixed(2)}</Text>
+                      <Text size="sm">₹{levelLow.toFixed(2)}</Text>
                     </Table.Td>
                   )}
                   <Table.Td>
-                    <Text size="xs">₹{(t.exit_price ?? 0).toFixed(0)}</Text>
+                    <Text size="sm">₹{(t.exit_price ?? 0).toFixed(0)}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs" fw={600} c={t.net_pnl >= 0 ? "green" : "red"}>
+                    <Text size="sm" fw={600} c={t.net_pnl >= 0 ? "green" : "red"}>
                       ₹{(t.net_pnl ?? 0).toFixed(0)}
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs" c={pnlPct >= 0 ? "green" : "red"}>
+                    <Text size="sm" c={pnlPct >= 0 ? "green" : "red"}>
                       {pnlPct >= 0 ? "+" : ""}
                       {pnlPct.toFixed(2)}%
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">{formatDuration(t.hold_duration_minutes ?? 0)}</Text>
+                    <Text size="sm">{formatDuration(t.hold_duration_minutes ?? 0)}</Text>
                   </Table.Td>
                   <Table.Td>
                     <Badge
-                      size="xs"
+                      size="sm"
                       color={
                         t.exit_reason === "TP"
                           ? "green"

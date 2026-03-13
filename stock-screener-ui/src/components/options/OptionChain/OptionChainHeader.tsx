@@ -16,12 +16,18 @@ export function OptionChainHeader({
   availableExpiries: string[];
 }) {
   return (
-    <Group grow>
+    <Group
+      id="chain-header-controls"
+      className="chain-header-controls"
+      grow
+      data-testid="options-chain-header-controls"
+    >
       <Select
         label="Underlying"
         value={selectedUnderlying}
         onChange={(val) => val && setUnderlying(val)}
         data={availableUnderlyings.map((u) => ({ value: u, label: u }))}
+        className="chain-underlying-select"
         data-testid="underlying-select"
       />
       <Select
@@ -29,6 +35,7 @@ export function OptionChainHeader({
         value={selectedExpiry}
         onChange={(val) => val && setExpiry(val)}
         data={availableExpiries.map((e) => ({ value: e, label: e }))}
+        className="chain-expiry-select"
         data-testid="expiry-select"
       />
     </Group>
