@@ -43,9 +43,17 @@ export function useScreenerState() {
   }, []);
 
   // Derived state from global state
-  const allStocks = useMemo(() => {
-    return [...(state.data?.approaching || []), ...(state.data?.touched || [])];
+  const approachingStocks = useMemo(() => {
+    return state.data?.approaching || [];
   }, [state.data]);
+
+  const touchedStocks = useMemo(() => {
+    return state.data?.touched || [];
+  }, [state.data]);
+
+  const allStocks = useMemo(() => {
+    return [...approachingStocks, ...touchedStocks];
+  }, [approachingStocks, touchedStocks]);
 
   const sectors = useMemo(() => getUniqueSectors(allStocks), [allStocks]);
 
@@ -112,8 +120,8 @@ export function useScreenerState() {
   }, []);
 
   return {
-    stocks: allStocks,
-    touchedSymbols: new Set(state.data?.touched?.map((s) => s.symbol) || []),
+    approachingStocks,
+    touchedStocks,
     filters: state.filters,
     sectors,
     screenerOptions: state.screenerOptions,

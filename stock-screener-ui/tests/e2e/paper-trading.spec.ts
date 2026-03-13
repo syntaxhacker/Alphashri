@@ -30,9 +30,9 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await navigateToPaperTrading(page);
 
     // Verify tabs are visible
-    await expect(page.locator('button:has-text("Live Positions")')).toBeVisible();
-    await expect(page.locator('button:has-text("Trade History")')).toBeVisible();
-    await expect(page.locator('button:has-text("Settings")')).toBeVisible();
+    await expect(page.getByTestId("tab-live")).toBeVisible();
+    await expect(page.getByTestId("trade-history-tab")).toBeVisible();
+    await expect(page.getByTestId("tab-settings")).toBeVisible();
   });
 
   test("should display bot selector dropdown", async ({ page }) => {

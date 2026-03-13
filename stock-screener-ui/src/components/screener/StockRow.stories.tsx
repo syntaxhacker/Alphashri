@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { Table } from "@mantine/core";
 import { StockRow } from "./StockRow";
 import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
@@ -87,6 +88,15 @@ const meta: Meta<typeof StockRow> = {
       control: "boolean",
     },
   },
+  decorators: [
+    (Story) => (
+      <Table>
+        <Table.Tbody>
+          <Story />
+        </Table.Tbody>
+      </Table>
+    ),
+  ],
 };
 
 export default meta;

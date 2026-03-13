@@ -97,7 +97,7 @@ test.describe("Paper Trading Settings", () => {
 
     // Navigate back to Paper Trading > Settings
     await page.click("text=Paper Trading");
-    await page.click('button:has-text("Settings")');
+    await page.click('[data-testid="tab-settings"]');
 
     // Wait for settings panel to load
     await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
@@ -169,7 +169,7 @@ test.describe("Paper Trading Settings", () => {
 
     // Navigate back to settings
     await page.click("text=Paper Trading");
-    await page.click('button:has-text("Settings")');
+    await page.click('[data-testid="tab-settings"]');
 
     // Wait for settings panel to load
     await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });

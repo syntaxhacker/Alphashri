@@ -4,8 +4,8 @@ import { useScreenerState } from "../hooks/useScreenerState";
 
 export function ScreenerContainer() {
   const {
-    stocks,
-    touchedSymbols,
+    approachingStocks,
+    touchedStocks,
     filters,
     sectors,
     screenerOptions,
@@ -32,7 +32,9 @@ export function ScreenerContainer() {
       activeScreener={activeScreener}
       onScreenerChange={onScreenerChange}
       title={`${screenerOptions.find((s) => s.id === activeScreener)?.label || "Screener"} | Alphashri`}
-      status={isLoading ? "Loading..." : `${stocks.length} stocks`}
+      status={
+        isLoading ? "Loading..." : `${approachingStocks.length + touchedStocks.length} stocks`
+      }
       isLoading={isLoading}
       autoRefreshSeconds={autoRefreshSeconds}
       provider={provider}
@@ -45,8 +47,8 @@ export function ScreenerContainer() {
       sectors={sectors}
       onFilterChange={onFilterChange}
       onResetFilters={onResetFilters}
-      stocks={stocks}
-      touchedSymbols={touchedSymbols}
+      approachingStocks={approachingStocks}
+      touchedStocks={touchedStocks}
       onSymbolClick={onSymbolClick}
       onSymbolHover={onSymbolHover}
       error={error}
