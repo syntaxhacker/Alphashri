@@ -21,7 +21,7 @@ export async function setupPaperTradingTestMocks(page: Page): Promise<void> {
  */
 export async function navigateToPaperTrading(page: Page): Promise<void> {
   // Navigate directly to paper trading URL
-  await page.goto("/paper");
+  await page.goto("/paper", { timeout: 30000 });
   await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 }

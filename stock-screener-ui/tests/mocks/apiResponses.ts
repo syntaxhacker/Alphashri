@@ -334,20 +334,105 @@ export const mockBuyerInterestCounts = {
   bearish: allBuyerInterestStocks.filter((s) => s.wick_close_pct <= 40).length,
 };
 
+export const mockSectorResponse = {
+  sectors: [
+    {
+      sector: "Technology",
+      avg_change: 2.45,
+      stock_count: 45,
+      advances: 35,
+      declines: 10,
+      avg_rsi: 62.5,
+      avg_adx: 28.3,
+      top_movers: "TCS(+3.2%) INFY(+2.8%) WIPRO(+1.9%)",
+    },
+    {
+      sector: "Finance",
+      avg_change: 1.2,
+      stock_count: 38,
+      advances: 25,
+      declines: 13,
+      avg_rsi: 58.0,
+      avg_adx: 22.1,
+      top_movers: "HDFC(+2.1%) ICICI(+1.5%) SBI(+0.8%)",
+    },
+    {
+      sector: "Energy",
+      avg_change: -0.85,
+      stock_count: 22,
+      advances: 8,
+      declines: 14,
+      avg_rsi: 45.2,
+      avg_adx: 18.5,
+      top_movers: "RELIANCE(+0.5%) ONGC(-1.2%) BPCL(-2.0%)",
+    },
+  ],
+  top_stock_movers: [
+    { symbol: "TCS", change: 3.2 },
+    { symbol: "INFY", change: 2.8 },
+    { symbol: "HDFC", change: 2.1 },
+    { symbol: "WIPRO", change: 1.9 },
+    { symbol: "ICICI", change: 1.5 },
+  ],
+  last_updated: new Date().toISOString(),
+  market: "india",
+};
+
+export async function setupSectorMocks(page: import("@playwright/test").Page) {
+  // Only match the API endpoint on port 8765, not source files
+  await page.route("http://localhost:8765/api/sector*", async (route) => {
+    const url = route.request().url();
+    const marketMatch = url.match(/market=([^&]+)/);
+    const market = marketMatch ? marketMatch[1] : "india";
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...mockSectorResponse,
+        market,
+      }),
+    });
+  });
+}
+
+// Track auth state per page object using WeakMap
+const authStateByPage = new WeakMap<import("@playwright/test").Page, boolean>();
+
+// Test user credentials - defined before setupApiMocks
+export const testUser = {
+  id: 1,
+  email: "test@alphashri.dev",
+  display_name: "TestUser",
+  initial_capital: 1000000,
+  created_at: "2026-01-01T00:00:00",
+};
+
 // Helper to setup API mocks in Playwright tests
 // IMPORTANT: This must be called BEFORE page.goto()
 export async function setupApiMocks(page: import("@playwright/test").Page) {
-  // Mock auth endpoints
-  await page.route("**/api/auth/me", async (route) => {
-    // Return unauthenticated by default - tests should use login helper if needed
-    await route.fulfill({
-      status: 401,
-      contentType: "application/json",
-      body: JSON.stringify({ detail: "Not authenticated" }),
-    });
+  // Reset auth state for this page
+  authStateByPage.set(page, false);
+
+  // Mock auth endpoints - use http://localhost:8765 to avoid matching source files
+  await page.route("http://localhost:8765/api/auth/me", async (route) => {
+    const isAuthenticated = authStateByPage.get(page) ?? false;
+    if (isAuthenticated) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(testUser),
+      });
+    } else {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Not authenticated" }),
+      });
+    }
   });
 
-  await page.route("**/api/auth/login", async (route) => {
+  await page.route("http://localhost:8765/api/auth/login", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -360,8 +445,8 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
     });
   });
 
-  // Mock screeners list - use full URL pattern
-  await page.route("**/api/screeners", async (route) => {
+  // Mock screeners list
+  await page.route("http://localhost:8765/api/screeners", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -370,7 +455,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock screener data endpoint with query parameters
-  await page.route("**/api/screener*", async (route) => {
+  await page.route("http://localhost:8765/api/screener*", async (route) => {
     const url = route.request().url();
 
     // Check if it's buyer_interest_enhanced
@@ -394,15 +479,6 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
     });
   });
 }
-
-// Test user credentials
-export const testUser = {
-  id: 1,
-  email: "test@alphashri.dev",
-  display_name: "TestUser",
-  initial_capital: 1000000,
-  created_at: "2026-01-01T00:00:00",
-};
 
 // Mock strategy config
 export const mockStrategyConfig = {
@@ -439,16 +515,10 @@ export const mockStrategyConfig = {
 // Mutable config for tests
 let currentConfig = { ...mockStrategyConfig };
 
-// Helper to login as test user (sets localStorage tokens)
+// Helper to login as test user (sets localStorage tokens and enables auth mock)
 export async function loginAsTestUser(page: import("@playwright/test").Page) {
-  // Mock auth/me to return authenticated user
-  await page.route("**/api/auth/me", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(testUser),
-    });
-  });
+  // Enable authenticated response for this specific page
+  authStateByPage.set(page, true);
 
   // Set localStorage tokens before navigating
   await page.addInitScript(() => {

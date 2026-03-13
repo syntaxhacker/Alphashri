@@ -178,9 +178,7 @@ export async function fetchArticlesForSymbol(
  */
 export async function fetchArticleById(articleId: number): Promise<NewsArticle | null> {
   try {
-    const response = await fetchWithAuth(
-      `${API_BASE}/api/news/articles/${articleId}`,
-    );
+    const response = await fetchWithAuth(`${API_BASE}/api/news/articles/${articleId}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch article: ${response.statusText}`);
     }
@@ -241,9 +239,7 @@ export async function searchArticles(
  */
 export async function mapSymbol(symbol: string): Promise<SymbolMapping | null> {
   try {
-    const response = await fetchWithAuth(
-      `${API_BASE}/api/news/map/${encodeURIComponent(symbol)}`,
-    );
+    const response = await fetchWithAuth(`${API_BASE}/api/news/map/${encodeURIComponent(symbol)}`);
     if (!response.ok) {
       throw new Error(`Failed to map symbol: ${response.statusText}`);
     }

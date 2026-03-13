@@ -55,8 +55,9 @@ wandb/
 data_cache/
 *.json
 !package.json
+!historical_sector_cycles/rotation_dashboard_data.json
 *.html
-
+!stock-screener-ui/index.html
 # Upstox token (explicitly listed)
 .upstox_token.json
 

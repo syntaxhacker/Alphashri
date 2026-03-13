@@ -9,7 +9,7 @@ export interface NewsSymbol {
   instrument_key?: string;
   company_name?: string;
   match_confidence?: number;
-  match_method?: 'exact' | 'variation' | 'fuzzy' | 'none' | 'blacklisted';
+  match_method?: "exact" | "variation" | "fuzzy" | "none" | "blacklisted";
 }
 
 /**
@@ -50,7 +50,7 @@ export interface NewsResponse {
  */
 export interface TradeIdea {
   symbol: string;
-  direction: 'LONG' | 'SHORT';
+  direction: "LONG" | "SHORT";
   reasoning: string;
 }
 
@@ -59,7 +59,7 @@ export interface TradeIdea {
  */
 export interface ArticleResponse extends NewsItem {
   error?: string;
-  sentiment?: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  sentiment?: "BULLISH" | "BEARISH" | "NEUTRAL";
   impact_score?: number;
   summary?: string;
   key_points?: string[];
