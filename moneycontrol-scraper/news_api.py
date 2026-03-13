@@ -233,6 +233,40 @@ class FinancialExpressScraper(BaseNewsScraper):
 
     def _is_news_article(self, url: str) -> bool:
         return bool(re.search(r'/\d+/$', url)) or '/article/' in url
+    
+    def _extract_specifics(self, page, url: str) -> Tuple[str, str, Optional[str], List[Dict]]:
+        title = page.css('h1::text').get() or ''
+        
+        published_at = None
+        date_el = page.css('.post-date::text').get() or page.css('.date::text').get()
+        if date_el:
+            parsed = self._parse_date_generic(date_el.strip())
+            if parsed:
+                published_at = parsed.isoformat()
+        
+        symbols = []
+        article_text = ''
+        
+        content_areas = page.css('.article-body') or page.css('.post-content') or page.css('article')
+        if content_areas:
+            for link in content_areas[0].css('a'):
+                href = link.css('::attr(href)').get() or ''
+                text = link.css('::text').get() or ''
+                
+                if '/company/' in href or '/stocks/' in href:
+                    text_clean = text.strip()
+                    if text_clean and len(text_clean) >= 3 and len(text_clean) <= 50:
+                        if not re.match(r'^[A-Z]{2,}$', text_clean):
+                            symbols.append({
+                                'name': text_clean,
+                                'code': text_clean.upper().replace(' ', ''),
+                                'url': href if href.startswith('http') else f"https://www.financialexpress.com{href}"
+                            })
+            
+            para_texts = [' '.join(p.css('::text').getall()).strip() for p in content_areas[0].css('p')]
+            article_text = '\n\n'.join(p for p in para_texts if p)
+        
+        return title.strip(), article_text, published_at, symbols
 
 class BusinessStandardScraper(BaseNewsScraper):
     source_id = "business_standard"

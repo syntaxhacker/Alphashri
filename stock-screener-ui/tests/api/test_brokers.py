@@ -173,7 +173,8 @@ class TestUpstoxAuth:
 
         location = response.headers["location"]
         assert "redirect_uri" in location
-        assert "localhost:8765" in location
+        expected_host = os.getenv("API_BASE_URL", "http://localhost:8765").replace("http://", "").replace("https://", "")
+        assert expected_host in location
 
 
 class TestUpstoxCallback:

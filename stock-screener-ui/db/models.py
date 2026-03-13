@@ -2,9 +2,10 @@
 Database models for Alphashri
 """
 
+import json
 import uuid
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, Table, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, Table, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -406,5 +407,136 @@ def delete_broker_token(broker_name: str, user_id: Optional[int] = None) -> bool
             db.commit()
             return True
         return False
+    finally:
+        db.close()
+
+
+class NewsArticle(Base):
+    """Stored news articles for symbol tracking and historical analysis."""
+    __tablename__ = "news_articles"
+
+    id = Column(Integer, primary_key=True)
+    url = Column(String(2048), unique=True, index=True, nullable=False)
+    headline = Column(String(500), nullable=False)
+    content = Column(Text, nullable=True)
+    source = Column(String(50), nullable=False, index=True)
+    source_url = Column(String(2048), nullable=True)
+    published_at = Column(DateTime, nullable=True, index=True)
+    fetched_at = Column(DateTime, server_default=func.now(), index=True)
+    
+    sentiment = Column(String(20), nullable=True)
+    impact_score = Column(Integer, nullable=True)
+    analysis_json = Column(Text, nullable=True)
+
+    symbols = relationship("NewsSymbolMention", back_populates="article", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<NewsArticle(id={self.id}, headline='{self.headline[:50]}...', source='{self.source}')>"
+
+    def to_dict(self) -> dict:
+        analysis = None
+        if self.analysis_json:
+            try:
+                analysis = json.loads(self.analysis_json)
+            except:
+                pass
+        
+        return {
+            "id": self.id,
+            "url": self.url,
+            "headline": self.headline,
+            "content": self.content,
+            "source": self.source,
+            "source_url": self.source_url,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
+            "fetched_at": self.fetched_at.isoformat() if self.fetched_at else None,
+            "sentiment": self.sentiment,
+            "impact_score": self.impact_score,
+            "summary": analysis.get("summary") if analysis else None,
+            "key_points": analysis.get("key_points") if analysis else None,
+            "key_entities": analysis.get("key_entities") if analysis else None,
+            "trade_ideas": analysis.get("trade_ideas") if analysis else None,
+            "symbols": [s.to_dict() for s in self.symbols] if self.symbols else []
+        }
+
+
+class NewsSymbolMention(Base):
+    """Symbols mentioned in news articles, mapped to Upstox instruments."""
+    __tablename__ = "news_symbol_mentions"
+
+    id = Column(Integer, primary_key=True)
+    article_id = Column(Integer, ForeignKey("news_articles.id"), nullable=False, index=True)
+    
+    symbol_code = Column(String(50), nullable=False)
+    trading_symbol = Column(String(50), nullable=True)
+    instrument_key = Column(String(100), nullable=True)
+    company_name = Column(String(200), nullable=True)
+    match_confidence = Column(Float, nullable=True)
+    match_method = Column(String(20), nullable=True)
+
+    article = relationship("NewsArticle", back_populates="symbols")
+
+    __table_args__ = (
+        Index('ix_news_symbol_mentions_instrument_key', 'instrument_key'),
+        Index('ix_news_symbol_mentions_trading_symbol', 'trading_symbol'),
+    )
+
+    def __repr__(self):
+        return f"<NewsSymbolMention(symbol_code='{self.symbol_code}', trading_symbol='{self.trading_symbol}')>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "symbol_code": self.symbol_code,
+            "trading_symbol": self.trading_symbol,
+            "instrument_key": self.instrument_key,
+            "company_name": self.company_name,
+            "match_confidence": self.match_confidence,
+            "match_method": self.match_method
+        }
+
+
+def get_articles_for_instrument(instrument_key: str, limit: int = 10) -> list:
+    """Get news articles mentioning a specific instrument."""
+    from .database import SessionLocal
+    db = SessionLocal()
+    try:
+        mentions = db.query(NewsSymbolMention).filter(
+            NewsSymbolMention.instrument_key == instrument_key
+        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
+        
+        article_ids = [m.article_id for m in mentions]
+        if not article_ids:
+            return []
+        
+        articles = db.query(NewsArticle).filter(
+            NewsArticle.id.in_(article_ids)
+        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
+        
+        return [a.to_dict() for a in articles]
+    finally:
+        db.close()
+
+
+def get_articles_for_symbol(symbol: str, limit: int = 10) -> list:
+    """Get news articles mentioning a symbol (by trading_symbol or symbol_code)."""
+    from .database import SessionLocal
+    db = SessionLocal()
+    try:
+        symbol_upper = symbol.upper()
+        mentions = db.query(NewsSymbolMention).filter(
+            (NewsSymbolMention.trading_symbol == symbol_upper) |
+            (NewsSymbolMention.symbol_code == symbol_upper)
+        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
+        
+        article_ids = [m.article_id for m in mentions]
+        if not article_ids:
+            return []
+        
+        articles = db.query(NewsArticle).filter(
+            NewsArticle.id.in_(article_ids)
+        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
+        
+        return [a.to_dict() for a in articles]
     finally:
         db.close()
