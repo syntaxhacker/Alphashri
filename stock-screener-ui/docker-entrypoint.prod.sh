@@ -3,6 +3,16 @@ set -e
 
 echo "🚀 Starting Alphashri Production Server..."
 
+# Debug: Show current directory and files
+echo "Current directory: $(pwd)"
+echo "Files in current directory:"
+ls -la /app/stock-screener-ui/
+echo ""
+echo "Checking for config.py:"
+test -f /app/stock-screener-ui/config.py && echo "✅ config.py found at /app/stock-screener-ui/config.py" || echo "❌ config.py NOT FOUND at /app/stock-screener-ui/config.py"
+echo "PYTHONPATH=$PYTHONPATH"
+echo ""
+
 # Wait for PostgreSQL (only if DATABASE_URL is set)
 if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres* ]]; then
   echo "⏳ Waiting for PostgreSQL..."
