@@ -12,15 +12,16 @@ from datetime import datetime
 from pathlib import Path as PathlibPath
 from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
-import config
 
-# Add project root and scanners to path
+# Add project root and scanners to path FIRST (before imports)
 _script_dir = PathlibPath(__file__).parent.absolute()
 _project_root = _script_dir.parent
 _scanners_dir = _project_root / 'scanners'
 sys.path.insert(0, str(_project_root))
 sys.path.insert(0, str(_scanners_dir))
 sys.path.insert(0, str(_script_dir))
+
+import config
 
 from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect, Path, Depends
 from fastapi.middleware.cors import CORSMiddleware
