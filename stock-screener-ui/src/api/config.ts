@@ -11,10 +11,10 @@ export const API_BASE = isProd
   : (import.meta.env.VITE_API_BASE_URL || "http://localhost:8765");
 
 // WebSocket base URL
-// Production uses relative 'ws://' or 'wss://' based on current protocol
-export const WS_BASE = isProd
-  ? (window.location.protocol === "https:" ? "wss://" : "ws://") + window.location.host
-  : (import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8765");
+// In production, use env var or default to wss:// backend
+// In development, use env var or localhost
+export const WS_BASE = import.meta.env.VITE_WS_BASE_URL 
+  || (isProd ? "wss://alphashri-backend.onrender.com" : "ws://localhost:8765");
 
 // Endpoint-specific bases (for convenience)
 export const API_ENDPOINTS = {
