@@ -2,17 +2,11 @@
  * Centralized API configuration for the frontend.
  */
 
-// In production (Cloudflare), we use relative paths so Cloudflare proxies to the backend.
-// In development, we use the local dev server.
 const isProd = import.meta.env.PROD;
 
-export const API_BASE = isProd 
-  ? "" // Empty string means relative to current domain
-  : (import.meta.env.VITE_API_BASE_URL || "http://localhost:8765");
+export const API_BASE = import.meta.env.VITE_API_BASE_URL 
+  || (isProd ? "https://alphashri-backend.onrender.com" : "http://localhost:8765");
 
-// WebSocket base URL
-// In production, use env var or default to wss:// backend
-// In development, use env var or localhost
 export const WS_BASE = import.meta.env.VITE_WS_BASE_URL 
   || (isProd ? "wss://alphashri-backend.onrender.com" : "ws://localhost:8765");
 
