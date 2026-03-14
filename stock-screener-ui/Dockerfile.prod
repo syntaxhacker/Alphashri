@@ -50,7 +50,7 @@ COPY . .
 RUN echo "Checking file structure:" && \
     ls -la /app/ && \
     ls -la /app/stock-screener-ui/ && \
-    test -f /app/stock-screener-ui/config.py && echo "config.py found" || echo "config.py NOT FOUND"
+    test -f /app/stock-screener-ui/config_template.py && echo "config_template.py found" || echo "config_template.py NOT FOUND"
 
 WORKDIR /app/stock-screener-ui
 RUN mkdir -p db

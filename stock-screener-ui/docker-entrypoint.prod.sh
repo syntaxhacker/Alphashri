@@ -9,7 +9,18 @@ echo "Files in current directory:"
 ls -la /app/stock-screener-ui/
 echo ""
 echo "Checking for config.py:"
-test -f /app/stock-screener-ui/config.py && echo "✅ config.py found at /app/stock-screener-ui/config.py" || echo "❌ config.py NOT FOUND at /app/stock-screener-ui/config.py"
+if [ ! -f /app/stock-screener-ui/config.py ]; then
+  if [ -f /app/stock-screener-ui/config_template.py ]; then
+    echo "📋 Copying config_template.py to config.py..."
+    cp /app/stock-screener-ui/config_template.py /app/stock-screener-ui/config.py
+    echo "✅ config.py created from template"
+  else
+    echo "❌ Neither config.py nor config_template.py found!"
+    exit 1
+  fi
+else
+  echo "✅ config.py found"
+fi
 echo "PYTHONPATH=$PYTHONPATH"
 echo ""
 
