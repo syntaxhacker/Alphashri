@@ -44,11 +44,13 @@ export function useScreenerState() {
 
   // Derived state from global state
   const approachingStocks = useMemo(() => {
-    return state.data?.approaching || [];
+    if (!state.data) return [];
+    return state.data.approaching || [];
   }, [state.data]);
 
   const touchedStocks = useMemo(() => {
-    return state.data?.touched || [];
+    if (!state.data) return [];
+    return state.data.touched || [];
   }, [state.data]);
 
   const allStocks = useMemo(() => {
