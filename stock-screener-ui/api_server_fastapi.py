@@ -1517,13 +1517,11 @@ async def websocket_sector(websocket: WebSocket):
         print(f"📊 Sector WebSocket error: {e}")
         sector_ws_manager.disconnect(websocket)
 
-async def news_startup_prefetch():
-    """Prefetch recent articles from all sources on startup."""
-    if not _news_available:
-        print("📰 News not available, skipping prefetch")
-        return
-    
+def _do_prefetch_sync():
+    """Synchronous prefetch logic to run in thread."""
+    import asyncio
     from services.news_persistence import get_persistence_service
+    
     persistence = get_persistence_service()
     
     stats = persistence.get_article_stats()
@@ -1589,6 +1587,19 @@ async def news_startup_prefetch():
             print(f"⚠️ Prefetch error for {source_id}: {e}")
     
     print(f"📰 Prefetch complete: {total_saved} new articles saved")
+
+
+async def news_startup_prefetch():
+    """Prefetch recent articles from all sources on startup (non-blocking)."""
+    import asyncio
+    
+    if not _news_available:
+        print("📰 News not available, skipping prefetch")
+        return
+    
+    await asyncio.sleep(30)
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _do_prefetch_sync)
 
 
 async def news_poller_task():
