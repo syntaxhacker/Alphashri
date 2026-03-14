@@ -43,4 +43,6 @@ fi
 
 # Start the server
 echo "🎯 Starting FastAPI server..."
+export PYTHONPATH=/app:/app/stock-screener-ui:/app/scanners
+cd /app/stock-screener-ui
 exec uvicorn api_server_fastapi:app --host 0.0.0.0 --port ${PORT:-8765}
