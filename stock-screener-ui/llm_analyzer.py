@@ -2,18 +2,29 @@ import os
 import json
 import hashlib
 import sqlite3
-from typing import Dict, Any, Optional
+import time
+from typing import Dict, Any, Optional, List
 from openai import OpenAI
-from dotenv import load_dotenv
+import config
 
-# Load environment variables (expecting OPENROUTER_API_KEY)
-load_dotenv()
+OPENROUTER_PRICING = {
+    "stepfun/step-3.5-flash:free": {"prompt": 0, "completion": 0},
+    "anthropic/claude-3.5-sonnet": {"prompt": 3.0, "completion": 15.0},
+    "anthropic/claude-3-opus": {"prompt": 15.0, "completion": 75.0},
+    "openai/gpt-4-turbo": {"prompt": 10.0, "completion": 30.0},
+    "openai/gpt-4o": {"prompt": 5.0, "completion": 15.0},
+    "openai/gpt-4o-mini": {"prompt": 0.15, "completion": 0.60},
+    "openai/gpt-3.5-turbo": {"prompt": 0.5, "completion": 1.5},
+    "google/gemini-pro-1.5": {"prompt": 1.25, "completion": 5.0},
+    "meta-llama/llama-3.1-70b-instruct": {"prompt": 0.52, "completion": 0.75},
+    "meta-llama/llama-3.1-8b-instruct": {"prompt": 0.06, "completion": 0.06},
+}
 
 class ArticleAnalyzer:
     """Class to analyze financial news articles using OpenRouter LLMs with SQLite caching."""
     
     def __init__(self, model_name: str = "stepfun/step-3.5-flash:free", db_path: str = "db/llm_cache.db"):
-        api_key = os.getenv("OPENROUTER_API_KEY")
+        api_key = config.OPENROUTER_API_KEY
         if not api_key:
             print("WARNING: OPENROUTER_API_KEY environment variable not set. Analysis will fail.")
             
@@ -23,13 +34,12 @@ class ArticleAnalyzer:
             api_key=api_key or "dummy-key"
         )
         
-        # Ensure db directory exists
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db_path = db_path
         self._init_db()
 
     def _init_db(self):
-        """Initialize the SQLite database for caching LLM responses."""
+        """Initialize the SQLite database for caching LLM responses and logging runs."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -41,7 +51,112 @@ class ArticleAnalyzer:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS llm_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    url TEXT,
+                    model TEXT,
+                    headline TEXT,
+                    prompt_tokens INTEGER,
+                    completion_tokens INTEGER,
+                    total_tokens INTEGER,
+                    cost_usd REAL,
+                    response_time_ms INTEGER,
+                    status TEXT,
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_llm_runs_created_at ON llm_runs(created_at)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_llm_runs_status ON llm_runs(status)')
             conn.commit()
+
+    def _calculate_cost(self, model: str, prompt_tokens: int, completion_tokens: int) -> float:
+        """Calculate cost in USD based on token usage and model pricing."""
+        pricing = OPENROUTER_PRICING.get(model, {"prompt": 0, "completion": 0})
+        prompt_cost = (prompt_tokens / 1_000_000) * pricing["prompt"]
+        completion_cost = (completion_tokens / 1_000_000) * pricing["completion"]
+        return round(prompt_cost + completion_cost, 6)
+
+    def _log_llm_run(
+        self,
+        url: str,
+        model: str,
+        headline: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
+        cost_usd: float,
+        response_time_ms: int,
+        status: str,
+        error_message: Optional[str] = None
+    ):
+        """Log an LLM run to the database."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO llm_runs 
+                    (url, model, headline, prompt_tokens, completion_tokens, total_tokens, 
+                     cost_usd, response_time_ms, status, error_message)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (url, model, headline, prompt_tokens, completion_tokens, total_tokens,
+                      cost_usd, response_time_ms, status, error_message))
+                conn.commit()
+        except Exception as e:
+            print(f"Failed to log LLM run: {e}")
+
+    def get_llm_stats(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get recent LLM run statistics."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM llm_runs 
+                    ORDER BY created_at DESC 
+                    LIMIT ?
+                ''', (limit,))
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Failed to get LLM stats: {e}")
+            return []
+
+    def get_llm_aggregate_stats(self) -> Dict[str, Any]:
+        """Get aggregate statistics for LLM runs."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT 
+                        COUNT(*) as total_runs,
+                        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_runs,
+                        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_runs,
+                        SUM(total_tokens) as total_tokens,
+                        SUM(prompt_tokens) as total_prompt_tokens,
+                        SUM(completion_tokens) as total_completion_tokens,
+                        SUM(cost_usd) as total_cost_usd,
+                        AVG(response_time_ms) as avg_response_time_ms
+                    FROM llm_runs
+                ''')
+                row = cursor.fetchone()
+                cursor.execute('SELECT model, COUNT(*) as count FROM llm_runs GROUP BY model ORDER BY count DESC')
+                models = cursor.fetchall()
+                return {
+                    "total_runs": row[0] or 0,
+                    "successful_runs": row[1] or 0,
+                    "failed_runs": row[2] or 0,
+                    "total_tokens": row[3] or 0,
+                    "total_prompt_tokens": row[4] or 0,
+                    "total_completion_tokens": row[5] or 0,
+                    "total_cost_usd": round(row[6] or 0, 4),
+                    "avg_response_time_ms": round(row[7] or 0, 0),
+                    "models_used": [{"model": m[0], "count": m[1]} for m in models]
+                }
+        except Exception as e:
+            print(f"Failed to get aggregate stats: {e}")
+            return {}
 
     def _generate_cache_key(self, url: str) -> str:
         return hashlib.md5(url.encode()).hexdigest()
@@ -74,6 +189,7 @@ class ArticleAnalyzer:
         """
         Analyzes the article content for summary, sentiment, impact, entities, and trade ideas.
         Returns from SQLite cache if previously analyzed.
+        Logs each LLM run with token usage and cost.
         """
         if not content or len(content.strip()) < 50:
              return {
@@ -123,6 +239,13 @@ Return ONLY valid JSON. No markdown. Example output:
         
         user_prompt = f"Headline: {headline}\n\nContent: {content}"
         
+        start_time = time.time()
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        cost_usd = 0.0
+        raw_content = None
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
@@ -130,12 +253,23 @@ Return ONLY valid JSON. No markdown. Example output:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.1 # Low temperature for more deterministic JSON output
+                temperature=0.1
             )
             
-            raw_content = response.choices[0].message.content.strip()
+            response_time_ms = int((time.time() - start_time) * 1000)
             
-            # Clean up markdown if model didn't listen
+            if response.usage:
+                prompt_tokens = response.usage.prompt_tokens or 0
+                completion_tokens = response.usage.completion_tokens or 0
+                total_tokens = response.usage.total_tokens or (prompt_tokens + completion_tokens)
+            
+            cost_usd = self._calculate_cost(self.model_name, prompt_tokens, completion_tokens)
+            
+            raw_content = response.choices[0].message.content
+            if raw_content is None:
+                raise ValueError("LLM returned empty content")
+            raw_content = raw_content.strip()
+            
             if raw_content.startswith("```json"):
                 raw_content = raw_content[7:]
             elif raw_content.startswith("```"):
@@ -145,10 +279,8 @@ Return ONLY valid JSON. No markdown. Example output:
                 
             raw_content = raw_content.strip()
             
-            # Parse the JSON
             analysis_data = json.loads(raw_content)
             
-            # Ensure required keys exist with default fallbacks
             result = {
                 "summary": analysis_data.get("summary", "Summary unavailable."),
                 "key_points": analysis_data.get("key_points", []),
@@ -158,15 +290,42 @@ Return ONLY valid JSON. No markdown. Example output:
                 "trade_ideas": analysis_data.get("trade_ideas", [])
             }
             
-            # Validate sentiment string
             if result["sentiment"] not in ["BULLISH", "BEARISH", "NEUTRAL"]:
                  result["sentiment"] = "NEUTRAL"
                  
-            # Store in SQLite cache
             self._save_to_cache(cache_key, url, headline, result)
+            
+            self._log_llm_run(
+                url=url,
+                model=self.model_name,
+                headline=headline,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                cost_usd=cost_usd,
+                response_time_ms=response_time_ms,
+                status="success"
+            )
+            
             return result
             
         except Exception as e:
+            response_time_ms = int((time.time() - start_time) * 1000)
+            error_message = str(e)
+            
+            self._log_llm_run(
+                url=url,
+                model=self.model_name,
+                headline=headline,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                cost_usd=cost_usd,
+                response_time_ms=response_time_ms,
+                status="failed",
+                error_message=error_message
+            )
+            
             print(f"LLM Analysis failed: {e}")
             if 'raw_content' in locals():
                 print(f"Raw output was: {raw_content}")
@@ -178,5 +337,4 @@ Return ONLY valid JSON. No markdown. Example output:
                 "trade_ideas": []
             }
 
-# Global instance for use across the application
 article_analyzer = ArticleAnalyzer()

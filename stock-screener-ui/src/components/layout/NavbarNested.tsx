@@ -12,11 +12,13 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconNews,
+  IconShield,
 } from "@tabler/icons-react";
 import { Group, ScrollArea, Text, UnstyledButton, AppShell, Flex } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
+import { useAuth } from "../auth/AuthProvider";
 import classes from "./NavbarNested.module.css";
 
 interface NavbarNestedProps {
@@ -35,12 +37,18 @@ const navItems = [
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },
   { label: "Settings", icon: IconSettings, link: "/settings" },
+  { label: "Admin", icon: IconShield, link: "/admin" },
 ];
 
 export function NavbarNested({ activePath, collapsed, onToggleCollapse }: NavbarNestedProps) {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+  const { user } = useAuth();
 
-  const links = navItems.map((item) => (
+  const visibleNavItems = navItems.filter(item => 
+    item.label !== "Admin" || user?.is_admin
+  );
+
+  const links = visibleNavItems.map((item) => (
     <NavbarLinksGroup
       key={item.label}
       icon={item.icon}

@@ -34,6 +34,7 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
 
     # Paper trading settings per user
     initial_capital = Column(Float, default=1000000.0)  # 10 Lakhs default
@@ -409,6 +410,54 @@ def delete_broker_token(broker_name: str, user_id: Optional[int] = None) -> bool
         return False
     finally:
         db.close()
+
+
+class LLMRun(Base):
+    """LLM API call tracking for cost and usage analytics."""
+    __tablename__ = "llm_runs"
+
+    id = Column(Integer, primary_key=True)
+    uuid = Column(String(36), unique=True, index=True, default=lambda: str(uuid.uuid4()))
+    
+    model = Column(String(100), nullable=False, index=True)
+    provider = Column(String(50), nullable=True)
+    
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    
+    cost_usd = Column(Float, default=0.0)
+    response_time_ms = Column(Integer, nullable=True)
+    
+    status = Column(String(20), default='pending', index=True)
+    error_message = Column(Text, nullable=True)
+    
+    url = Column(String(2048), nullable=True)
+    headline = Column(String(500), nullable=True)
+    request_json = Column(Text, nullable=True)
+    response_json = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+
+    def __repr__(self):
+        return f"<LLMRun(id={self.id}, model='{self.model}', tokens={self.total_tokens}, cost={self.cost_usd})>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.uuid,
+            "model": self.model,
+            "provider": self.provider,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+            "cost_usd": self.cost_usd,
+            "response_time_ms": self.response_time_ms,
+            "status": self.status,
+            "error_message": self.error_message,
+            "url": self.url,
+            "headline": self.headline,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
 
 
 class NewsArticle(Base):

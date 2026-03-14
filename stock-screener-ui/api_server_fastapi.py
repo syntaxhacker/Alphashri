@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path as PathlibPath
 from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
+import config
 
 # Add project root and scanners to path
 _script_dir = PathlibPath(__file__).parent.absolute()
@@ -21,19 +22,13 @@ sys.path.insert(0, str(_project_root))
 sys.path.insert(0, str(_scanners_dir))
 sys.path.insert(0, str(_script_dir))
 
-# Load environment variables from .env.local
-from dotenv import load_dotenv
-env_file = _project_root / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
-    print(f"Loaded environment from {env_file}")
-
-from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect, Path
+from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect, Path, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
+from api.auth import get_current_user
 from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
 import trending_upside
 
@@ -709,7 +704,7 @@ app = FastAPI(title="Alphashri API", lifespan=lifespan)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1984,6 +1979,34 @@ async def get_news_sources():
     return {'sources': NEWS_SOURCES}
 
 
+@app.get("/api/admin/llm-stats")
+async def get_llm_stats(
+    limit: int = Query(default=100, ge=1, le=1000),
+    current_user=Depends(get_current_user)
+):
+    """
+    Get LLM run statistics including recent runs and aggregate stats.
+    Requires admin access.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if not _llm_available or article_analyzer is None:
+        raise HTTPException(status_code=503, detail="LLM Analyzer not available")
+    
+    try:
+        recent_runs = article_analyzer.get_llm_stats(limit=limit)
+        aggregate_stats = article_analyzer.get_llm_aggregate_stats()
+        
+        return {
+            "recent_runs": recent_runs,
+            "aggregate": aggregate_stats,
+            "fetched_at": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.websocket("/ws/news")
 async def websocket_news(websocket: WebSocket):
     """
@@ -2012,10 +2035,10 @@ async def websocket_news(websocket: WebSocket):
 
 
 if __name__ == '__main__':
-    port = int(os.getenv("PORT", 8765))
+    port = config.PORT
     print(f'🚀 Alphashri FastAPI running on http://localhost:{port}')
     print(f'   API docs: http://localhost:{port}/docs')
     print(f'   Screener API: http://localhost:{port}/api/screener')
     print(f'   Backtest API: http://localhost:{port}/api/backtest/strategies')
     print(f'   Paper Trading API: http://localhost:{port}/api/paper/portfolio')
-    uvicorn.run(app, host="localhost", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)

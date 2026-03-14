@@ -57,7 +57,11 @@ playwright/.cache/
 # Environment
 .env
 .env.local
+.env.prod
 .env.*.local
+
+# Database backups
+db/*.backup.*
 
 # Temporary files
 *.tmp

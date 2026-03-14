@@ -1,5 +1,6 @@
 # Auth and database
 sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
 bcrypt>=4.0.0
 PyJWT>=2.8.0
 
@@ -7,10 +8,27 @@ PyJWT>=2.8.0
 fastapi>=0.100.0
 uvicorn>=0.23.0
 pydantic>=2.0.0
+pydantic[email]>=2.0.0
+python-dotenv>=1.0.0
 
 # Data processing
 pandas>=2.0.0
 numpy>=1.24.0
+yfinance>=0.2.0
+
+# TradingView screener
+tradingview-screener>=2.0.0
+rich>=13.0.0
+scrapling>=0.4.0
+curl_cffi>=0.5.0
+playwright>=1.40.0
+browserforge>=1.0.0
+
+# LLM/AI
+openai>=1.0.0
+
+# Backtesting
+nautilus-trader>=1.0.0
 
 # Testing
 pytest>=7.0.0
