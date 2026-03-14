@@ -936,15 +936,29 @@ async def delete_backtest(uuid: str):
 # Symbol Search API
 # ============================================
 
-# Cache for instruments (loaded once)
+# Cache for instruments (loaded once from database)
 _instruments_cache: List[Dict] = []
 _instruments_loaded = False
 
 def _load_instruments():
-    """Load NSE instruments from cache file."""
+    """Load NSE instruments from database."""
     global _instruments_cache, _instruments_loaded
-
+    
     if _instruments_loaded:
+        return _instruments_cache
+    
+    try:
+        db = SessionLocal()
+        instruments = db.query(Instrument).filter(
+            Instrument.segment == 'NSE_EQ'
+        ).limit(limit).all()
+        _instruments_cache = [i.instrument_key for i in instruments]
+        _instruments_loaded = True
+        print(f"✅ Loaded {len(_instruments_cache)} instruments from database")
+        return _instruments_cache
+    except Exception as e:
+        print(f"⚠️ Failed to load instruments from database: {e}")
+        _instruments_cache = []
         return _instruments_cache
 
     # Try multiple paths for instruments file

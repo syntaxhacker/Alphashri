@@ -37,6 +37,6 @@ def init_db():
     """Initialize database tables."""
     from .models import (
         User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection,
-        NewsArticle, NewsSymbolMention, LLMRun
+        NewsArticle, NewsSymbolMention, LLMRun, Instrument
     )  # noqa: F401
     Base.metadata.create_all(bind=engine)
