@@ -6,13 +6,39 @@ echo "🚀 Starting Alphashri Production Server..."
 # Wait for PostgreSQL (only if DATABASE_URL is set)
 if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres* ]]; then
   echo "⏳ Waiting for PostgreSQL..."
-  # Extract host from DATABASE_URL
+  echo "  DATABASE_URL detected"
+  
+  # Extract components from DATABASE_URL
+  # Format: postgresql://user:pass@host:port/db
+  DB_USER=$(echo $DATABASE_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p')
   DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:\/]*\):.*/\1/p')
   DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
   DB_PORT=${DB_PORT:-5432}
   
-  until pg_isready -h $DB_HOST -p $DB_PORT -U postgres 2>/dev/null; do
-    echo "  Database not ready, retrying in 2s..."
+  echo "  Host: $DB_HOST:$DB_PORT"
+  echo "  User: $DB_USER"
+  
+  # Try connecting with Python (more reliable than pg_isready)
+  MAX_RETRIES=30
+  RETRY_COUNT=0
+  
+  until python -c "
+import sys
+import psycopg2
+try:
+    conn = psycopg2.connect('$DATABASE_URL', connect_timeout=5)
+    conn.close()
+    sys.exit(0)
+except Exception as e:
+    print(f'Connection failed: {e}', file=sys.stderr)
+    sys.exit(1)
+" 2>/dev/null; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+      echo "❌ Database connection failed after $MAX_RETRIES attempts"
+      exit 1
+    fi
+    echo "  Database not ready, retrying in 2s... ($RETRY_COUNT/$MAX_RETRIES)"
     sleep 2
   done
   echo "✅ Database ready!"
