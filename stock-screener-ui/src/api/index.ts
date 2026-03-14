@@ -109,7 +109,7 @@ export async function fetchData(
 
   // Clear table data ONLY when manually switching to a different screener
   if (isManualScreenerSwitch) {
-    state.setData(null);
+    state.setData({ ...state.DEFAULT_SCREENER_DATA });
   }
 
   const prevData = state.data;
