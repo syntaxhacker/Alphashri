@@ -565,7 +565,7 @@ class Instrument(Base):
     freeze_quantity = Column(Integer, nullable=True)
     exchange_token = Column(String(100), nullable=True)
     minimum_lot = Column(Integer, nullable=True)
-    expiry = Column(DateTime, nullable=True, index=True)
+    expiry = Column(Date, nullable=True, index=True)
     strike_price = Column(Float, nullable=True)
     qty_multiplier = Column(Float, nullable=True)
     isin = Column(String(20), nullable=True)

@@ -15,17 +15,18 @@ from sqlalchemy.orm import Session
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db.database import SessionLocal, engine
-from db.models import Instrument, Base
+from db.models import Instrument
 
 INSTRUMENT_FILES = [
-    Path(__file__).parent.parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
-    Path(__file__).parent.parent.parent / 'upstox_trader' / 'screeners' / 'nse_instruments.json',
+    Path(__file__).parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
+    Path(__file__).parent.parent / 'upstox_trader' / 'screeners' / 'nse_instruments.json',
 ]
 
 BATCH_SIZE = 1000
 
 
 def parse_date(date_str):
+    """Parse date string to datetime object."""
     if not date_str:
         return None
     try:
@@ -34,81 +35,78 @@ def parse_date(date_str):
         return None
 
 
-def seed_instruments(db: Session, file_path: Path) -> int:
-    print(f"Loading instruments from {file_path}...")
-    
-    if not file_path.exists():
-        print(f"File not found: {file_path}")
-        return 0
-    
-    with open(file_path, 'r') as f:
-        instruments = json.load(f)
-    
-    print(f"Found {len(instruments)} instruments in file")
-    
-    inserted = 0
-    batch = []
-    
-    for item in instruments:
-        instrument = Instrument(
-            instrument_key=item.get('instrument_key', ''),
-            trading_symbol=item.get('trading_symbol', ''),
-            name=item.get('name', item.get('trading_symbol', '')),
-            exchange=item.get('exchange', ''),
-            segment=item.get('segment', ''),
-            instrument_type=item.get('instrument_type', ''),
-            asset_type=item.get('asset_type', ''),
-            underlying_type=item.get('underlying_type', ''),
-            underlying_symbol=item.get('underlying_symbol', ''),
-            lot_size=item.get('lot_size', 1),
-            tick_size=item.get('tick_size', 0.05),
-            freeze_quantity=item.get('freeze_quantity'),
-            exchange_token=item.get('exchange_token', ''),
-            minimum_lot=item.get('minimum_lot', 1),
-            expiry=parse_date(item.get('expiry')),
-            strike_price=item.get('strike_price'),
-            qty_multiplier=item.get('qty_multiplier'),
-            isin=item.get('isin', ''),
-        )
-        batch.append(instrument)
-        
-        if len(batch) >= BATCH_SIZE:
-            db.bulk_save_objects(batch)
-            db.commit()
-            inserted += len(batch)
-            print(f"Inserted {inserted} instruments...")
-            batch = []
-    
-    if batch:
-        db.bulk_save_objects(batch)
-        db.commit()
-        inserted += len(batch)
-    
-    print(f"Total inserted: {inserted}")
-    return inserted
-
-
-def main():
-    print("Creating instruments table...")
-    Base.metadata.create_all(bind=engine)
-    
+def seed():
+    """Seed instruments from JSON files to database."""
     db = SessionLocal()
     try:
+        # Drop existing instruments table
+        Instrument.__table__.drop(engine, checkfirst=False)
+        
+        # Create new table
+        Instrument.__table__.create(engine)
+        print("Created instruments table")
+        
         total = 0
+        
         for file_path in INSTRUMENT_FILES:
-            if file_path.exists():
-                count = seed_instruments(db, file_path)
-                total += count
+            if not file_path.exists():
+                print(f"File not found: {file_path}")
+                continue
+            
+            print(f"Loading instruments from {file_path}...")
+            file_size = file_path.stat().st_size / (1024 * 1024)
+            print(f"File size: {file_size:.2f} MB")
+            
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            
+            print(f"Found {len(data)} instruments")
+            
+            batch = []
+            for item in data:
+                expiry = parse_date(item.get('expiry')) if item.get('expiry') else None
+                
+                inst = Instrument(
+                    instrument_key=item.get('instrument_key', ''),
+                    trading_symbol=item.get('trading_symbol', ''),
+                    name=item.get('name', item.get('trading_symbol', '')),
+                    exchange=item.get('exchange', ''),
+                    segment=item.get('segment', ''),
+                    instrument_type=item.get('instrument_type', ''),
+                    asset_type=item.get('asset_type', ''),
+                    underlying_type=item.get('underlying_type', ''),
+                    underlying_symbol=item.get('underlying_symbol', ''),
+                    lot_size=item.get('lot_size', 1),
+                    tick_size=item.get('tick_size', 0.05),
+                    freeze_quantity=item.get('freeze_quantity'),
+                    exchange_token=item.get('exchange_token', ''),
+                    minimum_lot=item.get('minimum_lot', 1),
+                    expiry=expiry,
+                    strike_price=item.get('strike_price'),
+                    qty_multiplier=item.get('qty_multiplier'),
+                    isin=item.get('isin', ''),
+                )
+                batch.append(inst)
+                
+                if len(batch) >= BATCH_SIZE:
+                    db.bulk_save_objects(batch)
+                    total += len(batch)
+                    print(f"Inserted {total} instruments...")
+                    batch = []
+            
+            if batch:
+                db.bulk_save_objects(batch)
+                total += len(batch)
+                print(f"Inserted {total} instruments...")
         
-        print(f"\nDone! Total instruments in DB: {total}")
-        
-        result = db.execute("SELECT COUNT(*) FROM instruments")
-        count = result.scalar()
-        print(f"Current instruments count: {count}")
-        
+        # Update statistics
+        count = db.query(Instrument).count()
+        print(f"\nTotal instruments in DB: {count}")
     finally:
         db.close()
+    
+    print(f"\nSeeding complete! Total: {total} instruments imported.")
 
 
 if __name__ == "__main__":
-    main()
+    seed()
