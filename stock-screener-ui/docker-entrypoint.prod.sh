@@ -8,16 +8,6 @@ if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres* ]]; then
   echo "⏳ Waiting for PostgreSQL..."
   echo "  DATABASE_URL detected"
   
-  # Extract components from DATABASE_URL
-  # Format: postgresql://user:pass@host:port/db
-  DB_USER=$(echo $DATABASE_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p')
-  DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:\/]*\):.*/\1/p')
-  DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
-  DB_PORT=${DB_PORT:-5432}
-  
-  echo "  Host: $DB_HOST:$DB_PORT"
-  echo "  User: $DB_USER"
-  
   # Try connecting with Python (more reliable than pg_isready)
   MAX_RETRIES=30
   RETRY_COUNT=0

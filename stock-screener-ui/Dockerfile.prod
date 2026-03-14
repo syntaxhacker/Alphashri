@@ -19,7 +19,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libcurl4 \
-    postgresql-client \
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
@@ -47,6 +46,8 @@ RUN mkdir -p db
 
 COPY stock-screener-ui/docker-entrypoint.prod.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
+
+ENV PYTHONPATH=/app:/app/stock-screener-ui:/app/scanners
 
 EXPOSE 8765
 
