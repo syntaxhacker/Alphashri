@@ -70,3 +70,4 @@ db/*.backup.*
 
 *storybook.log
 storybook-static
+bun.lockb
