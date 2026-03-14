@@ -192,7 +192,7 @@ export function setupAutoRefresh() {
       return;
     }
     if (state.data && !state.isLoading) {
-      fetchData(state.data.provider, state.data.mode, state.activeScreener, "auto");
+      fetchData(state.data?.provider ?? "upstox", state.data?.mode ?? "intraday", state.activeScreener, "auto");
     }
   }, state.autoRefreshSeconds * 1000);
   state.setAutoRefreshInterval(interval);
