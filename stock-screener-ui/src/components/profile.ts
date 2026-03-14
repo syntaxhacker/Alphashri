@@ -6,10 +6,7 @@ import type { ProfileMeta } from "../types";
 import * as state from "../state";
 
 export function getActiveProfileMeta(): ProfileMeta {
-  if (!state.data) {
-    return state.profileMetaById[state.activeScreener] || {};
-  }
-  return state.data.profile_meta || state.profileMetaById[state.activeScreener] || {};
+  return state.data?.profile_meta || state.profileMetaById[state.activeScreener] || {};
 }
 
 export function getSectionLabels(): { primary: string; secondary: string } {
