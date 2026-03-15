@@ -1033,6 +1033,27 @@ async def search_symbols(
     return {"results": results, "query": q, "total": len(results)}
 
 
+@app.get("/api/instruments/debug")
+async def debug_instruments():
+    """Debug endpoint to check instruments loading."""
+    from db.database import SessionLocal
+    from db.models import Instrument
+    db = SessionLocal()
+    try:
+        total = db.query(Instrument).count()
+        nse_eq = db.query(Instrument).filter(Instrument.segment == 'NSE_EQ').count()
+        sample = db.query(Instrument).filter(Instrument.segment == 'NSE_EQ').limit(3).all()
+        return {
+            "total_instruments": total,
+            "nse_eq_count": nse_eq,
+            "cache_loaded": _instruments_loaded,
+            "cache_size": len(_instruments_cache),
+            "sample": [s.to_dict() for s in sample]
+        }
+    finally:
+        db.close()
+
+
 # ============================================
 # Chart Preview API
 # ============================================
