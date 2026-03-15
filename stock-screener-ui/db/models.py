@@ -547,55 +547,22 @@ class NewsSymbolMention(Base):
 
 
 class Instrument(Base):
-    """NSE instrument data from Upstox API."""
+    """NSE instrument data for symbol search and trading."""
     __tablename__ = "instruments"
 
-    id = Column(Integer, primary_key=True, index=True)
-    instrument_key = Column(String(100), unique=True, index=True, nullable=False)
-    trading_symbol = Column(String(50), index=True, nullable=False)
+    instrument_key = Column(String(100), primary_key=True)
+    trading_symbol = Column(String(50), nullable=False, index=True)
     name = Column(String(200), nullable=True)
-    exchange = Column(String(20), index=True, nullable=False)
-    segment = Column(String(20), index=True, nullable=False)
-    instrument_type = Column(String(20), nullable=True)
-    asset_type = Column(String(20), nullable=True)
-    underlying_type = Column(String(20), nullable=True)
-    underlying_symbol = Column(String(50), nullable=True)
+    exchange = Column(String(20), nullable=False)
+    segment = Column(String(20), nullable=False)
     lot_size = Column(Integer, default=1)
     tick_size = Column(Float, default=0.05)
-    freeze_quantity = Column(Integer, nullable=True)
-    exchange_token = Column(String(100), nullable=True)
-    minimum_lot = Column(Integer, nullable=True)
-    expiry = Column(Date, nullable=True, index=True)
+    expiry = Column(Date, nullable=True)
     strike_price = Column(Float, nullable=True)
     qty_multiplier = Column(Float, nullable=True)
     isin = Column(String(20), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
-    def __repr__(self):
-        return f"<Instrument({self.trading_symbol})>"
-
-    def to_dict(self) -> dict:
-        return {
-            "instrument_key": self.instrument_key,
-            "trading_symbol": self.trading_symbol,
-            "name": self.name,
-            "exchange": self.exchange,
-            "segment": self.segment,
-            "instrument_type": self.instrument_type,
-            "asset_type": self.asset_type,
-            "underlying_type": self.underlying_type,
-            "underlying_symbol": self.underlying_symbol,
-            "lot_size": self.lot_size,
-            "tick_size": self.tick_size,
-            "freeze_quantity": self.freeze_quantity,
-            "exchange_token": self.exchange_token,
-            "minimum_lot": self.minimum_lot,
-            "expiry": self.expiry.isoformat() if self.expiry else None,
-            "strike_price": self.strike_price,
-            "qty_multiplier": self.qty_multiplier,
-            "isin": self.isin,
-        }
 
 
 def get_articles_for_instrument(instrument_key: str, limit: int = 10) -> list:
