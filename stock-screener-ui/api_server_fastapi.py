@@ -957,7 +957,7 @@ def _load_instruments():
         db = SessionLocal()
         instruments = db.query(Instrument).filter(
             Instrument.segment == 'NSE_EQ'
-        ).limit(10000).all()
+        ).all()
         _instruments_cache = [i.to_dict() for i in instruments]
         _instruments_loaded = True
         print(f"✅ Loaded {len(_instruments_cache)} instruments from database")
@@ -991,7 +991,7 @@ async def search_symbols(
     # Filter NSE_EQ stocks with EQ instrument type
     results = []
     for inst in instruments:
-        if inst.get('segment') != 'NSE_EQ' or inst.get('instrument_type') != 'EQ':
+        if inst.get('segment') != 'NSE_EQ':
             continue
 
         symbol = inst.get('trading_symbol', '')
