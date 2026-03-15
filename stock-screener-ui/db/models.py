@@ -546,6 +546,50 @@ class NewsSymbolMention(Base):
         }
 
 
+def get_articles_for_instrument(instrument_key: str, limit: int = 10) -> list:
+    """Get news articles mentioning a specific instrument."""
+    db = SessionLocal()
+    try:
+        mentions = db.query(NewsSymbolMention).filter(
+            NewsSymbolMention.instrument_key == instrument_key
+        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
+        
+        article_ids = [m.article_id for m in mentions]
+        if not article_ids:
+            return []
+        
+        articles = db.query(NewsArticle).filter(
+            NewsArticle.id.in_(article_ids)
+        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
+        
+        return [a.to_dict() for a in articles]
+    finally:
+        db.close()
+
+
+def get_articles_for_symbol(symbol: str, limit: int = 10) -> list:
+    """Get news articles mentioning a symbol (by trading_symbol or symbol_code)."""
+    db = SessionLocal()
+    try:
+        symbol_upper = symbol.upper()
+        mentions = db.query(NewsSymbolMention).filter(
+            (NewsSymbolMention.trading_symbol == symbol_upper) |
+            (NewsSymbolMention.symbol_code == symbol_upper)
+        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
+        
+        article_ids = [m.article_id for m in mentions]
+        if not article_ids:
+            return []
+        
+        articles = db.query(NewsArticle).filter(
+            NewsArticle.id.in_(article_ids)
+        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
+        
+        return [a.to_dict() for a in articles]
+    finally:
+        db.close()
+
+
 class Instrument(Base):
     """NSE instrument data for symbol search and trading."""
     __tablename__ = "instruments"
@@ -563,6 +607,24 @@ class Instrument(Base):
     isin = Column(String(20), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self):
+        return f"<Instrument({self.trading_symbol})>"
+
+    def to_dict(self) -> dict:
+        return {
+            "instrument_key": self.instrument_key,
+            "trading_symbol": self.trading_symbol,
+            "name": self.name,
+            "exchange": self.exchange,
+            "segment": self.segment,
+            "lot_size": self.lot_size,
+            "tick_size": self.tick_size,
+            "expiry": self.expiry.isoformat() if self.expiry else None,
+            "strike_price": self.strike_price,
+            "qty_multiplier": self.qty_multiplier,
+            "isin": self.isin,
+        }
 
 
 def get_articles_for_instrument(instrument_key: str, limit: int = 10) -> list:
@@ -609,43 +671,3 @@ def get_articles_for_symbol(symbol: str, limit: int = 10) -> list:
         return [a.to_dict() for a in articles]
     finally:
         db.close()
-
-
-class Instrument(Base):
-    """NSE instrument data for symbol search and trading."""
-    __tablename__ = "instruments"
-
-    instrument_key = Column(String(100), primary_key=True)
-    trading_symbol = Column(String(50), nullable=False, index=True)
-    name = Column(String(200), nullable=True)
-    exchange = Column(String(20), nullable=False)
-    segment = Column(String(20), nullable=False)
-    lot_size = Column(Integer, default=1)
-    tick_size = Column(Float, default=0.05)
-    expiry = Column(Date, nullable=True)
-    strike_price = Column(Float, nullable=True)
-    option_type = Column(String(10), nullable=True)
-    isin = Column(String(20), nullable=True, index=True)
-
-    __table_args__ = (
-        Index('ix_instruments_trading_symbol_lower', 'trading_symbol'),
-        Index('ix_instruments_name_lower', 'name'),
-    )
-
-    def __repr__(self):
-        return f"<Instrument(instrument_key='{self.instrument_key}', trading_symbol='{self.trading_symbol}')>"
-
-    def to_dict(self) -> dict:
-        return {
-            "instrument_key": self.instrument_key,
-            "trading_symbol": self.trading_symbol,
-            "name": self.name,
-            "exchange": self.exchange,
-            "segment": self.segment,
-            "lot_size": self.lot_size,
-            "tick_size": self.tick_size,
-            "expiry": self.expiry.isoformat() if self.expiry else None,
-            "strike_price": self.strike_price,
-            "option_type": self.option_type,
-            "isin": self.isin,
-        }
