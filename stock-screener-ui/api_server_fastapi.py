@@ -1238,9 +1238,25 @@ async def get_chart_preview(
     Use days=5+ for expanded/full chart view.
     """
     from datetime import timedelta
+    from db.models import get_shared_broker_token
 
     try:
         api = TradingAPIFactory.create_from_config('upstox', quiet=True)
+        
+        token_data = get_shared_broker_token('upstox')
+        if token_data and token_data.get('access_token'):
+            api.auth_handler.access_token = token_data['access_token']
+        else:
+            return {
+                'symbol': symbol,
+                'candles': [],
+                'orb_zones': [],
+                'pivot_levels': [],
+                'timeframe': tf,
+                'or_minutes': or_minutes,
+                'total_candles': 0,
+                'error': 'Upstox not connected. Please connect your broker in Settings.'
+            }
     except ValueError:
         return {
             'symbol': symbol,
