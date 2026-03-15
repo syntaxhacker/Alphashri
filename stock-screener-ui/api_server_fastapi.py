@@ -936,6 +936,9 @@ async def delete_backtest(uuid: str):
 # Symbol Search API
 # ============================================
 
+from db.database import SessionLocal
+from db.models import Instrument
+
 # Cache for instruments (loaded once from database)
 _instruments_cache: List[Dict] = []
 _instruments_loaded = False
@@ -948,41 +951,23 @@ def _load_instruments():
         return _instruments_cache
     
     try:
+        from db.database import SessionLocal
+        from db.models import Instrument
+        
         db = SessionLocal()
         instruments = db.query(Instrument).filter(
             Instrument.segment == 'NSE_EQ'
-        ).limit(limit).all()
-        _instruments_cache = [i.instrument_key for i in instruments]
+        ).limit(10000).all()
+        _instruments_cache = [i.to_dict() for i in instruments]
         _instruments_loaded = True
         print(f"✅ Loaded {len(_instruments_cache)} instruments from database")
+        db.close()
         return _instruments_cache
     except Exception as e:
         print(f"⚠️ Failed to load instruments from database: {e}")
         _instruments_cache = []
+        _instruments_loaded = True
         return _instruments_cache
-
-    # Try multiple paths for instruments file
-    instrument_paths = [
-        _project_root / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
-        _script_dir / 'nse_instruments.json',
-        PathlibPath(__file__).parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
-    ]
-
-    for path in instrument_paths:
-        if path.exists():
-            try:
-                import json
-                with open(path, 'r') as f:
-                    _instruments_cache = json.load(f)
-                _instruments_loaded = True
-                print(f"✅ Loaded {len(_instruments_cache)} instruments from {path}")
-                return _instruments_cache
-            except Exception as e:
-                print(f"⚠️ Failed to load instruments from {path}: {e}")
-
-    print("⚠️ No instruments file found. Symbol search will return empty results.")
-    _instruments_loaded = True
-    return _instruments_cache
 
 
 @app.get("/api/symbols/search")
