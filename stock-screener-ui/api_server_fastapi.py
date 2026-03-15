@@ -1239,25 +1239,12 @@ async def get_chart_preview(
     """
     from datetime import timedelta
     from db.models import get_shared_broker_token
+    import config as app_config
 
-    try:
-        api = TradingAPIFactory.create_from_config('upstox', quiet=True)
-        
-        token_data = get_shared_broker_token('upstox')
-        if token_data and token_data.get('access_token'):
-            api.auth_handler.access_token = token_data['access_token']
-        else:
-            return {
-                'symbol': symbol,
-                'candles': [],
-                'orb_zones': [],
-                'pivot_levels': [],
-                'timeframe': tf,
-                'or_minutes': or_minutes,
-                'total_candles': 0,
-                'error': 'Upstox not connected. Please connect your broker in Settings.'
-            }
-    except ValueError:
+    api_key = app_config.UPSTOX_API_KEY
+    api_secret = app_config.UPSTOX_API_SECRET
+    
+    if not api_key or not api_secret:
         return {
             'symbol': symbol,
             'candles': [],
@@ -1266,7 +1253,35 @@ async def get_chart_preview(
             'timeframe': tf,
             'or_minutes': or_minutes,
             'total_candles': 0,
-            'error': 'API not available'
+            'error': 'Upstox API credentials not configured'
+        }
+    
+    token_data = get_shared_broker_token('upstox')
+    if not token_data or not token_data.get('access_token'):
+        return {
+            'symbol': symbol,
+            'candles': [],
+            'orb_zones': [],
+            'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
+            'error': 'Upstox not connected. Please connect your broker in Settings.'
+        }
+    
+    try:
+        api = TradingAPIFactory.create_client('upstox', api_key=api_key, api_secret=api_secret, quiet=True)
+        api.auth_handler.access_token = token_data['access_token']
+    except Exception as e:
+        return {
+            'symbol': symbol,
+            'candles': [],
+            'orb_zones': [],
+            'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
+            'error': f'Failed to initialize API: {str(e)}'
         }
 
     try:
