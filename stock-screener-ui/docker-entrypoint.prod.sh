@@ -62,6 +62,26 @@ if [ "${SEED_DATA:-false}" = "true" ]; then
   python scripts/seed_qa_data.py --clean 2>/dev/null || echo "⚠️ Seed script failed"
 fi
 
+# Auto-seed instruments if table is empty (runs in background)
+cd /app/stock-screener-ui
+INSTRUMENTS_COUNT=$(python -c "
+from db.database import SessionLocal
+from db.models import Instrument
+db = SessionLocal()
+try:
+    print(db.query(Instrument).count())
+finally:
+    db.close()
+" 2>/dev/null || echo "0")
+
+if [ "$INSTRUMENTS_COUNT" = "0" ]; then
+  echo "📊 Instruments table is empty. Seeding in background..."
+  nohup python scripts/seed_instruments.py > /tmp/seed_instruments.log 2>&1 &
+  echo "✅ Seed started in background (PID: $!)"
+else
+  echo "✅ Instruments table has $INSTRUMENTS_COUNT records"
+fi
+
 # Start the server
 echo "🎯 Starting FastAPI server..."
 cd /app/stock-screener-ui
