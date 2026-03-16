@@ -304,11 +304,11 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     // Add ORB zones for ORB strategy
     if (orb_zones && orb_zones.length > 0) {
       const orHighData = candles.map((c) => {
-        const zone = orb_zones.find((z) => z.date_raw === c.date);
+        const zone = orb_zones.find((z) => z.date === c.date);
         return zone ? zone.or_high : null;
       });
       const orLowData = candles.map((c) => {
-        const zone = orb_zones.find((z) => z.date_raw === c.date);
+        const zone = orb_zones.find((z) => z.date === c.date);
         return zone ? zone.or_low : null;
       });
 
@@ -341,7 +341,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     if (week52_levels && week52_levels.length > 0) {
       console.log("Adding 52W levels to chart:", week52_levels);
       const week52HighData = candles.map((c) => {
-        const level = week52_levels.find((l) => l.date_raw === c.date);
+        const level = week52_levels.find((l) => l.date === c.date);
         return level ? level["52w_high"] : null;
       });
       console.log(
