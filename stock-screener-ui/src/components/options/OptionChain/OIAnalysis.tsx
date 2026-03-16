@@ -131,12 +131,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
   };
 
   return (
-    <Stack
-      id="oi-analysis"
-      className="oi-analysis"
-      gap="lg"
-      data-testid="oi-analysis"
-    >
+    <Stack id="oi-analysis" className="oi-analysis" gap="lg" data-testid="oi-analysis">
       <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" className="oi-analysis-grid">

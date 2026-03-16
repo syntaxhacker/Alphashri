@@ -41,7 +41,12 @@ export function OptionChainFilters({
         className="filter-moneyness-select"
         data-testid="moneyness-select"
       />
-      <Group className="filter-strike-range" style={{ flex: 2 }} align="flex-end" data-testid="options-strike-range-group">
+      <Group
+        className="filter-strike-range"
+        style={{ flex: 2 }}
+        align="flex-end"
+        data-testid="options-strike-range-group"
+      >
         <NumberInput
           label="Strike Min"
           style={{ flex: 1 }}

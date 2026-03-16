@@ -97,7 +97,11 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
           </List.Item>
         </List>
 
-        <Divider label="Sentiment Badges (What are they doing?)" labelPosition="center" className="guide-divider" />
+        <Divider
+          label="Sentiment Badges (What are they doing?)"
+          labelPosition="center"
+          className="guide-divider"
+        />
 
         <Stack gap={5} className="guide-badges" data-testid="options-guide-badges">
           <Group gap="xs" className="guide-badge-row" data-testid="options-guide-badge-lb">

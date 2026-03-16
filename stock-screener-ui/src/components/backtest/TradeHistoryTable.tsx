@@ -208,7 +208,13 @@ export function TradeHistoryTable({
         </Text>
       </Group>
 
-      <ScrollArea flex={1} type="auto" offsetScrollbars style={{ minHeight: 0 }} className="trade-history-scroll">
+      <ScrollArea
+        flex={1}
+        type="auto"
+        offsetScrollbars
+        style={{ minHeight: 0 }}
+        className="trade-history-scroll"
+      >
         <Table
           striped
           highlightOnHover

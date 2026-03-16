@@ -73,7 +73,12 @@ function TemplateCard({ template, variations, onCreateFromTemplate }: TemplateCa
       data-testid="strategy-card"
     >
       <Stack gap="xs" className="template-card-content">
-        <Group justify="space-between" align="flex-start" wrap="nowrap" className="template-card-header">
+        <Group
+          justify="space-between"
+          align="flex-start"
+          wrap="nowrap"
+          className="template-card-header"
+        >
           <Group gap="xs">
             <IconSettings size={18} color="var(--mantine-color-teal-6)" />
             <Text fw={500} size="md" className="template-card-name">

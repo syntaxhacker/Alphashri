@@ -147,7 +147,12 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (loading) {
     return (
-      <Group justify="center" py="xl" className="backtest-history-loading" data-testid="backtest-history-loading">
+      <Group
+        justify="center"
+        py="xl"
+        className="backtest-history-loading"
+        data-testid="backtest-history-loading"
+      >
         <Loader size="md" />
         <Text>Loading history...</Text>
       </Group>
@@ -156,7 +161,13 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (error) {
     return (
-      <Alert icon={<IconAlertCircle size="1rem" />} title="Error" color="red" className="backtest-history-error" data-testid="backtest-history-error">
+      <Alert
+        icon={<IconAlertCircle size="1rem" />}
+        title="Error"
+        color="red"
+        className="backtest-history-error"
+        data-testid="backtest-history-error"
+      >
         {error}
       </Alert>
     );
@@ -164,7 +175,13 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (history.length === 0) {
     return (
-      <Card withBorder padding="xl" radius="md" className="backtest-history-empty" data-testid="backtest-history-empty">
+      <Card
+        withBorder
+        padding="xl"
+        radius="md"
+        className="backtest-history-empty"
+        data-testid="backtest-history-empty"
+      >
         <Stack align="center" gap="xs">
           <IconDatabase size={40} color="gray" />
           <Text size="lg" fw={500}>
@@ -179,7 +196,12 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
   }
 
   return (
-    <Stack id="backtest-history" className="backtest-history" gap="md" data-testid="backtest-history">
+    <Stack
+      id="backtest-history"
+      className="backtest-history"
+      gap="md"
+      data-testid="backtest-history"
+    >
       <Group justify="space-between" className="history-header">
         <Text size="sm" c="dimmed">
           {history.length} backtest{history.length !== 1 ? "s" : ""} saved
@@ -208,7 +230,12 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
           </Button>
         </Group>
       </Group>
-      <Table highlightOnHover verticalSpacing="sm" className="history-table" data-testid="history-table">
+      <Table
+        highlightOnHover
+        verticalSpacing="sm"
+        className="history-table"
+        data-testid="history-table"
+      >
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Date</Table.Th>
@@ -264,7 +291,12 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
                   >
                     Load
                   </Button>
-                  <ActionIcon variant="subtle" color="red" onClick={() => handleDelete(item.id)} data-testid={`history-delete-btn-${item.id}`}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    onClick={() => handleDelete(item.id)}
+                    data-testid={`history-delete-btn-${item.id}`}
+                  >
                     <IconTrash size={16} />
                   </ActionIcon>
                 </Group>

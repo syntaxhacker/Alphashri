@@ -124,12 +124,18 @@ const ChartView: React.FC = () => {
         <button className="back-btn" onClick={() => navigate(-1)} data-testid="chart-back-btn">
           ← Back
         </button>
-        <h2 className="chart-title" data-testid="chart-title">{symbol}</h2>
+        <h2 className="chart-title" data-testid="chart-title">
+          {symbol}
+        </h2>
 
         <div className="chart-controls" id="chart-controls" data-testid="chart-controls">
           <div className="control-group">
             <label>Timeframe:</label>
-            <select value={timeframe} onChange={(e) => setTimeframe(parseInt(e.target.value))} data-testid="chart-timeframe-select">
+            <select
+              value={timeframe}
+              onChange={(e) => setTimeframe(parseInt(e.target.value))}
+              data-testid="chart-timeframe-select"
+            >
               {TIMEFRAMES.map((tf) => (
                 <option key={tf.value} value={tf.value}>
                   {tf.label}
@@ -140,7 +146,11 @@ const ChartView: React.FC = () => {
 
           <div className="control-group">
             <label>OR:</label>
-            <select value={orMinutes} onChange={(e) => setOrMinutes(parseInt(e.target.value))} data-testid="chart-or-select">
+            <select
+              value={orMinutes}
+              onChange={(e) => setOrMinutes(parseInt(e.target.value))}
+              data-testid="chart-or-select"
+            >
               {OR_MINUTES.map((or) => (
                 <option key={or.value} value={or.value}>
                   {or.label}
@@ -173,7 +183,9 @@ const ChartView: React.FC = () => {
         {error && (
           <div className="chart-error" data-testid="chart-error">
             <p>{error}</p>
-            <button onClick={() => window.location.reload()} data-testid="chart-retry-btn">Retry</button>
+            <button onClick={() => window.location.reload()} data-testid="chart-retry-btn">
+              Retry
+            </button>
           </div>
         )}
 

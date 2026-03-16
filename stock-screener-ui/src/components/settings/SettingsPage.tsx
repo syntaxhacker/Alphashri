@@ -79,7 +79,13 @@ export function SettingsPage() {
   };
 
   return (
-    <Container size="sm" py="xl" id="settings-page" className="settings-page" data-testid="settings-page">
+    <Container
+      size="sm"
+      py="xl"
+      id="settings-page"
+      className="settings-page"
+      data-testid="settings-page"
+    >
       <Stack gap="lg">
         <Title order={2}>Settings</Title>
         <BrokerConnectionCard

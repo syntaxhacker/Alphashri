@@ -29,7 +29,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       id="app-shell"
       data-testid="app-shell"
     >
-      <AppShell.Header bg={colors.background} c={colors.text} id="app-header" data-testid="app-header">
+      <AppShell.Header
+        bg={colors.background}
+        c={colors.text}
+        id="app-header"
+        data-testid="app-header"
+      >
         <Group justify="space-between" align="center" h="100%" px="xs">
           <Box flex={1}>
             <MarketTicker />
@@ -46,7 +51,14 @@ export function AppLayout({ children }: AppLayoutProps) {
         />
       </AppShell.Navbar>
 
-      <AppShell.Main bg={colors.background} c={colors.text} h="100%" style={{ overflow: "hidden" }} id="app-main" data-testid="app-main">
+      <AppShell.Main
+        bg={colors.background}
+        c={colors.text}
+        h="100%"
+        style={{ overflow: "hidden" }}
+        id="app-main"
+        data-testid="app-main"
+      >
         {children}
       </AppShell.Main>
     </AppShell>

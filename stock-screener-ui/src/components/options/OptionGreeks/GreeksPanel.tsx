@@ -6,12 +6,7 @@ export function GreeksPanel() {
       <Text size="lg" fw={500} className="greeks-title">
         Greeks Analysis
       </Text>
-      <Paper
-        p="lg"
-        withBorder
-        className="greeks-content"
-        data-testid="options-greeks-content"
-      >
+      <Paper p="lg" withBorder className="greeks-content" data-testid="options-greeks-content">
         <Text c="dimmed">Greeks visualization will appear here</Text>
       </Paper>
     </Stack>

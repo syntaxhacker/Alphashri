@@ -371,16 +371,33 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
   };
 
   return (
-    <Box data-testid="bot-status-panel" data-bot-id={bot.id} id="bot-status-panel" className="bot-status-panel">
+    <Box
+      data-testid="bot-status-panel"
+      data-bot-id={bot.id}
+      id="bot-status-panel"
+      className="bot-status-panel"
+    >
       <Stack gap="md">
         {/* Bot Header */}
-        <Card shadow="sm" padding="md" radius="md" withBorder id="bot-header-card" data-testid="bot-header-card">
+        <Card
+          shadow="sm"
+          padding="md"
+          radius="md"
+          withBorder
+          id="bot-header-card"
+          data-testid="bot-header-card"
+        >
           <Group justify="space-between">
             <div>
               <Text fw={700} size="lg" data-testid="bot-name">
                 {bot.name}
               </Text>
-              <Badge color={status?.running ? "green" : "gray"} variant="light" mt={4} data-testid="bot-running-badge">
+              <Badge
+                color={status?.running ? "green" : "gray"}
+                variant="light"
+                mt={4}
+                data-testid="bot-running-badge"
+              >
                 {status?.running ? `● Running (PID ${status.pid})` : "○ Stopped"}
               </Badge>
             </div>
@@ -422,7 +439,14 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
         {status?.portfolio ? (
           <PortfolioSummaryCard portfolio={status.portfolio} />
         ) : (
-          <Card shadow="sm" padding="md" radius="md" withBorder id="portfolio-placeholder" data-testid="portfolio-placeholder">
+          <Card
+            shadow="sm"
+            padding="md"
+            radius="md"
+            withBorder
+            id="portfolio-placeholder"
+            data-testid="portfolio-placeholder"
+          >
             <Text c="dimmed" ta="center">
               Start the bot to see live portfolio data
             </Text>

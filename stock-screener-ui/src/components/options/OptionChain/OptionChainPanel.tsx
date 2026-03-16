@@ -118,7 +118,12 @@ export function OptionChainPanel({
           >
             Guide
           </Button>
-          <Text size="sm" c="dimmed" className="chain-selection-label" data-testid="options-chain-selection">
+          <Text
+            size="sm"
+            c="dimmed"
+            className="chain-selection-label"
+            data-testid="options-chain-selection"
+          >
             {selectedUnderlying} · {selectedExpiry}
           </Text>
           <IconRefresh
@@ -189,7 +194,11 @@ export function OptionChainPanel({
           styles={{ tab: { fontSize: theme.fontSizes.sm, fontWeight: fontWeights.semibold } }}
           data-testid="chain-view-tabs"
         >
-          <Tabs.List className="chain-view-tabs-list" mb="sm" data-testid="options-chain-view-tabs-list">
+          <Tabs.List
+            className="chain-view-tabs-list"
+            mb="sm"
+            data-testid="options-chain-view-tabs-list"
+          >
             <Tabs.Tab
               value="table"
               className="chain-view-tab"
@@ -208,7 +217,11 @@ export function OptionChainPanel({
             </Tabs.Tab>
           </Tabs.List>
 
-          <Tabs.Panel value="table" className="chain-tab-panel" data-testid="options-chain-table-panel">
+          <Tabs.Panel
+            value="table"
+            className="chain-tab-panel"
+            data-testid="options-chain-table-panel"
+          >
             <Stack gap="md">
               <ChainSummary
                 strikeMatrix={strikeMatrix}
@@ -225,7 +238,11 @@ export function OptionChainPanel({
             </Stack>
           </Tabs.Panel>
 
-          <Tabs.Panel value="analysis" className="chain-tab-panel" data-testid="options-chain-analysis-panel">
+          <Tabs.Panel
+            value="analysis"
+            className="chain-tab-panel"
+            data-testid="options-chain-analysis-panel"
+          >
             <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
           </Tabs.Panel>
         </Tabs>

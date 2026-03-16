@@ -32,7 +32,10 @@ export function SectorTable({ sectors }: SectorTableProps) {
     }
 
     return (
-      <Table.Tr key={row.sector} data-testid={`sector-row-${row.sector.toLowerCase().replace(/\s+/g, "-")}`}>
+      <Table.Tr
+        key={row.sector}
+        data-testid={`sector-row-${row.sector.toLowerCase().replace(/\s+/g, "-")}`}
+      >
         <Table.Td fw={700}>{row.sector}</Table.Td>
         <Table.Td align="right">
           <Text c={pnlColor} fw={700}>
@@ -64,7 +67,14 @@ export function SectorTable({ sectors }: SectorTableProps) {
 
   return (
     <ScrollArea h="100%" offsetScrollbars>
-      <Table striped highlightOnHover withTableBorder stickyHeader id="sector-table" data-testid="sector-table">
+      <Table
+        striped
+        highlightOnHover
+        withTableBorder
+        stickyHeader
+        id="sector-table"
+        data-testid="sector-table"
+      >
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Sector</Table.Th>

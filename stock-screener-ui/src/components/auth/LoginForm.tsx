@@ -222,7 +222,12 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
         {onSwitchToLogin && (
           <div className="auth-footer" data-testid="register-footer">
             <p>Already have an account?</p>
-            <button type="button" className="auth-link-button" onClick={handleSwitch} data-testid="login-link">
+            <button
+              type="button"
+              className="auth-link-button"
+              onClick={handleSwitch}
+              data-testid="login-link"
+            >
               Sign In
             </button>
           </div>

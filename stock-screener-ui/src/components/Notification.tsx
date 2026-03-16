@@ -50,7 +50,9 @@ export function NotificationItem({ notification, onDismiss }: NotificationItemPr
       <span className="toast-icon" aria-hidden="true">
         {config.icon}
       </span>
-      <span className="toast-message" data-testid="notification-message">{notification.message}</span>
+      <span className="toast-message" data-testid="notification-message">
+        {notification.message}
+      </span>
       <button
         className="toast-dismiss"
         onClick={() => onDismiss(notification.id)}

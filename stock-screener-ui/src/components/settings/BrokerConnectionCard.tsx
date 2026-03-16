@@ -44,7 +44,14 @@ export function BrokerConnectionCard({
     status?.connected && (status.expires_in_hours === null || status.expires_in_hours >= 0);
 
   return (
-    <Card shadow="sm" padding="lg" radius="md" withBorder id="broker-connection-card" data-testid="broker-connection-card">
+    <Card
+      shadow="sm"
+      padding="lg"
+      radius="md"
+      withBorder
+      id="broker-connection-card"
+      data-testid="broker-connection-card"
+    >
       <Stack gap="md">
         <Group justify="space-between">
           <Text fw={600} size="lg">

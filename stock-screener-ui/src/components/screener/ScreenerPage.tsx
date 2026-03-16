@@ -132,7 +132,12 @@ export function ScreenerPage({
 
     if (error) {
       return (
-        <Stack gap="md" align="center" className="screener-error-container" data-testid="screener-error-container">
+        <Stack
+          gap="md"
+          align="center"
+          className="screener-error-container"
+          data-testid="screener-error-container"
+        >
           <Alert
             icon={<IconAlertCircle size={16} />}
             title="Error"
@@ -157,7 +162,11 @@ export function ScreenerPage({
     return (
       <Stack gap="xl" style={{ height: "100%", overflow: "auto" }}>
         {sortedApproaching.length > 0 && (
-          <Box id="approaching-section" className="screener-section approaching-section" data-testid="screener-approaching-section">
+          <Box
+            id="approaching-section"
+            className="screener-section approaching-section"
+            data-testid="screener-approaching-section"
+          >
             <Stack gap="xs" mb="sm">
               <Title order={5} c="blue" className="section-title" data-testid="approaching-title">
                 ⏳ Approaching ({sortedApproaching.length})
@@ -181,7 +190,11 @@ export function ScreenerPage({
         )}
 
         {sortedTouched.length > 0 && (
-          <Box id="touched-section" className="screener-section touched-section" data-testid="screener-touched-section">
+          <Box
+            id="touched-section"
+            className="screener-section touched-section"
+            data-testid="screener-touched-section"
+          >
             <Stack gap="xs" mb="sm">
               <Title order={5} c="green" className="section-title" data-testid="touched-title">
                 ✅ Touched ({sortedTouched.length})
@@ -250,7 +263,13 @@ export function ScreenerPage({
         </Stack>
       </Box>
 
-      <Box flex={1} id="screener-content" className="screener-content" style={{ minHeight: 0 }} data-testid="screener-content">
+      <Box
+        flex={1}
+        id="screener-content"
+        className="screener-content"
+        style={{ minHeight: 0 }}
+        data-testid="screener-content"
+      >
         {renderContent()}
       </Box>
     </Box>

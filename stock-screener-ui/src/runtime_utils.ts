@@ -30,7 +30,9 @@ export function detectAddedSymbols(
   return { addedPrimary, addedSecondary };
 }
 
-export function buildProfileFilterQueryParams(values: Record<string, string | number> | null | undefined): string {
+export function buildProfileFilterQueryParams(
+  values: Record<string, string | number> | null | undefined,
+): string {
   if (!values) return "";
   const entries = Object.entries(values);
   if (entries.length === 0) return "";

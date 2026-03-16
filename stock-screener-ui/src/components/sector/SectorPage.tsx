@@ -160,7 +160,13 @@ export function SectorPage() {
       <Stack gap="md" h="100%">
         {/* Summary Cards */}
         <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-          <Card withBorder padding="sm" radius="md" id="sector-top-card" data-testid="sector-top-card">
+          <Card
+            withBorder
+            padding="sm"
+            radius="md"
+            id="sector-top-card"
+            data-testid="sector-top-card"
+          >
             <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Top Sector
             </Text>
@@ -172,7 +178,13 @@ export function SectorPage() {
             </Text>
           </Card>
 
-          <Card withBorder padding="sm" radius="md" id="sector-breadth-card" data-testid="sector-breadth-card">
+          <Card
+            withBorder
+            padding="sm"
+            radius="md"
+            id="sector-breadth-card"
+            data-testid="sector-breadth-card"
+          >
             <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Market Breadth
             </Text>
@@ -186,7 +198,13 @@ export function SectorPage() {
             </Group>
           </Card>
 
-          <Card withBorder padding="sm" radius="md" id="sector-weakest-card" data-testid="sector-weakest-card">
+          <Card
+            withBorder
+            padding="sm"
+            radius="md"
+            id="sector-weakest-card"
+            data-testid="sector-weakest-card"
+          >
             <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
               Weakest Sector
             </Text>
@@ -201,7 +219,11 @@ export function SectorPage() {
 
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" style={{ flex: 1, minHeight: 0 }}>
           {/* Sector Table */}
-          <Box style={{ overflow: "hidden", display: "flex", flexDirection: "column" }} id="sector-table-container" data-testid="sector-table-container">
+          <Box
+            style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}
+            id="sector-table-container"
+            data-testid="sector-table-container"
+          >
             <Group justify="space-between" mb="xs">
               <Title order={4}>📊 Sector Performance</Title>
               {data.last_updated && (
@@ -340,26 +362,26 @@ export function SectorPage() {
               </Text>
             </div>
             <Group gap="xs">
-               <SegmentedControl
-                 value={market}
-                 onChange={(v) => setMarket(v as any)}
-                 data={[
-                   { label: "India", value: "india" },
-                   { label: "US", value: "america" },
-                 ]}
-                 size="sm"
-                 data-testid="sector-market-selector"
-               />
-               <Button
-                 variant="light"
-                 size="sm"
-                 leftSection={<IconRefresh size={14} />}
-                 onClick={() => loadData(market)}
-                 loading={loading}
-                 data-testid="sector-refresh-btn"
-               >
-                 Refresh
-               </Button>
+              <SegmentedControl
+                value={market}
+                onChange={(v) => setMarket(v as any)}
+                data={[
+                  { label: "India", value: "india" },
+                  { label: "US", value: "america" },
+                ]}
+                size="sm"
+                data-testid="sector-market-selector"
+              />
+              <Button
+                variant="light"
+                size="sm"
+                leftSection={<IconRefresh size={14} />}
+                onClick={() => loadData(market)}
+                loading={loading}
+                data-testid="sector-refresh-btn"
+              >
+                Refresh
+              </Button>
             </Group>
           </Group>
 

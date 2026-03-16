@@ -28,8 +28,19 @@ export function ScreenerHeader({
 }: ScreenerHeaderProps) {
   return (
     <Stack gap="xs" id="screener-header" className="screener-header" data-testid="screener-header">
-      <Group justify="space-between" align="center" className="header-main-row" data-testid="header-main-row">
-        <Text size="lg" fw={600} data-testid="screener-title" id="screener-title" className="screener-title">
+      <Group
+        justify="space-between"
+        align="center"
+        className="header-main-row"
+        data-testid="header-main-row"
+      >
+        <Text
+          size="lg"
+          fw={600}
+          data-testid="screener-title"
+          id="screener-title"
+          className="screener-title"
+        >
           {title}
         </Text>
         <Group gap="xs" align="center" className="header-controls" data-testid="header-controls">
@@ -45,7 +56,12 @@ export function ScreenerHeader({
               <IconRefresh size={18} />
             </ActionIcon>
           </Tooltip>
-          <Group gap="xs" align="center" className="auto-refresh-group" data-testid="auto-refresh-group">
+          <Group
+            gap="xs"
+            align="center"
+            className="auto-refresh-group"
+            data-testid="auto-refresh-group"
+          >
             <Text size="sm" c="dimmed" className="auto-refresh-label">
               Auto-refresh:
             </Text>
@@ -104,7 +120,13 @@ export function ScreenerHeader({
           </Group>
         </Group>
       </Group>
-      <Text size="sm" c="dimmed" data-testid="status" id="screener-status" className="screener-status">
+      <Text
+        size="sm"
+        c="dimmed"
+        data-testid="status"
+        id="screener-status"
+        className="screener-status"
+      >
         {status}
       </Text>
     </Stack>

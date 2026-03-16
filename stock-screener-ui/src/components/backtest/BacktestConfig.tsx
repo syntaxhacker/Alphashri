@@ -145,7 +145,14 @@ export function BacktestConfig({
   ];
 
   return (
-    <Paper id="config-form" className="backtest-config" p="sm" radius="sm" withBorder data-testid="strategy-config">
+    <Paper
+      id="config-form"
+      className="backtest-config"
+      p="sm"
+      radius="sm"
+      withBorder
+      data-testid="strategy-config"
+    >
       <Stack gap="xs">
         <Group gap="xs" align="center" className="config-controls-row">
           <Select

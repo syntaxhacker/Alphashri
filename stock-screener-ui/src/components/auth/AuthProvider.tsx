@@ -320,9 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <div id="auth-provider" data-testid="auth-provider">
-      <AuthContext.Provider value={value}>
-        {children}
-      </AuthContext.Provider>
+      <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
     </div>
   );
 }
