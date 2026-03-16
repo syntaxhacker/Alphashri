@@ -1240,6 +1240,7 @@ async def get_chart_preview(
     from datetime import timedelta
     from db.models import get_shared_broker_token
     import config as app_config
+    import pandas as pd
 
     api_key = app_config.UPSTOX_API_KEY
     api_secret = app_config.UPSTOX_API_SECRET
@@ -1285,7 +1286,6 @@ async def get_chart_preview(
         }
 
     try:
-        # Fetch 1-min intraday data
         to_date = datetime.now().strftime('%Y-%m-%d')
         from_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
 
@@ -1296,6 +1296,16 @@ async def get_chart_preview(
             from_date=from_date,
             to_date=to_date
         )
+        
+        try:
+            df_intraday = api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+            if df_intraday is not None and not df_intraday.empty:
+                if df is None or df.empty:
+                    df = df_intraday
+                else:
+                    df = pd.concat([df, df_intraday]).drop_duplicates(keep='last').sort_index()
+        except Exception:
+            pass
 
         if df is None or df.empty:
             return {
