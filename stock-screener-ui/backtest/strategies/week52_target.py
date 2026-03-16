@@ -420,7 +420,7 @@ class Week52TargetStrategy(BaseStrategy):
         else:
             for args in worker_args:
                 completed += 1
-                result = run_single_stock_week52_target(*args)
+                result = run_single_stock_week52_target(args)
                 if progress_callback:
                     progress_callback(completed, total, f"Completed {result['symbol']}...")
                 if result['success'] and result.get('result'):
