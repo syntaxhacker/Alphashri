@@ -190,11 +190,7 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
 
     # Run backtest
     try:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[handle_run_backtest] Running strategy={strategy_id}, symbols={symbols}, days={days}")
         result = strategy.run(symbols, days, params, progress_callback)
-        logger.info(f"[handle_run_backtest] Result keys: {list(result.keys()) if result else 'None'}")
         result['variation_id'] = variation_id
 
         # Optionally log trades to journal
