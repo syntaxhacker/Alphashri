@@ -162,13 +162,13 @@ def get_previous_day_data(df: pd.DataFrame, current_date) -> Optional[tuple]:
 
 def run_single_stock_backtest(args):
     """Run backtest for a single stock in isolation."""
-    symbol, params, days = args
+    symbol, params, days, access_token = args if len(args) == 4 else (*args, None)
 
+    
     try:
-        from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
+        from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
 
-        # Extract params
-        pivot_type = str(params.get('pivot_type', 'classic'))
+        pivot_type = str(params.get('pivot_type', 'classic')
         breakout_buffer_pct = float(params.get('breakout_buffer_pct', 0.1))
         sl_pct = float(params.get('stop_loss_pct', 0.5))
         tp_pct = float(params.get('take_profit_pct', 1.5))
@@ -178,7 +178,6 @@ def run_single_stock_backtest(args):
         enable_shorts = bool(params.get('enable_shorts', False))
         cooldown_bars = int(params.get('cooldown_bars', 3))
 
-        # Create instrument
         venue = Venue("SIMULATED")
         instrument_id = InstrumentId.from_str(f"{symbol}.{venue}")
         instrument = Equity(
@@ -191,6 +190,22 @@ def run_single_stock_backtest(args):
             ts_event=0,
             ts_init=0,
             isin=None,
+        )
+
+        today = datetime.now()
+        to_date = today.strftime('%Y-%m-%d')
+        from_date = (today - timedelta(days=days + 30)).strftime('%Y-%m-%d')
+
+        if access_token:
+            api, error = get_upstox_client_with_token(access_token, quiet=True)
+        else:
+            api, error = get_upstox_client_from_db(quiet=True)
+        
+        if error or not api:
+            return {'symbol': symbol, 'success': False, 'error': error or 'No API client'}
+
+        df = api.fetch_historical_data_v3(
+            symbol=symbol, unit="minutes", interval=timeframe, to_date=to_date, from_date=from_date
         )
 
         # Fetch historical + intraday data

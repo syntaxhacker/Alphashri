@@ -51,12 +51,11 @@ def get_ist_time(ts_ns: int) -> tuple:
 
 def run_single_stock_backtest(args):
     """Run backtest for a single stock in isolation."""
-    symbol, params, days = args
+    symbol, params, days, access_token = args if len(args) == 4 else (*args, None)
 
     try:
-        from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
+        from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
 
-        # Supported params only
         or_minutes = int(params.get('or_minutes', 45))
         sl_pct = float(params.get('stop_loss_pct', 0.4))
         tp_pct = float(params.get('take_profit_pct', 1.2))
@@ -66,7 +65,6 @@ def run_single_stock_backtest(args):
         enable_shorts = bool(params.get('enable_shorts', False))
         cooldown_bars = int(params.get('cooldown_bars', 3))
 
-        # Create instrument
         venue = Venue("SIMULATED")
         instrument_id = InstrumentId.from_str(f"{symbol}.{venue}")
         instrument = Equity(
@@ -81,13 +79,19 @@ def run_single_stock_backtest(args):
             isin=None,
         )
 
-        # Fetch historical + intraday data
         today = datetime.now()
         to_date = today.strftime('%Y-%m-%d')
         from_date = (today - timedelta(days=days + 30)).strftime('%Y-%m-%d')
 
-        screener = TVScreenerUsage(enable_paper_trading=False)
-        df = screener.upstox_api.fetch_historical_data_v3(
+        if access_token:
+            upstox_api, error = get_upstox_client_with_token(access_token, quiet=True)
+        else:
+            upstox_api, error = get_upstox_client_from_db(quiet=True)
+        
+        if error or not upstox_api:
+            return {'symbol': symbol, 'success': False, 'error': error or 'Failed to get Upstox client'}
+
+        df = upstox_api.fetch_historical_data_v3(
             symbol=symbol, unit="minutes", interval=timeframe, to_date=to_date, from_date=from_date
         )
 
@@ -520,8 +524,12 @@ class ORBStrategy(BaseStrategy):
         all_candles = {}
 
         from multiprocessing import Pool, cpu_count
+        from db.models import get_shared_broker_token
 
-        worker_args = [(symbol, params, days) for symbol in symbols]
+        token_data = get_shared_broker_token('upstox')
+        access_token = token_data.get('access_token') if token_data else None
+
+        worker_args = [(symbol, params, days, access_token) for symbol in symbols]
         total = len(symbols)
         completed = 0
         num_workers = min(4, cpu_count() or 4, max(1, total))
