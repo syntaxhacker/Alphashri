@@ -83,6 +83,8 @@ class NewsInstrumentMapper:
         self._company_embeddings: Optional[np.ndarray] = None
         self._company_names: List[str] = []
         self._company_to_symbol: Dict[str, str] = {}
+        self._embeddings_loaded: bool = False
+        self._embeddings_loading: bool = False
         
         self.manual_mappings: Dict[str, str] = {}
         self.blacklist: Set[str] = set()
@@ -168,16 +170,31 @@ class NewsInstrumentMapper:
         return cleaned.strip()
     
     def _init_embeddings(self):
-        """Initialize embedding model and compute company name embeddings."""
+        """Prepare for lazy embedding initialization (non-blocking)."""
         if not self.use_embeddings:
             return
+        print(f"⏳ Embeddings will load lazily on first use ({len(self.symbol_to_instrument)} symbols)")
+    
+    def _ensure_embeddings_loaded(self):
+        """Load embeddings lazily on first use. Thread-safe."""
+        if not self.use_embeddings:
+            return False
+        
+        if self._embeddings_loaded:
+            return True
+        
+        if self._embeddings_loading:
+            return False
+        
+        self._embeddings_loading = True
         
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError:
             print("⚠️ sentence-transformers not installed, embeddings disabled")
             self.use_embeddings = False
-            return
+            self._embeddings_loading = False
+            return False
         
         cache_dir = Path(__file__).parent / '.embedding_cache'
         cache_dir.mkdir(exist_ok=True)
@@ -196,8 +213,10 @@ class NewsInstrumentMapper:
                     cache_data = json.load(f)
                 self._company_names = cache_data['names']
                 self._company_to_symbol = cache_data['mapping']
+                self._embedder = SentenceTransformer(self.EMBEDDING_MODEL)
+                self._embeddings_loaded = True
                 print(f"✅ Loaded cached embeddings for {len(self._company_names)} companies")
-                return
+                return True
             except Exception as e:
                 print(f"⚠️ Failed to load embedding cache: {e}")
         
@@ -233,18 +252,21 @@ class NewsInstrumentMapper:
                 }, f)
             
             print(f"✅ Computed and cached embeddings for {len(self._company_names)} companies")
+        
+        self._embeddings_loaded = True
+        return True
     
     def _embedding_match(self, query: str) -> Optional[MappingResult]:
         """Find best match using semantic embeddings."""
-        if not self.use_embeddings or self._company_embeddings is None:
+        if not self.use_embeddings:
             return None
         
-        if self._embedder is None:
-            try:
-                from sentence_transformers import SentenceTransformer
-                self._embedder = SentenceTransformer(self.EMBEDDING_MODEL)
-            except ImportError:
+        if not self._embeddings_loaded:
+            if not self._ensure_embeddings_loaded():
                 return None
+        
+        if self._company_embeddings is None:
+            return None
         
         query_embedding = self._embedder.encode(
             [query], 
