@@ -19,16 +19,17 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 import bcrypt
 import jwt
+import config
 
 from db.database import get_db
 from db.models import User, UserSession
 
 # Configuration
-# Use a fixed secret key for development (set JWT_SECRET_KEY env var in production)
-JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "alphashri-dev-secret-key-do-not-use-in-production")
-JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 24
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+# Use centralized config for security settings
+JWT_SECRET_KEY = config.JWT_SECRET_KEY
+JWT_ALGORITHM = config.JWT_ALGORITHM
+ACCESS_TOKEN_EXPIRE_HOURS = config.ACCESS_TOKEN_EXPIRE_MINUTES // 60
+REFRESH_TOKEN_EXPIRE_DAYS = config.REFRESH_TOKEN_EXPIRE_DAYS
 
 # Environment-based auth requirement
 # Set REQUIRE_AUTH=true for production to enforce authentication
@@ -66,6 +67,7 @@ class UserResponse(BaseModel):
     display_name: Optional[str]
     initial_capital: float
     created_at: datetime
+    is_admin: bool = False
 
     class Config:
         from_attributes = True

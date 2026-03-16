@@ -33,7 +33,7 @@ export function ScreenerFilters({
   onFilterChange,
   onReset,
 }: ScreenerFiltersProps) {
-  const sectorOptions = sectors.map((s) => ({ value: s, label: s }));
+  const sectorOptions = (sectors ?? []).map((s) => ({ value: s, label: s }));
 
   const renderProfileFilter = (filter: ProfileFilterDef) => {
     if (filter.type === "number") {

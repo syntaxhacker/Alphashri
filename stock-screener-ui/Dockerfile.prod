@@ -1,0 +1,65 @@
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY stock-screener-ui/requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libcurl4 \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
+
+RUN playwright install chromium --with-deps
+
+# Cache bust - force rebuild
+ARG CACHE_BUST=1
+RUN echo "Cache bust: $CACHE_BUST"
+
+# Copy the entire project
+COPY . .
+
+# Verify files exist for debugging
+RUN echo "Checking file structure:" && \
+    ls -la /app/ && \
+    ls -la /app/stock-screener-ui/ && \
+    test -f /app/stock-screener-ui/config_template.py && echo "config_template.py found" || echo "config_template.py NOT FOUND"
+
+WORKDIR /app/stock-screener-ui
+RUN mkdir -p db
+
+COPY stock-screener-ui/docker-entrypoint.prod.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+ENV PYTHONPATH=/app:/app/stock-screener-ui:/app/scanners
+
+EXPOSE 8765
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

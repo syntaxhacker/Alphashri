@@ -1,27 +1,19 @@
-"""
-Broker OAuth endpoints for Alphashri
-
-Provides:
-- Upstox OAuth flow (auth, callback, disconnect)
-- Broker connection status checking
-"""
-
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import RedirectResponse
-from typing import Optional
-import httpx
 import os
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-
+from typing import Optional
+import httpx
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import RedirectResponse
+import config
 from db.models import get_shared_broker_token, save_broker_token, delete_broker_token
 
 router = APIRouter(prefix="/api/brokers", tags=["brokers"])
 
 UPSTOX_BASE = "https://api.upstox.com/v2"
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-TOKEN_FILE = PROJECT_ROOT / ".upstox_token.json"
+# Use project root from config if needed, or stick to local for token file
+TOKEN_FILE = config.BASE_DIR / ".upstox_token.json"
 
 
 def _get_upstox_token_from_db() -> Optional[dict]:
@@ -47,7 +39,7 @@ def _get_upstox_token_from_file() -> Optional[dict]:
 
 
 def _get_upstox_token_from_env() -> Optional[dict]:
-    token = os.getenv("UPSTOX_ACCESS_TOKEN")
+    token = config.UPSTOX_ACCESS_TOKEN
     if token:
         return {"access_token": token, "token_timestamp": None}
     return None
@@ -118,10 +110,8 @@ async def get_broker_status():
 
 
 def _get_upstox_credentials():
-    """Get Upstox API credentials from environment (supports both naming conventions)."""
-    api_key = os.getenv("UPSTOX_API_KEY") or os.getenv("UPSTOX_CLIENT_ID")
-    api_secret = os.getenv("UPSTOX_API_SECRET") or os.getenv("UPSTOX_CLIENT_SECRET")
-    return api_key, api_secret
+    """Get Upstox API credentials from centralized config."""
+    return config.UPSTOX_API_KEY, config.UPSTOX_API_SECRET
 
 
 @router.get("/upstox/auth")
@@ -134,10 +124,10 @@ async def upstox_auth():
     if not api_key or not api_secret:
         raise HTTPException(
             status_code=500,
-            detail="UPSTOX_API_KEY (or UPSTOX_CLIENT_ID) and UPSTOX_API_SECRET (or UPSTOX_CLIENT_SECRET) must be set in environment"
+            detail="UPSTOX_API_KEY and UPSTOX_API_SECRET must be set in environment"
         )
     
-    redirect_uri = f"{os.getenv('API_BASE_URL', 'http://localhost:8765')}/api/brokers/upstox/callback"
+    redirect_uri = f"{config.API_BASE_URL}/api/brokers/upstox/callback"
     
     auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={api_key}&redirect_uri={redirect_uri}"
     
@@ -158,10 +148,10 @@ async def upstox_callback(code: str = Query(...)):
         print("❌ Missing Upstox credentials")
         raise HTTPException(
             status_code=500,
-            detail="UPSTOX_API_KEY (or UPSTOX_CLIENT_ID) and UPSTOX_API_SECRET (or UPSTOX_CLIENT_SECRET) must be set in environment"
+            detail="UPSTOX_API_KEY and UPSTOX_API_SECRET must be set in environment"
         )
     
-    redirect_uri = f"{os.getenv('API_BASE_URL', 'http://localhost:8765')}/api/brokers/upstox/callback"
+    redirect_uri = f"{config.API_BASE_URL}/api/brokers/upstox/callback"
     
     token_url = f"{UPSTOX_BASE}/login/authorization/token"
     
@@ -210,7 +200,7 @@ async def upstox_callback(code: str = Query(...)):
                 except Exception:
                     pass
             
-            return RedirectResponse(url=f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/settings?upstox=connected")
+            return RedirectResponse(url=f"{config.FRONTEND_URL}/settings?upstox=connected")
     
     except httpx.RequestError as e:
         print(f"❌ Request error: {str(e)}")

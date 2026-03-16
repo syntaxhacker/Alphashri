@@ -19,7 +19,9 @@ interface MarketTickerData {
   error: string | null;
 }
 
-const MARKET_TICKER_API = "http://localhost:8765/api/market-ticker";
+import { API_ENDPOINTS } from "../../api/config";
+
+const MARKET_TICKER_API = API_ENDPOINTS.MARKET_TICKER;
 
 const PRIORITY_ORDER = ["^NSEI", "^NSEBANK", "GC=F", "SI=F", "CL=F", "USDINR=X"];
 

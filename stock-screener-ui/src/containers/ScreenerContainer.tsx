@@ -31,9 +31,9 @@ export function ScreenerContainer() {
       screenerOptions={screenerOptions}
       activeScreener={activeScreener}
       onScreenerChange={onScreenerChange}
-      title={`${screenerOptions.find((s) => s.id === activeScreener)?.label || "Screener"} | Alphashri`}
+      title={`${(screenerOptions ?? []).find((s) => s.id === activeScreener)?.label || "Screener"} | Alphashri`}
       status={
-        isLoading ? "Loading..." : `${approachingStocks.length + touchedStocks.length} stocks`
+        isLoading ? "Loading..." : `${(approachingStocks ?? []).length + (touchedStocks ?? []).length} stocks`
       }
       isLoading={isLoading}
       autoRefreshSeconds={autoRefreshSeconds}

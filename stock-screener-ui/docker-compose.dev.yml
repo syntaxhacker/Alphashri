@@ -1,0 +1,21 @@
+# Development environment with SQLite
+# Usage: docker-compose -f docker-compose.dev.yml up --build
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: stock-screener-ui/Dockerfile.dev
+    container_name: alphashri-dev
+    ports:
+      - "8765:8765"
+    environment:
+      - PORT=8765
+      - LOG_LEVEL=DEBUG
+      - SEED_DATA=false
+    env_file:
+      - .env.dev
+    volumes:
+      - ./db:/app/stock-screener-ui/db
+      - ./journals:/app/stock-screener-ui/journals
+      - ./scripts:/app/stock-screener-ui/scripts

@@ -20,6 +20,25 @@ STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|
 if [ -z "$STAGED_FILES" ]; then
   echo "No staged files to lint/format."
 else
+  # Check size limits on staged files
+  echo "Checking file size limits..."
+  STAGED_JS_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ts|tsx|js|jsx)$')
+  if [ ! -z "$STAGED_JS_FILES" ]; then
+    echo "$STAGED_JS_FILES" | xargs node check-size-limits.cjs
+    if [ $? -ne 0 ]; then
+      echo "❌ Size limits exceeded! Commit aborted."
+      exit 1
+    fi
+  fi
+
+  # Remove console.log statements from staged files
+  echo "Removing console.log statements..."
+  if [ ! -z "$STAGED_JS_FILES" ]; then
+    echo "$STAGED_JS_FILES" | xargs node remove-console-logs.js
+    # Re-stage modified files
+    echo "$STAGED_JS_FILES" | xargs git add --
+  fi
+
   # Run lint check on staged files only
   echo "Running oxlint on staged files..."
   echo "$STAGED_FILES" | xargs bun run lint --

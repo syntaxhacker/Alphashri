@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.env*
+*.log
+__pycache__
+.pytest_cache
+playwright-report
+*.db
+*.pyc
+.hypothesis
+.pytest_cache
+.vscode
+.claude

@@ -13,7 +13,7 @@ from pathlib import Path as PathlibPath
 from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
 
-# Add project root and scanners to path
+# Add project root and scanners to path FIRST (before imports)
 _script_dir = PathlibPath(__file__).parent.absolute()
 _project_root = _script_dir.parent
 _scanners_dir = _project_root / 'scanners'
@@ -21,19 +21,15 @@ sys.path.insert(0, str(_project_root))
 sys.path.insert(0, str(_scanners_dir))
 sys.path.insert(0, str(_script_dir))
 
-# Load environment variables from .env.local
-from dotenv import load_dotenv
-env_file = _project_root / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
-    print(f"Loaded environment from {env_file}")
+import config
 
-from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect, Path
+from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect, Path, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
+from api.auth import get_current_user
 from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
 import trending_upside
 
@@ -709,7 +705,7 @@ app = FastAPI(title="Alphashri API", lifespan=lifespan)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -722,6 +718,7 @@ if _sector_dashboard_dir.exists():
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     return {'status': 'ok', 'timestamp': datetime.now().isoformat()}
 
@@ -815,7 +812,6 @@ async def run_backtest(
     include_chart_data: bool = Query(False, description="Include candle/chart data in response (default: False for smaller responses)")
 ):
     body = request.model_dump()
-    # Add user_id for history tracking (default to 1 for now)
     body['user_id'] = 1
     
     _backtest_handler.progress_state['running'] = True
@@ -826,7 +822,6 @@ async def run_backtest(
     result = handle_run_backtest(body, _backtest_handler.progress_state)
 
     if 'error' not in result:
-        # Always cache data for chart endpoint
         _backtest_handler.backtest_cache = {
             'candles': result.get('candles', {}),
             'chart_data': result.get('chart_data', {}),
@@ -836,7 +831,6 @@ async def run_backtest(
 
     _backtest_handler.progress_state['running'] = False
 
-    # Build response - exclude large data by default
     response = {
         'strategy': result.get('strategy'),
         'variation_id': result.get('variation_id'),
@@ -848,16 +842,12 @@ async def run_backtest(
         'saved_uuid': result.get('saved_uuid'),
     }
 
-    # Only include chart data if explicitly requested
     if include_chart_data:
-        # Build full chart data using chart_data module (includes pivot_levels, orb_zones, etc.)
         from backtest.chart_data import build_chart_data_for_symbol
         candles = result.get('candles', {})
         chart_data_raw = result.get('chart_data', {})
         or_minutes = result.get('config', {}).get('params', {}).get('or_minutes', 45)
         strategy = result.get('strategy', '')
-
-        # For 52W Chaser strategy, include rolling 52W high line
         include_52w_line = strategy == '52w_chaser'
 
         full_chart_data = {}
@@ -939,39 +929,38 @@ async def delete_backtest(uuid: str):
 # Symbol Search API
 # ============================================
 
-# Cache for instruments (loaded once)
+from db.database import SessionLocal
+from db.models import Instrument
+
+# Cache for instruments (loaded once from database)
 _instruments_cache: List[Dict] = []
 _instruments_loaded = False
 
 def _load_instruments():
-    """Load NSE instruments from cache file."""
+    """Load NSE instruments from database."""
     global _instruments_cache, _instruments_loaded
-
+    
     if _instruments_loaded:
         return _instruments_cache
-
-    # Try multiple paths for instruments file
-    instrument_paths = [
-        _project_root / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
-        _script_dir / 'nse_instruments.json',
-        PathlibPath(__file__).parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
-    ]
-
-    for path in instrument_paths:
-        if path.exists():
-            try:
-                import json
-                with open(path, 'r') as f:
-                    _instruments_cache = json.load(f)
-                _instruments_loaded = True
-                print(f"✅ Loaded {len(_instruments_cache)} instruments from {path}")
-                return _instruments_cache
-            except Exception as e:
-                print(f"⚠️ Failed to load instruments from {path}: {e}")
-
-    print("⚠️ No instruments file found. Symbol search will return empty results.")
-    _instruments_loaded = True
-    return _instruments_cache
+    
+    try:
+        from db.database import SessionLocal
+        from db.models import Instrument
+        
+        db = SessionLocal()
+        instruments = db.query(Instrument).filter(
+            Instrument.segment == 'NSE_EQ'
+        ).all()
+        _instruments_cache = [i.to_dict() for i in instruments]
+        _instruments_loaded = True
+        print(f"✅ Loaded {len(_instruments_cache)} instruments from database")
+        db.close()
+        return _instruments_cache
+    except Exception as e:
+        print(f"⚠️ Failed to load instruments from database: {e}")
+        _instruments_cache = []
+        _instruments_loaded = True
+        return _instruments_cache
 
 
 @app.get("/api/symbols/search")
@@ -995,7 +984,7 @@ async def search_symbols(
     # Filter NSE_EQ stocks with EQ instrument type
     results = []
     for inst in instruments:
-        if inst.get('segment') != 'NSE_EQ' or inst.get('instrument_type') != 'EQ':
+        if inst.get('segment') != 'NSE_EQ':
             continue
 
         symbol = inst.get('trading_symbol', '')
@@ -1035,6 +1024,27 @@ async def search_symbols(
         del r['score']
 
     return {"results": results, "query": q, "total": len(results)}
+
+
+@app.get("/api/instruments/debug")
+async def debug_instruments():
+    """Debug endpoint to check instruments loading."""
+    from db.database import SessionLocal
+    from db.models import Instrument
+    db = SessionLocal()
+    try:
+        total = db.query(Instrument).count()
+        nse_eq = db.query(Instrument).filter(Instrument.segment == 'NSE_EQ').count()
+        sample = db.query(Instrument).filter(Instrument.segment == 'NSE_EQ').limit(3).all()
+        return {
+            "total_instruments": total,
+            "nse_eq_count": nse_eq,
+            "cache_loaded": _instruments_loaded,
+            "cache_size": len(_instruments_cache),
+            "sample": [s.to_dict() for s in sample]
+        }
+    finally:
+        db.close()
 
 
 # ============================================
@@ -1221,10 +1231,14 @@ async def get_chart_preview(
     Use days=5+ for expanded/full chart view.
     """
     from datetime import timedelta
+    from db.models import get_shared_broker_token
+    import config as app_config
+    import pandas as pd
 
-    try:
-        api = TradingAPIFactory.create_from_config('upstox', quiet=True)
-    except ValueError:
+    api_key = app_config.UPSTOX_API_KEY
+    api_secret = app_config.UPSTOX_API_SECRET
+    
+    if not api_key or not api_secret:
         return {
             'symbol': symbol,
             'candles': [],
@@ -1233,11 +1247,38 @@ async def get_chart_preview(
             'timeframe': tf,
             'or_minutes': or_minutes,
             'total_candles': 0,
-            'error': 'API not available'
+            'error': 'Upstox API credentials not configured'
+        }
+    
+    token_data = get_shared_broker_token('upstox')
+    if not token_data or not token_data.get('access_token'):
+        return {
+            'symbol': symbol,
+            'candles': [],
+            'orb_zones': [],
+            'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
+            'error': 'Upstox not connected. Please connect your broker in Settings.'
+        }
+    
+    try:
+        api = TradingAPIFactory.create_client('upstox', api_key=api_key, api_secret=api_secret, quiet=True)
+        api.auth_handler.access_token = token_data['access_token']
+    except Exception as e:
+        return {
+            'symbol': symbol,
+            'candles': [],
+            'orb_zones': [],
+            'pivot_levels': [],
+            'timeframe': tf,
+            'or_minutes': or_minutes,
+            'total_candles': 0,
+            'error': f'Failed to initialize API: {str(e)}'
         }
 
     try:
-        # Fetch 1-min intraday data
         to_date = datetime.now().strftime('%Y-%m-%d')
         from_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
 
@@ -1248,6 +1289,16 @@ async def get_chart_preview(
             from_date=from_date,
             to_date=to_date
         )
+        
+        try:
+            df_intraday = api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+            if df_intraday is not None and not df_intraday.empty:
+                if df is None or df.empty:
+                    df = df_intraday
+                else:
+                    df = pd.concat([df, df_intraday]).drop_duplicates(keep='last').sort_index()
+        except Exception:
+            pass
 
         if df is None or df.empty:
             return {
@@ -1521,13 +1572,11 @@ async def websocket_sector(websocket: WebSocket):
         print(f"📊 Sector WebSocket error: {e}")
         sector_ws_manager.disconnect(websocket)
 
-async def news_startup_prefetch():
-    """Prefetch recent articles from all sources on startup."""
-    if not _news_available:
-        print("📰 News not available, skipping prefetch")
-        return
-    
+def _do_prefetch_sync():
+    """Synchronous prefetch logic to run in thread."""
+    import asyncio
     from services.news_persistence import get_persistence_service
+    
     persistence = get_persistence_service()
     
     stats = persistence.get_article_stats()
@@ -1593,6 +1642,19 @@ async def news_startup_prefetch():
             print(f"⚠️ Prefetch error for {source_id}: {e}")
     
     print(f"📰 Prefetch complete: {total_saved} new articles saved")
+
+
+async def news_startup_prefetch():
+    """Prefetch recent articles from all sources on startup (non-blocking)."""
+    import asyncio
+    
+    if not _news_available:
+        print("📰 News not available, skipping prefetch")
+        return
+    
+    await asyncio.sleep(30)
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _do_prefetch_sync)
 
 
 async def news_poller_task():
@@ -1984,6 +2046,34 @@ async def get_news_sources():
     return {'sources': NEWS_SOURCES}
 
 
+@app.get("/api/admin/llm-stats")
+async def get_llm_stats(
+    limit: int = Query(default=100, ge=1, le=1000),
+    current_user=Depends(get_current_user)
+):
+    """
+    Get LLM run statistics including recent runs and aggregate stats.
+    Requires admin access.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if not _llm_available or article_analyzer is None:
+        raise HTTPException(status_code=503, detail="LLM Analyzer not available")
+    
+    try:
+        recent_runs = article_analyzer.get_llm_stats(limit=limit)
+        aggregate_stats = article_analyzer.get_llm_aggregate_stats()
+        
+        return {
+            "recent_runs": recent_runs,
+            "aggregate": aggregate_stats,
+            "fetched_at": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.websocket("/ws/news")
 async def websocket_news(websocket: WebSocket):
     """
@@ -2012,10 +2102,10 @@ async def websocket_news(websocket: WebSocket):
 
 
 if __name__ == '__main__':
-    port = int(os.getenv("PORT", 8765))
+    port = config.PORT
     print(f'🚀 Alphashri FastAPI running on http://localhost:{port}')
     print(f'   API docs: http://localhost:{port}/docs')
     print(f'   Screener API: http://localhost:{port}/api/screener')
     print(f'   Backtest API: http://localhost:{port}/api/backtest/strategies')
     print(f'   Paper Trading API: http://localhost:{port}/api/paper/portfolio')
-    uvicorn.run(app, host="localhost", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)

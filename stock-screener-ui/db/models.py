@@ -4,8 +4,9 @@ Database models for Alphashri
 
 import json
 import uuid
+from datetime import date
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, Table, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, Table, UniqueConstraint, Index, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -34,6 +35,7 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
 
     # Paper trading settings per user
     initial_capital = Column(Float, default=1000000.0)  # 10 Lakhs default
@@ -411,6 +413,54 @@ def delete_broker_token(broker_name: str, user_id: Optional[int] = None) -> bool
         db.close()
 
 
+class LLMRun(Base):
+    """LLM API call tracking for cost and usage analytics."""
+    __tablename__ = "llm_runs"
+
+    id = Column(Integer, primary_key=True)
+    uuid = Column(String(36), unique=True, index=True, default=lambda: str(uuid.uuid4()))
+    
+    model = Column(String(100), nullable=False, index=True)
+    provider = Column(String(50), nullable=True)
+    
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    
+    cost_usd = Column(Float, default=0.0)
+    response_time_ms = Column(Integer, nullable=True)
+    
+    status = Column(String(20), default='pending', index=True)
+    error_message = Column(Text, nullable=True)
+    
+    url = Column(String(2048), nullable=True)
+    headline = Column(String(500), nullable=True)
+    request_json = Column(Text, nullable=True)
+    response_json = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+
+    def __repr__(self):
+        return f"<LLMRun(id={self.id}, model='{self.model}', tokens={self.total_tokens}, cost={self.cost_usd})>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.uuid,
+            "model": self.model,
+            "provider": self.provider,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+            "cost_usd": self.cost_usd,
+            "response_time_ms": self.response_time_ms,
+            "status": self.status,
+            "error_message": self.error_message,
+            "url": self.url,
+            "headline": self.headline,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class NewsArticle(Base):
     """Stored news articles for symbol tracking and historical analysis."""
     __tablename__ = "news_articles"
@@ -493,6 +543,87 @@ class NewsSymbolMention(Base):
             "company_name": self.company_name,
             "match_confidence": self.match_confidence,
             "match_method": self.match_method
+        }
+
+
+def get_articles_for_instrument(instrument_key: str, limit: int = 10) -> list:
+    """Get news articles mentioning a specific instrument."""
+    db = SessionLocal()
+    try:
+        mentions = db.query(NewsSymbolMention).filter(
+            NewsSymbolMention.instrument_key == instrument_key
+        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
+        
+        article_ids = [m.article_id for m in mentions]
+        if not article_ids:
+            return []
+        
+        articles = db.query(NewsArticle).filter(
+            NewsArticle.id.in_(article_ids)
+        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
+        
+        return [a.to_dict() for a in articles]
+    finally:
+        db.close()
+
+
+def get_articles_for_symbol(symbol: str, limit: int = 10) -> list:
+    """Get news articles mentioning a symbol (by trading_symbol or symbol_code)."""
+    db = SessionLocal()
+    try:
+        symbol_upper = symbol.upper()
+        mentions = db.query(NewsSymbolMention).filter(
+            (NewsSymbolMention.trading_symbol == symbol_upper) |
+            (NewsSymbolMention.symbol_code == symbol_upper)
+        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
+        
+        article_ids = [m.article_id for m in mentions]
+        if not article_ids:
+            return []
+        
+        articles = db.query(NewsArticle).filter(
+            NewsArticle.id.in_(article_ids)
+        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
+        
+        return [a.to_dict() for a in articles]
+    finally:
+        db.close()
+
+
+class Instrument(Base):
+    """NSE instrument data for symbol search and trading."""
+    __tablename__ = "instruments"
+
+    instrument_key = Column(String(100), primary_key=True)
+    trading_symbol = Column(String(50), nullable=False, index=True)
+    name = Column(String(200), nullable=True)
+    exchange = Column(String(20), nullable=False)
+    segment = Column(String(20), nullable=False)
+    lot_size = Column(Integer, default=1)
+    tick_size = Column(Float, default=0.05)
+    expiry = Column(Date, nullable=True)
+    strike_price = Column(Float, nullable=True)
+    qty_multiplier = Column(Float, nullable=True)
+    isin = Column(String(20), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self):
+        return f"<Instrument({self.trading_symbol})>"
+
+    def to_dict(self) -> dict:
+        return {
+            "instrument_key": self.instrument_key,
+            "trading_symbol": self.trading_symbol,
+            "name": self.name,
+            "exchange": self.exchange,
+            "segment": self.segment,
+            "lot_size": self.lot_size,
+            "tick_size": self.tick_size,
+            "expiry": self.expiry.isoformat() if self.expiry else None,
+            "strike_price": self.strike_price,
+            "qty_multiplier": self.qty_multiplier,
+            "isin": self.isin,
         }
 
 

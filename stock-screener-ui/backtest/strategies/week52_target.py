@@ -382,7 +382,12 @@ class Week52TargetStrategy(BaseStrategy):
         chart_data = {}
         all_candles = {}
 
-        worker_args = [(symbol, params, days) for symbol in symbols]
+        from db.models import get_shared_broker_token
+
+        token_data = get_shared_broker_token('upstox')
+        access_token = token_data.get('access_token') if token_data else None
+
+        worker_args = [(symbol, params, days, access_token) for symbol in symbols]
         total = len(symbols)
         completed = 0
         num_workers = min(4, cpu_count() or 4, max(1, total))
@@ -415,7 +420,7 @@ class Week52TargetStrategy(BaseStrategy):
         else:
             for args in worker_args:
                 completed += 1
-                result = run_single_stock_week52_target(*args)
+                result = run_single_stock_week52_target(args)
                 if progress_callback:
                     progress_callback(completed, total, f"Completed {result['symbol']}...")
                 if result['success'] and result.get('result'):
@@ -455,12 +460,13 @@ class Week52TargetStrategy(BaseStrategy):
         return []
 
 
-def run_single_stock_week52_target(symbol: str, params: Dict, days: int):
+def run_single_stock_week52_target(args):
     """Run backtest for a single stock with 52W Target strategy."""
+    symbol, params, days, access_token = args if len(args) == 4 else (*args, None)
+    
     try:
-        from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
+        from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
 
-        # Extract params
         entry_threshold_pct = float(params.get('entry_threshold_pct', 2.0))
         stop_loss_pct = float(params.get('stop_loss_pct', 2.0))
         trailing_stop_pct = float(params.get('trailing_stop_pct', 0.5))
@@ -469,7 +475,6 @@ def run_single_stock_week52_target(symbol: str, params: Dict, days: int):
         trade_size = int(params.get('trade_size', 100))
         include_costs = bool(params.get('include_costs', True))
 
-        # Create instrument
         venue = Venue("SIMULATED")
         instrument_id = InstrumentId.from_str(f"{symbol}.{venue}")
         instrument = Equity(
@@ -484,14 +489,20 @@ def run_single_stock_week52_target(symbol: str, params: Dict, days: int):
             isin=None,
         )
 
-        # Fetch DAILY data - need ~500+ days for 52W calculation
         today = datetime.now()
         to_date = today.strftime('%Y-%m-%d')
         fetch_days = max(days + 400, 500)
         from_date = (today - timedelta(days=fetch_days)).strftime('%Y-%m-%d')
 
-        screener = TVScreenerUsage(enable_paper_trading=False)
-        df = screener.upstox_api.fetch_historical_data_v3(
+        if access_token:
+            api, error = get_upstox_client_with_token(access_token, quiet=True)
+        else:
+            api, error = get_upstox_client_from_db(quiet=True)
+        
+        if error or not api:
+            return {'symbol': symbol, 'success': False, 'error': error or 'No API client'}
+
+        df = api.fetch_historical_data_v3(
             symbol=symbol, unit="days", interval=1, to_date=to_date, from_date=from_date
         )
 

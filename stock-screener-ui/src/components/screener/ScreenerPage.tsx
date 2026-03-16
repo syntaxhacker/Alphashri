@@ -103,12 +103,12 @@ export function ScreenerPage({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const sortedApproaching = useMemo(
-    () => sortStocks(approachingStocks, sortColumn, sortDirection),
+    () => sortStocks(approachingStocks ?? [], sortColumn, sortDirection),
     [approachingStocks, sortColumn, sortDirection],
   );
 
   const sortedTouched = useMemo(
-    () => sortStocks(touchedStocks, sortColumn, sortDirection),
+    () => sortStocks(touchedStocks ?? [], sortColumn, sortDirection),
     [touchedStocks, sortColumn, sortDirection],
   );
 
@@ -123,7 +123,7 @@ export function ScreenerPage({
 
   const columns = getColumnsForScreener(activeScreener);
   const emptySet = new Set<string>();
-  const totalStocks = approachingStocks.length + touchedStocks.length;
+  const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
 
   const renderContent = () => {
     if (isLoading) {
