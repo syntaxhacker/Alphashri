@@ -811,64 +811,72 @@ async def run_backtest(
     request: BacktestRunRequest,
     include_chart_data: bool = Query(False, description="Include candle/chart data in response (default: False for smaller responses)")
 ):
-    body = request.model_dump()
-    # Add user_id for history tracking (default to 1 for now)
-    body['user_id'] = 1
-    
-    _backtest_handler.progress_state['running'] = True
-    _backtest_handler.progress_state['current'] = 0
-    _backtest_handler.progress_state['total'] = len(body.get('symbols', []))
-    _backtest_handler.progress_state['message'] = 'Starting...'
+    try:
+        body = request.model_dump()
+        # Add user_id for history tracking (default to 1 for now)
+        body['user_id'] = 1
+        
+        _backtest_handler.progress_state['running'] = True
+        _backtest_handler.progress_state['current'] = 0
+        _backtest_handler.progress_state['total'] = len(body.get('symbols', []))
+        _backtest_handler.progress_state['message'] = 'Starting...'
 
-    result = handle_run_backtest(body, _backtest_handler.progress_state)
+        result = handle_run_backtest(body, _backtest_handler.progress_state)
+        
+        if not result:
+            return {'error': 'handle_run_backtest returned empty result'}
 
-    if 'error' not in result:
-        # Always cache data for chart endpoint
-        _backtest_handler.backtest_cache = {
-            'candles': result.get('candles', {}),
-            'chart_data': result.get('chart_data', {}),
-            'config': result.get('config', {}),
-            'results': result.get('results', []),
+        if 'error' not in result:
+            # Always cache data for chart endpoint
+            _backtest_handler.backtest_cache = {
+                'candles': result.get('candles', {}),
+                'chart_data': result.get('chart_data', {}),
+                'config': result.get('config', {}),
+                'results': result.get('results', []),
+            }
+
+        _backtest_handler.progress_state['running'] = False
+
+        # Build response - exclude large data by default
+        response = {
+            'strategy': result.get('strategy'),
+            'variation_id': result.get('variation_id'),
+            'config': result.get('config'),
+            'results': result.get('results'),
+            'totals': result.get('totals'),
+            'skipped_stocks': result.get('skipped_stocks', []),
+            'run_time': result.get('run_time'),
+            'saved_uuid': result.get('saved_uuid'),
         }
 
-    _backtest_handler.progress_state['running'] = False
+        # Only include chart data if explicitly requested
+        if include_chart_data:
+            # Build full chart data using chart_data module (includes pivot_levels, orb_zones, etc.)
+            from backtest.chart_data import build_chart_data_for_symbol
+            candles = result.get('candles', {})
+            chart_data_raw = result.get('chart_data', {})
+            or_minutes = result.get('config', {}).get('params', {}).get('or_minutes', 45)
+            strategy = result.get('strategy', '')
 
-    # Build response - exclude large data by default
-    response = {
-        'strategy': result.get('strategy'),
-        'variation_id': result.get('variation_id'),
-        'config': result.get('config'),
-        'results': result.get('results'),
-        'totals': result.get('totals'),
-        'skipped_stocks': result.get('skipped_stocks', []),
-        'run_time': result.get('run_time'),
-        'saved_uuid': result.get('saved_uuid'),
-    }
+            # For 52W Chaser strategy, include rolling 52W high line
+            include_52w_line = strategy == '52w_chaser'
 
-    # Only include chart data if explicitly requested
-    if include_chart_data:
-        # Build full chart data using chart_data module (includes pivot_levels, orb_zones, etc.)
-        from backtest.chart_data import build_chart_data_for_symbol
-        candles = result.get('candles', {})
-        chart_data_raw = result.get('chart_data', {})
-        or_minutes = result.get('config', {}).get('params', {}).get('or_minutes', 45)
-        strategy = result.get('strategy', '')
+            full_chart_data = {}
+            for symbol, trades_data in chart_data_raw.items():
+                if symbol in candles and trades_data.get('trades'):
+                    full_chart_data[symbol] = build_chart_data_for_symbol(
+                        symbol, candles[symbol], trades_data['trades'], or_minutes,
+                        include_52w_line=include_52w_line
+                    )
 
-        # For 52W Chaser strategy, include rolling 52W high line
-        include_52w_line = strategy == '52w_chaser'
+            response['candles'] = candles
+            response['chart_data'] = full_chart_data
 
-        full_chart_data = {}
-        for symbol, trades_data in chart_data_raw.items():
-            if symbol in candles and trades_data.get('trades'):
-                full_chart_data[symbol] = build_chart_data_for_symbol(
-                    symbol, candles[symbol], trades_data['trades'], or_minutes,
-                    include_52w_line=include_52w_line
-                )
-
-        response['candles'] = candles
-        response['chart_data'] = full_chart_data
-
-    return _sanitize_for_json(response)
+        return _sanitize_for_json(response)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {'error': str(e), 'traceback': traceback.format_exc().split('\n')}
 
 
 @app.get("/api/backtest/chart/{symbol}")
