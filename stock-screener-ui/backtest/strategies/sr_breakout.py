@@ -168,7 +168,7 @@ def run_single_stock_backtest(args):
     try:
         from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
 
-        pivot_type = str(params.get('pivot_type', 'classic')
+        pivot_type = str(params.get('pivot_type', 'classic'))
         breakout_buffer_pct = float(params.get('breakout_buffer_pct', 0.1))
         sl_pct = float(params.get('stop_loss_pct', 0.5))
         tp_pct = float(params.get('take_profit_pct', 1.5))
