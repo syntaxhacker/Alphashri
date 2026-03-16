@@ -75,3 +75,11 @@ losing_trades_reports/
  venv/
  .playwright-mcp/
  .hypothesis/
+# Oracle Cloud Terraform
+terraform/terraform.tfvars
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Oracle cloud test files
+oracle_test/
