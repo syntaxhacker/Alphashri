@@ -36,7 +36,7 @@ export async function searchSymbols(query: string, limit: number = 10): Promise<
   }
 
   try {
-    const url = `${API_BASE}/search?q=${encodeURIComponent(query.trim())}&limit=${limit}`;
+    const url = `${SYMBOLS_BASE}/search?q=${encodeURIComponent(query.trim())}&limit=${limit}`;
     const response = await fetchWithAuth(url);
 
     if (!response.ok) {

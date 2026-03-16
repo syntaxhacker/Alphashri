@@ -402,12 +402,11 @@ class Week52ChaserConfig(StrategyConfig, kw_only=True):
 
 def run_single_stock_backtest(args):
     """Run backtest for a single stock in isolation."""
-    symbol, params, days = args
+    symbol, params, days, access_token = args if len(args) == 4 else (*args, None)
 
     try:
-        from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
+        from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
 
-        # Extract params
         entry_threshold_pct = float(params.get('entry_threshold_pct', 3.0))
         stop_loss_pct = float(params.get('stop_loss_pct', 3.0))
         take_profit_pct = float(params.get('take_profit_pct', 5.0))
@@ -420,7 +419,6 @@ def run_single_stock_backtest(args):
         enable_filters = bool(params.get('enable_filters', False))
         include_costs = bool(params.get('include_costs', True))
 
-        # Create instrument
         venue = Venue("SIMULATED")
         instrument_id = InstrumentId.from_str(f"{symbol}.{venue}")
         instrument = Equity(
@@ -435,15 +433,20 @@ def run_single_stock_backtest(args):
             isin=None,
         )
 
-        # Fetch DAILY data - need ~500+ days for 52W calculation
         today = datetime.now()
         to_date = today.strftime('%Y-%m-%d')
-        # Fetch extra days for indicator warmup
         fetch_days = max(days + 400, 500)
         from_date = (today - timedelta(days=fetch_days)).strftime('%Y-%m-%d')
 
-        screener = TVScreenerUsage(enable_paper_trading=False)
-        df = screener.upstox_api.fetch_historical_data_v3(
+        if access_token:
+            api, error = get_upstox_client_with_token(access_token), None
+        else:
+            api, error = get_upstox_client_from_db()
+        
+        if error or not api:
+            return {'symbol': symbol, 'success': False, 'error': error or 'No API client'}
+
+        df = api.fetch_historical_data_v3(
             symbol=symbol, unit="days", interval=1, to_date=to_date, from_date=from_date
         )
 
@@ -708,8 +711,12 @@ class Week52ChaserStrategy(BaseStrategy):
         all_candles = {}
 
         from multiprocessing import Pool, cpu_count
+        from db.models import get_shared_broker_token
 
-        worker_args = [(symbol, params, days) for symbol in symbols]
+        token_data = get_shared_broker_token('upstox')
+        access_token = token_data.get('access_token') if token_data else None
+
+        worker_args = [(symbol, params, days, access_token) for symbol in symbols]
         total = len(symbols)
         completed = 0
         num_workers = min(4, cpu_count() or 4, max(1, total))

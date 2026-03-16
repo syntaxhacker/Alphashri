@@ -7,9 +7,16 @@ import React, {
   useRef,
   type ReactNode,
 } from "react";
-import type { NewsItem, NewsWebSocketMessage } from "../components/news/news-types";
+import type { NewsItem } from "../components/news/news-types";
+import { WS_BASE } from "../api/config";
 
-const WS_BASE = import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8765";
+interface NewsWebSocketMessage {
+  type: "new_items" | "connected" | "ping";
+  source?: string;
+  items?: NewsItem[];
+  message?: string;
+  timestamp?: string;
+}
 
 interface NewsWebSocketContextType {
   connected: boolean;

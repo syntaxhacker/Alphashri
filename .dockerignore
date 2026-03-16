@@ -19,6 +19,7 @@ __pycache__
 venv/
 env/
 ENV/
+.venv/
 
 # IDE
 .vscode/
@@ -34,11 +35,10 @@ Thumbs.db
 *.log
 logs/
 
-# Data cache (can be regenerated)
-upstox_trader/data_cache/
+# Data cache
 *.csv
 
-# Reports (generated at runtime)
+# Reports
 reports/
 needs_review/
 
@@ -46,20 +46,25 @@ needs_review/
 .env
 .env.local
 
-# Heavy ML dependencies (not needed for trading)
+# Heavy files
 *.model
 *.pkl
 *.joblib
-
-# Jupyter notebooks
-*.ipynb
-.ipynb_checkpoints/
-
-# Large files
 *.zip
 *.tar.gz
 
-# Test files
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# Tests
 tests/
 test_*.py
 *_test.py
+
+# Exclude unnecessary sibling directories
+tv_test/
+historical_sector_cycles/
+daily_dash/
+analyzers/
+converted_ui/

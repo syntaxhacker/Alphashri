@@ -13,6 +13,15 @@ import type {
 } from "../types";
 import { DEFAULT_FILTERS, DEFAULT_AUTO_REFRESH_SECONDS } from "../constants";
 
+export const DEFAULT_SCREENER_DATA: ScreenerData = {
+  approaching: [],
+  touched: [],
+  last_updated: "",
+  provider: "upstox",
+  mode: "intraday",
+  screener: "trending",
+};
+
 // Subscriber mechanism for React hooks
 const subscribers: Set<() => void> = new Set();
 
@@ -25,8 +34,8 @@ function notifySubscribers() {
   subscribers.forEach((callback) => callback());
 }
 
-// Data state
-export let data: ScreenerData | null = null;
+// Data state - initialize with empty structure to avoid null checks
+export let data: ScreenerData = { ...DEFAULT_SCREENER_DATA };
 export let isLoading = false;
 export let error: string | null = null;
 
@@ -57,7 +66,7 @@ export let notifFilter: NotifFilter = "all";
 export let recentAddedSymbols: Record<string, number> = {};
 
 // Setters
-export function setData(newData: ScreenerData | null) {
+export function setData(newData: ScreenerData) {
   data = newData;
   notifySubscribers();
 }

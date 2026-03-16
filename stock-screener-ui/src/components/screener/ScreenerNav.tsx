@@ -21,7 +21,7 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
       data-testid="screener-nav"
       id="screener-nav"
       className="screener-nav"
-      data={options.map((option) => ({
+      data={(options ?? []).map((option) => ({
         value: option.id,
         label: option.description ? (
           <Tooltip label={option.description} withArrow>

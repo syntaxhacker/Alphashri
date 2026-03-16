@@ -18,6 +18,7 @@ export interface User {
   display_name: string | null;
   initial_capital: number;
   created_at: string;
+  is_admin?: boolean;
 }
 
 interface AuthContextType {

@@ -301,47 +301,13 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       legendData.push("R1", "PP", "S1");
     }
 
-    // Add ORB zones for ORB strategy
-    if (orb_zones && orb_zones.length > 0) {
-      const orHighData = candles.map((c) => {
-        const zone = orb_zones.find((z) => z.date_raw === c.date);
-        return zone ? zone.or_high : null;
-      });
-      const orLowData = candles.map((c) => {
-        const zone = orb_zones.find((z) => z.date_raw === c.date);
-        return zone ? zone.or_low : null;
-      });
 
-      series.push(
-        {
-          id: "or-high",
-          name: "OR High",
-          type: "line",
-          data: orHighData,
-          showSymbol: false,
-          silent: true,
-          z: 5,
-          lineStyle: { color: "#42A5F5", width: 1, type: "dashed" },
-        },
-        {
-          id: "or-low",
-          name: "OR Low",
-          type: "line",
-          data: orLowData,
-          showSymbol: false,
-          silent: true,
-          z: 5,
-          lineStyle: { color: "#1E88E5", width: 1, type: "dashed" },
-        },
-      );
-      legendData.push("OR High", "OR Low");
-    }
 
     // Add 52W high levels for 52W Chaser strategy
     if (week52_levels && week52_levels.length > 0) {
       console.log("Adding 52W levels to chart:", week52_levels);
       const week52HighData = candles.map((c) => {
-        const level = week52_levels.find((l) => l.date_raw === c.date);
+        const level = week52_levels.find((l) => l.date === c.date);
         return level ? level["52w_high"] : null;
       });
       console.log(
@@ -491,6 +457,8 @@ export function zoomToTrade(
   chartData: SymbolChartData | undefined,
 ) {
   if (!chartData) return;
+
+  const fontSizes = theme.fontSizes;
 
   const chart = chartInstances.get(symbol);
   if (!chart) {
@@ -666,6 +634,16 @@ export function zoomToTrade(
     // For multi-day trades, show 52W high line for entire trade range
     const level52wHigh = (selectedTrade as any)["52w_high"];
     const show52wLine = !isSameDay && level52wHigh;
+
+    console.log("zoomToTrade ORB levels:", {
+      entryDate,
+      levelHigh,
+      levelLow,
+      show52wLine,
+      isSameDay,
+      or_high: (selectedTrade as any).or_high,
+      or_low: (selectedTrade as any).or_low,
+    });
 
     // Level high line: show on entry day
     const levelHighData = chartData.candles.map((c) => (c.date === entryDate ? levelHigh : null));

@@ -1,0 +1,42 @@
+# Production environment - for local prod testing
+# Render uses Dockerfile.prod directly with managed PostgreSQL
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: stock-screener-ui/Dockerfile.prod
+    container_name: alphashri-prod
+    ports:
+      - "8765:8765"
+    environment:
+      - PORT=8765
+      - LOG_LEVEL=INFO
+      - SEED_DATA=false
+      - DATABASE_URL=${DATABASE_URL}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15-alpine
+    container_name: alphashri-db
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-alphashri-local-prod}
+      - POSTGRES_DB=alphashri
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
