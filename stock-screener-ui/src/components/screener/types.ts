@@ -162,18 +162,6 @@ export interface ScreenerHeaderProps {
   onModeChange: (value: string) => void;
 }
 
-export interface ScreenerFiltersProps {
-  minScore: number;
-  maxPrice: number;
-  minReturn: number;
-  sector: string;
-  sectors: string[];
-  profileFilters?: ProfileFilterDef[];
-  profileFilterValues: Record<string, any>;
-  onFilterChange: (key: string, value: any) => void;
-  onReset: () => void;
-}
-
 export interface ScreenerSummaryProps {
   summary: SummaryItem[];
 }
