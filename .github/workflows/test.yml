@@ -24,7 +24,7 @@ jobs:
       - name: Run Python unit tests
         run: |
           cd stock-screener-ui
-          uv run --python 3.11 pytest -m unit -q --tb=short
+          uv run --python 3.11 pytest -n auto -m unit -q --tb=short
         env:
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
