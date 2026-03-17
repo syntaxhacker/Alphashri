@@ -1287,7 +1287,7 @@ class TestBotCRUDUnit:
         assert "already exists" in response.json()["detail"].lower()
 
     @pytest.mark.unit
-    def test_create_bot_allocation_exceeds_100(self, client, db, test_user):
+    def test_create_bot_allocation_exceeds_100(self, client_with_db, db, test_user):
         """Test POST /api/bots with allocation > 100%."""
         bot_data = {
             "name": "Overallocated Bot",
@@ -1303,19 +1303,19 @@ class TestBotCRUDUnit:
                 },
             ],
         }
-        response = client.post("/api/bots", json=bot_data)
+        response = client_with_db.post("/api/bots", json=bot_data)
         assert response.status_code == 400
         assert "exceeds 100%" in response.json()["detail"].lower()
 
     @pytest.mark.unit
-    def test_get_nonexistent_bot(self, client):
+    def test_get_nonexistent_bot(self, client_with_db):
         """Test GET /api/bots/{bot_id} with non-existent bot."""
-        response = client.get("/api/bots/550e8400-e29b-41d4-a716-446655449999")
+        response = client_with_db.get("/api/bots/550e8400-e29b-41d4-a716-446655449999")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
     @pytest.mark.unit
-    def test_update_bot_duplicate_name(self, client, db, test_user):
+    def test_update_bot_duplicate_name(self, client_with_db, db, test_user):
         """Test PUT /api/bots/{bot_id} with duplicate name."""
         from db.models import BotConfig
         import uuid as uuid_module
@@ -1339,7 +1339,7 @@ class TestBotCRUDUnit:
         db.refresh(bot2)
 
         update_data = {"name": "Other Bot Name"}
-        response = client.put(f"/api/bots/{bot1.uuid}", json=update_data)
+        response = client_with_db.put(f"/api/bots/{bot1.uuid}", json=update_data)
 
         assert response.status_code in [400, 404]
 
@@ -1348,9 +1348,9 @@ class TestBotControlUnit:
     """Unit tests for Bot control operations."""
 
     @pytest.mark.unit
-    def test_get_bot_status_nonexistent(self, client):
+    def test_get_bot_status_nonexistent(self, client_with_db):
         """Test GET /api/bots/{bot_id}/status with non-existent bot."""
-        response = client.get("/api/bots/550e8400-e29b-41d4-a716-446655449999/status")
+        response = client_with_db.get("/api/bots/550e8400-e29b-41d4-a716-446655449999/status")
         assert response.status_code == 404
 
 
@@ -1358,7 +1358,7 @@ class TestErrorHandlingUnit:
     """Unit tests for error handling."""
 
     @pytest.mark.unit
-    def test_invalid_strategy_id(self, client):
+    def test_invalid_strategy_id(self, client_with_db):
         """Test creating bot with non-existent strategy."""
         bot_data = {
             "name": "Invalid Bot",
@@ -1367,6 +1367,6 @@ class TestErrorHandlingUnit:
             ],
         }
 
-        response = client.post("/api/bots", json=bot_data)
+        response = client_with_db.post("/api/bots", json=bot_data)
 
         assert response.status_code == 404
