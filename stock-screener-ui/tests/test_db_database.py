@@ -286,16 +286,16 @@ class TestInitDb:
                 test_url,
                 connect_args={"check_same_thread": False}
             )
-             TestSessionLocal = sessionmaker(
-                 autocommit=False,
-                 autoflush=False,
-                 bind=test_engine
-             )
-             
-             from db.database import Base
-             from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
-             
-             Base.metadata.create_all(bind=test_engine)
+            TestSessionLocal = sessionmaker(
+                autocommit=False,
+                autoflush=False,
+                bind=test_engine
+            )
+            
+            from db.database import Base
+            from db.models import User, UserSession, StrategyConfig, BotConfig
+            
+            Base.metadata.create_all(bind=test_engine)
             
             inspector = inspect(test_engine)
             tables = inspector.get_table_names()
@@ -308,21 +308,20 @@ class TestInitDb:
             
             Base.metadata.drop_all(bind=test_engine)
 
-     def test_init_db_idempotent(self):
-         """Test that init_db can be called multiple times safely."""
-         with tempfile.TemporaryDirectory() as tmpdir:
-             db_path = os.path.join(tmpdir, "test_idempotent.db")
-             test_url = f"sqlite:///{db_path}"
-             test_engine = create_engine(
-                 test_url,
-                 connect_args={"check_same_thread": False}
-             )
-             
-             from db.database import Base
-             from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
-             
-             Base.metadata.create_all(bind=test_engine)
-             Base.metadata.create_all(bind=test_engine)
+    def test_init_db_idempotent(self):
+        """Test that init_db can be called multiple times safely."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test_idempotent.db")
+            test_url = f"sqlite:///{db_path}"
+            test_engine = create_engine(
+                test_url,
+                connect_args={"check_same_thread": False}
+            )
+            
+            from db.database import Base
+            
+            Base.metadata.create_all(bind=test_engine)
+            Base.metadata.create_all(bind=test_engine)
             
             inspector = inspect(test_engine)
             tables = inspector.get_table_names()
@@ -357,18 +356,18 @@ class TestSessionOperations:
                 test_url,
                 connect_args={"check_same_thread": False}
             )
-             TestSessionLocal = sessionmaker(
-                 autocommit=False,
-                 autoflush=False,
-                 bind=test_engine
-             )
-             
-             from db.database import Base
-             from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
-             
-             Base.metadata.create_all(bind=test_engine)
-             
-             yield TestSessionLocal
+            TestSessionLocal = sessionmaker(
+                autocommit=False,
+                autoflush=False,
+                bind=test_engine
+            )
+            
+            from db.database import Base
+            from db.models import User, UserSession, StrategyConfig, BotConfig
+            
+            Base.metadata.create_all(bind=test_engine)
+            
+            yield TestSessionLocal
             
             Base.metadata.drop_all(bind=test_engine)
 
@@ -697,18 +696,18 @@ class TestIntegrationWithModels:
                 test_url,
                 connect_args={"check_same_thread": False}
             )
-             TestSessionLocal = sessionmaker(
-                 autocommit=False,
-                 autoflush=False,
-                 bind=test_engine
-             )
-             
-             from db.database import Base
-             from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
-             
-             Base.metadata.create_all(bind=test_engine)
-             
-             session = TestSessionLocal()
+            TestSessionLocal = sessionmaker(
+                autocommit=False,
+                autoflush=False,
+                bind=test_engine
+            )
+            
+            from db.database import Base
+            from db.models import User, UserSession, StrategyConfig, BotConfig
+            
+            Base.metadata.create_all(bind=test_engine)
+            
+            session = TestSessionLocal()
             
             user = User(
                 email="integration@example.com",
