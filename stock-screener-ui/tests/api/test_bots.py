@@ -1216,11 +1216,10 @@ class TestErrorHandling:
     """Tests for error handling."""
 
     @pytest.mark.unit
-    def test_database_unavailable(self, client):
+    def test_database_unavailable(self, client_with_db):
         """Test endpoints when database is unavailable."""
         with patch('api.bots._db_available', False):
-            response = client.get("/api/bots")
-
+            response = client_with_db.get("/api/bots")
             assert response.status_code == 500
             assert "database" in response.json()["detail"].lower()
 
@@ -1240,7 +1239,7 @@ class TestErrorHandling:
         assert response.status_code == 404
 
     @pytest.mark.unit
-    def test_invalid_allocation_pct(self, client):
+    def test_invalid_allocation_pct(self, client_with_db):
         """Test creating bot with invalid allocation percentage."""
         bot_data = {
             "name": "Invalid Allocation Bot",
@@ -1248,21 +1247,17 @@ class TestErrorHandling:
                 {"strategy_id": str(uuid_module.uuid4()), "capital_allocation_pct": 1.5},
             ],
         }
-
-        response = client.post("/api/bots", json=bot_data)
-
+        response = client_with_db.post("/api/bots", json=bot_data)
         assert response.status_code == 422
 
     @pytest.mark.unit
-    def test_invalid_max_positions(self, client):
+    def test_invalid_max_positions(self, client_with_db):
         """Test creating bot with invalid max_positions."""
         bot_data = {
             "name": "Invalid Positions Bot",
             "max_total_positions": 50,
         }
-
-        response = client.post("/api/bots", json=bot_data)
-
+        response = client_with_db.post("/api/bots", json=bot_data)
         assert response.status_code == 422
 
 
@@ -1287,123 +1282,72 @@ class TestBotCRUDUnit:
         assert "already exists" in response.json()["detail"].lower()
 
     @pytest.mark.unit
-    @patch('api.bots.SessionLocal')
-    @patch('api.bots._db_available', True)
-    @patch('api.bots._auth_available', True)
-    @patch('api.bots.get_user_id', return_value=1)
-    def test_create_bot_allocation_exceeds_100(self, mock_get_user_id, mock_session, client):
+    def test_create_bot_allocation_exceeds_100(self, client_with_db):
         """Test POST /api/bots with allocation > 100%."""
+        import uuid as uuid_module
+        
         bot_data = {
             "name": "Overallocated Bot",
             "is_active": True,
             "strategies": [
                 {
-                    "strategy_id": "550e8400-e29b-41d4-a716-446655440001",
+                    "strategy_id": str(uuid_module.uuid4()),
                     "capital_allocation_pct": 0.60,
                 },
                 {
-                    "strategy_id": "550e8400-e29b-41d4-a716-446655440002",
+                    "strategy_id": str(uuid_module.uuid4()),
                     "capital_allocation_pct": 0.60,
                 },
             ],
         }
-
-        mock_db = MagicMock()
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
-        mock_session.return_value.__exit__ = Mock(return_value=False)
-
-        response = client.post("/api/bots", json=bot_data)
-
+        response = client_with_db.post("/api/bots", json=bot_data)
         assert response.status_code == 400
         assert "exceeds 100%" in response.json()["detail"].lower()
 
     @pytest.mark.unit
-    @patch('api.bots.SessionLocal')
-    @patch('api.bots._db_available', True)
-    @patch('api.bots._auth_available', True)
-    @patch('api.bots.get_user_id', return_value=1)
-    def test_get_nonexistent_bot(self, mock_get_user_id, mock_session, client):
+    def test_get_nonexistent_bot(self, client_with_db):
         """Test GET /api/bots/{bot_id} with non-existent bot."""
-        mock_db = MagicMock()
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
-        mock_session.return_value.__exit__ = Mock(return_value=False)
-
-        response = client.get("/api/bots/550e8400-e29b-41d4-a716-446655449999")
-
+        response = client_with_db.get("/api/bots/550e8400-e29b-41d4-a716-446655449999")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
     @pytest.mark.unit
-    def test_update_bot_duplicate_name(self):
-        """Test PUT /api/bots/{bot_id} with duplicate name - requires database."""
-        from fastapi import FastAPI
-        app = FastAPI()
-        app.include_router(bots_router)
+    def test_update_bot_duplicate_name(self, client_with_db, db, test_user):
+        """Test PUT /api/bots/{bot_id} with duplicate name."""
+        from db.models import BotConfig
+        import uuid as uuid_module
+        
+        bot1 = BotConfig(
+            uuid=str(uuid_module.uuid4()),
+            name="Test Bot 1",
+            user_id=test_user.id,
+            is_active=True,
+        )
+        bot2 = BotConfig(
+            uuid=str(uuid_module.uuid4()),
+            name="Other Bot Name",
+            user_id=test_user.id,
+            is_active=True,
+        )
+        db.add(bot1)
+        db.add(bot2)
+        db.commit()
+        db.refresh(bot1)
+        db.refresh(bot2)
 
         update_data = {"name": "Other Bot Name"}
+        response = client_with_db.put(f"/api/bots/{bot1.uuid}", json=update_data)
 
-        bot1 = MagicMock()
-        bot1.id = 1
-        bot1.name = "Test Bot 1"
-        bot1.uuid = "550e8400-e29b-41d4-a716-446655440001"
-        bot1.is_active = True
-        bot1.max_total_positions = 10
-        bot1.max_total_capital_pct = 0.80
-        bot1.created_at = datetime.now()
-        bot1.updated_at = datetime.now()
-
-        bot2 = MagicMock()
-        bot2.id = 2
-        bot2.name = "Other Bot Name"
-
-        mock_db = MagicMock()
-        call_count = [0]
-        
-        def mock_first():
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return bot1
-            else:
-                return bot2
-
-        mock_filter_result = MagicMock()
-        mock_filter_result.first.side_effect = mock_first
-        
-        mock_db.query.return_value.filter.return_value = mock_filter_result
-        mock_db.execute.return_value.fetchall.return_value = []
-
-        with patch('api.bots.SessionLocal', return_value=mock_db), \
-             patch('api.bots.get_db', None), \
-             patch('api.bots._db_available', True), \
-             patch('api.bots._auth_available', True), \
-             patch('api.bots.get_user_id', return_value=1), \
-             TestClient(app) as test_client:
-
-            response = test_client.put("/api/bots/550e8400-e29b-41d4-a716-446655440001", json=update_data)
-
-            assert response.status_code in [400, 404]
+        assert response.status_code in [400, 404]
 
 
 class TestBotControlUnit:
     """Unit tests for Bot control operations."""
 
     @pytest.mark.unit
-    @patch('api.bots.is_bot_running', return_value=(False, None))
-    @patch('api.bots.SessionLocal')
-    @patch('api.bots._db_available', True)
-    @patch('api.bots._auth_available', True)
-    @patch('api.bots.get_user_id', return_value=1)
-    def test_get_bot_status_nonexistent(self, mock_get_user_id, mock_session, mock_is_running, client):
+    def test_get_bot_status_nonexistent(self, client_with_db):
         """Test GET /api/bots/{bot_id}/status with non-existent bot."""
-        mock_db = MagicMock()
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
-        mock_session.return_value.__exit__ = Mock(return_value=False)
-
-        response = client.get("/api/bots/550e8400-e29b-41d4-a716-446655449999/status")
-
+        response = client_with_db.get("/api/bots/550e8400-e29b-41d4-a716-446655449999/status")
         assert response.status_code == 404
 
 
@@ -1411,11 +1355,7 @@ class TestErrorHandlingUnit:
     """Unit tests for error handling."""
 
     @pytest.mark.unit
-    @patch('api.bots.SessionLocal')
-    @patch('api.bots._db_available', True)
-    @patch('api.bots._auth_available', True)
-    @patch('api.bots.get_user_id', return_value=1)
-    def test_invalid_strategy_id(self, mock_get_user_id, mock_session, client):
+    def test_invalid_strategy_id(self, client_with_db):
         """Test creating bot with non-existent strategy."""
         bot_data = {
             "name": "Invalid Bot",
@@ -1424,11 +1364,6 @@ class TestErrorHandlingUnit:
             ],
         }
 
-        mock_db = MagicMock()
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-        mock_session.return_value.__enter__ = Mock(return_value=mock_db)
-        mock_session.return_value.__exit__ = Mock(return_value=False)
-
-        response = client.post("/api/bots", json=bot_data)
+        response = client_with_db.post("/api/bots", json=bot_data)
 
         assert response.status_code == 404

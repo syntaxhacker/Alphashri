@@ -83,3 +83,4 @@ terraform/terraform.tfvars
 
 # Oracle cloud test files
 oracle_test/
+db/llm_cache.db

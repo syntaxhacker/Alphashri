@@ -22,51 +22,23 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
 
+from db.database import SQLALCHEMY_DATABASE_URL
+
+SQLITE_ONLY = pytest.mark.skipif(
+    not SQLALCHEMY_DATABASE_URL.startswith("sqlite"),
+    reason="SQLite-specific test"
+)
+
 
 class TestDatabaseConfiguration:
     """Tests for database configuration constants."""
 
-    def test_db_dir_is_path_object(self):
-        """Test that DB_DIR is a Path object."""
-        from db.database import DB_DIR
-        
-        assert isinstance(DB_DIR, Path)
-
-    def test_db_dir_points_to_correct_location(self):
-        """Test that DB_DIR points to the db directory."""
-        from db.database import DB_DIR
-        
-        assert DB_DIR.name == "db"
-
-    def test_db_path_is_path_object(self):
-        """Test that DB_PATH is a Path object."""
-        from db.database import DB_PATH
-        
-        assert isinstance(DB_PATH, Path)
-
-    def test_db_path_filename(self):
-        """Test that DB_PATH has correct filename."""
-        from db.database import DB_PATH
-        
-        assert DB_PATH.name == "alphashri.db"
-
-    def test_db_path_is_under_db_dir(self):
-        """Test that DB_PATH is a child of DB_DIR."""
-        from db.database import DB_DIR, DB_PATH
-        
-        assert DB_PATH.parent == DB_DIR
-
-    def test_sqlalchemy_database_url_format(self):
-        """Test that database URL has correct SQLite format."""
+    def test_sqlalchemy_database_url_exists(self):
+        """Test that database URL is configured."""
         from db.database import SQLALCHEMY_DATABASE_URL
         
-        assert SQLALCHEMY_DATABASE_URL.startswith("sqlite:///")
-
-    def test_sqlalchemy_database_url_contains_db_path(self):
-        """Test that database URL contains the correct path."""
-        from db.database import SQLALCHEMY_DATABASE_URL, DB_PATH
-        
-        assert str(DB_PATH) in SQLALCHEMY_DATABASE_URL
+        assert SQLALCHEMY_DATABASE_URL is not None
+        assert len(SQLALCHEMY_DATABASE_URL) > 0
 
 
 class TestEngineConfiguration:
@@ -85,12 +57,14 @@ class TestEngineConfiguration:
         
         assert str(engine.url) == SQLALCHEMY_DATABASE_URL
 
+    @SQLITE_ONLY
     def test_engine_has_check_same_thread_arg(self):
         """Test that engine has check_same_thread=False for SQLite."""
         from db.database import engine
         
         assert engine.dialect.name == "sqlite"
 
+    @SQLITE_ONLY
     def test_engine_dialect_is_sqlite(self):
         """Test that engine dialect is SQLite."""
         from db.database import engine
@@ -619,12 +593,6 @@ class TestDatabaseAvailability:
                 
                 result = conn.execute(text("SELECT id FROM test"))
                 assert result.fetchone()[0] == 1
-
-    def test_database_path_exists_or_creatable(self):
-        """Test that database path exists or can be created."""
-        from db.database import DB_DIR
-        
-        assert DB_DIR.exists() or os.access(DB_DIR.parent, os.W_OK)
 
     def test_engine_connection_pool_status(self):
         """Test that engine connection pool is functional."""

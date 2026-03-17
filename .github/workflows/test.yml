@@ -1,0 +1,66 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [ main, master, test_py_tests ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Create config.py from template
+        run: |
+          cp stock-screener-ui/config_template.py stock-screener-ui/config.py
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: false
+      - name: Install dependencies
+        run: |
+          cd stock-screener-ui
+          uv pip install --system --python 3.11 -r requirements.txt
+        env:
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+      - name: Run Python unit tests
+        run: |
+          cd stock-screener-ui
+          uv run --python 3.11 pytest -m unit -q --tb=short
+        env:
+          JWT_SECRET_KEY: test-secret
+          DATABASE_URL: sqlite:///./test.db
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+      - name: Install dependencies
+        run: |
+          cd stock-screener-ui
+          bun install
+      - name: Install Playwright browsers
+        run: |
+          cd stock-screener-ui
+          npx playwright install chromium
+      - name: Start dev server
+        run: |
+          cd stock-screener-ui
+          bun run dev &
+          sleep 10
+      - name: Run E2E tests
+        run: |
+          cd stock-screener-ui
+          bun run test:e2e

@@ -17,7 +17,8 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import IntegrityError
 
 from db.database import Base
-from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
+from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
+from tests.helpers.db import import_all_models
 
 
 @pytest.fixture
@@ -40,6 +41,7 @@ def db_session():
         bind=engine
     )
     
+    import_all_models()
     Base.metadata.create_all(bind=engine)
     
     session = TestSessionLocal()

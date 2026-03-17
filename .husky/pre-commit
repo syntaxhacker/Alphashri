@@ -1,5 +1,11 @@
 #!/usr/bin/env sh
 
+# Skip for merge commits
+if git rev-parse -q --verify MERGE_HEAD > /dev/null 2>&1; then
+  echo "Merge commit detected, skipping pre-commit checks."
+  exit 0
+fi
+
 echo "Running pre-commit checks..."
 
 # Run Python unit tests
