@@ -49,12 +49,15 @@ class TestChartPreview:
         - Pivot points for support/resistance
         - Response formatted for frontend charting library
         """
-        # Mock the TradingAPIFactory
         mock_api = Mock()
         mock_api.fetch_historical_data_v3 = Mock(return_value=sample_candles_data)
 
-        with patch('api_server_fastapi.TradingAPIFactory.create_from_config') as mock_factory:
+        with patch('api_server_fastapi.TradingAPIFactory.create_client') as mock_factory, \
+             patch('config.UPSTOX_API_KEY', 'test_key'), \
+             patch('config.UPSTOX_API_SECRET', 'test_secret'), \
+             patch('db.models.get_shared_broker_token') as mock_token:
             mock_factory.return_value = mock_api
+            mock_token.return_value = {'access_token': 'test_token'}
 
             response = client.get("/api/chart/preview/RELIANCE")
 
@@ -222,15 +225,15 @@ class TestChartPreview:
 
         Should return graceful error response without crashing.
         """
-        with patch('api_server_fastapi.TradingAPIFactory.create_from_config') as mock_factory:
-            mock_factory.side_effect = ValueError("API not available")
+        with patch('config.UPSTOX_API_KEY', ''), \
+             patch('config.UPSTOX_API_SECRET', ''):
 
             response = client.get("/api/chart/preview/RELIANCE")
             assert response.status_code == 200
             data = response.json()
 
             assert 'error' in data
-            assert data['error'] == 'API not available'
+            assert data['error'] == 'Upstox API credentials not configured'
             assert data['candles'] == []
             assert data['orb_zones'] == []
             assert data['pivot_levels'] == []
@@ -244,8 +247,12 @@ class TestChartPreview:
         mock_api = Mock()
         mock_api.fetch_historical_data_v3 = Mock(side_effect=Exception("Network error"))
 
-        with patch('api_server_fastapi.TradingAPIFactory.create_from_config') as mock_factory:
+        with patch('api_server_fastapi.TradingAPIFactory.create_client') as mock_factory, \
+             patch('config.UPSTOX_API_KEY', 'test_key'), \
+             patch('config.UPSTOX_API_SECRET', 'test_secret'), \
+             patch('db.models.get_shared_broker_token') as mock_token:
             mock_factory.return_value = mock_api
+            mock_token.return_value = {'access_token': 'test_token'}
 
             response = client.get("/api/chart/preview/RELIANCE")
             assert response.status_code == 200
