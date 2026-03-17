@@ -2,12 +2,17 @@
 Database connection and session management for Alphashri
 """
 
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import config
 
+# Database directory and path
+DB_DIR = Path(__file__).parent
+DB_PATH = DB_DIR / "alphashri.db"
+
 # Use DATABASE_URL from centralized config
-SQLALCHEMY_DATABASE_URL = config.DATABASE_URL
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 # SQLite-specific engine arguments
 engine_args = {}

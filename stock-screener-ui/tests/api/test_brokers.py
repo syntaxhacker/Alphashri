@@ -113,14 +113,13 @@ class TestGetBrokerStatus:
         delete_broker_token("upstox", user_id=None)
         
         with patch("api.brokers.TOKEN_FILE", tmp_path / ".upstox_token.json"):
-            monkeypatch.setenv("UPSTOX_ACCESS_TOKEN", "env_token_123")
+            with patch("api.brokers.config.UPSTOX_ACCESS_TOKEN", "env_token_123"):
+                response = client.get("/api/brokers/status")
 
-            response = client.get("/api/brokers/status")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["connected"] is True
-            assert data["source"] == "env"
+                assert response.status_code == 200
+                data = response.json()
+                assert data["connected"] is True
+                assert data["source"] == "env"
 
     def test_status_returns_correct_expiry_calculation(self, client: TestClient, db: Session):
         """Test: Expiry time is calculated correctly (expires at 3:30 AM next day)."""
@@ -143,14 +142,13 @@ class TestUpstoxAuth:
 
     def test_auth_redirects_to_upstox(self, client: TestClient, monkeypatch):
         """Test: Auth endpoint redirects to Upstox OAuth URL."""
-        monkeypatch.setenv("UPSTOX_API_KEY", "test_api_key")
-        monkeypatch.setenv("UPSTOX_API_SECRET", "test_secret")
+        with patch("api.brokers.config.UPSTOX_API_KEY", "test_api_key"):
+            with patch("api.brokers.config.UPSTOX_API_SECRET", "test_secret"):
+                response = client.get("/api/brokers/upstox/auth", follow_redirects=False)
 
-        response = client.get("/api/brokers/upstox/auth", follow_redirects=False)
-
-        assert response.status_code == 307
-        assert "api.upstox.com" in response.headers["location"]
-        assert "test_api_key" in response.headers["location"]
+                assert response.status_code == 307
+                assert "api.upstox.com" in response.headers["location"]
+                assert "test_api_key" in response.headers["location"]
 
     def test_auth_returns_500_without_api_key(self, client: TestClient, monkeypatch):
         """Test: Returns 500 if UPSTOX_API_KEY not set."""
@@ -166,15 +164,14 @@ class TestUpstoxAuth:
 
     def test_auth_includes_correct_redirect_uri(self, client: TestClient, monkeypatch):
         """Test: Auth URL includes correct redirect URI."""
-        monkeypatch.setenv("UPSTOX_API_KEY", "test_key")
-        monkeypatch.setenv("UPSTOX_API_SECRET", "test_secret")
+        with patch("api.brokers.config.UPSTOX_API_KEY", "test_key"):
+            with patch("api.brokers.config.UPSTOX_API_SECRET", "test_secret"):
+                response = client.get("/api/brokers/upstox/auth", follow_redirects=False)
 
-        response = client.get("/api/brokers/upstox/auth", follow_redirects=False)
-
-        location = response.headers["location"]
-        assert "redirect_uri" in location
-        expected_host = os.getenv("API_BASE_URL", "http://localhost:8765").replace("http://", "").replace("https://", "")
-        assert expected_host in location
+                location = response.headers["location"]
+                assert "redirect_uri" in location
+                expected_host = os.getenv("API_BASE_URL", "http://localhost:8765").replace("http://", "").replace("https://", "")
+                assert expected_host in location
 
 
 class TestUpstoxCallback:
@@ -194,64 +191,61 @@ class TestUpstoxCallback:
     @pytest.mark.asyncio
     async def test_callback_exchanges_code_for_token(self, client: TestClient, monkeypatch):
         """Test: Callback exchanges auth code for access token."""
-        monkeypatch.setenv("UPSTOX_API_KEY", "test_key")
-        monkeypatch.setenv("UPSTOX_API_SECRET", "test_secret")
+        with patch("api.brokers.config.UPSTOX_API_KEY", "test_key"):
+            with patch("api.brokers.config.UPSTOX_API_SECRET", "test_secret"):
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {"access_token": "new_access_token_xyz"}
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"access_token": "new_access_token_xyz"}
+                with patch("api.brokers.httpx.AsyncClient") as mock_client:
+                    mock_instance = AsyncMock()
+                    mock_instance.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+                    mock_client.return_value = mock_instance
 
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_instance = AsyncMock()
-            mock_instance.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
-            mock_client.return_value = mock_instance
+                    response = client.get("/api/brokers/upstox/callback?code=test_code", follow_redirects=False)
 
-            response = client.get("/api/brokers/upstox/callback?code=test_code", follow_redirects=False)
-
-            assert response.status_code == 307
-            assert "settings" in response.headers["location"]
-            assert "upstox=connected" in response.headers["location"]
+                    assert response.status_code == 307
+                    assert "settings" in response.headers["location"]
+                    assert "upstox=connected" in response.headers["location"]
 
         delete_broker_token("upstox", user_id=None)
 
     @pytest.mark.asyncio
     async def test_callback_returns_400_on_token_error(self, client: TestClient, monkeypatch):
         """Test: Returns 400 if token exchange fails."""
-        monkeypatch.setenv("UPSTOX_API_KEY", "test_key")
-        monkeypatch.setenv("UPSTOX_API_SECRET", "test_secret")
+        with patch("api.brokers.config.UPSTOX_API_KEY", "test_key"):
+            with patch("api.brokers.config.UPSTOX_API_SECRET", "test_secret"):
+                mock_response = MagicMock()
+                mock_response.status_code = 400
+                mock_response.text = "Invalid code"
 
-        mock_response = MagicMock()
-        mock_response.status_code = 400
-        mock_response.text = "Invalid code"
+                with patch("api.brokers.httpx.AsyncClient") as mock_client:
+                    mock_instance = AsyncMock()
+                    mock_instance.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+                    mock_client.return_value = mock_instance
 
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_instance = AsyncMock()
-            mock_instance.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
-            mock_client.return_value = mock_instance
+                    response = client.get("/api/brokers/upstox/callback?code=invalid_code")
 
-            response = client.get("/api/brokers/upstox/callback?code=invalid_code")
-
-            assert response.status_code == 400
+                    assert response.status_code == 400
 
     @pytest.mark.asyncio
     async def test_callback_returns_400_if_no_access_token_in_response(self, client: TestClient, monkeypatch):
         """Test: Returns 400 if response has no access_token."""
-        monkeypatch.setenv("UPSTOX_API_KEY", "test_key")
-        monkeypatch.setenv("UPSTOX_API_SECRET", "test_secret")
+        with patch("api.brokers.config.UPSTOX_API_KEY", "test_key"):
+            with patch("api.brokers.config.UPSTOX_API_SECRET", "test_secret"):
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {"error": "something went wrong"}
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"error": "something went wrong"}
+                with patch("api.brokers.httpx.AsyncClient") as mock_client:
+                    mock_instance = AsyncMock()
+                    mock_instance.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+                    mock_client.return_value = mock_instance
 
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_instance = AsyncMock()
-            mock_instance.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
-            mock_client.return_value = mock_instance
+                    response = client.get("/api/brokers/upstox/callback?code=test_code")
 
-            response = client.get("/api/brokers/upstox/callback?code=test_code")
-
-            assert response.status_code == 400
-            assert "access_token" in response.json()["detail"]
+                    assert response.status_code == 400
+                    assert "access_token" in response.json()["detail"]
 
 
 class TestUpstoxDisconnect:
