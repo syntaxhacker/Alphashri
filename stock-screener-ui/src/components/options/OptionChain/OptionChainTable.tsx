@@ -424,16 +424,34 @@ function OptionChainTableInner({
       </Box>
 
       {/* Main Header */}
-      <Box className="chain-table-header" style={styles.header} data-testid="options-chain-table-header">
-        <Box className="chain-header-cell chain-calls-header" style={{ ...styles.headerCell, color: "var(--mantine-color-green-6)" }}>
+      <Box
+        className="chain-table-header"
+        style={styles.header}
+        data-testid="options-chain-table-header"
+      >
+        <Box
+          className="chain-header-cell chain-calls-header"
+          style={{ ...styles.headerCell, color: "var(--mantine-color-green-6)" }}
+        >
           CALLS (CE)
         </Box>
-        <Box className="chain-header-cell chain-strike-header" style={styles.headerCell}>STRIKE</Box>
-        <Box className="chain-header-cell chain-puts-header" style={{ ...styles.headerCell, color: "var(--mantine-color-red-6)" }}>PUTS (PE)</Box>
+        <Box className="chain-header-cell chain-strike-header" style={styles.headerCell}>
+          STRIKE
+        </Box>
+        <Box
+          className="chain-header-cell chain-puts-header"
+          style={{ ...styles.headerCell, color: "var(--mantine-color-red-6)" }}
+        >
+          PUTS (PE)
+        </Box>
       </Box>
 
       {/* Symmetrical Sub-Header */}
-      <Box className="chain-table-subheader" style={styles.subHeader} data-testid="options-chain-table-subheader">
+      <Box
+        className="chain-table-subheader"
+        style={styles.subHeader}
+        data-testid="options-chain-table-subheader"
+      >
         {/* CE columns: OI, CHNG, VOL, IV, LTP */}
         <Box style={styles.subHeaderCell}>OI</Box>
         <Box style={styles.subHeaderCell}>OI CHG</Box>
@@ -468,7 +486,7 @@ function OptionChainTableInner({
               <Box
                 key={strike}
                 ref={isATM ? atmRowRef : null}
-                className={`chain-row ${isATM ? 'chain-row-atm' : ''}`}
+                className={`chain-row ${isATM ? "chain-row-atm" : ""}`}
                 style={styles.row}
                 data-testid={`options-chain-row-${strike}`}
               >
@@ -484,7 +502,7 @@ function OptionChainTableInner({
 
                 {/* STRIKE */}
                 <Box
-                  className={`strike-cell ${isATM ? 'strike-cell-atm' : ''}`}
+                  className={`strike-cell ${isATM ? "strike-cell-atm" : ""}`}
                   style={{ ...styles.strikeCell, ...(isATM ? styles.atmHighlight : {}) }}
                   data-testid="strike-cell"
                 >
@@ -549,7 +567,12 @@ function OptionChainTableInner({
           </Group>
         </Group>
         {spotPrice && (
-          <Text size="sm" fw={600} className="chain-spot-price" data-testid="options-chain-spot-price">
+          <Text
+            size="sm"
+            fw={600}
+            className="chain-spot-price"
+            data-testid="options-chain-spot-price"
+          >
             Spot:{" "}
             <Text component="span" c="blue">
               {spotPrice.toFixed(2)}

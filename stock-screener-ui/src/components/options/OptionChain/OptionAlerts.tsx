@@ -96,7 +96,12 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       style={{ background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))" }}
       data-testid="options-alerts-panel"
     >
-      <Group justify="space-between" mb="md" className="alerts-header" data-testid="options-alerts-header">
+      <Group
+        justify="space-between"
+        mb="md"
+        className="alerts-header"
+        data-testid="options-alerts-header"
+      >
         <Group gap="xs">
           <ThemeIcon color="orange" variant="light">
             <IconBellRinging size={18} />
@@ -111,13 +116,24 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       </Group>
 
       {alerts.length === 0 ? (
-        <Box py="xl" style={{ textAlign: "center" }} className="alerts-empty-state" data-testid="options-alerts-empty">
+        <Box
+          py="xl"
+          style={{ textAlign: "center" }}
+          className="alerts-empty-state"
+          data-testid="options-alerts-empty"
+        >
           <Text size="sm" c="dimmed">
             Waiting for unusual activity patterns...
           </Text>
         </Box>
       ) : (
-        <Timeline active={0} bulletSize={24} lineWidth={2} className="alerts-timeline" data-testid="options-alerts-timeline">
+        <Timeline
+          active={0}
+          bulletSize={24}
+          lineWidth={2}
+          className="alerts-timeline"
+          data-testid="options-alerts-timeline"
+        >
           {alerts.map((alert, i) => (
             <Timeline.Item
               key={i}

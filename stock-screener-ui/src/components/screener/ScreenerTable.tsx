@@ -38,13 +38,16 @@ export function ScreenerTable({
         style={{ cursor: "pointer" }}
         onClick={() => onSortChange(column.key)}
         data-testid={`sort-header-${column.key}`}
-        className={`screener-table-header-cell sortable ${sortColumn === column.key ? 'sorted' : ''}`}
+        className={`screener-table-header-cell sortable ${sortColumn === column.key ? "sorted" : ""}`}
         id={`header-${column.key}`}
       >
         <Group gap={4} wrap="nowrap">
           <Text>{column.label}</Text>
           {sortColumn === column.key && (
-            <span className={`sort-indicator ${sortDirection}`} data-testid={`sort-indicator-${column.key}`}>
+            <span
+              className={`sort-indicator ${sortDirection}`}
+              data-testid={`sort-indicator-${column.key}`}
+            >
               {sortDirection === "asc" ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />}
             </span>
           )}
@@ -75,8 +78,22 @@ export function ScreenerTable({
   };
 
   return (
-    <ScrollArea h="100%" offsetScrollbars type="always" className="screener-table-scroll" data-testid="screener-table-scroll">
-      <Table striped highlightOnHover withTableBorder stickyHeader id="screener-table" className="screener-table" data-testid="screener-table">
+    <ScrollArea
+      h="100%"
+      offsetScrollbars
+      type="always"
+      className="screener-table-scroll"
+      data-testid="screener-table-scroll"
+    >
+      <Table
+        striped
+        highlightOnHover
+        withTableBorder
+        stickyHeader
+        id="screener-table"
+        className="screener-table"
+        data-testid="screener-table"
+      >
         <Table.Thead className="screener-table-header" data-testid="screener-table-header">
           <Table.Tr>{columns.map(renderHeader)}</Table.Tr>
         </Table.Thead>

@@ -15,7 +15,13 @@ export function NotificationContainer() {
   }
 
   return (
-    <div className="toast-container" role="region" aria-label="Notifications" id="notification-container" data-testid="notification-container">
+    <div
+      className="toast-container"
+      role="region"
+      aria-label="Notifications"
+      id="notification-container"
+      data-testid="notification-container"
+    >
       {notifications.map((notification) => (
         <NotificationItem
           key={notification.id}

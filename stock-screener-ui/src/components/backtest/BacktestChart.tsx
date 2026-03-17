@@ -301,8 +301,6 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       legendData.push("R1", "PP", "S1");
     }
 
-
-
     // Add 52W high levels for 52W Chaser strategy
     if (week52_levels && week52_levels.length > 0) {
       console.log("Adding 52W levels to chart:", week52_levels);

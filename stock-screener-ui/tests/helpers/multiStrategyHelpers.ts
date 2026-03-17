@@ -29,7 +29,7 @@ export async function setupMultiStrategyMocks(page: Page): Promise<void> {
 export async function navigateToMultiStrategyBot(page: Page, botId: string = "2"): Promise<void> {
   // Navigate directly to paper trading URL
   await page.goto("/paper");
-  await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
   // Wait for bot selector to be populated

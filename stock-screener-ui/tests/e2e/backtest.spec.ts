@@ -1,15 +1,84 @@
-import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { test, expect, Page } from "@playwright/test";
+import { setupApiMocks, testUser } from "../mocks/apiResponses";
+
+async function setupBacktestMocks(page: Page) {
+  await page.route("**/api/backtest/strategies", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        strategies: [
+          { id: "orb", name: "ORB Strategy", type: "orb", params: [] },
+          { id: "52w_chaser", name: "52W Chaser", type: "52w_chaser", params: [] },
+        ],
+      }),
+    });
+  });
+
+  await page.route("**/api/strategies/variations", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        { id: "default", name: "Default ORB", strategy_type: "orb" },
+        { id: "conservative", name: "Conservative ORB", strategy_type: "orb" },
+      ]),
+    });
+  });
+
+  await page.route("**/api/backtest/costs", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        costs: {
+          brokerage_pct: 0.0003,
+          min_brokerage: 20,
+          stt_pct: 0.00025,
+          exchange_pct: 0.0000297,
+          sebi_pct: 0.000001,
+          stamp_pct: 0.00003,
+          gst_pct: 0.18,
+        },
+      }),
+    });
+  });
+}
+
+async function loginAndSetupMocks(page: Page) {
+  await setupApiMocks(page);
+  await page.addInitScript(() => {
+    localStorage.setItem("alphashri_token", "test_access_token_12345");
+    localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
+    localStorage.setItem(
+      "alphashri_user",
+      JSON.stringify({
+        id: 1,
+        email: "test@alphashri.dev",
+        display_name: "TestUser",
+        initial_capital: 1000000,
+        created_at: "2026-01-01T00:00:00",
+      }),
+    );
+  });
+  await page.route("**/api/auth/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(testUser),
+    });
+  });
+  await setupBacktestMocks(page);
+}
 
 test.describe("Backtest View - Navigation", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await loginAndSetupMocks(page);
   });
 
   test("should navigate to backtest view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-backtest"]').click();
     await page.waitForTimeout(500);
@@ -27,19 +96,7 @@ test.describe("Backtest View - Navigation", () => {
 
 test.describe("Backtest View - Strategy Selection", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-
-    await page.route("**/api/strategies", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          { id: "orb", name: "ORB Strategy", type: "orb", params: [] },
-          { id: "52w_chaser", name: "52W Chaser", type: "52w_chaser", params: [] },
-        ]),
-      });
-    });
+    await loginAndSetupMocks(page);
   });
 
   test("should display strategy selector", async ({ page }) => {
@@ -73,8 +130,7 @@ test.describe("Backtest View - Strategy Selection", () => {
 
 test.describe("Backtest View - Symbol Selection", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await loginAndSetupMocks(page);
 
     await page.route("**/api/symbols/search**", async (route) => {
       const url = route.request().url();
@@ -209,8 +265,7 @@ test.describe("Backtest View - Symbol Selection", () => {
 
 test.describe("Backtest View - Configuration", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await loginAndSetupMocks(page);
   });
 
   test("should display strategy config section", async ({ page }) => {
@@ -248,8 +303,7 @@ test.describe("Backtest View - Configuration", () => {
 
 test.describe("Backtest View - Run Backtest", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await loginAndSetupMocks(page);
 
     await page.route("**/api/backtest/run**", async (route) => {
       await route.fulfill({
@@ -339,8 +393,7 @@ test.describe("Backtest View - Run Backtest", () => {
 
 test.describe("Backtest View - Charts", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await loginAndSetupMocks(page);
 
     await page.route("**/api/backtest/run**", async (route) => {
       await route.fulfill({
@@ -442,8 +495,7 @@ test.describe("Backtest View - Charts", () => {
 
 test.describe("Backtest View - Summary", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await loginAndSetupMocks(page);
 
     await page.route("**/api/backtest/run**", async (route) => {
       await route.fulfill({

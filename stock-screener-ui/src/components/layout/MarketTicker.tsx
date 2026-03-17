@@ -144,7 +144,13 @@ export function MarketTicker() {
           const isPositive = change >= 0;
 
           return (
-            <Group key={symbol} gap="xs" wrap="nowrap" className="market-ticker-item" data-testid={`ticker-${symbol.replace(/[\\^\\=]/g, "").toLowerCase()}`}>
+            <Group
+              key={symbol}
+              gap="xs"
+              wrap="nowrap"
+              className="market-ticker-item"
+              data-testid={`ticker-${symbol.replace(/[\\^\\=]/g, "").toLowerCase()}`}
+            >
               <Text size="sm" fw={600} c="dimmed">
                 {label}
               </Text>
@@ -154,8 +160,8 @@ export function MarketTicker() {
                   maximumFractionDigits: 2,
                 })}
               </Text>
-<Badge
-                 size="sm"
+              <Badge
+                size="sm"
                 color={isPositive ? "green" : "red"}
                 variant="light"
                 leftSection={

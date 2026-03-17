@@ -46,11 +46,7 @@ export function OptionsPage({
   summary,
 }: OptionsPageProps) {
   return (
-    <Box
-      id="options-main"
-      className="options-page"
-      data-testid="options-view"
-    >
+    <Box id="options-main" className="options-page" data-testid="options-view">
       <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "chain" && (
@@ -74,7 +70,11 @@ export function OptionsPage({
       )}
 
       {activeTab === "positions" && (
-        <Box id="positions-container" className="options-tab-content" data-testid="options-positions-tab">
+        <Box
+          id="positions-container"
+          className="options-tab-content"
+          data-testid="options-positions-tab"
+        >
           <PositionsPanel positions={positions || []} />
         </Box>
       )}

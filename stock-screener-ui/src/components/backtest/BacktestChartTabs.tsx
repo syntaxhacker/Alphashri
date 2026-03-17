@@ -89,7 +89,11 @@ export function BacktestChartTabs({
         </Group>
       </Box>
 
-      <Box flex={1} className="chart-tabs-content" style={{ minHeight: 0, position: "relative", overflow: "hidden" }}>
+      <Box
+        flex={1}
+        className="chart-tabs-content"
+        style={{ minHeight: 0, position: "relative", overflow: "hidden" }}
+      >
         {selectedSymbol ? (
           <BacktestChart
             symbol={selectedSymbol}

@@ -210,7 +210,15 @@ function PositionsTableBody({ positions, selectedSymbol }: PositionsTableProps) 
 
 function EmptyPositions() {
   return (
-    <Card shadow="sm" padding="xl" radius="md" withBorder data-testid="positions-empty" className="paper-positions-empty" id="positions-empty">
+    <Card
+      shadow="sm"
+      padding="xl"
+      radius="md"
+      withBorder
+      data-testid="positions-empty"
+      className="paper-positions-empty"
+      id="positions-empty"
+    >
       <Text size="lg" fw={500} ta="center">
         No open positions
       </Text>
@@ -237,7 +245,15 @@ function WatchlistScan({ snapshot, selectedSymbol }: WatchlistScanProps) {
 
   if (!snapshot || !snapshot.scan_items || snapshot.scan_items.length === 0) {
     return (
-      <Card shadow="sm" padding="md" radius="md" withBorder data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
+      <Card
+        shadow="sm"
+        padding="md"
+        radius="md"
+        withBorder
+        data-testid="watchlist-scan-card"
+        className="paper-watchlist-scan"
+        id="watchlist-scan"
+      >
         <Group justify="space-between" mb="md">
           <Text fw={600} size="md">
             Watchlist Scan
@@ -260,7 +276,15 @@ function WatchlistScan({ snapshot, selectedSymbol }: WatchlistScanProps) {
   const rows = [...scanItems].sort((a, b) => nearBreakoutPct(a) - nearBreakoutPct(b)).slice(0, 12);
 
   return (
-    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
+    <Card
+      shadow="sm"
+      padding="md"
+      radius="md"
+      withBorder
+      data-testid="watchlist-scan-card"
+      className="paper-watchlist-scan"
+      id="watchlist-scan"
+    >
       <Group justify="space-between" mb="md">
         <Text fw={600} size="md">
           Watchlist Scan
@@ -406,7 +430,15 @@ export function PaperPositionsTable() {
 
   if (isLoading && positions.length === 0) {
     return (
-      <Card shadow="sm" padding="md" radius="md" withBorder data-testid="positions-panel" className="paper-positions-panel" id="positions-panel">
+      <Card
+        shadow="sm"
+        padding="md"
+        radius="md"
+        withBorder
+        data-testid="positions-panel"
+        className="paper-positions-panel"
+        id="positions-panel"
+      >
         <Text c="dimmed" ta="center">
           Loading positions...
         </Text>
@@ -416,7 +448,15 @@ export function PaperPositionsTable() {
 
   if (positions.length === 0) {
     return (
-      <Card shadow="sm" padding="md" radius="md" withBorder data-testid="positions-panel" className="paper-positions-panel" id="positions-panel">
+      <Card
+        shadow="sm"
+        padding="md"
+        radius="md"
+        withBorder
+        data-testid="positions-panel"
+        className="paper-positions-panel"
+        id="positions-panel"
+      >
         <WatchlistScan snapshot={botSnapshot} selectedSymbol={selectedSymbol} />
         <EmptyPositions />
       </Card>
@@ -427,7 +467,15 @@ export function PaperPositionsTable() {
   const filteredPositions = activeTab === "all" ? positions : strategyGroups.get(activeTab) || [];
 
   return (
-    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="positions-panel" className="paper-positions-panel" id="positions-panel">
+    <Card
+      shadow="sm"
+      padding="md"
+      radius="md"
+      withBorder
+      data-testid="positions-panel"
+      className="paper-positions-panel"
+      id="positions-panel"
+    >
       <WatchlistScan snapshot={botSnapshot} selectedSymbol={selectedSymbol} />
 
       <Card
@@ -440,7 +488,12 @@ export function PaperPositionsTable() {
         className="paper-positions-table-container"
         id="positions-table-container"
       >
-        <Group justify="space-between" mb="md" className="paper-positions-header" id="positions-header">
+        <Group
+          justify="space-between"
+          mb="md"
+          className="paper-positions-header"
+          id="positions-header"
+        >
           <Text fw={600} size="md">
             Open Positions
           </Text>
@@ -452,7 +505,13 @@ export function PaperPositionsTable() {
         </Group>
 
         {isMultiStrategy && (
-          <Tabs value={activeTab} onChange={handleStrategyTabChange} data-testid="strategy-tabs" className="paper-strategy-tabs" id="strategy-tabs">
+          <Tabs
+            value={activeTab}
+            onChange={handleStrategyTabChange}
+            data-testid="strategy-tabs"
+            className="paper-strategy-tabs"
+            id="strategy-tabs"
+          >
             <Tabs.List>
               <Tabs.Tab value="all" data-testid="strategy-tab-all">
                 <Group gap="xs">

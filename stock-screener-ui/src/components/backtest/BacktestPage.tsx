@@ -225,7 +225,12 @@ export function BacktestPage() {
           </Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="results" className="backtest-results-panel" flex={1} style={{ minHeight: 0, overflow: "hidden" }}>
+        <Tabs.Panel
+          value="results"
+          className="backtest-results-panel"
+          flex={1}
+          style={{ minHeight: 0, overflow: "hidden" }}
+        >
           {state.isRunning ? (
             <BacktestProgress
               progress={{
@@ -248,7 +253,13 @@ export function BacktestPage() {
               No results yet. Run a backtest.
             </Box>
           ) : (
-            <Flex direction="column" gap="xs" h="100%" className="backtest-results-content" style={{ minHeight: 0 }}>
+            <Flex
+              direction="column"
+              gap="xs"
+              h="100%"
+              className="backtest-results-content"
+              style={{ minHeight: 0 }}
+            >
               <Box style={{ flex: "0 0 auto" }}>
                 <BacktestSummary totals={state.totals} />
               </Box>
@@ -387,9 +398,27 @@ export function BacktestPage() {
         />
       </Box>
 
-      <Flex id="backtest-panels" className="backtest-panels" flex={1} gap="md" style={{ minHeight: 0 }}>
-        <Box id="backtest-left-panel" className="backtest-left-panel" style={{ flex: "0 0 33.333%", minHeight: 0 }}>{renderLeftPanel()}</Box>
-        <Box id="backtest-right-panel" className="backtest-right-panel" style={{ flex: "1 1 66.666%", minHeight: 0 }}>{renderRightPanel()}</Box>
+      <Flex
+        id="backtest-panels"
+        className="backtest-panels"
+        flex={1}
+        gap="md"
+        style={{ minHeight: 0 }}
+      >
+        <Box
+          id="backtest-left-panel"
+          className="backtest-left-panel"
+          style={{ flex: "0 0 33.333%", minHeight: 0 }}
+        >
+          {renderLeftPanel()}
+        </Box>
+        <Box
+          id="backtest-right-panel"
+          className="backtest-right-panel"
+          style={{ flex: "1 1 66.666%", minHeight: 0 }}
+        >
+          {renderRightPanel()}
+        </Box>
       </Flex>
     </Box>
   );

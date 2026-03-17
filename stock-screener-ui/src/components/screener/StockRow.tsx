@@ -85,7 +85,12 @@ export function StockRow({
 
     if (column.key === "symbol") {
       return (
-        <Group gap={4} wrap="nowrap" className="symbol-cell" data-testid={`symbol-cell-${stock.symbol}`}>
+        <Group
+          gap={4}
+          wrap="nowrap"
+          className="symbol-cell"
+          data-testid={`symbol-cell-${stock.symbol}`}
+        >
           <Tooltip label="Click for details">
             <Anchor
               component="button"
@@ -117,7 +122,13 @@ export function StockRow({
             )}
           </CopyButton>
           {isTouched && (
-            <Badge size="sm" variant="light" color="blue" className="touched-badge" data-testid={`touched-badge-${stock.symbol}`}>
+            <Badge
+              size="sm"
+              variant="light"
+              color="blue"
+              className="touched-badge"
+              data-testid={`touched-badge-${stock.symbol}`}
+            >
               Touched
             </Badge>
           )}
@@ -128,7 +139,12 @@ export function StockRow({
     if (column.key === "score" || column.type === "badge") {
       const scoreValue = typeof value === "number" ? value : 0;
       return (
-        <Badge color={getScoreColor(scoreValue)} variant="light" className="score-badge" data-testid={`score-badge-${stock.symbol}`}>
+        <Badge
+          color={getScoreColor(scoreValue)}
+          variant="light"
+          className="score-badge"
+          data-testid={`score-badge-${stock.symbol}`}
+        >
           {scoreValue}
         </Badge>
       );
@@ -137,7 +153,12 @@ export function StockRow({
     if (column.type === "number") {
       const color = getValueColor(value);
       return (
-        <Text c={color} fw={500} className="number-cell" data-testid={`number-cell-${stock.symbol}-${column.key}`}>
+        <Text
+          c={color}
+          fw={500}
+          className="number-cell"
+          data-testid={`number-cell-${stock.symbol}-${column.key}`}
+        >
           {formatNumber(value)}
         </Text>
       );
@@ -147,9 +168,17 @@ export function StockRow({
   };
 
   return (
-    <Table.Tr id={`stock-row-${stock.symbol}`} className={`stock-row ${isTouched ? 'touched' : 'approaching'}`} data-testid={`stock-row-${stock.symbol}`}>
+    <Table.Tr
+      id={`stock-row-${stock.symbol}`}
+      className={`stock-row ${isTouched ? "touched" : "approaching"}`}
+      data-testid={`stock-row-${stock.symbol}`}
+    >
       {columns.map((column) => (
-        <Table.Td key={column.key} className={`stock-cell cell-${column.key}`} data-testid={`cell-${stock.symbol}-${column.key}`}>
+        <Table.Td
+          key={column.key}
+          className={`stock-cell cell-${column.key}`}
+          data-testid={`cell-${stock.symbol}-${column.key}`}
+        >
           {renderCell(column)}
         </Table.Td>
       ))}

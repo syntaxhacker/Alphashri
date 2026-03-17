@@ -205,7 +205,12 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
         name: "52W Low",
         yAxis: week52_levels.low_52w,
         lineStyle: { color: "#9C27B0", type: "dashed", width: 1 },
-        label: { formatter: "52W Low", position: "start", color: "#9C27B0", fontSize: fontSizes.sm },
+        label: {
+          formatter: "52W Low",
+          position: "start",
+          color: "#9C27B0",
+          fontSize: fontSizes.sm,
+        },
       });
     }
   }
@@ -458,7 +463,12 @@ function PositionInfo({ position }: { position: PaperPosition }) {
   const sideIcon = position.side === "BUY" ? "▲" : "▼";
 
   return (
-    <Group gap="xs" data-testid="position-info" className={`position-info paper-position-info ${pnlClass}`} id={`position-info-${position.symbol}`}>
+    <Group
+      gap="xs"
+      data-testid="position-info"
+      className={`position-info paper-position-info ${pnlClass}`}
+      id={`position-info-${position.symbol}`}
+    >
       <Badge size="sm" variant="light" color={position.side === "BUY" ? "green" : "red"}>
         {sideIcon} {position.side}
       </Badge>
@@ -475,7 +485,13 @@ function PositionInfo({ position }: { position: PaperPosition }) {
 
 function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolean }) {
   return (
-    <Group gap="md" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend" style={{ padding: "8px 0" }}>
+    <Group
+      gap="md"
+      data-testid="chart-legend"
+      className="paper-chart-legend"
+      id="chart-legend"
+      style={{ padding: "8px 0" }}
+    >
       <Group gap={4}>
         <Box
           className="legend-marker entry"
@@ -736,7 +752,14 @@ export function PaperChart() {
         minHeight: 0,
       }}
     >
-      <Box data-testid="paper-chart-header" className="paper-chart-header" id="chart-header" p="sm" pb={0} style={{ flex: "0 0 auto" }}>
+      <Box
+        data-testid="paper-chart-header"
+        className="paper-chart-header"
+        id="chart-header"
+        p="sm"
+        pb={0}
+        style={{ flex: "0 0 auto" }}
+      >
         <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
           <Group gap="sm">
             <Text fw={600} size="lg">
@@ -770,7 +793,13 @@ export function PaperChart() {
         style={{ flex: 1, width: "100%", minHeight: 0 }}
       />
 
-      <Box px="sm" pb="sm" className="paper-chart-footer" id="chart-footer" style={{ flex: "0 0 auto" }}>
+      <Box
+        px="sm"
+        pb="sm"
+        className="paper-chart-footer"
+        id="chart-footer"
+        style={{ flex: "0 0 auto" }}
+      >
         <ChartLegend
           hasOrb={!!state.chartData.orb_levels}
           hasWeek52={!!state.chartData.week52_levels}

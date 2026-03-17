@@ -341,7 +341,9 @@ export default function NewsPanel() {
 
             <ScrollArea flex={1} p="md" className="news-article-content">
               <Stack gap="md">
-                <Title order={4} data-testid="news-article-headline">{selectedArticle.headline}</Title>
+                <Title order={4} data-testid="news-article-headline">
+                  {selectedArticle.headline}
+                </Title>
 
                 <Text size="sm" c="dimmed" data-testid="news-article-meta">
                   {articleContent?.source || selectedArticle.source} |{" "}
@@ -425,7 +427,13 @@ export default function NewsPanel() {
                   <Text fw={600}>NEWS</Text>
                   {wsConnected && (
                     <Tooltip label="Live updates connected">
-                      <Box w={6} h={6} bg="green" style={{ borderRadius: "50%" }} data-testid="news-ws-indicator" />
+                      <Box
+                        w={6}
+                        h={6}
+                        bg="green"
+                        style={{ borderRadius: "50%" }}
+                        data-testid="news-ws-indicator"
+                      />
                     </Tooltip>
                   )}
                   {isRefreshing && <Loader size="sm" />}

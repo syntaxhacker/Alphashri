@@ -219,7 +219,11 @@ export function StrategyForm({
               </Tabs.Tab>
             </Tabs.List>
 
-            <Tabs.Panel value="orb" className="strategy-form-tab-panel" data-testid="strategy-panel-orb">
+            <Tabs.Panel
+              value="orb"
+              className="strategy-form-tab-panel"
+              data-testid="strategy-panel-orb"
+            >
               <Stack gap="sm" mt="sm">
                 <Group grow>
                   <NumberInput
@@ -280,7 +284,11 @@ export function StrategyForm({
               </Stack>
             </Tabs.Panel>
 
-            <Tabs.Panel value="risk" className="strategy-form-tab-panel" data-testid="strategy-panel-risk">
+            <Tabs.Panel
+              value="risk"
+              className="strategy-form-tab-panel"
+              data-testid="strategy-panel-risk"
+            >
               <Stack gap="sm" mt="sm">
                 <Group grow>
                   <NumberInput
@@ -346,7 +354,11 @@ export function StrategyForm({
               </Stack>
             </Tabs.Panel>
 
-            <Tabs.Panel value="runner" className="strategy-form-tab-panel" data-testid="strategy-panel-runner">
+            <Tabs.Panel
+              value="runner"
+              className="strategy-form-tab-panel"
+              data-testid="strategy-panel-runner"
+            >
               <Stack gap="sm" mt="sm">
                 <Group grow>
                   <NumberInput
@@ -384,7 +396,12 @@ export function StrategyForm({
             </Tabs.Panel>
           </Tabs>
 
-          <Group justify="flex-end" mt="md" className="strategy-form-actions" data-testid="strategy-form-actions">
+          <Group
+            justify="flex-end"
+            mt="md"
+            className="strategy-form-actions"
+            data-testid="strategy-form-actions"
+          >
             <Group gap="xs">
               <button
                 type="button"

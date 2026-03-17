@@ -83,7 +83,14 @@ export function PaperSettings() {
 
   if (configLoading && !strategyConfig) {
     return (
-      <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings" id="paper-settings">
+      <Card
+        padding="md"
+        radius="md"
+        withBorder
+        data-testid="settings-panel"
+        className="paper-settings"
+        id="paper-settings"
+      >
         <Group justify="center" gap="sm">
           <Loader size="sm" />
           <Text c="dimmed">Loading configuration...</Text>
@@ -94,7 +101,14 @@ export function PaperSettings() {
 
   if (configError && !strategyConfig) {
     return (
-      <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings paper-settings-error" id="paper-settings">
+      <Card
+        padding="md"
+        radius="md"
+        withBorder
+        data-testid="settings-panel"
+        className="paper-settings paper-settings-error"
+        id="paper-settings"
+      >
         <Alert
           icon={<IconAlertCircle size={16} />}
           title="Error"
@@ -119,7 +133,14 @@ export function PaperSettings() {
 
   if (!strategyConfig) {
     return (
-      <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings" id="paper-settings">
+      <Card
+        padding="md"
+        radius="md"
+        withBorder
+        data-testid="settings-panel"
+        className="paper-settings"
+        id="paper-settings"
+      >
         <Group justify="center" gap="sm">
           <Loader size="sm" />
           <Text c="dimmed">Loading configuration...</Text>
@@ -143,7 +164,14 @@ export function PaperSettings() {
   );
 
   return (
-    <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings" id="paper-settings">
+    <Card
+      padding="md"
+      radius="md"
+      withBorder
+      data-testid="settings-panel"
+      className="paper-settings"
+      id="paper-settings"
+    >
       {configError && (
         <Alert
           icon={<IconAlertCircle size={16} />}
@@ -174,7 +202,14 @@ export function PaperSettings() {
       </Group>
 
       <Stack gap="md" className="paper-settings-content" id="settings-content">
-        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="strategy-section">
+        <Card
+          padding="sm"
+          radius="sm"
+          withBorder
+          variant="default"
+          className="paper-settings-section"
+          id="strategy-section"
+        >
           <Text fw={500} size="sm" mb="xs">
             Active Strategy
           </Text>
@@ -216,7 +251,14 @@ export function PaperSettings() {
 
         <Divider label="ORB Settings" labelPosition="left" className="paper-settings-divider" />
 
-        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="orb-section">
+        <Card
+          padding="sm"
+          radius="sm"
+          withBorder
+          variant="default"
+          className="paper-settings-section"
+          id="orb-section"
+        >
           <Text fw={500} size="sm" mb="xs">
             Opening Range Breakout
           </Text>
@@ -283,7 +325,14 @@ export function PaperSettings() {
 
         <Divider label="Risk Management" labelPosition="left" className="paper-settings-divider" />
 
-        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="risk-section">
+        <Card
+          padding="sm"
+          radius="sm"
+          withBorder
+          variant="default"
+          className="paper-settings-section"
+          id="risk-section"
+        >
           <Text fw={500} size="sm" mb="xs">
             Risk Parameters
           </Text>
@@ -374,7 +423,14 @@ export function PaperSettings() {
 
         <Divider label="Runner Settings" labelPosition="left" className="paper-settings-divider" />
 
-        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="runner-section">
+        <Card
+          padding="sm"
+          radius="sm"
+          withBorder
+          variant="default"
+          className="paper-settings-section"
+          id="runner-section"
+        >
           <Text fw={500} size="sm" mb="xs">
             Runner Configuration
           </Text>
@@ -406,7 +462,14 @@ export function PaperSettings() {
 
         <Divider label="Trading Costs" labelPosition="left" className="paper-settings-divider" />
 
-        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="costs-section">
+        <Card
+          padding="sm"
+          radius="sm"
+          withBorder
+          variant="default"
+          className="paper-settings-section"
+          id="costs-section"
+        >
           <Text fw={500} size="sm" mb="xs">
             Cost Parameters
           </Text>

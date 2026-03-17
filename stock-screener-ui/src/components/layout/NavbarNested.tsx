@@ -44,9 +44,7 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const { user } = useAuth();
 
-  const visibleNavItems = navItems.filter(item => 
-    item.label !== "Admin" || user?.is_admin
-  );
+  const visibleNavItems = navItems.filter((item) => item.label !== "Admin" || user?.is_admin);
 
   const links = visibleNavItems.map((item) => (
     <NavbarLinksGroup
@@ -91,7 +89,13 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
         </Flex>
       </AppShell.Section>
 
-      <AppShell.Section grow component={ScrollArea} className={classes.links} id="navbar-links" data-testid="navbar-links">
+      <AppShell.Section
+        grow
+        component={ScrollArea}
+        className={classes.links}
+        id="navbar-links"
+        data-testid="navbar-links"
+      >
         <div className={classes.linksInner}>{links}</div>
       </AppShell.Section>
 

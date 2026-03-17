@@ -132,7 +132,16 @@ export default function AdminPage() {
     );
   }
 
-  const { recent_runs, aggregate } = stats || { recent_runs: [], aggregate: { total_runs: 0, total_tokens: 0, total_cost_usd: 0, avg_response_time_ms: 0, models_used: [] } };
+  const { recent_runs, aggregate } = stats || {
+    recent_runs: [],
+    aggregate: {
+      total_runs: 0,
+      total_tokens: 0,
+      total_cost_usd: 0,
+      avg_response_time_ms: 0,
+      models_used: [],
+    },
+  };
 
   return (
     <Container size="xl" py="md" data-testid="admin-page">

@@ -13,21 +13,21 @@ test.describe("Buyer Interest+ Screener", () => {
     await page.goto("/");
 
     // Wait for data to load - the fallback should include buyer_interest_enhanced
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
     // Check for Wick column which is unique to buyer interest
     const _wickHeader = page.locator("th").filter({ hasText: "Wick" });
     // This might not exist if trending is the default, so we just verify data loaded
-    const rows = page.locator("table tbody tr");
+    const rows = page.locator(".mantine-Table-tr");
     expect(await rows.count()).toBeGreaterThan(0);
   });
 
   test("should display bullish stocks with high wick percentage", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
     // Get all rows
-    const rows = page.locator("table tbody tr");
+    const rows = page.locator(".mantine-Table-tr");
     const count = await rows.count();
 
     // At least verify we have data
@@ -36,9 +36,9 @@ test.describe("Buyer Interest+ Screener", () => {
 
   test("should show sentiment data in table", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 10000 });
+    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
-    const rows = page.locator("table tbody tr");
+    const rows = page.locator(".mantine-Table-tr");
     const count = await rows.count();
 
     // Verify table has data

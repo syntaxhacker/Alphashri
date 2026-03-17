@@ -4,11 +4,13 @@
 
 const isProd = import.meta.env.PROD;
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL 
-  || (isProd ? "https://alphashri-backend.onrender.com" : "http://localhost:8765");
+export const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  (isProd ? "https://alphashri-backend.onrender.com" : "http://localhost:8765");
 
-export const WS_BASE = import.meta.env.VITE_WS_BASE_URL 
-  || (isProd ? "wss://alphashri-backend.onrender.com" : "ws://localhost:8765");
+export const WS_BASE =
+  import.meta.env.VITE_WS_BASE_URL ||
+  (isProd ? "wss://alphashri-backend.onrender.com" : "ws://localhost:8765");
 
 // Endpoint-specific bases (for convenience)
 export const API_ENDPOINTS = {

@@ -9,7 +9,7 @@ test.describe("Notification Panel", () => {
 
   test.skip("should open notification panel and button clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
 
     const openBtn = page.locator(".notif-open-btn");
     await expect(openBtn).toBeVisible();
@@ -22,7 +22,7 @@ test.describe("Notification Panel", () => {
 
   test.skip("should show notification filter tabs", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
 
     const openBtn = page.locator(".notif-open-btn");
     await openBtn.click();
@@ -39,7 +39,7 @@ test.describe("Notification Panel", () => {
 
   test("should clear notifications when clear button clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
 
     const openBtn = page.locator(".notif-open-btn");
     if ((await openBtn.count()) > 0) {
@@ -60,7 +60,7 @@ test.describe("Notification Panel", () => {
 
   test("should filter notifications by type", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
 
     const openBtn = page.locator(".notif-open-btn");
     if ((await openBtn.count()) > 0) {

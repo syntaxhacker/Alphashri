@@ -75,8 +75,21 @@ export function ScreenerFilters({
   };
 
   return (
-    <Paper withBorder p="md" mb="md" id="filter-panel" className="screener-filters" data-testid="screener-filters">
-      <Group gap="md" wrap="wrap" align="flex-end" className="filter-controls" data-testid="filter-controls">
+    <Paper
+      withBorder
+      p="md"
+      mb="md"
+      id="filter-panel"
+      className="screener-filters"
+      data-testid="screener-filters"
+    >
+      <Group
+        gap="md"
+        wrap="wrap"
+        align="flex-end"
+        className="filter-controls"
+        data-testid="filter-controls"
+      >
         <NumberInput
           label="Min Score"
           value={minScore}
@@ -129,7 +142,13 @@ export function ScreenerFilters({
 
         {profileFilters.map(renderProfileFilter)}
 
-        <Button variant="subtle" onClick={onReset} data-testid="reset-filters-btn" id="reset-filters" className="reset-filters-btn">
+        <Button
+          variant="subtle"
+          onClick={onReset}
+          data-testid="reset-filters-btn"
+          id="reset-filters"
+          className="reset-filters-btn"
+        >
           Reset
         </Button>
       </Group>

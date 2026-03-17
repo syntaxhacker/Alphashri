@@ -101,7 +101,12 @@ export function PerformanceView({
   });
 
   return (
-    <Stack gap="md" className="performance-view" id="performance-view" data-testid="performance-view">
+    <Stack
+      gap="md"
+      className="performance-view"
+      id="performance-view"
+      data-testid="performance-view"
+    >
       <Title order={4}>Performance Summary</Title>
 
       <SimpleGrid

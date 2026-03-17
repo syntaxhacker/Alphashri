@@ -222,7 +222,9 @@ export default function NewsPage() {
 
           <Paper p="md" withBorder id="article-content" data-testid="article-content">
             <Stack gap="md">
-              <Title order={4} data-testid="article-title">{selectedArticle.headline}</Title>
+              <Title order={4} data-testid="article-title">
+                {selectedArticle.headline}
+              </Title>
 
               <Group gap="md">
                 <Badge color={SOURCE_COLORS[selectedArticle.source] || "gray"} variant="light">
@@ -369,7 +371,12 @@ export default function NewsPage() {
         <Stack gap="md" id="news-feed" data-testid="news-feed">
           <Group justify="space-between" className="news-feed-header">
             <Title order={2}>News Feed</Title>
-            <ActionIcon variant="light" onClick={loadNews} loading={loading} data-testid="news-feed-refresh-btn">
+            <ActionIcon
+              variant="light"
+              onClick={loadNews}
+              loading={loading}
+              data-testid="news-feed-refresh-btn"
+            >
               <IconRefresh size={18} />
             </ActionIcon>
           </Group>

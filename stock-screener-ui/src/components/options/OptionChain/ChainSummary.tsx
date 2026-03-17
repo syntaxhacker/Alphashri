@@ -58,13 +58,7 @@ export function ChainSummary({
   };
 
   return (
-    <Group
-      id="chain-summary"
-      className="chain-summary"
-      grow
-      gap="md"
-      data-testid="chain-summary"
-    >
+    <Group id="chain-summary" className="chain-summary" grow gap="md" data-testid="chain-summary">
       <Paper
         p="sm"
         radius="md"
@@ -128,7 +122,11 @@ export function ChainSummary({
             </Text>
           )}
           <Divider my={4} />
-          <Group gap="xs" className="chain-support-resistance" data-testid="options-chain-support-resistance">
+          <Group
+            gap="xs"
+            className="chain-support-resistance"
+            data-testid="options-chain-support-resistance"
+          >
             <Text size="sm" fw={700} c="red.6">
               RES: {stats.resistanceStrike}
             </Text>

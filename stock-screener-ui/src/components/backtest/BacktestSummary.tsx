@@ -16,7 +16,12 @@ export function BacktestSummary({ totals }: BacktestSummaryProps) {
   const pnlSign = netPnl >= 0 ? "+" : "";
 
   return (
-    <Group id="backtest-summary" className="backtest-summary" gap="sm" data-testid="results-summary">
+    <Group
+      id="backtest-summary"
+      className="backtest-summary"
+      gap="sm"
+      data-testid="results-summary"
+    >
       <Group gap={4} className="summary-item summary-net-pnl" data-testid="summary-net-pnl">
         <Text size="sm" c="dimmed">
           Net PnL

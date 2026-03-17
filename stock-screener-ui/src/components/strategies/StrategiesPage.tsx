@@ -107,11 +107,21 @@ export function StrategiesPage({
       style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
       data-testid="strategies-view"
     >
-      <Box flex="0 0 auto" className="strategies-nav-container" data-testid="strategies-nav-container">
+      <Box
+        flex="0 0 auto"
+        className="strategies-nav-container"
+        data-testid="strategies-nav-container"
+      >
         <StrategiesNav activeView={activeView} onChange={onViewChange} />
       </Box>
 
-      <Box flex={1} className="strategies-content" id="strategies-content" style={{ minHeight: 0 }} data-testid="strategies-content">
+      <Box
+        flex={1}
+        className="strategies-content"
+        id="strategies-content"
+        style={{ minHeight: 0 }}
+        data-testid="strategies-content"
+      >
         {renderContent()}
       </Box>
 

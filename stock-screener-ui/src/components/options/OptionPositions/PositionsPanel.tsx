@@ -21,7 +21,12 @@ interface PositionsPanelProps {
 export function PositionsPanel({ positions = [], loading, error }: PositionsPanelProps) {
   if (loading) {
     return (
-      <Stack id="positions-panel" className="positions-panel" gap="md" data-testid="options-positions-panel">
+      <Stack
+        id="positions-panel"
+        className="positions-panel"
+        gap="md"
+        data-testid="options-positions-panel"
+      >
         <Text size="lg" fw={600} className="positions-title">
           Positions
         </Text>
@@ -34,7 +39,12 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
 
   if (error) {
     return (
-      <Stack id="positions-panel" className="positions-panel" gap="md" data-testid="options-positions-panel">
+      <Stack
+        id="positions-panel"
+        className="positions-panel"
+        gap="md"
+        data-testid="options-positions-panel"
+      >
         <Text size="lg" fw={600} className="positions-title">
           Positions
         </Text>
@@ -52,7 +62,12 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
   }
 
   return (
-    <Stack id="positions-panel" className="positions-panel" gap="md" data-testid="options-positions-panel">
+    <Stack
+      id="positions-panel"
+      className="positions-panel"
+      gap="md"
+      data-testid="options-positions-panel"
+    >
       <Text size="lg" fw={600} className="positions-title">
         Option Positions
       </Text>
@@ -91,7 +106,11 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
                   className="position-row"
                   data-testid={`options-position-row-${index}`}
                 >
-                  <Table.Td fw={500} className="position-symbol" data-testid={`options-position-symbol-${index}`}>
+                  <Table.Td
+                    fw={500}
+                    className="position-symbol"
+                    data-testid={`options-position-symbol-${index}`}
+                  >
                     {pos.trading_symbol}
                   </Table.Td>
                   <Table.Td className="position-type">
@@ -104,13 +123,19 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
                       {pos.option_type}
                     </Badge>
                   </Table.Td>
-                  <Table.Td className="position-strike" data-testid={`options-position-strike-${index}`}>
+                  <Table.Td
+                    className="position-strike"
+                    data-testid={`options-position-strike-${index}`}
+                  >
                     {pos.strike_price}
                   </Table.Td>
                   <Table.Td className="position-qty" data-testid={`options-position-qty-${index}`}>
                     {pos.quantity}
                   </Table.Td>
-                  <Table.Td className="position-avg-price" data-testid={`options-position-avg-price-${index}`}>
+                  <Table.Td
+                    className="position-avg-price"
+                    data-testid={`options-position-avg-price-${index}`}
+                  >
                     ₹{pos.average_price.toFixed(2)}
                   </Table.Td>
                   <Table.Td className="position-ltp" data-testid={`options-position-ltp-${index}`}>

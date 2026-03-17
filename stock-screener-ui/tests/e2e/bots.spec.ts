@@ -20,7 +20,7 @@ test.describe("Bots View - Navigation", () => {
 
   test("should navigate to bots view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-bots"]').click();
     await page.waitForTimeout(500);

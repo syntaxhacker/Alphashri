@@ -10,7 +10,7 @@ test.describe("Options View - Navigation and Basic Display", () => {
 
   test("should navigate to options view via side menu", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-options"]').click();
     await page.waitForTimeout(500);

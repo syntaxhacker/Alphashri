@@ -190,7 +190,13 @@ export function PaperTradingView() {
     return (
       <Grid h="100%" gutter="md" className="paper-live-view" id="live-view-grid">
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Stack gap="xs" h="100%" className="paper-left-panel" id="left-panel" data-testid="paper-left-panel">
+          <Stack
+            gap="xs"
+            h="100%"
+            className="paper-left-panel"
+            id="left-panel"
+            data-testid="paper-left-panel"
+          >
             <PaperPortfolioCard
               portfolio={state.portfolio as any}
               isMultiStrategy={state.availableBots.length > 0}
@@ -202,7 +208,13 @@ export function PaperTradingView() {
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Box h="100%" className="paper-right-panel" id="right-panel" style={{ overflow: "hidden" }} data-testid="paper-right-panel">
+          <Box
+            h="100%"
+            className="paper-right-panel"
+            id="right-panel"
+            style={{ overflow: "hidden" }}
+            data-testid="paper-right-panel"
+          >
             <PaperChart />
           </Box>
         </Grid.Col>
@@ -246,7 +258,12 @@ export function PaperTradingView() {
 
   const renderSettingsView = () => {
     return (
-      <Box h="100%" className="paper-settings-view" id="settings-view" data-testid="paper-settings-panel">
+      <Box
+        h="100%"
+        className="paper-settings-view"
+        id="settings-view"
+        data-testid="paper-settings-panel"
+      >
         <PaperSettings />
       </Box>
     );

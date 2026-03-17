@@ -16,7 +16,7 @@ test.describe("Sector Dashboard - Navigation and Display", () => {
 
   test("should navigate to sector dashboard view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-sector"]').click();
     await page.waitForTimeout(500);
@@ -220,7 +220,7 @@ test.describe("Sector Dashboard - Tab Switching", () => {
     const src = await iframe.getAttribute("src");
     expect(src).toBeTruthy();
     expect(src).toContain("dashboard-modular.html");
-    expect(src).toContain("localhost:8765");
+    expect(src).toContain("/sector/dashboard-modular.html");
   });
 
   test("should hide dashboard content when on Historical Cycles tab", async ({ page }) => {
@@ -371,7 +371,7 @@ test.describe("Sector Dashboard - Navigation State", () => {
 
   test("should update navigation active state when navigating to sector view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-sector"]').click();
     await page.waitForTimeout(500);

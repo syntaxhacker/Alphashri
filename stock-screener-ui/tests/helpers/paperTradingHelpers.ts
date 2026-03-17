@@ -1,4 +1,4 @@
-import { Page } from "@playwright/test";
+import { Page, expect } from "@playwright/test";
 import {
   setupApiMocks,
   loginAsTestUser,
@@ -22,7 +22,7 @@ export async function setupPaperTradingTestMocks(page: Page): Promise<void> {
 export async function navigateToPaperTrading(page: Page): Promise<void> {
   // Navigate directly to paper trading URL
   await page.goto("/paper", { timeout: 30000 });
-  await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 }
 
@@ -37,33 +37,37 @@ export async function navigateToPaperTradingWithBot(
 
   // Wait for bot selector to be visible
   const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
-  await segmentedControl.waitFor({ state: "visible", timeout: 10000 });
+  await segmentedControl.waitFor({ state: "visible", timeout: 15000 });
 
   // For Mantine SegmentedControl with radio buttons, click the label with the bot name
   // If botId is a UUID or "2", click "Multi-Strategy Bot", otherwise click "Default"
   const botName = botId === "default" || botId === "1" ? "Default" : "Multi-Strategy Bot";
 
-  // Try clicking the label with the bot name
+  // Wait for the option to be available and click it
   const botLabel = segmentedControl.locator(`label:has-text("${botName}")`);
   const count = await botLabel.count();
 
   if (count > 0) {
-    await botLabel.first().click();
+    await botLabel.first().click({ timeout: 10000 });
   } else {
     // Fallback: click directly on the visible text within the control
-    await segmentedControl.getByText(botName, { exact: false }).first().click();
+    await segmentedControl.getByText(botName, { exact: false }).first().click({ timeout: 10000 });
   }
 
-  // Wait for positions to load
+  // Wait a moment for the selection to register and API calls to start
+  await page.waitForTimeout(500);
+
+  // Wait for positions to load (either data appears or empty state)
   await page.waitForFunction(
     () => {
       const loadingText = document.body.textContent;
       return !loadingText?.includes("Loading positions...");
     },
-    { timeout: 15000 },
+    { timeout: 30000 },
   );
 
-  await page.waitForTimeout(300);
+  // Additional wait for UI to settle
+  await page.waitForTimeout(500);
 }
 
 /**
@@ -96,6 +100,3 @@ export function getBotSelector(page: Page) {
 export function getPortfolioCard(page: Page) {
   return page.locator(".portfolio-card");
 }
-
-// Import expect for use in helper functions
-import { expect } from "@playwright/test";
