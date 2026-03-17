@@ -1,0 +1,45 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [ main, master, test_py_tests ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      - name: Run Python unit tests
+        run: |
+          cd stock-screener-ui
+          uv run --python 3.11 pytest -m unit -q --tb=short
+        env:
+          JWT_SECRET_KEY: test-secret
+          DATABASE_URL: sqlite:///./test.db
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+      - name: Install dependencies
+        run: |
+          cd stock-screener-ui
+          bun install
+      - name: Run E2E tests
+        run: |
+          cd stock-screener-ui
+          bun run test:e2e
