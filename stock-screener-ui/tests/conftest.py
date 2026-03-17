@@ -26,6 +26,7 @@ from fastapi import FastAPI
 def test_db_engine():
     """Create isolated in-memory SQLite database for each test."""
     from sqlalchemy.pool import StaticPool
+    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
     
     engine = create_engine(
         "sqlite:///:memory:",
