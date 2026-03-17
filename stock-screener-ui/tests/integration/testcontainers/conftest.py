@@ -47,7 +47,7 @@ def is_docker_available() -> bool:
 DOCKER_AVAILABLE = is_docker_available()
 
 from db.database import Base, get_db
-from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
+from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
 from api.auth import hash_password
 
 

@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from db.database import Base, get_db
-from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
+from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
 from api.auth import (
     hash_password,
     verify_password,

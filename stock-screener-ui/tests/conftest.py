@@ -166,6 +166,9 @@ def client_with_db(test_db_engine, test_user):
         bind=test_db_engine
     )
     
+    # Import models to ensure tables are created
+    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
+    
     Base.metadata.create_all(bind=test_db_engine)
     
     def override_get_db():

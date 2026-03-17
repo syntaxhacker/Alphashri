@@ -1216,11 +1216,10 @@ class TestErrorHandling:
     """Tests for error handling."""
 
     @pytest.mark.unit
-    def test_database_unavailable(self, client):
+    def test_database_unavailable(self, client_with_db):
         """Test endpoints when database is unavailable."""
         with patch('api.bots._db_available', False):
-            response = client.get("/api/bots")
-
+            response = client_with_db.get("/api/bots")
             assert response.status_code == 500
             assert "database" in response.json()["detail"].lower()
 
@@ -1240,7 +1239,7 @@ class TestErrorHandling:
         assert response.status_code == 404
 
     @pytest.mark.unit
-    def test_invalid_allocation_pct(self, client):
+    def test_invalid_allocation_pct(self, client_with_db):
         """Test creating bot with invalid allocation percentage."""
         bot_data = {
             "name": "Invalid Allocation Bot",
@@ -1248,21 +1247,17 @@ class TestErrorHandling:
                 {"strategy_id": str(uuid_module.uuid4()), "capital_allocation_pct": 1.5},
             ],
         }
-
-        response = client.post("/api/bots", json=bot_data)
-
+        response = client_with_db.post("/api/bots", json=bot_data)
         assert response.status_code == 422
 
     @pytest.mark.unit
-    def test_invalid_max_positions(self, client):
+    def test_invalid_max_positions(self, client_with_db):
         """Test creating bot with invalid max_positions."""
         bot_data = {
             "name": "Invalid Positions Bot",
             "max_total_positions": 50,
         }
-
-        response = client.post("/api/bots", json=bot_data)
-
+        response = client_with_db.post("/api/bots", json=bot_data)
         assert response.status_code == 422
 
 
