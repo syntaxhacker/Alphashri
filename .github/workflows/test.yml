@@ -17,10 +17,12 @@ jobs:
           python-version: '3.11'
       - name: Install uv
         uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
       - name: Install dependencies
         run: |
           cd stock-screener-ui
-          uv pip install --python 3.11 -r requirements.txt
+          uv pip install --system --python 3.11 -r requirements.txt
       - name: Run Python unit tests
         run: |
           cd stock-screener-ui
