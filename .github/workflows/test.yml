@@ -49,6 +49,11 @@ jobs:
         run: |
           cd stock-screener-ui
           npx playwright install chromium
+      - name: Start dev server
+        run: |
+          cd stock-screener-ui
+          bun run dev &
+          sleep 10
       - name: Run E2E tests
         run: |
           cd stock-screener-ui
