@@ -1282,18 +1282,20 @@ class TestBotCRUDUnit:
         assert "already exists" in response.json()["detail"].lower()
 
     @pytest.mark.unit
-    def test_create_bot_allocation_exceeds_100(self, client_with_db, db, test_user):
+    def test_create_bot_allocation_exceeds_100(self, client_with_db):
         """Test POST /api/bots with allocation > 100%."""
+        import uuid as uuid_module
+        
         bot_data = {
             "name": "Overallocated Bot",
             "is_active": True,
             "strategies": [
                 {
-                    "strategy_id": "550e8400-e29b-41d4-a716-446655440001",
+                    "strategy_id": str(uuid_module.uuid4()),
                     "capital_allocation_pct": 0.60,
                 },
                 {
-                    "strategy_id": "550e8400-e29b-41d4-a716-446655440002",
+                    "strategy_id": str(uuid_module.uuid4()),
                     "capital_allocation_pct": 0.60,
                 },
             ],

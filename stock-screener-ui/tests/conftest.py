@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from db.database import Base, get_db
 from db.models import User, BotConfig, StrategyConfig
 from fastapi import FastAPI
+from tests.helpers.db import import_all_models
 
 
 # ============================================================================
@@ -26,15 +27,15 @@ from fastapi import FastAPI
 def test_db_engine():
     """Create isolated in-memory SQLite database for each test."""
     from sqlalchemy.pool import StaticPool
-    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
-    
+
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool
     )
     
-    # Create all tables
+    # Import all models to ensure they're registered with Base.metadata
+    import_all_models()
     Base.metadata.create_all(bind=engine)
     
     yield engine
@@ -166,9 +167,8 @@ def client_with_db(test_db_engine, test_user):
         bind=test_db_engine
     )
     
-    # Import models to ensure tables are created
-    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
-    
+    # Import all models to ensure they're registered with Base.metadata
+    import_all_models()
     Base.metadata.create_all(bind=test_db_engine)
     
     def override_get_db():

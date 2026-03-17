@@ -46,6 +46,7 @@ from api.auth import (
     REFRESH_TOKEN_EXPIRE_DAYS,
     get_current_user,
 )
+from tests.helpers.db import import_all_models
 
 
 # =============================================================================
@@ -78,6 +79,7 @@ def override_get_db():
 
 @pytest.fixture(scope="function")
 def db():
+    import_all_models()
     Base.metadata.create_all(bind=test_engine)
     session = TestSessionLocal()
     yield session
