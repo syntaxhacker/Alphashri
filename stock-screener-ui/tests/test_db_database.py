@@ -357,18 +357,18 @@ class TestSessionOperations:
                 test_url,
                 connect_args={"check_same_thread": False}
             )
-            TestSessionLocal = sessionmaker(
-                autocommit=False,
-                autoflush=False,
-                bind=test_engine
-            )
-            
-            from db.database import Base
-            from db.models import User, UserSession, StrategyConfig, BotConfig
-            
-            Base.metadata.create_all(bind=test_engine)
-            
-            yield TestSessionLocal
+             TestSessionLocal = sessionmaker(
+                 autocommit=False,
+                 autoflush=False,
+                 bind=test_engine
+             )
+             
+             from db.database import Base
+             from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
+             
+             Base.metadata.create_all(bind=test_engine)
+             
+             yield TestSessionLocal
             
             Base.metadata.drop_all(bind=test_engine)
 
@@ -697,18 +697,18 @@ class TestIntegrationWithModels:
                 test_url,
                 connect_args={"check_same_thread": False}
             )
-            TestSessionLocal = sessionmaker(
-                autocommit=False,
-                autoflush=False,
-                bind=test_engine
-            )
-            
-            from db.database import Base
-            from db.models import User, UserSession, StrategyConfig, BotConfig
-            
-            Base.metadata.create_all(bind=test_engine)
-            
-            session = TestSessionLocal()
+             TestSessionLocal = sessionmaker(
+                 autocommit=False,
+                 autoflush=False,
+                 bind=test_engine
+             )
+             
+             from db.database import Base
+             from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
+             
+             Base.metadata.create_all(bind=test_engine)
+             
+             session = TestSessionLocal()
             
             user = User(
                 email="integration@example.com",
