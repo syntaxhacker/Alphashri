@@ -25,6 +25,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from tests.helpers.db import import_all_models
 
 
 # ============================================
@@ -73,8 +74,7 @@ def db_session(app):
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
     # Import all models to ensure tables are created
-    from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
-
+    import_all_models()
     Base.metadata.create_all(bind=engine)
 
     # Patch SessionLocal and engine in both modules
