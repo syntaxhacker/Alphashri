@@ -23,6 +23,8 @@ jobs:
         run: |
           cd stock-screener-ui
           uv pip install --system --python 3.11 -r requirements.txt
+        env:
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - name: Run Python unit tests
         run: |
           cd stock-screener-ui
@@ -30,6 +32,7 @@ jobs:
         env:
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
 
   e2e-tests:
     runs-on: ubuntu-latest
