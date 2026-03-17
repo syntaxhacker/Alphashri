@@ -1,16 +1,17 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser, setupMultiStrategyBotMocks } from "../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser, setupMultiStrategyBotMocks, setupPaperTradingMocks } from "../mocks/apiResponses";
 
 test.describe("Navigation - App Navigation", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
+    await setupPaperTradingMocks(page);
     await setupMultiStrategyBotMocks(page);
   });
 
   test("should display navbar with all navigation items", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Check all nav items are visible
     await expect(page.locator('[data-testid="nav-screener"]')).toBeVisible();
@@ -23,7 +24,7 @@ test.describe("Navigation - App Navigation", () => {
 
   test("should highlight active navigation item", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Screener should be active by default
     const screenerNav = page.locator('[data-testid="nav-screener"]');
@@ -32,7 +33,7 @@ test.describe("Navigation - App Navigation", () => {
 
   test("should navigate to Paper Trading view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Click Paper Trading
     await page.locator('[data-testid="nav-paper"]').click();
@@ -46,7 +47,7 @@ test.describe("Navigation - App Navigation", () => {
 
   test("should navigate to Backtest view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Click Backtest
     await page.locator('[data-testid="nav-backtest"]').click();
@@ -60,7 +61,7 @@ test.describe("Navigation - App Navigation", () => {
 
   test("should navigate to Sector Analysis view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Click Sector Analysis
     await page.locator('[data-testid="nav-sector"]').click();
@@ -76,7 +77,7 @@ test.describe("Navigation - App Navigation", () => {
 
   test("should navigate to Strategies view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Click Strategies
     await page.locator('[data-testid="nav-strategies"]').click();
@@ -90,7 +91,7 @@ test.describe("Navigation - App Navigation", () => {
 
   test("should navigate to Bots view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Click Bots
     await page.locator('[data-testid="nav-bots"]').click();
@@ -104,7 +105,7 @@ test.describe("Navigation - App Navigation", () => {
 
   test("should navigate to Screener view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // First go to another view
     await page.locator('[data-testid="nav-paper"]').click();
@@ -122,7 +123,7 @@ test.describe("Navigation - App Navigation", () => {
   // This is a known issue with the legacy view rendering
   test.skip("should update active state on navigation", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Click Paper Trading
     await page.locator('[data-testid="nav-paper"]').click();
@@ -136,12 +137,12 @@ test.describe("Navigation - App Navigation", () => {
 
   test("should toggle sidemenu collapse state", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    const sidemenu = page.locator('[data-testid="sidemenu"]');
+    const navbar = page.locator('[data-testid="app-navbar"]');
 
-    // Initial state: not collapsed (width should be larger)
-    const initialBox = await sidemenu.boundingBox();
+    // Initial state: not collapsed (width should be larger, 200px)
+    const initialBox = await navbar.boundingBox();
     expect(initialBox?.width).toBeGreaterThan(100);
 
     // Click the toggle button (ChevronLeft icon button)
@@ -150,8 +151,8 @@ test.describe("Navigation - App Navigation", () => {
     await toggleBtn.click();
     await page.waitForTimeout(500);
 
-    // Verify it collapsed (width should be smaller, e.g., 80px)
-    const collapsedBox = await sidemenu.boundingBox();
+    // Verify it collapsed (width should be smaller, 80px)
+    const collapsedBox = await navbar.boundingBox();
     expect(collapsedBox?.width).toBeLessThanOrEqual(100);
 
     // Verify navigation still works while collapsed
@@ -161,7 +162,7 @@ test.describe("Navigation - App Navigation", () => {
     // Toggle back
     await toggleBtn.click();
     await page.waitForTimeout(500);
-    const restoredBox = await sidemenu.boundingBox();
+    const restoredBox = await navbar.boundingBox();
     expect(restoredBox?.width).toBeGreaterThan(100);
   });
 });
@@ -204,7 +205,7 @@ test.describe("Navigation - URL Routing", () => {
 
   test("should redirect unknown routes to home", async ({ page }) => {
     await page.goto("/unknown-route");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Should be at root
     expect(page.url()).not.toContain("/unknown-route");

@@ -23,7 +23,7 @@ export async function setupTradeHistoryMocks(page: Page): Promise<void> {
 export async function navigateToPaperTrading(page: Page): Promise<void> {
   // Navigate directly to paper trading URL
   await page.goto("/paper");
-  await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 20000 });
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 20000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 30000 });
 }
 

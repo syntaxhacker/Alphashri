@@ -152,7 +152,76 @@ const mockChartData = {
 };
 
 async function mockBacktestApi(page: Page) {
-  await page.route("**/api/backtest/run**", async (route) => {
+  await page.route("**/api/backtest/strategies", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        strategies: [
+          {
+            id: "orb",
+            name: "ORB Strategy",
+            params: [
+              { key: "or_minutes", label: "OR Minutes", type: "number", default: 45 },
+              { key: "sl_pct", label: "Stop Loss %", type: "number", default: 0.4 },
+              { key: "tp_pct", label: "Take Profit %", type: "number", default: 1.2 },
+            ],
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route("**/api/strategies/variations", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: "default-variation",
+          name: "Default",
+          strategy_type: "ORB",
+          is_template: true,
+        },
+      ]),
+    });
+  });
+
+  await page.route("**/api/backtest/costs", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        costs: {
+          brokerage_pct: 0.0003,
+          min_brokerage: 20,
+          stt_pct: 0.00025,
+          exchange_pct: 0.0000297,
+          sebi_pct: 0.000001,
+          stamp_pct: 0.00003,
+          gst_pct: 0.18,
+        },
+      }),
+    });
+  });
+
+  await page.route("**/api/symbols/search*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        results: [
+          { symbol: "RELIANCE", name: "Reliance Industries Ltd" },
+          { symbol: "INFY", name: "Infosys Ltd" },
+          { symbol: "TCS", name: "Tata Consultancy Services Ltd" },
+        ],
+        query: "RELIANCE",
+        total: 3,
+      }),
+    });
+  });
+
+  await page.route("**/api/backtest/run*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -167,33 +236,53 @@ async function mockBacktestApi(page: Page) {
     });
   });
 
-  await page.route("**/api/backtest/chart/**", async (route) => {
+  await page.route("**/api/backtest/chart/*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(mockChartData),
     });
   });
+
+  await page.route("**/api/backtest/history*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ history: [] }),
+    });
+  });
 }
 
 async function setupBacktest(page: Page) {
-  // Click to focus on MultiSelect
+  await page.waitForSelector('[data-testid="symbol-multiselect"]', { state: "visible", timeout: 5000 });
+  
   const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-  await symbolSelect.click({ force: true });
+  await symbolSelect.click();
+  await page.waitForTimeout(500);
 
-  // Type in the searchable input
-  await page.keyboard.type("RELIANCE");
-  await page.waitForTimeout(500); // Wait for debounce and API
-  // Click on the option from dropdown
-  const option = page.locator(".mantine-MultiSelect-option").first();
-  if (await option.isVisible()) {
-    await option.click();
-  }
+  await page.keyboard.type("RELIANCE", { delay: 50 });
+  await page.waitForTimeout(800);
+
+  const options = page.locator(".mantine-MultiSelect-option");
+  await options.first().waitFor({ state: "visible", timeout: 5000 });
+  await options.first().click();
   await page.waitForTimeout(300);
 
   const runBtn = page.locator('[data-testid="run-backtest-btn"]');
+  await expect(runBtn).toBeEnabled({ timeout: 5000 });
   await runBtn.click();
-  await page.waitForTimeout(2000);
+
+  try {
+    await page.waitForSelector('[data-testid="results-summary"]', { timeout: 15000 });
+  } catch (e) {
+    const errorAlert = page.locator('[data-testid="backtest-error"]');
+    if (await errorAlert.isVisible()) {
+      const errorText = await errorAlert.textContent();
+      throw new Error(`Backtest failed with error: ${errorText}`);
+    }
+    throw e;
+  }
+  await page.waitForTimeout(500);
 }
 
 test.describe("Backtest - Mantine Features", () => {
@@ -201,6 +290,20 @@ test.describe("Backtest - Mantine Features", () => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await mockBacktestApi(page);
+
+    await page.route("**/api/auth/me", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: 1,
+          email: "test@alphashri.dev",
+          display_name: "TestUser",
+          initial_capital: 1000000,
+          created_at: "2026-01-01T00:00:00",
+        }),
+      });
+    });
   });
 
   test.describe("Chart Zoom Functionality", () => {
@@ -223,7 +326,6 @@ test.describe("Backtest - Mantine Features", () => {
       const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
       await expect(zoomSelect).toBeVisible();
 
-      // Just verify the select works - actual zoom requires real chart data
       await zoomSelect.click();
       await page.waitForTimeout(300);
     });

@@ -171,7 +171,7 @@ test.describe("Screener - Auto Refresh", () => {
   test("should disable auto-refresh when set to 0", async ({ page }) => {
     test.slow();
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
 
     const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"]');
     await expect(autoRefreshInput).toBeVisible();

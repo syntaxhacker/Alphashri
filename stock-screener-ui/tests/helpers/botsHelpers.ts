@@ -14,7 +14,7 @@ export async function setupBotsMocks(page: Page): Promise<void> {
  */
 export async function navigateToBotsView(page: Page): Promise<void> {
   await page.goto("/");
-  await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
   await page.locator('[data-testid="nav-bots"]').click();
   await page.waitForTimeout(500);
 }

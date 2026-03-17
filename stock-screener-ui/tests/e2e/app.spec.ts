@@ -4,8 +4,7 @@ import {
   mockTrendingResponse,
   loginAsTestUser,
   setupPaperTradingMocks,
-  getCurrentConfig,
-  mockStrategyConfig,
+  setupMultiStrategyBotMocks,
 } from "../mocks/apiResponses";
 
 test.describe("Alphashri", () => {
@@ -21,14 +20,14 @@ test.describe("Alphashri", () => {
 
   test("should display data table", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 30000 });
-    const rows = page.locator("table tbody tr");
+    await page.waitForSelector(".mantine-Table-tr", { timeout: 30000 });
+    const rows = page.locator(".mantine-Table-tr");
     await expect(rows.first()).toBeVisible();
   });
 
   test("should display mock stock data", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector("table tbody tr", { timeout: 30000 });
+    await page.waitForSelector(".mantine-Table-tr", { timeout: 30000 });
 
     // Check that mock data is displayed - use more specific selector
     const firstSymbol = mockTrendingResponse.approaching[0].symbol;
@@ -36,139 +35,88 @@ test.describe("Alphashri", () => {
   });
 });
 
+test.describe.configure({ mode: "parallel" });
+
 test.describe("Paper Trading Settings", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await setupPaperTradingMocks(page);
+    await setupMultiStrategyBotMocks(page);
   });
 
+  async function navigateToPaperTradingSettings(page: import("@playwright/test").Page) {
+    await page.goto("/paper", { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
+    
+    // Wait for the tabs to be fully rendered
+    await page.waitForTimeout(500);
+    
+    const settingsTab = page.locator('[data-testid="tab-settings"]');
+    await settingsTab.waitFor({ state: "visible", timeout: 10000 });
+    
+    // Retry click in case of re-render
+    await settingsTab.click({ timeout: 10000, trial: true }).catch(() => {});
+    await settingsTab.click({ timeout: 10000 });
+    
+    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
+  }
+
   test("should update Max Positions to 4, save, and persist on refresh", async ({ page }) => {
-    // Navigate to the app
-    await page.goto("/");
+    await navigateToPaperTradingSettings(page);
 
-    // Click on Paper Trading in the nav
-    await page.click("text=Paper Trading");
-
-    // Wait for paper trading view to load
-    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Click on Settings tab
-    await page.click('[data-testid="tab-settings"]');
-
-    // Wait for settings panel to load
-    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Wait for the input to be ready
     const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
     await expect(maxPositionsInput).toBeVisible({ timeout: 5000 });
     await expect(maxPositionsInput).toHaveValue("5");
 
-    // Clear and enter new value
-    await maxPositionsInput.fill("");
     await maxPositionsInput.fill("4");
     await expect(maxPositionsInput).toHaveValue("4");
 
-    // Wait for dirty flag to be set (give state time to update)
     await page.waitForTimeout(200);
 
-    // Wait for the save button to be enabled (not disabled) since config is now dirty
     const saveButton = page.locator('[data-testid="save-settings-button"]');
     await expect(saveButton).toBeEnabled({ timeout: 10000 });
-
-    // Click the Save button
     await saveButton.click();
-
-    // Wait for save to complete (button should show "Saved" state)
     await expect(saveButton).toContainText("Saved", { timeout: 5000 });
 
-    // Refresh the page
-    await page.reload();
+    // Navigate fresh to paper trading settings after reload
+    await navigateToPaperTradingSettings(page);
 
-    // Navigate back to Paper Trading and Settings
-    await page.click("text=Paper Trading");
-    await page.click('[data-testid="tab-settings"]');
-
-    // Wait for settings panel to load
-    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
-
-    // Verify Max Positions is still 4 after refresh
     const maxPositionsAfterRefresh = page.locator('[data-testid="config-max-positions"]');
     await expect(maxPositionsAfterRefresh).toHaveValue("4");
   });
 
   test("should display all settings sections", async ({ page }) => {
-    // Navigate to the app
-    await page.goto("/");
+    await navigateToPaperTradingSettings(page);
 
-    // Click on Paper Trading in the nav
-    await page.click("text=Paper Trading");
-
-    // Click on Settings tab
-    await page.click('[data-testid="tab-settings"]');
-
-    // Wait for settings panel to load
-    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Verify all sections are visible (Mantine uses Divider with labels)
     await expect(page.locator("text=ORB Settings")).toBeVisible();
     await expect(page.locator("text=Risk Management")).toBeVisible();
     await expect(page.locator("text=Runner Settings")).toBeVisible();
     await expect(page.locator("text=Trading Costs")).toBeVisible();
 
-    // Verify key inputs exist with correct default values
     await expect(page.locator('[data-testid="config-sl-pct"]')).toHaveValue("0.4");
     await expect(page.locator('[data-testid="config-tp-pct"]')).toHaveValue("1.2");
     await expect(page.locator('[data-testid="config-cooldown"]')).toHaveValue("30");
   });
 
   test("should reset settings to defaults", async ({ page }) => {
-    // Navigate to the app
-    await page.goto("/");
+    await navigateToPaperTradingSettings(page);
 
-    // Click on Paper Trading in the nav
-    await page.click("text=Paper Trading");
-
-    // Click on Settings tab
-    await page.click('[data-testid="tab-settings"]');
-
-    // Wait for settings panel to load
-    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Change Max Positions to 3
     const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
     await maxPositionsInput.fill("3");
     await expect(maxPositionsInput).toHaveValue("3");
 
-    // Set up dialog handler before clicking reset
     page.on("dialog", (dialog) => dialog.accept());
 
-    // Click the Reset button
     const resetButton = page.locator('[data-testid="reset-settings-button"]');
     await resetButton.click();
 
-    // Wait for reset to complete
     await page.waitForTimeout(500);
 
-    // Refresh to get the reset values from the mock
-    await page.reload();
+    // Navigate fresh to paper trading settings after reset
+    await navigateToPaperTradingSettings(page);
 
-    // Navigate back to settings (use specific testid for tab)
-    await page.click("text=Paper Trading");
-    await page.click('[data-testid="tab-settings"]');
-
-    // Wait for settings panel to load
-    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
-
-    // Verify Max Positions is back to default (5)
     const maxPositionsAfterReset = page.locator('[data-testid="config-max-positions"]');
     await expect(maxPositionsAfterReset).toHaveValue("5");
   });

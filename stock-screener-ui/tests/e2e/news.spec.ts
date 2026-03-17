@@ -206,7 +206,7 @@ test.describe("News Panel - Basic Functionality", () => {
 
   test("should show news toggle button on page load", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     const toggleBtn = page.locator('[data-testid="news-toggle-btn"]');
     await expect(toggleBtn).toBeVisible({ timeout: 15000 });
@@ -215,7 +215,7 @@ test.describe("News Panel - Basic Functionality", () => {
 
   test("should open panel when toggle button is clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 
@@ -225,7 +225,7 @@ test.describe("News Panel - Basic Functionality", () => {
 
   test("should close panel when close button is clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 
@@ -242,7 +242,7 @@ test.describe("News Panel - Basic Functionality", () => {
 
   test("should close panel when overlay is clicked", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 
@@ -267,7 +267,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should display news source selector", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 
@@ -280,7 +280,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should display refresh button", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 
@@ -293,7 +293,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should display news items", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 
@@ -308,7 +308,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should show headlines for news items", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 
@@ -323,7 +323,7 @@ test.describe("News Panel - Content Display", () => {
 
   test("should mark unread items with visual indicator", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 
@@ -347,7 +347,7 @@ test.describe("News Panel - Source Switching", () => {
 
   test("should allow switching news sources", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 
@@ -386,7 +386,7 @@ test.describe("News Panel - Refresh", () => {
     });
 
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 
     await clickNewsToggle(page);
 

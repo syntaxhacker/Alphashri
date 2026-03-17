@@ -213,7 +213,7 @@ async function setupBotMocksForId(page: Page, botId: string, customScanItems?: o
 // Helper to navigate to multi-strategy bot with specific ID
 async function navigateToBot(page: Page, botId: string) {
   await page.goto("/paper");
-  await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
   const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');

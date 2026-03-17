@@ -68,7 +68,7 @@ test.describe("Authentication - Login", () => {
     await page.locator('[data-testid="login-submit-btn"]').click();
 
     // Should navigate to main app - wait for sidemenu to appear
-    await expect(page.locator('[data-testid="sidemenu"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
   });
 
   test("should show error message with invalid credentials", async ({ page }) => {
@@ -190,7 +190,7 @@ test.describe("Authentication - Register", () => {
     await page.locator('[data-testid="register-button"]').click();
 
     // Should navigate to main app - wait for sidemenu to appear
-    await expect(page.locator('[data-testid="sidemenu"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -224,7 +224,7 @@ test.describe("Authentication - Logout", () => {
 
   test("should show user info in navbar footer", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Should show user info
     await expect(page.locator('[data-testid="user-menu-trigger"]')).toContainText("TestUser");
@@ -235,7 +235,7 @@ test.describe("Authentication - Logout", () => {
 
   test("should logout when clicking sign out", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Mock logout endpoint
     await page.route("**/api/auth/logout", async (route) => {
@@ -255,7 +255,7 @@ test.describe("Authentication - Logout", () => {
 
   test("should clear tokens on logout", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Click sign out
     await page.route("**/api/auth/logout", async (route) => {
@@ -299,14 +299,14 @@ test.describe("Authentication - Session", () => {
     });
 
     await page.goto("/");
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Refresh page
     await page.reload();
 
     // Should still be logged in
-    await page.waitForSelector('[data-testid="sidemenu"]', { timeout: 10000 });
-    await expect(page.locator('[data-testid="sidemenu"]')).toBeVisible();
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
+    await expect(page.locator('[data-testid="app-shell"]')).toBeVisible();
   });
 
   test("should redirect to login when token expired", async ({ page }) => {

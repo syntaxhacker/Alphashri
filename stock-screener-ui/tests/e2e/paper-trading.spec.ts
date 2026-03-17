@@ -57,17 +57,8 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test("should show portfolio summary", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Wait for loading to complete
-    await page.waitForFunction(
-      () => {
-        const loadingText = document.body.textContent;
-        return !loadingText?.includes("Loading positions...");
-      },
-      { timeout: 15000 },
-    );
-
     const portfolioCard = page.locator('[data-testid="portfolio-card"]');
-    await expect(portfolioCard).toBeVisible();
+    await expect(portfolioCard).toBeVisible({ timeout: 30000 });
     await expect(portfolioCard).toContainText("Total Value");
     await expect(portfolioCard).toContainText("Cash");
   });

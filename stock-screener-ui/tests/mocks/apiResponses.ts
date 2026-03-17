@@ -414,8 +414,8 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   // Reset auth state for this page
   authStateByPage.set(page, false);
 
-  // Mock auth endpoints - use http://localhost:8765 to avoid matching source files
-  await page.route("http://localhost:8765/api/auth/me", async (route) => {
+  // Mock auth endpoints
+  await page.route("**/api/auth/me", async (route) => {
     const isAuthenticated = authStateByPage.get(page) ?? false;
     if (isAuthenticated) {
       await route.fulfill({
@@ -432,7 +432,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
     }
   });
 
-  await page.route("http://localhost:8765/api/auth/login", async (route) => {
+  await page.route("**/api/auth/login", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -446,7 +446,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock screeners list
-  await page.route("http://localhost:8765/api/screeners", async (route) => {
+  await page.route("**/api/screeners", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -455,7 +455,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock screener data endpoint with query parameters
-  await page.route("http://localhost:8765/api/screener*", async (route) => {
+  await page.route("**/api/screener*", async (route) => {
     const url = route.request().url();
 
     // Check if it's buyer_interest_enhanced
@@ -512,8 +512,16 @@ export const mockStrategyConfig = {
   updated_at: "2026-01-01T00:00:00",
 };
 
-// Mutable config for tests
-let currentConfig = { ...mockStrategyConfig };
+// Track config state per page object using WeakMap (for parallel test safety)
+const configByPage = new WeakMap<import("@playwright/test").Page, typeof mockStrategyConfig>();
+
+// Helper to get or create config for a page
+function getConfigForPage(page: import("@playwright/test").Page): typeof mockStrategyConfig {
+  if (!configByPage.has(page)) {
+    configByPage.set(page, { ...mockStrategyConfig });
+  }
+  return configByPage.get(page)!;
+}
 
 // Helper to login as test user (sets localStorage tokens and enables auth mock)
 export async function loginAsTestUser(page: import("@playwright/test").Page) {
@@ -535,12 +543,21 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
       }),
     );
   });
+
+  // Override auth route to always return authenticated user
+  await page.route("**/api/auth/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(testUser),
+    });
+  });
 }
 
 // Helper to setup paper trading API mocks
 export async function setupPaperTradingMocks(page: import("@playwright/test").Page) {
-  // Reset config to defaults
-  currentConfig = { ...mockStrategyConfig };
+  // Initialize config for this page
+  configByPage.set(page, { ...mockStrategyConfig });
 
   // Mock portfolio endpoint
   await page.route("**/api/paper/portfolio", async (route) => {
@@ -609,26 +626,28 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
 
   // Mock GET config endpoint
   await page.route("**/api/paper/config**", async (route) => {
+    const config = getConfigForPage(page);
     if (route.request().method() === "GET") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           status: "success",
-          config: currentConfig,
+          config: config,
         }),
       });
     } else if (route.request().method() === "PUT") {
       // Handle PUT - update config
       const body = route.request().postDataJSON();
-      currentConfig = { ...currentConfig, ...body };
+      const updatedConfig = { ...config, ...body };
+      configByPage.set(page, updatedConfig);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           status: "success",
           message: "Config updated",
-          config: currentConfig,
+          config: updatedConfig,
         }),
       });
     } else {
@@ -638,22 +657,23 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
 
   // Mock POST config/reset endpoint
   await page.route("**/api/paper/config/reset", async (route) => {
-    currentConfig = { ...mockStrategyConfig };
+    const resetConfig = { ...mockStrategyConfig };
+    configByPage.set(page, resetConfig);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         status: "success",
         message: "Config reset to defaults",
-        config: currentConfig,
+        config: resetConfig,
       }),
     });
   });
 }
 
-// Helper to get current config (for test assertions)
-export function getCurrentConfig() {
-  return { ...currentConfig };
+// Helper to get current config for a specific page (for test assertions)
+export function getCurrentConfig(page: import("@playwright/test").Page) {
+  return { ...getConfigForPage(page) };
 }
 
 // Multi-strategy bot mocks
@@ -749,10 +769,10 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
       contentType: "application/json",
       body: JSON.stringify({
         cash: 100000,
-        equity: 105000,
-        pnl: 5000,
+        total_value: 105000,
         margin_used: 50000,
-        daily_pnl: 1000,
+        day_pnl: 1000,
+        positions_count: 2,
         positions: [
           {
             id: 1,
