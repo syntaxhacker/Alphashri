@@ -30,17 +30,6 @@ export function detectAddedSymbols(
   return { addedPrimary, addedSecondary };
 }
 
-export function buildProfileFilterQueryParams(
-  values: Record<string, string | number> | null | undefined,
-): string {
-  if (!values) return "";
-  const entries = Object.entries(values);
-  if (entries.length === 0) return "";
-  return entries
-    .map(([k, v]) => `pf_${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join("&");
-}
-
 export function getTradingList(stocks: Array<{ symbol: string }> | null | undefined): string {
   if (!stocks || stocks.length === 0) return "";
   const unique = Array.from(new Set(stocks.map((s) => s.symbol).filter(Boolean)));

@@ -1,4 +1,4 @@
-import { Stack, Alert, Box, Button, Title, Text, Paper, Group, NumberInput, Select } from "@mantine/core";
+import { Stack, Alert, Box, Button, Title, Text } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useMemo } from "react";
 import { ScreenerNav } from "./ScreenerNav";
@@ -8,7 +8,6 @@ import { ScreenerEmpty } from "./ScreenerEmpty";
 import { ScreenerLoading } from "./ScreenerLoading";
 import { getColumnsForScreener } from "./columns";
 import type { Stock } from "../../types";
-import type { ProfileFilterDef } from "./types";
 
 interface ScreenerPageProps {
   screenerOptions: Array<{ id: string; label: string; description?: string }>;
@@ -25,18 +24,6 @@ interface ScreenerPageProps {
   onAutoRefreshChange: (value: number) => void;
   onProviderChange: (value: string) => void;
   onModeChange: (value: string) => void;
-
-  filters: {
-    minScore: number;
-    maxPrice: number;
-    minReturn: number;
-    sector: string;
-    [key: string]: any;
-  };
-  sectors: string[];
-  profileFilters?: ProfileFilterDef[];
-  onFilterChange: (key: string, value: any) => void;
-  onResetFilters: () => void;
 
   approachingStocks: Stock[];
   touchedStocks: Stock[];
@@ -78,11 +65,6 @@ export function ScreenerPage({
   onAutoRefreshChange,
   onProviderChange,
   onModeChange,
-  filters,
-  sectors,
-  profileFilters,
-  onFilterChange,
-  onResetFilters,
   approachingStocks,
   touchedStocks,
   onSymbolClick,
@@ -91,7 +73,6 @@ export function ScreenerPage({
 }: ScreenerPageProps) {
   const [sortColumn, setSortColumn] = useState<string | null>("score");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const sectorOptions = (sectors ?? []).map((s) => ({ value: s, label: s }));
 
   const sortedApproaching = useMemo(
     () => sortStocks(approachingStocks ?? [], sortColumn, sortDirection),
@@ -115,45 +96,6 @@ export function ScreenerPage({
   const columns = getColumnsForScreener(activeScreener);
   const emptySet = new Set<string>();
   const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
-
-  const renderProfileFilter = (filter: ProfileFilterDef) => {
-    if (filter.type === "number") {
-      return (
-        <NumberInput
-          key={filter.key}
-          label={filter.label}
-          value={filters[filter.key] ?? ""}
-          onChange={(value) => onFilterChange(filter.key, value)}
-          min={filter.min}
-          max={filter.max}
-          step={filter.step}
-          style={{ minWidth: 120 }}
-          data-testid={`filter-${filter.key}`}
-          id={`filter-${filter.key}`}
-          className={`filter-input filter-${filter.key}`}
-        />
-      );
-    }
-
-    if (filter.type === "select" && filter.options) {
-      return (
-        <Select
-          key={filter.key}
-          label={filter.label}
-          value={filters[filter.key] ?? ""}
-          onChange={(value) => onFilterChange(filter.key, value)}
-          data={filter.options}
-          clearable
-          style={{ minWidth: 140 }}
-          data-testid={`filter-${filter.key}`}
-          id={`filter-${filter.key}`}
-          className={`filter-select filter-${filter.key}`}
-        />
-      );
-    }
-
-    return null;
-  };
 
   const renderContent = () => {
     if (isLoading) {
@@ -279,84 +221,6 @@ export function ScreenerPage({
             onModeChange={onModeChange}
           />
 
-          <Paper
-            withBorder
-            p="md"
-            mb="md"
-            id="filter-panel"
-            className="screener-filters"
-            data-testid="screener-filters"
-          >
-            <Group
-              gap="md"
-              wrap="wrap"
-              align="flex-end"
-              className="filter-controls"
-              data-testid="filter-controls"
-            >
-              <NumberInput
-                label="Min Score"
-                value={filters.minScore}
-                onChange={(value) => onFilterChange("minScore", value)}
-                min={0}
-                max={100}
-                step={1}
-                style={{ minWidth: 100 }}
-                data-testid="min-score-input"
-                id="min-score-filter"
-                className="filter-input min-score-filter"
-              />
-
-              <NumberInput
-                label="Max Price"
-                value={filters.maxPrice}
-                onChange={(value) => onFilterChange("maxPrice", value)}
-                min={0}
-                step={1}
-                style={{ minWidth: 100 }}
-                data-testid="max-price-input"
-                id="max-price-filter"
-                className="filter-input max-price-filter"
-              />
-
-              <NumberInput
-                label="Min Return %"
-                value={filters.minReturn}
-                onChange={(value) => onFilterChange("minReturn", value)}
-                step={0.5}
-                decimalScale={2}
-                style={{ minWidth: 120 }}
-                data-testid="min-return-input"
-                id="min-return-filter"
-                className="filter-input min-return-filter"
-              />
-
-              <Select
-                label="Sector"
-                value={filters.sector}
-                onChange={(value) => onFilterChange("sector", value)}
-                data={sectorOptions}
-                clearable
-                placeholder="All sectors"
-                style={{ minWidth: 160 }}
-                data-testid="sector-select"
-                id="sector-filter"
-                className="filter-select sector-filter"
-              />
-
-              {(profileFilters ?? []).map(renderProfileFilter)}
-
-              <Button
-                variant="subtle"
-                onClick={onResetFilters}
-                data-testid="reset-filters-btn"
-                id="reset-filters"
-                className="reset-filters-btn"
-              >
-                Reset
-              </Button>
-            </Group>
-          </Paper>
         </Stack>
       </Box>
 

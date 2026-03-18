@@ -105,52 +105,6 @@ test.describe("Screener - Screener Navigation", () => {
   });
 });
 
-test.describe("Screener - Profile Filters", () => {
-  test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-  });
-
-  test("should display profile filters for buyer interest screener", async ({ page }) => {
-    await page.goto("/?screener=buyer_interest_enhanced");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
-
-    const profileFilters = page.locator('[data-testid="screener-filters"]');
-    if ((await profileFilters.count()) > 0) {
-      await expect(profileFilters).toBeVisible();
-    }
-  });
-
-  test("should filter by direction in buyer interest", async ({ page }) => {
-    await page.goto("/?screener=buyer_interest_enhanced");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
-
-    const directionSelect = page.locator('[data-testid="mode-select"]');
-    if ((await directionSelect.count()) > 0) {
-      await directionSelect.click();
-      await page.waitForTimeout(300);
-      await page.keyboard.press("ArrowDown");
-      await page.keyboard.press("Enter");
-      await page.waitForTimeout(500);
-
-      await expect(page.locator(".mantine-Table-tr").first()).toBeVisible();
-    }
-  });
-
-  test("should filter by minimum score", async ({ page }) => {
-    await page.goto("/?screener=buyer_interest_enhanced");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
-
-    const minScoreInput = page.locator('[data-testid="min-score-input"]');
-    if ((await minScoreInput.count()) > 0) {
-      await minScoreInput.fill("80");
-      await page.waitForTimeout(500);
-
-      await expect(page.locator(".mantine-Table-tr").first()).toBeVisible();
-    }
-  });
-});
-
 test.describe.configure({ mode: "serial" });
 test.describe("Screener - Auto Refresh", () => {
   test.beforeEach(async ({ page }) => {

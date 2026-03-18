@@ -1778,7 +1778,7 @@ async def news_poller_task():
 
 @app.get("/api/news")
 async def get_news(
-    source: str = Query(default='moneycontrol', description="News source identifier"),
+    source: str = Query(default=None, description="News source identifier (omit for all sources)"),
     limit: int = Query(default=25, ge=1, le=100, description="Max number of items")
 ):
     """
@@ -1792,7 +1792,7 @@ async def get_news(
         news = fetch_news(source=source, limit=limit)
         return {
             'items': news,
-            'source': source,
+            'source': source or 'all',
             'total': len(news),
             'fetchedAt': datetime.now().isoformat()
         }

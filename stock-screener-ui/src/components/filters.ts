@@ -2,18 +2,7 @@
  * Filter and sort components
  */
 
-import type { Stock } from "../types";
 import * as state from "../state";
-
-export function applyFilters(stocks: Stock[]): Stock[] {
-  return stocks.filter(
-    (s) =>
-      s.score >= state.filters.minScore &&
-      s.tv_price <= state.filters.maxPrice &&
-      s.recent_return_5d >= state.filters.minReturn &&
-      (state.filters.sector === "" || s.sector === state.filters.sector),
-  );
-}
 
 export function sortStocks(stocks: Stock[]): Stock[] {
   if (!state.sortColumn) return stocks;
@@ -152,8 +141,4 @@ export function renderSortableHeader(
 ): string {
   const tooltipAttr = tooltip ? ` title="${tooltip}"` : "";
   return `<th class="${className} sortable" data-column="${column}"${tooltipAttr} onclick="window.handleSort('${column}')">${label} ${renderSortIndicator(column)}</th>`;
-}
-
-export function getUniqueSectors(stocks: Stock[]): string[] {
-  return Array.from(new Set(stocks.map((s) => s.sector))).sort();
 }

@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   CloseButton,
+  Collapse,
   Group,
   Indicator,
   Overlay,
@@ -27,10 +28,13 @@ import {
   IconExternalLink,
   IconNews,
   IconChartLine,
+  IconChevronDown,
+  IconChevronRight,
 } from "@tabler/icons-react";
 import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-types";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
 import { useNewsWebSocket } from "../../state/newsWebSocket";
+import { useNewsSourceGroups, getSourceOptions } from "./useNewsSourceGroups";
 
 const LS_READ_IDS = "news_read_ids";
 const LS_LAST_SEEN_ID = "news_last_seen_id";
@@ -99,7 +103,7 @@ export default function NewsPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [localNewsItems, setLocalNewsItems] = useState<NewsItem[]>([]);
   const [sources, setSources] = useState<NewsSource[]>([]);
-  const [selectedSource, setSelectedSource] = useState("moneycontrol");
+  const [selectedSource, setSelectedSource] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,6 +134,11 @@ export default function NewsPanel() {
   // Merge WebSocket news items with local items, preferring WS items
   const newsItems = wsNewsItems.length > 0 ? wsNewsItems : localNewsItems;
 
+  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } = useNewsSourceGroups({
+    newsItems,
+    autoExpandCount: 2,
+  });
+
   const unreadCount = newsItems.filter((item) => {
     if (readIds.has(item.id)) return false;
     return true;
@@ -156,7 +165,8 @@ export default function NewsPanel() {
       setError(null);
 
       try {
-        const items = await fetchNews(selectedSource, 30);
+        const sourceParam = selectedSource === "all" ? undefined : selectedSource;
+        const items = await fetchNews(sourceParam, 50);
         // If we have WS items, add the fetched items to the context
         if (wsNewsItems.length > 0) {
           addNewsItems(items);
@@ -259,10 +269,7 @@ export default function NewsPanel() {
     saveReadIds(newReadIds);
   };
 
-  const sourceData =
-    sources.length > 0
-      ? sources.map((s) => ({ value: s.id, label: s.name }))
-      : [{ value: "moneycontrol", label: "Moneycontrol" }];
+  const sourceData = getSourceOptions(sources);
 
   const currentRefreshLabel =
     AUTO_REFRESH_INTERVALS.find((i) => i.value === autoRefreshMs)?.label || "Off";
@@ -508,52 +515,89 @@ export default function NewsPanel() {
                     No news available
                   </Text>
                 ) : (
-                  <Stack gap={0} className="news-items-list">
-                    {newsItems.map((item) => {
-                      const isUnread = !readIds.has(item.id);
+                  <Stack gap="xs" className="news-source-groups">
+                    {sourceNames.map((source) => {
+                      const items = groupedNewsItems[source];
+                      const isExpanded = expandedSources.has(source);
+                      const showSource = selectedSource === "all" || selectedSource === source;
+                      
+                      if (!showSource) return null;
+                      
                       return (
-                        <Card
-                          key={item.id}
-                          padding="sm"
-                          className={`news-item-card ${isUnread ? "unread" : ""}`}
-                          style={{
-                            cursor: "pointer",
-                            borderLeft: isUnread
-                              ? "3px solid var(--mantine-color-blue-6)"
-                              : undefined,
-                          }}
-                          onClick={() => handleArticleClick(item)}
-                          data-testid="news-item"
-                        >
-                          <Group gap="xs" wrap="nowrap">
-                            {isUnread && (
-                              <Box
-                                w={6}
-                                h={6}
-                                bg="blue"
-                                style={{ borderRadius: "50%", flexShrink: 0 }}
-                              />
+                        <Box key={source} className="news-source-group">
+                          <Group
+                            gap="xs"
+                            p="xs"
+                            style={{
+                              cursor: "pointer",
+                              borderRadius: "var(--mantine-radius-sm)",
+                              backgroundColor: "var(--mantine-color-default-hover)",
+                            }}
+                            onClick={() => toggleSourceExpanded(source)}
+                            data-testid={`news-source-group-${source}`}
+                          >
+                            {isExpanded ? (
+                              <IconChevronDown size={14} />
+                            ) : (
+                              <IconChevronRight size={14} />
                             )}
-                            <Stack gap={4} flex={1}>
-                              <Text
-                                size="sm"
-                                fw={isUnread ? 600 : 400}
-                                lineClamp={2}
-                                className="news-item-headline"
-                              >
-                                {item.headline}
-                              </Text>
-                              {item.description && (
-                                <Text size="sm" c="dimmed" lineClamp={2} className="news-item-desc">
-                                  {truncateText(item.description, 120)}
-                                </Text>
-                              )}
-                              <Text size="sm" c="dimmed" className="news-item-meta">
-                                {item.source}
-                              </Text>
-                            </Stack>
+                            <Text size="sm" fw={600} style={{ textTransform: "uppercase" }}>
+                              {source}
+                            </Text>
+                            <Badge size="xs" variant="light" color="gray">
+                              {items.length}
+                            </Badge>
                           </Group>
-                        </Card>
+                          
+                          <Collapse in={isExpanded}>
+                            <Stack gap={4} mt="xs">
+                              {items.map((item) => {
+                                const isUnread = !readIds.has(item.id);
+                                return (
+                                  <Card
+                                    key={item.id}
+                                    padding="xs"
+                                    className={`news-item-card ${isUnread ? "unread" : ""}`}
+                                    style={{
+                                      cursor: "pointer",
+                                      borderLeft: isUnread
+                                        ? "3px solid var(--mantine-color-blue-6)"
+                                        : undefined,
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleArticleClick(item);
+                                    }}
+                                    data-testid="news-item"
+                                  >
+                                    <Group gap="xs" wrap="nowrap">
+                                      {isUnread && (
+                                        <Box
+                                          w={5}
+                                          h={5}
+                                          bg="blue"
+                                          style={{ borderRadius: "50%", flexShrink: 0 }}
+                                        />
+                                      )}
+                                      <Text
+                                        size="xs"
+                                        fw={isUnread ? 500 : 400}
+                                        lineClamp={1}
+                                        className="news-item-headline"
+                                        style={{ flex: 1 }}
+                                      >
+                                        {item.headline}
+                                      </Text>
+                                      <Text size="xs" c="dimmed" className="news-item-meta">
+                                        {formatTimeAgo(item.publishedAt)}
+                                      </Text>
+                                    </Group>
+                                  </Card>
+                                );
+                              })}
+                            </Stack>
+                          </Collapse>
+                        </Box>
                       );
                     })}
                   </Stack>

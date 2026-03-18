@@ -365,7 +365,12 @@ NEWS_SOURCES = [
     for s in _aggregator.scrapers.values()
 ]
 
-def fetch_news(source: str = 'moneycontrol', limit: int = 25) -> List[Dict]:
+def fetch_news(source: str = None, limit: int = 25) -> List[Dict]:
+    if source is None or source == 'all':
+        # Fetch from all sources - divide limit per source
+        num_sources = len(_aggregator.scrapers) if _aggregator.scrapers else 1
+        limit_per_source = max(limit // num_sources, 5)  # At least 5 per source
+        return _aggregator.fetch_all(limit_per_source)
     return _aggregator.fetch_from_source(source, limit)
 
 def fetch_article_content(url: str) -> Dict:

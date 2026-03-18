@@ -66,14 +66,6 @@ export interface ScreenerData {
   demo_mode?: boolean;
 }
 
-export interface Filters {
-  minScore: number;
-  maxPrice: number;
-  minReturn: number;
-  sector: string;
-  [key: string]: any;
-}
-
 export interface ScreenerOption {
   id: string;
   label: string;
@@ -126,12 +118,6 @@ export interface ScreenerPageProps {
   onAutoRefreshChange: (value: number) => void;
   onProviderChange: (value: string) => void;
   onModeChange: (value: string) => void;
-
-  filters: Filters;
-  sectors: string[];
-  profileFilters?: ProfileFilterDef[];
-  onFilterChange: (key: string, value: any) => void;
-  onResetFilters: () => void;
 
   stocks: Stock[];
   touchedSymbols: Set<string>;

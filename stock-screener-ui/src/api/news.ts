@@ -20,11 +20,15 @@ import { API_BASE, WS_BASE } from "./config";
  * Fetch latest news from a source
  */
 export async function fetchNews(
-  source: string = "moneycontrol",
+  source: string | undefined = undefined,
   limit: number = 25,
 ): Promise<NewsItem[]> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/news?source=${source}&limit=${limit}`);
+    let url = `${API_BASE}/api/news?limit=${limit}`;
+    if (source && source !== "all") {
+      url += `&source=${source}`;
+    }
+    const response = await fetchWithAuth(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch news: ${response.statusText}`);
     }

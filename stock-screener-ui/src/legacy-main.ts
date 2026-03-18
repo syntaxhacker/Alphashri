@@ -36,7 +36,6 @@ import {
 
 // Components
 import { handleSort } from "./components/filters";
-import { getActiveProfileMeta, initProfileFilters } from "./components/profile";
 
 let lastRenderedView: AppView | null = null;
 
@@ -102,32 +101,7 @@ subscribeBots(render);
   fetchData(state.data?.provider || "upstox", m, state.activeScreener);
 (window as any).changeScreener = (s: string) => {
   state.setActiveScreener(s);
-  initProfileFilters(s);
   fetchData(state.data?.provider || "upstox", state.data?.mode || "intraday", s);
-};
-(window as any).updateFilter = (key: string, value: string) => {
-  if (key === "sector") {
-    state.updateFilter(key as keyof typeof state.filters, value);
-  } else {
-    state.updateFilter(key as keyof typeof state.filters, parseFloat(value));
-  }
-  render();
-};
-(window as any).resetFilters = () => {
-  state.resetFilters();
-  initProfileFilters(state.activeScreener);
-  render();
-};
-(window as any).updateProfileFilter = (key: string, value: string) => {
-  const meta = getActiveProfileMeta();
-  const def = (meta.filters || []).find((f) => f.key === key);
-  state.updateProfileFilterValue(key, def?.type === "number" ? parseFloat(value) : value);
-  fetchData(
-    state.data?.provider || "upstox",
-    state.data?.mode || "intraday",
-    state.activeScreener,
-    "filter",
-  );
 };
 (window as any).handleSort = (column: string) => {
   handleSort(column);
@@ -203,7 +177,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 // Initial load
-loadScreeners(initProfileFilters).then(() => {
+loadScreeners().then(() => {
   // Initialize handlers
   initBotsHandlers();
   initPreviewChartHandlers();

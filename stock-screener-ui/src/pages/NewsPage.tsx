@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Badge,
   Card,
+  Collapse,
   Group,
   List,
   Select,
@@ -20,6 +21,7 @@ import {
   RingProgress,
   Alert,
   ThemeIcon,
+  Box,
 } from "@mantine/core";
 import {
   IconRefresh,
@@ -32,9 +34,12 @@ import {
   IconPoint,
   IconInfoCircle,
   IconTarget,
+  IconChevronDown,
+  IconChevronRight,
 } from "@tabler/icons-react";
 import type { NewsItem, NewsSource, NewsSymbol, TradeIdea } from "../components/news/news-types";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../api/news";
+import { useNewsSourceGroups, getSourceOptions } from "../components/news/useNewsSourceGroups";
 
 const SOURCE_COLORS: Record<string, string> = {
   moneycontrol: "blue",
@@ -90,7 +95,7 @@ export default function NewsPage() {
 
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [sources, setSources] = useState<NewsSource[]>([]);
-  const [selectedSource, setSelectedSource] = useState<string>("moneycontrol");
+  const [selectedSource, setSelectedSource] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,10 +103,7 @@ export default function NewsPage() {
   const [articleContent, setArticleContent] = useState<ArticleContent | null>(null);
   const [articleLoading, setArticleLoading] = useState(false);
 
-  const sourceData =
-    sources.length > 0
-      ? sources.map((s) => ({ value: s.id, label: s.name }))
-      : [{ value: "moneycontrol", label: "Moneycontrol" }];
+  const sourceData = getSourceOptions(sources);
 
   useEffect(() => {
     fetchNewsSources().then(setSources);
@@ -111,7 +113,8 @@ export default function NewsPage() {
     setLoading(true);
     setError(null);
     try {
-      const items = await fetchNews(selectedSource, 50);
+      const sourceParam = selectedSource === "all" ? undefined : selectedSource;
+      const items = await fetchNews(sourceParam, 50);
       setNewsItems(items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load news");
@@ -123,6 +126,11 @@ export default function NewsPage() {
   useEffect(() => {
     loadNews();
   }, [selectedSource]);
+
+  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } = useNewsSourceGroups({
+    newsItems,
+    autoExpandCount: 2,
+  });
 
   const handleArticleClick = async (item: NewsItem) => {
     setSelectedArticle(item);
@@ -406,38 +414,66 @@ export default function NewsPage() {
               No news available
             </Text>
           ) : (
-            <Stack gap="sm">
-              {newsItems.map((item) => (
-                <Card
-                  key={item.id}
-                  padding="md"
-                  withBorder
-                  style={{ cursor: "pointer" }}
-                  onClick={() => handleArticleClick(item)}
-                  data-testid="news-list-item"
-                >
-                  <Stack gap="xs">
-                    <Group justify="space-between" wrap="nowrap">
-                      <Text size="sm" fw={500} lineClamp={2} style={{ flex: 1 }}>
-                        {item.headline}
+            <Stack gap="sm" className="news-source-groups">
+              {sourceNames.map((source) => {
+                const items = groupedNewsItems[source];
+                const isExpanded = expandedSources.has(source);
+                const showSource = selectedSource === "all" || selectedSource === source;
+
+                if (!showSource) return null;
+
+                return (
+                  <Box key={source} className="news-source-group">
+                    <Group
+                      gap="xs"
+                      p="sm"
+                      style={{
+                        cursor: "pointer",
+                        borderRadius: "var(--mantine-radius-sm)",
+                        backgroundColor: "var(--mantine-color-default-hover)",
+                      }}
+                      onClick={() => toggleSourceExpanded(source)}
+                      data-testid={`news-source-group-${source}`}
+                    >
+                      {isExpanded ? (
+                        <IconChevronDown size={16} />
+                      ) : (
+                        <IconChevronRight size={16} />
+                      )}
+                      <Text size="sm" fw={600} style={{ textTransform: "uppercase" }}>
+                        {source}
                       </Text>
-                      <Badge color={SOURCE_COLORS[item.source] || "gray"} variant="light" size="sm">
-                        {item.source}
+                      <Badge size="sm" variant="light" color="gray">
+                        {items.length}
                       </Badge>
                     </Group>
 
-                    {item.description && (
-                      <Text size="sm" c="dimmed" lineClamp={2}>
-                        {item.description}
-                      </Text>
-                    )}
-
-                    <Text size="sm" c="dimmed">
-                      {formatTimeAgo(item.publishedAt)}
-                    </Text>
-                  </Stack>
-                </Card>
-              ))}
+                    <Collapse in={isExpanded}>
+                      <Stack gap="xs" mt="sm">
+                        {items.map((item) => (
+                          <Card
+                            key={item.id}
+                            padding="sm"
+                            withBorder
+                            style={{ cursor: "pointer" }}
+                            onClick={() => handleArticleClick(item)}
+                            data-testid="news-list-item"
+                          >
+                            <Group justify="space-between" wrap="nowrap">
+                              <Text size="sm" fw={500} lineClamp={1} style={{ flex: 1 }}>
+                                {item.headline}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                {formatTimeAgo(item.publishedAt)}
+                              </Text>
+                            </Group>
+                          </Card>
+                        ))}
+                      </Stack>
+                    </Collapse>
+                  </Box>
+                );
+              })}
             </Stack>
           )}
         </Stack>

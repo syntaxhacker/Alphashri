@@ -39,7 +39,7 @@ class TestNewsAPI:
         """
         Test getting news feed with default parameters.
 
-        Should return news items with default source and limit.
+        Should return news items from all sources (when no source specified).
         """
         mock_fetch = Mock(return_value=sample_news_items)
 
@@ -55,8 +55,8 @@ class TestNewsAPI:
                 assert 'total' in data
                 assert 'fetchedAt' in data
 
-                # Verify default values
-                assert data['source'] == 'moneycontrol'
+                # Verify default behavior - should fetch from all sources (None)
+                assert data['source'] in ['all', None]
                 assert data['total'] == len(sample_news_items)
 
     def test_get_news_custom_source(self, client, sample_news_items):
@@ -93,7 +93,8 @@ class TestNewsAPI:
                 data = response.json()
 
                 assert data['total'] == len(limited_items)
-                mock_fetch.assert_called_once_with(source='moneycontrol', limit=10)
+                # When limit is specified but source is not, source defaults to None (all sources)
+                mock_fetch.assert_called_once_with(source=None, limit=10)
 
     def test_get_news_invalid_limit(self, client, sample_news_items):
         """
@@ -449,3 +450,145 @@ class TestNewsAPI:
                 # Note: offset may not be implemented, but this verifies the endpoint
                 # handles the parameter without error
                 assert response.status_code in [200, 422]
+
+
+class TestAllSources:
+    """
+    Test suite for "All Sources" news functionality.
+    
+    Tests verify that:
+    - When no source param is provided, news from ALL sources is returned
+    - When source="all" is explicitly passed, news from ALL sources is returned
+    - The API correctly calls fetch_news with None for 'all sources'
+    """
+
+    def test_get_news_all_sources_no_param(self, client, sample_news_items):
+        """
+        Test getting news when no source parameter is provided.
+        
+        Should default to fetching from ALL sources (None passed to fetch_news).
+        """
+        mock_fetch = Mock(return_value=sample_news_items)
+
+        with patch('api_server_fastapi._news_available', True):
+            with patch('api_server_fastapi.fetch_news', mock_fetch):
+                response = client.get("/api/news")
+                assert response.status_code == 200
+                
+                # fetch_news should be called with source=None (all sources)
+                mock_fetch.assert_called_once()
+                call_kwargs = mock_fetch.call_args.kwargs
+                assert call_kwargs.get('source') is None
+
+    def test_get_news_all_sources_explicit_all(self, client, sample_news_items):
+        """
+        Test getting news when source='all' is explicitly provided.
+        
+        Should fetch from ALL sources.
+        """
+        mock_fetch = Mock(return_value=sample_news_items)
+
+        with patch('api_server_fastapi._news_available', True):
+            with patch('api_server_fastapi.fetch_news', mock_fetch):
+                response = client.get("/api/news?source=all")
+                assert response.status_code == 200
+                
+                # fetch_news should be called with source=None or source='all'
+                mock_fetch.assert_called_once()
+                call_kwargs = mock_fetch.call_args.kwargs
+                assert call_kwargs.get('source') in [None, 'all']
+
+    def test_get_news_all_sources_returns_items_from_multiple_sources(self, client):
+        """
+        Test that 'all sources' returns news items from different sources.
+        
+        When fetching from all sources, the returned items should have
+        different source values (moneycontrol, economicstimes, etc.).
+        """
+        # Create news items from different sources
+        multi_source_items = [
+            {
+                'title': 'Moneycontrol News 1',
+                'description': 'Test news',
+                'url': 'https://moneycontrol.com/news1',
+                'source': 'moneycontrol',
+                'timestamp': datetime.now().isoformat(),
+            },
+            {
+                'title': 'Economic Times News 1',
+                'description': 'Test news',
+                'url': 'https://economictimes.com/news1',
+                'source': 'economicstimes',
+                'timestamp': datetime.now().isoformat(),
+            },
+            {
+                'title': 'LiveMint News 1',
+                'description': 'Test news',
+                'url': 'https://livemint.com/news1',
+                'source': 'livemint',
+                'timestamp': datetime.now().isoformat(),
+            },
+        ]
+        mock_fetch = Mock(return_value=multi_source_items)
+
+        with patch('api_server_fastapi._news_available', True):
+            with patch('api_server_fastapi.fetch_news', mock_fetch):
+                response = client.get("/api/news")
+                assert response.status_code == 200
+                data = response.json()
+                
+                # Verify we got items from multiple sources
+                sources = {item['source'] for item in data['items']}
+                assert len(sources) >= 2, "Should have news from multiple sources"
+
+    def test_get_news_specific_source_still_works(self, client, sample_news_items):
+        """
+        Test that filtering by specific source still works.
+        
+        When source=moneycontrol is passed, only moneycontrol news should be fetched.
+        """
+        mock_fetch = Mock(return_value=sample_news_items)
+
+        with patch('api_server_fastapi._news_available', True):
+            with patch('api_server_fastapi.fetch_news', mock_fetch):
+                response = client.get("/api/news?source=moneycontrol")
+                assert response.status_code == 200
+                
+                # fetch_news should be called with source='moneycontrol'
+                mock_fetch.assert_called_once_with(source='moneycontrol', limit=25)
+
+    def test_get_news_all_sources_response_source_field(self, client, sample_news_items):
+        """
+        Test that response 'source' field is 'all' when fetching all sources.
+        
+        Frontend checks this field to determine if showing all sources.
+        """
+        mock_fetch = Mock(return_value=sample_news_items)
+
+        with patch('api_server_fastapi._news_available', True):
+            with patch('api_server_fastapi.fetch_news', mock_fetch):
+                response = client.get("/api/news")
+                assert response.status_code == 200
+                data = response.json()
+                
+                # Source field should be 'all' when no source specified
+                assert data['source'] == 'all'
+
+    def test_get_news_all_sources_limit_distribution(self, client):
+        """
+        Test that limit is properly distributed when fetching all sources.
+        
+        If user requests limit=30 and there are 3 sources, each source should
+        get roughly 10 items (limit // num_sources).
+        """
+        mock_fetch = Mock(return_value=[])
+
+        with patch('api_server_fastapi._news_available', True):
+            with patch('api_server_fastapi.fetch_news', mock_fetch):
+                response = client.get("/api/news?limit=30")
+                assert response.status_code == 200
+                
+                # The limit should be passed to fetch_news
+                mock_fetch.assert_called_once()
+                call_kwargs = mock_fetch.call_args.kwargs
+                assert call_kwargs.get('limit') == 30

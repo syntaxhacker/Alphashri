@@ -68,13 +68,6 @@ export interface ScreenerData {
   demo_mode?: boolean;
 }
 
-export interface Filters {
-  minScore: number;
-  maxPrice: number;
-  minReturn: number;
-  sector: string;
-}
-
 export interface ScreenerOption {
   id: string;
   label: string;
