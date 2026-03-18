@@ -48,18 +48,20 @@ test.describe("Paper Trading Settings", () => {
   async function navigateToPaperTradingSettings(page: import("@playwright/test").Page) {
     await page.goto("/paper", { timeout: 30000 });
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
-    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
-    
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
+      timeout: 20000,
+    });
+
     // Wait for the tabs to be fully rendered
     await page.waitForTimeout(500);
-    
+
     const settingsTab = page.locator('[data-testid="tab-settings"]');
     await settingsTab.waitFor({ state: "visible", timeout: 10000 });
-    
+
     // Retry click in case of re-render
     await settingsTab.click({ timeout: 10000, trial: true }).catch(() => {});
     await settingsTab.click({ timeout: 10000 });
-    
+
     await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
   }
 

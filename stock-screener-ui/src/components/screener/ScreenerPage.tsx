@@ -220,7 +220,6 @@ export function ScreenerPage({
             onProviderChange={onProviderChange}
             onModeChange={onModeChange}
           />
-
         </Stack>
       </Box>
 

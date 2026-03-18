@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser, setupMultiStrategyBotMocks, setupPaperTradingMocks } from "../mocks/apiResponses";
+import {
+  setupApiMocks,
+  loginAsTestUser,
+  setupMultiStrategyBotMocks,
+  setupPaperTradingMocks,
+} from "../mocks/apiResponses";
 
 test.describe("Navigation - App Navigation", () => {
   test.beforeEach(async ({ page }) => {

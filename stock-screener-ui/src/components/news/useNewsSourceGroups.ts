@@ -70,6 +70,9 @@ export function getSourceOptions(
   sources: { id: string; name: string }[],
 ): { value: string; label: string }[] {
   return sources.length > 0
-    ? [{ value: "all", label: "All Sources" }, ...sources.map((s) => ({ value: s.id, label: s.name }))]
+    ? [
+        { value: "all", label: "All Sources" },
+        ...sources.map((s) => ({ value: s.id, label: s.name })),
+      ]
     : [{ value: "all", label: "All Sources" }];
 }

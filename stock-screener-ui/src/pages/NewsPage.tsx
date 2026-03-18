@@ -127,10 +127,11 @@ export default function NewsPage() {
     loadNews();
   }, [selectedSource]);
 
-  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } = useNewsSourceGroups({
-    newsItems,
-    autoExpandCount: 2,
-  });
+  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } =
+    useNewsSourceGroups({
+      newsItems,
+      autoExpandCount: 2,
+    });
 
   const handleArticleClick = async (item: NewsItem) => {
     setSelectedArticle(item);
@@ -435,11 +436,7 @@ export default function NewsPage() {
                       onClick={() => toggleSourceExpanded(source)}
                       data-testid={`news-source-group-${source}`}
                     >
-                      {isExpanded ? (
-                        <IconChevronDown size={16} />
-                      ) : (
-                        <IconChevronRight size={16} />
-                      )}
+                      {isExpanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
                       <Text size="sm" fw={600} style={{ textTransform: "uppercase" }}>
                         {source}
                       </Text>

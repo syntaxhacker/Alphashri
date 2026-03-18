@@ -254,8 +254,11 @@ async function mockBacktestApi(page: Page) {
 }
 
 async function setupBacktest(page: Page) {
-  await page.waitForSelector('[data-testid="symbol-multiselect"]', { state: "visible", timeout: 5000 });
-  
+  await page.waitForSelector('[data-testid="symbol-multiselect"]', {
+    state: "visible",
+    timeout: 5000,
+  });
+
   const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
   await symbolSelect.click();
   await page.waitForTimeout(500);

@@ -134,10 +134,11 @@ export default function NewsPanel() {
   // Merge WebSocket news items with local items, preferring WS items
   const newsItems = wsNewsItems.length > 0 ? wsNewsItems : localNewsItems;
 
-  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } = useNewsSourceGroups({
-    newsItems,
-    autoExpandCount: 2,
-  });
+  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } =
+    useNewsSourceGroups({
+      newsItems,
+      autoExpandCount: 2,
+    });
 
   const unreadCount = newsItems.filter((item) => {
     if (readIds.has(item.id)) return false;
@@ -520,9 +521,9 @@ export default function NewsPanel() {
                       const items = groupedNewsItems[source];
                       const isExpanded = expandedSources.has(source);
                       const showSource = selectedSource === "all" || selectedSource === source;
-                      
+
                       if (!showSource) return null;
-                      
+
                       return (
                         <Box key={source} className="news-source-group">
                           <Group
@@ -548,7 +549,7 @@ export default function NewsPanel() {
                               {items.length}
                             </Badge>
                           </Group>
-                          
+
                           <Collapse in={isExpanded}>
                             <Stack gap={4} mt="xs">
                               {items.map((item) => {
