@@ -9,11 +9,12 @@ import {
   Progress,
   Stack,
   ActionIcon,
+  useMantineColorScheme,
   useMantineTheme,
 } from "@mantine/core";
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import { IconTarget, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
-import { theme, fontWeights } from "../../../theme";
+import { fontWeights } from "../../../theme";
 import { getMoneyness } from "../../../utils/options";
 import type { OptionContract } from "../../../api/upstoxOptions";
 
@@ -38,74 +39,198 @@ function formatCompact(num: number): string {
   return num < 0 ? `-${result}` : result;
 }
 
-function getOIBgColor(oi: number, maxOI: number, type: "CE" | "PE"): string {
-  if (maxOI === 0 || oi === 0) return "transparent";
-  const ratio = oi / maxOI;
-  const intensity = Math.min(ratio * 1.5, 1);
-  return type === "CE"
-    ? `rgba(64, 192, 87, ${intensity * 0.2})`
-    : `rgba(250, 82, 82, ${intensity * 0.2})`;
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
-const getStyles = (theme: { fontSizes: { sm: string; md: string } }) => ({
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.replace("#", "");
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((ch) => ch + ch)
+          .join("")
+      : normalized;
+  const int = Number.parseInt(value, 16);
+  const r = (int >> 16) & 255;
+  const g = (int >> 8) & 255;
+  const b = int & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function mixColors(colorA: string, colorB: string, ratio: number): string {
+  const normalizedRatio = clamp(ratio, 0, 1);
+  const parse = (hex: string) => {
+    const normalized = hex.replace("#", "");
+    const value =
+      normalized.length === 3
+        ? normalized
+            .split("")
+            .map((ch) => ch + ch)
+            .join("")
+        : normalized;
+    const int = Number.parseInt(value, 16);
+    return {
+      r: (int >> 16) & 255,
+      g: (int >> 8) & 255,
+      b: int & 255,
+    };
+  };
+  const ca = parse(colorA);
+  const cb = parse(colorB);
+  const r = Math.round(ca.r + (cb.r - ca.r) * normalizedRatio);
+  const g = Math.round(ca.g + (cb.g - ca.g) * normalizedRatio);
+  const blue = Math.round(ca.b + (cb.b - ca.b) * normalizedRatio);
+  return `rgb(${r}, ${g}, ${blue})`;
+}
+
+type CellKind = "oi" | "change" | "volume" | "iv" | "ltp";
+
+function getSidePalette(theme: ReturnType<typeof useMantineTheme>, type: "CE" | "PE") {
+  return type === "CE"
+    ? {
+        main: theme.colors.green[6],
+        alt: theme.colors.teal[5],
+        glow: theme.colors.lime[4],
+        ink: theme.colors.green[8],
+      }
+    : {
+        main: theme.colors.red[6],
+        alt: theme.colors.orange[5],
+        glow: theme.colors.pink[4],
+        ink: theme.colors.red[8],
+      };
+}
+
+function getCellPalette(
+  theme: ReturnType<typeof useMantineTheme>,
+  kind: CellKind,
+  type: "CE" | "PE",
+  intensity: number,
+  isHovered: boolean,
+  isATM: boolean,
+  isITM: boolean,
+  isPositive?: boolean,
+) {
+  const side = getSidePalette(theme, type);
+  const boost = isHovered ? 1.18 : 1;
+  const atmBoost = isATM ? 1.12 : 1;
+  const itmBoost = isITM ? 1.08 : 1;
+  const baseIntensity = clamp(intensity * boost * atmBoost * itmBoost, 0, 1);
+  const secondaryScale = clamp(baseIntensity * 0.7, 0, 1);
+
+  let base = side.main;
+  let alt = side.alt;
+  let glow = side.glow;
+  let text = side.ink;
+
+  if (kind === "change") {
+    base = isPositive ? theme.colors.green[6] : theme.colors.red[6];
+    alt = isPositive ? theme.colors.teal[5] : theme.colors.orange[5];
+    glow = isPositive ? theme.colors.lime[4] : theme.colors.pink[4];
+    text = isPositive ? theme.colors.green[8] : theme.colors.red[8];
+  } else if (kind === "volume") {
+    base = theme.colors.blue[6];
+    alt = theme.colors.cyan[5];
+    glow = theme.colors.indigo[4];
+    text = theme.colors.blue[8];
+  } else if (kind === "iv") {
+    base = theme.colors.violet[6];
+    alt = theme.colors.grape[5];
+    glow = theme.colors.indigo[4];
+    text = theme.colors.violet[8];
+  } else if (kind === "ltp") {
+    base = type === "CE" ? theme.colors.yellow[6] : theme.colors.orange[6];
+    alt = type === "CE" ? theme.colors.amber[5] : theme.colors.yellow[5];
+    glow = theme.colors.orange[4];
+    text = mixColors(theme.colors.gray[9], base, 0.55);
+  }
+
+  const baseAlpha = 0.08 + baseIntensity * 0.26;
+  const altAlpha = 0.04 + secondaryScale * 0.18;
+  const borderAlpha = 0.18 + baseIntensity * 0.24;
+  const shadowAlpha = 0.08 + baseIntensity * 0.16;
+
+  return {
+    background: `linear-gradient(135deg, ${hexToRgba(base, baseAlpha)} 0%, ${hexToRgba(alt, altAlpha)} 100%)`,
+    border: hexToRgba(glow, borderAlpha),
+    shadow: `inset 0 1px 0 ${hexToRgba(theme.white, 0.06)}, 0 0 0 1px ${hexToRgba(glow, shadowAlpha)}`,
+    text,
+    accent: glow,
+  };
+}
+
+const getStyles = (theme: ReturnType<typeof useMantineTheme>, isDark: boolean) => ({
   container: {
     display: "flex",
     flexDirection: "column" as const,
-    height: "calc(100vh - 320px)",
+    height: "calc(100vh - 300px)",
     minHeight: 400,
     overflow: "hidden",
-    border: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
-    borderRadius: "var(--mantine-radius-md)",
-    background: "light-dark(var(--mantine-color-white), var(--mantine-color-dark-7))",
+    border: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.8)}`,
+    borderRadius: "var(--mantine-radius-lg)",
+    background:
+      "linear-gradient(180deg, light-dark(rgba(255,255,255,0.96), rgba(15,23,42,0.94)) 0%, light-dark(rgba(248,250,252,0.88), rgba(11,15,20,0.9)) 100%)",
+    boxShadow: "0 18px 50px rgba(15, 23, 42, 0.08)",
   },
   header: {
     display: "grid",
     gridTemplateColumns: "1fr 80px 1fr",
-    background: "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-8))",
-    borderBottom: "2px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
+    background:
+      "linear-gradient(135deg, light-dark(rgba(240,253,250,0.96), rgba(12,22,20,0.96)) 0%, light-dark(rgba(255,255,255,0.96), rgba(17,24,39,0.95)) 50%, light-dark(rgba(255,240,245,0.96), rgba(24,13,18,0.96)) 100%)",
+    borderBottom: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.75)}`,
     position: "sticky" as const,
     top: 0,
     zIndex: 10,
   },
   headerCell: {
-    padding: "10px 4px",
+    padding: "10px 8px",
     textAlign: "center" as const,
     fontWeight: fontWeights.bold,
     fontSize: theme.fontSizes.md,
-    letterSpacing: "0.5px",
-    color: "light-dark(var(--mantine-color-black), var(--mantine-color-dark-0))",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase" as const,
+    color: "light-dark(var(--mantine-color-gray-8), var(--mantine-color-dark-0))",
   },
   subHeader: {
     display: "grid",
     gridTemplateColumns: "repeat(5, 1fr) 80px repeat(5, 1fr)",
-    background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))",
-    borderBottom: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
+    background:
+      "linear-gradient(90deg, light-dark(rgba(236,253,245,0.92), rgba(12,18,16,0.92)) 0%, light-dark(rgba(248,250,252,0.95), rgba(15,23,42,0.88)) 50%, light-dark(rgba(254,242,242,0.92), rgba(24,12,16,0.92)) 100%)",
+    borderBottom: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.7)}`,
     position: "sticky" as const,
     top: 40,
     zIndex: 9,
   },
   subHeaderCell: {
-    padding: "4px 2px",
+    padding: "5px 2px",
     textAlign: "center" as const,
-    fontSize: theme.fontSizes.sm,
+    fontSize: "11px",
     color: "var(--mantine-color-dimmed)",
     fontWeight: fontWeights.semibold,
     textTransform: "uppercase" as const,
+    letterSpacing: "0.04em",
   },
   row: {
     display: "grid",
     gridTemplateColumns: "repeat(5, 1fr) 80px repeat(5, 1fr)",
-    borderBottom: "1px solid light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5))",
-    transition: "background 0.15s",
+    borderBottom: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 5 : 2], 0.65)}`,
+    transition: "background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease",
+    position: "relative" as const,
+    background:
+      "linear-gradient(90deg, transparent 0%, light-dark(rgba(255,255,255,0.12), rgba(255,255,255,0.03)) 50%, transparent 100%)",
   },
   cell: {
-    padding: "8px 4px",
+    padding: "6px 4px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: theme.fontSizes.sm,
     cursor: "pointer",
-    minHeight: 40,
+    minHeight: 42,
+    position: "relative" as const,
+    overflow: "hidden",
   },
   strikeCell: {
     padding: "4px 8px",
@@ -113,19 +238,20 @@ const getStyles = (theme: { fontSizes: { sm: string; md: string } }) => ({
     flexDirection: "column" as const,
     alignItems: "center",
     justifyContent: "center",
-    background: "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-8))",
-    borderLeft: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
-    borderRight: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
+    background:
+      "linear-gradient(180deg, light-dark(rgba(255,255,255,0.96), rgba(15,23,42,0.92)) 0%, light-dark(rgba(245,247,250,0.95), rgba(11,15,20,0.95)) 100%)",
+    borderLeft: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.8)}`,
+    borderRight: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.8)}`,
     position: "sticky" as const,
     left: "calc(50% - 40px)",
     zIndex: 2,
-  },
-  itmShade: {
-    background: "light-dark(rgba(255, 249, 219, 0.4), rgba(255, 224, 102, 0.05))",
+    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02)",
   },
   atmHighlight: {
-    background: "light-dark(var(--mantine-color-yellow-1), var(--mantine-color-yellow-9))",
-    color: "light-dark(var(--mantine-color-yellow-9), var(--mantine-color-white))",
+    background:
+      "linear-gradient(180deg, light-dark(rgba(254,240,138,0.96), rgba(133,77,14,0.52)) 0%, light-dark(rgba(253,224,71,0.9), rgba(120,53,15,0.42)) 100%)",
+    color: "light-dark(var(--mantine-color-yellow-9), var(--mantine-color-yellow-0))",
+    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.18)",
   },
 });
 
@@ -134,17 +260,22 @@ function OptionColumn({
   type,
   spotPrice,
   maxOI,
+  maxVolume,
   onRowClick,
   theme,
+  isHovered,
 }: {
   contract: OptionContract | null;
   type: "CE" | "PE";
   spotPrice: number | null;
   maxOI: number;
+  maxVolume: number;
   onRowClick: (c: OptionContract) => void;
-  theme: { fontSizes: { sm: string; md: string } };
+  theme: ReturnType<typeof useMantineTheme>;
+  isHovered: boolean;
 }) {
-  const styles = getStyles(theme);
+  const { colorScheme } = useMantineColorScheme();
+  const styles = getStyles(theme, colorScheme === "dark");
   if (!contract) {
     return (
       <Box style={{ display: "contents" }}>
@@ -162,6 +293,8 @@ function OptionColumn({
   const { market_data: m, option_greeks: g, strike_price: strike } = contract;
   const moneyness = spotPrice ? getMoneyness(strike, spotPrice, type) : "OTM";
   const isITM = moneyness === "ITM";
+  const isATM = moneyness === "ATM";
+  const atmProximity = spotPrice ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1) : 0;
 
   const oi = m?.oi ?? 0;
   const prevOi = m?.prev_oi ?? 0;
@@ -174,40 +307,59 @@ function OptionColumn({
 
   // Use backend sentiment
   const sentiment = contract.sentiment || { type: "Neutral", color: "gray", label: "Neutral" };
+  const cellMeta = (
+    type === "CE"
+      ? [
+          { value: formatCompact(oi), kind: "oi", isOI: true },
+          {
+            value: formatCompact(oiChange),
+            kind: "change",
+            c: oiChange >= 0 ? "green" : "red",
+            badge: sentiment.label !== "Neutral" ? sentiment : undefined,
+            positive: oiChange >= 0,
+          },
+          { value: formatCompact(volume), kind: "volume" },
+          { value: iv.toFixed(1), kind: "iv", c: "dimmed" },
+          {
+            value: ltp.toFixed(2),
+            kind: "ltp",
+            fw: 700,
+            c: isITM ? (type === "CE" ? "green.8" : "red.8") : undefined,
+            isLTP: true,
+          },
+        ]
+      : [
+          {
+            value: ltp.toFixed(2),
+            kind: "ltp",
+            fw: 700,
+            c: isITM ? (type === "CE" ? "green.8" : "red.8") : undefined,
+            isLTP: true,
+          },
+          { value: iv.toFixed(1), kind: "iv", c: "dimmed" },
+          { value: formatCompact(volume), kind: "volume" },
+          {
+            value: formatCompact(oiChange),
+            kind: "change",
+            c: oiChange >= 0 ? "green" : "red",
+            badge: sentiment.label !== "Neutral" ? sentiment : undefined,
+            positive: oiChange >= 0,
+          },
+          { value: formatCompact(oi), kind: "oi", isOI: true },
+        ]
+  ) as Array<{
+    value: string;
+    kind: CellKind;
+    c?: string;
+    badge?: { type: string; color: string; label: string };
+    isOI?: boolean;
+    isLTP?: boolean;
+    fw?: number;
+    positive?: boolean;
+  }>;
 
-  const itmStyle = isITM ? styles.itmShade : {};
-
-  // Calculate width for visual OI bar
-  const oiBarWidth = maxOI > 0 ? (oi / maxOI) * 100 : 0;
-  const oiBarColor = type === "CE" ? "rgba(64, 192, 87, 0.12)" : "rgba(250, 82, 82, 0.12)";
-
-  const cells = [
-    {
-      value: formatCompact(oi),
-      label: "OI",
-      isOI: true,
-    },
-    {
-      value: formatCompact(oiChange),
-      label: "OI CHG",
-      c: oiChange >= 0 ? "green" : "red",
-      badge: sentiment.label !== "Neutral" ? sentiment : undefined,
-    },
-    { value: formatCompact(volume), label: "VOL" },
-    { value: iv.toFixed(1), label: "IV", c: "dimmed" },
-    {
-      value: ltp.toFixed(2),
-      label: "LTP",
-      fw: 700,
-      c: isITM ? (type === "CE" ? "green.8" : "red.8") : undefined,
-      isLTP: true,
-    },
-  ];
-
-  // For PE, the order is reversed in professional chains: LTP, IV, Vol, Chng, OI
-  if (type === "PE") {
-    cells.reverse();
-  }
+  const sideIntensity = clamp(0.14 + atmProximity * 0.22 + (isATM ? 0.08 : 0) + (isHovered ? 0.06 : 0), 0.12, 0.42);
+  const volumeIntensity = maxVolume > 0 ? clamp(volume / maxVolume, 0, 1) : 0;
 
   const tooltipContent = (
     <Box p="xs">
@@ -226,14 +378,14 @@ function OptionColumn({
       <Text size="sm" c={oiChange >= 0 ? "green" : "red"}>
         OI Change %: {oiChangePct.toFixed(2)}%
       </Text>
-      <Box mt={5} style={{ borderTop: "1px solid #eee" }} pt={5}>
+      <Box mt={5} style={{ borderTop: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))" }} pt={5}>
         <Text size="sm">Delta: {delta.toFixed(3)}</Text>
         <Text size="sm">Theta: {(g?.theta ?? 0).toFixed(2)}</Text>
         <Text size="sm">Gamma: {(g?.gamma ?? 0).toFixed(5)}</Text>
         <Text size="sm">Vega: {(g?.vega ?? 0).toFixed(2)}</Text>
         <Text size="sm">IV: {iv.toFixed(2)}%</Text>
       </Box>
-      <Box mt={5} style={{ borderTop: "1px solid #eee" }} pt={5}>
+      <Box mt={5} style={{ borderTop: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))" }} pt={5}>
         <Text size="sm">
           Bid: {m?.bid_price} | Ask: {m?.ask_price}
         </Text>
@@ -243,7 +395,46 @@ function OptionColumn({
 
   return (
     <Tooltip.Group openDelay={300}>
-      {cells.map((cell: any, i) => (
+      {cellMeta.map((cell, i) => {
+        const kindIntensity =
+          cell.kind === "oi"
+            ? clamp((oi / Math.max(maxOI, 1)) * 1.1 + sideIntensity, 0.12, 1)
+            : cell.kind === "change"
+              ? clamp(Math.abs(oiChangePct) / 35 + sideIntensity * 0.7, 0.12, 1)
+              : cell.kind === "volume"
+                ? clamp(volumeIntensity * 0.9 + 0.12, 0.1, 1)
+                : cell.kind === "iv"
+                  ? clamp((iv / 100) * 0.9 + 0.14, 0.1, 1)
+                  : clamp(Math.abs(delta) * 0.9 + 0.16, 0.1, 1);
+        const palette = getCellPalette(
+          theme,
+          cell.kind,
+          type,
+          kindIntensity,
+          isHovered,
+          isATM,
+          isITM,
+          cell.positive,
+        );
+
+        const cellStyle: CSSProperties = {
+          ...styles.cell,
+          position: "relative",
+          fontWeight: cell.fw,
+          background: palette.background,
+          borderRight:
+            i < 4 && type === "CE"
+              ? `1px solid ${palette.border}`
+              : undefined,
+          borderLeft:
+            i > 0 && type === "PE"
+              ? `1px solid ${palette.border}`
+              : undefined,
+          boxShadow: palette.shadow,
+          color: cell.c ? undefined : palette.text,
+        };
+
+        return (
         <Tooltip
           key={i}
           label={tooltipContent}
@@ -254,14 +445,7 @@ function OptionColumn({
           w={220}
         >
           <Box
-            style={{
-              ...styles.cell,
-              ...itmStyle,
-              position: "relative",
-              fontWeight: cell.fw,
-              borderRight: i < 4 && type === "CE" ? "1px solid rgba(0,0,0,0.02)" : undefined,
-              borderLeft: i > 0 && type === "PE" ? "1px solid rgba(0,0,0,0.02)" : undefined,
-            }}
+            style={cellStyle}
             onClick={() => onRowClick(contract)}
           >
             {/* Visual OI Bar */}
@@ -269,20 +453,21 @@ function OptionColumn({
               <Box
                 style={{
                   position: "absolute",
-                  top: 0,
-                  bottom: 0,
+                  top: 4,
+                  bottom: 4,
                   [type === "CE" ? "right" : "left"]: 0,
-                  width: `${oiBarWidth}%`,
-                  backgroundColor: oiBarColor,
+                  width: `${clamp((oi / Math.max(maxOI, 1)) * 100, 0, 100)}%`,
+                  background: `linear-gradient(180deg, ${hexToRgba(palette.accent, 0.22)} 0%, ${hexToRgba(palette.accent, 0.08)} 100%)`,
+                  borderRadius: type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
                   zIndex: 0,
-                  transition: "width 0.4s ease",
+                  transition: "width 0.35s ease",
                 }}
               />
             )}
 
-            <Stack gap={0} align="center" style={{ zIndex: 1, width: "100%" }}>
-              <Group gap={2} wrap="nowrap" align="center" justify="center">
-                <Text size="sm" fw={cell.fw} c={cell.c as any} style={{ textAlign: "center" }}>
+            <Stack gap={0} align="center" style={{ zIndex: 1, width: "100%", position: "relative" }}>
+              <Group gap={4} wrap="nowrap" align="center" justify="center">
+                <Text size="sm" fw={cell.fw} c={cell.c as any} style={{ textAlign: "center", lineHeight: 1.05 }}>
                   {cell.value}
                 </Text>
                 {cell.badge && (
@@ -290,8 +475,8 @@ function OptionColumn({
                     size="sm"
                     variant="light"
                     color={cell.badge.color}
-                    px={2}
-                    style={{ fontSize: theme.fontSizes.sm, height: 12 }}
+                    px={4}
+                    style={{ fontSize: "10px", height: 14, border: `1px solid ${hexToRgba(palette.accent, 0.18)}` }}
                   >
                     {cell.badge.label}
                   </Badge>
@@ -300,38 +485,45 @@ function OptionColumn({
 
               {/* Visual Delta Bar for LTP cell */}
               {cell.isLTP && (
-                <Box w="70%" mt={2}>
+                <Box w="72%" mt={3}>
                   <Progress
-                    value={Math.abs(delta) * 100}
+                    value={clamp(Math.abs(delta) * 100, 0, 100)}
                     size="sm"
-                    color={type === "CE" ? "green" : "red"}
+                    color={type === "CE" ? "teal" : "orange"}
                     radius="xl"
-                    styles={{ root: { backgroundColor: "transparent", height: 2 } }}
+                    styles={{
+                      root: { backgroundColor: hexToRgba(palette.accent, 0.08), height: 3 },
+                      bar: { backgroundImage: `linear-gradient(90deg, ${hexToRgba(palette.accent, 0.85)} 0%, ${hexToRgba(palette.accent, 0.45)} 100%)` },
+                    }}
                   />
                 </Box>
               )}
             </Stack>
           </Box>
         </Tooltip>
-      ))}
+        );
+      })}
     </Tooltip.Group>
   );
 }
 
 function OptionChainTableInner({
   strikeMatrix,
-  filters,
+  filters: _filters,
   spotPrice,
   onRowClick,
 }: OptionChainTableProps) {
   const theme = useMantineTheme();
-  const styles = getStyles(theme);
-  const { optionType } = filters;
+  const { colorScheme } = useMantineColorScheme();
+  const styles = getStyles(theme, colorScheme === "dark");
   const maxCE_OI = Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0), 1);
   const maxPE_OI = Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.oi ?? 0), 1);
+  const maxCE_Volume = Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.volume ?? 0), 1);
+  const maxPE_Volume = Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.volume ?? 0), 1);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const atmRowRef = useRef<HTMLDivElement>(null);
+  const [hoveredStrike, setHoveredStrike] = useState<number | null>(null);
 
   const scrollToATM = (behavior: ScrollBehavior = "smooth") => {
     if (atmRowRef.current && viewportRef.current) {
@@ -431,16 +623,34 @@ function OptionChainTableInner({
       >
         <Box
           className="chain-header-cell chain-calls-header"
-          style={{ ...styles.headerCell, color: "var(--mantine-color-green-6)" }}
+          style={{
+            ...styles.headerCell,
+            color: theme.colors.green[8],
+            background:
+              "linear-gradient(135deg, rgba(34,197,94,0.14) 0%, rgba(20,184,166,0.12) 100%)",
+          }}
         >
           CALLS (CE)
         </Box>
-        <Box className="chain-header-cell chain-strike-header" style={styles.headerCell}>
+        <Box
+          className="chain-header-cell chain-strike-header"
+          style={{
+            ...styles.headerCell,
+            color: theme.colors.yellow[9],
+            background:
+              "linear-gradient(180deg, rgba(250,204,21,0.22) 0%, rgba(253,224,71,0.12) 100%)",
+          }}
+        >
           STRIKE
         </Box>
         <Box
           className="chain-header-cell chain-puts-header"
-          style={{ ...styles.headerCell, color: "var(--mantine-color-red-6)" }}
+          style={{
+            ...styles.headerCell,
+            color: theme.colors.red[8],
+            background:
+              "linear-gradient(135deg, rgba(251,113,133,0.12) 0%, rgba(249,115,22,0.14) 100%)",
+          }}
         >
           PUTS (PE)
         </Box>
@@ -481,14 +691,26 @@ function OptionChainTableInner({
         <Box className="chain-table-body" style={{ minWidth: 800, paddingBottom: 150 }}>
           {strikeMatrix.map(({ strike, ce, pe }) => {
             const isATM = spotPrice && Math.abs(strike - spotPrice) < 25;
+            const isHovered = hoveredStrike === strike;
+            const proximity = spotPrice ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1) : 0;
+            const rowCallBg = hexToRgba(theme.colors.green[6], 0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0));
+            const rowPutBg = hexToRgba(theme.colors.red[6], 0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0));
 
             return (
               <Box
                 key={strike}
                 ref={isATM ? atmRowRef : null}
                 className={`chain-row ${isATM ? "chain-row-atm" : ""}`}
-                style={styles.row}
+                style={{
+                  ...styles.row,
+                  background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? hexToRgba(theme.colors.yellow[4], 0.12 + proximity * 0.12) : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
+                  boxShadow: isHovered
+                    ? `inset 0 0 0 1px ${hexToRgba(theme.colors.yellow[4], 0.5)}, 0 6px 16px ${hexToRgba(theme.black, 0.08)}`
+                    : undefined,
+                }}
                 data-testid={`options-chain-row-${strike}`}
+                onMouseEnter={() => setHoveredStrike(strike)}
+                onMouseLeave={() => setHoveredStrike((current) => (current === strike ? null : current))}
               >
                 {/* CALLS */}
                 <OptionColumn
@@ -496,14 +718,22 @@ function OptionChainTableInner({
                   type="CE"
                   spotPrice={spotPrice}
                   maxOI={maxCE_OI}
+                  maxVolume={maxCE_Volume}
                   onRowClick={onRowClick}
                   theme={theme}
+                  isHovered={isHovered}
                 />
 
                 {/* STRIKE */}
                 <Box
                   className={`strike-cell ${isATM ? "strike-cell-atm" : ""}`}
-                  style={{ ...styles.strikeCell, ...(isATM ? styles.atmHighlight : {}) }}
+                  style={{
+                    ...styles.strikeCell,
+                    ...(isATM ? styles.atmHighlight : {}),
+                    boxShadow: isHovered
+                      ? `inset 0 0 0 1px ${hexToRgba(theme.colors.yellow[5], 0.45)}, 0 8px 22px ${hexToRgba(theme.black, 0.08)}`
+                      : undefined,
+                  }}
                   data-testid="strike-cell"
                 >
                   <Text size="sm" fw={800}>
@@ -517,8 +747,10 @@ function OptionChainTableInner({
                   type="PE"
                   spotPrice={spotPrice}
                   maxOI={maxPE_OI}
+                  maxVolume={maxPE_Volume}
                   onRowClick={onRowClick}
                   theme={theme}
+                  isHovered={isHovered}
                 />
               </Box>
             );
@@ -533,35 +765,51 @@ function OptionChainTableInner({
         justify="space-between"
         align="center"
         style={{
-          borderTop: "1px solid var(--mantine-color-gray-3)",
-          background: "var(--mantine-color-gray-0)",
+          borderTop: `1px solid ${hexToRgba(theme.colors.gray[colorScheme === "dark" ? 4 : 3], 0.75)}`,
+          background:
+            "linear-gradient(90deg, light-dark(rgba(240,253,250,0.9), rgba(12,18,16,0.9)) 0%, light-dark(rgba(248,250,252,0.9), rgba(15,23,42,0.88)) 50%, light-dark(rgba(255,240,245,0.9), rgba(24,12,16,0.9)) 100%)",
         }}
         data-testid="options-chain-table-footer"
       >
         <Group gap="xl" className="chain-legend">
           <Group gap={5} className="chain-legend-item" data-testid="options-legend-itm">
-            <Box w={10} h={10} bg="rgba(255, 249, 219, 0.4)" style={{ border: "1px solid #ddd" }} />
+            <Box
+              w={10}
+              h={10}
+              style={{
+                borderRadius: 999,
+                background: "linear-gradient(135deg, rgba(250,204,21,0.45) 0%, rgba(34,197,94,0.28) 100%)",
+                border: `1px solid ${hexToRgba(theme.colors.yellow[5], 0.4)}`,
+              }}
+            />
             <Text size="sm" c="dimmed">
               ITM (In The Money)
             </Text>
           </Group>
           <Group gap={5} className="chain-legend-item" data-testid="options-legend-atm">
-            <Box w={10} h={10} bg="var(--mantine-color-yellow-1)" />
+            <Box
+              w={10}
+              h={10}
+              style={{
+                borderRadius: 999,
+                background: "linear-gradient(135deg, rgba(253,224,71,0.95) 0%, rgba(251,191,36,0.65) 100%)",
+              }}
+            />
             <Text size="sm" c="dimmed">
               ATM (At The Money)
             </Text>
           </Group>
           <Group gap={15} className="chain-legend-badges" data-testid="options-legend-badges">
-            <Badge size="sm" variant="outline" color="green">
+            <Badge size="sm" variant="light" color="green">
               LB: Long Buildup
             </Badge>
-            <Badge size="sm" variant="outline" color="red">
+            <Badge size="sm" variant="light" color="red">
               SB: Short Buildup
             </Badge>
-            <Badge size="sm" variant="outline" color="cyan">
+            <Badge size="sm" variant="light" color="cyan">
               SC: Short Covering
             </Badge>
-            <Badge size="sm" variant="outline" color="orange">
+            <Badge size="sm" variant="light" color="orange">
               LU: Long Unwinding
             </Badge>
           </Group>

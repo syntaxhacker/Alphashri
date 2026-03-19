@@ -6,8 +6,11 @@ API endpoints for viewing charts from news symbols.
 Provides chart data integration between news articles and Upstox historical data.
 """
 
+import asyncio
+import json
 import urllib.parse
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional, List
 
 import requests
@@ -26,6 +29,22 @@ def get_persistence_service():
 def get_mapper():
     from services.news_instrument_mapper import get_mapper as _get
     return _get()
+
+
+def _sync_fetch_chart(url, headers):
+    response = requests.get(url, headers=headers, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+
+def _sync_read_config(config_path):
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+
+def _sync_write_config(config_path, config):
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
 
 
 @router.get("/symbols/{symbol}/chart")
@@ -59,11 +78,8 @@ async def get_chart_for_symbol(
     headers = {'Accept': 'application/json'}
     
     try:
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-        
-        data = response.json()
-        
+        data = await asyncio.to_thread(_sync_fetch_chart, url, headers)
+
         if data.get('status') != 'success' or 'data' not in data:
             raise HTTPException(
                 status_code=500,
@@ -281,21 +297,16 @@ async def add_manual_mapping(
     """
     Add or update a manual symbol mapping.
     """
-    import json
-    from pathlib import Path
-    
     mapper = get_mapper()
     
     config_path = Path(__file__).parent.parent / 'config' / 'symbol_mappings.json'
     
     try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+        config = await asyncio.to_thread(_sync_read_config, config_path)
         
         config['mappings'][code.upper()] = trading_symbol.upper()
         
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2)
+        await asyncio.to_thread(_sync_write_config, config_path, config)
         
         mapper.manual_mappings[code.upper()] = trading_symbol.upper()
         
@@ -314,9 +325,6 @@ async def remove_manual_mapping(code: str):
     """
     Remove a manual symbol mapping.
     """
-    import json
-    from pathlib import Path
-    
     mapper = get_mapper()
     code = code.upper()
     
@@ -326,13 +334,11 @@ async def remove_manual_mapping(code: str):
     config_path = Path(__file__).parent.parent / 'config' / 'symbol_mappings.json'
     
     try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+        config = await asyncio.to_thread(_sync_read_config, config_path)
         
         del config['mappings'][code]
         
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2)
+        await asyncio.to_thread(_sync_write_config, config_path, config)
         
         del mapper.manual_mappings[code]
         
@@ -350,23 +356,18 @@ async def add_to_blacklist(code: str):
     """
     Add a symbol to the blacklist (will not be mapped).
     """
-    import json
-    from pathlib import Path
-    
     mapper = get_mapper()
     code = code.upper()
     
     config_path = Path(__file__).parent.parent / 'config' / 'symbol_mappings.json'
     
     try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+        config = await asyncio.to_thread(_sync_read_config, config_path)
         
         if code not in config['blacklist']:
             config['blacklist'].append(code)
         
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2)
+        await asyncio.to_thread(_sync_write_config, config_path, config)
         
         mapper.blacklist.add(code)
         

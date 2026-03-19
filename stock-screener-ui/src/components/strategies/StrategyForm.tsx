@@ -161,7 +161,7 @@ export function StrategyForm({
           handleSubmit();
         }}
       >
-        <Stack gap="md" className="strategy-form-content">
+        <Stack gap="sm" className="strategy-form-content">
           {template && (
             <Alert
               icon={<IconInfoCircle size={16} />}

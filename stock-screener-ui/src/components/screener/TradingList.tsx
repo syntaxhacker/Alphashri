@@ -1,15 +1,14 @@
 import { useState } from "react";
 import {
-  Paper,
   Textarea,
   Group,
   Text,
   ActionIcon,
   Collapse,
   CopyButton,
-  useMantineTheme,
 } from "@mantine/core";
 import { IconCopy, IconCheck, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
+import { CompactPanel } from "../common/compact";
 
 interface TradingListProps {
   symbols: string[];
@@ -17,21 +16,20 @@ interface TradingListProps {
 }
 
 export function TradingList({ symbols, title = "Trading Symbols" }: TradingListProps) {
-  const theme = useMantineTheme();
   const [opened, setOpened] = useState(true);
   const symbolsText = symbols.join(", ");
 
   return (
-    <Paper
-      p="md"
-      withBorder
+    <CompactPanel
       id="trading-list"
       className="trading-list"
-      data-testid="screener-trading-list"
+      testId="screener-trading-list"
+      title={title}
+      description={`${symbols.length} symbols`}
     >
       <Group
         justify="space-between"
-        mb={opened ? "sm" : 0}
+        mb={opened ? "xs" : 0}
         className="trading-list-header"
         data-testid="trading-list-header"
       >
@@ -42,12 +40,12 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
             className="toggle-btn"
             data-testid="trading-list-toggle"
           >
-            {opened ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+            {opened ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
           </ActionIcon>
-          <Text fw={500} className="trading-list-title" data-testid="trading-list-title">
+          <Text fw={600} size="sm" className="trading-list-title" data-testid="trading-list-title">
             {title}
           </Text>
-          <Text size="sm" c="dimmed" className="symbol-count" data-testid="trading-list-count">
+          <Text size="xs" c="dimmed" className="symbol-count" data-testid="trading-list-count">
             ({symbols.length} symbols)
           </Text>
         </Group>
@@ -72,11 +70,11 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
           autosize
           minRows={2}
           maxRows={6}
-          styles={{ input: { fontFamily: theme.fontFamily, fontSize: theme.fontSizes.md } }}
+          styles={{ input: { fontSize: "var(--mantine-font-size-sm)" } }}
           className="trading-list-textarea"
           data-testid="trading-list-textarea"
         />
       </Collapse>
-    </Paper>
+    </CompactPanel>
   );
 }

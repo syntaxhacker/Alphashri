@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from "react";
 import {
-  Table,
   Group,
   Text,
   Button,
   Badge,
   ActionIcon,
-  Tooltip,
   Card,
   Stack,
   Loader,
   Alert,
+  ScrollArea,
+  Tooltip,
+  Box,
+  Divider,
 } from "@mantine/core";
 import {
   IconTrash,
@@ -199,7 +201,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
     <Stack
       id="backtest-history"
       className="backtest-history"
-      gap="md"
+      gap="sm"
       data-testid="backtest-history"
     >
       <Group justify="space-between" className="history-header">
@@ -230,81 +232,78 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
           </Button>
         </Group>
       </Group>
-      <Table
-        highlightOnHover
-        verticalSpacing="sm"
-        className="history-table"
-        data-testid="history-table"
-      >
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Date</Table.Th>
-            <Table.Th>Strategy</Table.Th>
-            <Table.Th>Symbols</Table.Th>
-            <Table.Th>Trades</Table.Th>
-            <Table.Th>Win Rate</Table.Th>
-            <Table.Th>Net P&L</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody data-testid="history-tbody">
+      <ScrollArea flex={1} offsetScrollbars>
+        <Stack gap="xs" p="xs">
           {history.map((item) => (
-            <Table.Tr key={item.id} className="history-row" data-testid={`history-row-${item.id}`}>
-              <Table.Td>
-                <Text size="sm">{new Date(item.created_at).toLocaleString()}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Badge variant="light" color="blue">
-                  {item.strategy_name}
-                </Badge>
-              </Table.Td>
-              <Table.Td>
-                <Tooltip label={item.symbols.join(", ")}>
-                  <Text size="sm" truncate style={{ maxWidth: 150 }}>
-                    {item.symbols.length} stocks: {item.symbols.slice(0, 3).join(", ")}
-                    {item.symbols.length > 3 ? "..." : ""}
+            <Card
+              key={item.id}
+              withBorder
+              radius="sm"
+              padding="xs"
+              className="history-card"
+              data-testid={`history-row-${item.id}`}
+            >
+              <Group justify="space-between" align="flex-start" mb={4}>
+                <Box>
+                  <Text size="xs" c="dimmed">
+                    {new Date(item.created_at).toLocaleDateString()}
                   </Text>
-                </Tooltip>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm">{item.metrics.total_trades}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm" fw={500} c={item.metrics.win_rate >= 50 ? "green" : "orange"}>
-                  {item.metrics.win_rate.toFixed(1)}%
+                  <Badge variant="light" color="blue" size="xs" mt={2}>
+                    {item.strategy_name}
+                  </Badge>
+                </Box>
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  size="xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(item.id);
+                  }}
+                  data-testid={`history-delete-btn-${item.id}`}
+                >
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Group>
+
+              <Tooltip label={item.symbols.join(", ")} multiline maw={200}>
+                <Text size="xs" c="dimmed" truncate>
+                  {item.symbols.length} stocks: {item.symbols.slice(0, 4).join(", ")}
+                  {item.symbols.length > 4 ? "..." : ""}
                 </Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm" fw={700} c={item.metrics.total_pnl >= 0 ? "green" : "red"}>
-                  ₹{item.metrics.total_pnl.toLocaleString()} (
-                  {item.metrics.total_pnl_pct.toFixed(2)}%)
-                </Text>
-              </Table.Td>
-              <Table.Td>
-                <Group gap={8}>
-                  <Button
-                    size="compact-xs"
-                    variant="light"
-                    leftSection={<IconExternalLink size={14} />}
-                    onClick={() => handleLoad(item.id)}
-                    data-testid={`history-load-btn-${item.id}`}
-                  >
-                    Load
-                  </Button>
-                  <ActionIcon
-                    variant="subtle"
-                    color="red"
-                    onClick={() => handleDelete(item.id)}
-                    data-testid={`history-delete-btn-${item.id}`}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
+              </Tooltip>
+
+              <Divider my={4} />
+
+              <Group justify="space-between" align="center">
+                <Group gap="xs">
+                  <Text size="xs">
+                    <Text component="span" fw={600}>{item.metrics.total_trades}</Text> trades
+                  </Text>
+                  <Text size="xs" c={item.metrics.win_rate >= 50 ? "green" : "orange"} fw={500}>
+                    {item.metrics.win_rate.toFixed(0)}% WR
+                  </Text>
+                  <Text size="xs" fw={600} c={item.metrics.total_pnl >= 0 ? "green" : "red"}>
+                    {item.metrics.total_pnl >= 0 ? "+" : ""}₹{item.metrics.total_pnl.toLocaleString()}
+                  </Text>
                 </Group>
-              </Table.Td>
-            </Table.Tr>
+                <ActionIcon
+                  variant="light"
+                  color="blue"
+                  size="xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleLoad(item.id);
+                  }}
+                  data-testid={`history-load-btn-${item.id}`}
+                >
+                  <IconExternalLink size={14} />
+                </ActionIcon>
+              </Group>
+            </Card>
           ))}
-        </Table.Tbody>
-      </Table>
+        </Stack>
+      </ScrollArea>
     </Stack>
   );
 }

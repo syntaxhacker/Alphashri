@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { detectAddedSymbols, getTradingList } from "./runtime_utils";
 
 describe("runtime utils", () => {

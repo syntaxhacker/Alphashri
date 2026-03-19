@@ -1,4 +1,4 @@
-import { Box } from "@mantine/core";
+import { Box, ScrollArea } from "@mantine/core";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
 import { GreeksPanel } from "./OptionGreeks/GreeksPanel";
@@ -46,44 +46,54 @@ export function OptionsPage({
   summary,
 }: OptionsPageProps) {
   return (
-    <Box id="options-main" className="options-page" data-testid="options-view">
+    <Box
+      id="options-main"
+      className="options-page"
+      h="100%"
+      style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+      data-testid="options-view"
+    >
       <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {activeTab === "chain" && (
-        <OptionChainPanel
-          selectedUnderlying={selectedUnderlying}
-          selectedExpiry={selectedExpiry}
-          loading={loading}
-          error={error}
-          filters={filters}
-          spotPrice={spotPrice}
-          setUnderlying={setUnderlying}
-          setExpiry={setExpiry}
-          setFilters={setFilters}
-          refreshChain={refreshChain}
-          availableUnderlyings={availableUnderlyings}
-          availableExpiries={availableExpiries}
-          strikeMatrix={strikeMatrix}
-          timestamp={timestamp}
-          summary={summary}
-        />
-      )}
+      <Box flex={1} style={{ minHeight: 0, overflow: "hidden" }}>
+        <ScrollArea h="100%" offsetScrollbars>
+          {activeTab === "chain" && (
+            <OptionChainPanel
+              selectedUnderlying={selectedUnderlying}
+              selectedExpiry={selectedExpiry}
+              loading={loading}
+              error={error}
+              filters={filters}
+              spotPrice={spotPrice}
+              setUnderlying={setUnderlying}
+              setExpiry={setExpiry}
+              setFilters={setFilters}
+              refreshChain={refreshChain}
+              availableUnderlyings={availableUnderlyings}
+              availableExpiries={availableExpiries}
+              strikeMatrix={strikeMatrix}
+              timestamp={timestamp}
+              summary={summary}
+            />
+          )}
 
-      {activeTab === "positions" && (
-        <Box
-          id="positions-container"
-          className="options-tab-content"
-          data-testid="options-positions-tab"
-        >
-          <PositionsPanel positions={positions || []} />
-        </Box>
-      )}
+          {activeTab === "positions" && (
+            <Box
+              id="positions-container"
+              className="options-tab-content"
+              data-testid="options-positions-tab"
+            >
+              <PositionsPanel positions={positions || []} />
+            </Box>
+          )}
 
-      {activeTab === "greeks" && (
-        <Box id="greeks-container" className="options-tab-content" data-testid="options-greeks-tab">
-          <GreeksPanel />
-        </Box>
-      )}
+          {activeTab === "greeks" && (
+            <Box id="greeks-container" className="options-tab-content" data-testid="options-greeks-tab">
+              <GreeksPanel />
+            </Box>
+          )}
+        </ScrollArea>
+      </Box>
     </Box>
   );
 }

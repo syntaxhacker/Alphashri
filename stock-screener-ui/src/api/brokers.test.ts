@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
 describe("Brokers API Types", () => {
   test("BrokerStatus interface has correct shape", () => {

@@ -8,6 +8,7 @@ Includes server-side quantitative analysis (Expected Move, Max Pain, Sentiment).
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+import asyncio
 import httpx
 import os
 import json
@@ -394,36 +395,40 @@ async def get_option_chain(
         raise HTTPException(status_code=500, detail=f"Failed to fetch option chain: {str(e)}")
 
 
-@router.get("/spot-history/{underlying}")
-async def get_spot_history(underlying: str):
-    """Get intraday historical spot price for charting."""
+def _fetch_spot_history_sync(underlying: str):
+    """Synchronous helper for fetching spot history via yfinance."""
     import yfinance as yf
-    
-    # Map underlying to yfinance symbol
+
     symbol_map = {
         "NIFTY": "^NSEI",
         "BANKNIFTY": "^NSEBANK",
         "FINNIFTY": "NIFTY_FIN_SERVICE.NS",
         "MIDCPNIFTY": "^NSEMDCP50"
     }
-    
+
     yf_symbol = symbol_map.get(underlying, f"{underlying}.NS")
-    
+
+    ticker = yf.Ticker(yf_symbol)
+    hist = ticker.history(period="1d", interval="5m")
+
+    if hist.empty:
+        return {"status": "error", "message": "No history found"}
+
+    candles = [{"time": ts.isoformat(), "price": round(float(row["Close"]), 2)}
+               for ts, row in hist.iterrows()]
+
+    return {
+        "status": "ok",
+        "underlying": underlying,
+        "history": candles[-50:]
+    }
+
+
+@router.get("/spot-history/{underlying}")
+async def get_spot_history(underlying: str):
+    """Get intraday historical spot price for charting."""
     try:
-        ticker = yf.Ticker(yf_symbol)
-        hist = ticker.history(period="1d", interval="5m")
-        
-        if hist.empty:
-            return {"status": "error", "message": "No history found"}
-            
-        candles = [{"time": ts.isoformat(), "price": round(float(row["Close"]), 2)} 
-                   for ts, row in hist.iterrows()]
-            
-        return {
-            "status": "ok",
-            "underlying": underlying,
-            "history": candles[-50:]
-        }
+        return await asyncio.to_thread(_fetch_spot_history_sync, underlying)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
 

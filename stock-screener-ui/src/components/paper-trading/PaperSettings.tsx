@@ -201,7 +201,7 @@ export function PaperSettings() {
         )}
       </Group>
 
-      <Stack gap="md" className="paper-settings-content" id="settings-content">
+      <Stack gap="sm" className="paper-settings-content" id="settings-content">
         <Card
           padding="sm"
           radius="sm"

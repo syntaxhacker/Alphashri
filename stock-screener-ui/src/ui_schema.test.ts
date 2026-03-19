@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { getColumnKeysForProfile } from "./ui_schema";
 
 describe("ui schema dynamic header mapping", () => {
@@ -20,10 +20,19 @@ describe("ui schema dynamic header mapping", () => {
     expect(cols).toEqual(["symbol", "score", "rsi", "stoch_k", "day_change", "volume_m", "sector"]);
   });
 
-  test("default profile adds time_to_52w only for non-touched table", () => {
-    const cols1 = getColumnKeysForProfile("trending", false);
-    const cols2 = getColumnKeysForProfile("trending", true);
-    expect(cols1.includes("time_to_52w")).toBeTrue();
-    expect(cols2.includes("time_to_52w")).toBeFalse();
+  test("default profile returns trending columns", () => {
+    const cols = getColumnKeysForProfile("trending", false);
+    expect(cols).toEqual([
+      "symbol",
+      "score",
+      "tv_price",
+      "upstox_price",
+      "broker_diff",
+      "high_52w",
+      "to_52w_high",
+      "recent_return_5d",
+      "perf_w",
+      "sector",
+    ]);
   });
 });

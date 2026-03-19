@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Box,
   Button,
@@ -110,6 +111,8 @@ export default function NewsPanel() {
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
   const [articleContent, setArticleContent] = useState<ArticleResponse | null>(null);
   const [articleLoading, setArticleLoading] = useState(false);
+  const [articleError, setArticleError] = useState<string | null>(null);
+  const articleFetchId = useRef(0);
 
   const [readIds, setReadIds] = useState<Set<string>>(getReadIds);
   const [lastSeenId, setLastSeenId] = useState<string | null>(() => {
@@ -225,6 +228,7 @@ export default function NewsPanel() {
   }, [autoRefreshMs]);
 
   const handleArticleClick = async (item: NewsItem) => {
+    const fetchId = ++articleFetchId.current;
     const newReadIds = new Set(readIds);
     newReadIds.add(item.id);
     setReadIds(newReadIds);
@@ -233,26 +237,35 @@ export default function NewsPanel() {
     setSelectedArticle(item);
     setArticleLoading(true);
     setArticleContent(null);
+    setArticleError(null);
 
     try {
       const content = await fetchArticle(item.sourceUrl);
-      setArticleContent(content);
+      if (fetchId === articleFetchId.current) {
+        setArticleContent(content);
+      }
     } catch (err) {
-      console.error("Failed to fetch article:", err);
+      if (fetchId === articleFetchId.current) {
+        setArticleError(err instanceof Error ? err.message : "Failed to load article");
+      }
     } finally {
-      setArticleLoading(false);
+      if (fetchId === articleFetchId.current) {
+        setArticleLoading(false);
+      }
     }
   };
 
   const handleBack = () => {
     setSelectedArticle(null);
     setArticleContent(null);
+    setArticleError(null);
   };
 
   const handleClose = () => {
     setIsOpen(false);
     setSelectedArticle(null);
     setArticleContent(null);
+    setArticleError(null);
   };
 
   const handleSymbolClick = (symbol: NewsSymbol) => {
@@ -300,7 +313,7 @@ export default function NewsPanel() {
 
       {isOpen && (
         <Overlay
-          color="#000"
+          color="dark"
           backgroundOpacity={0.5}
           onClick={handleClose}
           zIndex={100}
@@ -347,8 +360,8 @@ export default function NewsPanel() {
               <CloseButton onClick={handleClose} />
             </Group>
 
-            <ScrollArea flex={1} p="md" className="news-article-content">
-              <Stack gap="md">
+            <ScrollArea flex={1} p="sm" className="news-article-content">
+              <Stack gap="sm">
                 <Title order={4} data-testid="news-article-headline">
                   {selectedArticle.headline}
                 </Title>
@@ -406,6 +419,10 @@ export default function NewsPanel() {
                       </Text>
                     ))}
                   </Stack>
+                ) : articleError ? (
+                  <Alert color="red" variant="light" title="Failed to load article">
+                    <Text size="sm">{articleError}</Text>
+                  </Alert>
                 ) : (
                   <Text c="dimmed" ta="center" py="xl">
                     Unable to load article content.

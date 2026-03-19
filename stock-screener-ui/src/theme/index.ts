@@ -1,4 +1,9 @@
-import { createTheme, virtualColor, type MantineColorsTuple } from "@mantine/core";
+import {
+  createTheme,
+  rgba,
+  virtualColor,
+  type MantineColorsTuple,
+} from "@mantine/core";
 
 const teal: MantineColorsTuple = [
   "#e6fffa",
@@ -76,13 +81,13 @@ export const colors = {
   warning: virtualColor({ name: "warning", dark: "orange", light: "orange" }),
 };
 
-export const APP_FONT_FAMILY = "Roboto, Poppins, system-ui, sans-serif";
+export const APP_FONT_FAMILY = "\"IBM Plex Sans\", \"Roboto\", \"Poppins\", system-ui, sans-serif";
 
 export const theme = createTheme({
   primaryColor: "teal",
   primaryShade: { light: 5, dark: 6 },
   colors,
-  defaultRadius: "sm",
+  defaultRadius: "xs",
   fontFamily: APP_FONT_FAMILY,
   fontFamilyMonospace: "ui-monospace, monospace",
   fontSizes: {
@@ -104,9 +109,46 @@ export const theme = createTheme({
     },
   },
   components: {
+    AppShell: {
+      styles: {
+        main: {
+          background:
+            "light-dark(linear-gradient(180deg, #f5f7fb 0%, #eef3f8 100%), linear-gradient(180deg, #0b0f14 0%, #101722 100%))",
+        },
+      },
+    },
+    Paper: {
+      defaultProps: {
+        radius: "xs",
+      },
+    },
+    Card: {
+      defaultProps: {
+        radius: "xs",
+        padding: "sm",
+        withBorder: false,
+      },
+      styles: {
+        root: {
+          backgroundColor: "light-dark(rgba(255, 255, 255, 0.9), rgba(19, 22, 30, 0.9))",
+          backdropFilter: "blur(12px)",
+        },
+      },
+    },
     Button: {
       defaultProps: {
         size: "sm",
+        radius: "xs",
+      },
+    },
+    ActionIcon: {
+      defaultProps: {
+        radius: "xs",
+      },
+    },
+    Badge: {
+      defaultProps: {
+        radius: "xs",
       },
     },
     NavLink: {
@@ -143,6 +185,27 @@ export const theme = createTheme({
       defaultProps: {
         variant: "pills",
       },
+      styles: {
+        tab: {
+          fontWeight: 600,
+        },
+        list: {
+          gap: "0.35rem",
+        },
+        panel: {
+          paddingTop: "0.75rem",
+        },
+      },
+    },
+    Table: {
+      styles: {
+        table: {
+          fontSize: "var(--mantine-font-size-sm)",
+        },
+        th: {
+          backgroundColor: "light-dark(rgba(248, 250, 252, 0.92), rgba(15, 23, 42, 0.82))",
+        },
+      },
     },
   },
   other: {
@@ -151,6 +214,12 @@ export const theme = createTheme({
       medium: 500,
       semibold: 600,
       bold: 700,
+    },
+    shell: {
+      border: {
+        light: rgba("#0f172a", 0.08),
+        dark: rgba("#94a3b8", 0.14),
+      },
     },
   },
 });

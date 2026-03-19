@@ -3,45 +3,51 @@ import {
   Text,
   Group,
   Stack,
-  Alert,
   Badge,
   Progress,
-  Card,
-  SimpleGrid,
-  Title,
 } from "@mantine/core";
-import { IconAlertCircle, IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
+import { IconAlertCircle } from "@tabler/icons-react";
 import type { PerformanceViewProps } from "./types";
+import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 
 export function PerformanceView({
   performance,
-  strategies,
   onSelectStrategy,
   isLoading,
 }: PerformanceViewProps) {
   if (isLoading) {
     return (
-      <Stack align="center" gap="md" mt="xl" className="performance-view-loading">
-        <div className="spinner" data-testid="strategies-loading" />
-        <Text size="sm" c="dimmed">
-          Loading performance data...
-        </Text>
-      </Stack>
+      <CompactPanel
+        className="performance-view-loading"
+        testId="performance-loading-state"
+        title={
+          <Group gap="xs" wrap="nowrap">
+            <div className="spinner" data-testid="strategies-loading" />
+            <Text fw={600} size="sm">
+              Loading performance
+            </Text>
+          </Group>
+        }
+        description="Collecting trade outcomes and win-rate data"
+      />
     );
   }
 
   if (performance.length === 0) {
     return (
-      <Alert
-        icon={<IconAlertCircle size={16} />}
-        title="No Performance Data"
-        color="yellow"
-        mt="xl"
+      <CompactPanel
         className="performance-view-empty"
-        data-testid="performance-empty-state"
-      >
-        No performance data available. Strategies need to have executed trades to show performance.
-      </Alert>
+        testId="performance-empty-state"
+        title={
+          <Group gap="xs" wrap="nowrap">
+            <IconAlertCircle size={18} />
+            <Text fw={600} size="sm">
+              No performance data
+            </Text>
+          </Group>
+        }
+        description="Strategies need executed trades before performance can be shown."
+      />
     );
   }
 
@@ -102,134 +108,59 @@ export function PerformanceView({
 
   return (
     <Stack
-      gap="md"
+      gap="sm"
       className="performance-view"
       id="performance-view"
       data-testid="performance-view"
     >
-      <Title order={4}>Performance Summary</Title>
-
-      <SimpleGrid
-        cols={{ base: 1, sm: 2, lg: 4 }}
-        spacing="md"
-        className="performance-summary-cards"
-        data-testid="performance-summary-cards"
-      >
-        <Card
-          shadow="sm"
-          padding="md"
-          radius="sm"
-          withBorder
+      <CompactStatGrid>
+        <CompactStat
+          label="Total Trades"
+          value={totalTrades}
+          hint={`${totalWinners} winners / ${totalLosers} losers`}
           className="performance-card performance-card-trades"
-          data-testid="performance-card-trades"
-        >
-          <Stack gap={4}>
-            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
-              Total Trades
-            </Text>
-            <Text size="xl" fw={500}>
-              {totalTrades}
-            </Text>
-            <Group gap={4}>
-              <Text size="sm" c="teal">
-                {totalWinners} W
-              </Text>
-              <Text size="sm" c="red">
-                {totalLosers} L
-              </Text>
-            </Group>
-          </Stack>
-        </Card>
+          testId="performance-card-trades"
+        />
 
-        <Card
-          shadow="sm"
-          padding="md"
-          radius="sm"
-          withBorder
+        <CompactStat
+          label="Win Rate"
+          value={`${overallWinRate.toFixed(1)}%`}
+          hint={<Progress value={overallWinRate} color={overallWinRate >= 50 ? "teal" : "red"} size="sm" />}
+          tone={overallWinRate >= 50 ? "positive" : "negative"}
           className="performance-card performance-card-winrate"
-          data-testid="performance-card-winrate"
-        >
-          <Stack gap={4}>
-            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
-              Win Rate
-            </Text>
-            <Text size="xl" fw={500} c={overallWinRate >= 50 ? "teal" : "red"}>
-              {overallWinRate.toFixed(1)}%
-            </Text>
-            <Progress
-              value={overallWinRate}
-              color={overallWinRate >= 50 ? "teal" : "red"}
-              size="sm"
-            />
-          </Stack>
-        </Card>
+          testId="performance-card-winrate"
+        />
 
-        <Card
-          shadow="sm"
-          padding="md"
-          radius="sm"
-          withBorder
+        <CompactStat
+          label="Total P&L"
+          value={`${totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}`}
+          hint="Net P&L across all strategies"
+          tone={totalPnl >= 0 ? "positive" : "negative"}
           className="performance-card performance-card-pnl"
-          data-testid="performance-card-pnl"
-        >
-          <Stack gap={4}>
-            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
-              Total P&L
-            </Text>
-            <Text size="xl" fw={500} c={totalPnl >= 0 ? "teal" : "red"}>
-              {totalPnl >= 0 ? "+" : ""}
-              {totalPnl.toFixed(2)}
-            </Text>
-            <Group gap={4}>
-              {totalPnl >= 0 ? (
-                <IconTrendingUp size={14} color="var(--mantine-color-teal-6)" />
-              ) : (
-                <IconTrendingDown size={14} color="var(--mantine-color-red-6)" />
-              )}
-              <Text size="sm" c="dimmed">
-                Net P&L
-              </Text>
-            </Group>
-          </Stack>
-        </Card>
+          testId="performance-card-pnl"
+        />
 
-        <Card
-          shadow="sm"
-          padding="md"
-          radius="sm"
-          withBorder
+        <CompactStat
+          label="Active Strategies"
+          value={performance.length}
+          hint="With trade data"
           className="performance-card performance-card-strategies"
-          data-testid="performance-card-strategies"
-        >
-          <Stack gap={4}>
-            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
-              Active Strategies
-            </Text>
-            <Text size="xl" fw={500}>
-              {performance.length}
-            </Text>
-            <Text size="sm" c="dimmed">
-              With trade data
-            </Text>
-          </Stack>
-        </Card>
-      </SimpleGrid>
+          testId="performance-card-strategies"
+        />
+      </CompactStatGrid>
 
-      <Card
-        shadow="sm"
-        padding="md"
-        radius="sm"
-        withBorder
+      <CompactPanel
         className="performance-table-card"
-        data-testid="performance-table-card"
+        testId="performance-table-card"
+        title="Strategy Performance"
+        description="Click a row to inspect the strategy's trade history"
       >
-        <Title order={5} mb="md">
-          Strategy Performance
-        </Title>
         <Table
           striped
           highlightOnHover
           withTableBorder
+          verticalSpacing="xs"
+          horizontalSpacing="sm"
           className="performance-table"
           id="performance-table"
           data-testid="performance-table"
@@ -247,7 +178,7 @@ export function PerformanceView({
             {rows}
           </Table.Tbody>
         </Table>
-      </Card>
+      </CompactPanel>
     </Stack>
   );
 }

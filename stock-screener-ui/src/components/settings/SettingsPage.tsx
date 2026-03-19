@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Container, Title, Stack } from "@mantine/core";
+import { Box, Stack } from "@mantine/core";
 import { useSearchParams } from "react-router-dom";
 import { BrokerConnectionCard } from "./BrokerConnectionCard";
 import {
@@ -10,6 +10,7 @@ import {
 } from "../../api/brokers";
 import { useAppDispatch } from "../../store/hooks";
 import { addNotification } from "../../store/notificationsSlice";
+import { CompactPage } from "../common/compact";
 
 export function SettingsPage() {
   const [status, setStatus] = useState<BrokerStatus | null>(null);
@@ -79,23 +80,26 @@ export function SettingsPage() {
   };
 
   return (
-    <Container
-      size="sm"
-      py="xl"
+    <Box
       id="settings-page"
       className="settings-page"
       data-testid="settings-page"
+      style={{ height: "100%", overflow: "hidden" }}
     >
-      <Stack gap="lg">
-        <Title order={2}>Settings</Title>
-        <BrokerConnectionCard
-          status={status}
-          loading={loading}
-          onConnect={handleConnect}
-          onDisconnect={handleDisconnect}
-          onRefresh={fetchStatus}
-        />
-      </Stack>
-    </Container>
+      <CompactPage
+        title="Settings"
+        description="Broker connection and account integration controls."
+      >
+        <Stack gap="md">
+          <BrokerConnectionCard
+            status={status}
+            loading={loading}
+            onConnect={handleConnect}
+            onDisconnect={handleDisconnect}
+            onRefresh={fetchStatus}
+          />
+        </Stack>
+      </CompactPage>
+    </Box>
   );
 }

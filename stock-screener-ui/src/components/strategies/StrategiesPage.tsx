@@ -1,4 +1,4 @@
-import { Box, Stack, Alert, Button, Group } from "@mantine/core";
+import { Box, Stack, Button, Group, Text } from "@mantine/core";
 import { IconAlertCircle, IconRefresh } from "@tabler/icons-react";
 import { StrategiesNav } from "./StrategiesNav";
 import { TemplatesView } from "./TemplatesView";
@@ -6,6 +6,7 @@ import { StrategiesList } from "./StrategiesList";
 import { PerformanceView } from "./PerformanceView";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategiesPageProps } from "./types";
+import { CompactPage, CompactPanel } from "../common/compact";
 
 export function StrategiesPage({
   strategies,
@@ -36,30 +37,36 @@ export function StrategiesPage({
   const renderContent = () => {
     if (error) {
       return (
-        <Stack gap="md" align="center" mt="xl" className="strategies-error-container">
-          <Alert
-            icon={<IconAlertCircle size={16} />}
-            title="Error"
-            color="red"
-            variant="filled"
-            data-testid="strategies-error"
-          >
-            {error}
-          </Alert>
-          <Group gap="xs" className="strategies-error-actions">
-            <Button
-              onClick={onRefresh}
-              variant="light"
-              color="red"
-              leftSection={<IconRefresh size={14} />}
-              data-testid="strategies-retry-btn"
-            >
-              Retry
-            </Button>
-            <Button onClick={onClearError} variant="subtle" data-testid="strategies-dismiss-btn">
-              Dismiss
-            </Button>
-          </Group>
+        <Stack gap="sm" align="stretch" mt="sm" className="strategies-error-container">
+          <CompactPanel
+            testId="strategies-error"
+            title={
+              <Group gap="xs" wrap="nowrap">
+                <IconAlertCircle size={18} />
+                <Text fw={600} size="sm">
+                  Strategies failed to load
+                </Text>
+              </Group>
+            }
+            description={error}
+            action={
+              <Group gap="xs">
+                <Button
+                  onClick={onRefresh}
+                  variant="light"
+                  color="red"
+                  size="sm"
+                  leftSection={<IconRefresh size={14} />}
+                  data-testid="strategies-retry-btn"
+                >
+                  Retry
+                </Button>
+                <Button onClick={onClearError} variant="subtle" size="sm" data-testid="strategies-dismiss-btn">
+                  Dismiss
+                </Button>
+              </Group>
+            }
+          />
         </Stack>
       );
     }
@@ -100,52 +107,54 @@ export function StrategiesPage({
   };
 
   return (
-    <Box
-      h="100%"
-      className="strategies-page"
-      id="strategies-main"
-      style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
-      data-testid="strategies-view"
-    >
+    <CompactPage>
       <Box
-        flex="0 0 auto"
-        className="strategies-nav-container"
-        data-testid="strategies-nav-container"
+        h="100%"
+        className="strategies-page"
+        id="strategies-main"
+        style={{ display: "flex", flexDirection: "column", gap: "var(--mantine-spacing-sm)" }}
+        data-testid="strategies-view"
       >
-        <StrategiesNav activeView={activeView} onChange={onViewChange} />
+        <Box
+          flex="0 0 auto"
+          className="strategies-nav-container"
+          data-testid="strategies-nav-container"
+        >
+          <StrategiesNav activeView={activeView} onChange={onViewChange} />
+        </Box>
+
+        <Box
+          flex={1}
+          className="strategies-content"
+          id="strategies-content"
+          style={{ minHeight: 0, display: "flex", overflow: "hidden" }}
+          data-testid="strategies-content"
+        >
+          <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>{renderContent()}</Box>
+        </Box>
+
+        <StrategyForm
+          mode="create"
+          template={parentTemplate}
+          opened={showCreateModal}
+          onClose={onCloseCreateModal}
+          onSubmit={onCreateStrategy}
+          data-testid="strategies-create-modal"
+        />
+
+        <StrategyForm
+          mode="edit"
+          strategy={editingStrategy}
+          opened={showEditModal}
+          onClose={onCloseEditModal}
+          onSubmit={(data) => {
+            if (editingStrategy) {
+              onEditStrategy(editingStrategy.internal_id ?? Number(editingStrategy.id), data);
+            }
+          }}
+          data-testid="strategies-edit-modal"
+        />
       </Box>
-
-      <Box
-        flex={1}
-        className="strategies-content"
-        id="strategies-content"
-        style={{ minHeight: 0 }}
-        data-testid="strategies-content"
-      >
-        {renderContent()}
-      </Box>
-
-      <StrategyForm
-        mode="create"
-        template={parentTemplate}
-        opened={showCreateModal}
-        onClose={onCloseCreateModal}
-        onSubmit={onCreateStrategy}
-        data-testid="strategies-create-modal"
-      />
-
-      <StrategyForm
-        mode="edit"
-        strategy={editingStrategy}
-        opened={showEditModal}
-        onClose={onCloseEditModal}
-        onSubmit={(data) => {
-          if (editingStrategy) {
-            onEditStrategy(editingStrategy.internal_id ?? Number(editingStrategy.id), data);
-          }
-        }}
-        data-testid="strategies-edit-modal"
-      />
-    </Box>
+    </CompactPage>
   );
 }

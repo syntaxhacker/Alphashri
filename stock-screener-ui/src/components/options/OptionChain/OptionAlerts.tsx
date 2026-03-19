@@ -1,7 +1,6 @@
 import {
   Box,
   Group,
-  Paper,
   Text,
   Stack,
   Badge,
@@ -19,6 +18,7 @@ import {
   IconActivity,
 } from "@tabler/icons-react";
 import { useMemo } from "react";
+import { CompactPanel } from "../../common/compact";
 
 interface OptionAlertsProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -87,13 +87,9 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
   }, [strikeMatrix, spotPrice]);
 
   return (
-    <Paper
+    <CompactPanel
       id="option-alerts"
       className="option-alerts-panel"
-      p="md"
-      withBorder
-      radius="md"
-      style={{ background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))" }}
       data-testid="options-alerts-panel"
     >
       <Group
@@ -116,12 +112,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       </Group>
 
       {alerts.length === 0 ? (
-        <Box
-          py="xl"
-          style={{ textAlign: "center" }}
-          className="alerts-empty-state"
-          data-testid="options-alerts-empty"
-        >
+        <Box py="lg" style={{ textAlign: "center" }} className="alerts-empty-state" data-testid="options-alerts-empty">
           <Text size="sm" c="dimmed">
             Waiting for unusual activity patterns...
           </Text>
@@ -160,12 +151,10 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
         </Timeline>
       )}
 
-      <Paper
+      <CompactPanel
         mt="md"
         p="xs"
-        bg="light-dark(blue.0, dark.6)"
-        radius="xs"
-        style={{ border: "1px dashed var(--mantine-color-blue-4)" }}
+        style={{ border: "1px dashed var(--mantine-color-blue-4)", background: "light-dark(var(--mantine-color-blue-0), var(--mantine-color-dark-6))" }}
         className="alerts-profit-tip"
         data-testid="options-alerts-profit-tip"
       >
@@ -173,7 +162,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
           💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick
           bullish trade. When a "Wall" appears, expect the price to reverse from that strike.
         </Text>
-      </Paper>
-    </Paper>
+      </CompactPanel>
+    </CompactPanel>
   );
 }

@@ -1,4 +1,5 @@
-import { Center, Loader, Text } from "@mantine/core";
+import { Group, Loader, Text } from "@mantine/core";
+import { CompactPanel } from "../common/compact";
 
 interface ScreenerLoadingProps {
   message?: string;
@@ -6,19 +7,19 @@ interface ScreenerLoadingProps {
 
 export function ScreenerLoading({ message }: ScreenerLoadingProps) {
   return (
-    <Center
-      h={200}
-      style={{ flexDirection: "column", gap: 16 }}
+    <CompactPanel
       id="screener-loading"
       className="screener-loading"
-      data-testid="screener-loading"
-    >
-      <Loader size="lg" className="screener-loader" data-testid="screener-loader" />
-      {message && (
-        <Text c="dimmed" size="sm" className="loading-message" data-testid="loading-message">
-          {message}
-        </Text>
-      )}
-    </Center>
+      testId="screener-loading"
+      title={
+        <Group gap="xs" wrap="nowrap">
+          <Loader size="sm" className="screener-loader" data-testid="screener-loader" />
+          <Text fw={600} size="sm">
+            Loading screener
+          </Text>
+        </Group>
+      }
+      description={message}
+    />
   );
 }

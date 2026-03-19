@@ -71,7 +71,7 @@ export function OptionChainPanel({
     <Stack
       id="chain-panel"
       className="option-chain-panel"
-      gap="md"
+      gap="sm"
       style={{ height: "100%" }}
       data-testid="options-chain-panel"
     >
@@ -85,8 +85,8 @@ export function OptionChainPanel({
         wrap="nowrap"
         data-testid="options-chain-header"
       >
-        <Group gap="sm" wrap="nowrap">
-          <Text size="lg" fw={600} style={{ whiteSpace: "nowrap" }}>
+        <Group gap="xs" wrap="nowrap">
+          <Text size="md" fw={600} style={{ whiteSpace: "nowrap" }}>
             Option Chain
           </Text>
           <LiveSpotChart underlying={selectedUnderlying} />
@@ -106,7 +106,7 @@ export function OptionChainPanel({
             </MantineTooltip>
           )}
         </Group>
-        <Group gap="sm">
+        <Group gap="xs">
           <Button
             variant="light"
             color="blue"
@@ -118,12 +118,7 @@ export function OptionChainPanel({
           >
             Guide
           </Button>
-          <Text
-            size="sm"
-            c="dimmed"
-            className="chain-selection-label"
-            data-testid="options-chain-selection"
-          >
+          <Text size="xs" c="dimmed" className="chain-selection-label" data-testid="options-chain-selection">
             {selectedUnderlying} · {selectedExpiry}
           </Text>
           <IconRefresh
@@ -222,7 +217,7 @@ export function OptionChainPanel({
             className="chain-tab-panel"
             data-testid="options-chain-table-panel"
           >
-            <Stack gap="md">
+            <Stack gap="sm">
               <ChainSummary
                 strikeMatrix={strikeMatrix}
                 spotPrice={spotPrice}

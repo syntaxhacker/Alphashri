@@ -1,22 +1,10 @@
-import {
-  Box,
-  Group,
-  Paper,
-  Text,
-  Stack,
-  SimpleGrid,
-  ScrollArea,
-  Flex,
-  Divider,
-  Badge,
-  useMantineColorScheme,
-  useMantineTheme,
-} from "@mantine/core";
+import { Box, Group, Paper, Text, Stack, SimpleGrid, Badge, useMantineColorScheme, useMantineTheme } from "@mantine/core";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { OptionAlerts } from "./OptionAlerts";
 import { IVSkewChart } from "./IVSkewChart";
 import { fontWeights } from "../../../theme";
+import { CompactPanel } from "../../common/compact";
 
 interface OIAnalysisProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -73,7 +61,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
       axisPointer: { type: "shadow" },
       backgroundColor: isDark ? "#25262b" : "#fff",
       borderColor: isDark ? "#373a40" : "#dee2e6",
-      textStyle: { color: isDark ? "#c1c2c5" : "#000", fontSize: theme.fontSizes.sm },
+      textStyle: { color: isDark ? "#c1c2c5" : "#1f2937", fontSize: theme.fontSizes.sm },
     },
     legend: {
       data: ["Call OI Chg", "Put OI Chg"],
@@ -120,33 +108,22 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
     ],
   };
 
-  const paperStyle = {
-    background: "light-dark(var(--mantine-color-white), var(--mantine-color-dark-7))",
-    border: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
-  };
-
   const itemStyle = {
     background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))",
     borderRadius: "var(--mantine-radius-sm)",
   };
 
   return (
-    <Stack id="oi-analysis" className="oi-analysis" gap="lg" data-testid="oi-analysis">
+    <Stack id="oi-analysis" className="oi-analysis" gap="sm" data-testid="oi-analysis">
       <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" className="oi-analysis-grid">
-        <Stack gap="md" className="oi-analysis-left">
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm" className="oi-analysis-grid">
+        <Stack gap="sm" className="oi-analysis-left">
           <IVSkewChart strikeMatrix={strikeMatrix} />
 
           {/* OI Spikes List */}
-          <Paper
-            p="md"
-            radius="md"
-            style={paperStyle}
-            className="oi-spikes-panel"
-            data-testid="options-oi-spikes-panel"
-          >
-            <Text size="sm" fw={800} mb="md" c="blue.6" style={{ letterSpacing: "0.5px" }}>
+          <CompactPanel className="oi-spikes-panel" data-testid="options-oi-spikes-panel">
+            <Text size="xs" fw={800} mb="sm" c="blue.6" style={{ letterSpacing: "0.5px" }}>
               🔥 INTENSITY (OI SPIKES)
             </Text>
             <Stack gap="xs" className="oi-spikes-list" data-testid="options-oi-spikes-list">
@@ -188,36 +165,28 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
                 </Group>
               ))}
             </Stack>
-          </Paper>
+          </CompactPanel>
         </Stack>
 
-        <Stack gap="md" className="oi-analysis-right">
+        <Stack gap="sm" className="oi-analysis-right">
           {/* OI Distribution Chart */}
-          <Paper
-            p="md"
-            radius="md"
-            style={paperStyle}
-            className="oi-distribution-panel"
-            data-testid="options-oi-distribution-panel"
-          >
-            <Text size="sm" fw={800} mb="md" c="blue.6" style={{ letterSpacing: "0.5px" }}>
+          <CompactPanel className="oi-distribution-panel" data-testid="options-oi-distribution-panel">
+            <Text size="xs" fw={800} mb="sm" c="blue.6" style={{ letterSpacing: "0.5px" }}>
               📊 OI CHANGE DISTRIBUTION
             </Text>
             <ReactECharts
               option={distributionOption}
-              style={{ height: "400px" }}
+              style={{ height: "360px" }}
               opts={{ renderer: "svg" }}
               className="oi-distribution-chart"
             />
-          </Paper>
+          </CompactPanel>
 
           {/* Sentiment Overview */}
-          <Paper
-            p="md"
-            radius="md"
-            style={{ ...paperStyle, borderLeft: "4px solid var(--mantine-color-blue-6)", flex: 1 }}
+          <CompactPanel
             className="oi-sentiment-panel"
             data-testid="options-oi-sentiment-panel"
+            style={{ borderLeft: "4px solid var(--mantine-color-blue-6)", flex: 1 }}
           >
             <Group align="flex-start" wrap="nowrap">
               <Box>
@@ -246,7 +215,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
                 </Text>
               </Box>
             </Group>
-          </Paper>
+          </CompactPanel>
         </Stack>
       </SimpleGrid>
     </Stack>

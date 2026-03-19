@@ -32,13 +32,13 @@ export function NavbarLinksGroup({
         justifyContent: collapsed ? "center" : "flex-start",
         padding: collapsed
           ? "var(--mantine-spacing-xs)"
-          : "var(--mantine-spacing-xs) var(--mantine-spacing-md)",
+          : "var(--mantine-spacing-xs) var(--mantine-spacing-sm)",
       }}
     >
-      <Group justify={collapsed ? "center" : "space-between"} gap={0}>
+        <Group justify={collapsed ? "center" : "space-between"} gap={4}>
         <Box style={{ display: "flex", alignItems: "center" }}>
-          <ThemeIcon variant="light" size={30}>
-            <Icon size={18} />
+          <ThemeIcon variant="light" size={26}>
+            <Icon size={16} />
           </ThemeIcon>
           {!collapsed && (
             <Box ml="md">

@@ -57,6 +57,15 @@ export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 10;
+    const baseDelay = 2000;
+
+    const getRetryDelay = () => {
+      const delay = Math.min(baseDelay * Math.pow(2, retryCount), 30000);
+      return delay + Math.random() * 1000; // jitter
+    };
+
     const connectWebSocket = () => {
       try {
         const ws = new WebSocket(`${WS_BASE}/ws/news`);
@@ -65,6 +74,7 @@ export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
         ws.onopen = () => {
           console.log("📰 News WebSocket connected");
           setConnected(true);
+          retryCount = 0; // reset on successful connection
         };
 
         ws.onmessage = (event) => {
@@ -91,13 +101,28 @@ export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
         ws.onclose = (event) => {
           console.log(`📰 News WebSocket disconnected (code: ${event.code})`);
           setConnected(false);
-          // Reconnect after 5 seconds
-          reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
+          wsRef.current = null;
+
+          // Don't reconnect on normal close or if max retries exceeded
+          if (event.code === 1000 || retryCount >= maxRetries) {
+            if (retryCount >= maxRetries) {
+              console.error("📰 News WebSocket max retries reached, giving up");
+            }
+            return;
+          }
+
+          retryCount++;
+          const delay = getRetryDelay();
+          console.log(`📰 Reconnecting in ${Math.round(delay)}ms (attempt ${retryCount}/${maxRetries})`);
+          reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
         };
       } catch (error) {
         console.error("Failed to create WebSocket:", error);
-        // Retry after 5 seconds
-        reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          const delay = getRetryDelay();
+          reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
+        }
       }
     };
 

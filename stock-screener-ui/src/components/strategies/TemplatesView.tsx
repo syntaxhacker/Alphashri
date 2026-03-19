@@ -1,6 +1,7 @@
-import { Stack, Card, Group, Text, Badge, Button, Alert, SimpleGrid, Title } from "@mantine/core";
+import { Stack, Group, Text, Button, SimpleGrid } from "@mantine/core";
 import { IconAlertCircle, IconPlus, IconSettings } from "@tabler/icons-react";
 import type { TemplatesViewProps, TemplateCardProps } from "./types";
+import { CompactPanel } from "../common/compact";
 
 export function TemplatesView({
   templates,
@@ -10,36 +11,45 @@ export function TemplatesView({
 }: TemplatesViewProps) {
   if (isLoading) {
     return (
-      <Stack align="center" gap="md" mt="xl" className="templates-view-loading">
-        <div className="spinner" data-testid="strategies-loading" />
-        <Text size="sm" c="dimmed">
-          Loading strategy templates...
-        </Text>
-      </Stack>
+      <CompactPanel
+        className="templates-view-loading"
+        testId="templates-loading-state"
+        title={
+          <Group gap="xs" wrap="nowrap">
+            <div className="spinner" data-testid="strategies-loading" />
+            <Text fw={600} size="sm">
+              Loading templates
+            </Text>
+          </Group>
+        }
+        description="Fetching strategy templates and variations"
+      />
     );
   }
 
   if (templates.length === 0) {
     return (
-      <Alert
-        icon={<IconAlertCircle size={16} />}
-        title="No Templates"
-        color="yellow"
-        mt="xl"
+      <CompactPanel
         className="templates-view-empty"
-        data-testid="templates-empty-state"
-      >
-        No strategy templates found. Run the migration script to create templates.
-      </Alert>
+        testId="templates-empty-state"
+        title={
+          <Group gap="xs" wrap="nowrap">
+            <IconAlertCircle size={18} />
+            <Text fw={600} size="sm">
+              No templates
+            </Text>
+          </Group>
+        }
+        description="Run the migration script to create the strategy templates first."
+      />
     );
   }
 
   return (
-    <Stack gap="md" className="templates-view" id="templates-view" data-testid="templates-view">
-      <Title order={4}>Strategy Templates</Title>
+    <Stack gap="sm" className="templates-view" id="templates-view" data-testid="templates-view">
       <SimpleGrid
         cols={{ base: 1, sm: 2, lg: 3 }}
-        spacing="md"
+        spacing="sm"
         className="templates-grid"
         data-testid="templates-grid"
       >
@@ -63,84 +73,55 @@ export function TemplatesView({
 
 function TemplateCard({ template, variations, onCreateFromTemplate }: TemplateCardProps) {
   return (
-    <Card
-      shadow="sm"
-      padding="md"
-      radius="sm"
-      withBorder
-      h="100%"
-      className="template-card"
-      data-testid="strategy-card"
-    >
-      <Stack gap="xs" className="template-card-content">
-        <Group
-          justify="space-between"
-          align="flex-start"
-          wrap="nowrap"
-          className="template-card-header"
+    <CompactPanel
+      title={template.name}
+      description={template.description}
+      action={
+        <Button
+          size="xs"
+          variant="light"
+          leftSection={<IconPlus size={13} />}
+          onClick={() => onCreateFromTemplate(template)}
+          data-testid="create-from-template-btn"
+          className="template-card-create-btn"
         >
-          <Group gap="xs">
-            <IconSettings size={18} color="var(--mantine-color-teal-6)" />
-            <Text fw={500} size="md" className="template-card-name">
-              {template.name}
-            </Text>
-          </Group>
-          <Badge color="teal" variant="light" size="sm" className="template-card-badge">
-            Template
-          </Badge>
-        </Group>
-
-        {template.description && (
-          <Text size="sm" c="dimmed" lineClamp={2} className="template-card-description">
-            {template.description}
+          Create
+        </Button>
+      }
+      className="template-card"
+      id={`template-card-${template.id}`}
+      testId="strategy-card"
+    >
+      <Stack gap={6} className="template-card-content">
+        <Group gap="xs" wrap="wrap" className="template-card-header">
+          <IconSettings size={16} color="var(--mantine-color-teal-6)" />
+          <Text size="sm" fw={600} className="template-card-name">
+            {template.name}
           </Text>
-        )}
-
-        <Stack gap={4} mt="xs" className="template-card-params">
-          <Group gap={6}>
-            <Text size="sm" c="dimmed">
-              Type:
-            </Text>
-            <Text size="sm" fw={500}>
-              {template.strategy_type}
-            </Text>
-          </Group>
-          <Group gap={6}>
-            <Text size="sm" c="dimmed">
-              SL:
-            </Text>
-            <Text size="sm">{template.sl_pct}%</Text>
-            <Text size="sm" c="dimmed">
-              TP:
-            </Text>
-            <Text size="sm">{template.tp_pct}%</Text>
-            <Text size="sm" c="dimmed">
-              Max Pos:
-            </Text>
-            <Text size="sm">{template.max_positions}</Text>
-          </Group>
-        </Stack>
-
-        <Group gap="xs" mt="sm" className="template-card-actions">
-          <Button
-            size="sm"
-            variant="light"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => onCreateFromTemplate(template)}
-            fullWidth
-            data-testid="create-from-template-btn"
-            className="template-card-create-btn"
-          >
-            Create Variation
-          </Button>
         </Group>
-
+        <Group gap="xs" wrap="wrap" className="template-card-params">
+          <Text size="xs" c="dimmed">
+            Type
+          </Text>
+          <Text size="xs" fw={500}>
+            {template.strategy_type}
+          </Text>
+          <Text size="xs" c="dimmed">
+            SL {template.sl_pct}%
+          </Text>
+          <Text size="xs" c="dimmed">
+            TP {template.tp_pct}%
+          </Text>
+          <Text size="xs" c="dimmed">
+            Max Pos {template.max_positions}
+          </Text>
+        </Group>
         {variations.length > 0 && (
-          <Text size="sm" c="dimmed" mt="xs" className="template-card-variations">
+          <Text size="xs" c="dimmed" className="template-card-variations">
             {variations.length} variation{variations.length !== 1 ? "s" : ""} created
           </Text>
         )}
       </Stack>
-    </Card>
+    </CompactPanel>
   );
 }

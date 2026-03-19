@@ -1,21 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  Card,
   Text,
   Table,
   Badge,
   Group,
   Stack,
-  Title,
   Loader,
-  Container,
+  Box,
   ActionIcon,
-  Grid,
-  Paper,
   ScrollArea,
 } from "@mantine/core";
 import { IconRefresh } from "@tabler/icons-react";
 import { useAuth } from "../components/auth/AuthProvider";
+import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "../components/common/compact";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -113,22 +110,32 @@ export default function AdminPage() {
 
   if (loading && !stats) {
     return (
-      <Container size="xl" py="md" data-testid="admin-page">
-        <Group justify="center" py="xl">
-          <Loader size="sm" />
-          <Text c="dimmed">Loading LLM stats...</Text>
-        </Group>
-      </Container>
+      <Box data-testid="admin-page" style={{ height: "100%", overflow: "hidden" }}>
+        <CompactPanel
+          padded
+          title={
+            <Group gap="xs" wrap="nowrap">
+              <Loader size="sm" />
+              <Text fw={600} size="sm">
+                Loading LLM stats
+              </Text>
+            </Group>
+          }
+          description="Fetching the latest admin telemetry."
+        />
+      </Box>
     );
   }
 
   if (error && !stats) {
     return (
-      <Container size="xl" py="md" data-testid="admin-page">
-        <Text c="red" ta="center" py="xl">
-          {error}
-        </Text>
-      </Container>
+      <Box data-testid="admin-page" style={{ height: "100%", overflow: "hidden" }}>
+        <CompactPanel
+          title="Unable to load stats"
+          description={error}
+          style={{ color: "var(--mantine-color-red-6)" }}
+        />
+      </Box>
     );
   }
 
@@ -144,10 +151,11 @@ export default function AdminPage() {
   };
 
   return (
-    <Container size="xl" py="md" data-testid="admin-page">
-      <Stack gap="md">
-        <Group justify="space-between">
-          <Title order={2}>LLM Admin Dashboard</Title>
+    <Box data-testid="admin-page" style={{ height: "100%", overflow: "hidden" }}>
+      <CompactPage
+        title="LLM Admin Dashboard"
+        description="Recent model usage, response time, and cost telemetry."
+        actions={
           <ActionIcon
             variant="light"
             onClick={fetchStats}
@@ -156,72 +164,24 @@ export default function AdminPage() {
           >
             <IconRefresh size={18} />
           </ActionIcon>
-        </Group>
+        }
+      >
+        <Stack gap="sm" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CompactStatGrid>
+            <CompactStat label="Total Runs" value={aggregate.total_runs} />
+            <CompactStat label="Total Tokens" value={aggregate.total_tokens.toLocaleString()} />
+            <CompactStat label="Total Cost" value={formatCost(aggregate.total_cost_usd)} />
+            <CompactStat label="Avg Response Time" value={formatResponseTime(aggregate.avg_response_time_ms)} />
+          </CompactStatGrid>
 
-        {error && (
-          <Text c="orange" size="sm">
-            Warning: {error}
-          </Text>
-        )}
+          {error && (
+            <Text c="orange" size="sm">
+              Warning: {error}
+            </Text>
+          )}
 
-        <Grid>
-          <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <Card padding="lg" withBorder>
-              <Stack gap="xs">
-                <Text size="sm" c="dimmed">
-                  Total Runs
-                </Text>
-                <Text size="xl" fw={700}>
-                  {aggregate.total_runs}
-                </Text>
-              </Stack>
-            </Card>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <Card padding="lg" withBorder>
-              <Stack gap="xs">
-                <Text size="sm" c="dimmed">
-                  Total Tokens
-                </Text>
-                <Text size="xl" fw={700}>
-                  {aggregate.total_tokens.toLocaleString()}
-                </Text>
-              </Stack>
-            </Card>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <Card padding="lg" withBorder>
-              <Stack gap="xs">
-                <Text size="sm" c="dimmed">
-                  Total Cost
-                </Text>
-                <Text size="xl" fw={700}>
-                  {formatCost(aggregate.total_cost_usd)}
-                </Text>
-              </Stack>
-            </Card>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <Card padding="lg" withBorder>
-              <Stack gap="xs">
-                <Text size="sm" c="dimmed">
-                  Avg Response Time
-                </Text>
-                <Text size="xl" fw={700}>
-                  {formatResponseTime(aggregate.avg_response_time_ms)}
-                </Text>
-              </Stack>
-            </Card>
-          </Grid.Col>
-        </Grid>
-
-        {aggregate.models_used && aggregate.models_used.length > 0 && (
-          <Paper withBorder p="md">
-            <Stack gap="sm">
-              <Title order={4}>Model Breakdown</Title>
+          {aggregate.models_used && aggregate.models_used.length > 0 && (
+            <CompactPanel title="Model Breakdown">
               <Group gap="sm">
                 {aggregate.models_used.map((m, idx) => (
                   <Badge key={idx} variant="light" size="lg">
@@ -229,19 +189,16 @@ export default function AdminPage() {
                   </Badge>
                 ))}
               </Group>
-            </Stack>
-          </Paper>
-        )}
+            </CompactPanel>
+          )}
 
-        <Paper withBorder p="md">
-          <Stack gap="sm">
-            <Title order={4}>Recent Runs</Title>
-            {recent_runs.length === 0 ? (
-              <Text c="dimmed" ta="center" py="md">
-                No recent runs
-              </Text>
-            ) : (
-              <ScrollArea>
+          <CompactPanel title="Recent Runs" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <ScrollArea flex={1}>
+              {recent_runs.length === 0 ? (
+                <Text c="dimmed" ta="center" py="sm">
+                  No recent runs
+                </Text>
+              ) : (
                 <Table striped highlightOnHover data-testid="runs-table">
                   <Table.Thead>
                     <Table.Tr>
@@ -288,11 +245,11 @@ export default function AdminPage() {
                     ))}
                   </Table.Tbody>
                 </Table>
-              </ScrollArea>
-            )}
-          </Stack>
-        </Paper>
-      </Stack>
-    </Container>
+              )}
+            </ScrollArea>
+          </CompactPanel>
+        </Stack>
+      </CompactPage>
+    </Box>
   );
 }

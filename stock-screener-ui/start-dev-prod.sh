@@ -8,20 +8,14 @@ UI_HOST="${UI_HOST:-127.0.0.1}"
 UI_PORT="${UI_PORT:-5173}"
 LOG_FILE="${LOG_FILE:-/tmp/alphashri-dev-prod.log}"
 
-# Check for .env file
-if [[ ! -f ".env" ]]; then
-  echo "Error: .env not found. Copy .env.production to .env and update values:"
-  echo "  cp .env.production .env"
+# Check for production env file
+if [[ ! -f ".env.production" ]]; then
+  echo "Error: .env.production not found."
   exit 1
 fi
 
-# Check if using production URLs
-API_URL=$(grep "^VITE_API_BASE_URL=" .env | cut -d= -f2)
-if [[ "$API_URL" == *"railway.app"* ]] || [[ "$API_URL" == *"production"* ]]; then
-  echo "Using production backend: $API_URL"
-else
-  echo "Warning: Using local backend: $API_URL"
-fi
+API_URL=$(grep "^VITE_API_BASE_URL=" .env.production | cut -d= -f2)
+echo "Using production backend: $API_URL"
 
 kill_port() {
   local port=$1
@@ -51,7 +45,7 @@ echo "Logging to: $LOG_FILE"
 
 echo "Starting UI on http://${UI_HOST}:${UI_PORT}"
 echo "API: $API_URL"
-bun run dev --host "${UI_HOST}" --port "${UI_PORT}" >> "$LOG_FILE" 2>&1 &
+npx vite --mode production --host "${UI_HOST}" --port "${UI_PORT}" >> "$LOG_FILE" 2>&1 &
 UI_PID=$!
 
 echo "UI PID: ${UI_PID}"

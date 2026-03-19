@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { NewsItem } from "./news-types";
 
 interface UseNewsSourceGroupsOptions {
@@ -11,6 +11,7 @@ interface UseNewsSourceGroupsReturn {
   sourceNames: string[];
   expandedSources: Set<string>;
   toggleSourceExpanded: (source: string) => void;
+  expandAll: () => void;
 }
 
 export function useNewsSourceGroups({
@@ -18,6 +19,7 @@ export function useNewsSourceGroups({
   autoExpandCount = 2,
 }: UseNewsSourceGroupsOptions): UseNewsSourceGroupsReturn {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
+  const hasInitialized = useRef(false);
 
   const groupedNewsItems = useMemo(() => {
     return newsItems.reduce<Record<string, NewsItem[]>>((acc, item) => {
@@ -40,11 +42,30 @@ export function useNewsSourceGroups({
     });
   }, [groupedNewsItems]);
 
+  // Only auto-expand on first load, not on every refresh
   useEffect(() => {
-    if (sourceNames.length > 0 && expandedSources.size === 0) {
+    if (sourceNames.length > 0 && !hasInitialized.current) {
+      hasInitialized.current = true;
       setExpandedSources(new Set(sourceNames.slice(0, autoExpandCount)));
     }
-  }, [sourceNames.length, autoExpandCount]);
+  }, [sourceNames, autoExpandCount]);
+
+  // Add any new sources to expanded set (don't remove existing ones)
+  useEffect(() => {
+    if (sourceNames.length > 0 && hasInitialized.current) {
+      setExpandedSources((prev) => {
+        const newSources = sourceNames.filter((s) => !prev.has(s));
+        if (newSources.length === 0) return prev;
+        const next = new Set(prev);
+        for (const s of newSources) {
+          if (next.size < autoExpandCount) {
+            next.add(s);
+          }
+        }
+        return next;
+      });
+    }
+  }, [sourceNames, autoExpandCount]);
 
   const toggleSourceExpanded = (source: string) => {
     setExpandedSources((prev) => {
@@ -58,11 +79,16 @@ export function useNewsSourceGroups({
     });
   };
 
+  const expandAll = () => {
+    setExpandedSources(new Set(sourceNames));
+  };
+
   return {
     groupedNewsItems,
     sourceNames,
     expandedSources,
     toggleSourceExpanded,
+    expandAll,
   };
 }
 

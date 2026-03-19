@@ -13,6 +13,7 @@ import subprocess
 import json
 import os
 import time
+import asyncio
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
@@ -873,14 +874,19 @@ async def start_paper_bot():
     _paper_bot_log_handle = open(_paper_bot_log_file, "a", buffering=1)
 
     cmd = [sys.executable, "-u", str(script_path)]
-    _paper_bot_process = subprocess.Popen(
-        cmd,
-        cwd=str(Path(__file__).parent.parent),
-        stdout=_paper_bot_log_handle,
-        stderr=_paper_bot_log_handle,
-        start_new_session=True,
-    )
-    _write_runner_pid_file(_paper_bot_process.pid)
+
+    def _launch_process():
+        global _paper_bot_process
+        _paper_bot_process = subprocess.Popen(
+            cmd,
+            cwd=str(Path(__file__).parent.parent),
+            stdout=_paper_bot_log_handle,
+            stderr=_paper_bot_log_handle,
+            start_new_session=True,
+        )
+        _write_runner_pid_file(_paper_bot_process.pid)
+
+    await asyncio.to_thread(_launch_process)
 
     new_status = _get_bot_status()
     return {
@@ -911,18 +917,22 @@ async def stop_paper_bot():
     still_running = []
     for pid in sorted(pids_to_stop):
         try:
-            subprocess.run(["kill", str(pid)], check=False)
-            for _ in range(10):
+            def _kill_and_wait(pid=pid):
+                subprocess.run(["kill", str(pid)], check=False)
+                for _ in range(10):
+                    probe = subprocess.run(["kill", "-0", str(pid)], check=False)
+                    if probe.returncode != 0:
+                        return True
+                    time.sleep(0.2)
                 probe = subprocess.run(["kill", "-0", str(pid)], check=False)
-                if probe.returncode != 0:
-                    break
-                time.sleep(0.2)
-            probe = subprocess.run(["kill", "-0", str(pid)], check=False)
-            if probe.returncode == 0:
-                subprocess.run(["kill", "-9", str(pid)], check=False)
-                time.sleep(0.1)
-                probe = subprocess.run(["kill", "-0", str(pid)], check=False)
-            if probe.returncode != 0:
+                if probe.returncode == 0:
+                    subprocess.run(["kill", "-9", str(pid)], check=False)
+                    time.sleep(0.1)
+                    probe = subprocess.run(["kill", "-0", str(pid)], check=False)
+                return probe.returncode != 0
+
+            killed = await asyncio.to_thread(_kill_and_wait)
+            if killed:
                 stopped.append(pid)
             else:
                 still_running.append(pid)
@@ -1060,48 +1070,54 @@ async def get_paper_chart(
         # Always fetch 1-min data and resample to requested timeframe
         # This ensures all timeframes work consistently
         screener = TVScreenerUsage(enable_paper_trading=False)
-        df_1m = None
 
-        # Use historical API for past dates, intraday for today
-        if date == today:
-            # Fetch today's intraday 1-min data
-            df_1m = screener.upstox_api.fetch_intraday_data_v3(
-                symbol=symbol.upper(),
-                interval='1'
-            )
-        else:
-            # Fetch historical 1-min data for past dates
-            from datetime import timedelta
-            from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
-            df_1m_full = screener.upstox_api.fetch_historical_data_v3(
-                symbol=symbol.upper(),
-                unit='minutes',
-                interval=1,
-                to_date=date,
-                from_date=from_date,
-            )
-            # Filter to only the requested date
-            if df_1m_full is not None and not df_1m_full.empty:
-                date_start = f"{date}T00:00:00"
-                date_end = f"{date}T23:59:59"
-                df_1m = df_1m_full[df_1m_full.index >= date_start]
-                df_1m = df_1m[df_1m.index <= date_end]
+        def _fetch_chart_data():
+            df_1m = None
 
-            # Fallback: try broader range if no data
-            if df_1m is None or df_1m.empty:
-                broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
+            # Use historical API for past dates, intraday for today
+            if date == today:
+                # Fetch today's intraday 1-min data
+                df_1m = screener.upstox_api.fetch_intraday_data_v3(
+                    symbol=symbol.upper(),
+                    interval='1'
+                )
+            else:
+                # Fetch historical 1-min data for past dates
+                from datetime import timedelta
+                from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
                 df_1m_full = screener.upstox_api.fetch_historical_data_v3(
                     symbol=symbol.upper(),
                     unit='minutes',
                     interval=1,
                     to_date=date,
-                    from_date=broad_from_date,
+                    from_date=from_date,
                 )
+                # Filter to only the requested date
                 if df_1m_full is not None and not df_1m_full.empty:
                     date_start = f"{date}T00:00:00"
                     date_end = f"{date}T23:59:59"
                     df_1m = df_1m_full[df_1m_full.index >= date_start]
                     df_1m = df_1m[df_1m.index <= date_end]
+
+                # Fallback: try broader range if no data
+                if df_1m is None or df_1m.empty:
+                    broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
+                    df_1m_full = screener.upstox_api.fetch_historical_data_v3(
+                        symbol=symbol.upper(),
+                        unit='minutes',
+                        interval=1,
+                        to_date=date,
+                        from_date=broad_from_date,
+                    )
+                    if df_1m_full is not None and not df_1m_full.empty:
+                        date_start = f"{date}T00:00:00"
+                        date_end = f"{date}T23:59:59"
+                        df_1m = df_1m_full[df_1m_full.index >= date_start]
+                        df_1m = df_1m[df_1m.index <= date_end]
+
+            return df_1m
+
+        df_1m = await asyncio.to_thread(_fetch_chart_data)
 
         # Resample to requested timeframe
         df = _resample_to_timeframe(df_1m, timeframe)

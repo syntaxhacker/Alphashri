@@ -1,6 +1,7 @@
-import { Paper, Text, Group, useMantineColorScheme, useMantineTheme } from "@mantine/core";
+import { Text, Group, useMantineColorScheme, useMantineTheme } from "@mantine/core";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
+import { CompactPanel } from "../../common/compact";
 
 interface IVSkewChartProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -30,7 +31,7 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
       },
       backgroundColor: isDark ? "#25262b" : "#fff",
       borderColor: isDark ? "#373a40" : "#dee2e6",
-      textStyle: { color: isDark ? "#c1c2c5" : "#000", fontSize: theme.fontSizes.sm },
+      textStyle: { color: isDark ? "#c1c2c5" : "#1f2937", fontSize: theme.fontSizes.sm },
     },
     grid: {
       top: 10,
@@ -73,20 +74,9 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
     ],
   };
 
-  const paperStyle = {
-    background: "light-dark(var(--mantine-color-white), var(--mantine-color-dark-7))",
-    border: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
-  };
-
   return (
-    <Paper
-      p="md"
-      radius="md"
-      style={paperStyle}
-      className="iv-skew-chart-panel"
-      data-testid="options-iv-skew-chart"
-    >
-      <Group justify="space-between" mb="sm" className="iv-skew-header">
+    <CompactPanel className="iv-skew-chart-panel" data-testid="options-iv-skew-chart">
+      <Group justify="space-between" mb="xs" className="iv-skew-header">
         <Text size="sm" fw={800} c="blue.6" style={{ letterSpacing: "0.5px" }}>
           VOLATILITY SMILE (IV SKEW)
         </Text>
@@ -96,10 +86,10 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
       </Group>
       <ReactECharts
         option={option}
-        style={{ height: "160px" }}
+        style={{ height: "148px" }}
         opts={{ renderer: "svg" }}
         className="iv-skew-chart"
       />
-    </Paper>
+    </CompactPanel>
   );
 }

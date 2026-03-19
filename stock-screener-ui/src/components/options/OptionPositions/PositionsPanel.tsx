@@ -24,7 +24,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
       <Stack
         id="positions-panel"
         className="positions-panel"
-        gap="md"
+        gap="sm"
         data-testid="options-positions-panel"
       >
         <Text size="lg" fw={600} className="positions-title">
@@ -42,7 +42,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
       <Stack
         id="positions-panel"
         className="positions-panel"
-        gap="md"
+        gap="sm"
         data-testid="options-positions-panel"
       >
         <Text size="lg" fw={600} className="positions-title">

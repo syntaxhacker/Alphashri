@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
 function formatExpiresIn(hours: number | null): string {
   if (hours === null) return "";
