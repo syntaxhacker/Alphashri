@@ -239,7 +239,7 @@ export function SectorPage() {
     setAlerts([]);
     setIntervalMovers([]);
     loadData(market);
-    
+
     // Clear any existing timers
     if (liveTimeoutRef.current) {
       clearTimeout(liveTimeoutRef.current);
@@ -301,7 +301,10 @@ export function SectorPage() {
 
     if (!data || data.sectors.length === 0) {
       return (
-        <CompactPanel title="No sector data" description="No sector data available for this market." />
+        <CompactPanel
+          title="No sector data"
+          description="No sector data available for this market."
+        />
       );
     }
 
@@ -523,7 +526,11 @@ export function SectorPage() {
 
         <Box
           flex={1}
-          style={{ minHeight: 0, padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)", overflow: "auto" }}
+          style={{
+            minHeight: 0,
+            padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)",
+            overflow: "auto",
+          }}
         >
           {activeTab === "dashboard" ? (
             renderDashboard()

@@ -1,4 +1,13 @@
-import { Group, Stack, Text, ActionIcon, NumberInput, Select, Tooltip, SegmentedControl } from "@mantine/core";
+import {
+  Group,
+  Stack,
+  Text,
+  ActionIcon,
+  NumberInput,
+  Select,
+  Tooltip,
+  SegmentedControl,
+} from "@mantine/core";
 import { IconRefresh } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
 

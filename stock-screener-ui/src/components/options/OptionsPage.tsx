@@ -88,7 +88,11 @@ export function OptionsPage({
           )}
 
           {activeTab === "greeks" && (
-            <Box id="greeks-container" className="options-tab-content" data-testid="options-greeks-tab">
+            <Box
+              id="greeks-container"
+              className="options-tab-content"
+              data-testid="options-greeks-tab"
+            >
               <GreeksPanel />
             </Box>
           )}

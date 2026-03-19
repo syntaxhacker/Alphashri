@@ -75,7 +75,10 @@ export const PageShell: Story = {
           </Group>
         }
       >
-        <CompactPanel title="Nested Surface" description="A page can stack common surfaces without repeating styling.">
+        <CompactPanel
+          title="Nested Surface"
+          description="A page can stack common surfaces without repeating styling."
+        >
           <Text size="sm" c="dimmed">
             Keep the outer page layout and the inner content surfaces separate.
           </Text>

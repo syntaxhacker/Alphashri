@@ -105,7 +105,9 @@ export function ScreenerHeatmap({
   const metricColumns = getNumericColumns(columns);
   const metricRanges = Object.fromEntries(
     metricColumns.map((column) => {
-      const values = stocks.map((stock) => getNumber(stock[column.key])).filter((v): v is number => v !== null);
+      const values = stocks
+        .map((stock) => getNumber(stock[column.key]))
+        .filter((v): v is number => v !== null);
       return [
         column.key,
         {

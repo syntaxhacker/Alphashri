@@ -278,13 +278,17 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
               <Group justify="space-between" align="center">
                 <Group gap="xs">
                   <Text size="xs">
-                    <Text component="span" fw={600}>{item.metrics.total_trades}</Text> trades
+                    <Text component="span" fw={600}>
+                      {item.metrics.total_trades}
+                    </Text>{" "}
+                    trades
                   </Text>
                   <Text size="xs" c={item.metrics.win_rate >= 50 ? "green" : "orange"} fw={500}>
                     {item.metrics.win_rate.toFixed(0)}% WR
                   </Text>
                   <Text size="xs" fw={600} c={item.metrics.total_pnl >= 0 ? "green" : "red"}>
-                    {item.metrics.total_pnl >= 0 ? "+" : ""}₹{item.metrics.total_pnl.toLocaleString()}
+                    {item.metrics.total_pnl >= 0 ? "+" : ""}₹
+                    {item.metrics.total_pnl.toLocaleString()}
                   </Text>
                 </Group>
                 <ActionIcon

@@ -12,7 +12,12 @@ import {
 } from "@mantine/core";
 import { IconRefresh } from "@tabler/icons-react";
 import { useAuth } from "../components/auth/AuthProvider";
-import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "../components/common/compact";
+import {
+  CompactPage,
+  CompactPanel,
+  CompactStat,
+  CompactStatGrid,
+} from "../components/common/compact";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -171,7 +176,10 @@ export default function AdminPage() {
             <CompactStat label="Total Runs" value={aggregate.total_runs} />
             <CompactStat label="Total Tokens" value={aggregate.total_tokens.toLocaleString()} />
             <CompactStat label="Total Cost" value={formatCost(aggregate.total_cost_usd)} />
-            <CompactStat label="Avg Response Time" value={formatResponseTime(aggregate.avg_response_time_ms)} />
+            <CompactStat
+              label="Avg Response Time"
+              value={formatResponseTime(aggregate.avg_response_time_ms)}
+            />
           </CompactStatGrid>
 
           {error && (
@@ -192,7 +200,10 @@ export default function AdminPage() {
             </CompactPanel>
           )}
 
-          <CompactPanel title="Recent Runs" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CompactPanel
+            title="Recent Runs"
+            style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+          >
             <ScrollArea flex={1}>
               {recent_runs.length === 0 ? (
                 <Text c="dimmed" ta="center" py="sm">

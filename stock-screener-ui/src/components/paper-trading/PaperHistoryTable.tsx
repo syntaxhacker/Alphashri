@@ -493,10 +493,7 @@ export function PaperHistoryTable() {
         </Group>
       </Box>
 
-      <Box
-        style={{ flexShrink: 0 }}
-        className="paper-history-list-wrapper"
-      >
+      <Box style={{ flexShrink: 0 }} className="paper-history-list-wrapper">
         <Card
           shadow="sm"
           padding="sm"

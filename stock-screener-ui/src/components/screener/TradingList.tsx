@@ -1,12 +1,5 @@
 import { useState } from "react";
-import {
-  Textarea,
-  Group,
-  Text,
-  ActionIcon,
-  Collapse,
-  CopyButton,
-} from "@mantine/core";
+import { Textarea, Group, Text, ActionIcon, Collapse, CopyButton } from "@mantine/core";
 import { IconCopy, IconCheck, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
 

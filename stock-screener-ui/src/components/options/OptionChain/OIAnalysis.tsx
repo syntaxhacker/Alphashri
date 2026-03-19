@@ -1,4 +1,14 @@
-import { Box, Group, Paper, Text, Stack, SimpleGrid, Badge, useMantineColorScheme, useMantineTheme } from "@mantine/core";
+import {
+  Box,
+  Group,
+  Paper,
+  Text,
+  Stack,
+  SimpleGrid,
+  Badge,
+  useMantineColorScheme,
+  useMantineTheme,
+} from "@mantine/core";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { OptionAlerts } from "./OptionAlerts";
@@ -170,7 +180,10 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
 
         <Stack gap="sm" className="oi-analysis-right">
           {/* OI Distribution Chart */}
-          <CompactPanel className="oi-distribution-panel" data-testid="options-oi-distribution-panel">
+          <CompactPanel
+            className="oi-distribution-panel"
+            data-testid="options-oi-distribution-panel"
+          >
             <Text size="xs" fw={800} mb="sm" c="blue.6" style={{ letterSpacing: "0.5px" }}>
               📊 OI CHANGE DISTRIBUTION
             </Text>

@@ -55,7 +55,10 @@ export function ChainSummary({
 
   return (
     <CompactStatGrid>
-      <CompactPanel className="chain-summary-card chain-summary-pcr" data-testid="options-chain-summary-pcr">
+      <CompactPanel
+        className="chain-summary-card chain-summary-pcr"
+        data-testid="options-chain-summary-pcr"
+      >
         <Group justify="space-between" wrap="nowrap" align="flex-start">
           <Stack gap={2}>
             <CompactStat label="PCR" value={stats.pcr.toFixed(2)} tone={pcrColor} />
@@ -81,7 +84,10 @@ export function ChainSummary({
         </Group>
       </CompactPanel>
 
-      <CompactPanel className="chain-summary-card chain-summary-range" data-testid="options-chain-summary-range">
+      <CompactPanel
+        className="chain-summary-card chain-summary-range"
+        data-testid="options-chain-summary-range"
+      >
         <Stack gap={4}>
           <CompactStat
             label="Market Range"
@@ -91,10 +97,16 @@ export function ChainSummary({
                 : "Data pending"
             }
             tone={stats.expectedMove ? "blue.6" : "dimmed"}
-            hint={stats.expectedMove ? `+/- ${stats.expectedMove.range} points expected` : undefined}
+            hint={
+              stats.expectedMove ? `+/- ${stats.expectedMove.range} points expected` : undefined
+            }
           />
           <Divider my={2} />
-          <Group gap="xs" className="chain-support-resistance" data-testid="options-chain-support-resistance">
+          <Group
+            gap="xs"
+            className="chain-support-resistance"
+            data-testid="options-chain-support-resistance"
+          >
             <Text size="sm" fw={700} c="red.6">
               RES {stats.resistanceStrike}
             </Text>
@@ -105,9 +117,17 @@ export function ChainSummary({
         </Stack>
       </CompactPanel>
 
-      <CompactPanel className="chain-summary-card chain-summary-max-pain" data-testid="options-chain-summary-max-pain">
+      <CompactPanel
+        className="chain-summary-card chain-summary-max-pain"
+        data-testid="options-chain-summary-max-pain"
+      >
         <Stack gap={2}>
-          <CompactStat label="Max Pain" value={stats.maxPain} tone="orange.6" hint="Institutional target" />
+          <CompactStat
+            label="Max Pain"
+            value={stats.maxPain}
+            tone="orange.6"
+            hint="Institutional target"
+          />
         </Stack>
       </CompactPanel>
     </CompactStatGrid>

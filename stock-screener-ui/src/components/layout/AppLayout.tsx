@@ -35,8 +35,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         id="app-header"
         data-testid="app-header"
         style={{
-          borderBottom:
-            "1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14))",
+          borderBottom: "1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14))",
           backdropFilter: "blur(18px)",
         }}
       >

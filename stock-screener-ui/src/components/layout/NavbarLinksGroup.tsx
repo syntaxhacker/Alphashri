@@ -35,7 +35,7 @@ export function NavbarLinksGroup({
           : "var(--mantine-spacing-xs) var(--mantine-spacing-sm)",
       }}
     >
-        <Group justify={collapsed ? "center" : "space-between"} gap={4}>
+      <Group justify={collapsed ? "center" : "space-between"} gap={4}>
         <Box style={{ display: "flex", alignItems: "center" }}>
           <ThemeIcon variant="light" size={26}>
             <Icon size={16} />

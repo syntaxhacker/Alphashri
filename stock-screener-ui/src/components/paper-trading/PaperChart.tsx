@@ -720,7 +720,13 @@ export function PaperChart() {
       className="paper-chart-container"
       id="paper-chart"
       h="100%"
-      style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}
+      style={{
+        padding: 0,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+      }}
     >
       <Box
         data-testid="paper-chart-header"

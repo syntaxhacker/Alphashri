@@ -294,7 +294,9 @@ function OptionColumn({
   const moneyness = spotPrice ? getMoneyness(strike, spotPrice, type) : "OTM";
   const isITM = moneyness === "ITM";
   const isATM = moneyness === "ATM";
-  const atmProximity = spotPrice ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1) : 0;
+  const atmProximity = spotPrice
+    ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1)
+    : 0;
 
   const oi = m?.oi ?? 0;
   const prevOi = m?.prev_oi ?? 0;
@@ -358,7 +360,11 @@ function OptionColumn({
     positive?: boolean;
   }>;
 
-  const sideIntensity = clamp(0.14 + atmProximity * 0.22 + (isATM ? 0.08 : 0) + (isHovered ? 0.06 : 0), 0.12, 0.42);
+  const sideIntensity = clamp(
+    0.14 + atmProximity * 0.22 + (isATM ? 0.08 : 0) + (isHovered ? 0.06 : 0),
+    0.12,
+    0.42,
+  );
   const volumeIntensity = maxVolume > 0 ? clamp(volume / maxVolume, 0, 1) : 0;
 
   const tooltipContent = (
@@ -378,14 +384,28 @@ function OptionColumn({
       <Text size="sm" c={oiChange >= 0 ? "green" : "red"}>
         OI Change %: {oiChangePct.toFixed(2)}%
       </Text>
-      <Box mt={5} style={{ borderTop: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))" }} pt={5}>
+      <Box
+        mt={5}
+        style={{
+          borderTop:
+            "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
+        }}
+        pt={5}
+      >
         <Text size="sm">Delta: {delta.toFixed(3)}</Text>
         <Text size="sm">Theta: {(g?.theta ?? 0).toFixed(2)}</Text>
         <Text size="sm">Gamma: {(g?.gamma ?? 0).toFixed(5)}</Text>
         <Text size="sm">Vega: {(g?.vega ?? 0).toFixed(2)}</Text>
         <Text size="sm">IV: {iv.toFixed(2)}%</Text>
       </Box>
-      <Box mt={5} style={{ borderTop: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))" }} pt={5}>
+      <Box
+        mt={5}
+        style={{
+          borderTop:
+            "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
+        }}
+        pt={5}
+      >
         <Text size="sm">
           Bid: {m?.bid_price} | Ask: {m?.ask_price}
         </Text>
@@ -422,85 +442,91 @@ function OptionColumn({
           position: "relative",
           fontWeight: cell.fw,
           background: palette.background,
-          borderRight:
-            i < 4 && type === "CE"
-              ? `1px solid ${palette.border}`
-              : undefined,
-          borderLeft:
-            i > 0 && type === "PE"
-              ? `1px solid ${palette.border}`
-              : undefined,
+          borderRight: i < 4 && type === "CE" ? `1px solid ${palette.border}` : undefined,
+          borderLeft: i > 0 && type === "PE" ? `1px solid ${palette.border}` : undefined,
           boxShadow: palette.shadow,
           color: cell.c ? undefined : palette.text,
         };
 
         return (
-        <Tooltip
-          key={i}
-          label={tooltipContent}
-          position="top"
-          withArrow
-          withinPortal
-          multiline
-          w={220}
-        >
-          <Box
-            style={cellStyle}
-            onClick={() => onRowClick(contract)}
+          <Tooltip
+            key={i}
+            label={tooltipContent}
+            position="top"
+            withArrow
+            withinPortal
+            multiline
+            w={220}
           >
-            {/* Visual OI Bar */}
-            {cell.isOI && (
-              <Box
-                style={{
-                  position: "absolute",
-                  top: 4,
-                  bottom: 4,
-                  [type === "CE" ? "right" : "left"]: 0,
-                  width: `${clamp((oi / Math.max(maxOI, 1)) * 100, 0, 100)}%`,
-                  background: `linear-gradient(180deg, ${hexToRgba(palette.accent, 0.22)} 0%, ${hexToRgba(palette.accent, 0.08)} 100%)`,
-                  borderRadius: type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
-                  zIndex: 0,
-                  transition: "width 0.35s ease",
-                }}
-              />
-            )}
-
-            <Stack gap={0} align="center" style={{ zIndex: 1, width: "100%", position: "relative" }}>
-              <Group gap={4} wrap="nowrap" align="center" justify="center">
-                <Text size="sm" fw={cell.fw} c={cell.c as any} style={{ textAlign: "center", lineHeight: 1.05 }}>
-                  {cell.value}
-                </Text>
-                {cell.badge && (
-                  <Badge
-                    size="sm"
-                    variant="light"
-                    color={cell.badge.color}
-                    px={4}
-                    style={{ fontSize: "10px", height: 14, border: `1px solid ${hexToRgba(palette.accent, 0.18)}` }}
-                  >
-                    {cell.badge.label}
-                  </Badge>
-                )}
-              </Group>
-
-              {/* Visual Delta Bar for LTP cell */}
-              {cell.isLTP && (
-                <Box w="72%" mt={3}>
-                  <Progress
-                    value={clamp(Math.abs(delta) * 100, 0, 100)}
-                    size="sm"
-                    color={type === "CE" ? "teal" : "orange"}
-                    radius="xl"
-                    styles={{
-                      root: { backgroundColor: hexToRgba(palette.accent, 0.08), height: 3 },
-                      bar: { backgroundImage: `linear-gradient(90deg, ${hexToRgba(palette.accent, 0.85)} 0%, ${hexToRgba(palette.accent, 0.45)} 100%)` },
-                    }}
-                  />
-                </Box>
+            <Box style={cellStyle} onClick={() => onRowClick(contract)}>
+              {/* Visual OI Bar */}
+              {cell.isOI && (
+                <Box
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    bottom: 4,
+                    [type === "CE" ? "right" : "left"]: 0,
+                    width: `${clamp((oi / Math.max(maxOI, 1)) * 100, 0, 100)}%`,
+                    background: `linear-gradient(180deg, ${hexToRgba(palette.accent, 0.22)} 0%, ${hexToRgba(palette.accent, 0.08)} 100%)`,
+                    borderRadius: type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
+                    zIndex: 0,
+                    transition: "width 0.35s ease",
+                  }}
+                />
               )}
-            </Stack>
-          </Box>
-        </Tooltip>
+
+              <Stack
+                gap={0}
+                align="center"
+                style={{ zIndex: 1, width: "100%", position: "relative" }}
+              >
+                <Group gap={4} wrap="nowrap" align="center" justify="center">
+                  <Text
+                    size="sm"
+                    fw={cell.fw}
+                    c={cell.c as any}
+                    style={{ textAlign: "center", lineHeight: 1.05 }}
+                  >
+                    {cell.value}
+                  </Text>
+                  {cell.badge && (
+                    <Badge
+                      size="sm"
+                      variant="light"
+                      color={cell.badge.color}
+                      px={4}
+                      style={{
+                        fontSize: "10px",
+                        height: 14,
+                        border: `1px solid ${hexToRgba(palette.accent, 0.18)}`,
+                      }}
+                    >
+                      {cell.badge.label}
+                    </Badge>
+                  )}
+                </Group>
+
+                {/* Visual Delta Bar for LTP cell */}
+                {cell.isLTP && (
+                  <Box w="72%" mt={3}>
+                    <Progress
+                      value={clamp(Math.abs(delta) * 100, 0, 100)}
+                      size="sm"
+                      color={type === "CE" ? "teal" : "orange"}
+                      radius="xl"
+                      styles={{
+                        root: { backgroundColor: hexToRgba(palette.accent, 0.08), height: 3 },
+                        bar: {
+                          backgroundImage: `linear-gradient(90deg, ${hexToRgba(palette.accent, 0.85)} 0%, ${hexToRgba(palette.accent, 0.45)} 100%)`,
+                        },
+                      }}
+                    />
+                  </Box>
+                )}
+              </Stack>
+            </Box>
+          </Tooltip>
         );
       })}
     </Tooltip.Group>
@@ -692,9 +718,17 @@ function OptionChainTableInner({
           {strikeMatrix.map(({ strike, ce, pe }) => {
             const isATM = spotPrice && Math.abs(strike - spotPrice) < 25;
             const isHovered = hoveredStrike === strike;
-            const proximity = spotPrice ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1) : 0;
-            const rowCallBg = hexToRgba(theme.colors.green[6], 0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0));
-            const rowPutBg = hexToRgba(theme.colors.red[6], 0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0));
+            const proximity = spotPrice
+              ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1)
+              : 0;
+            const rowCallBg = hexToRgba(
+              theme.colors.green[6],
+              0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0),
+            );
+            const rowPutBg = hexToRgba(
+              theme.colors.red[6],
+              0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0),
+            );
 
             return (
               <Box
@@ -710,7 +744,9 @@ function OptionChainTableInner({
                 }}
                 data-testid={`options-chain-row-${strike}`}
                 onMouseEnter={() => setHoveredStrike(strike)}
-                onMouseLeave={() => setHoveredStrike((current) => (current === strike ? null : current))}
+                onMouseLeave={() =>
+                  setHoveredStrike((current) => (current === strike ? null : current))
+                }
               >
                 {/* CALLS */}
                 <OptionColumn
@@ -778,7 +814,8 @@ function OptionChainTableInner({
               h={10}
               style={{
                 borderRadius: 999,
-                background: "linear-gradient(135deg, rgba(250,204,21,0.45) 0%, rgba(34,197,94,0.28) 100%)",
+                background:
+                  "linear-gradient(135deg, rgba(250,204,21,0.45) 0%, rgba(34,197,94,0.28) 100%)",
                 border: `1px solid ${hexToRgba(theme.colors.yellow[5], 0.4)}`,
               }}
             />
@@ -792,7 +829,8 @@ function OptionChainTableInner({
               h={10}
               style={{
                 borderRadius: 999,
-                background: "linear-gradient(135deg, rgba(253,224,71,0.95) 0%, rgba(251,191,36,0.65) 100%)",
+                background:
+                  "linear-gradient(135deg, rgba(253,224,71,0.95) 0%, rgba(251,191,36,0.65) 100%)",
               }}
             />
             <Text size="sm" c="dimmed">

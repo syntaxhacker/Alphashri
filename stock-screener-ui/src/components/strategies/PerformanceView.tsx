@@ -1,11 +1,4 @@
-import {
-  Table,
-  Text,
-  Group,
-  Stack,
-  Badge,
-  Progress,
-} from "@mantine/core";
+import { Table, Text, Group, Stack, Badge, Progress } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import type { PerformanceViewProps } from "./types";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
@@ -125,7 +118,13 @@ export function PerformanceView({
         <CompactStat
           label="Win Rate"
           value={`${overallWinRate.toFixed(1)}%`}
-          hint={<Progress value={overallWinRate} color={overallWinRate >= 50 ? "teal" : "red"} size="sm" />}
+          hint={
+            <Progress
+              value={overallWinRate}
+              color={overallWinRate >= 50 ? "teal" : "red"}
+              size="sm"
+            />
+          }
           tone={overallWinRate >= 50 ? "positive" : "negative"}
           className="performance-card performance-card-winrate"
           testId="performance-card-winrate"

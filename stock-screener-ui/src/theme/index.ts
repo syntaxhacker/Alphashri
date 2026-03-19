@@ -1,9 +1,4 @@
-import {
-  createTheme,
-  rgba,
-  virtualColor,
-  type MantineColorsTuple,
-} from "@mantine/core";
+import { createTheme, rgba, virtualColor, type MantineColorsTuple } from "@mantine/core";
 
 const teal: MantineColorsTuple = [
   "#e6fffa",
@@ -81,7 +76,7 @@ export const colors = {
   warning: virtualColor({ name: "warning", dark: "orange", light: "orange" }),
 };
 
-export const APP_FONT_FAMILY = "\"IBM Plex Sans\", \"Roboto\", \"Poppins\", system-ui, sans-serif";
+export const APP_FONT_FAMILY = '"IBM Plex Sans", "Roboto", "Poppins", system-ui, sans-serif';
 
 export const theme = createTheme({
   primaryColor: "teal",

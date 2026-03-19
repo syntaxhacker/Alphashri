@@ -61,7 +61,12 @@ export function StrategiesPage({
                 >
                   Retry
                 </Button>
-                <Button onClick={onClearError} variant="subtle" size="sm" data-testid="strategies-dismiss-btn">
+                <Button
+                  onClick={onClearError}
+                  variant="subtle"
+                  size="sm"
+                  data-testid="strategies-dismiss-btn"
+                >
                   Dismiss
                 </Button>
               </Group>

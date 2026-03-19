@@ -7,7 +7,12 @@ export function OptionsContainer() {
   const [activeTab, setActiveTab] = useState<string>("chain");
 
   return (
-    <div id="options-container" className="options-container" style={{ height: "100%", overflow: "hidden" }} data-testid="options-container">
+    <div
+      id="options-container"
+      className="options-container"
+      style={{ height: "100%", overflow: "hidden" }}
+      data-testid="options-container"
+    >
       <OptionsPage activeTab={activeTab} setActiveTab={setActiveTab} {...options} />
     </div>
   );

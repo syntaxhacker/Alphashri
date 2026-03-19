@@ -33,7 +33,11 @@ export function PaperPortfolioCard({
 }: PaperPortfolioCardProps) {
   if (!portfolio) {
     return (
-      <CompactPanel data-testid="portfolio-card" className="paper-portfolio-card" id="portfolio-card">
+      <CompactPanel
+        data-testid="portfolio-card"
+        className="paper-portfolio-card"
+        id="portfolio-card"
+      >
         <Text c="dimmed" ta="center" size="sm">
           Loading portfolio...
         </Text>
@@ -50,10 +54,21 @@ export function PaperPortfolioCard({
         <CompactStat label="Total Value" value={`₹${formatCurrency(portfolio.total_value)}`} />
         <CompactStat label="Cash" value={`₹${formatCurrency(portfolio.cash)}`} />
         <CompactStat label="Margin Used" value={`₹${formatCurrency(portfolio.margin_used)}`} />
-        <CompactStat label="Day P&L" value={`${pnlSign}₹${formatCurrency(portfolio.day_pnl)}`} tone={pnlColor} />
+        <CompactStat
+          label="Day P&L"
+          value={`${pnlSign}₹${formatCurrency(portfolio.day_pnl)}`}
+          tone={pnlColor}
+        />
       </CompactStatGrid>
 
-      <Group gap={6} mt="sm" align="center" data-testid="portfolio-row-2" className="portfolio-row" id="portfolio-row-2">
+      <Group
+        gap={6}
+        mt="sm"
+        align="center"
+        data-testid="portfolio-row-2"
+        className="portfolio-row"
+        id="portfolio-row-2"
+      >
         <Group gap={6} align="center">
           <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
             Positions
@@ -65,7 +80,13 @@ export function PaperPortfolioCard({
       </Group>
 
       {isMultiStrategy && strategySummaries.length > 0 && (
-        <Group gap="xs" mt="sm" data-testid="strategy-summaries" className="portfolio-strategies" id="strategy-summaries">
+        <Group
+          gap="xs"
+          mt="sm"
+          data-testid="strategy-summaries"
+          className="portfolio-strategies"
+          id="strategy-summaries"
+        >
           {strategySummaries.map((summary) => (
             <Badge
               key={summary.strategy_name}

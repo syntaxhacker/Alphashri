@@ -118,7 +118,12 @@ export function OptionChainPanel({
           >
             Guide
           </Button>
-          <Text size="xs" c="dimmed" className="chain-selection-label" data-testid="options-chain-selection">
+          <Text
+            size="xs"
+            c="dimmed"
+            className="chain-selection-label"
+            data-testid="options-chain-selection"
+          >
             {selectedUnderlying} · {selectedExpiry}
           </Text>
           <IconRefresh

@@ -135,7 +135,12 @@ export function ScreenerPage({
 
     if (error) {
       return (
-        <Stack gap="sm" align="stretch" className="screener-error-container" data-testid="screener-error-container">
+        <Stack
+          gap="sm"
+          align="stretch"
+          className="screener-error-container"
+          data-testid="screener-error-container"
+        >
           <CompactPanel
             testId="screener-error"
             className="screener-alert"
@@ -149,7 +154,13 @@ export function ScreenerPage({
             }
             description={error}
             action={
-              <Button onClick={onRefresh} variant="light" color="red" size="sm" data-testid="screener-retry-btn">
+              <Button
+                onClick={onRefresh}
+                variant="light"
+                color="red"
+                size="sm"
+                data-testid="screener-retry-btn"
+              >
                 Retry
               </Button>
             }
@@ -163,7 +174,19 @@ export function ScreenerPage({
     }
 
     return (
-      <Stack gap="sm" style={{ height: "100%", width: "100%", minWidth: 0, display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
+      <Stack
+        gap="sm"
+        style={{
+          height: "100%",
+          width: "100%",
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
         {sortedApproaching.length > 0 && (
           <CompactPanel
             className="screener-section approaching-section"

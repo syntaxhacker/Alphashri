@@ -113,7 +113,9 @@ export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
 
           retryCount++;
           const delay = getRetryDelay();
-          console.log(`📰 Reconnecting in ${Math.round(delay)}ms (attempt ${retryCount}/${maxRetries})`);
+          console.log(
+            `📰 Reconnecting in ${Math.round(delay)}ms (attempt ${retryCount}/${maxRetries})`,
+          );
           reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
         };
       } catch (error) {

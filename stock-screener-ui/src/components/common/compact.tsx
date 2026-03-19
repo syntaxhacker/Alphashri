@@ -1,5 +1,15 @@
 import type { ReactNode } from "react";
-import { Group, Box, Paper, SimpleGrid, Stack, Text, Title, type PaperProps, type StackProps } from "@mantine/core";
+import {
+  Group,
+  Box,
+  Paper,
+  SimpleGrid,
+  Stack,
+  Text,
+  Title,
+  type PaperProps,
+  type StackProps,
+} from "@mantine/core";
 
 interface CompactPageProps extends StackProps {
   title?: ReactNode;
@@ -16,15 +26,23 @@ export function CompactPage({
   ...stackProps
 }: CompactPageProps) {
   return (
-    <Stack gap="sm" style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }} {...stackProps}>
+    <Stack
+      gap="sm"
+      style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      {...stackProps}
+    >
       {(title || description || actions) && (
         <Group justify="space-between" align="flex-start" gap="sm">
           <Stack gap={2}>
-            {title
-              ? typeof title === "string"
-                ? <Title order={2} size="h4">{title}</Title>
-                : title
-              : null}
+            {title ? (
+              typeof title === "string" ? (
+                <Title order={2} size="h4">
+                  {title}
+                </Title>
+              ) : (
+                title
+              )
+            ) : null}
             {description ? (
               <Text size="sm" c="dimmed">
                 {description}
@@ -76,11 +94,15 @@ export function CompactPanel({
       {(title || description || action) && (
         <Group justify="space-between" align="flex-start" gap="sm" mb="sm">
           <Stack gap={2}>
-            {title
-              ? typeof title === "string"
-                ? <Title order={4} size="h5">{title}</Title>
-                : title
-              : null}
+            {title ? (
+              typeof title === "string" ? (
+                <Title order={4} size="h5">
+                  {title}
+                </Title>
+              ) : (
+                title
+              )
+            ) : null}
             {description ? (
               <Text size="sm" c="dimmed">
                 {description}
@@ -102,7 +124,13 @@ interface CompactStatProps extends PaperProps {
   hint?: ReactNode;
 }
 
-export function CompactStat({ label, value, tone = "var(--mantine-color-text)", hint, ...paperProps }: CompactStatProps) {
+export function CompactStat({
+  label,
+  value,
+  tone = "var(--mantine-color-text)",
+  hint,
+  ...paperProps
+}: CompactStatProps) {
   return (
     <Paper
       radius="xs"
@@ -137,5 +165,9 @@ export function CompactStatGrid({ children }: { children: ReactNode }) {
   );
 }
 
-export { CompactPage as CompactPageLayout, CompactPanel as CompactSurfacePanel, CompactStat as CompactSurfaceStat };
+export {
+  CompactPage as CompactPageLayout,
+  CompactPanel as CompactSurfacePanel,
+  CompactStat as CompactSurfaceStat,
+};
 export { CompactPanel as CompactCard, CompactPanel as CompactPaper, CompactStat as CompactMetric };

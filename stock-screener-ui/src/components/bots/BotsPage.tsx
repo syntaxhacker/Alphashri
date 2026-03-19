@@ -103,10 +103,7 @@ export function BotsPage() {
   const renderBotsList = () => {
     if (state.bots.length === 0) {
       return (
-        <CompactPanel
-          id="bots-empty-state"
-          data-testid="bots-empty-state"
-        >
+        <CompactPanel id="bots-empty-state" data-testid="bots-empty-state">
           <Stack align="center" gap="xs">
             <Text size="xl">🤖</Text>
             <Text fw={600}>No bots configured</Text>
@@ -119,10 +116,7 @@ export function BotsPage() {
     }
 
     return (
-      <CompactPanel
-        id="bots-list-card"
-        data-testid="bots-list-card"
-      >
+      <CompactPanel id="bots-list-card" data-testid="bots-list-card">
         <Table striped highlightOnHover id="bots-table" data-testid="bots-table">
           <Table.Thead>
             <Table.Tr>

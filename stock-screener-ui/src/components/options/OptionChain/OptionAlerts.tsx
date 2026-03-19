@@ -112,7 +112,12 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       </Group>
 
       {alerts.length === 0 ? (
-        <Box py="lg" style={{ textAlign: "center" }} className="alerts-empty-state" data-testid="options-alerts-empty">
+        <Box
+          py="lg"
+          style={{ textAlign: "center" }}
+          className="alerts-empty-state"
+          data-testid="options-alerts-empty"
+        >
           <Text size="sm" c="dimmed">
             Waiting for unusual activity patterns...
           </Text>
@@ -154,7 +159,10 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       <CompactPanel
         mt="md"
         p="xs"
-        style={{ border: "1px dashed var(--mantine-color-blue-4)", background: "light-dark(var(--mantine-color-blue-0), var(--mantine-color-dark-6))" }}
+        style={{
+          border: "1px dashed var(--mantine-color-blue-4)",
+          background: "light-dark(var(--mantine-color-blue-0), var(--mantine-color-dark-6))",
+        }}
         className="alerts-profit-tip"
         data-testid="options-alerts-profit-tip"
       >
