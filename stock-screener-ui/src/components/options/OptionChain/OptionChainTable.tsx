@@ -88,18 +88,26 @@ function mixColors(colorA: string, colorB: string, ratio: number): string {
 type CellKind = "oi" | "change" | "volume" | "iv" | "ltp";
 
 function getSidePalette(theme: ReturnType<typeof useMantineTheme>, type: "CE" | "PE") {
+  const colors = theme.colors || {};
+  const green = colors.green || colors.gray || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
+  const teal = colors.teal || colors.cyan || colors.green || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
+  const lime = colors.lime || colors.yellow || colors.green || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
+  const red = colors.red || colors.pink || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
+  const orange = colors.orange || colors.yellow || colors.red || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
+  const pink = colors.pink || colors.red || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
+
   return type === "CE"
     ? {
-        main: theme.colors.green[6],
-        alt: theme.colors.teal[5],
-        glow: theme.colors.lime[4],
-        ink: theme.colors.green[8],
+        main: green[6] ?? green[5],
+        alt: teal[5] ?? teal[4],
+        glow: lime[4] ?? lime[3],
+        ink: green[8] ?? green[7],
       }
     : {
-        main: theme.colors.red[6],
-        alt: theme.colors.orange[5],
-        glow: theme.colors.pink[4],
-        ink: theme.colors.red[8],
+        main: red[6] ?? red[5],
+        alt: orange[5] ?? orange[4],
+        glow: pink[4] ?? pink[3],
+        ink: red[8] ?? red[7],
       };
 }
 
@@ -125,26 +133,32 @@ function getCellPalette(
   let glow = side.glow;
   let text = side.ink;
 
+  const colors = theme.colors || {};
+  const getColor = (name: string, index: number): string => {
+    const arr = colors[name] || colors.gray || [];
+    return arr[index] || arr[0] || "#888";
+  };
+
   if (kind === "change") {
-    base = isPositive ? theme.colors.green[6] : theme.colors.red[6];
-    alt = isPositive ? theme.colors.teal[5] : theme.colors.orange[5];
-    glow = isPositive ? theme.colors.lime[4] : theme.colors.pink[4];
-    text = isPositive ? theme.colors.green[8] : theme.colors.red[8];
+    base = isPositive ? getColor("green", 6) : getColor("red", 6);
+    alt = isPositive ? getColor("teal", 5) : getColor("orange", 5);
+    glow = isPositive ? getColor("lime", 4) : getColor("pink", 4);
+    text = isPositive ? getColor("green", 8) : getColor("red", 8);
   } else if (kind === "volume") {
-    base = theme.colors.blue[6];
-    alt = theme.colors.cyan[5];
-    glow = theme.colors.indigo[4];
-    text = theme.colors.blue[8];
+    base = getColor("blue", 6);
+    alt = getColor("cyan", 5);
+    glow = getColor("indigo", 4);
+    text = getColor("blue", 8);
   } else if (kind === "iv") {
-    base = theme.colors.violet[6];
-    alt = theme.colors.grape[5];
-    glow = theme.colors.indigo[4];
-    text = theme.colors.violet[8];
+    base = getColor("violet", 6);
+    alt = getColor("grape", 5);
+    glow = getColor("indigo", 4);
+    text = getColor("violet", 8);
   } else if (kind === "ltp") {
-    base = type === "CE" ? theme.colors.yellow[6] : theme.colors.orange[6];
-    alt = type === "CE" ? theme.colors.amber[5] : theme.colors.yellow[5];
-    glow = theme.colors.orange[4];
-    text = mixColors(theme.colors.gray[9], base, 0.55);
+    base = type === "CE" ? getColor("yellow", 6) : getColor("orange", 6);
+    alt = type === "CE" ? getColor("amber", 5) : getColor("yellow", 5);
+    glow = getColor("orange", 4);
+    text = mixColors(getColor("gray", 9), base, 0.55);
   }
 
   const baseAlpha = 0.08 + baseIntensity * 0.26;

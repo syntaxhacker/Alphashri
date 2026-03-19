@@ -595,6 +595,7 @@ test.describe("News Page - Article Detail", () => {
   });
 
   test("should show back button in article detail", async ({ page }) => {
+    await page.setViewportSize({ width: 575, height: 800 });
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
     await page.waitForTimeout(1000);
@@ -603,11 +604,12 @@ test.describe("News Page - Article Detail", () => {
     await firstNewsItem.click();
     await page.waitForTimeout(1000);
 
-    const backBtn = page.locator('[data-testid="back-button"]');
+    const backBtn = page.locator('[data-testid="close-article-btn"]');
     await expect(backBtn).toBeVisible();
   });
 
   test("should return to news list when clicking back", async ({ page }) => {
+    await page.setViewportSize({ width: 575, height: 800 });
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
     await page.waitForTimeout(1000);
@@ -616,7 +618,7 @@ test.describe("News Page - Article Detail", () => {
     await firstNewsItem.click();
     await page.waitForTimeout(1000);
 
-    const backBtn = page.locator('[data-testid="back-button"]');
+    const backBtn = page.locator('[data-testid="close-article-btn"]');
     await backBtn.click();
     await page.waitForTimeout(500);
 

@@ -51,7 +51,7 @@ test.describe("Screener - Data Display", () => {
     await page.waitForSelector('[data-testid="screener-page"]', { timeout: 15000 });
 
     // Check for status text (contains last updated timestamp)
-    const status = page.locator('[data-testid="status"]');
+    const status = page.locator('[data-testid="screener-header"] [data-testid="status"]');
     await expect(status).toBeVisible();
   });
 });

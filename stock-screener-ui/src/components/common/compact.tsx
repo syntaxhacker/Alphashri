@@ -104,7 +104,7 @@ export function CompactPanel({
               )
             ) : null}
             {description ? (
-              <Text size="sm" c="dimmed">
+              <Text size="sm" c="dimmed" data-testid="status">
                 {description}
               </Text>
             ) : null}
@@ -157,9 +157,9 @@ export function CompactStat({
   );
 }
 
-export function CompactStatGrid({ children }: { children: ReactNode }) {
+export function CompactStatGrid({ children, ...props }: { children: ReactNode; [key: string]: any }) {
   return (
-    <SimpleGrid cols={{ base: 2, md: 4 }} spacing="sm">
+    <SimpleGrid cols={{ base: 2, md: 4 }} spacing="sm" {...props}>
       {children}
     </SimpleGrid>
   );

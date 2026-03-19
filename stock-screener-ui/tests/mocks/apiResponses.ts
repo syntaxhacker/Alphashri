@@ -872,7 +872,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
 // Options API mocks
 export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   // Mock underlyings
-  await page.route("**/api/options/underlyings", async (route) => {
+  await page.route(/\/api\/options\/underlyings/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -898,7 +898,7 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock expiries
-  await page.route("**/api/options/expiries/*", async (route) => {
+  await page.route(/\/api\/options\/expiries\//, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -913,7 +913,7 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock option chain
-  await page.route("**/api/options/chain/*", async (route) => {
+  await page.route(/\/api\/options\/chain\//, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1003,8 +1003,33 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
     });
   });
 
+  // Mock positions
+  await page.route(/\/api\/options\/positions/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        positions: [],
+      }),
+    });
+  });
+
+  // Mock spot price
+  await page.route(/\/api\/options\/spot\//, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        underlying: "NIFTY",
+        spot: 24000.5,
+      }),
+    });
+  });
+
   // Mock spot history
-  await page.route("**/api/options/spot-history/*", async (route) => {
+  await page.route(/\/api\/options\/spot-history\//, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
