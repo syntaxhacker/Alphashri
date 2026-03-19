@@ -6,22 +6,21 @@ import {
   Button,
   Stack,
   Tabs,
-  Card,
   SimpleGrid,
   Loader,
-  Alert,
   SegmentedControl,
   Paper,
   Title,
   Badge,
   Table,
   ScrollArea,
+  useMantineColorScheme,
+  useMantineTheme,
 } from "@mantine/core";
 import {
   IconChartBar,
   IconBuildingFactory,
   IconRefresh,
-  IconAlertCircle,
   IconBellRinging,
   IconTrendingUp,
   IconClock,
@@ -29,6 +28,7 @@ import {
 import { SectorTable } from "./SectorTable";
 import { fetchSectorPerformance } from "../../api/sector";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
+import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -44,6 +44,124 @@ interface InternalStockMover extends StockMover {
   delta: number;
 }
 
+function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
+  const theme = useMantineTheme();
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
+
+  const treemapData = [...sectors]
+    .map((sector) => ({
+      name: sector.sector,
+      value: Math.max(Math.abs(sector.avg_change), 0.01),
+      avgChange: sector.avg_change,
+      stockCount: sector.stock_count,
+      advances: sector.advances,
+      declines: sector.declines,
+      avgRsi: sector.avg_rsi,
+      avgAdx: sector.avg_adx,
+      topMovers: sector.top_movers,
+      itemStyle: {
+        color:
+          sector.avg_change >= 2.5
+            ? "#166534"
+            : sector.avg_change >= 1.25
+              ? "#1f7a4a"
+              : sector.avg_change >= 0.25
+                ? "#2b5f46"
+                : sector.avg_change <= -2.5
+                  ? "#7f1d1d"
+                  : sector.avg_change <= -1.25
+                    ? "#991b1b"
+                    : sector.avg_change <= -0.25
+                      ? "#7a2e2e"
+                      : "#2a3441",
+        gapWidth: 0,
+      },
+    }))
+    .sort((a, b) => Math.abs(b.avgChange) - Math.abs(a.avgChange) || b.value - a.value);
+
+  const tileSpans = treemapData.map((_, index) => {
+    if (index === 0) return { col: "span 2", row: "span 2", minHeight: 212 };
+    if (index < 3) return { col: "span 1", row: "span 1", minHeight: 102 };
+    if (index < 7) return { col: "span 1", row: "span 1", minHeight: 84 };
+    return { col: "span 1", row: "span 1", minHeight: 72 };
+  });
+
+  return (
+    <Box
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gridAutoRows: "minmax(72px, auto)",
+        gap: "8px",
+        height: "100%",
+        minHeight: 320,
+      }}
+    >
+      {treemapData.map((sector, index) => {
+        const span = tileSpans[index];
+        const changePrefix = sector.avgChange >= 0 ? "+" : "";
+
+        return (
+          <Box
+            key={sector.name}
+            style={{
+              gridColumn: span.col,
+              gridRow: span.row,
+              minHeight: span.minHeight,
+              background: sector.itemStyle.color,
+              color: "#f8fafc",
+              padding: index === 0 ? "16px" : "12px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              boxShadow: isDark
+                ? "inset 0 1px 0 rgba(255,255,255,0.04)"
+                : "inset 0 1px 0 rgba(255,255,255,0.16)",
+            }}
+          >
+            <Stack gap={4}>
+              <Text fw={800} size={index === 0 ? "lg" : "sm"} lh={1.1}>
+                {sector.name}
+              </Text>
+              <Text fw={700} size={index === 0 ? "md" : "sm"} opacity={0.95}>
+                {changePrefix}
+                {sector.avgChange.toFixed(2)}%
+              </Text>
+            </Stack>
+
+            <Group justify="space-between" align="flex-end" gap="xs" wrap="nowrap">
+              <Stack gap={2}>
+                <Text size="xs" opacity={0.75}>
+                  Stocks {sector.stockCount}
+                </Text>
+                <Text size="xs" opacity={0.75}>
+                  {sector.advances} / {sector.declines}
+                </Text>
+              </Stack>
+              {index < 6 ? (
+                <Badge
+                  size="xs"
+                  variant="filled"
+                  color="dark"
+                  styles={{
+                    root: {
+                      backgroundColor: "rgba(15, 23, 42, 0.28)",
+                      color: "#f8fafc",
+                    },
+                  }}
+                >
+                  #{index + 1}
+                </Badge>
+              ) : null}
+            </Group>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
 export function SectorPage() {
   const [data, setData] = useState<SectorResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,6 +173,7 @@ export function SectorPage() {
 
   const prevSectorDataRef = useRef<Record<string, number>>({});
   const prevStockDataRef = useRef<Record<string, number>>({});
+  const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadData = useCallback(async (selectedMarket: string) => {
     setLoading(true);
@@ -120,36 +239,72 @@ export function SectorPage() {
     setAlerts([]);
     setIntervalMovers([]);
     loadData(market);
+
+    // Clear any existing timers
+    if (liveTimeoutRef.current) {
+      clearTimeout(liveTimeoutRef.current);
+    }
+
+    // Rapid refresh every 1 second for 5 seconds
+    let liveCount = 0;
+    const liveInterval = setInterval(() => {
+      liveCount++;
+      loadData(market);
+      if (liveCount >= 5) {
+        clearInterval(liveInterval);
+        liveTimeoutRef.current = null;
+      }
+    }, 1000);
+
+    // Normal refresh every 60 seconds after live period
     const interval = setInterval(() => loadData(market), 60000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearInterval(liveInterval);
+      if (liveTimeoutRef.current) {
+        clearTimeout(liveTimeoutRef.current);
+      }
+    };
   }, [market, loadData]);
 
   const renderDashboard = () => {
     if (loading && !data) {
       return (
-        <Stack align="center" justify="center" h={400}>
-          <Loader size="lg" />
-          <Text c="dimmed">Fetching sector performance...</Text>
-        </Stack>
+        <CompactPanel
+          title={
+            <Group gap="xs" wrap="nowrap">
+              <Loader size="sm" />
+              <Text fw={600} size="sm">
+                Fetching sector performance
+              </Text>
+            </Group>
+          }
+          description="Loading live sector breadth and movers."
+          style={{ minHeight: 400 }}
+        />
       );
     }
 
     if (error) {
       return (
-        <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red">
-          {error}
-          <Button variant="light" color="red" size="sm" mt="md" onClick={() => loadData(market)}>
-            Retry
-          </Button>
-        </Alert>
+        <CompactPanel
+          title="Error"
+          description={error}
+          action={
+            <Button variant="light" color="red" size="sm" onClick={() => loadData(market)}>
+              Retry
+            </Button>
+          }
+        />
       );
     }
 
     if (!data || data.sectors.length === 0) {
       return (
-        <Paper p="xl" withBorder style={{ textAlign: "center" }}>
-          <Text c="dimmed">No sector data available for this market.</Text>
-        </Paper>
+        <CompactPanel
+          title="No sector data"
+          description="No sector data available for this market."
+        />
       );
     }
 
@@ -157,103 +312,86 @@ export function SectorPage() {
     const bottomSector = data.sectors[data.sectors.length - 1];
 
     return (
-      <Stack gap="md" h="100%">
+      <Stack gap="sm">
         {/* Summary Cards */}
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-          <Card
-            withBorder
-            padding="sm"
-            radius="md"
-            id="sector-top-card"
-            data-testid="sector-top-card"
-          >
-            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
-              Top Sector
-            </Text>
-            <Text size="lg" fw={700} c="green">
-              {topSector.sector}
-            </Text>
-            <Text size="sm" fw={500}>
-              Avg Change: +{topSector.avg_change.toFixed(2)}%
-            </Text>
-          </Card>
+        <CompactStatGrid>
+          <CompactStat
+            label="Top Sector"
+            value={topSector.sector}
+            tone="var(--mantine-color-green-6)"
+            hint={`Avg Change: +${topSector.avg_change.toFixed(2)}%`}
+          />
+          <CompactStat
+            label="Market Breadth"
+            value={
+              <Group gap="xs">
+                <Badge color="green" variant="light">
+                  {data.sectors.reduce((acc, s) => acc + s.advances, 0)} UP
+                </Badge>
+                <Badge color="red" variant="light">
+                  {data.sectors.reduce((acc, s) => acc + s.declines, 0)} DOWN
+                </Badge>
+              </Group>
+            }
+          />
+          <CompactStat
+            label="Weakest Sector"
+            value={bottomSector.sector}
+            tone="var(--mantine-color-red-6)"
+            hint={`Avg Change: ${bottomSector.avg_change.toFixed(2)}%`}
+          />
+        </CompactStatGrid>
 
-          <Card
-            withBorder
-            padding="sm"
-            radius="md"
-            id="sector-breadth-card"
-            data-testid="sector-breadth-card"
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+          <CompactPanel
+            style={{ overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}
+            id="sector-treemap-container"
+            data-testid="sector-treemap-container"
+            padded={false}
+            title={
+              <Group justify="space-between" mb="xs">
+                <Title order={4}>Live Sector Map</Title>
+                {data.last_updated && (
+                  <Group gap={4}>
+                    <IconClock size={12} color="gray" />
+                    <Text size="sm" c="dimmed">
+                      {new Date(data.last_updated).toLocaleTimeString()}
+                    </Text>
+                  </Group>
+                )}
+              </Group>
+            }
           >
-            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
-              Market Breadth
-            </Text>
-            <Group gap="xs" mt={4}>
-              <Badge color="green" variant="light">
-                {data.sectors.reduce((acc, s) => acc + s.advances, 0)} UP
-              </Badge>
-              <Badge color="red" variant="light">
-                {data.sectors.reduce((acc, s) => acc + s.declines, 0)} DOWN
-              </Badge>
-            </Group>
-          </Card>
+            <Box px="sm" pb="sm" style={{ minHeight: 0, flex: 1 }}>
+              <SectorTreemap sectors={data.sectors} />
+            </Box>
+          </CompactPanel>
 
-          <Card
-            withBorder
-            padding="sm"
-            radius="md"
-            id="sector-weakest-card"
-            data-testid="sector-weakest-card"
-          >
-            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
-              Weakest Sector
-            </Text>
-            <Text size="lg" fw={700} c="red">
-              {bottomSector.sector}
-            </Text>
-            <Text size="sm" fw={500}>
-              Avg Change: {bottomSector.avg_change.toFixed(2)}%
-            </Text>
-          </Card>
-        </SimpleGrid>
-
-        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" style={{ flex: 1, minHeight: 0 }}>
-          {/* Sector Table */}
-          <Box
-            style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}
+          <CompactPanel
+            style={{ overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}
             id="sector-table-container"
             data-testid="sector-table-container"
+            padded={false}
+            title={<Title order={4}>Sector Performance</Title>}
           >
-            <Group justify="space-between" mb="xs">
-              <Title order={4}>📊 Sector Performance</Title>
-              {data.last_updated && (
-                <Group gap={4}>
-                  <IconClock size={12} color="gray" />
-                  <Text size="sm" c="dimmed">
-                    {new Date(data.last_updated).toLocaleTimeString()}
-                  </Text>
-                </Group>
-              )}
-            </Group>
-            <Box flex={1} style={{ minHeight: 0 }}>
+            <Box px="sm" pb="sm" flex={1} style={{ minHeight: 0 }}>
               <SectorTable sectors={data.sectors} />
             </Box>
-          </Box>
+          </CompactPanel>
 
           {/* Alerts & Movers */}
           <Stack gap="md" style={{ overflow: "hidden" }}>
-            <Card
-              withBorder
-              padding="sm"
-              radius="md"
+            <CompactPanel
               id="sector-alerts-card"
               data-testid="sector-alerts-card"
               style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
+              title={
+                <Group justify="space-between" mb="xs">
+                  <Title order={4}>Real-time Alerts</Title>
+                  <IconBellRinging size={18} color="orange" />
+                </Group>
+              }
             >
-              <Group justify="space-between" mb="xs">
-                <Title order={4}>🔔 Real-time Alerts</Title>
-                <IconBellRinging size={18} color="orange" />
-              </Group>
               <ScrollArea flex={1}>
                 {alerts.length === 0 ? (
                   <Text size="sm" c="dimmed" ta="center" py="xl">
@@ -286,20 +424,19 @@ export function SectorPage() {
                   </Stack>
                 )}
               </ScrollArea>
-            </Card>
+            </CompactPanel>
 
-            <Card
-              withBorder
-              padding="sm"
-              radius="md"
+            <CompactPanel
               id="sector-interval-movers-card"
               data-testid="sector-interval-movers-card"
               style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
+              title={
+                <Group justify="space-between" mb="xs">
+                  <Title order={4}>Interval Movers</Title>
+                  <IconTrendingUp size={18} color="blue" />
+                </Group>
+              }
             >
-              <Group justify="space-between" mb="xs">
-                <Title order={4}>⏱ Interval Movers</Title>
-                <IconTrendingUp size={18} color="blue" />
-              </Group>
               <ScrollArea flex={1}>
                 {intervalMovers.length === 0 ? (
                   <Text size="sm" c="dimmed" ta="center" py="xl">
@@ -333,7 +470,7 @@ export function SectorPage() {
                   </Table>
                 )}
               </ScrollArea>
-            </Card>
+            </CompactPanel>
           </Stack>
         </SimpleGrid>
       </Stack>
@@ -341,95 +478,89 @@ export function SectorPage() {
   };
 
   return (
-    <Box
-      h="100%"
-      id="sector-page"
-      className="sector-page"
-      style={{ display: "flex", flexDirection: "column" }}
-      data-testid="sector-analysis-view"
+    <CompactPage
+      title="Sector Dashboard"
+      description="Real-time sector performance and technical strength."
+      actions={
+        <Group gap="xs">
+          <SegmentedControl
+            value={market}
+            onChange={(v) => setMarket(v as any)}
+            data={[
+              { label: "India", value: "india" },
+              { label: "US", value: "america" },
+            ]}
+            size="sm"
+            data-testid="sector-market-selector"
+          />
+          <Button
+            variant="light"
+            size="sm"
+            leftSection={<IconRefresh size={14} />}
+            onClick={() => loadData(market)}
+            loading={loading}
+            data-testid="sector-refresh-btn"
+          >
+            Refresh
+          </Button>
+        </Group>
+      }
     >
       <Box
-        flex="0 0 auto"
-        style={{ padding: "var(--mantine-spacing-md)" }}
-        className="sector-analysis-header"
-      >
-        <Stack gap="md">
-          <Group justify="space-between" align="flex-start">
-            <div>
-              <Title order={2}>Sector Dashboard</Title>
-              <Text size="sm" c="dimmed">
-                Real-time sector performance and technical strength
-              </Text>
-            </div>
-            <Group gap="xs">
-              <SegmentedControl
-                value={market}
-                onChange={(v) => setMarket(v as any)}
-                data={[
-                  { label: "India", value: "india" },
-                  { label: "US", value: "america" },
-                ]}
-                size="sm"
-                data-testid="sector-market-selector"
-              />
-              <Button
-                variant="light"
-                size="sm"
-                leftSection={<IconRefresh size={14} />}
-                onClick={() => loadData(market)}
-                loading={loading}
-                data-testid="sector-refresh-btn"
-              >
-                Refresh
-              </Button>
-            </Group>
-          </Group>
-
-          <Tabs value={activeTab} onChange={setActiveTab}>
-            <Tabs.List>
-              <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
-                Live Dashboard
-              </Tabs.Tab>
-              <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
-                Historical Cycles
-              </Tabs.Tab>
-            </Tabs.List>
-          </Tabs>
-        </Stack>
-      </Box>
-
-      <Box
+        id="sector-page"
+        className="sector-page"
         flex={1}
-        style={{ minHeight: 0, padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)" }}
+        style={{ display: "flex", flexDirection: "column", minHeight: 0 }}
+        data-testid="sector-analysis-view"
       >
-        {activeTab === "dashboard" ? (
-          renderDashboard()
-        ) : (
-          <Box
-            h="100%"
-            className="sector-analysis-frame-wrap"
-            data-testid="sector-analysis-frame"
-            style={{
-              borderRadius: "var(--mantine-radius-default)",
-              overflow: "hidden",
-              border: "1px solid var(--mantine-color-dark-4)",
-            }}
-          >
-            <iframe
-              src={`${API_BASE}/sector/dashboard-modular.html`}
-              title="Sector Rotation Dashboard"
-              className="sector-analysis-frame"
+        <Tabs value={activeTab} onChange={setActiveTab}>
+          <Tabs.List>
+            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
+              Live Dashboard
+            </Tabs.Tab>
+            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
+              Historical Cycles
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
+
+        <Box
+          flex={1}
+          style={{
+            minHeight: 0,
+            padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)",
+            overflow: "auto",
+          }}
+        >
+          {activeTab === "dashboard" ? (
+            renderDashboard()
+          ) : (
+            <Box
+              h="100%"
+              className="sector-analysis-frame-wrap"
+              data-testid="sector-analysis-frame"
               style={{
-                width: "100%",
-                height: "100%",
-                border: "none",
-                display: "block",
+                borderRadius: "var(--mantine-radius-default)",
+                overflow: "auto",
+                border: "1px solid var(--mantine-color-dark-4)",
               }}
-              data-testid="sector-iframe"
-            />
-          </Box>
-        )}
+            >
+              <iframe
+                src={`${API_BASE}/sector/dashboard-modular.html`}
+                title="Sector Rotation Dashboard"
+                className="sector-analysis-frame"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                  display: "block",
+                }}
+                data-testid="sector-iframe"
+              />
+            </Box>
+          )}
+        </Box>
       </Box>
-    </Box>
+    </CompactPage>
   );
 }

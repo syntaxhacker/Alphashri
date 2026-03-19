@@ -52,7 +52,7 @@ export function BrokerConnectionCard({
       id="broker-connection-card"
       data-testid="broker-connection-card"
     >
-      <Stack gap="md">
+      <Stack gap="sm">
         <Group justify="space-between">
           <Text fw={600} size="lg">
             Upstox Connection

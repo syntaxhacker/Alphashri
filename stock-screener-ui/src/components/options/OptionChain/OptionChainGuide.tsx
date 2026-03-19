@@ -35,7 +35,7 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
       className="option-chain-guide-modal"
       data-testid="options-chain-guide-modal"
     >
-      <Stack gap="md" className="guide-content" data-testid="options-guide-content">
+      <Stack gap="sm" className="guide-content" data-testid="options-guide-content">
         <Text size="sm" c="dimmed" className="guide-intro">
           Options can be complex. Here is a simple guide to help you understand the data and make
           better decisions.

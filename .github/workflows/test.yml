@@ -2,9 +2,9 @@ name: CI Tests
 
 on:
   push:
-    branches: [ main, master, test_py_tests ]
+    branches: [main, master, test_py_tests]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   pytest:
@@ -14,7 +14,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
       - name: Create config.py from template
         run: |
           cp stock-screener-ui/config_template.py stock-screener-ui/config.py
@@ -37,24 +37,62 @@ jobs:
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
 
+  frontend-unit-tests:
+     runs-on: ubuntu-latest
+     steps:
+       - uses: actions/checkout@v4
+       - name: Install Bun
+         uses: oven-sh/setup-bun@v2
+         with:
+           bun-version: latest
+       - name: Cache Bun dependencies
+         uses: actions/cache@v4
+         with:
+           path: ~/.bun/install/cache
+           key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+           restore-keys: |
+             ${{ runner.os }}-bun-
+       - name: Install dependencies
+         run: |
+           cd stock-screener-ui
+           bun install --frozen-lockfile
+       - name: Run unit tests
+         run: |
+           cd stock-screener-ui
+           bun run test
+
   e2e-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
       - name: Install Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - name: Install dependencies
         run: |
           cd stock-screener-ui
-          bun install
+          bun install --frozen-lockfile
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: |
           cd stock-screener-ui
-          npx playwright install chromium
+          bunx playwright install chromium
       - name: Start dev server
         run: |
           cd stock-screener-ui

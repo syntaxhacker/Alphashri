@@ -15,6 +15,7 @@ import {
   Button,
   Box,
   TextInput,
+  ScrollArea,
 } from "@mantine/core";
 import {
   getPaperTradingState,
@@ -164,7 +165,7 @@ function DayGroup({
             {formatDateHeader(date)}
           </Text>
         </Group>
-        <Group gap="md">
+        <Group gap="sm">
           <Text size="sm" c={pnlColor} fw={600}>
             {pnlSign}₹{formatNumber(Math.abs(dayPnl))}
           </Text>
@@ -448,7 +449,7 @@ export function PaperHistoryTable() {
         id="history-filters"
       >
         <Group gap="md" justify="space-between">
-          <Group gap="md">
+          <Group gap="sm">
             {bots.length > 1 && (
               <Select
                 placeholder="All Bots"
@@ -492,13 +493,7 @@ export function PaperHistoryTable() {
         </Group>
       </Box>
 
-      <Box
-        flex="0 0 auto"
-        mb="sm"
-        style={{ flexShrink: 0 }}
-        className="paper-history-summary"
-        id="history-summary"
-      >
+      <Box style={{ flexShrink: 0 }} className="paper-history-list-wrapper">
         <Card
           shadow="sm"
           padding="sm"
@@ -510,7 +505,7 @@ export function PaperHistoryTable() {
         >
           <Group justify="space-between">
             <Text fw={600}>Trade History ({filteredTrades.length} trades)</Text>
-            <Group gap="md">
+            <Group gap="sm">
               <Text>
                 Total:{" "}
                 <Text component="span" fw={700} c={totalPnl >= 0 ? "green" : "red"}>

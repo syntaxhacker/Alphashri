@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { buildProfileFilterQueryParams, detectAddedSymbols, getTradingList } from "./runtime_utils";
+import { describe, expect, test } from "vitest";
+import { detectAddedSymbols, getTradingList } from "./runtime_utils";
 
 describe("runtime utils", () => {
   test("detectAddedSymbols finds new symbols only when context unchanged", () => {
@@ -40,12 +40,6 @@ describe("runtime utils", () => {
     const diff = detectAddedSymbols(prev, next);
     expect(diff.addedPrimary).toEqual([]);
     expect(diff.addedSecondary).toEqual([]);
-  });
-
-  test("buildProfileFilterQueryParams serializes pf_* values", () => {
-    const q = buildProfileFilterQueryParams({ min_gap_pct: 1.5, side: "gap up" });
-    expect(q).toContain("pf_min_gap_pct=1.5");
-    expect(q).toContain("pf_side=gap%20up");
   });
 
   test("getTradingList deduplicates symbols preserving first-seen order", () => {

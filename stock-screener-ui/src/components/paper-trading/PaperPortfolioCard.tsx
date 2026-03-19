@@ -1,4 +1,5 @@
-import { Card, Group, Text, SimpleGrid, Badge } from "@mantine/core";
+import { Group, Text, Badge } from "@mantine/core";
+import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 
 export interface Portfolio {
   total_value: number;
@@ -32,19 +33,15 @@ export function PaperPortfolioCard({
 }: PaperPortfolioCardProps) {
   if (!portfolio) {
     return (
-      <Card
-        shadow="sm"
-        padding="md"
-        radius="md"
-        withBorder
+      <CompactPanel
         data-testid="portfolio-card"
         className="paper-portfolio-card"
         id="portfolio-card"
       >
-        <Text c="dimmed" ta="center">
+        <Text c="dimmed" ta="center" size="sm">
           Loading portfolio...
         </Text>
-      </Card>
+      </CompactPanel>
     );
   }
 
@@ -52,78 +49,40 @@ export function PaperPortfolioCard({
   const pnlSign = portfolio.day_pnl >= 0 ? "+" : "";
 
   return (
-    <Card
-      shadow="sm"
-      padding="md"
-      radius="md"
-      withBorder
-      data-testid="portfolio-card"
-      className="paper-portfolio-card"
-      id="portfolio-card"
-    >
-      <SimpleGrid
-        cols={{ base: 1, sm: 3 }}
-        spacing="md"
-        data-testid="portfolio-row-1"
-        className="portfolio-row"
-        id="portfolio-row-1"
-      >
-        <Group gap="xs">
-          <Text size="sm" c="dimmed">
-            Total Value
-          </Text>
-          <Text size="md" fw={600}>
-            ₹{formatCurrency(portfolio.total_value)}
-          </Text>
-        </Group>
-        <Group gap="xs">
-          <Text size="sm" c="dimmed">
-            Cash
-          </Text>
-          <Text size="md" fw={600}>
-            ₹{formatCurrency(portfolio.cash)}
-          </Text>
-        </Group>
-        <Group gap="xs">
-          <Text size="sm" c="dimmed">
-            Margin Used
-          </Text>
-          <Text size="md" fw={600}>
-            ₹{formatCurrency(portfolio.margin_used)}
-          </Text>
-        </Group>
-      </SimpleGrid>
+    <CompactPanel data-testid="portfolio-card" className="paper-portfolio-card" id="portfolio-card">
+      <CompactStatGrid>
+        <CompactStat label="Total Value" value={`₹${formatCurrency(portfolio.total_value)}`} />
+        <CompactStat label="Cash" value={`₹${formatCurrency(portfolio.cash)}`} />
+        <CompactStat label="Margin Used" value={`₹${formatCurrency(portfolio.margin_used)}`} />
+        <CompactStat
+          label="Day P&L"
+          value={`${pnlSign}₹${formatCurrency(portfolio.day_pnl)}`}
+          tone={pnlColor}
+        />
+      </CompactStatGrid>
 
-      <SimpleGrid
-        cols={{ base: 1, sm: 2 }}
-        spacing="md"
-        mt="md"
+      <Group
+        gap={6}
+        mt="sm"
+        align="center"
         data-testid="portfolio-row-2"
         className="portfolio-row"
         id="portfolio-row-2"
       >
-        <Group gap="xs">
-          <Text size="sm" c="dimmed">
-            Day P&L
-          </Text>
-          <Text size="md" fw={600} c={pnlColor}>
-            {pnlSign}₹{formatCurrency(portfolio.day_pnl)}
-          </Text>
-        </Group>
-        <Group gap="xs">
-          <Text size="sm" c="dimmed">
+        <Group gap={6} align="center">
+          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
             Positions
           </Text>
-          <Badge variant="light" color="blue">
+          <Badge variant="light" color="blue" size="sm">
             {portfolio.positions_count}
           </Badge>
         </Group>
-      </SimpleGrid>
+      </Group>
 
       {isMultiStrategy && strategySummaries.length > 0 && (
         <Group
           gap="xs"
-          mt="md"
+          mt="sm"
           data-testid="strategy-summaries"
           className="portfolio-strategies"
           id="strategy-summaries"
@@ -131,7 +90,7 @@ export function PaperPortfolioCard({
           {strategySummaries.map((summary) => (
             <Badge
               key={summary.strategy_name}
-              variant="outline"
+              variant="light"
               color={summary.pnl >= 0 ? "green" : "red"}
               data-testid={`strategy-badge-${summary.strategy_name}`}
             >
@@ -140,6 +99,6 @@ export function PaperPortfolioCard({
           ))}
         </Group>
       )}
-    </Card>
+    </CompactPanel>
   );
 }

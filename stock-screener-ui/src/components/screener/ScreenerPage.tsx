@@ -1,24 +1,15 @@
-import { Stack, Alert, Box, Button, Title, Text } from "@mantine/core";
+import { Stack, Box, Button, Text, Group } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useMemo } from "react";
 import { ScreenerNav } from "./ScreenerNav";
 import { ScreenerHeader } from "./ScreenerHeader";
-import { ScreenerFilters } from "./ScreenerFilters";
 import { ScreenerTable } from "./ScreenerTable";
+import { ScreenerHeatmap } from "./ScreenerHeatmap";
 import { ScreenerEmpty } from "./ScreenerEmpty";
 import { ScreenerLoading } from "./ScreenerLoading";
 import { getColumnsForScreener } from "./columns";
 import type { Stock } from "../../types";
-
-interface ProfileFilterDef {
-  key: string;
-  label: string;
-  type: "number" | "select";
-  options?: Array<{ value: string; label: string }>;
-  min?: number;
-  max?: number;
-  step?: number;
-}
+import { CompactPage, CompactPanel } from "../common/compact";
 
 interface ScreenerPageProps {
   screenerOptions: Array<{ id: string; label: string; description?: string }>;
@@ -35,18 +26,6 @@ interface ScreenerPageProps {
   onAutoRefreshChange: (value: number) => void;
   onProviderChange: (value: string) => void;
   onModeChange: (value: string) => void;
-
-  filters: {
-    minScore: number;
-    maxPrice: number;
-    minReturn: number;
-    sector: string;
-    [key: string]: any;
-  };
-  sectors: string[];
-  profileFilters?: ProfileFilterDef[];
-  onFilterChange: (key: string, value: any) => void;
-  onResetFilters: () => void;
 
   approachingStocks: Stock[];
   touchedStocks: Stock[];
@@ -88,11 +67,6 @@ export function ScreenerPage({
   onAutoRefreshChange,
   onProviderChange,
   onModeChange,
-  filters,
-  sectors,
-  profileFilters,
-  onFilterChange,
-  onResetFilters,
   approachingStocks,
   touchedStocks,
   onSymbolClick,
@@ -101,6 +75,7 @@ export function ScreenerPage({
 }: ScreenerPageProps) {
   const [sortColumn, setSortColumn] = useState<string | null>("score");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
 
   const sortedApproaching = useMemo(
     () => sortStocks(approachingStocks ?? [], sortColumn, sortDirection),
@@ -125,6 +100,34 @@ export function ScreenerPage({
   const emptySet = new Set<string>();
   const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
 
+  const renderStocksView = (stocks: Stock[], touchedSymbols: Set<string>) => {
+    if (viewMode === "heatmap") {
+      return (
+        <ScreenerHeatmap
+          stocks={stocks}
+          columns={columns}
+          touchedSymbols={touchedSymbols}
+          onSymbolClick={onSymbolClick}
+          onSymbolHover={onSymbolHover}
+        />
+      );
+    }
+
+    return (
+      <ScreenerTable
+        stocks={stocks}
+        columns={columns}
+        touchedSymbols={touchedSymbols}
+        sortColumn={sortColumn}
+        sortDirection={sortDirection}
+        onSortChange={handleSortChange}
+        onSymbolClick={onSymbolClick}
+        onSymbolHover={onSymbolHover}
+        screenerType={activeScreener}
+      />
+    );
+  };
+
   const renderContent = () => {
     if (isLoading) {
       return <ScreenerLoading />;
@@ -133,24 +136,35 @@ export function ScreenerPage({
     if (error) {
       return (
         <Stack
-          gap="md"
-          align="center"
+          gap="sm"
+          align="stretch"
           className="screener-error-container"
           data-testid="screener-error-container"
         >
-          <Alert
-            icon={<IconAlertCircle size={16} />}
-            title="Error"
-            color="red"
-            variant="filled"
-            data-testid="screener-error"
+          <CompactPanel
+            testId="screener-error"
             className="screener-alert"
-          >
-            {error}
-          </Alert>
-          <Button onClick={onRefresh} variant="light" color="red" data-testid="screener-retry-btn">
-            Retry
-          </Button>
+            title={
+              <Group gap="xs" wrap="nowrap">
+                <IconAlertCircle size={18} />
+                <Text fw={600} size="sm">
+                  Screener failed to load
+                </Text>
+              </Group>
+            }
+            description={error}
+            action={
+              <Button
+                onClick={onRefresh}
+                variant="light"
+                color="red"
+                size="sm"
+                data-testid="screener-retry-btn"
+              >
+                Retry
+              </Button>
+            }
+          />
         </Stack>
       );
     }
@@ -160,118 +174,94 @@ export function ScreenerPage({
     }
 
     return (
-      <Stack gap="xl" style={{ height: "100%", overflow: "auto" }}>
+      <Stack
+        gap="sm"
+        style={{
+          height: "100%",
+          width: "100%",
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
         {sortedApproaching.length > 0 && (
-          <Box
-            id="approaching-section"
+          <CompactPanel
             className="screener-section approaching-section"
-            data-testid="screener-approaching-section"
+            title={`Approaching (${sortedApproaching.length})`}
+            description="Stocks nearing but have not yet touched the 52W high"
+            testId="screener-approaching-section"
+            style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
           >
-            <Stack gap="xs" mb="sm">
-              <Title order={5} c="blue" className="section-title" data-testid="approaching-title">
-                ⏳ Approaching ({sortedApproaching.length})
-              </Title>
-              <Text size="sm" c="dimmed" className="section-description">
-                Stocks nearing but have not yet touched the 52W high
-              </Text>
-            </Stack>
-            <ScreenerTable
-              stocks={sortedApproaching}
-              columns={columns}
-              touchedSymbols={emptySet}
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSortChange={handleSortChange}
-              onSymbolClick={onSymbolClick}
-              onSymbolHover={onSymbolHover}
-              screenerType={activeScreener}
-            />
-          </Box>
+            <Box style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+              {renderStocksView(sortedApproaching, emptySet)}
+            </Box>
+          </CompactPanel>
         )}
 
         {sortedTouched.length > 0 && (
-          <Box
-            id="touched-section"
+          <CompactPanel
             className="screener-section touched-section"
-            data-testid="screener-touched-section"
+            title={`Touched (${sortedTouched.length})`}
+            description="Stocks that have touched or broken out of the 52W high"
+            testId="screener-touched-section"
+            style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
           >
-            <Stack gap="xs" mb="sm">
-              <Title order={5} c="green" className="section-title" data-testid="touched-title">
-                ✅ Touched ({sortedTouched.length})
-              </Title>
-              <Text size="sm" c="dimmed" className="section-description">
-                Stocks that have touched or broken out of the 52W high
-              </Text>
-            </Stack>
-            <ScreenerTable
-              stocks={sortedTouched}
-              columns={columns}
-              touchedSymbols={new Set(sortedTouched.map((s) => s.symbol))}
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSortChange={handleSortChange}
-              onSymbolClick={onSymbolClick}
-              onSymbolHover={onSymbolHover}
-              screenerType={activeScreener}
-            />
-          </Box>
+            <Box style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+              {renderStocksView(sortedTouched, new Set(sortedTouched.map((s) => s.symbol)))}
+            </Box>
+          </CompactPanel>
         )}
       </Stack>
     );
   };
 
   return (
-    <Box
-      h="100%"
-      id="screener-main"
-      className="screener-page"
-      style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
-      data-testid="screener-page"
-    >
-      <Box flex="0 0 auto" className="screener-controls" data-testid="screener-controls">
-        <Stack gap="md">
-          <ScreenerNav
-            options={screenerOptions}
-            activeScreener={activeScreener}
-            onChange={onScreenerChange}
-          />
-
-          <ScreenerHeader
-            title={title}
-            status={status}
-            isLoading={isLoading}
-            autoRefreshSeconds={autoRefreshSeconds}
-            provider={provider}
-            mode={mode}
-            onRefresh={onRefresh}
-            onAutoRefreshChange={onAutoRefreshChange}
-            onProviderChange={onProviderChange}
-            onModeChange={onModeChange}
-          />
-
-          <ScreenerFilters
-            minScore={filters.minScore}
-            maxPrice={filters.maxPrice}
-            minReturn={filters.minReturn}
-            sector={filters.sector}
-            sectors={sectors}
-            profileFilters={profileFilters}
-            profileFilterValues={filters}
-            onFilterChange={onFilterChange}
-            onReset={onResetFilters}
-          />
-        </Stack>
-      </Box>
-
+    <CompactPage>
       <Box
-        flex={1}
-        id="screener-content"
-        className="screener-content"
-        style={{ minHeight: 0 }}
-        data-testid="screener-content"
+        h="100%"
+        id="screener-main"
+        className="screener-page"
+        style={{ display: "flex", flexDirection: "column", gap: "var(--mantine-spacing-sm)" }}
+        data-testid="screener-page"
       >
-        {renderContent()}
+        <Box flex="0 0 auto" className="screener-controls" data-testid="screener-controls">
+          <Stack gap="sm">
+            <ScreenerNav
+              options={screenerOptions}
+              activeScreener={activeScreener}
+              onChange={onScreenerChange}
+            />
+
+            <ScreenerHeader
+              title={title}
+              status={status}
+              isLoading={isLoading}
+              autoRefreshSeconds={autoRefreshSeconds}
+              provider={provider}
+              mode={mode}
+              onRefresh={onRefresh}
+              onAutoRefreshChange={onAutoRefreshChange}
+              onProviderChange={onProviderChange}
+              onModeChange={onModeChange}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          </Stack>
+        </Box>
+
+        <Box
+          flex={1}
+          id="screener-content"
+          className="screener-content"
+          style={{ minHeight: 0, display: "flex" }}
+          data-testid="screener-content"
+        >
+          {renderContent()}
+        </Box>
       </Box>
-    </Box>
+    </CompactPage>
   );
 }

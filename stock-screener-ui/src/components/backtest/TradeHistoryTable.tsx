@@ -193,7 +193,7 @@ export function TradeHistoryTable({
         </ActionIcon>
       </Group>
 
-      <Group gap="md" p="xs" data-testid="trade-history-summary">
+      <Group gap="sm" p="xs" data-testid="trade-history-summary">
         <Text size="sm" data-testid="trade-summary-pnl">
           P&L:{" "}
           <Text component="span" fw={600} c={totalPnl >= 0 ? "green" : "red"}>

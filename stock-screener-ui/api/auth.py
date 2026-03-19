@@ -10,6 +10,7 @@ Provides:
 
 from datetime import datetime, timedelta
 from typing import Optional
+import asyncio
 import secrets
 import os
 
@@ -188,7 +189,10 @@ async def get_current_user(
 
     user_id = int(payload.get("sub"))
 
-    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    def _sync():
+        return db.query(User).filter(User.id == user_id, User.is_active == True).first()
+
+    user = await asyncio.to_thread(_sync)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -230,24 +234,28 @@ async def register(
     db: Session = Depends(get_db)
 ):
     """Register a new user."""
-    # Check if email already exists
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
-    if existing_user:
+    hashed_password = hash_password(user_data.password)
+
+    def _sync():
+        existing_user = db.query(User).filter(User.email == user_data.email).first()
+        if existing_user:
+            return ("exists", None)
+        user = User(
+            email=user_data.email,
+            hashed_password=hashed_password,
+            display_name=user_data.display_name or user_data.email.split('@')[0],
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return ("ok", user)
+
+    result, user = await asyncio.to_thread(_sync)
+    if result == "exists":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
-
-    # Create user
-    hashed_password = hash_password(user_data.password)
-    user = User(
-        email=user_data.email,
-        hashed_password=hashed_password,
-        display_name=user_data.display_name or user_data.email.split('@')[0],
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
 
     # Create tokens
     access_token, _ = create_access_token(user.id)
@@ -266,7 +274,10 @@ async def login(
     db: Session = Depends(get_db)
 ):
     """Login and get tokens."""
-    user = db.query(User).filter(User.email == credentials.email).first()
+    def _sync():
+        return db.query(User).filter(User.email == credentials.email).first()
+
+    user = await asyncio.to_thread(_sync)
 
     if user is None or not verify_password(credentials.password, user.hashed_password):
         raise HTTPException(
@@ -310,22 +321,24 @@ async def refresh_token(
     jti = payload.get("jti")
     user_id = int(payload.get("sub"))
 
-    # Check if session exists and is not revoked
-    session = db.query(UserSession).filter(
-        UserSession.id == jti,
-        UserSession.user_id == user_id,
-        UserSession.revoked == False,
-    ).first()
+    def _sync():
+        session = db.query(UserSession).filter(
+            UserSession.id == jti,
+            UserSession.user_id == user_id,
+            UserSession.revoked == False,
+        ).first()
+        if session is None:
+            return False
+        session.revoked = True
+        db.commit()
+        return True
 
-    if session is None:
+    found = await asyncio.to_thread(_sync)
+    if not found:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session not found or revoked",
         )
-
-    # Revoke old session
-    session.revoked = True
-    db.commit()
 
     # Create new tokens
     access_token, _ = create_access_token(user_id)
@@ -348,13 +361,16 @@ async def logout(
         return {"message": "Logged out"}
 
     payload = decode_token(credentials.credentials)
-    if payload and payload.get("type") == "refresh":
-        # Revoke the session
-        jti = payload.get("jti")
-        session = db.query(UserSession).filter(UserSession.id == jti).first()
-        if session:
-            session.revoked = True
-            db.commit()
+
+    def _sync():
+        if payload and payload.get("type") == "refresh":
+            jti = payload.get("jti")
+            session = db.query(UserSession).filter(UserSession.id == jti).first()
+            if session:
+                session.revoked = True
+                db.commit()
+
+    await asyncio.to_thread(_sync)
 
     return {"message": "Logged out successfully"}
 
@@ -380,7 +396,10 @@ async def update_me(
     if initial_capital is not None:
         user.initial_capital = initial_capital
 
-    db.commit()
-    db.refresh(user)
+    def _sync():
+        db.commit()
+        db.refresh(user)
+
+    await asyncio.to_thread(_sync)
 
     return UserResponse.model_validate(user)

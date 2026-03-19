@@ -272,7 +272,7 @@ export function PaperTradingView() {
   const renderFilters = () => {
     if (state.currentView === "live") {
       return (
-        <Group gap="md">
+        <Group gap="sm">
           <Group gap="xs">
             <Text size="sm" c="dimmed">
               Bot:
@@ -332,7 +332,7 @@ export function PaperTradingView() {
     if (state.currentView === "history") {
       const symbols = [...new Set(state.trades.map((t: PaperTrade) => t.symbol))].sort();
       return (
-        <Group gap="md">
+        <Group gap="sm">
           <Group gap="xs">
             <Text size="sm" c="dimmed">
               From:
@@ -381,10 +381,15 @@ export function PaperTradingView() {
 
   return (
     <Box
-      h="100%"
       className="paper-trading-view"
       id="paper-trading-main"
-      style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        padding: "var(--mantine-spacing-md)",
+        height: "100%",
+        overflow: "hidden",
+      }}
       data-testid="paper-trading-view"
     >
       {state.error && (

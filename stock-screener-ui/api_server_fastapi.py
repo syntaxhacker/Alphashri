@@ -5,6 +5,7 @@ Serves screener data and backtest API as JSON.
 
 Run with: uvicorn api_server_fastapi:app --reload --port 8765
 """
+import asyncio
 import sys
 import os
 import math
@@ -1031,20 +1032,24 @@ async def debug_instruments():
     """Debug endpoint to check instruments loading."""
     from db.database import SessionLocal
     from db.models import Instrument
-    db = SessionLocal()
-    try:
-        total = db.query(Instrument).count()
-        nse_eq = db.query(Instrument).filter(Instrument.segment == 'NSE_EQ').count()
-        sample = db.query(Instrument).filter(Instrument.segment == 'NSE_EQ').limit(3).all()
-        return {
-            "total_instruments": total,
-            "nse_eq_count": nse_eq,
-            "cache_loaded": _instruments_loaded,
-            "cache_size": len(_instruments_cache),
-            "sample": [s.to_dict() for s in sample]
-        }
-    finally:
-        db.close()
+
+    def _query():
+        db = SessionLocal()
+        try:
+            total = db.query(Instrument).count()
+            nse_eq = db.query(Instrument).filter(Instrument.segment == 'NSE_EQ').count()
+            sample = db.query(Instrument).filter(Instrument.segment == 'NSE_EQ').limit(3).all()
+            return {
+                "total_instruments": total,
+                "nse_eq_count": nse_eq,
+                "cache_loaded": _instruments_loaded,
+                "cache_size": len(_instruments_cache),
+                "sample": [s.to_dict() for s in sample]
+            }
+        finally:
+            db.close()
+
+    return await asyncio.to_thread(_query)
 
 
 # ============================================
@@ -1250,7 +1255,7 @@ async def get_chart_preview(
             'error': 'Upstox API credentials not configured'
         }
     
-    token_data = get_shared_broker_token('upstox')
+    token_data = await asyncio.to_thread(get_shared_broker_token, 'upstox')
     if not token_data or not token_data.get('access_token'):
         return {
             'symbol': symbol,
@@ -1282,16 +1287,14 @@ async def get_chart_preview(
         to_date = datetime.now().strftime('%Y-%m-%d')
         from_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
 
-        df = api.fetch_historical_data_v3(
-            symbol=symbol,
-            unit='minutes',
-            interval=1,
-            from_date=from_date,
-            to_date=to_date
+        df = await asyncio.to_thread(
+            api.fetch_historical_data_v3,
+            symbol=symbol, unit='minutes', interval=1,
+            from_date=from_date, to_date=to_date
         )
-        
+
         try:
-            df_intraday = api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+            df_intraday = await asyncio.to_thread(api.fetch_intraday_data_v3, symbol=symbol, interval='1')
             if df_intraday is not None and not df_intraday.empty:
                 if df is None or df.empty:
                     df = df_intraday
@@ -1660,11 +1663,24 @@ async def news_startup_prefetch():
 async def news_poller_task():
     """Background task that polls news sources, analyzes with LLM, and persists to DB."""
     import asyncio
+    import logging
     from news_api import fetch_article_content
     from services.news_persistence import get_persistence_service
 
+    # Set up file logger for news poller
+    poller_logger = logging.getLogger('news_poller')
+    poller_logger.setLevel(logging.INFO)
+    if not poller_logger.handlers:
+        import os
+        log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        fh = logging.FileHandler(os.path.join(log_dir, 'news_poller.log'))
+        fh.setFormatter(logging.Formatter('%(asctime)s | %(levelname)s | %(message)s'))
+        poller_logger.addHandler(fh)
+
     persistence = get_persistence_service()
     last_seen_ids: Dict[str, str] = {}
+    poller_logger.info("News poller started")
 
     await asyncio.sleep(5)
 
@@ -1680,6 +1696,7 @@ async def news_poller_task():
                 try:
                     items = fetch_news(source=source_id, limit=20)
                     if not items:
+                        poller_logger.warning(f"No items returned from {source_id}")
                         continue
 
                     current_top_id = items[0].get('id')
@@ -1687,6 +1704,7 @@ async def news_poller_task():
 
                     if last_id is None:
                         last_seen_ids[source_id] = current_top_id
+                        poller_logger.info(f"Initialized tracking for {source_id}, top_id={current_top_id}")
                         continue
 
                     if current_top_id != last_id:
@@ -1697,10 +1715,11 @@ async def news_poller_task():
                             new_items.append(item)
 
                         if new_items:
-                            print(f"📰 Processing {len(new_items)} new items from {source_id}")
+                            poller_logger.info(f"Found {len(new_items)} new items from {source_id}")
                             
                             high_impact_items = []
                             saved_count = 0
+                            skipped_count = 0
                             
                             for item in new_items:
                                 try:
@@ -1708,6 +1727,7 @@ async def news_poller_task():
                                     url = item.get('sourceUrl', '')
                                     
                                     if not url or len(headline) < 30:
+                                        skipped_count += 1
                                         continue
                                     
                                     existing = persistence.get_article_by_url(url)
@@ -1718,13 +1738,30 @@ async def news_poller_task():
                                     content = full_article.get('description', '')
                                     symbols = full_article.get('symbols', [])
                                     
+                                    # Skip saving articles with no content
+                                    if 'error' in full_article or not content:
+                                        poller_logger.warning(f"Skipping empty article: {headline[:60]} | error={full_article.get('error', 'no content')}")
+                                        skipped_count += 1
+                                        continue
+                                    
+                                    # Parse published date from scraped article
+                                    published_at = None
+                                    if full_article.get('publishedAt'):
+                                        try:
+                                            published_at = datetime.fromisoformat(full_article['publishedAt'].replace('Z', '+00:00'))
+                                        except:
+                                            pass
+                                    
                                     analysis = None
                                     if _llm_available and article_analyzer:
-                                        analysis = article_analyzer.analyze_article(url, headline, content)
-                                        item['analysis'] = analysis
-                                        
-                                        if analysis.get('impact_score', 0) >= 8:
-                                            high_impact_items.append(item)
+                                        try:
+                                            analysis = article_analyzer.analyze_article(url, headline, content)
+                                            item['analysis'] = analysis
+                                            
+                                            if analysis.get('impact_score', 0) >= 8:
+                                                high_impact_items.append(item)
+                                        except Exception as llm_err:
+                                            poller_logger.error(f"LLM analysis failed for {url}: {llm_err}")
                                     
                                     try:
                                         persistence.save_article(
@@ -1733,7 +1770,7 @@ async def news_poller_task():
                                             content=content,
                                             source=source_id,
                                             source_url=url,
-                                            published_at=None,
+                                            published_at=published_at,
                                             symbols=symbols,
                                             sentiment=analysis.get('sentiment') if analysis else None,
                                             impact_score=analysis.get('impact_score') if analysis else None,
@@ -1741,13 +1778,13 @@ async def news_poller_task():
                                         )
                                         saved_count += 1
                                     except Exception as save_err:
-                                        print(f"Failed to save article: {save_err}")
+                                        poller_logger.error(f"Failed to save article {url}: {save_err}")
                                         
                                 except Exception as e:
-                                    print(f"Background processing failed for {item.get('id')}: {e}")
+                                    poller_logger.error(f"Processing failed for {item.get('id')}: {e}")
 
-                            if saved_count > 0:
-                                print(f"💾 Saved {saved_count} new articles to DB")
+                            if saved_count > 0 or skipped_count > 0:
+                                poller_logger.info(f"Source {source_id}: saved={saved_count}, skipped={skipped_count}")
 
                             await news_ws_manager.broadcast({
                                 "type": "new_items",
@@ -1757,7 +1794,7 @@ async def news_poller_task():
                             })
                             
                             if high_impact_items:
-                                print(f"🚨 Broadcasting {len(high_impact_items)} HIGH IMPACT alerts!")
+                                poller_logger.info(f"Broadcasting {len(high_impact_items)} high impact alerts from {source_id}")
                                 await news_ws_manager.broadcast({
                                     "type": "high_impact_alert",
                                     "source": source_id,
@@ -1768,31 +1805,52 @@ async def news_poller_task():
                         last_seen_ids[source_id] = current_top_id
 
                 except Exception as e:
-                    print(f"⚠️ Error polling news source {source_id}: {e}")
+                    poller_logger.error(f"Error polling {source_id}: {e}")
 
         except Exception as e:
-            print(f"⚠️ News poller error: {e}")
+            poller_logger.error(f"Poller loop error: {e}")
 
         await asyncio.sleep(60)
 
 
 @app.get("/api/news")
 async def get_news(
-    source: str = Query(default='moneycontrol', description="News source identifier"),
+    source: str = Query(default=None, description="News source identifier (omit for all sources)"),
     limit: int = Query(default=25, ge=1, le=100, description="Max number of items")
 ):
     """
     Fetch latest news from specified source.
-    Returns list of news items with headline, description, source, and timestamp.
+    When no source specified, returns from DB sorted by publish date (newest first).
     """
     if not _news_available:
         raise HTTPException(status_code=503, detail="News API not available")
 
     try:
-        news = fetch_news(source=source, limit=limit)
+        if source and source != 'all':
+            # Single source: scrape live
+            news = await asyncio.to_thread(fetch_news, source=source, limit=limit)
+        else:
+            # All sources: serve from DB sorted by published_at
+            from services.news_persistence import get_persistence_service
+            persistence = get_persistence_service()
+            articles = await asyncio.to_thread(persistence.get_recent_articles, hours=48, limit=limit)
+            # Format to match news item schema
+            news = []
+            for a in articles:
+                pub = a.get('published_at') or a.get('fetched_at') or ''
+                news.append({
+                    'id': a.get('id'),
+                    'headline': a.get('headline', ''),
+                    'description': a.get('content', ''),
+                    'source': a.get('source', ''),
+                    'sourceUrl': a.get('url', a.get('source_url', '')),
+                    'publishedAt': pub,
+                    'fetchedAt': a.get('fetched_at', ''),
+                })
+
         return {
             'items': news,
-            'source': source,
+            'source': source or 'all',
             'total': len(news),
             'fetchedAt': datetime.now().isoformat()
         }
@@ -1814,7 +1872,7 @@ async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol
         from news_api import _aggregator, fetch_article_content
         
         # 1. Fetch top news across all sources
-        all_news = _aggregator.fetch_all(limit_per_source=15)
+        all_news = await asyncio.to_thread(_aggregator.fetch_all, limit_per_source=15)
         
         # 2. Extract full content and find mentions of the symbol
         relevant_articles = []
@@ -1822,7 +1880,7 @@ async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol
             url = news_item.get('sourceUrl')
             
             # Fetch article content (this also does initial simple symbol extraction)
-            article = fetch_article_content(url)
+            article = await asyncio.to_thread(fetch_article_content, url)
             
             # Check if symbol is mentioned in headline, content, or extracted symbols
             headline = article.get('headline', '')
@@ -1859,7 +1917,8 @@ async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol
         analyzed_data = []
         
         for article in relevant_articles:
-            analysis = article_analyzer.analyze_article(
+            analysis = await asyncio.to_thread(
+                article_analyzer.analyze_article,
                 article['url'], article['headline'], article['content']
             )
             
@@ -1916,7 +1975,7 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
         raise HTTPException(status_code=503, detail="News API not available")
 
     try:
-        article = fetch_article_content(url)
+        article = await asyncio.to_thread(fetch_article_content, url)
         if 'error' in article:
             raise HTTPException(status_code=500, detail=article['error'])
         
@@ -1933,7 +1992,7 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
         if _llm_available and article_analyzer and content and len(content) > 100:
             try:
                 print(f"🤖 Analyzing article via LLM: {headline[:50]}...")
-                analysis_data = article_analyzer.analyze_article(url, headline, content)
+                analysis_data = await asyncio.to_thread(article_analyzer.analyze_article, url, headline, content)
                 
                 sentiment = analysis_data.get('sentiment')
                 impact_score = analysis_data.get('impact_score')
@@ -1965,7 +2024,8 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
             
             enriched_symbols = mapper.map_symbols(symbols)
             
-            saved_article = persistence.save_article(
+            saved_article = await asyncio.to_thread(
+                persistence.save_article,
                 url=url,
                 headline=headline,
                 content=content,
@@ -2010,16 +2070,16 @@ async def analyze_news(url: str = Query(..., description="URL of the news articl
         from news_api import fetch_article_content
         
         # 1. Fetch raw content
-        article_data = fetch_article_content(url)
-        
+        article_data = await asyncio.to_thread(fetch_article_content, url)
+
         if 'error' in article_data:
              raise HTTPException(status_code=500, detail=article_data['error'])
-             
+
         headline = article_data.get('headline', '')
         content = article_data.get('description', '')
-        
+
         # 2. Analyze with LLM
-        analysis = article_analyzer.analyze_article(url, headline, content)
+        analysis = await asyncio.to_thread(article_analyzer.analyze_article, url, headline, content)
         
         # 3. Stitch together
         return {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Box, Text, Group, Badge, Card, Select, Flex, useMantineColorScheme } from "@mantine/core";
+import { Box, Text, Group, Badge, Select, Flex, useMantineColorScheme } from "@mantine/core";
 import { getPaperTradingState, setChartTimeframe, subscribe } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type {
@@ -9,6 +9,7 @@ import type {
   PaperPosition,
 } from "../../types/paperTrading";
 import { theme } from "../../theme";
+import { CompactPanel } from "../common/compact";
 
 declare const echarts: any;
 
@@ -28,13 +29,13 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
     return {};
   }
 
-  const bgColor = isDark ? "#0a0a0a" : "#ffffff";
-  const textColor = isDark ? "#e0e0e0" : "#333333";
-  const mutedColor = isDark ? "#888" : "#666666";
-  const borderColor = isDark ? "#333" : "#e0e0e0";
-  const splitLineColor = isDark ? "#333" : "#eeeeee";
-  const axisLineColor = isDark ? "#444" : "#cccccc";
-  const tooltipBg = isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
+  const bgColor = isDark ? theme.colors.dark[7] : theme.white;
+  const textColor = isDark ? theme.white : theme.colors.gray[8];
+  const mutedColor = isDark ? theme.colors.dark[1] : theme.colors.gray[6];
+  const borderColor = isDark ? theme.colors.dark[4] : theme.colors.gray[3];
+  const splitLineColor = isDark ? theme.colors.dark[5] : theme.colors.gray[2];
+  const axisLineColor = isDark ? theme.colors.dark[4] : theme.colors.gray[3];
+  const tooltipBg = isDark ? "rgba(26, 27, 30, 0.96)" : "rgba(255, 255, 255, 0.96)";
 
   const ohlcData = candles.map((c: CandleData) => [c.open, c.close, c.low, c.high]);
 
@@ -154,7 +155,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
           show: true,
           formatter: "LIVE",
           position: "top",
-          color: "#fff",
+          color: textColor,
           fontSize: fontSizes.sm,
         },
       });
@@ -394,7 +395,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
                 symbol: ["none", "none"],
                 data: markLines,
                 label: {
-                  color: "#fff",
+                  color: textColor,
                   fontSize: fontSizes.sm,
                 },
               }
@@ -486,7 +487,7 @@ function PositionInfo({ position }: { position: PaperPosition }) {
 function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolean }) {
   return (
     <Group
-      gap="md"
+      gap="sm"
       data-testid="chart-legend"
       className="paper-chart-legend"
       id="chart-legend"
@@ -640,17 +641,11 @@ export function PaperChart() {
 
   if (!state.selectedSymbol) {
     return (
-      <Card
+      <CompactPanel
         data-testid="paper-chart-container"
         className="paper-chart-container paper-chart-empty"
         id="paper-chart"
-        style={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "var(--mantine-color-body)",
-        }}
+        style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
       >
         <Box data-testid="chart-placeholder-content" style={{ textAlign: "center" }}>
           <Text size="lg" c="dimmed" mb="sm">
@@ -658,44 +653,32 @@ export function PaperChart() {
           </Text>
           <Text c="dimmed">Select a position or trade to view chart</Text>
         </Box>
-      </Card>
+      </CompactPanel>
     );
   }
 
   if (state.chartLoading) {
     return (
-      <Card
+      <CompactPanel
         data-testid="paper-chart-container"
         className="paper-chart-container paper-chart-loading"
         id="paper-chart"
-        style={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "var(--mantine-color-body)",
-        }}
+        style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
       >
         <Box data-testid="chart-loading" style={{ textAlign: "center" }}>
           <Text c="dimmed">Loading {state.selectedSymbol} chart...</Text>
         </Box>
-      </Card>
+      </CompactPanel>
     );
   }
 
   if (!state.chartData) {
     return (
-      <Card
+      <CompactPanel
         data-testid="paper-chart-container"
         className="paper-chart-container paper-chart-error"
         id="paper-chart"
-        style={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "var(--mantine-color-body)",
-        }}
+        style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
       >
         <Box data-testid="chart-error" style={{ textAlign: "center" }}>
           <Text size="lg" c="dimmed" mb="sm">
@@ -706,23 +689,17 @@ export function PaperChart() {
             Stock data may not be available or symbol is invalid
           </Text>
         </Box>
-      </Card>
+      </CompactPanel>
     );
   }
 
   if (!state.chartData.candles || state.chartData.candles.length === 0) {
     return (
-      <Card
+      <CompactPanel
         data-testid="paper-chart-container"
         className="paper-chart-container paper-chart-no-data"
         id="paper-chart"
-        style={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "var(--mantine-color-body)",
-        }}
+        style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
       >
         <Box data-testid="chart-error" style={{ textAlign: "center" }}>
           <Text size="lg" c="dimmed" mb="sm">
@@ -733,12 +710,12 @@ export function PaperChart() {
             Market may be closed or data unavailable for this date
           </Text>
         </Box>
-      </Card>
+      </CompactPanel>
     );
   }
 
   return (
-    <Card
+    <CompactPanel
       data-testid="paper-chart-container"
       className="paper-chart-container"
       id="paper-chart"
@@ -746,7 +723,6 @@ export function PaperChart() {
       style={{
         padding: 0,
         overflow: "hidden",
-        backgroundColor: "var(--mantine-color-body)",
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
@@ -805,6 +781,6 @@ export function PaperChart() {
           hasWeek52={!!state.chartData.week52_levels}
         />
       </Box>
-    </Card>
+    </CompactPanel>
   );
 }

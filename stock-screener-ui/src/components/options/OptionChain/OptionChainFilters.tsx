@@ -11,7 +11,7 @@ export function OptionChainFilters({
     <Group
       id="chain-filters"
       className="chain-filters"
-      gap="md"
+      gap="sm"
       wrap="nowrap"
       data-testid="options-chain-filters"
     >

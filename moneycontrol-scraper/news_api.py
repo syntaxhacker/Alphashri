@@ -5,6 +5,7 @@ Uses an Aggregator to combine and standardize news formats.
 """
 
 import re
+import json
 import hashlib
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
@@ -128,9 +129,14 @@ class BaseNewsScraper:
         if not page:
              return {
                 'id': self._generate_id(url),
-                'error': f"Failed to fetch",
+                'error': 'Failed to fetch article',
+                'headline': '',
+                'description': '',
+                'source': self.source_id,
                 'sourceUrl': url,
-                'source': self.source_id
+                'publishedAt': datetime.now().isoformat(),
+                'fetchedAt': datetime.now().isoformat(),
+                'symbols': [],
             }
 
         title, article_text, published_at, symbols = self._extract_specifics(page, url)
@@ -151,6 +157,22 @@ class BaseNewsScraper:
             'fetchedAt': datetime.now().isoformat(),
             'symbols': symbols,
         }
+
+    def _extract_ld_json(self, page) -> List[Dict]:
+        """Extract all ld+json structured data from the page."""
+        results = []
+        for script in page.css('script[type="application/ld+json"]'):
+            text = ' '.join(script.css('::text').getall()).strip()
+            if text:
+                try:
+                    data = json.loads(text)
+                    if isinstance(data, list):
+                        results.extend(data)
+                    elif isinstance(data, dict):
+                        results.append(data)
+                except json.JSONDecodeError:
+                    pass
+        return results
 
     def _is_news_article(self, url: str) -> bool:
         """Override in subclasses to filter URLs"""
@@ -173,7 +195,7 @@ class MoneycontrolScraper(BaseNewsScraper):
 
     def _extract_specifics(self, page, url: str) -> Tuple[str, str, Optional[str], List[Dict]]:
         title = page.css('h1::text').get() or ''
-        
+
         # Publish date
         published_at = None
         schedule_el = page.css('.article_schedule')
@@ -188,8 +210,7 @@ class MoneycontrolScraper(BaseNewsScraper):
                 if parsed:
                     published_at = parsed.isoformat()
 
-        # Extract symbols & content
-        article_text = ''
+        # Extract symbols
         symbols = []
         content_areas = page.css('.arti-flow') or page.css('.article_content')
         if content_areas:
@@ -204,8 +225,19 @@ class MoneycontrolScraper(BaseNewsScraper):
                         'url': href if href.startswith('http') else f"https://www.moneycontrol.com{href}"
                     })
 
+        # Article content (paywalled - extract what's available)
+        article_text = ''
+        if content_areas:
             para_texts = [' '.join(p.css('::text').getall()).strip() for p in content_areas[0].css('p')]
             article_text = '\n\n'.join(p for p in para_texts if p)
+
+        # Fallback: ld+json description
+        if not article_text:
+            for item in self._extract_ld_json(page):
+                desc = item.get('description', '')
+                if desc and len(desc) > 50:
+                    article_text = desc
+                    break
 
         return title.strip(), article_text, published_at, symbols
 
@@ -218,6 +250,30 @@ class EconomicTimesScraper(BaseNewsScraper):
     def _is_news_article(self, url: str) -> bool:
         return '/articleshow/' in url
 
+    def _extract_specifics(self, page, url: str) -> Tuple[str, str, Optional[str], List[Dict]]:
+        title = page.css('h1::text').get() or ''
+
+        # Extract from ld+json structured data
+        published_at = None
+        article_text = ''
+        for item in self._extract_ld_json(page):
+            if item.get('@type') in ('NewsArticle', 'Article'):
+                if not article_text and item.get('articleBody'):
+                    article_text = item['articleBody']
+                if not published_at and item.get('datePublished'):
+                    date_str = re.sub(r'[+-]\d{2}:\d{2}$', '', item['datePublished'].strip())
+                    parsed = self._parse_date_generic(date_str)
+                    if parsed:
+                        published_at = parsed.isoformat()
+
+        # Fallback: synopsis
+        if not article_text:
+            syn = page.css('.artSyn')
+            if syn:
+                article_text = ' '.join(syn[0].css('::text').getall()).strip()
+
+        return title.strip(), article_text, published_at, []
+
 class LivemintScraper(BaseNewsScraper):
     source_id = "livemint"
     source_name = "Livemint"
@@ -225,6 +281,36 @@ class LivemintScraper(BaseNewsScraper):
 
     def _is_news_article(self, url: str) -> bool:
          return re.search(r'-\d+\.html$', url) is not None
+
+    def _extract_specifics(self, page, url: str) -> Tuple[str, str, Optional[str], List[Dict]]:
+        title = page.css('h1::text').get() or ''
+
+        # Date from meta tags
+        published_at = None
+        for meta in page.css('meta'):
+            attrs = meta.attrib if hasattr(meta, 'attrib') else {}
+            prop = attrs.get('property', '')
+            content = attrs.get('content', '')
+            if prop == 'article:published_time' and content:
+                date_str = re.sub(r'[+-]\d{2}:\d{2}$', '', content.strip())
+                parsed = self._parse_date_generic(date_str)
+                if parsed:
+                    published_at = parsed.isoformat()
+                    break
+
+        # Article content from storyParagraph divs
+        article_text = ''
+        paragraphs = page.css('.storyParagraph')
+        if paragraphs:
+            texts = [' '.join(p.css('::text').getall()).strip() for p in paragraphs]
+            article_text = '\n\n'.join(t for t in texts if t)
+        else:
+            # Fallback: storyContent
+            story = page.css('.storyContent')
+            if story:
+                article_text = ' '.join(story[0].css('::text').getall()).strip()
+
+        return title.strip(), article_text, published_at, []
 
 class FinancialExpressScraper(BaseNewsScraper):
     source_id = "financialexpress"
@@ -236,13 +322,22 @@ class FinancialExpressScraper(BaseNewsScraper):
     
     def _extract_specifics(self, page, url: str) -> Tuple[str, str, Optional[str], List[Dict]]:
         title = page.css('h1::text').get() or ''
-        
+
+        # Date from ld+json or visible element
         published_at = None
-        date_el = page.css('.post-date::text').get() or page.css('.date::text').get()
-        if date_el:
-            parsed = self._parse_date_generic(date_el.strip())
-            if parsed:
-                published_at = parsed.isoformat()
+        for item in self._extract_ld_json(page):
+            if item.get('datePublished'):
+                date_str = re.sub(r'[+-]\d{2}:\d{2}$', '', item['datePublished'].strip())
+                parsed = self._parse_date_generic(date_str)
+                if parsed:
+                    published_at = parsed.isoformat()
+                    break
+        if not published_at:
+            date_el = page.css('.post-date::text').get() or page.css('.date::text').get()
+            if date_el:
+                parsed = self._parse_date_generic(date_el.strip())
+                if parsed:
+                    published_at = parsed.isoformat()
         
         symbols = []
         article_text = ''
@@ -276,6 +371,45 @@ class BusinessStandardScraper(BaseNewsScraper):
     def _is_news_article(self, url: str) -> bool:
         return bool(re.search(r'_\d+\.html$', url))
 
+    def _extract_specifics(self, page, url: str) -> Tuple[str, str, Optional[str], List[Dict]]:
+        title = page.css('h1::text').get() or ''
+
+        # Date from meta tags
+        published_at = None
+        for meta in page.css('meta'):
+            attrs = meta.attrib if hasattr(meta, 'attrib') else {}
+            prop = attrs.get('property', '')
+            content = attrs.get('content', '')
+            if prop == 'article:published_time' and content:
+                date_str = re.sub(r'[+-]\d{2}:\d{2}$', '', content.strip())
+                parsed = self._parse_date_generic(date_str)
+                if parsed:
+                    published_at = parsed.isoformat()
+                    break
+
+        # Article content from .content-items divs (live blog format)
+        article_text = ''
+        items = page.css('.content-items')
+        if items:
+            texts = [' '.join(item.css('::text').getall()).strip() for item in items]
+            article_text = '\n\n'.join(t for t in texts if t)
+
+        # Fallback: .storycontent div (standard articles)
+        if not article_text:
+            story = page.css('.storycontent')
+            if story:
+                article_text = ' '.join(story[0].css('::text').getall()).strip()
+
+        # Fallback: ld+json
+        if not article_text:
+            for item in self._extract_ld_json(page):
+                body = item.get('articleBody', '')
+                if body and len(body) > 50:
+                    article_text = body
+                    break
+
+        return title.strip(), article_text, published_at, []
+
 class CNBCTV18Scraper(BaseNewsScraper):
     source_id = "cnbctv18"
     source_name = "CNBC TV18"
@@ -283,6 +417,39 @@ class CNBCTV18Scraper(BaseNewsScraper):
 
     def _is_news_article(self, url: str) -> bool:
         return bool(re.search(r'-\d+\.htm$', url))
+
+    def _extract_specifics(self, page, url: str) -> Tuple[str, str, Optional[str], List[Dict]]:
+        title = page.css('h1::text').get() or ''
+
+        # Date from meta tags
+        published_at = None
+        for meta in page.css('meta'):
+            attrs = meta.attrib if hasattr(meta, 'attrib') else {}
+            prop = attrs.get('property', '')
+            content = attrs.get('content', '')
+            if prop == 'article:published_time' and content:
+                # Strip timezone offset for parsing
+                date_str = re.sub(r'[+-]\d{2}:\d{2}$', '', content.strip())
+                parsed = self._parse_date_generic(date_str)
+                if parsed:
+                    published_at = parsed.isoformat()
+                    break
+
+        # Article content from .narticle-text div
+        article_text = ''
+        content_area = page.css('.narticle-text')
+        if content_area:
+            texts = [' '.join(p.css('::text').getall()).strip() for p in content_area[0].css('p')]
+            article_text = '\n\n'.join(t for t in texts if len(t) > 20)
+            if not article_text:
+                # Fallback: get all text nodes directly from the div
+                all_text = ' '.join(content_area[0].css('::text').getall()).strip()
+                # Remove the "X Min Read" prefix
+                all_text = re.sub(r'^\d+\s*Min Read\s*', '', all_text)
+                if len(all_text) > 50:
+                    article_text = all_text
+
+        return title.strip(), article_text, published_at, []
 
 # Aggregator
 class NewsAggregator:
@@ -305,20 +472,35 @@ class NewsAggregator:
         return scraper.fetch_latest_news(limit)
 
     def fetch_all(self, limit_per_source: int = 10) -> List[Dict]:
+        # Fixed source order for deterministic results
+        source_order = [
+            'moneycontrol', 'economictimes', 'livemint',
+            'financialexpress', 'business_standard', 'cnbctv18'
+        ]
         all_news = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.scrapers)) as executor:
-            future_to_source = {
-                executor.submit(scraper.fetch_latest_news, limit_per_source): scraper.source_id
-                for scraper in self.scrapers.values()
-            }
+            future_to_source = {}
+            for sid in source_order:
+                scraper = self.scrapers.get(sid)
+                if scraper:
+                    future_to_source[executor.submit(scraper.fetch_latest_news, limit_per_source)] = sid
+
+            # Collect results as they complete, store by source
+            results_by_source = {}
             for future in concurrent.futures.as_completed(future_to_source):
                 source_id = future_to_source[future]
                 try:
                     news = future.result()
-                    all_news.extend(news)
+                    results_by_source[source_id] = news
                     print(f"Finished {source_id}: {len(news)} items")
                 except Exception as e:
                     print(f"Error fetching from {source_id}: {e}")
+                    results_by_source[source_id] = []
+
+        # Append in fixed source order for stable output
+        for sid in source_order:
+            all_news.extend(results_by_source.get(sid, []))
+
         return all_news
 
     def fetch_article(self, source_id: str, url: str) -> Dict:
@@ -365,7 +547,12 @@ NEWS_SOURCES = [
     for s in _aggregator.scrapers.values()
 ]
 
-def fetch_news(source: str = 'moneycontrol', limit: int = 25) -> List[Dict]:
+def fetch_news(source: str = None, limit: int = 25) -> List[Dict]:
+    if source is None or source == 'all':
+        # Fetch from all sources - divide limit per source
+        num_sources = len(_aggregator.scrapers) if _aggregator.scrapers else 1
+        limit_per_source = max(limit // num_sources, 5)  # At least 5 per source
+        return _aggregator.fetch_all(limit_per_source)
     return _aggregator.fetch_from_source(source, limit)
 
 def fetch_article_content(url: str) -> Dict:

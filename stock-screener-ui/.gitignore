@@ -13,6 +13,9 @@ dist-ssr
 ui.mantine.dev
 *.local
 
+# Environment files - don't commit secrets
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

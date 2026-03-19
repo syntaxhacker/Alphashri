@@ -8,6 +8,7 @@ This module provides REST API endpoints for:
 - Portfolio and performance views
 """
 
+import asyncio
 import sys
 import subprocess
 import json
@@ -204,6 +205,271 @@ def is_bot_running(user_id: int, bot_id: int) -> tuple:
     return False, None
 
 
+def _sync_list_available_strategies(db: Session) -> list:
+    strategies = db.query(StrategyConfig).filter(
+        StrategyConfig.is_active == True
+    ).all()
+    return [
+        {
+            "id": s.uuid,
+            "name": s.name,
+            "strategy_type": s.strategy_type,
+            "is_template": s.is_template,
+            "is_default": s.is_default,
+            "sl_pct": s.sl_pct,
+            "tp_pct": s.tp_pct,
+            "max_positions": s.max_positions,
+        }
+        for s in strategies
+    ]
+
+
+def _sync_list_bots(user_id: int, db: Session) -> list:
+    bots = db.query(BotConfig).filter(BotConfig.user_id == user_id).order_by(BotConfig.name).all()
+    return [bot_to_response(bot, user_id, db=db) for bot in bots]
+
+
+def _sync_create_bot(request_dict: dict, user_id: int, db: Session) -> BotResponse:
+    existing = db.query(BotConfig).filter(
+        BotConfig.name == request_dict['name'],
+        BotConfig.user_id == user_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Bot with name '{request_dict['name']}' already exists")
+
+    total_allocation = sum(s['capital_allocation_pct'] for s in request_dict['strategies'])
+    if round(total_allocation, 4) > 1.0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Total capital allocation ({total_allocation:.0%}) exceeds 100%"
+        )
+
+    bot = BotConfig(
+        uuid=str(uuid_module.uuid4()),
+        name=request_dict['name'],
+        user_id=user_id,
+        is_active=request_dict['is_active'],
+        max_total_positions=request_dict['max_total_positions'],
+        max_total_capital_pct=request_dict['max_total_capital_pct'],
+    )
+    db.add(bot)
+    db.flush()
+
+    for alloc in request_dict['strategies']:
+        strategy = get_strategy_by_uuid(alloc['strategy_id'], db)
+        db.execute(
+            bot_strategies.insert().values(
+                bot_id=bot.id,
+                strategy_id=strategy.id,
+                max_positions=alloc['max_positions'],
+                capital_allocation_pct=alloc['capital_allocation_pct'],
+            )
+        )
+
+    db.commit()
+    db.refresh(bot)
+    console.print(f"[green]Created bot: {bot.name} (ID: {bot.id})[/green]")
+    return bot_to_response(bot, user_id, db=db)
+
+
+def _sync_update_bot(bot_id: str, request_dict: dict, user_id: int, db: Session) -> BotResponse:
+    bot = get_bot_by_uuid(bot_id, user_id, db)
+
+    if request_dict.get('name') is not None:
+        existing = db.query(BotConfig).filter(
+            BotConfig.name == request_dict['name'],
+            BotConfig.user_id == user_id,
+            BotConfig.id != bot.id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Bot with name '{request_dict['name']}' already exists")
+        bot.name = request_dict['name']
+
+    if request_dict.get('is_active') is not None:
+        bot.is_active = request_dict['is_active']
+
+    if request_dict.get('max_total_positions') is not None:
+        bot.max_total_positions = request_dict['max_total_positions']
+
+    if request_dict.get('max_total_capital_pct') is not None:
+        bot.max_total_capital_pct = request_dict['max_total_capital_pct']
+
+    if request_dict.get('strategies') is not None:
+        total_allocation = sum(s['capital_allocation_pct'] for s in request_dict['strategies'])
+        if round(total_allocation, 4) > 1.0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Total capital allocation ({total_allocation:.0%}) exceeds 100%"
+            )
+
+        db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot.id))
+
+        for alloc in request_dict['strategies']:
+            strategy = get_strategy_by_uuid(alloc['strategy_id'], db)
+            if not strategy:
+                raise HTTPException(status_code=400, detail=f"Strategy {alloc['strategy_id']} not found")
+
+            db.execute(
+                bot_strategies.insert().values(
+                    bot_id=bot.id,
+                    strategy_id=strategy.id,
+                    max_positions=alloc['max_positions'],
+                    capital_allocation_pct=alloc['capital_allocation_pct'],
+                )
+            )
+
+    db.commit()
+    db.refresh(bot)
+    console.print(f"[green]Updated bot: {bot.name} (UUID: {bot.uuid})[/green]")
+    return bot_to_response(bot, user_id, db=db)
+
+
+def _sync_delete_bot(bot_id: str, user_id: int, db: Session) -> dict:
+    bot = get_bot_by_uuid(bot_id, user_id, db)
+    running, pid = is_bot_running(user_id, bot.id)
+    if running:
+        stop_bot_process(user_id, bot.id)
+    db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot.id))
+    db.delete(bot)
+    db.commit()
+    console.print(f"[yellow]Deleted bot: {bot.name} (UUID: {bot_id})[/yellow]")
+    return {"message": f"Bot {bot_id} deleted successfully"}
+
+
+def _sync_get_bot_status(bot_uuid: str, user_id: int, db: Session) -> BotStatusResponse:
+    bot = get_bot_by_uuid(bot_uuid, user_id, db)
+    running, pid = is_bot_running(user_id, bot.id)
+    snapshot = load_bot_snapshot(bot.id, user_id)
+    if not snapshot:
+        return BotStatusResponse(
+            bot_id=bot.uuid,
+            bot_name=bot.name,
+            running=running,
+            pid=pid,
+            portfolio={
+                "initial_capital": 1000000,
+                "cash": 1000000,
+                "total_value": 1000000,
+                "total_pnl": 0,
+                "total_pnl_pct": 0,
+            },
+            strategies={},
+            positions=[],
+            last_update=datetime.now().isoformat(),
+        )
+    return BotStatusResponse(
+        bot_id=bot.uuid,
+        bot_name=bot.name,
+        running=running,
+        pid=pid,
+        portfolio=snapshot.get('portfolio') if snapshot else None,
+        strategies=snapshot.get('strategies') if snapshot else None,
+        positions=snapshot.get('positions') if snapshot else None,
+        last_update=snapshot.get('timestamp') if snapshot else None,
+    )
+
+
+def _sync_get_bot_logs(bot_uuid: str, user_id: int, lines: int, db: Session) -> dict:
+    bot = get_bot_by_uuid(bot_uuid, user_id, db)
+    log_path = _bot_logs.get(bot.id)
+    if not log_path or not log_path.exists():
+        return {"logs": "", "message": "No logs available"}
+    try:
+        with open(log_path, 'r') as f:
+            all_lines = f.readlines()
+            recent_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        return {
+            "logs": "".join(recent_lines),
+            "total_lines": len(all_lines),
+            "showing": len(recent_lines),
+        }
+    except Exception as e:
+        return {"logs": "", "error": str(e)}
+
+
+def _sync_get_bot_portfolio(bot_uuid: str, user_id: int, db: Session) -> dict:
+    bot = get_bot_by_uuid(bot_uuid, user_id, db)
+    snapshot = load_bot_snapshot(bot.id, user_id)
+    if not snapshot:
+        return {
+            "bot_id": bot.uuid,
+            "portfolio": {
+                "initial_capital": 1000000,
+                "cash": 1000000,
+                "margin_used": 0,
+                "position_value": 0,
+                "unrealized_pnl": 0,
+                "realized_pnl": 0,
+                "total_value": 1000000,
+                "total_pnl": 0,
+                "total_pnl_pct": 0,
+                "daily_pnl": 0,
+                "daily_pnl_pct": 0,
+                "total_positions": 0,
+                "trades_count": 0,
+            },
+            "positions": [],
+            "strategies": {},
+            "timestamp": datetime.now().isoformat(),
+        }
+    return {
+        "bot_id": bot.uuid,
+        "portfolio": snapshot.get('portfolio'),
+        "positions": snapshot.get('positions', []),
+        "strategies": snapshot.get('strategies', {}),
+        "timestamp": snapshot.get('timestamp'),
+    }
+
+
+def _sync_get_bot_trades(bot_uuid: str, user_id: int, strategy_id: Optional[str],
+                         limit: int, include_test: bool, db: Session) -> dict:
+    bot = get_bot_by_uuid(bot_uuid, user_id, db)
+    from trading.journal import get_journal
+    journal = get_journal(user_id)
+    journal.load_all_journals(days=30)
+    result = db.execute(
+        bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
+    ).fetchall()
+    strategy_ids = [row.strategy_id for row in result]
+    strategy_internal_id = None
+    if strategy_id is not None:
+        strat = get_strategy_by_uuid(strategy_id, db)
+        strategy_internal_id = strat.id
+    trades = []
+    for trade in journal.trades:
+        if trade.strategy_id in strategy_ids:
+            if strategy_internal_id is None or trade.strategy_id == strategy_internal_id:
+                if not include_test and getattr(trade, 'is_test', False):
+                    continue
+                trades.append({
+                    'trade_id': trade.trade_id,
+                    'symbol': trade.symbol,
+                    'side': trade.side,
+                    'quantity': trade.quantity,
+                    'entry_price': trade.entry_price,
+                    'exit_price': trade.exit_price,
+                    'entry_time': trade.entry_time,
+                    'exit_time': trade.exit_time,
+                    'pnl': trade.pnl,
+                    'pnl_pct': trade.pnl_pct,
+                    'exit_reason': trade.exit_reason,
+                    'costs': trade.costs,
+                    'net_pnl': trade.net_pnl,
+                    'strategy_id': trade.strategy_id,
+                    'strategy_name': trade.strategy_name,
+                    'is_test': getattr(trade, 'is_test', False),
+                    'source': getattr(trade, 'source', 'live'),
+                })
+    trades.sort(key=lambda x: x['exit_time'], reverse=True)
+    trades = trades[:limit]
+    return {
+        "bot_id": bot.uuid,
+        "trades": trades,
+        "count": len(trades),
+        "strategy_filter": strategy_id,
+    }
+
+
 def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = None) -> BotResponse:
     running, pid = is_bot_running(user_id, bot.id)
 
@@ -258,41 +524,9 @@ async def list_available_strategies(
 
     if db is None:
         with SessionLocal() as db:
-            strategies = db.query(StrategyConfig).filter(
-                StrategyConfig.is_active == True
-            ).all()
+            return await asyncio.to_thread(_sync_list_available_strategies, db)
 
-            return [
-                {
-                    "id": s.uuid,  # Return UUID
-                    "name": s.name,
-                    "strategy_type": s.strategy_type,
-                    "is_template": s.is_template,
-                    "is_default": s.is_default,
-                    "sl_pct": s.sl_pct,
-                    "tp_pct": s.tp_pct,
-                    "max_positions": s.max_positions,
-                }
-                for s in strategies
-            ]
-
-    strategies = db.query(StrategyConfig).filter(
-        StrategyConfig.is_active == True
-    ).all()
-
-    return [
-        {
-            "id": s.uuid,  # Return UUID
-            "name": s.name,
-            "strategy_type": s.strategy_type,
-            "is_template": s.is_template,
-            "is_default": s.is_default,
-            "sl_pct": s.sl_pct,
-            "tp_pct": s.tp_pct,
-            "max_positions": s.max_positions,
-        }
-        for s in strategies
-    ]
+    return await asyncio.to_thread(_sync_list_available_strategies, db)
 
 
 @router.get("", response_model=List[BotResponse])
@@ -307,11 +541,9 @@ async def list_bots(
 
     if db is None:
         with SessionLocal() as session:
-            bots = session.query(BotConfig).filter(BotConfig.user_id == user_id).order_by(BotConfig.name).all()
-            return [bot_to_response(bot, user_id, db=session) for bot in bots]
+            return await asyncio.to_thread(_sync_list_bots, user_id, session)
 
-    bots = db.query(BotConfig).filter(BotConfig.user_id == user_id).order_by(BotConfig.name).all()
-    return [bot_to_response(bot, user_id, db=db) for bot in bots]
+    return await asyncio.to_thread(_sync_list_bots, user_id, db)
 
 
 @router.post("", response_model=BotResponse)
@@ -331,51 +563,8 @@ async def create_bot(
         close_db = True
 
     try:
-        existing = db.query(BotConfig).filter(
-            BotConfig.name == request.name,
-            BotConfig.user_id == user_id
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail=f"Bot with name '{request.name}' already exists")
-
-        total_allocation = sum(s.capital_allocation_pct for s in request.strategies)
-        # Use round to handle floating point precision issues (e.g. 0.33 + 0.33 + 0.34 = 1.0000000000000002)
-        if round(total_allocation, 4) > 1.0:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Total capital allocation ({total_allocation:.0%}) exceeds 100%"
-            )
-
-        import uuid as uuid_module
-        bot = BotConfig(
-            uuid=str(uuid_module.uuid4()),
-            name=request.name,
-            user_id=user_id,
-            is_active=request.is_active,
-            max_total_positions=request.max_total_positions,
-            max_total_capital_pct=request.max_total_capital_pct,
-        )
-        db.add(bot)
-        db.flush()
-
-        for alloc in request.strategies:
-            strategy = get_strategy_by_uuid(alloc.strategy_id, db)
-            # get_strategy_by_uuid already raises 404 if not found
-
-            db.execute(
-                bot_strategies.insert().values(
-                    bot_id=bot.id,
-                    strategy_id=strategy.id,  # Use internal ID for junction table
-                    max_positions=alloc.max_positions,
-                    capital_allocation_pct=alloc.capital_allocation_pct,
-                )
-            )
-
-        db.commit()
-        db.refresh(bot)
-
-        console.print(f"[green]Created bot: {bot.name} (ID: {bot.id})[/green]")
-        return bot_to_response(bot, user_id, db=db)
+        request_dict = request.model_dump()
+        return await asyncio.to_thread(_sync_create_bot, request_dict, user_id, db)
     finally:
         if close_db:
             db.close()
@@ -419,57 +608,8 @@ async def update_bot(
         close_db = True
 
     try:
-        bot = get_bot_by_uuid(bot_id, user_id, db)
-
-        if request.name is not None:
-            existing = db.query(BotConfig).filter(
-                BotConfig.name == request.name,
-                BotConfig.user_id == user_id,
-                BotConfig.id != bot.id
-            ).first()
-            if existing:
-                raise HTTPException(status_code=400, detail=f"Bot with name '{request.name}' already exists")
-            bot.name = request.name
-
-        if request.is_active is not None:
-            bot.is_active = request.is_active
-
-        if request.max_total_positions is not None:
-            bot.max_total_positions = request.max_total_positions
-
-        if request.max_total_capital_pct is not None:
-            bot.max_total_capital_pct = request.max_total_capital_pct
-
-        if request.strategies is not None:
-            total_allocation = sum(s.capital_allocation_pct for s in request.strategies)
-            # Use round to handle floating point precision issues (e.g. 0.33 + 0.33 + 0.34 = 1.0000000000000002)
-            if round(total_allocation, 4) > 1.0:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Total capital allocation ({total_allocation:.0%}) exceeds 100%"
-                )
-
-            db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot.id))
-
-            for alloc in request.strategies:
-                strategy = get_strategy_by_uuid(alloc.strategy_id, db)
-                if not strategy:
-                    raise HTTPException(status_code=400, detail=f"Strategy {alloc.strategy_id} not found")
-
-                db.execute(
-                    bot_strategies.insert().values(
-                        bot_id=bot.id,
-                        strategy_id=strategy.id,  # Use internal ID for junction table
-                        max_positions=alloc.max_positions,
-                        capital_allocation_pct=alloc.capital_allocation_pct,
-                    )
-                )
-
-        db.commit()
-        db.refresh(bot)
-
-        console.print(f"[green]Updated bot: {bot.name} (UUID: {bot.uuid})[/green]")
-        return bot_to_response(bot, user_id, db=db)
+        request_dict = request.model_dump(exclude_none=True)
+        return await asyncio.to_thread(_sync_update_bot, bot_id, request_dict, user_id, db)
     finally:
         if close_db:
             db.close()
@@ -492,19 +632,7 @@ async def delete_bot(
         close_db = True
 
     try:
-        bot = get_bot_by_uuid(bot_id, user_id, db)
-
-        running, pid = is_bot_running(user_id, bot.id)
-        if running:
-            stop_bot_process(user_id, bot.id)
-
-        db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot.id))
-
-        db.delete(bot)
-        db.commit()
-
-        console.print(f"[yellow]Deleted bot: {bot.name} (UUID: {bot_id})[/yellow]")
-        return {"message": f"Bot {bot_id} deleted successfully"}
+        return await asyncio.to_thread(_sync_delete_bot, bot_id, user_id, db)
     finally:
         if close_db:
             db.close()
@@ -645,40 +773,7 @@ async def get_bot_status(
         close_db = True
 
     try:
-        bot = get_bot_by_uuid(bot_id, user_id, db)
-
-        running, pid = is_bot_running(user_id, bot.id)
-
-        snapshot = load_bot_snapshot(bot.id, user_id)
-
-        if not snapshot:
-            return BotStatusResponse(
-                bot_id=bot.uuid,
-                bot_name=bot.name,
-                running=running,
-                pid=pid,
-                portfolio={
-                    "initial_capital": 1000000,
-                    "cash": 1000000,
-                    "total_value": 1000000,
-                    "total_pnl": 0,
-                    "total_pnl_pct": 0,
-                },
-                strategies={},
-                positions=[],
-                last_update=datetime.now().isoformat(),
-            )
-
-        return BotStatusResponse(
-            bot_id=bot.uuid,  # Return UUID
-            bot_name=bot.name,
-            running=running,
-            pid=pid,
-            portfolio=snapshot.get('portfolio') if snapshot else None,
-            strategies=snapshot.get('strategies') if snapshot else None,
-            positions=snapshot.get('positions') if snapshot else None,
-            last_update=snapshot.get('timestamp') if snapshot else None,
-        )
+        return await asyncio.to_thread(_sync_get_bot_status, bot_id, user_id, db)
     finally:
         if close_db:
             db.close()
@@ -702,24 +797,7 @@ async def get_bot_logs(
         close_db = True
 
     try:
-        bot = get_bot_by_uuid(bot_id, user_id, db)
-
-        log_path = _bot_logs.get(bot.id)
-        if not log_path or not log_path.exists():
-            return {"logs": "", "message": "No logs available"}
-
-        try:
-            with open(log_path, 'r') as f:
-                all_lines = f.readlines()
-                recent_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
-
-            return {
-                "logs": "".join(recent_lines),
-                "total_lines": len(all_lines),
-                "showing": len(recent_lines),
-            }
-        except Exception as e:
-            return {"logs": "", "error": str(e)}
+        return await asyncio.to_thread(_sync_get_bot_logs, bot_id, user_id, lines, db)
     finally:
         if close_db:
             db.close()
@@ -768,40 +846,7 @@ async def get_bot_portfolio(
         close_db = True
 
     try:
-        bot = get_bot_by_uuid(bot_id, user_id, db)
-
-        snapshot = load_bot_snapshot(bot.id, user_id)
-
-        if not snapshot:
-            return {
-                "bot_id": bot.uuid,
-                "portfolio": {
-                    "initial_capital": 1000000,
-                    "cash": 1000000,
-                    "margin_used": 0,
-                    "position_value": 0,
-                    "unrealized_pnl": 0,
-                    "realized_pnl": 0,
-                    "total_value": 1000000,
-                    "total_pnl": 0,
-                    "total_pnl_pct": 0,
-                    "daily_pnl": 0,
-                    "daily_pnl_pct": 0,
-                    "total_positions": 0,
-                    "trades_count": 0,
-                },
-                "positions": [],
-                "strategies": {},
-                "timestamp": datetime.now().isoformat(),
-            }
-
-        return {
-            "bot_id": bot.uuid,
-            "portfolio": snapshot.get('portfolio'),
-            "positions": snapshot.get('positions', []),
-            "strategies": snapshot.get('strategies', {}),
-            "timestamp": snapshot.get('timestamp'),
-        }
+        return await asyncio.to_thread(_sync_get_bot_portfolio, bot_id, user_id, db)
     finally:
         if close_db:
             db.close()
@@ -1061,65 +1106,11 @@ async def get_bot_trades(
         close_db = True
 
     try:
-        bot = get_bot_by_uuid(bot_id, user_id, db)
-
-        try:
-            from trading.journal import get_journal
-            journal = get_journal(user_id)
-
-            journal.load_all_journals(days=30)
-
-            with SessionLocal() as session:
-                result = session.execute(
-                    bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
-                ).fetchall()
-
-                strategy_ids = [row.strategy_id for row in result]
-
-            # Convert strategy UUID filter to internal ID if provided
-            strategy_internal_id = None
-            if strategy_id is not None:
-                strat = get_strategy_by_uuid(strategy_id, db)
-                strategy_internal_id = strat.id
-
-            trades = []
-            for trade in journal.trades:
-                if trade.strategy_id in strategy_ids:
-                    if strategy_internal_id is None or trade.strategy_id == strategy_internal_id:
-                        if not include_test and getattr(trade, 'is_test', False):
-                            continue
-                        trades.append({
-                            'trade_id': trade.trade_id,
-                            'symbol': trade.symbol,
-                            'side': trade.side,
-                            'quantity': trade.quantity,
-                            'entry_price': trade.entry_price,
-                            'exit_price': trade.exit_price,
-                            'entry_time': trade.entry_time,
-                            'exit_time': trade.exit_time,
-                            'pnl': trade.pnl,
-                            'pnl_pct': trade.pnl_pct,
-                            'exit_reason': trade.exit_reason,
-                            'costs': trade.costs,
-                            'net_pnl': trade.net_pnl,
-                            'strategy_id': trade.strategy_id,
-                            'strategy_name': trade.strategy_name,
-                            'is_test': getattr(trade, 'is_test', False),
-                            'source': getattr(trade, 'source', 'live'),
-                        })
-
-            trades.sort(key=lambda x: x['exit_time'], reverse=True)
-            trades = trades[:limit]
-
-            return {
-                "bot_id": bot.uuid,
-                "trades": trades,
-                "count": len(trades),
-                "strategy_filter": strategy_id,
-            }
-
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get trades: {str(e)}")
+        return await asyncio.to_thread(_sync_get_bot_trades, bot_id, user_id, strategy_id, limit, include_test, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get trades: {str(e)}")
     finally:
         if close_db:
             db.close()

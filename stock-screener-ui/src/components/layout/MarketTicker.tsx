@@ -82,10 +82,10 @@ export function MarketTicker() {
         className="market-ticker market-ticker-loading"
         style={{
           borderBottom: `1px solid ${border}`,
-          padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+          padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
         }}
       >
-        <Group gap="md">
+        <Group gap="sm">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} width={120} height={30} />
           ))}
@@ -103,7 +103,7 @@ export function MarketTicker() {
         className="market-ticker market-ticker-error"
         style={{
           borderBottom: `1px solid ${border}`,
-          padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+          padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
         }}
       >
         <Text size="sm" c="dimmed">
@@ -130,11 +130,11 @@ export function MarketTicker() {
       className="market-ticker"
       style={{
         borderBottom: `1px solid ${border}`,
-        padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+        padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
         overflowX: "auto",
       }}
     >
-      <Group gap="md" wrap="nowrap" className="market-ticker-items">
+      <Group gap="sm" wrap="nowrap" className="market-ticker-items">
         {sortedSymbols.map((symbol) => {
           const item = tickers[symbol];
           const label = getTickerLabel(symbol);

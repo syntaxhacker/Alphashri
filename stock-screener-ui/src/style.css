@@ -1,9 +1,20 @@
 :root {
-  --font-family: Roboto, Poppins, system-ui, sans-serif;
+  --font-family: "IBM Plex Sans", Roboto, Poppins, system-ui, sans-serif;
   --font-size-sm: 12px;
   --font-size-md: 14px;
   --font-size-lg: 16px;
   --font-size-xl: 20px;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  min-height: 100vh;
+}
+
+body {
+  overflow: hidden;
 }
 
 * {
@@ -11,9 +22,19 @@
   margin: 0;
   padding: 0;
 }
+
 body {
   font: var(--font-size-sm) var(--font-family);
-  min-height: 100vh;
+  background: light-dark(#eef3f8, #0b0f14);
+  color: var(--mantine-color-text);
+}
+
+body[data-mantine-color-scheme="light"] {
+  color-scheme: light;
+}
+
+body[data-mantine-color-scheme="dark"] {
+  color-scheme: dark;
 }
 
 h1,
@@ -51,9 +72,62 @@ select,
 textarea {
   font-family: var(--font-family);
 }
-#app {
-  min-height: 100vh;
+.app-page-frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-sm);
+  min-height: 100%;
 }
+
+.app-page-content {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.app-page-content > * {
+  flex: 1 0 auto;
+  min-width: 0;
+  height: auto !important;
+  min-height: calc(100dvh - 52px - (var(--mantine-spacing-sm) * 2));
+}
+
+.app-page-content > .paper-trading-view {
+  flex: 1 1 auto;
+  height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3) !important;
+  max-height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3);
+  overflow: hidden;
+}
+
+.app-page-content > .news-page {
+  flex: 1 1 auto;
+  height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3) !important;
+  max-height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3);
+  overflow: hidden;
+}
+
+.app-page-content > .screener-content,
+.app-page-content .screener-content {
+  flex: 1 1 auto;
+  height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3) !important;
+  max-height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3);
+  overflow: hidden;
+}
+
+.app-page-content > .screener-page,
+.app-page-content .screener-page {
+  height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3) !important;
+}
+
+.app-page-content > .sector-page,
+.app-page-content > [class*="CompactPage"] .sector-page {
+  flex: 1 1 auto;
+  height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3) !important;
+  max-height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3);
+  overflow: hidden;
+}
+
 .notif-sidebar {
   position: fixed;
   top: 56px;
@@ -151,12 +225,12 @@ textarea {
    ============================================ */
 .market-ticker {
   position: relative;
-  background: #0f0f0f;
-  border-bottom: 1px solid #00ff9d;
+  background: transparent;
+  border-bottom: none;
   padding: 4px clamp(6px, 1.1vw, 12px);
   z-index: auto;
   font: clamp(var(--font-size-sm), 0.75vw, var(--font-size-sm)) var(--font-family);
-  color: #e0e0e0;
+  color: var(--mantine-color-text);
 }
 
 .market-ticker .ticker-container {
@@ -188,20 +262,20 @@ textarea {
   align-items: center;
   gap: clamp(4px, 0.7vw, 8px);
   padding: clamp(2px, 0.5vw, 4px) clamp(4px, 0.8vw, 10px);
-  background: #121212;
-  border: 1px solid #2a2a2a;
-  border-radius: 4px;
+  background: light-dark(rgba(255, 255, 255, 0.88), rgba(15, 23, 42, 0.62));
+  border: 1px solid light-dark(rgba(15, 23, 42, 0.07), rgba(148, 163, 184, 0.12));
+  border-radius: 999px;
   transition: all 0.2s ease;
   flex: 1 1 0;
   min-width: 0;
   justify-content: space-between;
 }
 .market-ticker .ticker-item:hover {
-  background: #1a1a1a;
-  border-color: #333;
+  background: light-dark(rgba(255, 255, 255, 0.98), rgba(15, 23, 42, 0.82));
+  border-color: light-dark(rgba(15, 23, 42, 0.12), rgba(148, 163, 184, 0.2));
 }
 .market-ticker .ticker-label {
-  color: #888;
+  color: var(--mantine-color-dimmed);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -211,7 +285,7 @@ textarea {
   text-overflow: ellipsis;
 }
 .market-ticker .ticker-value {
-  color: #e0e0e0;
+  color: var(--mantine-color-text);
   font-weight: 700;
   font-size: clamp(9px, 0.95vw, 12px);
 }
@@ -235,9 +309,9 @@ textarea {
 .market-ticker .ticker-footer {
   text-align: right;
   padding: 3px 0 0;
-  border-top: 1px solid #222;
+  border-top: 1px solid light-dark(rgba(15, 23, 42, 0.07), rgba(148, 163, 184, 0.12));
   font-size: var(--font-size-sm);
-  color: #666;
+  color: var(--mantine-color-dimmed);
 }
 .market-ticker .ticker-updated {
   color: #00ff9d;
@@ -247,7 +321,7 @@ textarea {
   color: #ff4757;
 }
 .market-ticker .ticker-empty {
-  color: #666;
+  color: var(--mantine-color-dimmed);
 }
 
 /* Animation for price updates */
@@ -1561,7 +1635,8 @@ kbd {
 .paper-trading-view {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 120px);
+  height: 100%;
+  overflow: hidden;
   background: #0a0a0a;
 }
 
@@ -1797,7 +1872,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  height: calc(100vh - 40px);
+  min-height: calc(100vh - 40px);
   padding: 10px;
 }
 
@@ -1837,7 +1912,7 @@ kbd {
   min-height: 520px;
   border: 1px solid #2a2f37;
   border-radius: 10px;
-  overflow: hidden;
+  overflow: auto;
   background: #0e1117;
 }
 
@@ -2540,6 +2615,21 @@ kbd {
   font-size: var(--font-size-sm);
 }
 
+/* Paper History List - Scrollable */
+.paper-history-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.paper-trades-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 /* Tab badge for unsaved changes */
 .tab-badge-dirty {
   background: #ff9f43 !important;
@@ -2932,7 +3022,8 @@ kbd {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #0a0a0a;
+  overflow: hidden;
+  background: light-dark(#eef3f8, #0b0f14);
 }
 
 .chart-view-header {
@@ -2940,18 +3031,20 @@ kbd {
   align-items: center;
   gap: 16px;
   padding: 12px 20px;
-  background: #0f0f0f;
-  border-bottom: 1px solid #222;
+  background: light-dark(rgba(255, 255, 255, 0.86), rgba(11, 15, 20, 0.88));
+  border-bottom: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
   flex-shrink: 0;
+  backdrop-filter: blur(18px);
 }
 
 .chart-view-header .back-btn {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  color: #888;
+  background: light-dark(rgba(255, 255, 255, 0.9), rgba(15, 23, 42, 0.62));
+  border: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
+  color: var(--mantine-color-dimmed);
   padding: 6px 12px;
   font-size: var(--font-size-sm);
   cursor: pointer;
+  border-radius: 999px;
 }
 
 .chart-view-header .back-btn:hover {
@@ -2962,7 +3055,7 @@ kbd {
 .chart-view-header .chart-title {
   font-size: var(--font-size-xl);
   font-weight: 600;
-  color: #70a1ff;
+  color: light-dark(var(--mantine-color-blue-7), var(--mantine-color-blue-3));
   margin: 0;
 }
 
@@ -2981,16 +3074,17 @@ kbd {
 
 .chart-view-header .control-group label {
   font-size: var(--font-size-sm);
-  color: #888;
+  color: var(--mantine-color-dimmed);
 }
 
 .chart-view-header .control-group select {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  color: #e0e0e0;
+  background: light-dark(rgba(255, 255, 255, 0.92), rgba(15, 23, 42, 0.62));
+  border: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
+  color: var(--mantine-color-text);
   padding: 4px 8px;
   font-size: var(--font-size-sm);
   font-family: var(--font-family);
+  border-radius: 10px;
 }
 
 .chart-view-header .control-group input[type="checkbox"] {
@@ -3010,7 +3104,7 @@ kbd {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #666;
+  color: var(--mantine-color-dimmed);
   font-size: var(--font-size-md);
   gap: 12px;
 }
@@ -3020,15 +3114,16 @@ kbd {
 }
 
 .chart-view-body .chart-error button {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  color: #e0e0e0;
+  background: light-dark(rgba(255, 255, 255, 0.92), rgba(15, 23, 42, 0.62));
+  border: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
+  color: var(--mantine-color-text);
   padding: 6px 16px;
   cursor: pointer;
+  border-radius: 999px;
 }
 
 .chart-container-full {
-  background: #0a0a0a;
+  background: light-dark(rgba(255, 255, 255, 0.82), rgba(11, 15, 20, 0.9));
   border-radius: 8px;
 }
 
@@ -3036,10 +3131,10 @@ kbd {
   display: flex;
   gap: 8px;
   padding: 8px 20px;
-  background: #0f0f0f;
-  border-top: 1px solid #222;
+  background: light-dark(rgba(255, 255, 255, 0.86), rgba(11, 15, 20, 0.88));
+  border-top: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
   font-size: var(--font-size-sm);
-  color: #666;
+  color: var(--mantine-color-dimmed);
   flex-shrink: 0;
 }
 

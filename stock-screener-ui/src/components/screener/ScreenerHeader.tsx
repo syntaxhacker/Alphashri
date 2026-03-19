@@ -1,5 +1,17 @@
-import { Group, Stack, Text, ActionIcon, NumberInput, Select, Tooltip } from "@mantine/core";
+import {
+  Group,
+  Stack,
+  Text,
+  ActionIcon,
+  NumberInput,
+  Select,
+  Tooltip,
+  SegmentedControl,
+} from "@mantine/core";
 import { IconRefresh } from "@tabler/icons-react";
+import { CompactPanel } from "../common/compact";
+
+export type ScreenerViewMode = "table" | "heatmap";
 
 interface ScreenerHeaderProps {
   title: string;
@@ -12,6 +24,8 @@ interface ScreenerHeaderProps {
   onAutoRefreshChange: (value: number) => void;
   onProviderChange: (value: string) => void;
   onModeChange: (value: string) => void;
+  viewMode: ScreenerViewMode;
+  onViewModeChange: (value: ScreenerViewMode) => void;
 }
 
 export function ScreenerHeader({
@@ -25,24 +39,18 @@ export function ScreenerHeader({
   onAutoRefreshChange,
   onProviderChange,
   onModeChange,
+  viewMode,
+  onViewModeChange,
 }: ScreenerHeaderProps) {
   return (
-    <Stack gap="xs" id="screener-header" className="screener-header" data-testid="screener-header">
-      <Group
-        justify="space-between"
-        align="center"
-        className="header-main-row"
-        data-testid="header-main-row"
-      >
-        <Text
-          size="lg"
-          fw={600}
-          data-testid="screener-title"
-          id="screener-title"
-          className="screener-title"
-        >
-          {title}
-        </Text>
+    <CompactPanel
+      id="screener-header"
+      className="screener-header"
+      testId="screener-header"
+      title={title}
+      description={status}
+    >
+      <Group justify="space-between" align="flex-start" gap="sm" wrap="wrap">
         <Group gap="xs" align="center" className="header-controls" data-testid="header-controls">
           <Tooltip label="Refresh">
             <ActionIcon
@@ -53,17 +61,17 @@ export function ScreenerHeader({
               id="refresh-btn"
               className="refresh-btn"
             >
-              <IconRefresh size={18} />
+              <IconRefresh size={16} />
             </ActionIcon>
           </Tooltip>
           <Group
-            gap="xs"
+            gap={6}
             align="center"
             className="auto-refresh-group"
             data-testid="auto-refresh-group"
           >
-            <Text size="sm" c="dimmed" className="auto-refresh-label">
-              Auto-refresh:
+            <Text size="xs" c="dimmed" className="auto-refresh-label">
+              Auto-refresh
             </Text>
             <NumberInput
               value={autoRefreshSeconds}
@@ -71,18 +79,18 @@ export function ScreenerHeader({
               min={0}
               max={3600}
               step={10}
-              w={80}
-              size="sm"
+              w={76}
+              size="xs"
               disabled={isLoading}
               data-testid="auto-refresh-input"
             />
-            <Text size="sm" c="dimmed" className="auto-refresh-unit">
+            <Text size="xs" c="dimmed" className="auto-refresh-unit">
               sec
             </Text>
           </Group>
-          <Group gap="xs" align="center" className="provider-group" data-testid="provider-group">
-            <Text size="sm" c="dimmed" className="provider-label">
-              Provider:
+          <Group gap={6} align="center" className="provider-group" data-testid="provider-group">
+            <Text size="xs" c="dimmed" className="provider-label">
+              Provider
             </Text>
             <Select
               value={provider}
@@ -91,17 +99,17 @@ export function ScreenerHeader({
                 { value: "upstox", label: "Upstox" },
                 { value: "indmoney", label: "INDMONEY" },
               ]}
-              size="sm"
-              w={120}
+              size="xs"
+              w={118}
               disabled={isLoading}
               data-testid="provider-select"
               id="provider-select"
               className="provider-select"
             />
           </Group>
-          <Group gap="xs" align="center" className="mode-group" data-testid="mode-group">
-            <Text size="sm" c="dimmed" className="mode-label">
-              Mode:
+          <Group gap={6} align="center" className="mode-group" data-testid="mode-group">
+            <Text size="xs" c="dimmed" className="mode-label">
+              Mode
             </Text>
             <Select
               value={mode}
@@ -110,25 +118,31 @@ export function ScreenerHeader({
                 { value: "intraday", label: "Intraday" },
                 { value: "historical", label: "5D" },
               ]}
-              size="sm"
-              w={100}
+              size="xs"
+              w={96}
               disabled={isLoading}
               data-testid="mode-select"
               id="mode-select"
               className="mode-select"
             />
           </Group>
+          <Group gap={6} align="center" className="view-group" data-testid="view-group">
+            <Text size="xs" c="dimmed">
+              View as
+            </Text>
+            <SegmentedControl
+              size="xs"
+              value={viewMode}
+              onChange={(value) => onViewModeChange(value as ScreenerViewMode)}
+              data={[
+                { label: "Table", value: "table" },
+                { label: "Heatmap", value: "heatmap" },
+              ]}
+              data-testid="screener-view-toggle"
+            />
+          </Group>
         </Group>
       </Group>
-      <Text
-        size="sm"
-        c="dimmed"
-        data-testid="status"
-        id="screener-status"
-        className="screener-status"
-      >
-        {status}
-      </Text>
-    </Stack>
+    </CompactPanel>
   );
 }

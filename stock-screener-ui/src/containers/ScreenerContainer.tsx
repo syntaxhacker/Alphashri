@@ -6,8 +6,6 @@ export function ScreenerContainer() {
   const {
     approachingStocks,
     touchedStocks,
-    filters,
-    sectors,
     screenerOptions,
     activeScreener,
     isLoading,
@@ -20,8 +18,6 @@ export function ScreenerContainer() {
     onProviderChange,
     onModeChange,
     onScreenerChange,
-    onFilterChange,
-    onResetFilters,
     onSymbolClick,
     onSymbolHover,
   } = useScreenerState();
@@ -45,10 +41,6 @@ export function ScreenerContainer() {
       onAutoRefreshChange={onAutoRefreshChange}
       onProviderChange={onProviderChange}
       onModeChange={onModeChange}
-      filters={filters}
-      sectors={sectors}
-      onFilterChange={onFilterChange}
-      onResetFilters={onResetFilters}
       approachingStocks={approachingStocks}
       touchedStocks={touchedStocks}
       onSymbolClick={onSymbolClick}
