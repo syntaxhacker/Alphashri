@@ -15,7 +15,7 @@
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report",
-    "lint": "oxlint",
+    "lint": "oxlint src tests",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt src tests",
     "format:check": "oxfmt --check src tests",
