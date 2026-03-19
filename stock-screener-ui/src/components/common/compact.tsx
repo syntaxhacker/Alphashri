@@ -157,7 +157,13 @@ export function CompactStat({
   );
 }
 
-export function CompactStatGrid({ children, ...props }: { children: ReactNode; [key: string]: any }) {
+export function CompactStatGrid({
+  children,
+  ...props
+}: {
+  children: ReactNode;
+  [key: string]: any;
+}) {
   return (
     <SimpleGrid cols={{ base: 2, md: 4 }} spacing="sm" {...props}>
       {children}
