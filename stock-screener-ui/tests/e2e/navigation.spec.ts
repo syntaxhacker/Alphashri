@@ -42,9 +42,7 @@ test.describe("Navigation - App Navigation", () => {
 
     // Click Paper Trading
     await page.locator('[data-testid="nav-paper"]').click();
-    await page.waitForTimeout(300);
-
-    // Verify Paper Trading nav button has active class
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 5000 });
     const paperNav = page.locator('[data-testid="nav-paper"]');
     await expect(paperNav).toHaveAttribute("data-active", "true");
     await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible();
@@ -100,9 +98,7 @@ test.describe("Navigation - App Navigation", () => {
 
     // Click Bots
     await page.locator('[data-testid="nav-bots"]').click();
-    await page.waitForTimeout(300);
-
-    // Verify Bots nav button has active class
+    await expect(page.locator('[data-testid="bots-view"]')).toBeVisible({ timeout: 5000 });
     const botsNav = page.locator('[data-testid="nav-bots"]');
     await expect(botsNav).toHaveAttribute("data-active", "true");
     await expect(page.locator('[data-testid="bots-view"]')).toBeVisible();
@@ -114,7 +110,7 @@ test.describe("Navigation - App Navigation", () => {
 
     // First go to another view
     await page.locator('[data-testid="nav-paper"]').click();
-    await page.waitForTimeout(500);
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 5000 });
 
     // Then click Screener
     await page.locator('[data-testid="nav-screener"]').click();
@@ -132,7 +128,7 @@ test.describe("Navigation - App Navigation", () => {
 
     // Click Paper Trading
     await page.locator('[data-testid="nav-paper"]').click();
-    await page.waitForTimeout(500);
+    await page.waitForLoadState("networkidle");
 
     // Verify Paper Trading button has active class
     const paperNav = page.locator('[data-testid="nav-paper"]');
@@ -154,7 +150,7 @@ test.describe("Navigation - App Navigation", () => {
     // Find the toggle button using its testid
     const toggleBtn = page.locator('[data-testid="sidebar-collapse-toggle"]');
     await toggleBtn.click();
-    await page.waitForTimeout(500);
+    await page.waitForLoadState("networkidle");
 
     // Verify it collapsed (width should be smaller, 80px)
     const collapsedBox = await navbar.boundingBox();
@@ -166,7 +162,7 @@ test.describe("Navigation - App Navigation", () => {
 
     // Toggle back
     await toggleBtn.click();
-    await page.waitForTimeout(500);
+    await page.waitForLoadState("networkidle");
     const restoredBox = await navbar.boundingBox();
     expect(restoredBox?.width).toBeGreaterThan(100);
   });
@@ -176,6 +172,8 @@ test.describe("Navigation - URL Routing", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
+    await setupPaperTradingMocks(page);
+    await setupMultiStrategyBotMocks(page);
   });
 
   test("should load Paper Trading view when navigating to /paper", async ({ page }) => {

@@ -23,8 +23,6 @@ test.describe("Bots View - Navigation", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-bots"]').click();
-    await page.waitForTimeout(500);
-
     await expectBotsViewVisible(page);
   });
 
@@ -118,7 +116,6 @@ test.describe("Bots View - Create", () => {
     const createBtn = page.locator('button:has-text("Create"), button:has-text("New Bot")');
     if ((await createBtn.count()) > 0) {
       await createBtn.click();
-      await page.waitForTimeout(300);
 
       // Modal should open
       const modal = page.locator(".modal, .bot-form-modal");
@@ -133,7 +130,6 @@ test.describe("Bots View - Create", () => {
     const createBtn = page.locator('button:has-text("Create"), button:has-text("New Bot")');
     if ((await createBtn.count()) > 0) {
       await createBtn.click();
-      await page.waitForTimeout(300);
 
       // Mock create API
       await page.route("**/api/bots", async (route) => {
@@ -155,7 +151,7 @@ test.describe("Bots View - Create", () => {
       const submitBtn = page.locator('button:has-text("Save"), button:has-text("Create")').last();
       if ((await submitBtn.count()) > 0) {
         await submitBtn.click();
-        await page.waitForTimeout(500);
+        await page.waitForLoadState("networkidle");
       }
     }
   });
@@ -179,12 +175,7 @@ test.describe("Bots View - Edit", () => {
     const editBtn = page.locator(".edit-btn, button:has-text('Edit')").first();
     if ((await editBtn.count()) > 0) {
       await editBtn.click();
-      await page.waitForTimeout(300);
-
-      const modal = page.locator(".modal, .bot-form-modal");
-      if ((await modal.count()) > 0) {
-        await expect(modal).toBeVisible();
-      }
+      await expect(page.locator(".modal, .bot-form-modal").first()).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -193,7 +184,7 @@ test.describe("Bots View - Edit", () => {
     const editBtn = page.locator(".edit-btn, button:has-text('Edit')").first();
     if ((await editBtn.count()) > 0) {
       await editBtn.click();
-      await page.waitForTimeout(300);
+      await expect(page.locator(".modal, .bot-form-modal").first()).toBeVisible({ timeout: 5000 });
 
       const nameInput = page.locator("#bot-name, input[name='name']");
       if ((await nameInput.count()) > 0) {
@@ -203,7 +194,7 @@ test.describe("Bots View - Edit", () => {
       const saveBtn = page.locator('button:has-text("Save")').last();
       if ((await saveBtn.count()) > 0) {
         await saveBtn.click();
-        await page.waitForTimeout(500);
+        await page.waitForLoadState("networkidle");
       }
     }
   });
@@ -227,12 +218,7 @@ test.describe("Bots View - Delete", () => {
     const deleteBtn = page.locator(".delete-btn, button:has-text('Delete')").first();
     if ((await deleteBtn.count()) > 0) {
       await deleteBtn.click();
-      await page.waitForTimeout(300);
-
-      const confirmBtn = page.locator('button:has-text("Confirm"), button:has-text("Yes")');
-      if ((await confirmBtn.count()) > 0) {
-        await expect(confirmBtn).toBeVisible();
-      }
+      await expect(page.locator('button:has-text("Confirm"), button:has-text("Yes")').first()).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -271,7 +257,7 @@ test.describe("Bots View - Controls", () => {
         });
       });
       await stopBtn.click();
-      await page.waitForTimeout(500);
+      await page.waitForLoadState("networkidle");
     }
   });
 });
@@ -307,12 +293,7 @@ test.describe("Bots View - Logs", () => {
       });
 
       await logsBtn.click();
-      await page.waitForTimeout(500);
-
-      const logsPanel = page.locator(".logs-panel, .bot-logs");
-      if ((await logsPanel.count()) > 0) {
-        await expect(logsPanel).toBeVisible();
-      }
+      await expect(page.locator(".logs-panel, .bot-logs").first()).toBeVisible({ timeout: 5000 });
     }
   });
 });
@@ -364,12 +345,12 @@ test.describe("Bots View - Assign Strategies", () => {
     const editBtn = page.locator(".edit-btn, button:has-text('Edit')").first();
     if ((await editBtn.count()) > 0) {
       await editBtn.click();
-      await page.waitForTimeout(300);
+      await expect(page.locator(".modal, .bot-form-modal").first()).toBeVisible({ timeout: 5000 });
 
       const addStrategyBtn = page.locator('button:has-text("Add Strategy")');
       if ((await addStrategyBtn.count()) > 0) {
         await addStrategyBtn.click();
-        await page.waitForTimeout(300);
+        await page.waitForLoadState("networkidle");
       }
     }
   });
@@ -379,7 +360,7 @@ test.describe("Bots View - Assign Strategies", () => {
     const editBtn = page.locator(".edit-btn, button:has-text('Edit')").first();
     if ((await editBtn.count()) > 0) {
       await editBtn.click();
-      await page.waitForTimeout(300);
+      await expect(page.locator(".modal, .bot-form-modal").first()).toBeVisible({ timeout: 5000 });
 
       const allocationInput = page.locator("input[name*='allocation'], input[name*='capital']");
       if ((await allocationInput.count()) > 0) {

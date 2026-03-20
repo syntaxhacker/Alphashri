@@ -261,15 +261,14 @@ async function setupBacktest(page: Page) {
 
   const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
   await symbolSelect.click();
-  await page.waitForTimeout(500);
+  await expect(page.locator(".mantine-MultiSelect-dropdown")).toBeVisible({ timeout: 5000 });
 
   await page.keyboard.type("RELIANCE", { delay: 50 });
-  await page.waitForTimeout(800);
+  await page.waitForSelector(".mantine-MultiSelect-option", { timeout: 5000 });
 
   const options = page.locator(".mantine-MultiSelect-option");
   await options.first().waitFor({ state: "visible", timeout: 5000 });
   await options.first().click();
-  await page.waitForTimeout(300);
 
   const runBtn = page.locator('[data-testid="run-backtest-btn"]');
   await expect(runBtn).toBeEnabled({ timeout: 5000 });
@@ -285,7 +284,7 @@ async function setupBacktest(page: Page) {
     }
     throw e;
   }
-  await page.waitForTimeout(500);
+  await expect(page.locator('[data-testid="results-summary"]')).toBeVisible({ timeout: 5000 });
 }
 
 test.describe("Backtest - Mantine Features", () => {
@@ -309,29 +308,24 @@ test.describe("Backtest - Mantine Features", () => {
     });
   });
 
-  test.describe("Chart Zoom Functionality", () => {
-    test("should display zoom dropdown with All, 30D, 7D, 1D options", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
+   test.describe("Chart Zoom Functionality", () => {
+      test("should display zoom dropdown with All, 30D, 7D, 1D options", async ({ page }) => {
+        await page.goto("/backtest");
+        await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-      await setupBacktest(page);
+        await setupBacktest(page);
 
-      const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
-      await expect(zoomSelect).toBeVisible();
-    });
+        const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
+        await expect(zoomSelect).toBeVisible();
 
-    test("should change chart view when selecting zoom option", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
+        // Click to open dropdown (using force to ensure click works)
+        await zoomSelect.click({ force: true });
+        await page.waitForTimeout(300); // Small delay for dropdown animation
 
-      await setupBacktest(page);
-
-      const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
-      await expect(zoomSelect).toBeVisible();
-
-      await zoomSelect.click();
-      await page.waitForTimeout(300);
-    });
+        // Verify dropdown is visible - filter for the one containing zoom options
+        const dropdown = page.locator(".mantine-Select-dropdown").filter({ hasText: /All.*30D.*7D.*1D/ });
+        await expect(dropdown).toBeVisible({ timeout: 5000 });
+      });
   });
 
   test.describe("Chart Symbol Tabs", () => {
@@ -372,10 +366,7 @@ test.describe("Backtest - Mantine Features", () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.click();
-          await page.waitForTimeout(500);
-
-          const highlightedRow = page.locator(".trade-row-highlighted");
-          await expect(highlightedRow).toBeVisible();
+          await expect(page.locator(".trade-row-highlighted")).toBeVisible({ timeout: 5000 });
         }
       }
     });
@@ -394,7 +385,7 @@ test.describe("Backtest - Mantine Features", () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.click();
-          await page.waitForTimeout(100);
+          await page.waitForLoadState("networkidle");
 
           const hasHighlight = await firstTradeRow.evaluate((el) => {
             return el.classList.contains("trade-row-highlighted");
@@ -416,9 +407,9 @@ test.describe("Backtest - Mantine Features", () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.click();
-          await page.waitForTimeout(100);
-
-          await page.waitForTimeout(3200);
+          await page.waitForLoadState("networkidle");
+          await page.waitForLoadState("networkidle");
+          await page.waitForTimeout(6000); // Wait for highlight removal (5 second timeout)
 
           const hasHighlight = await firstTradeRow.evaluate((el) => {
             return el.classList.contains("trade-row-highlighted");
@@ -442,7 +433,7 @@ test.describe("Backtest - Mantine Features", () => {
       const netPnlHeader = page.locator('[data-testid="th-net_pnl"]');
       await expect(netPnlHeader).toBeVisible();
       await netPnlHeader.click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({ timeout: 5000 });
     });
 
     test("should toggle sort direction when clicking same column twice", async ({ page }) => {
@@ -454,10 +445,10 @@ test.describe("Backtest - Mantine Features", () => {
       const netPnlHeader = page.locator('[data-testid="th-net_pnl"]');
 
       await netPnlHeader.click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({ timeout: 5000 });
 
       await netPnlHeader.click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -471,22 +462,17 @@ test.describe("Backtest - Mantine Features", () => {
 
       // Type to search
       await page.keyboard.type("RELIANCE");
-      await page.waitForTimeout(500); // Wait for debounce and API
+      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({ timeout: 5000 });
 
       // Click on the option from dropdown
       const option = page.locator(".mantine-MultiSelect-option").first();
       if (await option.isVisible()) {
         await option.click();
       }
-      await page.waitForTimeout(300);
 
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
       await runBtn.click();
-      await page.waitForTimeout(500);
-
-      // After clicking, results should appear
-      const resultsSummary = page.locator('[data-testid="results-summary"]');
-      await expect(resultsSummary).toBeVisible();
+      await expect(page.locator('[data-testid="results-summary"]')).toBeVisible({ timeout: 10000 });
     });
   });
 
@@ -567,19 +553,17 @@ test.describe("Backtest - Mantine Features", () => {
 
       // Type to search
       await page.keyboard.type("RELIANCE");
-      await page.waitForTimeout(500); // wait for debounce and API
+      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({ timeout: 5000 });
+
       // Click on the option from dropdown
       const option = page.locator(".mantine-MultiSelect-option").first();
       if (await option.isVisible()) {
         await option.click();
       }
-      await page.waitForTimeout(300);
 
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
       await runBtn.click();
-      await page.waitForTimeout(2000);
-      const errorAlert = page.locator('[data-testid="backtest-error"]');
-      await expect(errorAlert).toBeVisible();
+      await expect(page.locator('[data-testid="backtest-error"]')).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -593,10 +577,8 @@ test.describe("Backtest - Mantine Features", () => {
       const echartsContainer = page.locator('[data-testid="echarts-container"]');
       await expect(echartsContainer).toBeVisible();
 
-      await page.waitForTimeout(500);
-
       const legendItem = page.locator("text=Entry");
-      await expect(legendItem.first()).toBeVisible();
+      await expect(legendItem.first()).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -609,11 +591,10 @@ test.describe("Backtest - Mantine Features", () => {
 
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
       if (await tradeHistoryPanel.isVisible()) {
-        // Click on time column header to sort
         const timeHeader = page.locator('[data-testid="th-entry_time"]');
         if (await timeHeader.isVisible()) {
           await timeHeader.click();
-          await page.waitForTimeout(500);
+          await page.waitForLoadState("networkidle");
         }
       }
     });
@@ -629,7 +610,7 @@ test.describe("Backtest - Mantine Features", () => {
         const pnlHeader = page.locator('[data-testid="th-net_pnl"]');
         if (await pnlHeader.isVisible()) {
           await pnlHeader.click();
-          await page.waitForTimeout(500);
+          await page.waitForLoadState("networkidle");
         }
       }
     });
@@ -665,10 +646,7 @@ test.describe("Backtest - Mantine Features", () => {
         const closeBtn = page.locator('[data-testid="close-trade-history-btn"]');
         if (await closeBtn.isVisible()) {
           await closeBtn.click();
-          await page.waitForTimeout(500);
-
-          // Panel should be hidden
-          await expect(tradeHistoryPanel).not.toBeVisible();
+          await expect(tradeHistoryPanel).not.toBeVisible({ timeout: 5000 });
         }
       }
     });
@@ -751,11 +729,9 @@ test.describe("Backtest - Mantine Features", () => {
       // Click reset button
       const resetBtn = page.locator('[data-testid="reset-btn"]');
       await resetBtn.click();
-      await page.waitForTimeout(500);
 
       // Results should be cleared
-      const resultsEmpty = page.locator('[data-testid="results-empty"]');
-      await expect(resultsEmpty).toBeVisible();
+      await expect(page.locator('[data-testid="results-empty"]')).toBeVisible({ timeout: 5000 });
     });
   });
 });

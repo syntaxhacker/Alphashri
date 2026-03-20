@@ -112,6 +112,8 @@ async function setupNewsMocks(page: import("@playwright/test").Page) {
   });
 
   await page.route("**/api/news?*", async (route) => {
+    // Simulate network latency to allow loading state to be visible
+    await new Promise(resolve => setTimeout(resolve, 100));
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -299,11 +301,7 @@ test.describe("News Panel - Content Display", () => {
 
     const panel = page.locator('[data-testid="news-panel"]');
     await expect(panel).toHaveClass(/open/, { timeout: 15000 });
-    await page.waitForTimeout(1000);
-
-    const newsItems = panel.locator('[data-testid="news-item"]');
-    const count = await newsItems.count();
-    expect(count).toBeGreaterThan(0);
+    await expect(panel.locator('[data-testid="news-item"]').first()).toBeVisible({ timeout: 5000 });
   });
 
   test("should show headlines for news items", async ({ page }) => {
@@ -314,7 +312,7 @@ test.describe("News Panel - Content Display", () => {
 
     const panel = page.locator('[data-testid="news-panel"]');
     await expect(panel).toHaveClass(/open/, { timeout: 15000 });
-    await page.waitForTimeout(1000);
+    await expect(panel.locator(".news-item-headline").first()).toBeVisible({ timeout: 5000 });
 
     const headlines = panel.locator(".news-item-headline");
     const count = await headlines.count();
@@ -329,7 +327,7 @@ test.describe("News Panel - Content Display", () => {
 
     const panel = page.locator('[data-testid="news-panel"]');
     await expect(panel).toHaveClass(/open/, { timeout: 15000 });
-    await page.waitForTimeout(1000);
+    await expect(panel.locator('[data-testid="news-item"]').first()).toBeVisible({ timeout: 5000 });
 
     const newsItems = panel.locator('[data-testid="news-item"]');
     const firstItem = newsItems.first();
@@ -357,8 +355,8 @@ test.describe("News Panel - Source Switching", () => {
     const sourceSelector = panel.locator(".news-source-select");
     await sourceSelector.click();
 
+    await expect(page.getByRole("option", { name: "Economic Times" })).toBeVisible({ timeout: 5000 });
     await page.getByRole("option", { name: "Economic Times" }).click();
-    await page.waitForTimeout(500);
 
     const inputValue = await sourceSelector.locator("input").inputValue();
     expect(inputValue).toBe("Economic Times");
@@ -392,14 +390,25 @@ test.describe("News Panel - Refresh", () => {
 
     const panel = page.locator('[data-testid="news-panel"]');
     await expect(panel).toHaveClass(/open/, { timeout: 15000 });
-    await page.waitForTimeout(1000);
-    const countAfterOpen = requestCount;
+
+    // Wait for initial news to load
+    await expect(panel.locator('[data-testid="news-item"]').first()).toBeVisible({ timeout: 5000 });
+    const countBeforeRefresh = requestCount;
 
     const refreshBtn = panel.locator('[data-testid="news-refresh-btn"]');
     await refreshBtn.click();
-    await page.waitForTimeout(1000);
 
-    expect(requestCount).toBeGreaterThan(countAfterOpen);
+    // Button should be disabled during refresh
+    await expect(refreshBtn).toBeDisabled({ timeout: 5000 });
+
+    // Wait for refresh to complete - button should be enabled again
+    await expect(refreshBtn).toBeEnabled({ timeout: 10000 });
+
+    // Verify that a new API request was made
+    expect(requestCount).toBeGreaterThan(countBeforeRefresh);
+
+    // Verify news items are still displayed
+    await expect(panel.locator('[data-testid="news-item"]').first()).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -428,21 +437,21 @@ test.describe("News Page - Full Page View", () => {
   test("should display source selector on news page", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const sourceSelector = page.locator('[data-testid="source-selector"]');
     await expect(sourceSelector).toBeVisible();
   });
 
-  test("should display news list", async ({ page }) => {
-    await page.goto("/news");
-    await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
+   test("should display news list", async ({ page }) => {
+     await page.goto("/news");
+     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
 
-    const newsItems = page.locator('[data-testid="news-list-item"]');
-    const count = await newsItems.count();
-    expect(count).toBeGreaterThan(0);
-  });
+     const firstItem = page.locator('[data-testid="news-list-item"]').first();
+     await expect(firstItem).toBeVisible({ timeout: 10000 });
+
+     const count = await page.locator('[data-testid="news-list-item"]').count();
+     expect(count).toBeGreaterThan(0);
+   });
 });
 
 test.describe("News Page - Sentiment Display", () => {
@@ -455,23 +464,17 @@ test.describe("News Page - Sentiment Display", () => {
   test("should display BULLISH sentiment badge", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const bullishBadge = page.locator('[data-testid="sentiment-badge"]:has-text("BULLISH")');
-    if ((await bullishBadge.count()) > 0) {
-      await expect(bullishBadge.first()).toBeVisible();
-    }
+    await expect(bullishBadge.first()).toBeVisible({ timeout: 5000 });
   });
 
   test("should display BEARISH sentiment badge", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const bearishBadge = page.locator('[data-testid="sentiment-badge"]:has-text("BEARISH")');
-    if ((await bearishBadge.count()) > 0) {
-      await expect(bearishBadge.first()).toBeVisible();
-    }
+    await expect(bearishBadge.first()).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -485,12 +488,9 @@ test.describe("News Page - Impact Score Display", () => {
   test("should display impact score ring", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const impactScore = page.locator('[data-testid="impact-score"]');
-    if ((await impactScore.count()) > 0) {
-      await expect(impactScore.first()).toBeVisible();
-    }
+    await expect(impactScore.first()).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -504,126 +504,88 @@ test.describe("News Page - Article Detail", () => {
   test("should open article detail on click", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
     await firstNewsItem.click();
-    await page.waitForTimeout(1000);
-
-    const articleDetail = page.locator('[data-testid="article-detail"]');
-    await expect(articleDetail).toBeVisible();
+    await expect(page.locator('[data-testid="article-detail"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should display summary in article detail", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
     await firstNewsItem.click();
-    await page.waitForTimeout(1000);
-
-    const summarySection = page.locator("text=Summary");
-    await expect(summarySection.first()).toBeVisible();
+    await expect(page.locator('[data-testid="article-detail"]')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=Summary").first()).toBeVisible({ timeout: 5000 });
   });
 
   test("should display key points section", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
     await firstNewsItem.click();
-    await page.waitForTimeout(1000);
-
-    const keyPointsSection = page.locator("text=Key Takeaways");
-    await expect(keyPointsSection.first()).toBeVisible();
+    await expect(page.locator("text=Key Takeaways").first()).toBeVisible({ timeout: 5000 });
   });
 
   test("should display trade ideas section", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const bullishItem = page
       .locator('[data-testid="news-list-item"]')
       .filter({ hasText: "Reliance" })
       .first();
-    if ((await bullishItem.count()) > 0) {
-      await bullishItem.click();
-      await page.waitForTimeout(1000);
-
-      const tradeIdeasSection = page.locator("text=Trade Ideas");
-      await expect(tradeIdeasSection).toBeVisible();
-    }
+    await bullishItem.click();
+    await expect(page.locator("text=Trade Ideas")).toBeVisible({ timeout: 5000 });
   });
 
   test("should display LONG trade idea with green badge", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const bullishItem = page
       .locator('[data-testid="news-list-item"]')
       .filter({ hasText: "Reliance" })
       .first();
-    if ((await bullishItem.count()) > 0) {
-      await bullishItem.click();
-      await page.waitForTimeout(1000);
-
-      const tradeIdea = page.locator('[data-testid="trade-idea"]').first();
-      await expect(tradeIdea).toContainText("LONG");
-    }
+    await bullishItem.click();
+    await expect(page.locator('[data-testid="trade-idea"]').first()).toContainText("LONG", { timeout: 5000 });
   });
 
   test("should display stocks mentioned section", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const firstNewsItem = page
       .locator('[data-testid="news-list-item"]')
       .filter({ hasText: "Reliance" })
       .first();
-    if ((await firstNewsItem.count()) > 0) {
-      await firstNewsItem.click();
-      await page.waitForTimeout(1000);
-
-      const stocksSection = page.locator("text=Stocks mentioned");
-      await expect(stocksSection.first()).toBeVisible();
-    }
+    await firstNewsItem.click();
+    await expect(page.locator("text=Stocks mentioned")).toBeVisible({ timeout: 5000 });
   });
 
   test("should show back button in article detail", async ({ page }) => {
     await page.setViewportSize({ width: 575, height: 800 });
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
     await firstNewsItem.click();
-    await page.waitForTimeout(1000);
-
-    const backBtn = page.locator('[data-testid="close-article-btn"]');
-    await expect(backBtn).toBeVisible();
+    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should return to news list when clicking back", async ({ page }) => {
     await page.setViewportSize({ width: 575, height: 800 });
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
     await firstNewsItem.click();
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 5000 });
 
-    const backBtn = page.locator('[data-testid="close-article-btn"]');
-    await backBtn.click();
-    await page.waitForTimeout(500);
-
-    const newsItems = page.locator('[data-testid="news-list-item"]');
-    expect(await newsItems.count()).toBeGreaterThan(0);
+    await page.locator('[data-testid="close-article-btn"]').click();
+    await expect(page.locator('[data-testid="news-list-item"]').first()).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -637,12 +599,11 @@ test.describe("News Page - Search", () => {
   test("should filter news by search query", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const searchInput = page.locator('input[placeholder*="Search"]');
     if ((await searchInput.count()) > 0) {
       await searchInput.fill("Reliance");
-      await page.waitForTimeout(1000);
+      await page.waitForLoadState("networkidle");
 
       const filteredItems = page.locator('[data-testid="news-list-item"]');
       const count = await filteredItems.count();
@@ -661,16 +622,15 @@ test.describe("News Page - Source Filtering", () => {
   test("should filter news by source", async ({ page }) => {
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const sourceSelector = page.locator('[data-testid="source-selector"]');
     if ((await sourceSelector.count()) > 0) {
       await sourceSelector.click();
+      await expect(page.getByRole("option", { name: "Economic Times" })).toBeVisible({ timeout: 5000 });
       await page.getByRole("option", { name: "Economic Times" }).click();
-      await page.waitForTimeout(1000);
 
       const newsItems = page.locator('[data-testid="news-list-item"]');
-      expect(await newsItems.count()).toBeGreaterThan(0);
+      await expect(newsItems.first()).toBeVisible({ timeout: 5000 });
     }
   });
 });
@@ -703,7 +663,6 @@ test.describe("News Page - Responsive Design", () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const newsPage = page.locator('[data-testid="news-page"]');
     await expect(newsPage).toBeVisible();
@@ -713,7 +672,6 @@ test.describe("News Page - Responsive Design", () => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const newsPage = page.locator('[data-testid="news-page"]');
     await expect(newsPage).toBeVisible();
@@ -723,7 +681,6 @@ test.describe("News Page - Responsive Design", () => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto("/news");
     await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
-    await page.waitForTimeout(1000);
 
     const newsPage = page.locator('[data-testid="news-page"]');
     await expect(newsPage).toBeVisible();
