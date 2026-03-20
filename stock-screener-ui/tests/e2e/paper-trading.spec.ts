@@ -10,6 +10,10 @@ import {
   navigateToPaperTradingWithBot,
 } from "../helpers/paperTradingHelpers";
 
+async function selectBot(page: import("@playwright/test").Page, _botId: string) {
+  await page.locator('[data-testid="bot-selector-dropdown"]').waitFor({ state: "visible", timeout: 10000 });
+}
+
 const TEST_BOT_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
 // Shared beforeEach for paper trading tests

@@ -8,8 +8,12 @@ interface BacktestProgressProps {
   };
 }
 
+export function calcProgressPercent(current: number, total: number): number {
+  return total > 0 ? (current / total) * 100 : 0;
+}
+
 export function BacktestProgress({ progress }: BacktestProgressProps) {
-  const percent = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+  const percent = calcProgressPercent(progress.current, progress.total);
 
   return (
     <Stack

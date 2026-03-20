@@ -3,6 +3,19 @@ import * as state from "../state";
 import { subscribe } from "../state";
 import { fetchData, setupAutoRefresh, loadScreeners } from "../api";
 import { initPreviewChartHandlers } from "../components/common/previewChart";
+import type { ScreenerData } from "../types";
+
+export interface ScreenerDefaults {
+  provider: string;
+  mode: string;
+}
+
+export function getScreenerDefaults(data?: ScreenerData | null): ScreenerDefaults {
+  return {
+    provider: data?.provider || "upstox",
+    mode: data?.mode || "intraday",
+  };
+}
 
 export function useScreenerState() {
   const [, forceUpdate] = useState(0);

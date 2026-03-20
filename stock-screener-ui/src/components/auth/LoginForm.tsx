@@ -101,6 +101,16 @@ interface RegisterFormProps {
   onSwitchToLogin?: () => void;
 }
 
+export function validateRegistration(password: string, confirmPassword: string): string | null {
+  if (password !== confirmPassword) {
+    return "Passwords do not match";
+  }
+  if (password.length < 6) {
+    return "Password must be at least 6 characters";
+  }
+  return null;
+}
+
 export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) {
   const { register, error, loading, clearError } = useAuth();
   const [email, setEmail] = useState("");
@@ -113,13 +123,9 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
     e.preventDefault();
     setFormError(null);
 
-    if (password !== confirmPassword) {
-      setFormError("Passwords do not match");
-      return;
-    }
-
-    if (password.length < 6) {
-      setFormError("Password must be at least 6 characters");
+    const validationError = validateRegistration(password, confirmPassword);
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
 

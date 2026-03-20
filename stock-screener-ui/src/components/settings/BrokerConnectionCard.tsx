@@ -10,7 +10,7 @@ interface BrokerConnectionCardProps {
   onRefresh: () => void;
 }
 
-function formatExpiresIn(hours: number | null): string {
+export function formatExpiresIn(hours: number | null): string {
   if (hours === null) return "";
   const h = Math.floor(hours);
   const m = Math.round((hours - h) * 60);
@@ -20,7 +20,7 @@ function formatExpiresIn(hours: number | null): string {
   return `${m}m`;
 }
 
-function getStatusBadge(status: BrokerStatus | null) {
+export function getStatusBadge(status: BrokerStatus | null) {
   if (!status) {
     return <Badge color="gray">Unknown</Badge>;
   }

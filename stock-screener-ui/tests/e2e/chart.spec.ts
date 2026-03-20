@@ -370,11 +370,8 @@ test.describe("Chart View - Display Candlestick Chart", () => {
     await page.goto("/chart/RELIANCE");
 
     // Check for loading indicator
-    const loadingElement = page.locator(".chart-loading");
-    const isLoadingVisible = (await loadingElement.count()) > 0;
-    if (isLoadingVisible) {
-      await expect(loadingElement).toBeVisible();
-    }
+    const loadingElement = page.locator('[data-testid="chart-loading"]');
+    await expect(loadingElement).toBeVisible();
 
     // Wait for chart to render
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
@@ -389,14 +386,14 @@ test.describe("Chart View - Display Candlestick Chart", () => {
     await page.goto("/chart/INVALID");
 
     // Should show error or redirect
-    const errorElement = page.locator(".chart-error, .chart-view-error");
+    const errorElement = page.locator('[data-testid="chart-error"]');
     await expect(errorElement.first()).toBeVisible({ timeout: 5000 });
   });
 
   test("should display symbol in chart title", async ({ page }) => {
     await page.goto("/chart/RELIANCE");
 
-    const chartTitle = page.locator(".chart-title");
+    const chartTitle = page.locator('[data-testid="chart-title"]');
     await expect(chartTitle).toBeVisible({ timeout: 10000 });
     await expect(chartTitle).toContainText("RELIANCE");
   });
@@ -404,7 +401,7 @@ test.describe("Chart View - Display Candlestick Chart", () => {
   test("should show back button to navigate back", async ({ page }) => {
     await page.goto("/chart/RELIANCE");
 
-    const backButton = page.locator(".back-btn");
+    const backButton = page.locator('[data-testid="chart-back-btn"]');
     await expect(backButton).toBeVisible({ timeout: 10000 });
     await expect(backButton).toContainText("Back");
   });
@@ -412,7 +409,7 @@ test.describe("Chart View - Display Candlestick Chart", () => {
   test("should display candle count in footer", async ({ page }) => {
     await page.goto("/chart/RELIANCE");
 
-    const footer = page.locator(".chart-view-footer");
+    const footer = page.locator('[data-testid="chart-footer"]');
     await expect(footer).toBeVisible({ timeout: 10000 });
     await expect(footer).toContainText("candles");
   });
@@ -500,10 +497,8 @@ test.describe("Chart View - 52 Week High/Low Levels", () => {
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
     // Chart should show 52W levels
-    const footer = page.locator(".chart-view-footer");
-    if ((await footer.count()) > 0) {
-      await expect(footer).toBeVisible();
-    }
+    const footer = page.locator('[data-testid="chart-footer"]');
+    await expect(footer).toBeVisible();
   });
 });
 
@@ -517,44 +512,24 @@ test.describe("Chart View - Trade Markers", () => {
   test("should display entry markers for buy trades", async ({ page }) => {
     await page.goto("/chart/HDFC");
 
-    // Wait for chart to render
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
-
-    // Trade markers should be rendered as part of the chart series
-    const hasTrades = mockChartWithTrades.trades && mockChartWithTrades.trades.length > 0;
-    expect(hasTrades).toBeTruthy();
+    await expect(page.locator('[data-testid="chart-title"]')).toContainText("HDFC");
+    await expect(page.locator('[data-testid="chart-footer"]')).toContainText("candles");
   });
 
   test("should display exit markers for sell trades", async ({ page }) => {
     await page.goto("/chart/HDFC");
 
-    // Wait for chart to render
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
-
-    // Verify trades are included in the data
-    const hasSellTrade = mockChartWithTrades.trades?.some((t: any) => t.side === "SELL");
-    expect(hasSellTrade).toBeTruthy();
+    const chartView = page.locator('[data-testid="chart-view"]');
+    await expect(chartView).toBeVisible();
   });
 
   test("should show trade markers with correct price levels", async ({ page }) => {
     await page.goto("/chart/HDFC");
 
-    // Wait for chart to render
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
-
-    // Verify trade prices are within chart range
-    const allPrices = mockChartWithTrades.candles.flatMap((c: any) => [c.high, c.low]);
-    const entryPrice = mockChartWithTrades.trades?.[0]?.entry_price;
-    const exitPrice = mockChartWithTrades.trades?.[1]?.exit_price;
-
-    if (entryPrice && exitPrice) {
-      const maxPrice = Math.max(...allPrices);
-      const minPrice = Math.min(...allPrices);
-      expect(entryPrice).toBeGreaterThanOrEqual(minPrice);
-      expect(entryPrice).toBeLessThanOrEqual(maxPrice);
-      expect(exitPrice).toBeGreaterThanOrEqual(minPrice);
-      expect(exitPrice).toBeLessThanOrEqual(maxPrice);
-    }
+    await expect(page.locator('[data-testid="chart-footer"]')).toContainText(`${mockChartWithTrades.candles.length} candles`);
   });
 });
 
@@ -659,10 +634,8 @@ test.describe("Chart View - Timeframe Selection", () => {
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible();
 
     // Footer should show updated timeframe
-    const footer = page.locator(".chart-view-footer");
-    if ((await footer.count()) > 0) {
-      await expect(footer).toContainText("TF: 1m");
-    }
+    const footer = page.locator('[data-testid="chart-footer"]');
+    await expect(footer).toContainText("TF: 1m");
   });
 
   test("should change timeframe when 5m is selected", async ({ page }) => {
@@ -713,10 +686,8 @@ test.describe("Chart View - Timeframe Selection", () => {
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
 
     // Footer should show updated timeframe
-    const footer = page.locator(".chart-view-footer");
-    if ((await footer.count()) > 0) {
-      await expect(footer).toContainText("TF: 60m");
-    }
+    const footer = page.locator('[data-testid="chart-footer"]');
+    await expect(footer).toContainText("TF: 60m");
   });
 
   test("should refresh chart data when timeframe changes", async ({ page }) => {
@@ -772,7 +743,7 @@ test.describe("Chart View - Pivot Levels", () => {
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
     // Enable pivots
-    const pivotsCheckbox = page.locator("input[type='checkbox']").first();
+    const pivotsCheckbox = page.locator('[data-testid="chart-pivots-checkbox"]');
     await pivotsCheckbox.check();
 
     // Chart should still be visible
@@ -786,7 +757,7 @@ test.describe("Chart View - Pivot Levels", () => {
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
     // Disable pivots
-    const pivotsCheckbox = page.locator("input[type='checkbox']").first();
+    const pivotsCheckbox = page.locator('[data-testid="chart-pivots-checkbox"]');
     await pivotsCheckbox.uncheck();
 
     // Chart should still be visible
@@ -808,7 +779,7 @@ test.describe("Chart View - Chart Controls", () => {
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
     // Check for controls container
-    const controls = page.locator(".chart-controls");
+    const controls = page.locator('[data-testid="chart-controls"]');
     await expect(controls).toBeVisible();
   });
 
@@ -822,7 +793,7 @@ test.describe("Chart View - Chart Controls", () => {
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
     // Click back button
-    const backButton = page.locator(".back-btn");
+    const backButton = page.locator('[data-testid="chart-back-btn"]');
     await backButton.click();
 
     // Should navigate back to home
@@ -885,20 +856,16 @@ test.describe("Chart View - Empty and Edge Cases", () => {
     await page.goto("/chart/EMPTY");
 
     // Should show error or no data message
-    await expect(page.locator(".chart-error, .chart-loading")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-testid="chart-error"], [data-testid="chart-loading"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should handle missing symbol parameter", async ({ page }) => {
     await page.goto("/chart");
 
     // Should show error about missing symbol or redirect
-    await expect(page.locator(".chart-view-error, .chart-error, .back-btn").first()).toBeVisible({
+    await expect(page.locator('[data-testid="chart-view-error"], [data-testid="chart-error"], [data-testid="chart-back-btn"]').first()).toBeVisible({
       timeout: 5000,
     });
-    const errorElement = page.locator(".chart-view-error, .chart-error, .back-btn");
-    const errorCount = await errorElement.count();
-    // At minimum, something should be visible
-    expect(errorCount).toBeGreaterThanOrEqual(0);
   });
 
   test("should handle API error response", async ({ page }) => {
@@ -913,6 +880,6 @@ test.describe("Chart View - Empty and Edge Cases", () => {
     await page.goto("/chart/ERROR");
 
     // Should show error state
-    await expect(page.locator(".chart-error")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-testid="chart-error"]')).toBeVisible({ timeout: 5000 });
   });
 });

@@ -312,7 +312,7 @@ function renderTradeRow(trade: BotTrade): string {
       <td class="side ${trade.side.toLowerCase()}">${trade.side}</td>
       <td class="quantity">${trade.quantity}</td>
       <td class="entry">₹${trade.entry_price.toFixed(2)}</td>
-      <td class="exit">₹${trade.exit_price.toFixed(2)}</td>
+      <td class="exit">₹${(trade.exit_price ?? 0).toFixed(2)}</td>
       <td class="pnl ${pnlColor}">
         ${trade.pnl >= 0 ? "+" : ""}₹${formatNumber(trade.pnl)}
         <span class="pnl-pct">(${trade.pnl_pct >= 0 ? "+" : ""}${trade.pnl_pct.toFixed(2)}%)</span>
@@ -325,7 +325,7 @@ function renderTradeRow(trade: BotTrade): string {
   `;
 }
 
-function formatExitReason(reason: string): string {
+export function formatExitReason(reason: string): string {
   const reasons: Record<string, string> = {
     target: "Target",
     stop_loss: "Stop Loss",
@@ -336,7 +336,7 @@ function formatExitReason(reason: string): string {
   return reasons[reason] || reason;
 }
 
-function formatNumber(num: number): string {
+export function formatNumber(num: number): string {
   if (Math.abs(num) >= 100000) {
     return (num / 100000).toFixed(1) + "L";
   } else if (Math.abs(num) >= 1000) {

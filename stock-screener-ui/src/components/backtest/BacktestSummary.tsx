@@ -5,6 +5,42 @@ interface BacktestSummaryProps {
   totals: BacktestTotals | null;
 }
 
+export function resolveTotals(totals: BacktestTotals | null): {
+  netPnl: number;
+  totalCosts: number;
+  winRate: number;
+  trades: number;
+} | null {
+  if (!totals) return null;
+  return {
+    netPnl: totals.net_pnl ?? 0,
+    totalCosts: totals.total_costs ?? 0,
+    winRate: totals.win_rate ?? 0,
+    trades: totals.trades ?? 0,
+  };
+}
+
+export function getPnlColor(netPnl: number): string {
+  return netPnl >= 0 ? "green" : "red";
+}
+
+export function getPnlSign(netPnl: number): string {
+  return netPnl >= 0 ? "+" : "";
+}
+
+export function formatPnl(netPnl: number): string {
+  const pnlSign = getPnlSign(netPnl);
+  return `${pnlSign}₹${(netPnl / 1000).toFixed(1)}K`;
+}
+
+export function formatCosts(totalCosts: number): string {
+  return `₹${(totalCosts / 1000).toFixed(1)}K`;
+}
+
+export function formatWinRate(winRate: number): string {
+  return `${winRate.toFixed(0)}%`;
+}
+
 export function BacktestSummary({ totals }: BacktestSummaryProps) {
   if (!totals) return null;
 

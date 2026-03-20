@@ -111,7 +111,7 @@ const ChartView: React.FC = () => {
 
   if (!symbol) {
     return (
-      <div className="chart-view-error">
+      <div className="chart-view-error" data-testid="chart-view-error">
         <p>No symbol specified</p>
         <button onClick={() => navigate("/")}>Back to Screener</button>
       </div>

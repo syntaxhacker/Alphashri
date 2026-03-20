@@ -7,7 +7,7 @@ declare const echarts: any;
 
 const chartInstances = new Map<string, any>();
 
-function normalizeTime(time: string): string {
+export function normalizeTime(time: string): string {
   if (!time) return "";
 
   // Handle date-only format (YYYY-MM-DD) - for daily candles

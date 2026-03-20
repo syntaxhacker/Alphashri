@@ -33,7 +33,7 @@ import { fetchWithAuth } from "../state/auth";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
 // Calculate totals from results
-function calculateTotals(results: BacktestResult[]): BacktestTotals {
+export function calculateTotals(results: BacktestResult[]): BacktestTotals {
   const totalTrades = results.reduce((sum, r) => sum + (r.trades || 0), 0);
   const totalWins = results.reduce((sum, r) => sum + (r.wins || 0), 0);
   const totalGrossPnl = results.reduce((sum, r) => sum + (r.gross_pnl || 0), 0);

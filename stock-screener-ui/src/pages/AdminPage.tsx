@@ -51,15 +51,15 @@ interface LLMStats {
   aggregate: Aggregate;
 }
 
-function formatCost(cost: number): string {
+export function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`;
 }
 
-function formatResponseTime(ms: number): string {
+export function formatResponseTime(ms: number): string {
   return `${ms.toFixed(0)}ms`;
 }
 
-function formatDateTime(isoString: string): string {
+export function formatDateTime(isoString: string): string {
   try {
     const date = new Date(isoString);
     return date.toLocaleString();
@@ -68,12 +68,12 @@ function formatDateTime(isoString: string): string {
   }
 }
 
-function truncateUrl(url: string, maxLength: number = 50): string {
+export function truncateUrl(url: string, maxLength: number = 50): string {
   if (url.length <= maxLength) return url;
   return url.substring(0, maxLength) + "...";
 }
 
-function getStatusColor(status: string): string {
+export function getStatusColor(status: string): string {
   switch (status.toLowerCase()) {
     case "success":
       return "green";
