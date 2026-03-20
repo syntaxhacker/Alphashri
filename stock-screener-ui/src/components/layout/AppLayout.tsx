@@ -19,25 +19,21 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <AppShell
-      header={{ height: 52 }}
+      header={{ height: 40 }}
       navbar={{
-        width: collapsed ? 60 : 180,
+        width: collapsed ? 80 : 200,
         breakpoint: "sm",
       }}
-      padding="sm"
+      padding="md"
       h="100vh"
       id="app-shell"
       data-testid="app-shell"
     >
       <AppShell.Header
-        bg="light-dark(rgba(255, 255, 255, 0.86), rgba(11, 15, 20, 0.88))"
+        bg={colors.background}
         c={colors.text}
         id="app-header"
         data-testid="app-header"
-        style={{
-          borderBottom: "1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14))",
-          backdropFilter: "blur(18px)",
-        }}
       >
         <Group justify="space-between" align="center" h="100%" px="xs">
           <Box flex={1}>
@@ -56,18 +52,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       </AppShell.Navbar>
 
       <AppShell.Main
-        bg="transparent"
+        bg={colors.background}
         c={colors.text}
         h="100%"
         style={{ overflow: "hidden" }}
         id="app-main"
         data-testid="app-main"
       >
-        <Box className="app-page-frame" h="100%">
-          <Box className="app-page-content" flex={1} h="100%">
-            {children}
-          </Box>
-        </Box>
+        {children}
       </AppShell.Main>
     </AppShell>
   );

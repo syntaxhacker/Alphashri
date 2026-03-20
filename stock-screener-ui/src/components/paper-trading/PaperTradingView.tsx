@@ -83,6 +83,11 @@ export function PaperTradingView() {
       const bots = await listBots();
       setAvailableBots(bots);
 
+      // Auto-select first bot if none selected and bots are available
+      if (!activeBotId && bots.length > 0) {
+        activeBotId = bots[0].id;
+      }
+
       if (activeBotId) {
         await refreshBotLiveData(activeBotId);
       } else {
@@ -279,15 +284,12 @@ export function PaperTradingView() {
             </Text>
             <SegmentedControl
               size="sm"
-              value={activeBotId || "default"}
+              value={activeBotId || ""}
               onChange={handleBotSelect}
-              data={[
-                { value: "default", label: "Default" },
-                ...state.availableBots.map((bot: BotInfo) => ({
-                  value: bot.id,
-                  label: bot.name,
-                })),
-              ]}
+              data={state.availableBots.map((bot: BotInfo) => ({
+                value: bot.id,
+                label: bot.name,
+              }))}
               data-testid="bot-selector-dropdown"
             />
           </Group>

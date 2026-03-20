@@ -100,7 +100,7 @@ test.describe("Paper Trading Settings", () => {
     await expect(page.locator('[data-testid="config-cooldown"]')).toHaveValue("30");
   });
 
-   test("should reset settings to defaults", async ({ page }) => {
+  test("should reset settings to defaults", async ({ page }) => {
     await navigateToPaperTradingSettings(page);
 
     const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');

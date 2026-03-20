@@ -517,42 +517,43 @@ export default function NewsPage() {
                 <Collapse in={isExpanded}>
                   <Stack gap={4} mt="xs">
                     {items.map((item) => (
-                       <Card
-                         key={item.id}
-                         padding="xs"
-                         withBorder
-                         style={{
-                           cursor: "pointer",
-                           backgroundColor:
-                             selectedArticle?.id === item.id
-                               ? "var(--mantine-color-blue-light)"
-                               : undefined,
-                         }}
-                         onClick={() => handleArticleClick(item)}
-                         data-testid="news-list-item"
-                       >
-                         <Stack gap="xs" mb="xs">
-                           {(item.sentiment || item.impact_score !== undefined) && (
-                             <Group gap="xs" wrap="nowrap">
-                               {item.sentiment && renderSentimentBadge(item.sentiment)}
-                               {item.impact_score !== undefined && renderImpactScore(item.impact_score)}
-                             </Group>
-                           )}
-                         </Stack>
-                         <Group justify="space-between" wrap="nowrap" gap="xs">
-                           <Text
-                             size="xs"
-                             fw={selectedArticle?.id === item.id ? 600 : 500}
-                             lineClamp={2}
-                             style={{ flex: 1 }}
-                           >
-                             {item.headline}
-                           </Text>
-                           <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-                             {formatTimeAgo(item.publishedAt)}
-                           </Text>
-                         </Group>
-                       </Card>
+                      <Card
+                        key={item.id}
+                        padding="xs"
+                        withBorder
+                        style={{
+                          cursor: "pointer",
+                          backgroundColor:
+                            selectedArticle?.id === item.id
+                              ? "var(--mantine-color-blue-light)"
+                              : undefined,
+                        }}
+                        onClick={() => handleArticleClick(item)}
+                        data-testid="news-list-item"
+                      >
+                        <Stack gap="xs" mb="xs">
+                          {(item.sentiment || item.impact_score !== undefined) && (
+                            <Group gap="xs" wrap="nowrap">
+                              {item.sentiment && renderSentimentBadge(item.sentiment)}
+                              {item.impact_score !== undefined &&
+                                renderImpactScore(item.impact_score)}
+                            </Group>
+                          )}
+                        </Stack>
+                        <Group justify="space-between" wrap="nowrap" gap="xs">
+                          <Text
+                            size="xs"
+                            fw={selectedArticle?.id === item.id ? 600 : 500}
+                            lineClamp={2}
+                            style={{ flex: 1 }}
+                          >
+                            {item.headline}
+                          </Text>
+                          <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                            {formatTimeAgo(item.publishedAt)}
+                          </Text>
+                        </Group>
+                      </Card>
                     ))}
                   </Stack>
                 </Collapse>

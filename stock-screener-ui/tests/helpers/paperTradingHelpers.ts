@@ -63,7 +63,7 @@ export async function navigateToPaperTradingWithBot(
       const loadingText = document.body.textContent;
       return !loadingText?.includes("Loading positions...");
     },
-    { timeout: 30000 },
+    { timeout: 10000 },
   );
 
   // Additional wait for UI to settle

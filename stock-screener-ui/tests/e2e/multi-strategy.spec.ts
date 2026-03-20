@@ -521,7 +521,9 @@ test.describe("Multi-Strategy System - Chart ORB Levels", () => {
     const positionRow = page.locator(".positions-table tbody tr").first();
     if ((await positionRow.count()) > 0) {
       await positionRow.click();
-      await expect(page.locator(".paper-chart, #paper-chart, .echarts-container").first()).toBeVisible({ timeout: 5000 });
+      await expect(
+        page.locator(".paper-chart, #paper-chart, .echarts-container").first(),
+      ).toBeVisible({ timeout: 5000 });
     }
   });
 });

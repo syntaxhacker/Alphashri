@@ -812,24 +812,24 @@ test.describe("Chart View - Chart Controls", () => {
     await expect(controls).toBeVisible();
   });
 
-   test("should navigate back when back button is clicked", async ({ page }) => {
-     // First navigate to home page to establish history
-     await page.goto("/");
-     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
+  test("should navigate back when back button is clicked", async ({ page }) => {
+    // First navigate to home page to establish history
+    await page.goto("/");
+    await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
 
-     // Then navigate to chart
-     await page.goto("/chart/RELIANCE");
-     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    // Then navigate to chart
+    await page.goto("/chart/RELIANCE");
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
-     // Click back button
-     const backButton = page.locator(".back-btn");
-     await backButton.click();
+    // Click back button
+    const backButton = page.locator(".back-btn");
+    await backButton.click();
 
-     // Should navigate back to home
-     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 5000 });
-     const url = page.url();
-     expect(url).not.toContain("/chart/RELIANCE");
-   });
+    // Should navigate back to home
+    await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 5000 });
+    const url = page.url();
+    expect(url).not.toContain("/chart/RELIANCE");
+  });
 });
 
 test.describe("Chart View - Responsive Design", () => {
@@ -888,16 +888,18 @@ test.describe("Chart View - Empty and Edge Cases", () => {
     await expect(page.locator(".chart-error, .chart-loading")).toBeVisible({ timeout: 5000 });
   });
 
-   test("should handle missing symbol parameter", async ({ page }) => {
-     await page.goto("/chart");
+  test("should handle missing symbol parameter", async ({ page }) => {
+    await page.goto("/chart");
 
-     // Should show error about missing symbol or redirect
-     await expect(page.locator(".chart-view-error, .chart-error, .back-btn").first()).toBeVisible({ timeout: 5000 });
-     const errorElement = page.locator(".chart-view-error, .chart-error, .back-btn");
-     const errorCount = await errorElement.count();
-     // At minimum, something should be visible
-     expect(errorCount).toBeGreaterThanOrEqual(0);
-   });
+    // Should show error about missing symbol or redirect
+    await expect(page.locator(".chart-view-error, .chart-error, .back-btn").first()).toBeVisible({
+      timeout: 5000,
+    });
+    const errorElement = page.locator(".chart-view-error, .chart-error, .back-btn");
+    const errorCount = await errorElement.count();
+    // At minimum, something should be visible
+    expect(errorCount).toBeGreaterThanOrEqual(0);
+  });
 
   test("should handle API error response", async ({ page }) => {
     await page.route("**/api/chart/preview/**", async (route) => {

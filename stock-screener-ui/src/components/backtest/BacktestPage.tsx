@@ -30,7 +30,6 @@ import {
 import { runBacktest, fetchStrategies, fetchCosts, fetchVariations } from "../../api/backtest";
 import { chartTradesToTrades } from "../../api/chartBuilder";
 import type { BacktestState } from "../../state/backtest";
-import { CompactPage, CompactPanel } from "../common/compact";
 
 export function BacktestPage() {
   const [state, setState] = useState<BacktestState>(getBacktestState);
@@ -241,12 +240,18 @@ export function BacktestPage() {
               }}
             />
           ) : !state.results || state.results.length === 0 ? (
-            <CompactPanel
-              title="No results yet"
-              description="Run a backtest to populate this table."
-              style={{ height: "100%" }}
+            <Box
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                color: "var(--mantine-color-dimmed)",
+              }}
               data-testid="results-empty"
-            />
+            >
+              No results yet. Run a backtest.
+            </Box>
           ) : (
             <Flex
               direction="column"
@@ -326,8 +331,8 @@ export function BacktestPage() {
             }}
           >
             <TradeHistoryTable
-              symbol={state.tradeHistorySymbol}
-              trades={state.tradeHistory}
+              symbol={state.tradeHistorySymbol!}
+              trades={state.tradeHistory!}
               sortColumn={tradeSortColumn}
               sortDirection={tradeSortDirection}
               onSort={handleTradeSort}
@@ -341,82 +346,80 @@ export function BacktestPage() {
   };
 
   return (
-    <CompactPage>
-      <Box
-        id="backtest-main"
-        className="backtest-page"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--mantine-spacing-sm)",
-          height: "100%",
-          overflow: "hidden",
-        }}
-        data-testid="backtest-view"
-      >
-        {state.error && (
-          <Alert
-            icon={<IconAlertCircle size={16} />}
-            title="Error"
-            color="red"
-            variant="filled"
-            data-testid="backtest-error"
-            withCloseButton
-            onClose={handleClearError}
-          >
-            {state.error}
-          </Alert>
-        )}
-
-        <Box id="backtest-config-section" className="backtest-config-section" flex="0 0 auto">
-          <BacktestConfig
-            strategies={state.strategies}
-            variations={state.variations}
-            selectedStrategy={state.selectedStrategy}
-            selectedVariation={state.selectedVariation}
-            params={state.params}
-            selectedSymbols={state.selectedSymbols}
-            days={state.days}
-            includeCosts={state.includeCosts}
-            isRunning={state.isRunning}
-            onStrategyChange={setSelectedStrategy}
-            onVariationChange={handleVariationChange}
-            onParamChange={setParam}
-            onDaysChange={setDays}
-            onIncludeCostsChange={setIncludeCosts}
-            onSymbolsChange={setSelectedSymbols}
-            onReset={resetBacktestState}
-            onRun={handleRunBacktest}
-            saveToHistory={saveToHistory}
-            onSaveToHistoryChange={setSaveToHistory}
-          />
-        </Box>
-
-        <Flex
-          id="backtest-panels"
-          className="backtest-panels"
-          flex={1}
-          gap="sm"
-          style={{ minHeight: 0 }}
+    <Box
+      id="backtest-main"
+      className="backtest-page"
+      h="100%"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        padding: "var(--mantine-spacing-md)",
+        minHeight: 0,
+        overflow: "hidden",
+      }}
+      data-testid="backtest-view"
+    >
+      {state.error && (
+        <Alert
+          icon={<IconAlertCircle size={16} />}
+          title="Error"
+          color="red"
+          variant="filled"
+          mb="md"
+          data-testid="backtest-error"
+          withCloseButton
+          onClose={handleClearError}
         >
-          <CompactPanel
-            id="backtest-left-panel"
-            className="backtest-left-panel"
-            style={{ flex: "0 0 33.333%", minHeight: 0 }}
-            padded={false}
-          >
-            {renderLeftPanel()}
-          </CompactPanel>
-          <CompactPanel
-            id="backtest-right-panel"
-            className="backtest-right-panel"
-            style={{ flex: "1 1 66.666%", minHeight: 0 }}
-            padded={false}
-          >
-            {renderRightPanel()}
-          </CompactPanel>
-        </Flex>
+          {state.error}
+        </Alert>
+      )}
+
+      <Box id="backtest-config-section" className="backtest-config-section" flex="0 0 auto" mb="md">
+        <BacktestConfig
+          strategies={state.strategies}
+          variations={state.variations}
+          selectedStrategy={state.selectedStrategy}
+          selectedVariation={state.selectedVariation}
+          params={state.params}
+          selectedSymbols={state.selectedSymbols}
+          days={state.days}
+          includeCosts={state.includeCosts}
+          isRunning={state.isRunning}
+          onStrategyChange={setSelectedStrategy}
+          onVariationChange={handleVariationChange}
+          onParamChange={setParam}
+          onDaysChange={setDays}
+          onIncludeCostsChange={setIncludeCosts}
+          onSymbolsChange={setSelectedSymbols}
+          onReset={resetBacktestState}
+          onRun={handleRunBacktest}
+          saveToHistory={saveToHistory}
+          onSaveToHistoryChange={setSaveToHistory}
+        />
       </Box>
-    </CompactPage>
+
+      <Flex
+        id="backtest-panels"
+        className="backtest-panels"
+        flex={1}
+        gap="md"
+        style={{ minHeight: 0 }}
+      >
+        <Box
+          id="backtest-left-panel"
+          className="backtest-left-panel"
+          style={{ flex: "0 0 33.333%", minHeight: 0 }}
+        >
+          {renderLeftPanel()}
+        </Box>
+        <Box
+          id="backtest-right-panel"
+          className="backtest-right-panel"
+          style={{ flex: "1 1 66.666%", minHeight: 0 }}
+        >
+          {renderRightPanel()}
+        </Box>
+      </Flex>
+    </Box>
   );
 }
