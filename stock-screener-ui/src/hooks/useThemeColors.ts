@@ -30,3 +30,7 @@ export function useThemeColors() {
 }
 
 export type ThemeColors = ReturnType<typeof useThemeColors>;
+
+export function resolveColor(isDark: boolean, light: string, dark: string): string {
+  return isDark ? dark : light;
+}

@@ -3,6 +3,21 @@ import * as strategiesState from "../state/strategies";
 import type { StrategyConfig } from "../types/strategies";
 import type { StrategyView, StrategyFormData } from "../components/strategies/types";
 
+export type ViewLoadAction = "loadTemplates" | "loadStrategies" | "loadAllPerformance" | null;
+
+export function getViewLoadAction(view: StrategyView): ViewLoadAction {
+  switch (view) {
+    case "templates":
+      return "loadTemplates";
+    case "list":
+      return "loadStrategies";
+    case "performance":
+      return "loadAllPerformance";
+    default:
+      return null;
+  }
+}
+
 export function useStrategiesState() {
   const [, setTick] = useState(0);
   const state = strategiesState.getStrategiesState();

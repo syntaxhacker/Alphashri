@@ -8,6 +8,23 @@ interface ScreenerSummaryProps {
   }>;
 }
 
+export type SummaryItem = {
+  label: string;
+  value: string | number;
+  color?: string;
+};
+
+export function buildSummaryItems(items: SummaryItem[]): SummaryItem[] {
+  return items;
+}
+
+export function getTone(item: SummaryItem): string {
+  if (item.color) {
+    return `var(--mantine-color-${item.color}-6)`;
+  }
+  return "var(--mantine-color-text)";
+}
+
 export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
   return (
     <CompactStatGrid>

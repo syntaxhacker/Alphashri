@@ -241,7 +241,7 @@ export function setSelectedVariation(variationId: string | null) {
 }
 
 // Helper function to get default params for a strategy
-function getStrategyDefaults(strategyId: string): Record<string, any> {
+export function getStrategyDefaults(strategyId: string): Record<string, any> {
   const defaults: Record<string, any> = {
     orb: {
       or_minutes: 45,

@@ -552,7 +552,7 @@ export async function fetchBotStrategyPerformance(
   }
 }
 
-function normalizeBotPortfolio(
+export function normalizeBotPortfolio(
   portfolio: any,
   positions: any[],
   realizedToday: number,

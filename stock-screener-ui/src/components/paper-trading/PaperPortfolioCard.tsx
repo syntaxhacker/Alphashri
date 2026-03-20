@@ -21,7 +21,7 @@ interface PaperPortfolioCardProps {
   strategySummaries: StrategySummary[];
 }
 
-function formatCurrency(value: number | undefined | null): string {
+export function formatCurrency(value: number | undefined | null): string {
   if (value === undefined || value === null || isNaN(value)) return "0";
   return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }

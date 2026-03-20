@@ -65,7 +65,7 @@ const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
   },
 ];
 
-function detectAutoRefreshChanges(prev: ScreenerData | null, next: ScreenerData | null) {
+export function detectAutoRefreshChanges(prev: ScreenerData | null, next: ScreenerData | null) {
   const { addedPrimary, addedSecondary } = detectAddedSymbols(prev, next);
   if (addedPrimary.length === 0 && addedSecondary.length === 0) return;
 

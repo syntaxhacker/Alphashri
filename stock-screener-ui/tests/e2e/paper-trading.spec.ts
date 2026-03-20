@@ -10,6 +10,12 @@ import {
   navigateToPaperTradingWithBot,
 } from "../helpers/paperTradingHelpers";
 
+async function selectBot(page: import("@playwright/test").Page, _botId: string) {
+  await page
+    .locator('[data-testid="bot-selector-dropdown"]')
+    .waitFor({ state: "visible", timeout: 10000 });
+}
+
 const TEST_BOT_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
 // Shared beforeEach for paper trading tests
@@ -26,7 +32,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test.beforeEach(async ({ page }) => {
     await setupPaperTradingTest(page);
   });
-  test("should display paper trading view with tabs", async ({ page }) => {
+  test("@smoke should display paper trading view with tabs", async ({ page }) => {
     await navigateToPaperTrading(page);
 
     // Verify tabs are visible
@@ -74,7 +80,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   });
 
   // Note: This test uses the mock data from setupMultiStrategyBotMocks
-  test("should show positions with strategy tabs when multiple strategies have positions", async ({
+  test("@smoke should show positions with strategy tabs when multiple strategies have positions", async ({
     page,
   }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
