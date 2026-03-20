@@ -363,7 +363,7 @@ test.describe("Multi-Strategy System - ORB Scan Items", () => {
 
     await clickStrategyTab(page, "ORB Conservative");
     const headers = await getScanTableHeaders(page);
-    expect(headers.some((h) => h.includes("OR") || h.includes("Range"))).toBeTruthy();
+    expect(headers).toContain("OR H/L");
   });
 });
 

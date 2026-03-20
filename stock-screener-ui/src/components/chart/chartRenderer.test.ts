@@ -49,11 +49,15 @@ describe("buildChartOption", () => {
     expect(opt).not.toBeNull();
     expect(opt.backgroundColor).toBe("#0a0a0a");
     expect(opt.animation).toBe(false);
-    expect(opt.tooltip).toBeDefined();
-    expect(opt.grid).toBeDefined();
-    expect(opt.xAxis).toBeDefined();
-    expect(opt.yAxis).toBeDefined();
-    expect(opt.series).toBeDefined();
+    expect(typeof opt.tooltip).toBe('object');
+    expect(opt.tooltip.trigger).toBe('axis');
+    expect(typeof opt.grid).toBe('object');
+    expect(opt.grid.left).toBe(40);
+    expect(typeof opt.xAxis).toBe('object');
+    expect(opt.xAxis.type).toBe('category');
+    expect(typeof opt.yAxis).toBe('object');
+    expect(opt.yAxis.type).toBe('value');
+    expect(typeof opt.series).toBe('object');
     expect(opt.series.length).toBe(3);
   });
 

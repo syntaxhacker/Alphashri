@@ -3,25 +3,21 @@ import { typeConfig } from "./Notification";
 
 describe("typeConfig", () => {
   test("has config for success type", () => {
-    expect(typeConfig.success).toBeDefined();
     expect(typeConfig.success.icon).toBe("✓");
     expect(typeConfig.success.className).toBe("toast-success");
   });
 
   test("has config for error type", () => {
-    expect(typeConfig.error).toBeDefined();
     expect(typeConfig.error.icon).toBe("✕");
     expect(typeConfig.error.className).toBe("toast-error");
   });
 
   test("has config for warning type", () => {
-    expect(typeConfig.warning).toBeDefined();
     expect(typeConfig.warning.icon).toBe("⚠");
     expect(typeConfig.warning.className).toBe("toast-warning");
   });
 
   test("has config for info type", () => {
-    expect(typeConfig.info).toBeDefined();
     expect(typeConfig.info.icon).toBe("ℹ");
     expect(typeConfig.info.className).toBe("toast-info");
   });

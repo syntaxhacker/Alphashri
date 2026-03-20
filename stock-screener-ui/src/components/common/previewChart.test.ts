@@ -128,14 +128,24 @@ describe("navigateToFullChart", () => {
 });
 
 describe("setPreviewTimeframe", () => {
-  it("does nothing if same timeframe", () => {
+  it("does nothing if same timeframe", async () => {
+    toggleExpandedChart("TEST");
+    await new Promise((r) => setTimeout(r, 350));
+    const { fetchChartPreview } = await import("../../api/chartPreview");
+    const callsBefore = (fetchChartPreview as any).mock.calls.length;
     setPreviewTimeframe(15);
+    expect((fetchChartPreview as any).mock.calls.length).toBe(callsBefore);
   });
 });
 
 describe("setPreviewOrMinutes", () => {
-  it("does nothing if same orMinutes", () => {
+  it("does nothing if same orMinutes", async () => {
+    toggleExpandedChart("TEST");
+    await new Promise((r) => setTimeout(r, 350));
+    const { fetchChartPreview } = await import("../../api/chartPreview");
+    const callsBefore = (fetchChartPreview as any).mock.calls.length;
     setPreviewOrMinutes(45);
+    expect((fetchChartPreview as any).mock.calls.length).toBe(callsBefore);
   });
 });
 
@@ -143,12 +153,19 @@ describe("initPreviewChartHandlers", () => {
   it("attaches handlers to window", () => {
     initPreviewChartHandlers();
 
-    expect((window as any).showPreviewChart).toBeDefined();
-    expect((window as any).hidePreviewChart).toBeDefined();
-    expect((window as any).toggleExpandedChart).toBeDefined();
-    expect((window as any).collapseChart).toBeDefined();
-    expect((window as any).navigateToFullChart).toBeDefined();
-    expect((window as any).setPreviewTimeframe).toBeDefined();
-    expect((window as any).setPreviewOrMinutes).toBeDefined();
+    expect(typeof (window as any).showPreviewChart).toBe("function");
+    expect((window as any).showPreviewChart).toBe(showPreviewChart);
+    expect(typeof (window as any).hidePreviewChart).toBe("function");
+    expect((window as any).hidePreviewChart).toBe(hidePreviewChart);
+    expect(typeof (window as any).toggleExpandedChart).toBe("function");
+    expect((window as any).toggleExpandedChart).toBe(toggleExpandedChart);
+    expect(typeof (window as any).collapseChart).toBe("function");
+    expect((window as any).collapseChart).toBe(collapseChart);
+    expect(typeof (window as any).navigateToFullChart).toBe("function");
+    expect((window as any).navigateToFullChart).toBe(navigateToFullChart);
+    expect(typeof (window as any).setPreviewTimeframe).toBe("function");
+    expect((window as any).setPreviewTimeframe).toBe(setPreviewTimeframe);
+    expect(typeof (window as any).setPreviewOrMinutes).toBe("function");
+    expect((window as any).setPreviewOrMinutes).toBe(setPreviewOrMinutes);
   });
 });

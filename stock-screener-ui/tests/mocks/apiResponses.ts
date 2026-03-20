@@ -444,18 +444,18 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
     });
   });
 
-  // Mock screeners list
-  await page.route("http://localhost:8765/api/screeners", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(mockScreenersList),
-    });
-  });
-
   // Mock screener data endpoint with query parameters
   await page.route("**/api/screener*", async (route) => {
     const url = route.request().url();
+
+    if (url.endsWith("/api/screeners")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockScreenersList),
+      });
+      return;
+    }
 
     // Check if it's buyer_interest_enhanced
     if (url.includes("screener=buyer_interest_enhanced")) {

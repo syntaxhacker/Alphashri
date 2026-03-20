@@ -686,6 +686,6 @@ describe("getBacktestState", () => {
   });
 
   it("returns same state as getState", () => {
-    expect(getBacktestState()).toEqual(getState());
+    expect(getBacktestState()).toBe(getState());
   });
 });

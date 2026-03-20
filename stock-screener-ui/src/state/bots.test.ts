@@ -88,7 +88,6 @@ describe("bots state", () => {
     expect(state.showCreateModal).toBe(false);
     expect(state.showEditModal).toBe(false);
     expect(state.editingBot).toBeNull();
-    expect(state.loading).toBeDefined();
   });
 
   it("all loading keys default to false", () => {

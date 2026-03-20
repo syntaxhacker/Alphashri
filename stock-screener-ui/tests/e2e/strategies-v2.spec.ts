@@ -231,7 +231,7 @@ test.describe("Strategies V2", () => {
       const nameInput = page.getByTestId("strategy-name-input");
       await expect(nameInput).toBeVisible();
       const nameValue = await nameInput.inputValue();
-      expect(nameValue).toBeTruthy();
+      expect(nameValue).toBe("ORB Conservative");
       await page.getByTestId("submit-strategy-btn").click();
     });
   });

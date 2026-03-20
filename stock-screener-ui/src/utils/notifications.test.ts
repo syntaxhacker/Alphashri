@@ -27,7 +27,8 @@ describe("pushNotification", () => {
     expect(notif.title).toBe("Test Title");
     expect(notif.detail).toBe("Test Detail");
     expect(notif.kind).toBe("primary");
-    expect(notif.ts).toBeDefined();
+    expect(typeof notif.ts).toBe('string');
+    expect(notif.ts.length).toBeGreaterThan(0);
   });
 
   test("increments notifSeq after each call", () => {

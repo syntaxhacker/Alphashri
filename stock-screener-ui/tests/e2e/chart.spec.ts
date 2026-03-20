@@ -428,18 +428,20 @@ test.describe("Chart View - ORB Levels", () => {
     // Wait for chart to render
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
-    // The chart should have rendered with ORB levels
-    // Check if the legend contains "OR High"
-    const chartView = page.locator('[data-testid="chart-view"]');
-    await expect(chartView).toBeVisible();
-
-    // ORB levels should be rendered in the chart (verified via series data)
-    // We can verify this by checking the chart instance exists
-    const hasChart = await page.evaluate(() => {
+    const orbHighRendered = await page.evaluate(() => {
       const chartContainer = document.querySelector('[data-testid="candlestick-chart"]');
-      return chartContainer !== null;
+      if (!chartContainer) return false;
+      const echarts = (window as any).echarts;
+      if (!echarts) return false;
+      const instance = echarts.getInstanceByDom(chartContainer);
+      if (!instance) return false;
+      const option = instance.getOption();
+      const series = option.series || [];
+      const orbHigh = series.find((s: any) => s.name === "OR High");
+      if (!orbHigh) return false;
+      return (orbHigh.data || []).some((v: any) => v !== null);
     });
-    expect(hasChart).toBeTruthy();
+    expect(orbHighRendered).toBeTruthy();
   });
 
   test("should display ORB low line when orb_zones data is present", async ({ page }) => {
@@ -448,12 +450,20 @@ test.describe("Chart View - ORB Levels", () => {
     // Wait for chart to render
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
-    // Verify chart contains ORB data via evaluation
-    const hasOrbData = await page.evaluate(() => {
-      // Check if echarts instance exists
-      return typeof (window as any).echarts !== "undefined";
+    const orbLowRendered = await page.evaluate(() => {
+      const chartContainer = document.querySelector('[data-testid="candlestick-chart"]');
+      if (!chartContainer) return false;
+      const echarts = (window as any).echarts;
+      if (!echarts) return false;
+      const instance = echarts.getInstanceByDom(chartContainer);
+      if (!instance) return false;
+      const option = instance.getOption();
+      const series = option.series || [];
+      const orbLow = series.find((s: any) => s.name === "OR Low");
+      if (!orbLow) return false;
+      return (orbLow.data || []).some((v: any) => v !== null);
     });
-    expect(hasOrbData).toBeTruthy();
+    expect(orbLowRendered).toBeTruthy();
   });
 
   test("should update ORB levels when OR minutes setting changes", async ({ page }) => {
@@ -485,9 +495,10 @@ test.describe("Chart View - 52 Week High/Low Levels", () => {
     // Wait for chart to render
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
-    // Verify chart rendered
-    const chartVisible = await page.locator('[data-testid="candlestick-chart"]').isVisible();
-    expect(chartVisible).toBeTruthy();
+    await expect(page.locator('[data-testid="chart-title"]')).toContainText("TCS");
+    await expect(page.locator('[data-testid="chart-footer"]')).toContainText(
+      `${mockChartWith52WLevels.candles.length} candles`,
+    );
   });
 
   test("should display 52W low line when week52_levels data is present", async ({ page }) => {
@@ -584,23 +595,23 @@ test.describe("Chart View - Chart Zoom and Pan", () => {
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
     // Full chart should have zoom slider (dataZoom component)
-    const hasZoomSlider = await page.evaluate(() => {
+    const zoomConfig = await page.evaluate(() => {
       const chartContainer = document.querySelector('[data-testid="candlestick-chart"]');
-      if (!chartContainer) return false;
-
-      // Check if echarts instance has dataZoom
+      if (!chartContainer) return null;
       const echarts = (window as any).echarts;
-      if (!echarts) return false;
-
-      const instances = echarts.getInstanceByDom(chartContainer);
-      if (!instances) return false;
-
-      const option = instances.getOption();
-      return option.dataZoom && option.dataZoom.length > 0;
+      if (!echarts) return null;
+      const instance = echarts.getInstanceByDom(chartContainer);
+      if (!instance) return null;
+      const option = instance.getOption();
+      return option.dataZoom || null;
     });
 
-    // For full size charts, dataZoom should be present
-    expect(hasZoomSlider).toBeTruthy();
+    expect(zoomConfig).not.toBeNull();
+    expect(zoomConfig!.length).toBeGreaterThan(0);
+    expect(zoomConfig![0]).toHaveProperty("start");
+    expect(zoomConfig![0]).toHaveProperty("end");
+    expect(typeof zoomConfig![0].start).toBe("number");
+    expect(typeof zoomConfig![0].end).toBe("number");
   });
 });
 
@@ -790,8 +801,8 @@ test.describe("Chart View - Chart Controls", () => {
     await page.goto("/");
     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
 
-    // Then navigate to chart
-    await page.goto("/chart/RELIANCE");
+    // Then navigate to chart (use domcontentloaded to avoid hanging on persistent home page connections)
+    await page.goto("/chart/RELIANCE", { waitUntil: "domcontentloaded" });
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
     // Click back button

@@ -21,8 +21,8 @@ test.describe("Screener - Data Display", () => {
     await page.waitForSelector(".mantine-Table-th", { timeout: 10000 });
 
     const headerTexts = await page.locator(".mantine-Table-th").allTextContents();
-    expect(headerTexts.some((h) => h.toLowerCase().includes("symbol"))).toBeTruthy();
-    expect(headerTexts.some((h) => h.toLowerCase().includes("score"))).toBeTruthy();
+    expect(headerTexts).toContain("Symbol");
+    expect(headerTexts).toContain("Score");
   });
 
   test("should display stock symbols as clickable links", async ({ page }) => {
@@ -64,13 +64,9 @@ test.describe("Screener - Screener Navigation", () => {
 
   test("should display screener navigation tabs", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="screener-nav"]', { timeout: 10000 });
 
-    const screenerNav = page.locator('[data-testid="screener-nav"]');
-    const count = await screenerNav.count();
-    if (count > 0) {
-      await expect(screenerNav).toBeVisible();
-    }
+    await expect(page.locator('[data-testid="screener-nav"]')).toBeVisible();
   });
 
   test("should switch between screeners", async ({ page }) => {
@@ -112,16 +108,8 @@ test.describe("Screener - Screener Navigation", () => {
     await page.goto("/");
     await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
-    const activeTab = page.locator(".mantine-SegmentedControl-label");
-    if ((await activeTab.count()) > 0) {
-      await expect(activeTab.first()).toBeVisible();
-    } else {
-      const screenerTab = page.locator('[data-testid="screener-nav"]');
-      const count = await screenerTab.count();
-      if (count > 0) {
-        await expect(screenerTab.first()).toBeVisible();
-      }
-    }
+    await expect(page.locator('[data-testid="screener-nav"]')).toBeVisible();
+    await expect(page.locator('[data-testid="screener-nav-option-trending"]')).toBeVisible();
   });
 });
 

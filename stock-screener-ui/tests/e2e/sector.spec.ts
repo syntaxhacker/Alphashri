@@ -209,7 +209,6 @@ test.describe("Sector Dashboard - Tab Switching", () => {
     await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
 
     const src = await page.locator('[data-testid="sector-iframe"]').getAttribute("src");
-    expect(src).toBeTruthy();
     expect(src).toContain("dashboard-modular.html");
     expect(src).toContain("/sector/dashboard-modular.html");
   });
