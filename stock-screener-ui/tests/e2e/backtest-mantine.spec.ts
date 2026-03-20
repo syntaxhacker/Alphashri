@@ -308,24 +308,26 @@ test.describe("Backtest - Mantine Features", () => {
     });
   });
 
-   test.describe("Chart Zoom Functionality", () => {
-      test("should display zoom dropdown with All, 30D, 7D, 1D options", async ({ page }) => {
-        await page.goto("/backtest");
-        await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
+  test.describe("Chart Zoom Functionality", () => {
+    test("should display zoom dropdown with All, 30D, 7D, 1D options", async ({ page }) => {
+      await page.goto("/backtest");
+      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
-        await setupBacktest(page);
+      await setupBacktest(page);
 
-        const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
-        await expect(zoomSelect).toBeVisible();
+      const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
+      await expect(zoomSelect).toBeVisible();
 
-        // Click to open dropdown (using force to ensure click works)
-        await zoomSelect.click({ force: true });
-        await page.waitForTimeout(300); // Small delay for dropdown animation
+      // Click to open dropdown (using force to ensure click works)
+      await zoomSelect.click({ force: true });
+      await page.waitForTimeout(300); // Small delay for dropdown animation
 
-        // Verify dropdown is visible - filter for the one containing zoom options
-        const dropdown = page.locator(".mantine-Select-dropdown").filter({ hasText: /All.*30D.*7D.*1D/ });
-        await expect(dropdown).toBeVisible({ timeout: 5000 });
-      });
+      // Verify dropdown is visible - filter for the one containing zoom options
+      const dropdown = page
+        .locator(".mantine-Select-dropdown")
+        .filter({ hasText: /All.*30D.*7D.*1D/ });
+      await expect(dropdown).toBeVisible({ timeout: 5000 });
+    });
   });
 
   test.describe("Chart Symbol Tabs", () => {
@@ -433,7 +435,9 @@ test.describe("Backtest - Mantine Features", () => {
       const netPnlHeader = page.locator('[data-testid="th-net_pnl"]');
       await expect(netPnlHeader).toBeVisible();
       await netPnlHeader.click();
-      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
+        timeout: 5000,
+      });
     });
 
     test("should toggle sort direction when clicking same column twice", async ({ page }) => {
@@ -445,10 +449,14 @@ test.describe("Backtest - Mantine Features", () => {
       const netPnlHeader = page.locator('[data-testid="th-net_pnl"]');
 
       await netPnlHeader.click();
-      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
+        timeout: 5000,
+      });
 
       await netPnlHeader.click();
-      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
+        timeout: 5000,
+      });
     });
   });
 
@@ -462,7 +470,9 @@ test.describe("Backtest - Mantine Features", () => {
 
       // Type to search
       await page.keyboard.type("RELIANCE");
-      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({ timeout: 5000 });
+      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
+        timeout: 5000,
+      });
 
       // Click on the option from dropdown
       const option = page.locator(".mantine-MultiSelect-option").first();
@@ -553,7 +563,9 @@ test.describe("Backtest - Mantine Features", () => {
 
       // Type to search
       await page.keyboard.type("RELIANCE");
-      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({ timeout: 5000 });
+      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
+        timeout: 5000,
+      });
 
       // Click on the option from dropdown
       const option = page.locator(".mantine-MultiSelect-option").first();

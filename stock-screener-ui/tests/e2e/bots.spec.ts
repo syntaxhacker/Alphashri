@@ -218,7 +218,9 @@ test.describe("Bots View - Delete", () => {
     const deleteBtn = page.locator(".delete-btn, button:has-text('Delete')").first();
     if ((await deleteBtn.count()) > 0) {
       await deleteBtn.click();
-      await expect(page.locator('button:has-text("Confirm"), button:has-text("Yes")').first()).toBeVisible({ timeout: 5000 });
+      await expect(
+        page.locator('button:has-text("Confirm"), button:has-text("Yes")').first(),
+      ).toBeVisible({ timeout: 5000 });
     }
   });
 

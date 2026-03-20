@@ -96,7 +96,9 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await page.locator('[data-testid="strategy-tab-orb-conservative"]').click();
 
     // Verify TCS position is visible (from ORB Conservative)
-    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", { timeout: 5000 });
+    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
+      timeout: 5000,
+    });
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
   });
 
@@ -139,20 +141,20 @@ test.describe("Paper Trading - API Polling", () => {
     await setupPaperTradingTest(page);
   });
 
-   test("should call bots API on load", async ({ page }) => {
-     let botsApiCalled = false;
+  test("should call bots API on load", async ({ page }) => {
+    let botsApiCalled = false;
 
-     page.on("request", (request) => {
-       if (request.url().includes("/api/bots") && request.method() === "GET") {
-         botsApiCalled = true;
-       }
-     });
+    page.on("request", (request) => {
+      if (request.url().includes("/api/bots") && request.method() === "GET") {
+        botsApiCalled = true;
+      }
+    });
 
-     await navigateToPaperTrading(page);
+    await navigateToPaperTrading(page);
 
-     // Verify bots API was called on load
-     expect(botsApiCalled).toBe(true);
-   });
+    // Verify bots API was called on load
+    expect(botsApiCalled).toBe(true);
+  });
 
   test("should call bot portfolio API when bot is selected", async ({ page }) => {
     let portfolioApiCalled = false;

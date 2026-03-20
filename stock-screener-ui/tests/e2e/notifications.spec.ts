@@ -60,7 +60,9 @@ test.describe("Notification Panel", () => {
     const openBtn = page.locator(".notif-open-btn");
     if ((await openBtn.count()) > 0) {
       await openBtn.click();
-      await expect(page.locator(".notif-tab").filter({ hasText: "Primary" })).toBeVisible({ timeout: 5000 });
+      await expect(page.locator(".notif-tab").filter({ hasText: "Primary" })).toBeVisible({
+        timeout: 5000,
+      });
 
       const primaryTab = page.locator(".notif-tab").filter({ hasText: "Primary" });
       if ((await primaryTab.count()) > 0) {

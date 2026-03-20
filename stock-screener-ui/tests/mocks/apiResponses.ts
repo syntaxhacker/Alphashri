@@ -379,8 +379,7 @@ export const mockSectorResponse = {
 };
 
 export async function setupSectorMocks(page: import("@playwright/test").Page) {
-  // Only match the API endpoint on port 8765, not source files
-  await page.route("http://localhost:8765/api/sector*", async (route) => {
+  await page.route(/localhost:8765\/api\/sector/, async (route) => {
     const url = route.request().url();
     const marketMatch = url.match(/market=([^&]+)/);
     const market = marketMatch ? marketMatch[1] : "india";
@@ -531,9 +530,9 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
 
   // Set localStorage tokens before page loads to simulate authenticated session
   await page.addInitScript((user) => {
-    localStorage.setItem('alphashri_token', 'test_access_token_12345');
-    localStorage.setItem('alphashri_refresh_token', 'test_refresh_token_12345');
-    localStorage.setItem('alphashri_user', JSON.stringify(user));
+    localStorage.setItem("alphashri_token", "test_access_token_12345");
+    localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
+    localStorage.setItem("alphashri_user", JSON.stringify(user));
   }, testUser);
 
   await page.route("**/api/auth/me", async (route) => {
@@ -759,17 +758,21 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        cash: 100000,
-        total_value: 105000,
-        margin_used: 50000,
-        day_pnl: 1000,
-        positions_count: 2,
+        portfolio: {
+          cash: 100000,
+          total_value: 105000,
+          margin_used: 50000,
+          day_pnl: 1000,
+          positions_count: 2,
+          total_positions: 2,
+          unrealized_pnl: 900,
+        },
         positions: [
           {
             id: 1,
             symbol: "TCS",
             side: "BUY",
-            qty: 10,
+            quantity: 10,
             entry_price: 3750,
             current_price: 3800,
             pnl: 500,
@@ -780,7 +783,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             id: 2,
             symbol: "INFY",
             side: "BUY",
-            qty: 20,
+            quantity: 20,
             entry_price: 1480,
             current_price: 1500,
             pnl: 400,
@@ -803,7 +806,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             id: 1,
             symbol: "TCS",
             side: "BUY",
-            qty: 10,
+            quantity: 10,
             entry_price: 3750,
             current_price: 3800,
             pnl: 500,
@@ -814,7 +817,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             id: 2,
             symbol: "INFY",
             side: "BUY",
-            qty: 20,
+            quantity: 20,
             entry_price: 1480,
             current_price: 1500,
             pnl: 400,

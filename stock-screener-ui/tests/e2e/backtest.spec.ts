@@ -178,7 +178,9 @@ test.describe("Backtest View - Navigation", () => {
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
     await runBtn.click();
     // Wait for results to be displayed
-    await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
+      timeout: 15000,
+    });
   });
 
   test.beforeEach(async ({ page }) => {
@@ -338,7 +340,9 @@ test.describe("Backtest View - Run Backtest", () => {
       }
       throw e;
     }
-    await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
+      timeout: 5000,
+    });
     await expect(page.locator('[data-testid="backtest-error"]')).not.toBeVisible({ timeout: 3000 });
   });
 });
@@ -633,5 +637,5 @@ test.describe("Backtest View - Summary", () => {
     }
     await expect(page.locator('[data-testid="results-summary"]')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-testid="backtest-error"]')).not.toBeVisible({ timeout: 3000 });
-    });
+  });
 });
