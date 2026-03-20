@@ -113,7 +113,7 @@ async function setupNewsMocks(page: import("@playwright/test").Page) {
 
   await page.route("**/api/news?*", async (route) => {
     // Simulate network latency to allow loading state to be visible
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     await route.fulfill({
       status: 200,
       contentType: "application/json",

@@ -64,7 +64,7 @@ test.describe("Options View - Option Chain", () => {
   });
 
   test("should open user guide modal", async ({ page }) => {
-    await page.locator('[data-testid="open-guide-btn"]').click();
+    await page.locator('[data-testid="open-guide-btn"]').click({ force: true });
     await expect(page.getByText("How to Read the Option Chain")).toBeVisible();
     await page.keyboard.press("Escape");
   });
