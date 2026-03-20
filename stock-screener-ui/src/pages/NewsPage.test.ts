@@ -23,7 +23,7 @@ describe("formatTimeAgo", () => {
     expect(formatTimeAgo(date)).toBe("just now");
   });
 
-  it('returns minutes ago for a date within the last hour', () => {
+  it("returns minutes ago for a date within the last hour", () => {
     const date = new Date(now.getTime() - 5 * 60_000).toISOString();
     expect(formatTimeAgo(date)).toBe("5m ago");
   });
@@ -38,7 +38,7 @@ describe("formatTimeAgo", () => {
     expect(formatTimeAgo(date)).toBe("59m ago");
   });
 
-  it('returns hours ago for a date within the last 24 hours', () => {
+  it("returns hours ago for a date within the last 24 hours", () => {
     const date = new Date(now.getTime() - 3 * 3600_000).toISOString();
     expect(formatTimeAgo(date)).toBe("3h ago");
   });
@@ -53,7 +53,7 @@ describe("formatTimeAgo", () => {
     expect(formatTimeAgo(date)).toBe("23h ago");
   });
 
-  it('returns days ago for a date within the last 7 days', () => {
+  it("returns days ago for a date within the last 7 days", () => {
     const date = new Date(now.getTime() - 3 * 86400_000).toISOString();
     expect(formatTimeAgo(date)).toBe("3d ago");
   });

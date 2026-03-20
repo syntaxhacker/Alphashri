@@ -113,7 +113,9 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.locator('[data-testid="nav-paper"]').click();
 
     expect(page.url()).toContain("/paper");
-    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("click nav-sector -> URL becomes /sector, sector view visible", async ({ page }) => {
@@ -123,10 +125,14 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.locator('[data-testid="nav-sector"]').click();
 
     expect(page.url()).toContain("/sector");
-    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({
+      timeout: 15000,
+    });
   });
 
-  test("click nav-strategies -> URL becomes /strategies, strategies view visible", async ({ page }) => {
+  test("click nav-strategies -> URL becomes /strategies, strategies view visible", async ({
+    page,
+  }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
@@ -181,7 +187,10 @@ test.describe("Navigation V2 - Active State", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    await expect(page.locator('[data-testid="nav-screener"]')).toHaveAttribute("data-active", "true");
+    await expect(page.locator('[data-testid="nav-screener"]')).toHaveAttribute(
+      "data-active",
+      "true",
+    );
   });
 
   test("active state updates after clicking nav-news", async ({ page }) => {
@@ -221,7 +230,10 @@ test.describe("Navigation V2 - Active State", () => {
     await page.locator('[data-testid="nav-settings"]').click();
     await page.waitForURL("**/settings");
 
-    await expect(page.locator('[data-testid="nav-settings"]')).toHaveAttribute("data-active", "true");
+    await expect(page.locator('[data-testid="nav-settings"]')).toHaveAttribute(
+      "data-active",
+      "true",
+    );
   });
 });
 
@@ -239,7 +251,9 @@ test.describe("Navigation V2 - URL Deep Linking", () => {
     await page.goto("/paper");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("navigate directly to /strategies -> strategies view loads", async ({ page }) => {

@@ -146,44 +146,92 @@ describe("nearBreakoutPct", () => {
   });
 
   test("returns 9999 for zero or_high", () => {
-    const item: PaperScanItem = { symbol: "TEST", status: "active", price: 95, or_high: 0, or_low: 90 };
+    const item: PaperScanItem = {
+      symbol: "TEST",
+      status: "active",
+      price: 95,
+      or_high: 0,
+      or_low: 90,
+    };
     expect(nearBreakoutPct(item)).toBe(9999);
   });
 
   test("returns 9999 for zero or_low", () => {
-    const item: PaperScanItem = { symbol: "TEST", status: "active", price: 95, or_high: 100, or_low: 0 };
+    const item: PaperScanItem = {
+      symbol: "TEST",
+      status: "active",
+      price: 95,
+      or_high: 100,
+      or_low: 0,
+    };
     expect(nearBreakoutPct(item)).toBe(9999);
   });
 
   test("returns 0 when price equals or_high", () => {
-    const item: PaperScanItem = { symbol: "TEST", status: "active", price: 100, or_high: 100, or_low: 90 };
+    const item: PaperScanItem = {
+      symbol: "TEST",
+      status: "active",
+      price: 100,
+      or_high: 100,
+      or_low: 90,
+    };
     expect(nearBreakoutPct(item)).toBe(0);
   });
 
   test("returns positive pct when price is above or_high", () => {
-    const item: PaperScanItem = { symbol: "TEST", status: "active", price: 110, or_high: 100, or_low: 90 };
+    const item: PaperScanItem = {
+      symbol: "TEST",
+      status: "active",
+      price: 110,
+      or_high: 100,
+      or_low: 90,
+    };
     expect(nearBreakoutPct(item)).toBeCloseTo(10);
   });
 
   test("returns positive pct when price is below or_low", () => {
-    const item: PaperScanItem = { symbol: "TEST", status: "active", price: 81, or_high: 100, or_low: 90 };
+    const item: PaperScanItem = {
+      symbol: "TEST",
+      status: "active",
+      price: 81,
+      or_high: 100,
+      or_low: 90,
+    };
     expect(nearBreakoutPct(item)).toBeCloseTo(10);
   });
 
   test("returns minimum distance when price is within range near high", () => {
-    const item: PaperScanItem = { symbol: "TEST", status: "active", price: 99, or_high: 100, or_low: 90 };
+    const item: PaperScanItem = {
+      symbol: "TEST",
+      status: "active",
+      price: 99,
+      or_high: 100,
+      or_low: 90,
+    };
     const result = nearBreakoutPct(item);
     expect(result).toBeCloseTo(1);
   });
 
   test("returns minimum distance when price is within range near low", () => {
-    const item: PaperScanItem = { symbol: "TEST", status: "active", price: 91, or_high: 100, or_low: 90 };
+    const item: PaperScanItem = {
+      symbol: "TEST",
+      status: "active",
+      price: 91,
+      or_high: 100,
+      or_low: 90,
+    };
     const result = nearBreakoutPct(item);
     expect(result).toBeCloseTo(1.11, 1);
   });
 
   test("returns 0 when price is at exact midpoint of range", () => {
-    const item: PaperScanItem = { symbol: "TEST", status: "active", price: 95, or_high: 100, or_low: 90 };
+    const item: PaperScanItem = {
+      symbol: "TEST",
+      status: "active",
+      price: 95,
+      or_high: 100,
+      or_low: 90,
+    };
     const result = nearBreakoutPct(item);
     expect(result).toBeGreaterThan(0);
   });
@@ -232,18 +280,13 @@ describe("groupPositionsByStrategy", () => {
   });
 
   test("uses fallback name when strategy_name is empty", () => {
-    const positions = [
-      mockPosition({ symbol: "A", strategy_name: "", strategy_id: 5 }),
-    ];
+    const positions = [mockPosition({ symbol: "A", strategy_name: "", strategy_id: 5 })];
     const result = groupPositionsByStrategy(positions);
     expect(result.has("Strategy 5")).toBe(true);
   });
 
   test("handles all positions with same strategy", () => {
-    const positions = [
-      mockPosition({ symbol: "A" }),
-      mockPosition({ symbol: "B" }),
-    ];
+    const positions = [mockPosition({ symbol: "A" }), mockPosition({ symbol: "B" })];
     const result = groupPositionsByStrategy(positions);
     expect(result.size).toBe(1);
     expect(result.get("ORB Strategy")!.length).toBe(2);

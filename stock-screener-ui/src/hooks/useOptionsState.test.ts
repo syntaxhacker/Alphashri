@@ -149,9 +149,7 @@ describe("buildStrikeMatrix", () => {
   });
 
   it("sets null for missing CE or PE", () => {
-    const chain: OptionContract[] = [
-      makeContract({ strike_price: 24000, instrument_type: "CE" }),
-    ];
+    const chain: OptionContract[] = [makeContract({ strike_price: 24000, instrument_type: "CE" })];
     const matrix = buildStrikeMatrix(chain);
     expect(matrix).toHaveLength(1);
     expect(matrix[0].ce).not.toBeNull();

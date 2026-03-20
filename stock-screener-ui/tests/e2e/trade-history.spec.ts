@@ -77,7 +77,9 @@ test.describe("Trade History - Filtering", () => {
     await navigateToTradeHistory(page);
     await verifyHistoryPanelVisible(page);
     await expect(page.locator('[data-testid="quick-filter"]')).toBeVisible();
-    await expect(page.locator('[data-testid="trades-header"]')).toContainText("Trade History (3 trades)");
+    await expect(page.locator('[data-testid="trades-header"]')).toContainText(
+      "Trade History (3 trades)",
+    );
   });
 });
 
@@ -109,7 +111,9 @@ test.describe("Trade History - Trade Details", () => {
     await navigateToTradeHistory(page);
     await verifyHistoryPanelVisible(page);
     await expect(page.locator('[data-testid="trade-row-trade-1"]')).toBeVisible();
-    await expect(page.locator('[data-testid="trade-row-trade-1"]')).toContainText("ORB Conservative");
+    await expect(page.locator('[data-testid="trade-row-trade-1"]')).toContainText(
+      "ORB Conservative",
+    );
   });
 
   test("should show trade timestamp", async ({ page }) => {

@@ -212,9 +212,7 @@ describe("detectAutoRefreshChanges", () => {
       addedSecondary: ["WIPRO"],
     });
 
-    (state as any).screenerOptions = [
-      { id: "trending", label: "Trending" },
-    ];
+    (state as any).screenerOptions = [{ id: "trending", label: "Trending" }];
 
     detectAutoRefreshChanges(null, { screener: "trending" } as any);
 

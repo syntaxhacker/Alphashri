@@ -262,7 +262,15 @@ describe("setter functions", () => {
 
   it("setSymbolPerformance updates symbolPerformance", () => {
     const perf: SymbolPerformance[] = [
-      { symbol: "RELIANCE", trades: 10, winners: 6, losers: 4, win_rate: 60, net_pnl: 5000, total_costs: 500 },
+      {
+        symbol: "RELIANCE",
+        trades: 10,
+        winners: 6,
+        losers: 4,
+        win_rate: 60,
+        net_pnl: 5000,
+        total_costs: 500,
+      },
     ];
     setSymbolPerformance(perf);
     expect(getPaperTradingState().symbolPerformance).toEqual(perf);
@@ -524,9 +532,7 @@ describe("strategy config", () => {
 
 describe("available bots", () => {
   it("setAvailableBots updates availableBots", () => {
-    const bots: BotInfo[] = [
-      { id: "bot-1", name: "Bot 1", strategies: [], is_active: true },
-    ];
+    const bots: BotInfo[] = [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }];
     setAvailableBots(bots);
     expect(getPaperTradingState().availableBots).toEqual(bots);
   });

@@ -16,8 +16,21 @@ const mockedFetch = vi.mocked(fetchWithAuth);
 
 const mockData: ChartPreviewData = {
   symbol: "TATASTEEL",
-  candles: [{ time: "2024-01-01T09:15", date: "2024-01-01", time_str: "09:15", open: 100, high: 105, low: 99, close: 103, volume: 1000 }],
-  orb_zones: [{ date: "2024-01-01", date_raw: "2024-01-01", or_high: 105, or_low: 99, or_end_time: "09:45" }],
+  candles: [
+    {
+      time: "2024-01-01T09:15",
+      date: "2024-01-01",
+      time_str: "09:15",
+      open: 100,
+      high: 105,
+      low: 99,
+      close: 103,
+      volume: 1000,
+    },
+  ],
+  orb_zones: [
+    { date: "2024-01-01", date_raw: "2024-01-01", or_high: 105, or_low: 99, or_end_time: "09:45" },
+  ],
   pivot_levels: [{ date: "2024-01-01", date_raw: "2024-01-01", pp: 102, r1: 106, s1: 98 }],
   timeframe: 15,
   total_candles: 1,

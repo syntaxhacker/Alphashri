@@ -114,8 +114,20 @@ describe("renderPerformanceView", () => {
   it("calculates correct totals across multiple strategies", () => {
     const state = makeState({
       allPerformance: [
-        makePerformance({ total_trades: 10, winners: 6, losers: 4, total_pnl: 5000, net_pnl: 3000 }),
-        makePerformance({ total_trades: 20, winners: 12, losers: 8, total_pnl: 10000, net_pnl: 7000 }),
+        makePerformance({
+          total_trades: 10,
+          winners: 6,
+          losers: 4,
+          total_pnl: 5000,
+          net_pnl: 3000,
+        }),
+        makePerformance({
+          total_trades: 20,
+          winners: 12,
+          losers: 8,
+          total_pnl: 10000,
+          net_pnl: 7000,
+        }),
       ],
     });
     const html = renderPerformanceView(state);
@@ -158,9 +170,7 @@ describe("renderPerformanceView", () => {
 
   it("handles positive net PnL with positive CSS classes", () => {
     const state = makeState({
-      allPerformance: [
-        makePerformance({ net_pnl: 5000, total_pnl: 7000, winners: 7, losers: 3 }),
-      ],
+      allPerformance: [makePerformance({ net_pnl: 5000, total_pnl: 7000, winners: 7, losers: 3 })],
     });
     const html = renderPerformanceView(state);
 
@@ -314,9 +324,7 @@ describe("renderPerformanceView", () => {
 
   it("includes data-strategy-id on performance rows", () => {
     const state = makeState({
-      allPerformance: [
-        makePerformance({ strategy_id: 42 }),
-      ],
+      allPerformance: [makePerformance({ strategy_id: 42 })],
     });
     const html = renderPerformanceView(state);
     expect(html).toContain('data-strategy-id="42"');
@@ -324,9 +332,7 @@ describe("renderPerformanceView", () => {
 
   it("shows warning emoji when overall win rate is below 50%", () => {
     const state = makeState({
-      allPerformance: [
-        makePerformance({ total_trades: 10, winners: 4, losers: 6 }),
-      ],
+      allPerformance: [makePerformance({ total_trades: 10, winners: 4, losers: 6 })],
     });
     const html = renderPerformanceView(state);
     expect(html).toContain("⚠️");
@@ -334,9 +340,7 @@ describe("renderPerformanceView", () => {
 
   it("shows checkmark emoji when overall win rate is 50% or above", () => {
     const state = makeState({
-      allPerformance: [
-        makePerformance({ total_trades: 10, winners: 5, losers: 5 }),
-      ],
+      allPerformance: [makePerformance({ total_trades: 10, winners: 5, losers: 5 })],
     });
     const html = renderPerformanceView(state);
     expect(html).toContain("✅");

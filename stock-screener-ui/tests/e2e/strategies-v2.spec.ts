@@ -45,23 +45,35 @@ test.describe("Strategies V2", () => {
     test("click All Strategies tab -> strategy-list-table visible", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'All Strategies' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "All Strategies" })
+        .click();
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
     });
 
     test("click Performance tab -> performance-view visible", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'Performance' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "Performance" })
+        .click();
       await expect(page.getByTestId("performance-view")).toBeVisible();
     });
 
     test("click back Templates -> templates-view visible", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'All Strategies' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "All Strategies" })
+        .click();
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'Templates' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "Templates" })
+        .click();
       await expect(page.getByTestId("templates-view")).toBeVisible();
     });
   });
@@ -98,7 +110,10 @@ test.describe("Strategies V2", () => {
     test("strategy-list-table with strategy-list-body visible", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'All Strategies' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "All Strategies" })
+        .click();
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       await expect(page.getByTestId("strategy-list-body")).toBeVisible();
     });
@@ -106,7 +121,10 @@ test.describe("Strategies V2", () => {
     test("strategy-row items have edit-strategy-btn and delete-strategy-btn", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'All Strategies' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "All Strategies" })
+        .click();
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       const rows = page.locator('[data-testid^="strategy-row-"]');
       const count = await rows.count();
@@ -121,7 +139,10 @@ test.describe("Strategies V2", () => {
       await setupStrategiesLoadingMocks(page);
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'All Strategies' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "All Strategies" })
+        .click();
       await expect(page.getByTestId("strategies-loading-state")).toBeVisible({ timeout: 3000 });
       await expect(page.getByTestId("strategy-list-table")).toBeVisible({ timeout: 15000 });
     });
@@ -133,7 +154,7 @@ test.describe("Strategies V2", () => {
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
       await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
       await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByRole("dialog")).toBeVisible();
     });
 
     test("strategy-form-modal has strategy-name-input and strategy-type-input", async ({
@@ -143,7 +164,7 @@ test.describe("Strategies V2", () => {
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
       await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
       await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByRole("dialog")).toBeVisible();
       await expect(page.getByTestId("strategy-name-input")).toBeVisible();
       await expect(page.getByTestId("strategy-type-input")).toBeVisible();
     });
@@ -155,7 +176,7 @@ test.describe("Strategies V2", () => {
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
       await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
       await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByRole("dialog")).toBeVisible();
       await expect(page.getByTestId("strategy-form-tabs")).toBeVisible();
       await expect(page.getByTestId("strategy-tab-orb")).toBeVisible();
       await expect(page.getByTestId("strategy-tab-risk")).toBeVisible();
@@ -167,22 +188,20 @@ test.describe("Strategies V2", () => {
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
       await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
       await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByRole("dialog")).toBeVisible();
       await page.getByTestId("strategy-tab-risk").click();
       await expect(page.getByTestId("strategy-panel-risk")).toBeVisible();
     });
 
-    test("fill name Test Strategy, click strategy-cancel-btn -> modal closes", async ({
-      page,
-    }) => {
+    test("fill name Test Strategy, click strategy-cancel-btn -> modal closes", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
       await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
       await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByRole("dialog")).toBeVisible();
       await page.getByTestId("strategy-name-input").fill("Test Strategy");
       await page.getByTestId("strategy-cancel-btn").click();
-      await expect(page.getByRole('dialog')).not.toBeVisible();
+      await expect(page.getByRole("dialog")).not.toBeVisible();
     });
   });
 
@@ -190,19 +209,25 @@ test.describe("Strategies V2", () => {
     test("click edit-strategy-btn -> modal visible", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'All Strategies' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "All Strategies" })
+        .click();
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       await page.getByTestId("edit-strategy-btn").first().click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByRole("dialog")).toBeVisible();
     });
 
     test("strategy-name-input pre-filled, click submit-strategy-btn", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'All Strategies' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "All Strategies" })
+        .click();
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       await page.getByTestId("edit-strategy-btn").first().click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByRole("dialog")).toBeVisible();
       const nameInput = page.getByTestId("strategy-name-input");
       await expect(nameInput).toBeVisible();
       const nameValue = await nameInput.inputValue();
@@ -215,7 +240,10 @@ test.describe("Strategies V2", () => {
     test("click delete-strategy-btn -> confirm dialog", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'All Strategies' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "All Strategies" })
+        .click();
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       await page.evaluate(() => {
         (window as any).deleteStrategy = () => {
@@ -247,7 +275,10 @@ test.describe("Strategies V2", () => {
     test("confirm -> dialog accepted", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'All Strategies' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "All Strategies" })
+        .click();
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       await page.evaluate(() => {
         (window as any).deleteStrategy = () => {
@@ -278,12 +309,15 @@ test.describe("Strategies V2", () => {
     test("performance-view with stat cards", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'Performance' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "Performance" })
+        .click();
       await expect(page.getByTestId("performance-view")).toBeVisible();
-      await expect(page.locator('.performance-card-trades')).toBeVisible({ timeout: 10000 });
-      await expect(page.locator('.performance-card-winrate')).toBeVisible();
-      await expect(page.locator('.performance-card-pnl')).toBeVisible();
-      await expect(page.locator('.performance-card-strategies')).toBeVisible();
+      await expect(page.locator(".performance-card-trades")).toBeVisible({ timeout: 10000 });
+      await expect(page.locator(".performance-card-winrate")).toBeVisible();
+      await expect(page.locator(".performance-card-pnl")).toBeVisible();
+      await expect(page.locator(".performance-card-strategies")).toBeVisible();
     });
 
     test("performance-table with performance-table-header and performance-table-body", async ({
@@ -291,7 +325,10 @@ test.describe("Strategies V2", () => {
     }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'Performance' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "Performance" })
+        .click();
       await expect(page.getByTestId("performance-view")).toBeVisible();
       await expect(page.getByTestId("performance-table")).toBeVisible();
       await expect(page.getByTestId("performance-table-header")).toBeVisible({ timeout: 10000 });
@@ -304,7 +341,10 @@ test.describe("Strategies V2", () => {
       await setupStrategiesEmptyMocks(page);
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("strategies-nav-tabs").locator('label', { hasText: 'Performance' }).click();
+      await page
+        .getByTestId("strategies-nav-tabs")
+        .locator("label", { hasText: "Performance" })
+        .click();
       await expect(page.getByTestId("performance-empty-state")).toBeVisible({ timeout: 10000 });
     });
   });

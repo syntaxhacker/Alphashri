@@ -113,7 +113,9 @@ export async function submitStrategyForm(page: Page): Promise<void> {
   const submitBtn = page.getByTestId("submit-strategy-btn");
   await expect(submitBtn).toBeVisible();
   await submitBtn.click();
-  await getModal(page).waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+  await getModal(page)
+    .waitFor({ state: "hidden", timeout: 5000 })
+    .catch(() => {});
 }
 
 export async function verifyStrategyInList(page: Page, name: string): Promise<boolean> {

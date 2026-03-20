@@ -121,10 +121,7 @@ describe("ChainSummary computation", () => {
     });
 
     test("returns 0 when all CE OI values are 0", () => {
-      const matrix = [
-        makeStrike(24000, 0, 500),
-        makeStrike(24500, 0, 200),
-      ];
+      const matrix = [makeStrike(24000, 0, 500), makeStrike(24500, 0, 200)];
       const summary: Summary = {
         pcr: 1.0,
         max_pain: 0,
@@ -159,10 +156,7 @@ describe("ChainSummary computation", () => {
     });
 
     test("picks first strike when multiple have equal max CE OI", () => {
-      const matrix = [
-        makeStrike(24000, 5000, 0),
-        makeStrike(24500, 5000, 0),
-      ];
+      const matrix = [makeStrike(24000, 5000, 0), makeStrike(24500, 5000, 0)];
       const summary: Summary = {
         pcr: 1.0,
         max_pain: 0,
@@ -192,10 +186,7 @@ describe("ChainSummary computation", () => {
     });
 
     test("returns 0 when all PE OI values are 0", () => {
-      const matrix = [
-        makeStrike(24000, 500, 0),
-        makeStrike(24500, 200, 0),
-      ];
+      const matrix = [makeStrike(24000, 500, 0), makeStrike(24500, 200, 0)];
       const summary: Summary = {
         pcr: 1.0,
         max_pain: 0,
@@ -230,10 +221,7 @@ describe("ChainSummary computation", () => {
     });
 
     test("picks first strike when multiple have equal max PE OI", () => {
-      const matrix = [
-        makeStrike(24000, 0, 5000),
-        makeStrike(24500, 0, 5000),
-      ];
+      const matrix = [makeStrike(24000, 0, 5000), makeStrike(24500, 0, 5000)];
       const summary: Summary = {
         pcr: 1.0,
         max_pain: 0,
@@ -297,10 +285,7 @@ describe("ChainSummary computation", () => {
 
   describe("fallback without summary", () => {
     test("returns all zeros when summary is undefined", () => {
-      const stats = computeStats(
-        [makeStrike(24000, 5000, 3000)],
-        undefined,
-      );
+      const stats = computeStats([makeStrike(24000, 5000, 3000)], undefined);
       expect(stats.pcr).toBe(0);
       expect(stats.maxPain).toBe(0);
       expect(stats.expectedMove).toBeNull();

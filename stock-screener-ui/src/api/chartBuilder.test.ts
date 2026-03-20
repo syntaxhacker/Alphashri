@@ -2,7 +2,12 @@ import { describe, expect, test } from "vitest";
 import { buildChartData, chartTradesToTrades } from "./chartBuilder";
 
 const makeRawCandle = (overrides: Record<string, unknown> = {}) => ({
-  index: ["2025-10-24T09:15:00", "2025-10-24T09:30:00", "2025-10-24T10:00:00", "2025-10-24T10:30:00"],
+  index: [
+    "2025-10-24T09:15:00",
+    "2025-10-24T09:30:00",
+    "2025-10-24T10:00:00",
+    "2025-10-24T10:30:00",
+  ],
   open: [100, 101, 103, 105],
   high: [102, 104, 106, 108],
   low: [99, 100, 102, 104],
@@ -57,7 +62,11 @@ describe("buildChartData", () => {
   test("handles candles with +00:00 timezone suffix", () => {
     const candles = makeRawCandle({
       index: ["2025-10-24T09:15:00+00:00"],
-      open: [100], high: [102], low: [99], close: [101], volume: [500],
+      open: [100],
+      high: [102],
+      low: [99],
+      close: [101],
+      volume: [500],
     });
     const result = buildChartData("TEST", candles, []);
 
@@ -67,7 +76,11 @@ describe("buildChartData", () => {
   test("handles candles with Z timezone suffix", () => {
     const candles = makeRawCandle({
       index: ["2025-10-24T09:15:00Z"],
-      open: [100], high: [102], low: [99], close: [101], volume: [500],
+      open: [100],
+      high: [102],
+      low: [99],
+      close: [101],
+      volume: [500],
     });
     const result = buildChartData("TEST", candles, []);
 
@@ -77,8 +90,12 @@ describe("buildChartData", () => {
   test("calculates ORB zones for trade dates only", () => {
     const candles = makeRawCandle({
       index: [
-        "2025-10-24T09:15:00", "2025-10-24T09:30:00", "2025-10-24T10:00:00",
-        "2025-10-25T09:15:00", "2025-10-25T09:30:00", "2025-10-25T10:00:00",
+        "2025-10-24T09:15:00",
+        "2025-10-24T09:30:00",
+        "2025-10-24T10:00:00",
+        "2025-10-25T09:15:00",
+        "2025-10-25T09:30:00",
+        "2025-10-25T10:00:00",
       ],
       open: [100, 101, 103, 200, 201, 203],
       high: [102, 104, 106, 202, 204, 206],
@@ -87,9 +104,7 @@ describe("buildChartData", () => {
       volume: [1000, 2000, 3000, 1000, 2000, 3000],
     });
 
-    const result = buildChartData("TEST", candles, [
-      makeRawTrade({ date: "2025-10-25" }),
-    ]);
+    const result = buildChartData("TEST", candles, [makeRawTrade({ date: "2025-10-25" })]);
 
     expect(result.orb_zones).toHaveLength(1);
     expect(result.orb_zones[0].date_raw).toBe("2025-10-25");
@@ -106,7 +121,11 @@ describe("buildChartData", () => {
   test("extracts pivot levels from trades with pp/r1/s1", () => {
     const result = buildChartData("TEST", makeRawCandle(), [
       makeRawTrade({
-        pp: 100, r1: 105, s1: 95, r2: 110, s2: 90,
+        pp: 100,
+        r1: 105,
+        s1: 95,
+        r2: 110,
+        s2: 90,
       }),
     ]);
 
@@ -119,9 +138,7 @@ describe("buildChartData", () => {
   });
 
   test("does not extract pivot levels when pp is missing", () => {
-    const result = buildChartData("TEST", makeRawCandle(), [
-      makeRawTrade({ pp: undefined }),
-    ]);
+    const result = buildChartData("TEST", makeRawCandle(), [makeRawTrade({ pp: undefined })]);
 
     expect(result.pivot_levels).toHaveLength(0);
   });
@@ -136,9 +153,7 @@ describe("buildChartData", () => {
   });
 
   test("extracts 52W levels from 52w_high field", () => {
-    const result = buildChartData("TEST", makeRawCandle(), [
-      makeRawTrade({ "52w_high": 500 }),
-    ]);
+    const result = buildChartData("TEST", makeRawCandle(), [makeRawTrade({ "52w_high": 500 })]);
 
     expect(result.week52_levels).toHaveLength(1);
     expect(result.week52_levels[0]["52w_high"]).toBe(500);
@@ -167,12 +182,8 @@ describe("buildChartData", () => {
   });
 
   test("uses correct exit marker colors", () => {
-    const tpResult = buildChartData("TEST", makeRawCandle(), [
-      makeRawTrade({ exit_reason: "TP" }),
-    ]);
-    const slResult = buildChartData("TEST", makeRawCandle(), [
-      makeRawTrade({ exit_reason: "SL" }),
-    ]);
+    const tpResult = buildChartData("TEST", makeRawCandle(), [makeRawTrade({ exit_reason: "TP" })]);
+    const slResult = buildChartData("TEST", makeRawCandle(), [makeRawTrade({ exit_reason: "SL" })]);
     const eodResult = buildChartData("TEST", makeRawCandle(), [
       makeRawTrade({ exit_reason: "EOD" }),
     ]);
@@ -191,9 +202,18 @@ describe("buildChartData", () => {
   });
 
   test("handles empty candles and trades", () => {
-    const result = buildChartData("EMPTY", {
-      index: [], open: [], high: [], low: [], close: [], volume: [],
-    }, []);
+    const result = buildChartData(
+      "EMPTY",
+      {
+        index: [],
+        open: [],
+        high: [],
+        low: [],
+        close: [],
+        volume: [],
+      },
+      [],
+    );
 
     expect(result.symbol).toBe("EMPTY");
     expect(result.candles).toHaveLength(0);
@@ -207,7 +227,11 @@ describe("buildChartData", () => {
   test("handles candles with missing values by defaulting to 0", () => {
     const candles = {
       index: ["2025-10-24T09:15:00"],
-      open: [], high: [], low: [], close: [], volume: [],
+      open: [],
+      high: [],
+      low: [],
+      close: [],
+      volume: [],
     };
     const result = buildChartData("TEST", candles as any, []);
 
@@ -300,9 +324,7 @@ describe("chartTradesToTrades", () => {
   });
 
   test("returns empty array for no entries", () => {
-    const result = chartTradesToTrades([
-      makeChartTrade({ type: "exit", trade_id: 1 }),
-    ]);
+    const result = chartTradesToTrades([makeChartTrade({ type: "exit", trade_id: 1 })]);
 
     expect(result).toHaveLength(0);
   });

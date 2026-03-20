@@ -88,9 +88,33 @@ describe("formatDuration", () => {
 
 describe("sortTrades", () => {
   const trades: Trade[] = [
-    makeTrade({ net_pnl: 200, entry_price: 100, quantity: 10, entry_time: "2025-06-15T09:30:00Z", exit_time: "2025-06-15T10:45:00Z", hold_duration_minutes: 75, exit_reason: "TP" }),
-    makeTrade({ net_pnl: -50, entry_price: 200, quantity: 5, entry_time: "2025-06-14T09:30:00Z", exit_time: "2025-06-14T10:00:00Z", hold_duration_minutes: 30, exit_reason: "SL" }),
-    makeTrade({ net_pnl: 100, entry_price: 150, quantity: 8, entry_time: "2025-06-16T09:30:00Z", exit_time: "2025-06-16T11:00:00Z", hold_duration_minutes: 90, exit_reason: "TP" }),
+    makeTrade({
+      net_pnl: 200,
+      entry_price: 100,
+      quantity: 10,
+      entry_time: "2025-06-15T09:30:00Z",
+      exit_time: "2025-06-15T10:45:00Z",
+      hold_duration_minutes: 75,
+      exit_reason: "TP",
+    }),
+    makeTrade({
+      net_pnl: -50,
+      entry_price: 200,
+      quantity: 5,
+      entry_time: "2025-06-14T09:30:00Z",
+      exit_time: "2025-06-14T10:00:00Z",
+      hold_duration_minutes: 30,
+      exit_reason: "SL",
+    }),
+    makeTrade({
+      net_pnl: 100,
+      entry_price: 150,
+      quantity: 8,
+      entry_time: "2025-06-16T09:30:00Z",
+      exit_time: "2025-06-16T11:00:00Z",
+      hold_duration_minutes: 90,
+      exit_reason: "TP",
+    }),
   ];
 
   test("sorts by net_pnl ascending", () => {

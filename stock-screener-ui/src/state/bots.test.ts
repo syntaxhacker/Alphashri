@@ -94,7 +94,16 @@ describe("bots state", () => {
   it("all loading keys default to false", () => {
     const state = getBotsState();
     const keys: Array<keyof BotsState["loading"]> = [
-      "list", "load", "status", "strategies", "create", "update", "delete", "start", "stop", "trades",
+      "list",
+      "load",
+      "status",
+      "strategies",
+      "create",
+      "update",
+      "delete",
+      "start",
+      "stop",
+      "trades",
     ];
     for (const key of keys) {
       expect(state.loading[key]).toBe(false);
@@ -103,8 +112,14 @@ describe("bots state", () => {
 });
 
 describe("view management", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("initial view is 'list'", () => {
     expect(getCurrentView()).toBe("list");
@@ -125,8 +140,14 @@ describe("view management", () => {
 });
 
 describe("subscribe", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("returns unsubscribe function", () => {
     const unsub = subscribe(vi.fn());
@@ -144,8 +165,14 @@ describe("subscribe", () => {
 });
 
 describe("modal management", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("openCreateModal sets showCreateModal true", async () => {
     const api = await import("../api/bots");
@@ -188,8 +215,14 @@ describe("modal management", () => {
 });
 
 describe("selectBot", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("selects a bot and clears status/trades", () => {
     const bot = createMockBot({ running: false });
@@ -208,8 +241,14 @@ describe("selectBot", () => {
 });
 
 describe("clearError", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("clears error state", async () => {
     const api = await import("../api/bots");
@@ -223,8 +262,14 @@ describe("clearError", () => {
 });
 
 describe("loadBots", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("loads bots successfully", async () => {
     const api = await import("../api/bots");
@@ -256,8 +301,14 @@ describe("loadBots", () => {
 });
 
 describe("createBotAction", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("creates bot and closes modal", async () => {
     const api = await import("../api/bots");
@@ -281,8 +332,14 @@ describe("createBotAction", () => {
 });
 
 describe("deleteBotAction", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("prevents delete when trades exist", async () => {
     const api = await import("../api/bots");
@@ -309,8 +366,14 @@ describe("deleteBotAction", () => {
 });
 
 describe("startBotAction / stopBotAction", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("starts bot successfully", async () => {
     const api = await import("../api/bots");
@@ -341,8 +404,15 @@ describe("startBotAction / stopBotAction", () => {
 });
 
 describe("startAutoRefresh / stopAutoRefresh", () => {
-  beforeEach(() => { vi.useFakeTimers(); stopAutoRefresh(); });
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); stopAutoRefresh(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopAutoRefresh();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    stopAutoRefresh();
+  });
 
   it("startAutoRefresh sets up interval", async () => {
     const api = await import("../api/bots");

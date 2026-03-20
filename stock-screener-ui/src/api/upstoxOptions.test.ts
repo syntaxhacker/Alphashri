@@ -5,7 +5,13 @@ vi.mock("../state/auth", () => ({
 }));
 
 import { fetchWithAuth } from "../state/auth";
-import { getUnderlyings, getExpiries, getOptionChain, getSpotPrice, getPositions } from "./upstoxOptions";
+import {
+  getUnderlyings,
+  getExpiries,
+  getOptionChain,
+  getSpotPrice,
+  getPositions,
+} from "./upstoxOptions";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
 
@@ -149,9 +155,7 @@ describe("getSpotPrice", () => {
 
     await getSpotPrice("NIFTY");
 
-    expect(mockedFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/options/spot/NIFTY"),
-    );
+    expect(mockedFetch).toHaveBeenCalledWith(expect.stringContaining("/api/options/spot/NIFTY"));
   });
 
   it("returns spot price response", async () => {
@@ -179,9 +183,7 @@ describe("getPositions", () => {
   it("returns positions response", async () => {
     const response = {
       status: "success",
-      positions: [
-        { instrument_key: "key", trading_symbol: "NIFTY24000CE", quantity: 50 },
-      ],
+      positions: [{ instrument_key: "key", trading_symbol: "NIFTY24000CE", quantity: 50 }],
     };
     mockedFetch.mockResolvedValue({
       ok: true,

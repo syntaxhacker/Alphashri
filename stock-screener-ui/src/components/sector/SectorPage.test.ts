@@ -1,9 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  detectSectorAlerts,
-  detectIntervalMovers,
-  buildTreemapData,
-} from "./SectorPage";
+import { detectSectorAlerts, detectIntervalMovers, buildTreemapData } from "./SectorPage";
 import type { SectorItem, StockMover } from "../../types/sector";
 
 function makeSector(overrides: Partial<SectorItem> = {}): SectorItem {
@@ -97,18 +93,14 @@ describe("detectIntervalMovers", () => {
   });
 
   test("ignores changes below threshold", () => {
-    const movers: StockMover[] = [
-      { symbol: "TCS", change: 1.2 },
-    ];
+    const movers: StockMover[] = [{ symbol: "TCS", change: 1.2 }];
     const prevData = { TCS: 1.0 };
     const results = detectIntervalMovers(movers, prevData);
     expect(results).toHaveLength(0);
   });
 
   test("ignores movers with no previous data", () => {
-    const movers: StockMover[] = [
-      { symbol: "TCS", change: 5.0 },
-    ];
+    const movers: StockMover[] = [{ symbol: "TCS", change: 5.0 }];
     const results = detectIntervalMovers(movers, {});
     expect(results).toHaveLength(0);
   });
@@ -127,9 +119,7 @@ describe("detectIntervalMovers", () => {
   });
 
   test("includes prev_change and delta in results", () => {
-    const movers: StockMover[] = [
-      { symbol: "TCS", change: 3.0 },
-    ];
+    const movers: StockMover[] = [{ symbol: "TCS", change: 3.0 }];
     const prevData = { TCS: 2.0 };
     const results = detectIntervalMovers(movers, prevData);
     expect(results[0].prev_change).toBe(2.0);
@@ -144,8 +134,26 @@ describe("detectIntervalMovers", () => {
 describe("buildTreemapData", () => {
   test("transforms sector data correctly", () => {
     const sectors = [
-      makeSector({ sector: "IT", avg_change: 2.5, stock_count: 50, advances: 30, declines: 20, avg_rsi: 55, avg_adx: 22, top_movers: "TCS" }),
-      makeSector({ sector: "Banking", avg_change: -1.0, stock_count: 40, advances: 15, declines: 25, avg_rsi: 45, avg_adx: 18, top_movers: "HDFC" }),
+      makeSector({
+        sector: "IT",
+        avg_change: 2.5,
+        stock_count: 50,
+        advances: 30,
+        declines: 20,
+        avg_rsi: 55,
+        avg_adx: 22,
+        top_movers: "TCS",
+      }),
+      makeSector({
+        sector: "Banking",
+        avg_change: -1.0,
+        stock_count: 40,
+        advances: 15,
+        declines: 25,
+        avg_rsi: 45,
+        avg_adx: 18,
+        top_movers: "HDFC",
+      }),
     ];
     const result = buildTreemapData(sectors);
     expect(result).toHaveLength(2);
@@ -178,7 +186,16 @@ describe("buildTreemapData", () => {
 
   test("preserves all sector fields", () => {
     const sectors = [
-      makeSector({ sector: "IT", avg_change: 1.5, stock_count: 50, advances: 30, declines: 20, avg_rsi: 55, avg_adx: 22, top_movers: "TCS, INFY" }),
+      makeSector({
+        sector: "IT",
+        avg_change: 1.5,
+        stock_count: 50,
+        advances: 30,
+        declines: 20,
+        avg_rsi: 55,
+        avg_adx: 22,
+        top_movers: "TCS, INFY",
+      }),
     ];
     const result = buildTreemapData(sectors);
     const item = result[0];

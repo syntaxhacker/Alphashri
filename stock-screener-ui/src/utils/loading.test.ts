@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  createLoadingState,
-  setLoading,
-  isLoading,
-  isAnyLoading,
-} from "./loading";
+import { createLoadingState, setLoading, isLoading, isAnyLoading } from "./loading";
 import type { LoadingState } from "./loading";
 
 describe("createLoadingState", () => {

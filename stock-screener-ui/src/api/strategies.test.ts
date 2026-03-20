@@ -193,7 +193,12 @@ describe("getStrategyPerformance", () => {
 
 describe("getStrategyTrades", () => {
   it("calls apiGet with default limit", async () => {
-    mockedApiGet.mockResolvedValue({ strategy_id: 42, strategy_name: "Test", trades: [], total: 0 });
+    mockedApiGet.mockResolvedValue({
+      strategy_id: 42,
+      strategy_name: "Test",
+      trades: [],
+      total: 0,
+    });
 
     await getStrategyTrades(42);
 
@@ -201,7 +206,12 @@ describe("getStrategyTrades", () => {
   });
 
   it("passes custom limit parameter", async () => {
-    mockedApiGet.mockResolvedValue({ strategy_id: 42, strategy_name: "Test", trades: [], total: 0 });
+    mockedApiGet.mockResolvedValue({
+      strategy_id: 42,
+      strategy_name: "Test",
+      trades: [],
+      total: 0,
+    });
 
     await getStrategyTrades(42, 100);
 

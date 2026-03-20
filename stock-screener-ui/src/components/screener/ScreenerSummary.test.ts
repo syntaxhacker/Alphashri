@@ -39,12 +39,8 @@ describe("ScreenerSummary", () => {
       expect(getTone({ label: "A", value: 1, color: "green" })).toBe(
         "var(--mantine-color-green-6)",
       );
-      expect(getTone({ label: "B", value: 2, color: "red" })).toBe(
-        "var(--mantine-color-red-6)",
-      );
-      expect(getTone({ label: "C", value: 3, color: "blue" })).toBe(
-        "var(--mantine-color-blue-6)",
-      );
+      expect(getTone({ label: "B", value: 2, color: "red" })).toBe("var(--mantine-color-red-6)");
+      expect(getTone({ label: "C", value: 3, color: "blue" })).toBe("var(--mantine-color-blue-6)");
     });
 
     test("returns default text color when color is undefined", () => {
@@ -52,9 +48,7 @@ describe("ScreenerSummary", () => {
     });
 
     test("returns default text color when color is not set", () => {
-      expect(getTone({ label: "A", value: 1, color: undefined })).toBe(
-        "var(--mantine-color-text)",
-      );
+      expect(getTone({ label: "A", value: 1, color: undefined })).toBe("var(--mantine-color-text)");
     });
   });
 

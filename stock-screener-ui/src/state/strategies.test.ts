@@ -94,8 +94,12 @@ describe("strategies state", () => {
 });
 
 describe("view management", () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("initial view is 'templates'", () => {
     expect(getCurrentView()).toBe("templates");
@@ -116,8 +120,12 @@ describe("view management", () => {
 });
 
 describe("subscribe", () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("returns unsubscribe function", () => {
     const unsub = subscribe(vi.fn());
@@ -135,8 +143,12 @@ describe("subscribe", () => {
 });
 
 describe("modal management", () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("openCreateModal sets showCreateModal true", () => {
     openCreateModal();
@@ -181,8 +193,12 @@ describe("modal management", () => {
 });
 
 describe("clearError", () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("clears error state", async () => {
     const api = await import("../api/strategies");
@@ -196,8 +212,12 @@ describe("clearError", () => {
 });
 
 describe("selectStrategy", () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("selects a strategy and clears performance", async () => {
     const api = await import("../api/strategies");
@@ -226,8 +246,12 @@ describe("selectStrategy", () => {
 });
 
 describe("loadStrategies", () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("loads strategies successfully", async () => {
     const api = await import("../api/strategies");
@@ -259,13 +283,21 @@ describe("loadStrategies", () => {
 });
 
 describe("createStrategy", () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("creates strategy and closes modal", async () => {
     const api = await import("../api/strategies");
     const newStrategy = createMockStrategy({ name: "New Strategy" });
-    vi.mocked(api.createStrategy).mockResolvedValue({ status: "ok", message: "created", strategy: newStrategy });
+    vi.mocked(api.createStrategy).mockResolvedValue({
+      status: "ok",
+      message: "created",
+      strategy: newStrategy,
+    });
     vi.mocked(api.listStrategies).mockResolvedValue({ strategies: [newStrategy], count: 1 });
 
     const result = await createStrategy({ name: "New Strategy", strategy_type: "orb" });
@@ -284,13 +316,21 @@ describe("createStrategy", () => {
 });
 
 describe("updateStrategy", () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("updates strategy and closes edit modal", async () => {
     const api = await import("../api/strategies");
     const updated = createMockStrategy({ name: "Updated" });
-    vi.mocked(api.updateStrategy).mockResolvedValue({ status: "ok", message: "updated", strategy: updated });
+    vi.mocked(api.updateStrategy).mockResolvedValue({
+      status: "ok",
+      message: "updated",
+      strategy: updated,
+    });
     vi.mocked(api.listStrategies).mockResolvedValue({ strategies: [updated], count: 1 });
 
     const result = await updateStrategy(1, { name: "Updated" });
@@ -310,8 +350,12 @@ describe("updateStrategy", () => {
 });
 
 describe("deleteStrategyAction", () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("deletes strategy and clears selection", async () => {
     const api = await import("../api/strategies");

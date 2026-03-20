@@ -166,9 +166,7 @@ describe("fetchPositions", () => {
     const result = await fetchPositions();
 
     expect(result).toEqual([{ symbol: "TATASTEEL" }]);
-    expect(mockedFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/paper/positions"),
-    );
+    expect(mockedFetch).toHaveBeenCalledWith(expect.stringContaining("/api/paper/positions"));
   });
 
   it("returns empty array when response has no positions key", async () => {
@@ -222,7 +220,10 @@ describe("fetchTrades", () => {
   });
 
   it("returns trades array from response", async () => {
-    const trades = [{ id: 1, pnl: 500 }, { id: 2, pnl: -200 }];
+    const trades = [
+      { id: 1, pnl: 500 },
+      { id: 2, pnl: -200 },
+    ];
     mockedFetch.mockResolvedValue({
       json: async () => ({ trades, total_trades: 2 }),
     } as Response);
@@ -381,9 +382,7 @@ describe("closePaperPosition", () => {
 
     await closePaperPosition("TATASTEEL", 100);
 
-    const body = JSON.parse(
-      (mockedFetch.mock.calls[0][1] as RequestInit).body as string,
-    );
+    const body = JSON.parse((mockedFetch.mock.calls[0][1] as RequestInit).body as string);
     expect(body.reason).toBe("MANUAL");
   });
 

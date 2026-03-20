@@ -170,16 +170,12 @@ test.describe("Bots View - List", () => {
 
   test("should show strategies count for each bot", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await expect(
-      page.locator(`[data-testid="bot-row-${BOT_ID_1}"]`),
-    ).toContainText("strategies");
+    await expect(page.locator(`[data-testid="bot-row-${BOT_ID_1}"]`)).toContainText("strategies");
   });
 
   test("should show PID for running bots", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await expect(
-      page.locator(`[data-testid="bot-status-${BOT_ID_2}"]`),
-    ).toContainText("12345");
+    await expect(page.locator(`[data-testid="bot-status-${BOT_ID_2}"]`)).toContainText("12345");
   });
 });
 
@@ -199,9 +195,7 @@ test.describe("Bots View - Create", () => {
     await mockBotsList(page, []);
     await gotoBotsViewAndWait(page);
     await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(
-      page.locator('[data-testid="bot-config-form"]'),
-    ).toBeVisible();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
   });
 
   test("should create new bot", async ({ page }) => {
@@ -233,14 +227,10 @@ test.describe("Bots View - Create", () => {
     });
     await gotoBotsViewAndWait(page);
     await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(
-      page.locator('[data-testid="bot-config-form"]'),
-    ).toBeVisible();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
     await page.locator('[data-testid="bot-name-input"]').fill("Test Bot");
     await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(
-      page.locator('[data-testid="bot-config-form"]'),
-    ).toBeHidden();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
   });
 });
 
@@ -253,22 +243,14 @@ test.describe("Bots View - Edit", () => {
 
   test("should have edit button for each bot", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await expect(
-      page.locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`),
-    ).toBeVisible();
+    await expect(page.locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`)).toBeVisible();
   });
 
   test("should open edit modal with current values", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await page
-      .locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`)
-      .click();
-    await expect(
-      page.locator('[data-testid="bot-config-form"]'),
-    ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="bot-name-input"]'),
-    ).toHaveValue("Default Bot");
+    await page.locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`).click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
+    await expect(page.locator('[data-testid="bot-name-input"]')).toHaveValue("Default Bot");
   });
 
   test("should save edited bot", async ({ page }) => {
@@ -288,17 +270,11 @@ test.describe("Bots View - Edit", () => {
       }
     });
     await gotoBotsViewAndWait(page);
-    await page
-      .locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`)
-      .click();
-    await expect(
-      page.locator('[data-testid="bot-config-form"]'),
-    ).toBeVisible();
+    await page.locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`).click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
     await page.locator('[data-testid="bot-name-input"]').fill("Updated Bot Name");
     await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(
-      page.locator('[data-testid="bot-config-form"]'),
-    ).toBeHidden();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
   });
 });
 
@@ -310,9 +286,7 @@ test.describe("Bots View - Delete", () => {
   test("should have delete button for each bot", async ({ page }) => {
     await mockBotsList(page);
     await gotoBotsViewAndWait(page);
-    await expect(
-      page.locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`),
-    ).toBeVisible();
+    await expect(page.locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`)).toBeVisible();
   });
 
   test("should confirm before deleting", async ({ page }) => {
@@ -322,9 +296,7 @@ test.describe("Bots View - Delete", () => {
       expect(dialog.type()).toBe("confirm");
       await dialog.dismiss();
     });
-    await page
-      .locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`)
-      .click();
+    await page.locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`).click();
   });
 
   test("should remove bot after delete", async ({ page }) => {
@@ -363,9 +335,7 @@ test.describe("Bots View - Delete", () => {
 
     await gotoBotsViewAndWait(page);
     await expect(getBotListItems(page)).toHaveCount(2);
-    await page
-      .locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`)
-      .click();
+    await page.locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`).click();
     await expect(getBotListItems(page)).toHaveCount(1);
   });
 });
@@ -376,13 +346,9 @@ test.describe("Bots View - Controls", () => {
     await mockBotsList(page);
   });
 
-  test("should show Start Bot button when bot is not running", async ({
-    page,
-  }) => {
+  test("should show Start Bot button when bot is not running", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await expect(
-      page.locator(`[data-testid="start-bot-btn-${BOT_ID_1}"]`),
-    ).toBeVisible();
+    await expect(page.locator(`[data-testid="start-bot-btn-${BOT_ID_1}"]`)).toBeVisible();
   });
 
   test("should show Stop Bot button when bot is running", async ({ page }) => {
@@ -394,12 +360,8 @@ test.describe("Bots View - Controls", () => {
       });
     });
     await gotoBotsViewAndWait(page);
-    await expect(
-      page.locator(`[data-testid="stop-bot-btn-${BOT_ID_2}"]`),
-    ).toBeVisible();
-    await page
-      .locator(`[data-testid="stop-bot-btn-${BOT_ID_2}"]`)
-      .click();
+    await expect(page.locator(`[data-testid="stop-bot-btn-${BOT_ID_2}"]`)).toBeVisible();
+    await page.locator(`[data-testid="stop-bot-btn-${BOT_ID_2}"]`).click();
     await page.waitForLoadState("networkidle");
   });
 });
@@ -412,9 +374,7 @@ test.describe("Bots View - Status", () => {
 
   test("should have view status button for each bot", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await expect(
-      page.locator(`[data-testid="view-bot-status-btn-${BOT_ID_1}"]`),
-    ).toBeVisible();
+    await expect(page.locator(`[data-testid="view-bot-status-btn-${BOT_ID_1}"]`)).toBeVisible();
   });
 
   test("should show bot status panel", async ({ page }) => {
@@ -430,12 +390,8 @@ test.describe("Bots View - Status", () => {
       });
     });
     await gotoBotsViewAndWait(page);
-    await page
-      .locator(`[data-testid="view-bot-status-btn-${BOT_ID_1}"]`)
-      .click();
-    await expect(
-      page.locator('[data-testid="bot-status-panel"]'),
-    ).toBeVisible();
+    await page.locator(`[data-testid="view-bot-status-btn-${BOT_ID_1}"]`).click();
+    await expect(page.locator('[data-testid="bot-status-panel"]')).toBeVisible();
   });
 });
 
@@ -448,41 +404,23 @@ test.describe("Bots View - Assign Strategies", () => {
 
   test("should show assigned strategies", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await expect(
-      page.locator(`[data-testid="bot-row-${BOT_ID_2}"]`),
-    ).toContainText("3 strategies");
+    await expect(page.locator(`[data-testid="bot-row-${BOT_ID_2}"]`)).toContainText("3 strategies");
   });
 
   test("should add strategy to bot", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await page
-      .locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`)
-      .click();
-    await expect(
-      page.locator('[data-testid="bot-config-form"]'),
-    ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="strategy-allocation-row"]'),
-    ).toHaveCount(1);
+    await page.locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`).click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
+    await expect(page.locator('[data-testid="strategy-allocation-row"]')).toHaveCount(1);
     await page.locator('[data-testid="add-strategy-btn"]').click();
-    await expect(
-      page.locator('[data-testid="strategy-allocation-row"]'),
-    ).toHaveCount(2);
+    await expect(page.locator('[data-testid="strategy-allocation-row"]')).toHaveCount(2);
   });
 
   test("should set capital allocation for strategy", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await page
-      .locator(`[data-testid="edit-bot-btn-${BOT_ID_2}"]`)
-      .click();
-    await expect(
-      page.locator('[data-testid="bot-config-form"]'),
-    ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="bot-config-strategies"]'),
-    ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="strategy-allocation-row"]').first(),
-    ).toBeVisible();
+    await page.locator(`[data-testid="edit-bot-btn-${BOT_ID_2}"]`).click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
+    await expect(page.locator('[data-testid="bot-config-strategies"]')).toBeVisible();
+    await expect(page.locator('[data-testid="strategy-allocation-row"]').first()).toBeVisible();
   });
 });

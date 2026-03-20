@@ -42,11 +42,7 @@ function fmt(
   return col.format(value, stock);
 }
 
-function expectFormattedCell(
-  result: string | FormattedCell,
-  value: string,
-  className?: string,
-) {
+function expectFormattedCell(result: string | FormattedCell, value: string, className?: string) {
   expect(result).toEqual({ value, className: className ?? "" });
 }
 

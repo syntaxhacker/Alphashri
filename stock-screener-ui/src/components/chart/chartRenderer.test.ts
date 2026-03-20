@@ -22,14 +22,26 @@ const makeCandle = (overrides: Partial<PreviewCandle> = {}): PreviewCandle => ({
 });
 
 describe("buildChartOption", () => {
-  const candles = [makeCandle(), makeCandle({ time: "2025-10-24T09:30", time_str: "09:30", open: 103, high: 108, low: 102, close: 106 })];
+  const candles = [
+    makeCandle(),
+    makeCandle({
+      time: "2025-10-24T09:30",
+      time_str: "09:30",
+      open: 103,
+      high: 108,
+      low: 102,
+      close: 106,
+    }),
+  ];
 
   it("returns null for empty candles array", () => {
     expect(buildChartOption({ symbol: "TEST", candles: [], size: "preview" })).toBeNull();
   });
 
   it("returns null for undefined candles", () => {
-    expect(buildChartOption({ symbol: "TEST", candles: undefined as any, size: "preview" })).toBeNull();
+    expect(
+      buildChartOption({ symbol: "TEST", candles: undefined as any, size: "preview" }),
+    ).toBeNull();
   });
 
   it("builds a valid chart option for preview size", () => {
@@ -89,8 +101,16 @@ describe("buildChartOption", () => {
   });
 
   it("includes pivot series when showPivots is true", () => {
-    const pivot_levels: PivotLevel[] = [{ date: "2025-10-24", date_raw: "2025-10-24", pp: 100, r1: 110, s1: 90 }];
-    const opt = buildChartOption({ symbol: "TEST", candles, size: "expanded", showPivots: true, pivot_levels });
+    const pivot_levels: PivotLevel[] = [
+      { date: "2025-10-24", date_raw: "2025-10-24", pp: 100, r1: 110, s1: 90 },
+    ];
+    const opt = buildChartOption({
+      symbol: "TEST",
+      candles,
+      size: "expanded",
+      showPivots: true,
+      pivot_levels,
+    });
     expect(opt.series.length).toBe(6);
     expect(opt.legend.data).toContain("R1");
     expect(opt.legend.data).toContain("PP");
@@ -98,8 +118,16 @@ describe("buildChartOption", () => {
   });
 
   it("does not include pivot series when showPivots is false", () => {
-    const pivot_levels: PivotLevel[] = [{ date: "2025-10-24", date_raw: "2025-10-24", pp: 100, r1: 110, s1: 90 }];
-    const opt = buildChartOption({ symbol: "TEST", candles, size: "expanded", showPivots: false, pivot_levels });
+    const pivot_levels: PivotLevel[] = [
+      { date: "2025-10-24", date_raw: "2025-10-24", pp: 100, r1: 110, s1: 90 },
+    ];
+    const opt = buildChartOption({
+      symbol: "TEST",
+      candles,
+      size: "expanded",
+      showPivots: false,
+      pivot_levels,
+    });
     expect(opt.series.length).toBe(3);
   });
 
@@ -133,7 +161,13 @@ describe("buildORBLine", () => {
 
   it("maps high ORB levels to matching dates", () => {
     const orb_zones: ORBZone[] = [
-      { date: "2025-10-24", date_raw: "2025-10-24", or_high: 105, or_low: 99, or_end_time: "09:45" },
+      {
+        date: "2025-10-24",
+        date_raw: "2025-10-24",
+        or_high: 105,
+        or_low: 99,
+        or_end_time: "09:45",
+      },
     ];
     const result = buildORBLine(candles, orb_zones, "high");
     expect(result).toEqual([105, null, null]);
@@ -141,7 +175,13 @@ describe("buildORBLine", () => {
 
   it("maps low ORB levels to matching dates", () => {
     const orb_zones: ORBZone[] = [
-      { date: "2025-10-24", date_raw: "2025-10-24", or_high: 105, or_low: 99, or_end_time: "09:45" },
+      {
+        date: "2025-10-24",
+        date_raw: "2025-10-24",
+        or_high: 105,
+        or_low: 99,
+        or_end_time: "09:45",
+      },
     ];
     const result = buildORBLine(candles, orb_zones, "low");
     expect(result).toEqual([99, null, null]);
@@ -149,7 +189,13 @@ describe("buildORBLine", () => {
 
   it("uses date_raw as key when available", () => {
     const orb_zones: ORBZone[] = [
-      { date: "2025-10-24", date_raw: "2025-10-24-custom", or_high: 200, or_low: 50, or_end_time: "09:45" },
+      {
+        date: "2025-10-24",
+        date_raw: "2025-10-24-custom",
+        or_high: 200,
+        or_low: 50,
+        or_end_time: "09:45",
+      },
     ];
     const result = buildORBLine(candles, orb_zones, "high");
     expect(result).toEqual([null, null, null]);
@@ -157,8 +203,20 @@ describe("buildORBLine", () => {
 
   it("handles multiple orb zones", () => {
     const orb_zones: ORBZone[] = [
-      { date: "2025-10-24", date_raw: "2025-10-24", or_high: 105, or_low: 99, or_end_time: "09:45" },
-      { date: "2025-10-26", date_raw: "2025-10-26", or_high: 110, or_low: 95, or_end_time: "09:45" },
+      {
+        date: "2025-10-24",
+        date_raw: "2025-10-24",
+        or_high: 105,
+        or_low: 99,
+        or_end_time: "09:45",
+      },
+      {
+        date: "2025-10-26",
+        date_raw: "2025-10-26",
+        or_high: 110,
+        or_low: 95,
+        or_end_time: "09:45",
+      },
     ];
     const result = buildORBLine(candles, orb_zones, "high");
     expect(result).toEqual([105, null, 110]);
@@ -229,7 +287,16 @@ describe("formatTimeLabel", () => {
 });
 
 describe("formatTooltip", () => {
-  const candles = [makeCandle({ date: "2025-10-24", time_str: "09:15", open: 100, high: 105, low: 98, close: 103 })];
+  const candles = [
+    makeCandle({
+      date: "2025-10-24",
+      time_str: "09:15",
+      open: 100,
+      high: 105,
+      low: 98,
+      close: 103,
+    }),
+  ];
 
   it("returns empty string when no candlestick param found", () => {
     const params = [{ seriesType: "line" }];

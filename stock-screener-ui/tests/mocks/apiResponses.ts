@@ -1240,7 +1240,16 @@ const mockPerformanceData = [
   },
 ];
 
-const mockEmptyPerformanceData: { strategy_id: number; strategy_name: string; total_trades: number; winners: number; losers: number; win_rate: number; total_pnl: number; net_pnl: number }[] = [];
+const mockEmptyPerformanceData: {
+  strategy_id: number;
+  strategy_name: string;
+  total_trades: number;
+  winners: number;
+  losers: number;
+  win_rate: number;
+  total_pnl: number;
+  net_pnl: number;
+}[] = [];
 
 // Full strategy mocks for strategies page
 export async function setupStrategiesMocks(page: import("@playwright/test").Page) {
@@ -1383,7 +1392,6 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
       }),
     });
   });
-
 }
 
 // Empty state mocks
@@ -1508,5 +1516,4 @@ export async function setupStrategiesLoadingMocks(page: import("@playwright/test
       body: JSON.stringify(mockPerformanceData),
     });
   });
-
 }

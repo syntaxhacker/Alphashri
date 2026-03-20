@@ -529,7 +529,9 @@ test.describe("Chart View - Trade Markers", () => {
     await page.goto("/chart/HDFC");
 
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('[data-testid="chart-footer"]')).toContainText(`${mockChartWithTrades.candles.length} candles`);
+    await expect(page.locator('[data-testid="chart-footer"]')).toContainText(
+      `${mockChartWithTrades.candles.length} candles`,
+    );
   });
 });
 
@@ -856,14 +858,22 @@ test.describe("Chart View - Empty and Edge Cases", () => {
     await page.goto("/chart/EMPTY");
 
     // Should show error or no data message
-    await expect(page.locator('[data-testid="chart-error"], [data-testid="chart-loading"]')).toBeVisible({ timeout: 5000 });
+    await expect(
+      page.locator('[data-testid="chart-error"], [data-testid="chart-loading"]'),
+    ).toBeVisible({ timeout: 5000 });
   });
 
   test("should handle missing symbol parameter", async ({ page }) => {
     await page.goto("/chart");
 
     // Should show error about missing symbol or redirect
-    await expect(page.locator('[data-testid="chart-view-error"], [data-testid="chart-error"], [data-testid="chart-back-btn"]').first()).toBeVisible({
+    await expect(
+      page
+        .locator(
+          '[data-testid="chart-view-error"], [data-testid="chart-error"], [data-testid="chart-back-btn"]',
+        )
+        .first(),
+    ).toBeVisible({
       timeout: 5000,
     });
   });

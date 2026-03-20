@@ -48,14 +48,14 @@ test.describe("Layout - Theme Toggle", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    const initialScheme = await page.evaluate(
-      () => document.documentElement.getAttribute("data-mantine-color-scheme")
+    const initialScheme = await page.evaluate(() =>
+      document.documentElement.getAttribute("data-mantine-color-scheme"),
     );
 
     await page.locator('[data-testid="theme-toggle-btn"]').click();
 
-    const newScheme = await page.evaluate(
-      () => document.documentElement.getAttribute("data-mantine-color-scheme")
+    const newScheme = await page.evaluate(() =>
+      document.documentElement.getAttribute("data-mantine-color-scheme"),
     );
 
     expect(newScheme).not.toBe(initialScheme);
@@ -82,9 +82,7 @@ test.describe("Layout - User Menu", () => {
     await expect(page.locator('[data-testid="user-menu-dropdown"]')).toBeVisible();
   });
 
-  test("user-avatar, user-display-name, user-email are visible in dropdown", async ({
-    page,
-  }) => {
+  test("user-avatar, user-display-name, user-email are visible in dropdown", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 

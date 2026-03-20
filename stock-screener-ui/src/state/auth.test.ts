@@ -81,11 +81,14 @@ describe("subscribe", () => {
     const cb = vi.fn();
     const unsub = subscribe(cb);
 
-    const mockFetch = vi.fn()
-      .mockResolvedValueOnce(createMockFetchResponse({
-        access_token: "at",
-        refresh_token: "rt",
-      }))
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createMockFetchResponse({
+          access_token: "at",
+          refresh_token: "rt",
+        }),
+      )
       .mockResolvedValueOnce(createMockFetchResponse(mockUser));
     vi.stubGlobal("fetch", mockFetch);
 
@@ -237,11 +240,14 @@ describe("login", () => {
   });
 
   it("successful login sets auth state", async () => {
-    const mockFetch = vi.fn()
-      .mockResolvedValueOnce(createMockFetchResponse({
-        access_token: "at",
-        refresh_token: "rt",
-      }))
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createMockFetchResponse({
+          access_token: "at",
+          refresh_token: "rt",
+        }),
+      )
       .mockResolvedValueOnce(createMockFetchResponse(mockUser));
     vi.stubGlobal("fetch", mockFetch);
 
@@ -253,12 +259,11 @@ describe("login", () => {
   });
 
   it("login with API error", async () => {
-    const mockFetch = vi.fn()
-      .mockResolvedValueOnce(createMockFetchResponse(
-        { detail: "Invalid credentials" },
-        false,
-        401,
-      ));
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createMockFetchResponse({ detail: "Invalid credentials" }, false, 401),
+      );
     vi.stubGlobal("fetch", mockFetch);
 
     const result = await login("test@example.com", "wrong");
@@ -278,12 +283,9 @@ describe("login", () => {
   });
 
   it("login with generic error detail", async () => {
-    const mockFetch = vi.fn()
-      .mockResolvedValueOnce(createMockFetchResponse(
-        { message: "something" },
-        false,
-        500,
-      ));
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(createMockFetchResponse({ message: "something" }, false, 500));
     vi.stubGlobal("fetch", mockFetch);
 
     const result = await login("test@example.com", "password");
@@ -292,11 +294,14 @@ describe("login", () => {
 
   it("login falls back to stored user when /me fails", async () => {
     setStoredUser(mockUser);
-    const mockFetch = vi.fn()
-      .mockResolvedValueOnce(createMockFetchResponse({
-        access_token: "at",
-        refresh_token: "rt",
-      }))
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createMockFetchResponse({
+          access_token: "at",
+          refresh_token: "rt",
+        }),
+      )
       .mockResolvedValueOnce(createMockFetchResponse({}, false, 500));
     vi.stubGlobal("fetch", mockFetch);
 
@@ -322,11 +327,14 @@ describe("register", () => {
   });
 
   it("successful registration", async () => {
-    const mockFetch = vi.fn()
-      .mockResolvedValueOnce(createMockFetchResponse({
-        access_token: "at",
-        refresh_token: "rt",
-      }))
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createMockFetchResponse({
+          access_token: "at",
+          refresh_token: "rt",
+        }),
+      )
       .mockResolvedValueOnce(createMockFetchResponse(mockUser));
     vi.stubGlobal("fetch", mockFetch);
 
@@ -336,12 +344,11 @@ describe("register", () => {
   });
 
   it("registration with API error", async () => {
-    const mockFetch = vi.fn()
-      .mockResolvedValueOnce(createMockFetchResponse(
-        { detail: "Email already registered" },
-        false,
-        409,
-      ));
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createMockFetchResponse({ detail: "Email already registered" }, false, 409),
+      );
     vi.stubGlobal("fetch", mockFetch);
 
     const result = await register("test@example.com", "password");
@@ -439,7 +446,8 @@ describe("checkAuth", () => {
   it("clears tokens when /me fails and refresh fails", async () => {
     setTokens("at", "rt");
 
-    const mockFetch = vi.fn()
+    const mockFetch = vi
+      .fn()
       .mockResolvedValueOnce(createMockFetchResponse({}, false, 401))
       .mockResolvedValueOnce(createMockFetchResponse({}, false, 401));
     vi.stubGlobal("fetch", mockFetch);

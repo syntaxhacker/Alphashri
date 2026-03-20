@@ -89,7 +89,8 @@ describe("truncateUrl", () => {
   });
 
   it("truncates a URL longer than default maxLength", () => {
-    const longUrl = "https://example.com/very/long/path/that/exceeds/default/length/of/fifty/characters";
+    const longUrl =
+      "https://example.com/very/long/path/that/exceeds/default/length/of/fifty/characters";
     const result = truncateUrl(longUrl);
     expect(result.length).toBe(53);
     expect(result).toBe(longUrl.substring(0, 50) + "...");

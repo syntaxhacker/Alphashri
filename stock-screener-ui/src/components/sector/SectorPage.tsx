@@ -238,7 +238,10 @@ export function SectorPage() {
       }
 
       // 2. Check for Interval Movers (Stock level)
-      const newIntervalMovers = detectIntervalMovers(response.top_stock_movers ?? [], prevStockDataRef.current);
+      const newIntervalMovers = detectIntervalMovers(
+        response.top_stock_movers ?? [],
+        prevStockDataRef.current,
+      );
       (response.top_stock_movers ?? []).forEach((item: StockMover) => {
         prevStockDataRef.current[item.symbol] = item.change;
       });

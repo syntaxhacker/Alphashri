@@ -114,9 +114,7 @@ describe("runBacktest", () => {
       }),
     );
 
-    const body = JSON.parse(
-      (mockedFetch.mock.calls[0][1] as RequestInit).body as string,
-    );
+    const body = JSON.parse((mockedFetch.mock.calls[0][1] as RequestInit).body as string);
     expect(body.symbols).toEqual(["TATASTEEL", "INFY"]);
     expect(body.params).toEqual({ or_minutes: 45 });
     expect(body.days).toBe(30);
@@ -131,9 +129,7 @@ describe("runBacktest", () => {
 
     await runBacktest();
 
-    const body = JSON.parse(
-      (mockedFetch.mock.calls[0][1] as RequestInit).body as string,
-    );
+    const body = JSON.parse((mockedFetch.mock.calls[0][1] as RequestInit).body as string);
     expect(body.save_to_history).toBe(false);
   });
 

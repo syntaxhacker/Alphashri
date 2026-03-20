@@ -66,10 +66,7 @@ describe("notificationsSlice", () => {
         undefined,
         addNotification({ type: "success", message: "First" }),
       );
-      state = notificationsReducer(
-        state,
-        addNotification({ type: "error", message: "Second" }),
-      );
+      state = notificationsReducer(state, addNotification({ type: "error", message: "Second" }));
 
       expect(state.items).toHaveLength(2);
       expect(state.items[0].message).toBe("First");
@@ -77,14 +74,8 @@ describe("notificationsSlice", () => {
     });
 
     test("generates unique ids for each notification", () => {
-      let state = notificationsReducer(
-        undefined,
-        addNotification({ type: "info", message: "A" }),
-      );
-      state = notificationsReducer(
-        state,
-        addNotification({ type: "info", message: "B" }),
-      );
+      let state = notificationsReducer(undefined, addNotification({ type: "info", message: "A" }));
+      state = notificationsReducer(state, addNotification({ type: "info", message: "B" }));
 
       expect(state.items[0].id).not.toBe(state.items[1].id);
     });
@@ -96,10 +87,7 @@ describe("notificationsSlice", () => {
         undefined,
         addNotification({ type: "info", message: "Keep" }),
       );
-      state = notificationsReducer(
-        state,
-        addNotification({ type: "info", message: "Remove" }),
-      );
+      state = notificationsReducer(state, addNotification({ type: "info", message: "Remove" }));
 
       const idToRemove = state.items[1].id;
       state = notificationsReducer(state, removeNotification(idToRemove));
@@ -122,10 +110,7 @@ describe("notificationsSlice", () => {
     });
 
     test("handles removing from empty state", () => {
-      const state = notificationsReducer(
-        undefined,
-        removeNotification("some-id"),
-      );
+      const state = notificationsReducer(undefined, removeNotification("some-id"));
 
       expect(state.items).toHaveLength(0);
     });
@@ -133,18 +118,9 @@ describe("notificationsSlice", () => {
 
   describe("clearAllNotifications", () => {
     test("removes all notifications", () => {
-      let state = notificationsReducer(
-        undefined,
-        addNotification({ type: "info", message: "A" }),
-      );
-      state = notificationsReducer(
-        state,
-        addNotification({ type: "error", message: "B" }),
-      );
-      state = notificationsReducer(
-        state,
-        addNotification({ type: "warning", message: "C" }),
-      );
+      let state = notificationsReducer(undefined, addNotification({ type: "info", message: "A" }));
+      state = notificationsReducer(state, addNotification({ type: "error", message: "B" }));
+      state = notificationsReducer(state, addNotification({ type: "warning", message: "C" }));
 
       expect(state.items).toHaveLength(3);
       state = notificationsReducer(state, clearAllNotifications());
@@ -152,10 +128,7 @@ describe("notificationsSlice", () => {
     });
 
     test("works on already empty state", () => {
-      const state = notificationsReducer(
-        undefined,
-        clearAllNotifications(),
-      );
+      const state = notificationsReducer(undefined, clearAllNotifications());
 
       expect(state.items).toHaveLength(0);
     });

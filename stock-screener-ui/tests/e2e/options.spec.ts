@@ -65,7 +65,9 @@ test.describe("Options View - Option Chain", () => {
 
   test("should open user guide modal", async ({ page }) => {
     await page.locator('[data-testid="open-guide-btn"]').click();
-    await expect(page.locator('[data-testid="options-guide-content"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="options-guide-content"]')).toBeVisible({
+      timeout: 10000,
+    });
     await page.keyboard.press("Escape");
     await expect(page.locator('[data-testid="options-guide-content"]')).not.toBeVisible();
   });

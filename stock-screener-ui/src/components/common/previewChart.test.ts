@@ -18,7 +18,16 @@ beforeEach(async () => {
     fetchChartPreview: vi.fn().mockResolvedValue({
       symbol: "TEST",
       candles: [
-        { time: "2025-10-24T09:15", date: "2025-10-24", time_str: "09:15", open: 100, high: 105, low: 98, close: 103, volume: 1000 },
+        {
+          time: "2025-10-24T09:15",
+          date: "2025-10-24",
+          time_str: "09:15",
+          open: 100,
+          high: 105,
+          low: 98,
+          close: 103,
+          volume: 1000,
+        },
       ],
       orb_zones: [],
       pivot_levels: [],

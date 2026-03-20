@@ -32,7 +32,12 @@ import {
   triggerRerender,
   getStrategyDefaults,
 } from "./backtest";
-import type { BacktestResult, BacktestTotals, CostBreakdown, SymbolChartData } from "../types/backtest";
+import type {
+  BacktestResult,
+  BacktestTotals,
+  CostBreakdown,
+  SymbolChartData,
+} from "../types/backtest";
 
 vi.mock("../api/chartBuilder", () => ({
   chartTradesToTrades: vi.fn().mockReturnValue([]),
@@ -96,7 +101,9 @@ describe("backtest state", () => {
 });
 
 describe("subscribe", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("returns unsubscribe function", () => {
     const unsub = subscribe(vi.fn());
@@ -114,7 +121,9 @@ describe("subscribe", () => {
 });
 
 describe("setCurrentView", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("updates currentView", () => {
     setCurrentView("backtest");
@@ -123,7 +132,9 @@ describe("setCurrentView", () => {
 });
 
 describe("setStrategies", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("updates strategies and sets loading false", () => {
     setStrategies([{ id: "orb", name: "ORB", description: "", params: [] }]);
@@ -134,11 +145,21 @@ describe("setStrategies", () => {
 });
 
 describe("setVariations", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("updates variations", () => {
     const variations = [
-      { id: "v1", internal_id: 1, name: "Var 1", strategy_type: "orb", description: "", is_template: false, is_default: true },
+      {
+        id: "v1",
+        internal_id: 1,
+        name: "Var 1",
+        strategy_type: "orb",
+        description: "",
+        is_template: false,
+        is_default: true,
+      },
     ];
     setVariations(variations);
     expect(getState().variations).toEqual(variations);
@@ -146,7 +167,9 @@ describe("setVariations", () => {
 });
 
 describe("setSelectedVariationId", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("sets variation id directly without param mapping", () => {
     setSelectedVariationId("v1");
@@ -160,15 +183,28 @@ describe("setSelectedVariationId", () => {
 });
 
 describe("setSelectedVariation", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("maps orb variation params correctly", () => {
     const variations = [
       {
-        id: "v1", internal_id: 1, name: "ORB 30min", strategy_type: "ORB",
-        description: "", is_template: false, is_default: true,
-        or_minutes: 30, sl_pct: 0.5, tp_pct: 2.0, max_positions: 3,
-        timeframe: "5", trade_size: 200, cooldown_bars: 2, enable_shorts: true,
+        id: "v1",
+        internal_id: 1,
+        name: "ORB 30min",
+        strategy_type: "ORB",
+        description: "",
+        is_template: false,
+        is_default: true,
+        or_minutes: 30,
+        sl_pct: 0.5,
+        tp_pct: 2.0,
+        max_positions: 3,
+        timeframe: "5",
+        trade_size: 200,
+        cooldown_bars: 2,
+        enable_shorts: true,
       },
     ];
     setVariations(variations);
@@ -190,10 +226,19 @@ describe("setSelectedVariation", () => {
   it("maps sr_breakout variation params", () => {
     const variations = [
       {
-        id: "v2", internal_id: 2, name: "SR Breakout", strategy_type: "sr_breakout",
-        description: "", is_template: false, is_default: true,
-        breakout_buffer_pct: 0.2, pivot_type: "fibonacci", sl_pct: 0.8,
-        tp_pct: 2.5, max_positions: 2, trade_size: 150,
+        id: "v2",
+        internal_id: 2,
+        name: "SR Breakout",
+        strategy_type: "sr_breakout",
+        description: "",
+        is_template: false,
+        is_default: true,
+        breakout_buffer_pct: 0.2,
+        pivot_type: "fibonacci",
+        sl_pct: 0.8,
+        tp_pct: 2.5,
+        max_positions: 2,
+        trade_size: 150,
       },
     ];
     setVariations(variations);
@@ -212,11 +257,23 @@ describe("setSelectedVariation", () => {
   it("maps 52w_chaser variation params", () => {
     const variations = [
       {
-        id: "v3", internal_id: 3, name: "52W Chaser", strategy_type: "52w_chaser",
-        description: "", is_template: false, is_default: true,
-        entry_threshold_pct: 2.5, sl_pct: 4.0, tp_pct: 6.0,
-        enable_trailing_stop: true, trailing_stop_pct: 2.5, trailing_activation_pct: 1.5,
-        max_holding_days: 20, cooldown_days: 15, trade_size: 300, enable_filters: true,
+        id: "v3",
+        internal_id: 3,
+        name: "52W Chaser",
+        strategy_type: "52w_chaser",
+        description: "",
+        is_template: false,
+        is_default: true,
+        entry_threshold_pct: 2.5,
+        sl_pct: 4.0,
+        tp_pct: 6.0,
+        enable_trailing_stop: true,
+        trailing_stop_pct: 2.5,
+        trailing_activation_pct: 1.5,
+        max_holding_days: 20,
+        cooldown_days: 15,
+        trade_size: 300,
+        enable_filters: true,
       },
     ];
     setVariations(variations);
@@ -239,10 +296,19 @@ describe("setSelectedVariation", () => {
   it("maps 52w_target variation params", () => {
     const variations = [
       {
-        id: "v4", internal_id: 4, name: "52W Target", strategy_type: "52w_target",
-        description: "", is_template: false, is_default: true,
-        entry_threshold_pct: 1.5, sl_pct: 3.0, trailing_stop_pct: 1.0,
-        max_holding_days: 10, cooldown_days: 5, trade_size: 250,
+        id: "v4",
+        internal_id: 4,
+        name: "52W Target",
+        strategy_type: "52w_target",
+        description: "",
+        is_template: false,
+        is_default: true,
+        entry_threshold_pct: 1.5,
+        sl_pct: 3.0,
+        trailing_stop_pct: 1.0,
+        max_holding_days: 10,
+        cooldown_days: 5,
+        trade_size: 250,
       },
     ];
     setVariations(variations);
@@ -261,8 +327,13 @@ describe("setSelectedVariation", () => {
   it("falls back to defaults for missing variation params", () => {
     const variations = [
       {
-        id: "v5", internal_id: 5, name: "ORB Minimal", strategy_type: "ORB",
-        description: "", is_template: false, is_default: true,
+        id: "v5",
+        internal_id: 5,
+        name: "ORB Minimal",
+        strategy_type: "ORB",
+        description: "",
+        is_template: false,
+        is_default: true,
         or_minutes: 30,
       },
     ];
@@ -285,7 +356,9 @@ describe("setSelectedVariation", () => {
 });
 
 describe("setSelectedStrategy", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("resets params to strategy defaults", () => {
     setSelectedStrategy("sr_breakout");
@@ -307,7 +380,9 @@ describe("setSelectedStrategy", () => {
 });
 
 describe("addSymbol / removeSymbol", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("addSymbol adds to selectedSymbols", () => {
     addSymbol("TCS");
@@ -333,7 +408,9 @@ describe("addSymbol / removeSymbol", () => {
 });
 
 describe("setSelectedSymbols", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("replaces selected symbols", () => {
     setSelectedSymbols(["RELIANCE", "TCS"]);
@@ -342,7 +419,9 @@ describe("setSelectedSymbols", () => {
 });
 
 describe("setParam / setParams", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("setParam updates a single param", () => {
     setParam("or_minutes", 60);
@@ -358,7 +437,9 @@ describe("setParam / setParams", () => {
 });
 
 describe("setDays / setIncludeCosts", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("setDays updates days", () => {
     setDays(90);
@@ -372,13 +453,34 @@ describe("setDays / setIncludeCosts", () => {
 });
 
 describe("results management", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("setResults updates results and resets chart/trade state", () => {
     const results: BacktestResult[] = [
-      { symbol: "RELIANCE", trades: 10, wins: 6, losses: 4, win_rate: 60, gross_pnl: 5000, total_costs: 500, net_pnl: 4500, pf: 1.8, tp_exits: 5, sl_exits: 3, eod_exits: 2 },
+      {
+        symbol: "RELIANCE",
+        trades: 10,
+        wins: 6,
+        losses: 4,
+        win_rate: 60,
+        gross_pnl: 5000,
+        total_costs: 500,
+        net_pnl: 4500,
+        pf: 1.8,
+        tp_exits: 5,
+        sl_exits: 3,
+        eod_exits: 2,
+      },
     ];
-    const totals: BacktestTotals = { gross_pnl: 5000, total_costs: 500, net_pnl: 4500, trades: 10, win_rate: 60 };
+    const totals: BacktestTotals = {
+      gross_pnl: 5000,
+      total_costs: 500,
+      net_pnl: 4500,
+      trades: 10,
+      win_rate: 60,
+    };
 
     setResults(results, totals);
     const state = getState();
@@ -392,7 +494,9 @@ describe("results management", () => {
 });
 
 describe("setRunning / setProgress / setError", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("setRunning updates isRunning and progress.running", () => {
     setRunning(true);
@@ -420,7 +524,9 @@ describe("setRunning / setProgress / setError", () => {
 });
 
 describe("chart management", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("setShowCharts updates showCharts", () => {
     setShowCharts(false);
@@ -463,7 +569,9 @@ describe("chart management", () => {
 });
 
 describe("setTradeHistory / setCostBreakdown", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("setTradeHistory updates trade history", () => {
     setTradeHistory([], "RELIANCE");
@@ -488,7 +596,9 @@ describe("setTradeHistory / setCostBreakdown", () => {
 });
 
 describe("resetBacktestState", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("resets all state except currentView", () => {
     setCurrentView("backtest");
@@ -571,7 +681,9 @@ describe("getStrategyDefaults", () => {
 });
 
 describe("getBacktestState", () => {
-  beforeEach(() => { resetBacktestState(); });
+  beforeEach(() => {
+    resetBacktestState();
+  });
 
   it("returns same state as getState", () => {
     expect(getBacktestState()).toEqual(getState());

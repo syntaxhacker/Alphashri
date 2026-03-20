@@ -9,9 +9,7 @@ describe("appSlice", () => {
   });
 
   test("setCurrentView updates currentView", () => {
-    const views: AppRouteView[] = [
-      "screener", "backtest", "paper", "sector", "strategies", "bots",
-    ];
+    const views: AppRouteView[] = ["screener", "backtest", "paper", "sector", "strategies", "bots"];
 
     for (const view of views) {
       const state = appReducer(undefined, setCurrentView(view));

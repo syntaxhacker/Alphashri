@@ -293,10 +293,7 @@ async function navigateToBot(page: Page, botId: string) {
     { timeout: 20000 },
   );
 
-  await segmentedControl
-    .getByText(`Multi-Strategy Bot ${botId}`, { exact: false })
-    .first()
-    .click();
+  await segmentedControl.getByText(`Multi-Strategy Bot ${botId}`, { exact: false }).first().click();
 
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 5000 });
 }
@@ -347,9 +344,7 @@ test.describe("Multi-Strategy System - Signal Generators", () => {
     const positionsContainer = page.getByTestId("positions-table-container");
     const emptyState = page.getByTestId("positions-empty");
 
-    await expect(
-      strategyTabs.first().or(positionsContainer).or(emptyState),
-    ).toBeVisible();
+    await expect(strategyTabs.first().or(positionsContainer).or(emptyState)).toBeVisible();
   });
 });
 

@@ -4,13 +4,41 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "./compact";
 
 vi.mock("@mantine/core", () => ({
-  Group: ({ children, ...props }: any) => <div data-testid="group" {...props}>{children}</div>,
-  Box: ({ children, ...props }: any) => <div data-testid="box" {...props}>{children}</div>,
-  Paper: ({ children, ...props }: any) => <div data-testid="paper" {...props}>{children}</div>,
-  SimpleGrid: ({ children, ...props }: any) => <div data-testid="simple-grid" {...props}>{children}</div>,
-  Stack: ({ children, ...props }: any) => <div data-testid="stack" {...props}>{children}</div>,
-  Text: ({ children, ...props }: any) => <span data-testid="text" {...props}>{children}</span>,
-  Title: ({ children, ...props }: any) => <h2 data-testid="title" {...props}>{children}</h2>,
+  Group: ({ children, ...props }: any) => (
+    <div data-testid="group" {...props}>
+      {children}
+    </div>
+  ),
+  Box: ({ children, ...props }: any) => (
+    <div data-testid="box" {...props}>
+      {children}
+    </div>
+  ),
+  Paper: ({ children, ...props }: any) => (
+    <div data-testid="paper" {...props}>
+      {children}
+    </div>
+  ),
+  SimpleGrid: ({ children, ...props }: any) => (
+    <div data-testid="simple-grid" {...props}>
+      {children}
+    </div>
+  ),
+  Stack: ({ children, ...props }: any) => (
+    <div data-testid="stack" {...props}>
+      {children}
+    </div>
+  ),
+  Text: ({ children, ...props }: any) => (
+    <span data-testid="text" {...props}>
+      {children}
+    </span>
+  ),
+  Title: ({ children, ...props }: any) => (
+    <h2 data-testid="title" {...props}>
+      {children}
+    </h2>
+  ),
 }));
 
 afterEach(() => {
@@ -116,7 +144,7 @@ describe("CompactStatGrid", () => {
       <CompactStatGrid>
         <div>Stat 1</div>
         <div>Stat 2</div>
-      </CompactStatGrid>
+      </CompactStatGrid>,
     );
     expect(screen.getByText("Stat 1")).toBeTruthy();
     expect(screen.getByText("Stat 2")).toBeTruthy();

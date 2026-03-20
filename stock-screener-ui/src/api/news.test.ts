@@ -76,7 +76,10 @@ describe("fetchNews", () => {
   });
 
   it("returns items array from response", async () => {
-    const items = [{ id: 1, title: "News 1" }, { id: 2, title: "News 2" }];
+    const items = [
+      { id: 1, title: "News 1" },
+      { id: 2, title: "News 2" },
+    ];
     mockedFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ items }),
