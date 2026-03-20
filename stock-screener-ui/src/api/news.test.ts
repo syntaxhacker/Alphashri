@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("./config", () => ({
   API_BASE: "http://localhost:8765",
@@ -189,19 +189,42 @@ describe("fetchNewsSources", () => {
   });
 });
 
+class MockWebSocket {
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSING = 2;
+  static CLOSED = 3;
+  url = "";
+  readyState = MockWebSocket.CONNECTING;
+  onopen: ((ev: Event) => void) | null = null;
+  onmessage: ((ev: MessageEvent) => void) | null = null;
+  onerror: ((ev: Event) => void) | null = null;
+  onclose: ((ev: CloseEvent) => void) | null = null;
+  close() {}
+  send() {}
+}
+
 describe("createNewsWebSocket", () => {
+  let OriginalWebSocket: typeof globalThis.WebSocket;
+
+  beforeEach(() => {
+    OriginalWebSocket = globalThis.WebSocket;
+  });
+
+  afterEach(() => {
+    globalThis.WebSocket = OriginalWebSocket;
+  });
+
   it("returns null when WebSocket constructor throws", () => {
-    const OriginalWebSocket = globalThis.WebSocket;
     globalThis.WebSocket = undefined as any;
 
     const result = createNewsWebSocket(() => {});
 
     expect(result).toBeNull();
-
-    globalThis.WebSocket = OriginalWebSocket;
   });
 
   it("calls onConnect when connection opens", () => {
+    globalThis.WebSocket = MockWebSocket as any;
     const onConnect = vi.fn();
     const ws = createNewsWebSocket(() => {}, onConnect);
 
@@ -215,6 +238,7 @@ describe("createNewsWebSocket", () => {
   });
 
   it("parses and forwards messages via onMessage", () => {
+    globalThis.WebSocket = MockWebSocket as any;
     const onMessage = vi.fn();
     const ws = createNewsWebSocket(onMessage);
 
@@ -227,6 +251,7 @@ describe("createNewsWebSocket", () => {
   });
 
   it("handles malformed messages gracefully", () => {
+    globalThis.WebSocket = MockWebSocket as any;
     const onMessage = vi.fn();
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const ws = createNewsWebSocket(onMessage);
@@ -241,6 +266,7 @@ describe("createNewsWebSocket", () => {
   });
 
   it("calls onDisconnect when connection closes", () => {
+    globalThis.WebSocket = MockWebSocket as any;
     const onDisconnect = vi.fn();
     const ws = createNewsWebSocket(() => {}, undefined, onDisconnect);
 
