@@ -64,9 +64,10 @@ test.describe("Options View - Option Chain", () => {
   });
 
   test("should open user guide modal", async ({ page }) => {
-    await page.locator('[data-testid="open-guide-btn"]').click({ force: true });
-    await expect(page.getByText("How to Read the Option Chain")).toBeVisible();
+    await page.locator('[data-testid="open-guide-btn"]').click();
+    await expect(page.locator('[data-testid="options-guide-content"]')).toBeVisible({ timeout: 10000 });
     await page.keyboard.press("Escape");
+    await expect(page.locator('[data-testid="options-guide-content"]')).not.toBeVisible();
   });
 
   test("should switch between table and analysis views", async ({ page }) => {
