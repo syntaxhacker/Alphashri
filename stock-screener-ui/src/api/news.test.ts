@@ -267,7 +267,7 @@ describe("createNewsWebSocket", () => {
     const onDisconnect = vi.fn();
     const ws = createNewsWebSocket(() => {}, undefined, onDisconnect);
 
-    ws!.onclose?.(new CloseEvent("close", { code: 1000 }));
+    ws!.onclose?.(new Event("close") as CloseEvent);
 
     expect(onDisconnect).toHaveBeenCalledOnce();
   });
