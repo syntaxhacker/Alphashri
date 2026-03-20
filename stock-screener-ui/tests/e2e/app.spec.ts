@@ -13,7 +13,7 @@ test.describe("Alphashri", () => {
     await loginAsTestUser(page);
   });
 
-  test("should load the main page with title", async ({ page }) => {
+  test("@smoke should load the main page with title", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Alphashri/);
   });

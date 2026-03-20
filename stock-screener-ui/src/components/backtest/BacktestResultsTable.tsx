@@ -26,17 +26,17 @@ const columns: ColumnDef[] = [
   { key: "tp_sl", label: "TP/SL", sortable: false },
 ];
 
-function getPnlColor(value: number): string {
+export function getPnlColor(value: number): string {
   return value >= 0 ? "green" : "red";
 }
 
-function getWinRateColor(value: number): string {
+export function getWinRateColor(value: number): string {
   if (value >= 50) return "green";
   if (value >= 40) return "dimmed";
   return "red";
 }
 
-function formatPnl(value: number): string {
+export function formatPnl(value: number): string {
   const sign = value >= 0 ? "+" : "";
   return `${sign}₹${(value / 1000).toFixed(1)}K`;
 }

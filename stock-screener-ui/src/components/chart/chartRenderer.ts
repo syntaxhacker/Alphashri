@@ -222,7 +222,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
 /**
  * Build ORB line data (sparse array with values on matching dates).
  */
-function buildORBLine(
+export function buildORBLine(
   candles: PreviewCandle[],
   orb_zones: ORBZone[],
   type: "high" | "low",
@@ -248,7 +248,7 @@ function buildORBLine(
 /**
  * Build pivot level series for chart.
  */
-function buildPivotSeries(candles: PreviewCandle[], pivot_levels: PivotLevel[]): any[] {
+export function buildPivotSeries(candles: PreviewCandle[], pivot_levels: PivotLevel[]): any[] {
   if (!pivot_levels || pivot_levels.length === 0) {
     return [];
   }
@@ -331,7 +331,7 @@ function buildPivotSeries(candles: PreviewCandle[], pivot_levels: PivotLevel[]):
 /**
  * Format time label for x-axis.
  */
-function formatTimeLabel(value: string): string {
+export function formatTimeLabel(value: string): string {
   if (!value || !value.includes("T")) return value;
   const parts = value.split("T");
   const timePart = parts[1] || "";
@@ -342,7 +342,7 @@ function formatTimeLabel(value: string): string {
 /**
  * Format tooltip content.
  */
-function formatTooltip(params: any, candles: PreviewCandle[], isDark: boolean): string {
+export function formatTooltip(params: any, candles: PreviewCandle[], isDark: boolean): string {
   const candle = params.find((p: any) => p.seriesType === "candlestick");
   if (!candle) return "";
 

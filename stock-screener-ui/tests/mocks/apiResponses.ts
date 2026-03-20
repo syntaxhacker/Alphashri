@@ -444,18 +444,18 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
     });
   });
 
-  // Mock screeners list
-  await page.route("http://localhost:8765/api/screeners", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(mockScreenersList),
-    });
-  });
-
   // Mock screener data endpoint with query parameters
   await page.route("**/api/screener*", async (route) => {
     const url = route.request().url();
+
+    if (url.endsWith("/api/screeners")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockScreenersList),
+      });
+      return;
+    }
 
     // Check if it's buyer_interest_enhanced
     if (url.includes("screener=buyer_interest_enhanced")) {
@@ -1035,6 +1035,485 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
           { time: "2026-03-10T09:20:00", price: 24000.5 },
         ],
       }),
+    });
+  });
+}
+
+// Strategy mock data
+
+const mockStrategyTemplates = [
+  {
+    id: "tmpl-550e8400-e29b-41d4-a716-446655440000",
+    internal_id: 1,
+    name: "ORB Default",
+    strategy_type: "ORB",
+    parent_id: null,
+    is_template: true,
+    is_active: true,
+    is_default: true,
+    description: "Opening Range Breakout - default configuration",
+    or_minutes: 45,
+    sl_pct: 0.4,
+    tp_pct: 1.2,
+    min_or_range_pct: 0.5,
+    max_or_range_pct: 3.0,
+    max_positions: 5,
+    max_capital_per_trade_pct: 0.1,
+    max_daily_loss_pct: 0.02,
+    max_total_exposure_pct: 0.5,
+    risk_per_trade_pct: 0.01,
+    min_trade_value: 5000,
+    max_trade_value: 100000,
+    cooldown_minutes: 30,
+    max_distance_from_or_pct: 1.5,
+    brokerage_pct: 0.0003,
+    min_brokerage: 20,
+    stt_pct: 0.00025,
+    exchange_pct: 0.0000297,
+    sebi_pct: 0.000001,
+    stamp_pct: 0.00003,
+    gst_pct: 0.18,
+    created_at: "2026-01-01T00:00:00",
+    updated_at: "2026-01-01T00:00:00",
+  },
+  {
+    id: "tmpl-81b1e4e1-de04-4989-8357-96daade0bd86",
+    internal_id: 2,
+    name: "52W Chaser",
+    strategy_type: "52W_CHASER",
+    parent_id: null,
+    is_template: true,
+    is_active: true,
+    is_default: false,
+    description: "52-Week High chaser strategy",
+    or_minutes: 15,
+    sl_pct: 0.6,
+    tp_pct: 2.0,
+    min_or_range_pct: 0.3,
+    max_or_range_pct: 4.0,
+    max_positions: 3,
+    max_capital_per_trade_pct: 0.08,
+    max_daily_loss_pct: 0.03,
+    max_total_exposure_pct: 0.4,
+    risk_per_trade_pct: 0.015,
+    min_trade_value: 10000,
+    max_trade_value: 150000,
+    cooldown_minutes: 60,
+    max_distance_from_or_pct: 2.0,
+    brokerage_pct: 0.0003,
+    min_brokerage: 20,
+    stt_pct: 0.00025,
+    exchange_pct: 0.0000297,
+    sebi_pct: 0.000001,
+    stamp_pct: 0.00003,
+    gst_pct: 0.18,
+    created_at: "2026-01-15T00:00:00",
+    updated_at: "2026-01-15T00:00:00",
+  },
+  {
+    id: "tmpl-9a14755a-db30-4267-bd43-cba3e50c0e3a",
+    internal_id: 3,
+    name: "Momentum",
+    strategy_type: "MOMENTUM",
+    parent_id: null,
+    is_template: true,
+    is_active: true,
+    is_default: false,
+    description: "Momentum breakout strategy with volume confirmation",
+    or_minutes: 30,
+    sl_pct: 0.5,
+    tp_pct: 1.5,
+    min_or_range_pct: 0.4,
+    max_or_range_pct: 2.5,
+    max_positions: 4,
+    max_capital_per_trade_pct: 0.12,
+    max_daily_loss_pct: 0.025,
+    max_total_exposure_pct: 0.45,
+    risk_per_trade_pct: 0.012,
+    min_trade_value: 7500,
+    max_trade_value: 120000,
+    cooldown_minutes: 45,
+    max_distance_from_or_pct: 1.8,
+    brokerage_pct: 0.0003,
+    min_brokerage: 20,
+    stt_pct: 0.00025,
+    exchange_pct: 0.0000297,
+    sebi_pct: 0.000001,
+    stamp_pct: 0.00003,
+    gst_pct: 0.18,
+    created_at: "2026-02-01T00:00:00",
+    updated_at: "2026-02-01T00:00:00",
+  },
+];
+
+const mockActiveStrategies = [
+  {
+    id: "strat-d827feff-0581-4bbb-8fe8-34629ad59369",
+    internal_id: 10,
+    name: "ORB Conservative",
+    strategy_type: "ORB",
+    parent_id: 1,
+    is_template: false,
+    is_active: true,
+    is_default: false,
+    description: "Conservative ORB variation with tight SL",
+    or_minutes: 30,
+    sl_pct: 0.3,
+    tp_pct: 0.8,
+    min_or_range_pct: 0.4,
+    max_or_range_pct: 2.0,
+    max_positions: 3,
+    max_capital_per_trade_pct: 0.08,
+    max_daily_loss_pct: 0.015,
+    max_total_exposure_pct: 0.4,
+    risk_per_trade_pct: 0.008,
+    min_trade_value: 5000,
+    max_trade_value: 80000,
+    cooldown_minutes: 30,
+    max_distance_from_or_pct: 1.2,
+    brokerage_pct: 0.0003,
+    min_brokerage: 20,
+    stt_pct: 0.00025,
+    exchange_pct: 0.0000297,
+    sebi_pct: 0.000001,
+    stamp_pct: 0.00003,
+    gst_pct: 0.18,
+    created_at: "2026-02-10T00:00:00",
+    updated_at: "2026-03-01T00:00:00",
+  },
+  {
+    id: "strat-f3a1b2c3-d4e5-4f6a-b7c8-9d0e1f2a3b4c",
+    internal_id: 11,
+    name: "ORB Aggressive",
+    strategy_type: "ORB",
+    parent_id: 1,
+    is_template: false,
+    is_active: true,
+    is_default: false,
+    description: "Aggressive ORB variation with wider targets",
+    or_minutes: 60,
+    sl_pct: 0.6,
+    tp_pct: 2.0,
+    min_or_range_pct: 0.6,
+    max_or_range_pct: 4.0,
+    max_positions: 6,
+    max_capital_per_trade_pct: 0.15,
+    max_daily_loss_pct: 0.03,
+    max_total_exposure_pct: 0.6,
+    risk_per_trade_pct: 0.02,
+    min_trade_value: 10000,
+    max_trade_value: 150000,
+    cooldown_minutes: 20,
+    max_distance_from_or_pct: 2.0,
+    brokerage_pct: 0.0003,
+    min_brokerage: 20,
+    stt_pct: 0.00025,
+    exchange_pct: 0.0000297,
+    sebi_pct: 0.000001,
+    stamp_pct: 0.00003,
+    gst_pct: 0.18,
+    created_at: "2026-02-15T00:00:00",
+    updated_at: "2026-03-05T00:00:00",
+  },
+];
+
+const mockPerformanceData = [
+  {
+    strategy_id: 10,
+    strategy_name: "ORB Conservative",
+    total_trades: 45,
+    winners: 30,
+    losers: 15,
+    win_rate: 66.67,
+    total_pnl: 12500,
+    net_pnl: 9800,
+  },
+  {
+    strategy_id: 11,
+    strategy_name: "ORB Aggressive",
+    total_trades: 32,
+    winners: 18,
+    losers: 14,
+    win_rate: 56.25,
+    total_pnl: 18200,
+    net_pnl: 14500,
+  },
+];
+
+const mockEmptyPerformanceData: {
+  strategy_id: number;
+  strategy_name: string;
+  total_trades: number;
+  winners: number;
+  losers: number;
+  win_rate: number;
+  total_pnl: number;
+  net_pnl: number;
+}[] = [];
+
+// Full strategy mocks for strategies page
+export async function setupStrategiesMocks(page: import("@playwright/test").Page) {
+  await page.route("**/api/strategies/**", async (route) => {
+    const method = route.request().method();
+    if (method === "PUT") {
+      const body = route.request().postDataJSON();
+      const updatedStrategy = {
+        ...mockActiveStrategies[0],
+        ...body,
+        updated_at: new Date().toISOString(),
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "success",
+          message: "Strategy updated",
+          strategy: updatedStrategy,
+        }),
+      });
+    } else if (method === "DELETE") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "success",
+          message: "Strategy deleted",
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  await page.route("**/api/strategies/templates", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        templates: mockStrategyTemplates,
+        count: mockStrategyTemplates.length,
+      }),
+    });
+  });
+
+  await page.route(/\/api\/strategies(\?|$)/, async (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          strategies: mockActiveStrategies,
+          count: mockActiveStrategies.length,
+        }),
+      });
+    } else if (method === "POST") {
+      const body = route.request().postDataJSON();
+      const createdStrategy = {
+        id: "strat-" + crypto.randomUUID(),
+        internal_id: 100,
+        name: body?.name ?? "New Strategy",
+        strategy_type: body?.strategy_type ?? "ORB",
+        parent_id: body?.parent_id ?? null,
+        is_template: false,
+        is_active: true,
+        is_default: false,
+        description: body?.description ?? null,
+        or_minutes: body?.or_minutes ?? 45,
+        sl_pct: body?.sl_pct ?? 0.4,
+        tp_pct: body?.tp_pct ?? 1.2,
+        min_or_range_pct: body?.min_or_range_pct ?? 0.5,
+        max_or_range_pct: body?.max_or_range_pct ?? 3.0,
+        max_positions: body?.max_positions ?? 5,
+        max_capital_per_trade_pct: body?.max_capital_per_trade_pct ?? 0.1,
+        max_daily_loss_pct: body?.max_daily_loss_pct ?? 0.02,
+        max_total_exposure_pct: body?.max_total_exposure_pct ?? 0.5,
+        risk_per_trade_pct: body?.risk_per_trade_pct ?? 0.01,
+        min_trade_value: body?.min_trade_value ?? 5000,
+        max_trade_value: body?.max_trade_value ?? 100000,
+        cooldown_minutes: body?.cooldown_minutes ?? 30,
+        max_distance_from_or_pct: body?.max_distance_from_or_pct ?? 1.5,
+        brokerage_pct: 0.0003,
+        min_brokerage: 20,
+        stt_pct: 0.00025,
+        exchange_pct: 0.0000297,
+        sebi_pct: 0.000001,
+        stamp_pct: 0.00003,
+        gst_pct: 0.18,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "success",
+          message: "Strategy created",
+          strategy: createdStrategy,
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  await page.route("**/api/strategies/performance", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockPerformanceData),
+    });
+  });
+
+  await page.route(/\/api\/strategies\/\d+\/performance/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        strategy_id: 10,
+        strategy_name: "ORB Conservative",
+        total_trades: 45,
+        winners: 30,
+        losers: 15,
+        win_rate: 66.67,
+        total_pnl: 12500,
+        net_pnl: 9800,
+      }),
+    });
+  });
+
+  await page.route(/\/api\/strategies\/[^/]+\/activate/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "success",
+        message: "Strategy activated",
+      }),
+    });
+  });
+}
+
+// Empty state mocks
+export async function setupStrategiesEmptyMocks(page: import("@playwright/test").Page) {
+  await page.route("**/api/strategies/templates", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        templates: [],
+        count: 0,
+      }),
+    });
+  });
+
+  await page.route(/\/api\/strategies(\?|$)/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        strategies: [],
+        count: 0,
+      }),
+    });
+  });
+
+  await page.route("**/api/strategies/performance", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockEmptyPerformanceData),
+    });
+  });
+}
+
+// Error state mocks
+export async function setupStrategiesErrorMocks(page: import("@playwright/test").Page) {
+  await page.route("**/api/strategies/templates", async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Internal server error" }),
+    });
+  });
+
+  await page.route(/\/api\/strategies(\?|$)/, async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Internal server error" }),
+    });
+  });
+}
+
+// Delayed response mocks (5 second delay)
+export async function setupStrategiesLoadingMocks(page: import("@playwright/test").Page) {
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  await page.route("**/api/strategies/**", async (route) => {
+    await delay(5000);
+    const method = route.request().method();
+    if (method === "PUT") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "success",
+          message: "Strategy updated",
+          strategy: mockActiveStrategies[0],
+        }),
+      });
+    } else if (method === "DELETE") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "success",
+          message: "Strategy deleted",
+        }),
+      });
+    } else {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          strategy: mockActiveStrategies[0],
+          variations: [],
+        }),
+      });
+    }
+  });
+
+  await page.route("**/api/strategies/templates", async (route) => {
+    await delay(5000);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        templates: mockStrategyTemplates,
+        count: mockStrategyTemplates.length,
+      }),
+    });
+  });
+
+  await page.route(/\/api\/strategies(\?|$)/, async (route) => {
+    await delay(5000);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        strategies: mockActiveStrategies,
+        count: mockActiveStrategies.length,
+      }),
+    });
+  });
+
+  await page.route("**/api/strategies/performance", async (route) => {
+    await delay(5000);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockPerformanceData),
     });
   });
 }

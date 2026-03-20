@@ -6,7 +6,7 @@ type NotificationItemProps = {
   onDismiss: (id: string) => void;
 };
 
-const typeConfig = {
+export const typeConfig = {
   success: {
     icon: "✓",
     className: "toast-success",

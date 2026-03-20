@@ -54,8 +54,7 @@ test.describe("UI Controls", () => {
 
     await autoRefreshInput.fill("30");
     await autoRefreshInput.blur();
-
-    await page.locator('[data-testid="auto-refresh-input"]').dispatch("change");
+    await autoRefreshInput.dispatchEvent("change");
 
     expect(await autoRefreshInput.inputValue()).toBe("30");
   });

@@ -301,7 +301,7 @@ export function BotsPage() {
 
         <Box flex={1} style={{ minHeight: 0, overflowY: "auto" }}>
           {isLoading ? (
-            <Stack align="center" justify="center" h="100%">
+            <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
               <Loader size="lg" />
               <Text c="dimmed">Loading...</Text>
             </Stack>

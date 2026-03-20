@@ -57,7 +57,7 @@ const SENTIMENT_CONFIG: Record<string, { color: string; icon: typeof IconTrendin
   NEUTRAL: { color: "gray", icon: IconMinus },
 };
 
-function formatTimeAgo(isoString: string): string {
+export function formatTimeAgo(isoString: string): string {
   try {
     const date = new Date(isoString);
     const now = new Date();

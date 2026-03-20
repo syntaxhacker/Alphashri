@@ -32,24 +32,59 @@ import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "../comm
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
-interface SectorAlert {
+export interface SectorAlert {
   timestamp: string;
   sector: string;
   direction: "SURGING" | "DROPPING";
   delta: number;
 }
 
-interface InternalStockMover extends StockMover {
+export interface InternalStockMover extends StockMover {
   prev_change: number;
   delta: number;
 }
 
-function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
-  const theme = useMantineTheme();
-  const { colorScheme } = useMantineColorScheme();
-  const isDark = colorScheme === "dark";
+export function detectSectorAlerts(
+  sectors: SectorItem[],
+  prevData: Record<string, number>,
+): SectorAlert[] {
+  const alerts: SectorAlert[] = [];
+  sectors.forEach((item) => {
+    const prevChange = prevData[item.sector];
+    if (prevChange !== undefined) {
+      const delta = item.avg_change - prevChange;
+      if (Math.abs(delta) >= 0.3) {
+        alerts.push({
+          timestamp: new Date().toLocaleTimeString(),
+          sector: item.sector,
+          direction: delta > 0 ? "SURGING" : "DROPPING",
+          delta,
+        });
+      }
+    }
+  });
+  return alerts;
+}
 
-  const treemapData = [...sectors]
+export function detectIntervalMovers(
+  movers: StockMover[],
+  prevData: Record<string, number>,
+): InternalStockMover[] {
+  const results: InternalStockMover[] = [];
+  movers.forEach((item) => {
+    const prevChange = prevData[item.symbol];
+    if (prevChange !== undefined) {
+      const delta = item.change - prevChange;
+      if (Math.abs(delta) >= 0.3) {
+        results.push({ ...item, prev_change: prevChange, delta });
+      }
+    }
+  });
+  return results.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+}
+
+export function buildTreemapData(sectors: SectorItem[]) {
+  return [...sectors]
     .map((sector) => ({
       name: sector.sector,
       value: Math.max(Math.abs(sector.avg_change), 0.01),
@@ -60,25 +95,36 @@ function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
       avgRsi: sector.avg_rsi,
       avgAdx: sector.avg_adx,
       topMovers: sector.top_movers,
-      itemStyle: {
-        color:
-          sector.avg_change >= 2.5
-            ? "#166534"
-            : sector.avg_change >= 1.25
-              ? "#1f7a4a"
-              : sector.avg_change >= 0.25
-                ? "#2b5f46"
-                : sector.avg_change <= -2.5
-                  ? "#7f1d1d"
-                  : sector.avg_change <= -1.25
-                    ? "#991b1b"
-                    : sector.avg_change <= -0.25
-                      ? "#7a2e2e"
-                      : "#2a3441",
-        gapWidth: 0,
-      },
     }))
     .sort((a, b) => Math.abs(b.avgChange) - Math.abs(a.avgChange) || b.value - a.value);
+}
+
+function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
+  const theme = useMantineTheme();
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
+
+  const rawTreemapData = buildTreemapData(sectors);
+  const treemapData = rawTreemapData.map((sector) => ({
+    ...sector,
+    itemStyle: {
+      color:
+        sector.avgChange >= 2.5
+          ? "#166534"
+          : sector.avgChange >= 1.25
+            ? "#1f7a4a"
+            : sector.avgChange >= 0.25
+              ? "#2b5f46"
+              : sector.avgChange <= -2.5
+                ? "#7f1d1d"
+                : sector.avgChange <= -1.25
+                  ? "#991b1b"
+                  : sector.avgChange <= -0.25
+                    ? "#7a2e2e"
+                    : "#2a3441",
+      gapWidth: 0,
+    },
+  }));
 
   const tileSpans = treemapData.map((_, index) => {
     if (index === 0) return { col: "span 2", row: "span 2", minHeight: 212 };
@@ -182,20 +228,8 @@ export function SectorPage() {
       const response = await fetchSectorPerformance(selectedMarket);
 
       // 1. Check for Sector Alerts
-      const newAlerts: SectorAlert[] = [];
+      const newAlerts = detectSectorAlerts(response.sectors ?? [], prevSectorDataRef.current);
       (response.sectors ?? []).forEach((item: SectorItem) => {
-        const prevChange = prevSectorDataRef.current[item.sector];
-        if (prevChange !== undefined) {
-          const delta = item.avg_change - prevChange;
-          if (Math.abs(delta) >= 0.3) {
-            newAlerts.push({
-              timestamp: new Date().toLocaleTimeString(),
-              sector: item.sector,
-              direction: delta > 0 ? "SURGING" : "DROPPING",
-              delta: delta,
-            });
-          }
-        }
         prevSectorDataRef.current[item.sector] = item.avg_change;
       });
 
@@ -204,24 +238,15 @@ export function SectorPage() {
       }
 
       // 2. Check for Interval Movers (Stock level)
-      const newIntervalMovers: InternalStockMover[] = [];
+      const newIntervalMovers = detectIntervalMovers(
+        response.top_stock_movers ?? [],
+        prevStockDataRef.current,
+      );
       (response.top_stock_movers ?? []).forEach((item: StockMover) => {
-        const prevChange = prevStockDataRef.current[item.symbol];
-        if (prevChange !== undefined) {
-          const delta = item.change - prevChange;
-          if (Math.abs(delta) >= 0.3) {
-            newIntervalMovers.push({
-              ...item,
-              prev_change: prevChange,
-              delta: delta,
-            });
-          }
-        }
         prevStockDataRef.current[item.symbol] = item.change;
       });
 
       if (newIntervalMovers.length > 0) {
-        newIntervalMovers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
         setIntervalMovers(newIntervalMovers.slice(0, 10));
       }
 

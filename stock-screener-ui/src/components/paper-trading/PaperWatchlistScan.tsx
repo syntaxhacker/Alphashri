@@ -14,12 +14,12 @@ interface PaperWatchlistScanProps {
   onSymbolClick: (symbol: string) => void;
 }
 
-function formatCurrency(value: number | undefined | null): string {
+export function formatCurrency(value: number | undefined | null): string {
   if (value === undefined || value === null || isNaN(value)) return "-";
   return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
-function formatChange(value: number | undefined | null): string {
+export function formatChange(value: number | undefined | null): string {
   if (value === undefined || value === null || isNaN(value)) return "-";
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }

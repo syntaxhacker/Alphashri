@@ -1,104 +1,162 @@
-name: CI Tests
+name: CI
 
 on:
   push:
-    branches: [main, master, test_py_tests]
+    branches: [main, develop]
   pull_request:
-    branches: [main, master]
+    branches: [main, develop]
+    paths:
+      - 'stock-screener-ui/src/**'
+      - 'stock-screener-ui/tests/**'
+      - 'stock-screener-ui/package.json'
+      - 'stock-screener-ui/bun.lock'
+      - 'stock-screener-ui/vite.config.*'
+      - 'stock-screener-ui/playwright.config.*'
+      - 'stock-screener-ui/tsconfig*'
+  schedule:
+    - cron: '0 2 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IS_PR_TO_MAIN: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
+  IS_PR_TO_DEVELOP: ${{ github.event_name == 'pull_request' && github.base_ref == 'develop' }}
 
 jobs:
-  # pytest:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: "3.11"
-  #     - name: Create config.py from template
-  #       run: |
-  #         cp stock-screener-ui/config_template.py stock-screener-ui/config.py
-  #     - name: Install uv
-  #       uses: astral-sh/setup-uv@v4
-  #       with:
-  #         enable-cache: false
-  #     - name: Install dependencies
-  #       run: |
-  #         cd stock-screener-ui
-  #         uv pip install --system --python 3.11 -r requirements.txt
-  #       env:
-  #         PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
-  #     - name: Run Python unit tests
-  #       run: |
-  #         cd stock-screener-ui
-  #         uv run --python 3.11 pytest -m unit -q --tb=short
-  #       env:
-  #         JWT_SECRET_KEY: test-secret
-  #         DATABASE_URL: sqlite:///./test.db
-  #         PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
-
-  # frontend-unit-tests:
-  #    runs-on: ubuntu-latest
-  #    steps:
-  #      - uses: actions/checkout@v4
-  #      - name: Install Bun
-  #        uses: oven-sh/setup-bun@v2
-  #        with:
-  #          bun-version: latest
-  #      - name: Cache Bun dependencies
-  #        uses: actions/cache@v4
-  #        with:
-  #          path: ~/.bun/install/cache
-  #          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
-  #          restore-keys: |
-  #            ${{ runner.os }}-bun-
-  #      - name: Install dependencies
-  #        run: |
-  #          cd stock-screener-ui
-  #          bun install --frozen-lockfile
-  #      - name: Run unit tests
-  #        run: |
-  #          cd stock-screener-ui
-  #          bun run test
-
-  e2e-tests:
+  pytest:
+    name: Python Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-python@v5
         with:
-          bun-version: latest
-      - name: Cache Bun dependencies
-        uses: actions/cache@v4
+          python-version: '3.11'
+      - run: cp stock-screener-ui/config_template.py stock-screener-ui/config.py
+      - uses: astral-sh/setup-uv@v4
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
+          enable-cache: false
+      - run: |
+          cd stock-screener-ui
+          uv pip install --system --python 3.11 -r requirements.txt
+        env:
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+      - run: |
+          cd stock-screener-ui
+          uv run --python 3.11 pytest -m unit -q --tb=short
+        env:
+          JWT_SECRET_KEY: test-secret
+          DATABASE_URL: sqlite:///./test.db
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+
+  frontend-lint-typecheck:
+    name: Frontend Lint & TypeCheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.5'
+      - run: cd stock-screener-ui && bun install --frozen-lockfile
+      - run: cd stock-screener-ui && bun run lint
+        continue-on-error: true
+      - run: cd stock-screener-ui && npx tsc --noEmit
+
+  frontend-unit:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.5'
+      - run: cd stock-screener-ui && bun install --frozen-lockfile
+      - name: Run changed unit tests (PR to develop)
+        if: env.IS_PR_TO_DEVELOP == 'true'
+        run: cd stock-screener-ui && bun x vitest run --changed --reporter=verbose
+      - name: Run all unit tests (PR to main)
+        if: env.IS_PR_TO_MAIN == 'true'
+        run: cd stock-screener-ui && bun x vitest run --reporter=verbose
+      - name: Run all unit tests (push / nightly)
+        if: github.event_name != 'pull_request'
+        run: cd stock-screener-ui && bun x vitest run --reporter=verbose
+
+  e2e-smoke:
+    name: E2E Smoke (22 tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [frontend-lint-typecheck, frontend-unit]
+    if: env.IS_PR_TO_DEVELOP == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.5'
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-      - name: Install dependencies
-        run: |
-          cd stock-screener-ui
-          bun install --frozen-lockfile
+          key: ${{ runner.os }}-playwright-${{ hashFiles('stock-screener-ui/bun.lock') }}
+      - run: cd stock-screener-ui && bun install --frozen-lockfile
       - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: |
-          cd stock-screener-ui
-          bunx playwright install chromium
+        run: cd stock-screener-ui && npx playwright install chromium
       - name: Start dev server
-        run: |
-          cd stock-screener-ui
-          bun run dev &
-          sleep 10
-      - name: Run E2E tests
-        run: |
-          cd stock-screener-ui
-          bun run test:e2e
+        run: cd stock-screener-ui && bun run dev &
+        env:
+          CI: true
+      - name: Wait for dev server
+        run: npx wait-on http://localhost:5173 --timeout 30000
+      - name: Run smoke E2E tests
+        run: cd stock-screener-ui && npx playwright test --grep @smoke
+        env:
+          CI: true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: smoke-report
+          path: stock-screener-ui/test-results/
+          retention-days: 7
+
+  e2e-full:
+    name: E2E Full (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [frontend-lint-typecheck, frontend-unit]
+    if: github.event_name == 'push' || github.event_name == 'schedule' || env.IS_PR_TO_MAIN == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.5'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('stock-screener-ui/bun.lock') }}
+      - run: cd stock-screener-ui && bun install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: cd stock-screener-ui && npx playwright install chromium
+      - name: Start dev server
+        run: cd stock-screener-ui && bun run dev &
+        env:
+          CI: true
+      - name: Wait for dev server
+        run: npx wait-on http://localhost:5173 --timeout 30000
+      - name: Run full E2E tests
+        run: cd stock-screener-ui && npx playwright test --shard=${{ matrix.shard }}/4
+        env:
+          CI: true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-report-shard-${{ matrix.shard }}
+          path: stock-screener-ui/test-results/
+          retention-days: 7

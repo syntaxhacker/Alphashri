@@ -11,7 +11,7 @@ test.describe("Authentication - Login", () => {
     await setupApiMocks(page);
   });
 
-  test("should show login form when not authenticated", async ({ page }) => {
+  test("@smoke should show login form when not authenticated", async ({ page }) => {
     // Don't set auth tokens - should show login form
     await page.goto("/");
 
@@ -30,7 +30,7 @@ test.describe("Authentication - Login", () => {
     await expect(page.locator('[data-testid="register-link"]')).toBeVisible();
   });
 
-  test("should login successfully with valid credentials", async ({ page }) => {
+  test("@smoke should login successfully with valid credentials", async ({ page }) => {
     await page.goto("/");
 
     // Fill login form using data-testid
@@ -224,7 +224,7 @@ test.describe("Authentication - Logout", () => {
     );
   });
 
-  test("should logout when clicking sign out", async ({ page }) => {
+  test("@smoke should logout when clicking sign out", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 

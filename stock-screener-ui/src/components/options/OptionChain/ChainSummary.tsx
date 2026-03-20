@@ -9,6 +9,58 @@ interface ChainSummaryProps {
   summary?: any;
 }
 
+export interface StrikeRow {
+  strike: number;
+  ce: any;
+  pe: any;
+}
+
+export interface Summary {
+  pcr: number;
+  max_pain: number;
+  expected_move: { lower: number; upper: number; range: number } | null;
+  total_ce_oi: number;
+  total_pe_oi: number;
+}
+
+export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undefined) {
+  if (summary) {
+    return {
+      pcr: summary.pcr,
+      maxPain: summary.max_pain,
+      expectedMove: summary.expected_move,
+      totalCE_OI: summary.total_ce_oi,
+      totalPE_OI: summary.total_pe_oi,
+      resistanceStrike:
+        Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0)) > 0
+          ? strikeMatrix.reduce((prev, curr) =>
+              (curr.ce?.market_data?.oi ?? 0) > (prev.ce?.market_data?.oi ?? 0) ? curr : prev,
+            ).strike
+          : 0,
+      supportStrike:
+        Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.oi ?? 0)) > 0
+          ? strikeMatrix.reduce((prev, curr) =>
+              (curr.pe?.market_data?.oi ?? 0) > (prev.pe?.market_data?.oi ?? 0) ? curr : prev,
+            ).strike
+          : 0,
+    };
+  }
+
+  return {
+    pcr: 0,
+    maxPain: 0,
+    expectedMove: null,
+    totalCE_OI: 0,
+    totalPE_OI: 0,
+    resistanceStrike: 0,
+    supportStrike: 0,
+  };
+}
+
+export function computePcrColor(pcr: number): string {
+  return pcr > 1.2 ? "green" : pcr < 0.7 ? "red" : "blue";
+}
+
 export function ChainSummary({
   strikeMatrix,
   spotPrice,
