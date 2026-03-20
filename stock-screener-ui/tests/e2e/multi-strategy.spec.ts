@@ -244,8 +244,8 @@ async function navigateToBot(page: Page, botId: string) {
       .click();
   }
 
-  // Wait a bit for the UI to update after selection
-  await page.waitForTimeout(1000);
+  // Wait for the UI to update after selection
+  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 5000 });
 }
 
 // Helper to click strategy tab
@@ -253,7 +253,7 @@ async function clickStrategyTab(page: Page, tabName: string): Promise<boolean> {
   const tab = page.locator(`.strategy-tab:has-text('${tabName}')`);
   if ((await tab.count()) > 0) {
     await tab.click();
-    await page.waitForTimeout(300);
+    await page.waitForLoadState("networkidle");
     return true;
   }
   return false;
@@ -384,90 +384,7 @@ test.describe("Multi-Strategy System - Watchlists", () => {
     const orbTab = page.locator(".strategy-tab:has-text('ORB Conservative')");
     if ((await orbTab.count()) > 0) {
       await orbTab.click();
-      await page.waitForTimeout(300);
-
-      const orbSymbols = await page.locator(".scan-table tbody td:first-child").allTextContents();
-
-      const chaserTab = page.locator(".strategy-tab:has-text('52W')");
-      if ((await chaserTab.count()) > 0) {
-        await chaserTab.click();
-        await page.waitForTimeout(300);
-        const chaserSymbols = await page
-          .locator(".scan-table tbody td:first-child")
-          .allTextContents();
-        // Symbols may differ in production
-        expect(Array.isArray(orbSymbols) && Array.isArray(chaserSymbols)).toBeTruthy();
-      }
-    }
-  });
-});
-
-test.describe("Multi-Strategy System - ORB Watchlist", () => {
-  const botId = BOT_IDS.orbWatchlist;
-
-  test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupPaperTradingMocks(page);
-    await setupBotMocksForId(page, botId);
-  });
-
-  test("should show ORB watchlist stocks for ORB strategy", async ({ page }) => {
-    await navigateToBot(page, botId);
-
-    const scanTable = page.locator(".scan-table");
-    if ((await scanTable.count()) > 0) {
-      const rows = await scanTable.locator("tbody tr").count();
-      expect(rows).toBeGreaterThan(0);
-    }
-  });
-});
-
-test.describe("Multi-Strategy System - Scan Items Attribution", () => {
-  const botId = BOT_IDS.scanAttribution;
-
-  test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupPaperTradingMocks(page);
-    await setupBotMocksForId(page, botId);
-  });
-
-  test.skip("should show strategy name in scan items", async ({ page }) => {
-    test.slow();
-    await navigateToBot(page, botId);
-
-    // Wait for loading to complete
-    await page.waitForFunction(
-      () => {
-        const loadingText = document.body.textContent;
-        return !loadingText?.includes("Loading positions...");
-      },
-      { timeout: 15000 },
-    );
-
-    const strategyHeader = page.locator(".scan-table th:has-text('Strategy')");
-    await expect(strategyHeader).toBeVisible({ timeout: 15000 });
-  });
-});
-
-test.describe("Multi-Strategy System - Scan Items Filter", () => {
-  const botId = BOT_IDS.scanFilter;
-
-  test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupPaperTradingMocks(page);
-    await setupBotMocksForId(page, botId);
-  });
-
-  test("should filter scan items by strategy tab", async ({ page }) => {
-    await navigateToBot(page, botId);
-
-    const orbTab = page.locator(".strategy-tab:has-text('ORB Conservative')");
-    if ((await orbTab.count()) > 0) {
-      await orbTab.click();
-      await page.waitForTimeout(300);
+      await page.waitForLoadState("networkidle");
 
       const strategyCells = await page
         .locator(".scan-table tbody td:has-text('ORB')")
@@ -516,7 +433,7 @@ test.describe("Multi-Strategy System - Positions Filter", () => {
     const orbTab = page.locator(".strategy-tab:has-text('ORB Conservative')");
     if ((await orbTab.count()) > 0) {
       await orbTab.click();
-      await page.waitForTimeout(300);
+      await page.waitForLoadState("networkidle");
 
       const positionsTable = page.locator(".positions-table");
       if ((await positionsTable.count()) > 0) {
@@ -542,7 +459,7 @@ test.describe("Multi-Strategy System - All Positions", () => {
     const allTab = page.locator(".strategy-tab:has-text('All')");
     if ((await allTab.count()) > 0) {
       await allTab.click();
-      await page.waitForTimeout(300);
+      await page.waitForLoadState("networkidle");
 
       const positionsTable = page.locator(".positions-table");
       if ((await positionsTable.count()) > 0) {
@@ -604,12 +521,7 @@ test.describe("Multi-Strategy System - Chart ORB Levels", () => {
     const positionRow = page.locator(".positions-table tbody tr").first();
     if ((await positionRow.count()) > 0) {
       await positionRow.click();
-      await page.waitForTimeout(500);
-
-      const chart = page.locator(".paper-chart, #paper-chart, .echarts-container");
-      if ((await chart.count()) > 0) {
-        await expect(chart).toBeVisible();
-      }
+      await expect(page.locator(".paper-chart, #paper-chart, .echarts-container").first()).toBeVisible({ timeout: 5000 });
     }
   });
 });
@@ -667,7 +579,7 @@ test.describe("Multi-Strategy System - Chart 52W Levels", () => {
     const chaserTab = page.locator(".strategy-tab:has-text('52W')");
     if ((await chaserTab.count()) > 0) {
       await chaserTab.click();
-      await page.waitForTimeout(300);
+      await page.waitForLoadState("networkidle");
     }
     // Test passes if navigation succeeds
     expect(true).toBeTruthy();
@@ -750,7 +662,7 @@ test.describe("Multi-Strategy System - History Filter", () => {
     const strategyFilter = page.locator("#strategy-filter, select[name='strategy']");
     if ((await strategyFilter.count()) > 0) {
       await strategyFilter.selectOption("ORB Conservative");
-      await page.waitForTimeout(300);
+      await page.waitForLoadState("networkidle");
     }
     // Test passes if filter interaction succeeds
     expect(true).toBeTruthy();

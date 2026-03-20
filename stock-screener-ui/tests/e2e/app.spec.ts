@@ -52,8 +52,7 @@ test.describe("Paper Trading Settings", () => {
       timeout: 20000,
     });
 
-    // Wait for the tabs to be fully rendered
-    await page.waitForTimeout(500);
+    await expect(page.locator('[data-testid="tab-settings"]')).toBeVisible();
 
     const settingsTab = page.locator('[data-testid="tab-settings"]');
     await settingsTab.waitFor({ state: "visible", timeout: 10000 });
@@ -74,8 +73,7 @@ test.describe("Paper Trading Settings", () => {
 
     await maxPositionsInput.fill("4");
     await expect(maxPositionsInput).toHaveValue("4");
-
-    await page.waitForTimeout(200);
+    await expect(page.locator('[data-testid="save-settings-button"]')).toBeEnabled();
 
     const saveButton = page.locator('[data-testid="save-settings-button"]');
     await expect(saveButton).toBeEnabled({ timeout: 10000 });
@@ -102,7 +100,7 @@ test.describe("Paper Trading Settings", () => {
     await expect(page.locator('[data-testid="config-cooldown"]')).toHaveValue("30");
   });
 
-  test("should reset settings to defaults", async ({ page }) => {
+   test("should reset settings to defaults", async ({ page }) => {
     await navigateToPaperTradingSettings(page);
 
     const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
@@ -113,10 +111,6 @@ test.describe("Paper Trading Settings", () => {
 
     const resetButton = page.locator('[data-testid="reset-settings-button"]');
     await resetButton.click();
-
-    await page.waitForTimeout(500);
-
-    // Navigate fresh to paper trading settings after reset
     await navigateToPaperTradingSettings(page);
 
     const maxPositionsAfterReset = page.locator('[data-testid="config-max-positions"]');

@@ -146,9 +146,6 @@ test.describe("Market Ticker", () => {
     // Navigate and immediately check for loading
     const navigationPromise = page.goto("/");
 
-    // Give the moment to check loading state
-    await page.waitForTimeout(100);
-
     // Check loading state is shown - use try/catch since it may resolve quickly
     try {
       const loadingTicker = page.locator('[data-testid="market-ticker"]');

@@ -54,7 +54,7 @@ export function ChainSummary({
   const pcrColor = stats.pcr > 1.2 ? "green" : stats.pcr < 0.7 ? "red" : "blue";
 
   return (
-    <CompactStatGrid>
+    <CompactStatGrid data-testid="chain-summary">
       <CompactPanel
         className="chain-summary-card chain-summary-pcr"
         data-testid="options-chain-summary-pcr"

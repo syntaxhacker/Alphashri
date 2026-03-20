@@ -32,9 +32,7 @@ test.describe("Strategies View - Navigation", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-strategies"]').click();
-    await page.waitForTimeout(500);
-
-    // Should show strategies view
+    await expect(page.locator('[data-testid="strategies-view"]')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-testid="strategies-view"]')).toBeVisible();
   });
 
@@ -139,7 +137,7 @@ test.describe("Strategies View - List", () => {
     await gotoStrategiesView(page);
 
     // Wait for templates to load
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="strategies-view"]')).toBeVisible({ timeout: 5000 });
 
     // Should show strategy cards (templates) or table - check conditionally
     const strategyList = page.locator(
@@ -156,7 +154,7 @@ test.describe("Strategies View - List", () => {
     await gotoStrategiesView(page);
 
     // Wait for templates to load
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="strategies-view"]')).toBeVisible({ timeout: 5000 });
 
     // Check for strategy type labels - conditionally
     const typeLabels = page.locator(".template-type");
@@ -239,9 +237,7 @@ test.describe("Strategies View - Create", () => {
       const typeSelect = page.locator("#strategy-type, select[name='strategy_type']");
       if ((await typeSelect.count()) > 0) {
         await typeSelect.selectOption("52W_CHASER");
-        await page.waitForTimeout(300);
-
-        // Should show 52W-specific fields
+        await page.waitForLoadState("networkidle");
         const thresholdInput = page.locator("#entry-threshold, input[name='entry_threshold_pct']");
         if ((await thresholdInput.count()) > 0) {
           await expect(thresholdInput).toBeVisible();
@@ -424,9 +420,7 @@ test.describe("Strategies View - Set Default", () => {
     const setDefaultBtn = getSetDefaultButton(page);
     if ((await setDefaultBtn.count()) > 0) {
       await setDefaultBtn.first().click();
-      await page.waitForTimeout(500);
-
-      // Default badge should move
+      await expect(getDefaultBadge(page).first()).toBeVisible({ timeout: 5000 });
       const defaultBadges = getDefaultBadge(page);
       await expect(defaultBadges.first()).toBeVisible();
     }

@@ -483,18 +483,19 @@ export default function NewsPanel() {
                   data-testid="news-source-select"
                 />
 
-                <Tooltip label="Refresh">
-                  <ActionIcon
-                    variant="light"
-                    size="sm"
-                    onClick={() => loadNews()}
-                    loading={loading}
-                    className="news-refresh-btn"
-                    data-testid="news-refresh-btn"
-                  >
-                    <IconRefresh size={14} />
-                  </ActionIcon>
-                </Tooltip>
+                 <Tooltip label="Refresh">
+                   <ActionIcon
+                     variant="light"
+                     size="sm"
+                     onClick={() => loadNews()}
+                     loading={loading}
+                     disabled={loading || isRefreshing}
+                     className="news-refresh-btn"
+                     data-testid="news-refresh-btn"
+                   >
+                     <IconRefresh size={14} />
+                   </ActionIcon>
+                 </Tooltip>
 
                 <Select
                   size="sm"

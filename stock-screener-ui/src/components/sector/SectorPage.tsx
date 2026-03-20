@@ -478,10 +478,20 @@ export function SectorPage() {
   };
 
   return (
-    <CompactPage
-      title="Sector Dashboard"
-      description="Real-time sector performance and technical strength."
-      actions={
+    <Stack
+      gap="sm"
+      style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      data-testid="sector-analysis-view"
+    >
+      <Box className="sector-analysis-header">
+        <Stack gap={2}>
+          <Title order={2} size="h4">
+            Sector Dashboard
+          </Title>
+          <Text size="sm" c="dimmed">
+            Real-time sector performance and technical strength.
+          </Text>
+        </Stack>
         <Group gap="xs">
           <SegmentedControl
             value={market}
@@ -504,14 +514,12 @@ export function SectorPage() {
             Refresh
           </Button>
         </Group>
-      }
-    >
+      </Box>
       <Box
         id="sector-page"
         className="sector-page"
         flex={1}
         style={{ display: "flex", flexDirection: "column", minHeight: 0 }}
-        data-testid="sector-analysis-view"
       >
         <Tabs value={activeTab} onChange={setActiveTab}>
           <Tabs.List>
@@ -561,6 +569,6 @@ export function SectorPage() {
           )}
         </Box>
       </Box>
-    </CompactPage>
+    </Stack>
   );
 }

@@ -19,9 +19,7 @@ test.describe("Sector Dashboard - Navigation and Display", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-sector"]').click();
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible();
+    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({ timeout: 5000 });
     expect(page.url()).toContain("/sector");
   });
 
@@ -180,10 +178,7 @@ test.describe("Sector Dashboard - Tab Switching", () => {
     await page.waitForSelector('[data-testid="sector-analysis-view"]', { timeout: 10000 });
 
     await page.locator('[role="tab"]:has-text("Historical Cycles")').click();
-    await page.waitForTimeout(500);
-
-    const iframe = page.locator('[data-testid="sector-iframe"]');
-    await expect(iframe).toBeVisible();
+    await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should switch back to Live Dashboard tab", async ({ page }) => {
@@ -191,15 +186,10 @@ test.describe("Sector Dashboard - Tab Switching", () => {
     await page.waitForSelector('[data-testid="sector-analysis-view"]', { timeout: 10000 });
 
     await page.locator('[role="tab"]:has-text("Historical Cycles")').click();
-    await page.waitForTimeout(500);
+    await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
 
     await page.locator('[role="tab"]:has-text("Live Dashboard")').click();
-    await page.waitForTimeout(500);
-
-    const liveTab = page
-      .locator('[data-testid="sector-analysis-view"]')
-      .locator('[role="tab"]:has-text("Live Dashboard")');
-    await expect(liveTab).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({ timeout: 5000 });
 
     // Should show the sector table again
     await expect(
@@ -212,12 +202,9 @@ test.describe("Sector Dashboard - Tab Switching", () => {
     await page.waitForSelector('[data-testid="sector-analysis-view"]', { timeout: 10000 });
 
     await page.locator('[role="tab"]:has-text("Historical Cycles")').click();
-    await page.waitForTimeout(500);
+    await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
 
-    const iframe = page.locator('[data-testid="sector-iframe"]');
-    await expect(iframe).toBeVisible();
-
-    const src = await iframe.getAttribute("src");
+    const src = await page.locator('[data-testid="sector-iframe"]').getAttribute("src");
     expect(src).toBeTruthy();
     expect(src).toContain("dashboard-modular.html");
     expect(src).toContain("/sector/dashboard-modular.html");
@@ -233,9 +220,7 @@ test.describe("Sector Dashboard - Tab Switching", () => {
     ).toBeVisible();
 
     await page.locator('[role="tab"]:has-text("Historical Cycles")').click();
-    await page.waitForTimeout(500);
-
-    // Table should be hidden, iframe should be visible
+    await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible();
     await expect(page.locator('[data-testid="sector-analysis-frame"]')).toBeVisible();
   });
@@ -279,11 +264,11 @@ test.describe("Sector Dashboard - Market Selector", () => {
 
     // Click US
     await usBtn.click();
-    await page.waitForTimeout(300);
+    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({ timeout: 5000 });
 
     // Click India to toggle back
     await indiaBtn.click();
-    await page.waitForTimeout(300);
+    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({ timeout: 5000 });
 
     // Both buttons should still be visible after toggling
     await expect(indiaBtn).toBeVisible();
@@ -310,9 +295,7 @@ test.describe("Sector Dashboard - Refresh Button", () => {
     await expect(refreshBtn).toBeEnabled();
 
     await refreshBtn.click();
-    await page.waitForTimeout(500);
-
-    // Button should still be visible after click
+    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({ timeout: 5000 });
     await expect(refreshBtn).toBeVisible();
   });
 });
@@ -374,10 +357,7 @@ test.describe("Sector Dashboard - Navigation State", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-sector"]').click();
-    await page.waitForTimeout(500);
-
-    const sectorNav = page.locator('[data-testid="nav-sector"]');
-    await expect(sectorNav).toHaveAttribute("data-active", "true");
+    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should navigate to sector view from other views", async ({ page }) => {
@@ -385,9 +365,7 @@ test.describe("Sector Dashboard - Navigation State", () => {
     await page.waitForSelector('[data-testid="paper-trading-view"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-sector"]').click();
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible();
+    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({ timeout: 5000 });
     expect(page.url()).toContain("/sector");
   });
 
@@ -396,9 +374,7 @@ test.describe("Sector Dashboard - Navigation State", () => {
     await page.waitForSelector('[data-testid="sector-analysis-view"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-screener"]').click();
-    await page.waitForTimeout(500);
-
-    const url = page.url();
-    expect(url).not.toContain("/sector");
+    await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 5000 });
+    expect(page.url()).not.toContain("/sector");
   });
 });

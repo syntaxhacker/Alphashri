@@ -446,7 +446,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock screeners list
-  await page.route("**/api/screeners", async (route) => {
+  await page.route("http://localhost:8765/api/screeners", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -523,28 +523,19 @@ function getConfigForPage(page: import("@playwright/test").Page): typeof mockStr
   return configByPage.get(page)!;
 }
 
-// Helper to login as test user (sets localStorage tokens and enables auth mock)
+// Helper to login as test user
+// Note: With globalSetup, auth is handled once per worker via storageState.
+// This function now just sets up route mocking without addInitScript.
 export async function loginAsTestUser(page: import("@playwright/test").Page) {
-  // Enable authenticated response for this specific page
   authStateByPage.set(page, true);
 
-  // Set localStorage tokens before navigating
-  await page.addInitScript(() => {
-    localStorage.setItem("alphashri_token", "test_access_token_12345");
-    localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
-    localStorage.setItem(
-      "alphashri_user",
-      JSON.stringify({
-        id: 1,
-        email: "test@alphashri.dev",
-        display_name: "TestUser",
-        initial_capital: 1000000,
-        created_at: "2026-01-01T00:00:00",
-      }),
-    );
-  });
+  // Set localStorage tokens before page loads to simulate authenticated session
+  await page.addInitScript((user) => {
+    localStorage.setItem('alphashri_token', 'test_access_token_12345');
+    localStorage.setItem('alphashri_refresh_token', 'test_refresh_token_12345');
+    localStorage.setItem('alphashri_user', JSON.stringify(user));
+  }, testUser);
 
-  // Override auth route to always return authenticated user
   await page.route("**/api/auth/me", async (route) => {
     await route.fulfill({
       status: 200,
@@ -872,7 +863,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
 // Options API mocks
 export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   // Mock underlyings
-  await page.route("**/api/options/underlyings", async (route) => {
+  await page.route(/\/api\/options\/underlyings/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -898,7 +889,7 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock expiries
-  await page.route("**/api/options/expiries/*", async (route) => {
+  await page.route(/\/api\/options\/expiries\//, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -913,7 +904,7 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock option chain
-  await page.route("**/api/options/chain/*", async (route) => {
+  await page.route(/\/api\/options\/chain\//, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1003,8 +994,33 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
     });
   });
 
+  // Mock positions
+  await page.route(/\/api\/options\/positions/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        positions: [],
+      }),
+    });
+  });
+
+  // Mock spot price
+  await page.route(/\/api\/options\/spot\//, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        underlying: "NIFTY",
+        spot: 24000.5,
+      }),
+    });
+  });
+
   // Mock spot history
-  await page.route("**/api/options/spot-history/*", async (route) => {
+  await page.route(/\/api\/options\/spot-history\//, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

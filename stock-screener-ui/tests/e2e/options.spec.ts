@@ -13,9 +13,7 @@ test.describe("Options View - Navigation and Basic Display", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     await page.locator('[data-testid="nav-options"]').click();
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('[data-testid="options-view"]')).toBeVisible();
+    await expect(page.locator('[data-testid="options-view"]')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-testid="options-nav"]')).toBeVisible();
   });
 
@@ -103,8 +101,8 @@ test.describe("Options View - Filters", () => {
 
     // Filter to Calls Only
     await typeSelect.click();
+    await expect(page.getByRole("option", { name: "Calls Only" })).toBeVisible({ timeout: 5000 });
     await page.getByRole("option", { name: "Calls Only" }).click();
-    await page.waitForTimeout(300);
 
     // Puts should be hidden (Wait, our logic might still show the column but empty or similar)
     // Based on OptionChainPanel.tsx, if filters.optionType !== "PE", CE is shown.

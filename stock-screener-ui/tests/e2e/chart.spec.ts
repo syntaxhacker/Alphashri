@@ -390,10 +390,7 @@ test.describe("Chart View - Display Candlestick Chart", () => {
 
     // Should show error or redirect
     const errorElement = page.locator(".chart-error, .chart-view-error");
-    await page.waitForTimeout(1000);
-
-    const errorCount = await errorElement.count();
-    expect(errorCount).toBeGreaterThan(0);
+    await expect(errorElement.first()).toBeVisible({ timeout: 5000 });
   });
 
   test("should display symbol in chart title", async ({ page }) => {
@@ -473,9 +470,7 @@ test.describe("Chart View - ORB Levels", () => {
     await orSelect.selectOption("30");
 
     // Chart should update with new OR levels
-    await page.waitForTimeout(500);
-
-    // Verify chart is still visible after change
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible();
   });
 });
@@ -581,10 +576,8 @@ test.describe("Chart View - Chart Zoom and Pan", () => {
     await chartContainer.hover({ position: { x: 200, y: 200 } });
     await page.mouse.wheel(0, -100); // Zoom in
 
-    await page.waitForTimeout(500);
-
     // Chart should still be visible after zoom
-    await expect(chartContainer).toBeVisible();
+    await expect(chartContainer).toBeVisible({ timeout: 5000 });
   });
 
   test("should support pan functionality via drag", async ({ page }) => {
@@ -601,12 +594,10 @@ test.describe("Chart View - Chart Zoom and Pan", () => {
       await page.mouse.down();
       await page.mouse.move(box.x + box.width / 2 + 50, box.y + box.height / 2);
       await page.mouse.up();
+
+      // Chart should still be visible after pan
+      await expect(chartContainer).toBeVisible({ timeout: 5000 });
     }
-
-    await page.waitForTimeout(300);
-
-    // Chart should still be visible after pan
-    await expect(chartContainer).toBeVisible();
   });
 
   test("should show data zoom slider for full size chart", async ({ page }) => {
@@ -664,9 +655,7 @@ test.describe("Chart View - Timeframe Selection", () => {
     const timeframeSelect = page.locator("select").first();
     await timeframeSelect.selectOption("1"); // 1m option
 
-    await page.waitForTimeout(500);
-
-    // Chart should update and still be visible
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible();
 
     // Footer should show updated timeframe
@@ -685,9 +674,7 @@ test.describe("Chart View - Timeframe Selection", () => {
     const timeframeSelect = page.locator("select").first();
     await timeframeSelect.selectOption("5"); // 5m option
 
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should change timeframe when 15m is selected", async ({ page }) => {
@@ -699,9 +686,7 @@ test.describe("Chart View - Timeframe Selection", () => {
     const timeframeSelect = page.locator("select").first();
     await timeframeSelect.selectOption("15"); // 15m option
 
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should change timeframe when 30m is selected", async ({ page }) => {
@@ -713,9 +698,7 @@ test.describe("Chart View - Timeframe Selection", () => {
     const timeframeSelect = page.locator("select").first();
     await timeframeSelect.selectOption("30"); // 30m option
 
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should change timeframe when 1h is selected", async ({ page }) => {
@@ -727,9 +710,7 @@ test.describe("Chart View - Timeframe Selection", () => {
     const timeframeSelect = page.locator("select").first();
     await timeframeSelect.selectOption("60"); // 1h option
 
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
 
     // Footer should show updated timeframe
     const footer = page.locator(".chart-view-footer");
@@ -761,9 +742,7 @@ test.describe("Chart View - Timeframe Selection", () => {
     const timeframeSelect = page.locator("select").first();
     await timeframeSelect.selectOption("30");
 
-    await page.waitForTimeout(500);
-
-    // Should have made additional API request
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
     expect(requestCount).toBeGreaterThan(initialCount);
   });
 });
@@ -796,10 +775,8 @@ test.describe("Chart View - Pivot Levels", () => {
     const pivotsCheckbox = page.locator("input[type='checkbox']").first();
     await pivotsCheckbox.check();
 
-    await page.waitForTimeout(500);
-
     // Chart should still be visible
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should hide pivot levels when checkbox is disabled", async ({ page }) => {
@@ -812,10 +789,8 @@ test.describe("Chart View - Pivot Levels", () => {
     const pivotsCheckbox = page.locator("input[type='checkbox']").first();
     await pivotsCheckbox.uncheck();
 
-    await page.waitForTimeout(500);
-
     // Chart should still be visible
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -837,23 +812,24 @@ test.describe("Chart View - Chart Controls", () => {
     await expect(controls).toBeVisible();
   });
 
-  test("should navigate back when back button is clicked", async ({ page }) => {
-    await page.goto("/chart/RELIANCE");
+   test("should navigate back when back button is clicked", async ({ page }) => {
+     // First navigate to home page to establish history
+     await page.goto("/");
+     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
 
-    // Wait for chart to render
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+     // Then navigate to chart
+     await page.goto("/chart/RELIANCE");
+     await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
 
-    // Click back button
-    const backButton = page.locator(".back-btn");
-    await backButton.click();
+     // Click back button
+     const backButton = page.locator(".back-btn");
+     await backButton.click();
 
-    // Should navigate back
-    await page.waitForTimeout(500);
-
-    // Either on home page or previous page
-    const url = page.url();
-    expect(url).not.toContain("/chart/RELIANCE");
-  });
+     // Should navigate back to home
+     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 5000 });
+     const url = page.url();
+     expect(url).not.toContain("/chart/RELIANCE");
+   });
 });
 
 test.describe("Chart View - Responsive Design", () => {
@@ -909,25 +885,19 @@ test.describe("Chart View - Empty and Edge Cases", () => {
     await page.goto("/chart/EMPTY");
 
     // Should show error or no data message
-    const errorMessage = page.locator(".chart-error, .chart-loading");
-    await page.waitForTimeout(1000);
-
-    const errorCount = await errorMessage.count();
-    expect(errorCount).toBeGreaterThan(0);
+    await expect(page.locator(".chart-error, .chart-loading")).toBeVisible({ timeout: 5000 });
   });
 
-  test("should handle missing symbol parameter", async ({ page }) => {
-    await page.goto("/chart/");
+   test("should handle missing symbol parameter", async ({ page }) => {
+     await page.goto("/chart");
 
-    // Should show error about missing symbol or redirect
-    await page.waitForTimeout(500);
-
-    // Either we get an error element, a redirect, or a back button
-    const errorElement = page.locator(".chart-view-error, .chart-error, .back-btn");
-    const errorCount = await errorElement.count();
-    // At minimum, something should be visible
-    expect(errorCount).toBeGreaterThanOrEqual(0);
-  });
+     // Should show error about missing symbol or redirect
+     await expect(page.locator(".chart-view-error, .chart-error, .back-btn").first()).toBeVisible({ timeout: 5000 });
+     const errorElement = page.locator(".chart-view-error, .chart-error, .back-btn");
+     const errorCount = await errorElement.count();
+     // At minimum, something should be visible
+     expect(errorCount).toBeGreaterThanOrEqual(0);
+   });
 
   test("should handle API error response", async ({ page }) => {
     await page.route("**/api/chart/preview/**", async (route) => {
@@ -941,12 +911,6 @@ test.describe("Chart View - Empty and Edge Cases", () => {
     await page.goto("/chart/ERROR");
 
     // Should show error state
-    const errorElement = page.locator(".chart-error");
-    await page.waitForTimeout(1000);
-
-    const errorCount = await errorElement.count();
-    // At least one of error or back button should be visible
-    const hasErrorOrBack = errorCount > 0 || (await page.locator(".back-btn").count()) > 0;
-    expect(hasErrorOrBack).toBeTruthy();
+    await expect(page.locator(".chart-error")).toBeVisible({ timeout: 5000 });
   });
 });
