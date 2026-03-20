@@ -430,14 +430,14 @@ describe("initBotsHandlers", () => {
   it("attaches handlers to window", () => {
     initBotsHandlers();
 
-    expect(typeof (window as any).setBotsView).toBe('function');
-    expect(typeof (window as any).clearBotError).toBe('function');
-    expect(typeof (window as any).viewBotStatus).toBe('function');
-    expect(typeof (window as any).startBot).toBe('function');
-    expect(typeof (window as any).stopBot).toBe('function');
-    expect(typeof (window as any).editBot).toBe('function');
-    expect(typeof (window as any).deleteBot).toBe('function');
-    expect(typeof (window as any).openCreateBotModal).toBe('function');
+    expect(typeof (window as any).setBotsView).toBe("function");
+    expect(typeof (window as any).clearBotError).toBe("function");
+    expect(typeof (window as any).viewBotStatus).toBe("function");
+    expect(typeof (window as any).startBot).toBe("function");
+    expect(typeof (window as any).stopBot).toBe("function");
+    expect(typeof (window as any).editBot).toBe("function");
+    expect(typeof (window as any).deleteBot).toBe("function");
+    expect(typeof (window as any).openCreateBotModal).toBe("function");
   });
 
   it("calls initBotsState", () => {

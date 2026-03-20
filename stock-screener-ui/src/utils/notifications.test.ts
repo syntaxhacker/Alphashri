@@ -27,7 +27,7 @@ describe("pushNotification", () => {
     expect(notif.title).toBe("Test Title");
     expect(notif.detail).toBe("Test Detail");
     expect(notif.kind).toBe("primary");
-    expect(typeof notif.ts).toBe('string');
+    expect(typeof notif.ts).toBe("string");
     expect(notif.ts.length).toBeGreaterThan(0);
   });
 
