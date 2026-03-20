@@ -25,7 +25,7 @@ test.describe("Strategies V2", () => {
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
     });
 
-    test("navigate via URL /strategies -> strategies-view visible", async ({ page }) => {
+    test("@smoke navigate via URL /strategies -> strategies-view visible", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
     });
@@ -79,7 +79,7 @@ test.describe("Strategies V2", () => {
   });
 
   test.describe("Templates View", () => {
-    test("templates-grid visible with strategy-card items", async ({ page }) => {
+    test("@smoke templates-grid visible with strategy-card items", async ({ page }) => {
       await page.goto(STRATEGIES_URL);
       await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
       await expect(page.getByTestId("templates-grid")).toBeVisible();

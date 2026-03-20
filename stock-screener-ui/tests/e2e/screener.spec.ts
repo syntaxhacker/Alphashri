@@ -16,7 +16,7 @@ test.describe("Screener - Data Display", () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test("should display correct columns in table", async ({ page }) => {
+  test("@smoke should display correct columns in table", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector(".mantine-Table-th", { timeout: 10000 });
 
@@ -62,7 +62,7 @@ test.describe("Screener - Screener Navigation", () => {
     await loginAsTestUser(page);
   });
 
-  test("should display screener navigation tabs", async ({ page }) => {
+  test("@smoke should display screener navigation tabs", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="screener-nav"]', { timeout: 10000 });
 

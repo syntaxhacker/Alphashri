@@ -461,7 +461,7 @@ test.describe("Backtest - Mantine Features", () => {
   });
 
   test.describe("Backtest Progress", () => {
-    test("should have working run backtest button", async ({ page }) => {
+    test("@smoke should have working run backtest button", async ({ page }) => {
       await page.goto("/backtest");
       await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 
@@ -532,7 +532,7 @@ test.describe("Backtest - Mantine Features", () => {
   });
 
   test.describe("Empty State", () => {
-    test("should show empty state when no results", async ({ page }) => {
+    test("@smoke should show empty state when no results", async ({ page }) => {
       await page.goto("/backtest");
       await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 

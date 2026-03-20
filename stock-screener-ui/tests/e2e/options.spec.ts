@@ -17,7 +17,7 @@ test.describe("Options View - Navigation and Basic Display", () => {
     await expect(page.locator('[data-testid="options-nav"]')).toBeVisible();
   });
 
-  test("should load options view directly from URL", async ({ page }) => {
+  test("@smoke should load options view directly from URL", async ({ page }) => {
     await page.goto("/options");
     await page.waitForSelector('[data-testid="options-view"]', { timeout: 10000 });
     await expect(page.locator('[data-testid="options-view"]')).toBeVisible();
@@ -44,7 +44,7 @@ test.describe("Options View - Option Chain", () => {
     await expect(page.locator('[data-testid="expiry-select"]')).toBeVisible();
   });
 
-  test("should display chain summary with PCR and Max Pain", async ({ page }) => {
+  test("@smoke should display chain summary with PCR and Max Pain", async ({ page }) => {
     const summary = page.locator('[data-testid="chain-summary"]');
     await expect(summary).toBeVisible();
     await expect(summary).toContainText("PCR");

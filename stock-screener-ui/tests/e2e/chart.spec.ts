@@ -348,7 +348,7 @@ test.describe("Chart View - Display Candlestick Chart", () => {
     await setupChartMocks(page);
   });
 
-  test("should render chart container when symbol is loaded", async ({ page }) => {
+  test("@smoke should render chart container when symbol is loaded", async ({ page }) => {
     await page.goto("/chart/RELIANCE");
 
     // Wait for chart container to be visible
@@ -633,7 +633,7 @@ test.describe("Chart View - Timeframe Selection", () => {
     await expect(timeframeLabel).toBeVisible();
   });
 
-  test("should change timeframe when 1m is selected", async ({ page }) => {
+  test("@smoke should change timeframe when 1m is selected", async ({ page }) => {
     await page.goto("/chart/RELIANCE");
 
     // Wait for chart to render

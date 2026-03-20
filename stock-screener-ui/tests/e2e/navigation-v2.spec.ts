@@ -19,7 +19,7 @@ test.describe("Navigation V2 - All Nav Items Visible", () => {
     await setupSectorMocks(page);
   });
 
-  test("should display all 9 non-admin nav items", async ({ page }) => {
+  test("@smoke should display all 9 non-admin nav items", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 

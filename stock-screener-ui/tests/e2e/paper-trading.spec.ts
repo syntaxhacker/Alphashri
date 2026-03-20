@@ -32,7 +32,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test.beforeEach(async ({ page }) => {
     await setupPaperTradingTest(page);
   });
-  test("should display paper trading view with tabs", async ({ page }) => {
+  test("@smoke should display paper trading view with tabs", async ({ page }) => {
     await navigateToPaperTrading(page);
 
     // Verify tabs are visible
@@ -80,7 +80,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   });
 
   // Note: This test uses the mock data from setupMultiStrategyBotMocks
-  test("should show positions with strategy tabs when multiple strategies have positions", async ({
+  test("@smoke should show positions with strategy tabs when multiple strategies have positions", async ({
     page,
   }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);

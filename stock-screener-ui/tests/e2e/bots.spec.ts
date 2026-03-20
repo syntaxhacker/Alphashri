@@ -157,12 +157,12 @@ test.describe("Bots View - List", () => {
     await mockBotsList(page);
   });
 
-  test("should display list of bots", async ({ page }) => {
+  test("@smoke should display list of bots", async ({ page }) => {
     await gotoBotsViewAndWait(page);
     await expect(getBotListItems(page)).toHaveCount(2);
   });
 
-  test("should show bot status for each bot", async ({ page }) => {
+  test("@smoke should show bot status for each bot", async ({ page }) => {
     await gotoBotsViewAndWait(page);
     await expect(getBotStatus(page)).toHaveCount(2);
     await expect(getBotStatus(page).first()).toBeVisible();

@@ -7,19 +7,19 @@ test.describe("Layout - App Structure", () => {
     await loginAsTestUser(page);
   });
 
-  test("app-shell is visible on page load", async ({ page }) => {
+  test("@smoke app-shell is visible on page load", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible();
   });
 
-  test("app-header is visible", async ({ page }) => {
+  test("@smoke app-header is visible", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
     await expect(page.locator('[data-testid="app-header"]')).toBeVisible();
   });
 
-  test("app-navbar is visible", async ({ page }) => {
+  test("@smoke app-navbar is visible", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
     await expect(page.locator('[data-testid="app-navbar"]')).toBeVisible();
