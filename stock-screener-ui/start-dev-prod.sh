@@ -8,7 +8,6 @@ UI_HOST="${UI_HOST:-0.0.0.0}"
 UI_PORT="${UI_PORT:-5173}"
 LOG_FILE="${LOG_FILE:-/tmp/alphashri-dev-prod.log}"
 
-# Check for production env file
 if [[ ! -f ".env.production" ]]; then
   echo "Error: .env.production not found."
   exit 1
@@ -42,13 +41,26 @@ kill_port "$UI_PORT"
 
 : > "$LOG_FILE"
 echo "Logging to: $LOG_FILE"
-
-echo "Starting UI on http://${UI_HOST}:${UI_PORT}"
 echo "API: $API_URL"
+
 npx vite --mode production --host "${UI_HOST}" --port "${UI_PORT}" >> "$LOG_FILE" 2>&1 &
 UI_PID=$!
 
+sleep 3
+
+if ! kill -0 "$UI_PID" 2>/dev/null; then
+  echo "Failed to start vite. Check logs: $LOG_FILE"
+  cat "$LOG_FILE"
+  exit 1
+fi
+
 echo "UI PID: ${UI_PID}"
+echo ""
+echo "  ➜  Local:    http://localhost:${UI_PORT}/"
+grep -oP 'Network: http://\K[^\s]+' "$LOG_FILE" | while read -r url; do
+  echo "  ➜  Network: ${url}/"
+done
+echo ""
 echo "Press Ctrl+C to stop."
 echo "Tail logs: tail -f $LOG_FILE"
 
