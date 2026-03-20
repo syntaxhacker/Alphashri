@@ -209,6 +209,7 @@ describe("createNewsWebSocket", () => {
 
   beforeEach(() => {
     OriginalWebSocket = globalThis.WebSocket;
+    globalThis.WebSocket = MockWebSocket as any;
   });
 
   afterEach(() => {
@@ -224,7 +225,6 @@ describe("createNewsWebSocket", () => {
   });
 
   it("calls onConnect when connection opens", () => {
-    globalThis.WebSocket = MockWebSocket as any;
     const onConnect = vi.fn();
     const ws = createNewsWebSocket(() => {}, onConnect);
 
@@ -238,7 +238,6 @@ describe("createNewsWebSocket", () => {
   });
 
   it("parses and forwards messages via onMessage", () => {
-    globalThis.WebSocket = MockWebSocket as any;
     const onMessage = vi.fn();
     const ws = createNewsWebSocket(onMessage);
 
@@ -251,7 +250,6 @@ describe("createNewsWebSocket", () => {
   });
 
   it("handles malformed messages gracefully", () => {
-    globalThis.WebSocket = MockWebSocket as any;
     const onMessage = vi.fn();
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const ws = createNewsWebSocket(onMessage);
@@ -266,7 +264,6 @@ describe("createNewsWebSocket", () => {
   });
 
   it("calls onDisconnect when connection closes", () => {
-    globalThis.WebSocket = MockWebSocket as any;
     const onDisconnect = vi.fn();
     const ws = createNewsWebSocket(() => {}, undefined, onDisconnect);
 
