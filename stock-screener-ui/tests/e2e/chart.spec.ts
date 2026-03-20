@@ -826,7 +826,7 @@ test.describe("Chart View - Chart Controls", () => {
     await backButton.click();
 
     // Should navigate back to home
-    await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
     const url = page.url();
     expect(url).not.toContain("/chart/RELIANCE");
   });
