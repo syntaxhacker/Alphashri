@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query, HTTPException, Path, Depends
 from pydantic import BaseModel
 
 from api.screener import _sanitize_for_json
+from api.auth import get_current_user_optional
 
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
@@ -191,7 +192,7 @@ async def get_results():
 
 
 @router.get("/history")
-async def get_backtest_history_list():
+async def list_history():
     user_id = 1
     from cache.redis_client import cache_get, cache_set
     _bh_key = f"backtest:{user_id}:history:list"
@@ -220,7 +221,9 @@ async def get_backtest_details(uuid: str):
 
 
 @router.delete("/history/{uuid}")
-async def delete_backtest(uuid: str):
+async def delete_backtest(uuid: str, user=Depends(get_current_user_optional)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
     success = delete_backtest_history(uuid)
     if not success:
         raise HTTPException(status_code=404, detail="Backtest not found or could not be deleted")
