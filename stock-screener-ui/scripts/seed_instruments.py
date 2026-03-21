@@ -85,13 +85,15 @@ def seed():
                     total += len(batch)
                     print(f"Inserted {total} instruments...")
                     batch = []
-            
+
             if batch:
                 db.bulk_save_objects(batch)
                 db.commit()
                 total += len(batch)
                 print(f"Inserted {total} instruments...")
-        
+
+            break
+
         # Update statistics
         count = db.query(Instrument).count()
         print(f"\nTotal instruments in DB: {count}")

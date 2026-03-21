@@ -425,4 +425,124 @@ def invalidate_chart_cache() -> int:
 
 
 def invalidate_screener_cache() -> int:
-    return cache_delete_pattern("screener:*")
+    deleted = cache_delete_pattern("screener:*")
+    return deleted
+
+
+# ======
+# Stale-While-Revalidate + Singleflight
+# ======
+
+def cache_ttl(key: str) -> Optional[int]:
+    client = get_redis_client()
+    if client is None:
+        return None
+    try:
+        ttl = client.ttl(key)
+        if ttl < 0:
+            return None
+        return ttl
+    except Exception:
+        return None
+
+
+def _try_acquire_lock(key: str, lock_ttl: int = 30) -> bool:
+    client = get_redis_client()
+    if client is None:
+        return False
+    try:
+        return bool(client.set(key, "1", nx=True, ex=lock_ttl))
+    except Exception:
+        return False
+
+
+def _release_lock(key: str) -> bool:
+    client = get_redis_client()
+    if client is None:
+        return False
+    try:
+        return bool(client.delete(key))
+    except Exception:
+        return False
+
+
+async def stale_while_revalidate(
+    key: str,
+    compute_fn: Callable[[], Any],
+    fresh_ttl: int = 300,
+    stale_ttl: Optional[int] = None,
+    lock_ttl: int = 30,
+    wait_timeout: float = 15.0,
+    poll_interval: float = 0.2,
+) -> tuple[Any, str]:
+    import asyncio
+
+    if stale_ttl is None:
+        stale_ttl = fresh_ttl * 2
+
+    fresh_key = f"{key}:fresh"
+    lock_key = f"{key}:lock"
+
+    client = get_redis_client()
+    if client is None:
+        try:
+            result = compute_fn()
+            return result, "miss"
+        except Exception:
+            raise
+
+    try:
+        is_fresh = client.exists(fresh_key) == 1
+    except Exception:
+        is_fresh = False
+
+    data = cache_get(key)
+    if data is not None:
+        if is_fresh:
+            return data, "fresh"
+
+        if _try_acquire_lock(lock_key, lock_ttl):
+
+            async def _background_refresh():
+                try:
+                    result = await asyncio.to_thread(compute_fn)
+                    if result is not None:
+                        cache_set(key, result, ttl=stale_ttl)
+                        cache_set(fresh_key, "1", ttl=fresh_ttl)
+                except Exception as e:
+                    logger.warning("SWR background refresh failed for %s: %s", key, e)
+                finally:
+                    _release_lock(lock_key)
+
+            asyncio.ensure_future(_background_refresh())
+        return data, "stale"
+
+    acquired = _try_acquire_lock(lock_key, lock_ttl)
+    if acquired:
+        try:
+            result = await asyncio.to_thread(compute_fn)
+            if result is not None:
+                cache_set(key, result, ttl=stale_ttl)
+                cache_set(fresh_key, "1", ttl=fresh_ttl)
+            return result, "miss"
+        except Exception as e:
+            raise
+        finally:
+            _release_lock(lock_key)
+
+    elapsed = 0.0
+    while elapsed < wait_timeout:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+        fresh_data = cache_get(key)
+        if fresh_data is not None:
+            return fresh_data, "coalesced"
+
+    try:
+        result = await asyncio.to_thread(compute_fn)
+        if result is not None:
+            cache_set(key, result, ttl=stale_ttl)
+            cache_set(fresh_key, "1", ttl=fresh_ttl)
+        return result, "miss"
+    finally:
+        _release_lock(lock_key)

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path as PathlibPath
 from contextlib import asynccontextmanager
 from datetime import datetime
+import asyncio
 
 _script_dir = PathlibPath(__file__).parent.absolute()
 _project_root = _script_dir.parent
@@ -22,6 +23,7 @@ import config
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 import uvicorn
 
 import trending_upside
@@ -42,6 +44,43 @@ from api.news_routes import (
 )
 
 
+PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers"]
+PREWARM_INTERVAL = 60
+
+
+async def screener_prewarm_task():
+    while True:
+        try:
+            now = datetime.now()
+            hour = now.hour
+            is_market_hours = 3 <= hour <= 10
+            if is_market_hours:
+                from cache.redis_client import make_cache_key, cache_ttl, stale_while_revalidate
+                for screener_id in PREWARM_SCREENERS:
+                    cache_key = make_cache_key("screener", "upstox", "intraday", screener_id)
+                    ttl = cache_ttl(cache_key)
+                    if ttl is None or ttl < PREWARM_INTERVAL:
+                        try:
+                            await stale_while_revalidate(
+                                cache_key,
+                                lambda s=screener_id: _compute_screener("upstox", "intraday", s, {}),
+                                fresh_ttl=300,
+                            )
+                        except Exception:
+                            pass
+            await asyncio.sleep(PREWARM_INTERVAL)
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            await asyncio.sleep(PREWARM_INTERVAL)
+
+
+def _compute_screener(provider, mode, screener, profile_filters):
+    data = fetch_screener_data(provider, mode, screener, profile_filters)
+    data['applied_profile_filters'] = profile_filters
+    return _sanitize_for_json(data)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f'🚀 Alphashri API starting...')
@@ -56,11 +95,14 @@ async def lifespan(app: FastAPI):
         print("✅ Redis cache connected")
     else:
         print("⚠️ Redis unavailable — caching disabled")
-    news_poller = __import__('asyncio').create_task(news_poller_task())
+    news_poller = asyncio.create_task(news_poller_task())
     print("📰 News poller started")
-    __import__('asyncio').create_task(news_startup_prefetch())
+    asyncio.create_task(news_startup_prefetch())
     print("📰 News prefetch scheduled")
+    prewarm = asyncio.create_task(screener_prewarm_task())
+    print("🔄 Screener pre-warm started")
     yield
+    prewarm.cancel()
     news_poller.cancel()
     print("📰 News poller stopped")
     from cache.redis_client import close_redis
@@ -151,20 +193,22 @@ async def get_screener_data(
     if min_cap_b is not None:
         profile_filters['min_cap_b'] = min_cap_b
 
-    from cache.redis_client import cache_get, cache_set, is_cache_available, make_cache_key
+    from cache.redis_client import make_cache_key, stale_while_revalidate
     cache_key = make_cache_key("screener", provider, mode, screener, **profile_filters)
-    cached = cache_get(cache_key) if is_cache_available() else None
-    if cached is not None:
-        return cached
 
-    data = fetch_screener_data(provider, mode, screener, profile_filters)
-    data['applied_profile_filters'] = profile_filters
-    result = _sanitize_for_json(data)
+    data, status = await stale_while_revalidate(
+        cache_key,
+        lambda: _compute_screener(provider, mode, screener, profile_filters),
+        fresh_ttl=300,
+    )
 
-    if is_cache_available():
-        cache_set(cache_key, result, ttl=60)
+    data['cache_status'] = status
+    data['served_from_cache'] = status != 'miss'
+    data['refreshing'] = status == 'stale'
 
-    return result
+    response = JSONResponse(content=data)
+    response.headers["X-Cache"] = status
+    return response
 
 
 # ======

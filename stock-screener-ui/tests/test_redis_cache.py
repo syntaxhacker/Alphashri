@@ -371,10 +371,12 @@ class TestCacheInvalidation:
 
             rc.cache_set("screener:abc123", "data1", ttl=60)
             rc.cache_set("screener:def456", "data2", ttl=60)
+            fake_redis.set("screener:abc123:lock", "1", ex=30)
+            fake_redis.set("screener:abc123:fresh", "1", ex=30)
             rc.cache_set("news:all:recent:25", "news", ttl=60)
 
             deleted = rc.invalidate_screener_cache()
-            assert deleted == 2
+            assert deleted == 4
             assert rc.cache_get("screener:abc123") is None
             assert rc.cache_get("screener:def456") is None
             assert rc.cache_get("news:all:recent:25") == "news"
@@ -385,3 +387,142 @@ class TestCacheInvalidation:
             assert invalidate_backtest_cache(1) == 0
             assert invalidate_news_cache() == 0
             assert invalidate_screener_cache() == 0
+
+
+class TestStaleWhileRevalidate:
+    @pytest.fixture(autouse=True)
+    def _reset(self, _reset_redis_state):
+        pass
+
+    @pytest.fixture
+    def fake_redis(self):
+        try:
+            import fakeredis
+            return fakeredis.FakeRedis(decode_responses=True)
+        except ImportError:
+            pytest.skip("fakeredis not installed")
+
+    @pytest.mark.asyncio
+    async def test_fresh_hit_returns_cached(self, fake_redis):
+        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
+            import cache.redis_client as rc
+            rc._redis_available = True
+            rc.cache_set("test:swr:1", {"data": "fresh"}, ttl=600)
+            fake_redis.set("test:swr:1:fresh", "1", ex=300)
+
+            compute_fn = MagicMock(side_effect=Exception("should not be called"))
+            data, status = await rc.stale_while_revalidate("test:swr:1", compute_fn, fresh_ttl=300, stale_ttl=600)
+
+            assert status == "fresh"
+            assert data == {"data": "fresh"}
+            compute_fn.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_stale_hit_returns_cached_and_triggers_refresh(self, fake_redis):
+        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
+            import cache.redis_client as rc
+            import asyncio
+            rc._redis_available = True
+            fake_redis.set("test:swr:2", rc._serialize({"data": "stale"}), ex=600)
+
+            compute_fn = MagicMock(return_value={"data": "new"})
+            data, status = await rc.stale_while_revalidate("test:swr:2", compute_fn, fresh_ttl=300, stale_ttl=600)
+
+            assert status == "stale"
+            assert data == {"data": "stale"}
+
+            await asyncio.sleep(0.2)
+            compute_fn.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stale_lock_prevents_duplicate_refresh(self, fake_redis):
+        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
+            import cache.redis_client as rc
+            rc._redis_available = True
+            fake_redis.set("test:swr:3", rc._serialize({"data": "stale"}), ex=600)
+            fake_redis.set("test:swr:3:lock", "1", ex=30)
+
+            compute_fn = MagicMock(return_value={"data": "new"})
+            data, status = await rc.stale_while_revalidate("test:swr:3", compute_fn, fresh_ttl=300, stale_ttl=600)
+
+            assert status == "stale"
+            assert data == {"data": "stale"}
+            compute_fn.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_miss_singleflight_computes(self, fake_redis):
+        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
+            import cache.redis_client as rc
+            rc._redis_available = True
+
+            compute_fn = MagicMock(return_value={"data": "computed"})
+            data, status = await rc.stale_while_revalidate("test:swr:4", compute_fn, fresh_ttl=300, stale_ttl=600)
+
+            assert status == "miss"
+            assert data == {"data": "computed"}
+            compute_fn.assert_called_once()
+            assert fake_redis.exists("test:swr:4:lock") == False
+
+    @pytest.mark.asyncio
+    async def test_miss_coalesced_waits_for_other(self, fake_redis):
+        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
+            import cache.redis_client as rc
+            import asyncio
+            rc._redis_available = True
+            fake_redis.set("test:swr:5:lock", "1", ex=30)
+
+            async def populate_after_delay():
+                await asyncio.sleep(0.3)
+                rc.cache_set("test:swr:5", {"data": "from_other"}, ttl=600)
+
+            asyncio.create_task(populate_after_delay())
+
+            compute_fn = MagicMock(side_effect=Exception("should not be called"))
+            data, status = await rc.stale_while_revalidate(
+                "test:swr:5", compute_fn, fresh_ttl=300, stale_ttl=600, wait_timeout=5.0, poll_interval=0.1
+            )
+
+            assert status == "coalesced"
+            assert data == {"data": "from_other"}
+            compute_fn.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_miss_timeout_fallback(self, fake_redis):
+        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
+            import cache.redis_client as rc
+            rc._redis_available = True
+            fake_redis.set("test:swr:6:lock", "1", ex=30)
+
+            compute_fn = MagicMock(return_value={"data": "fallback"})
+            data, status = await rc.stale_while_revalidate(
+                "test:swr:6", compute_fn, fresh_ttl=300, stale_ttl=600, wait_timeout=0.5, poll_interval=0.1
+            )
+
+            assert status == "miss"
+            assert data == {"data": "fallback"}
+            compute_fn.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_redis_unavailable_computes_sync(self):
+        with patch("cache.redis_client.get_redis_client", return_value=None):
+            import cache.redis_client as rc
+            rc._redis_available = False
+
+            compute_fn = MagicMock(return_value={"data": "no_redis"})
+            data, status = await rc.stale_while_revalidate("test:swr:7", compute_fn)
+
+            assert status == "miss"
+            assert data == {"data": "no_redis"}
+            compute_fn.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_compute_failure_on_miss_raises(self, fake_redis):
+        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
+            import cache.redis_client as rc
+            rc._redis_available = True
+
+            compute_fn = MagicMock(side_effect=ValueError("compute error"))
+            with pytest.raises(ValueError, match="compute error"):
+                await rc.stale_while_revalidate("test:swr:8", compute_fn, fresh_ttl=300, stale_ttl=600)
+
+            assert fake_redis.exists("test:swr:8:lock") == False
