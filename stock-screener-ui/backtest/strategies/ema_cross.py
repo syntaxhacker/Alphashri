@@ -1,10 +1,10 @@
 """
-Support & Resistance Breakout Strategy using Pivot Points
+EMA Crossover Strategy using NautilusTrader
 
 Backtest behavior:
-- Calculate pivot points (PP, R1-R3, S1-S3) from previous day's HLC
-- Enter long on resistance breakout (close above R1 + buffer%)
-- Enter short on support breakdown (close below S1 - buffer%) if enabled
+- Calculate fast and slow EMA from close prices
+- Enter long when fast EMA crosses above slow EMA
+- Enter short when fast EMA crosses below slow EMA (if enabled)
 - Manage with fixed SL/TP
 - Exit at EOD
 """
@@ -31,7 +31,6 @@ from nautilus_trader.config import StrategyConfig
 from .base import BaseStrategy, StrategyParam
 from ..costs import calculate_trading_costs
 
-# Add project root to path for imports
 _current_file_dir = os.path.dirname(os.path.abspath(__file__))
 _backtest_dir = os.path.dirname(_current_file_dir)
 _ui_dir = os.path.dirname(_backtest_dir)
@@ -39,70 +38,6 @@ _project_root_dir = os.path.dirname(_ui_dir)
 
 if _project_root_dir not in sys.path:
     sys.path.insert(0, _project_root_dir)
-
-
-@dataclass
-class PivotPoints:
-    """Pivot point levels."""
-    pp: float  # Pivot Point
-    r1: float  # Resistance 1
-    r2: float  # Resistance 2
-    r3: float  # Resistance 3
-    s1: float  # Support 1
-    s2: float  # Support 2
-    s3: float  # Support 3
-
-
-def calculate_pivot_points(high: float, low: float, close: float, pivot_type: str = 'classic') -> PivotPoints:
-    """
-    Calculate pivot points from previous day's HLC.
-
-    Args:
-        high: Previous day's high
-        low: Previous day's low
-        close: Previous day's close
-        pivot_type: 'classic', 'fibonacci', or 'camarilla'
-
-    Returns:
-        PivotPoints with all levels calculated
-    """
-    if pivot_type == 'classic':
-        pp = (high + low + close) / 3
-        r1 = (2 * pp) - low
-        r2 = pp + (high - low)
-        r3 = high + 2 * (pp - low)
-        s1 = (2 * pp) - high
-        s2 = pp - (high - low)
-        s3 = low - 2 * (high - pp)
-    elif pivot_type == 'fibonacci':
-        pp = (high + low + close) / 3
-        range_hl = high - low
-        r1 = pp + (0.382 * range_hl)
-        r2 = pp + (0.618 * range_hl)
-        r3 = pp + (1.000 * range_hl)
-        s1 = pp - (0.382 * range_hl)
-        s2 = pp - (0.618 * range_hl)
-        s3 = pp - (1.000 * range_hl)
-    elif pivot_type == 'camarilla':
-        pp = (high + low + close) / 3
-        range_hl = high - low
-        r1 = close + (range_hl * 1.1 / 12)
-        r2 = close + (range_hl * 1.1 / 6)
-        r3 = close + (range_hl * 1.1 / 4)
-        s1 = close - (range_hl * 1.1 / 12)
-        s2 = close - (range_hl * 1.1 / 6)
-        s3 = close - (range_hl * 1.1 / 4)
-    else:
-        # Default to classic
-        pp = (high + low + close) / 3
-        r1 = (2 * pp) - low
-        r2 = pp + (high - low)
-        r3 = high + 2 * (pp - low)
-        s1 = (2 * pp) - high
-        s2 = pp - (high - low)
-        s3 = low - 2 * (high - pp)
-
-    return PivotPoints(pp=pp, r1=r1, r2=r2, r3=r3, s1=s1, s2=s2, s3=s3)
 
 
 def get_ist_time(ts_ns: int) -> tuple:
@@ -113,67 +48,31 @@ def get_ist_time(ts_ns: int) -> tuple:
     return dt_ist.hour, dt_ist.minute, dt_ist.date()
 
 
-def get_previous_day_data(df: pd.DataFrame, current_date) -> Optional[tuple]:
-    """
-    Get previous trading day's HLC from dataframe.
+def calculate_ema(prices: List[float], period: int) -> float:
+    """Calculate Exponential Moving Average from a list of prices."""
+    if len(prices) < period:
+        return prices[-1] if prices else 0.0
 
-    Returns:
-        Tuple of (high, low, close) or None if not available
-    """
-    if df is None or df.empty:
-        return None
-
-    # Get all dates before current date
-    df_index = df.index
-    if not isinstance(df_index, pd.DatetimeIndex):
-        df_index = pd.to_datetime(df_index)
-
-    # Convert current_date to datetime for comparison
-    current_dt = datetime.combine(current_date, datetime.min.time())
-
-    # Find the most recent trading day before current_date
-    previous_dates = df_index[df_index.date < current_date.date() if hasattr(df_index.date, '__iter__') else True]
-
-    if len(previous_dates) == 0:
-        return None
-
-    # Group by date and get the last complete trading day
-    df_copy = df.copy()
-    df_copy['date'] = df_copy.index.date
-    unique_dates = sorted(df_copy['date'].unique())
-
-    # Find the date before current_date
-    dates_before = [d for d in unique_dates if d < current_date]
-    if not dates_before:
-        return None
-
-    prev_date = dates_before[-1]
-    prev_day_data = df_copy[df_copy['date'] == prev_date]
-
-    if prev_day_data.empty:
-        return None
-
-    return (
-        prev_day_data['high'].max(),
-        prev_day_data['low'].min(),
-        prev_day_data['close'].iloc[-1]
-    )
+    multiplier = 2.0 / (period + 1)
+    ema = sum(prices[:period]) / period
+    for price in prices[period:]:
+        ema = (price - ema) * multiplier + ema
+    return ema
 
 
 def run_single_stock_backtest(args):
     """Run backtest for a single stock in isolation."""
     symbol, params, days, access_token = args if len(args) == 4 else (*args, None)
 
-    
     try:
         from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
 
-        pivot_type = str(params.get('pivot_type', 'classic'))
-        breakout_buffer_pct = float(params.get('breakout_buffer_pct', 0.1))
+        ema_fast_period = int(params.get('ema_fast_period', 9))
+        ema_slow_period = int(params.get('ema_slow_period', 21))
         sl_pct = float(params.get('stop_loss_pct', 0.5))
         tp_pct = float(params.get('take_profit_pct', 1.5))
         trade_size = int(params.get('trade_size', 100))
-        timeframe = int(params.get('timeframe', '5'))
+        timeframe = int(params.get('timeframe', 5))
         include_costs = bool(params.get('include_costs', True))
         enable_shorts = bool(params.get('enable_shorts', False))
         cooldown_bars = int(params.get('cooldown_bars', 3))
@@ -197,14 +96,14 @@ def run_single_stock_backtest(args):
         from_date = (today - timedelta(days=days + 30)).strftime('%Y-%m-%d')
 
         if access_token:
-            api, error = get_upstox_client_with_token(access_token, quiet=True)
+            upstox_api, error = get_upstox_client_with_token(access_token, quiet=True)
         else:
-            api, error = get_upstox_client_from_db(quiet=True)
-        
-        if error or not api:
-            return {'symbol': symbol, 'success': False, 'error': error or 'No API client'}
+            upstox_api, error = get_upstox_client_from_db(quiet=True)
 
-        df = api.fetch_historical_data_v3(
+        if error or not upstox_api:
+            return {'symbol': symbol, 'success': False, 'error': error or 'Failed to get Upstox client'}
+
+        df = upstox_api.fetch_historical_data_v3(
             symbol=symbol, unit="minutes", interval=timeframe, to_date=to_date, from_date=from_date
         )
 
@@ -212,14 +111,12 @@ def run_single_stock_backtest(args):
             return {'symbol': symbol, 'success': False, 'error': 'No data'}
 
         try:
-            df_intraday = api.fetch_intraday_data_v3(symbol=symbol, interval=str(timeframe))
+            df_intraday = upstox_api.fetch_intraday_data_v3(symbol=symbol, interval=str(timeframe))
             if df_intraday is not None and not df_intraday.empty:
                 df = pd.concat([df, df_intraday]).drop_duplicates(keep='last').sort_index()
         except Exception:
             pass
 
-        # Normalize bars for nautilus (requires UTC)
-        # Data from Upstox is in IST, we localize to UTC so nautilus treats 9:15 as 9:15
         df_copy = df[['open', 'high', 'low', 'close', 'volume']].copy()
         if not isinstance(df_copy.index, pd.DatetimeIndex):
             df_copy.index = pd.to_datetime(df_copy.index)
@@ -234,11 +131,11 @@ def run_single_stock_backtest(args):
         if not bars:
             return {'symbol': symbol, 'success': False, 'error': 'No bars'}
 
-        config = SRBreakoutConfig(
+        config = EMACrossConfig(
             instrument_id=instrument_id,
             bar_type=bar_type,
-            pivot_type=pivot_type,
-            breakout_buffer_pct=breakout_buffer_pct,
+            ema_fast_period=ema_fast_period,
+            ema_slow_period=ema_slow_period,
             sl_pct=sl_pct,
             tp_pct=tp_pct,
             trade_size=trade_size,
@@ -258,14 +155,13 @@ def run_single_stock_backtest(args):
         )
         engine.add_instrument(instrument)
         engine.add_data(bars)
-        strategy = SRBreakoutNautilusStrategy(config=config)
+        strategy = EMACrossNautilusStrategy(config=config)
         engine.add_strategy(strategy=strategy)
         engine.run()
 
         trades = strategy.trades
         engine.dispose()
 
-        # Output candles with IST times (from original df, not UTC-localized df_copy)
         candle_data = {
             'index': [idx.strftime('%Y-%m-%dT%H:%M:%S') if hasattr(idx, 'strftime') else str(idx)[:19] for idx in df.index],
             'open': df['open'].tolist(),
@@ -329,15 +225,15 @@ def run_single_stock_backtest(args):
         return {'symbol': symbol, 'success': False, 'error': str(e)}
 
 
-class SRBreakoutNautilusStrategy(Strategy):
-    """Support & Resistance Breakout implementation using Pivot Points."""
+class EMACrossNautilusStrategy(Strategy):
+    """EMA Crossover implementation using NautilusTrader."""
 
-    def __init__(self, config: 'SRBreakoutConfig'):
+    def __init__(self, config: 'EMACrossConfig'):
         super().__init__(config)
         self._instrument_id = config.instrument_id
         self._bar_type = config.bar_type
-        self._pivot_type = config.pivot_type
-        self._breakout_buffer_pct = config.breakout_buffer_pct
+        self._ema_fast_period = config.ema_fast_period
+        self._ema_slow_period = config.ema_slow_period
         self._sl_pct = config.sl_pct
         self._tp_pct = config.tp_pct
         self._trade_size = config.trade_size
@@ -346,7 +242,6 @@ class SRBreakoutNautilusStrategy(Strategy):
         self._historical_df = config.historical_df
 
         self._current_date = None
-        self._pivot_points: Optional[PivotPoints] = None
         self._entry_price = None
         self._position_side = None
         self._last_exit_bar = None
@@ -354,6 +249,10 @@ class SRBreakoutNautilusStrategy(Strategy):
 
         self.trades = []
         self._current_entry_time = None
+
+        self._close_prices: List[float] = []
+        self._prev_ema_fast = None
+        self._prev_ema_slow = None
 
     def on_start(self):
         self.subscribe_bars(self._bar_type)
@@ -367,113 +266,70 @@ class SRBreakoutNautilusStrategy(Strategy):
 
         self._bar_number += 1
 
-        # New trading day - recalculate pivot points
         if self._current_date != date:
             self._current_date = date
-            self._pivot_points = None
             self._last_exit_bar = None
+            self._close_prices = []
+            self._prev_ema_fast = None
+            self._prev_ema_slow = None
 
-            # Calculate pivot points from previous day's data
-            prev_day_data = self._get_previous_day_hlc(date)
-            if prev_day_data:
-                high, low, close = prev_day_data
-                self._pivot_points = calculate_pivot_points(high, low, close, self._pivot_type)
+        mkt_open = 9 * 60 + 15
 
-        # Skip if pivot points not available
-        if self._pivot_points is None:
-            return
-
-        # Market timing
-        mkt_open = 9 * 60 + 15  # 9:15 AM IST
-
-        # Wait for market open
         if cur_min < mkt_open:
             return
 
-        # EOD safety exit (3:15 PM IST)
-        if cur_min >= 15 * 60 + 15:
+        if cur_min >= 14 * 60 + 45:
             positions = self.cache.positions_open(instrument_id=self._instrument_id)
             if positions:
-                self._exit(bar, positions[0], "EOD", bar_time_ist)
+                ema_fast = calculate_ema(self._close_prices, self._ema_fast_period) if self._close_prices else 0.0
+                ema_slow = calculate_ema(self._close_prices, self._ema_slow_period) if self._close_prices else 0.0
+                self._exit(bar, positions[0], "EOD", bar_time_ist, ema_fast, ema_slow)
             return
 
-        # Manage existing position
+        self._close_prices.append(close_f)
+
+        if len(self._close_prices) < self._ema_slow_period:
+            return
+
+        ema_fast = calculate_ema(self._close_prices, self._ema_fast_period)
+        ema_slow = calculate_ema(self._close_prices, self._ema_slow_period)
+
         positions = self.cache.positions_open(instrument_id=self._instrument_id)
         if positions:
-            self._manage(bar, positions[0], bar_time_ist)
+            self._manage(bar, positions[0], bar_time_ist, ema_fast, ema_slow)
             return
 
-        # Check for new entry
-        self._check_entry(close_f, bar_time_ist)
+        if self._prev_ema_fast is not None and self._prev_ema_slow is not None:
+            bullish_cross = self._prev_ema_fast <= self._prev_ema_slow and ema_fast > ema_slow
+            bearish_cross = self._prev_ema_fast >= self._prev_ema_slow and ema_fast < ema_slow
 
-    def _get_previous_day_hlc(self, current_date) -> Optional[tuple]:
-        """Get previous trading day's HLC from historical data."""
-        if self._historical_df is None or self._historical_df.empty:
-            return None
+            if bullish_cross:
+                self._check_entry("LONG", close_f, bar_time_ist, ema_fast, ema_slow)
+            elif bearish_cross and self._enable_shorts:
+                self._check_entry("SHORT", close_f, bar_time_ist, ema_fast, ema_slow)
 
-        df = self._historical_df.copy()
-        df['date'] = df.index.date
+        self._prev_ema_fast = ema_fast
+        self._prev_ema_slow = ema_slow
 
-        unique_dates = sorted(df['date'].unique())
-        dates_before = [d for d in unique_dates if d < current_date]
-
-        if not dates_before:
-            return None
-
-        prev_date = dates_before[-1]
-        prev_day_data = df[df['date'] == prev_date]
-
-        if prev_day_data.empty:
-            return None
-
-        return (
-            prev_day_data['high'].max(),
-            prev_day_data['low'].min(),
-            prev_day_data['close'].iloc[-1]
-        )
-
-    def _check_entry(self, close_f: float, bar_time_ist: datetime):
-        if self._pivot_points is None:
-            return
-
-        # Check cooldown
+    def _check_entry(self, side: str, close_f: float, bar_time_ist: datetime, ema_fast: float, ema_slow: float):
         if self._last_exit_bar is not None and self._cooldown_bars > 0:
             if (self._bar_number - self._last_exit_bar) < self._cooldown_bars:
                 return
 
-        # Calculate breakout levels with buffer
-        buffer_multiplier = self._breakout_buffer_pct / 100
+        order_side = OrderSide.BUY if side == "LONG" else OrderSide.SELL
+        order = self.order_factory.market(
+            instrument_id=self._instrument_id,
+            order_side=order_side,
+            quantity=Quantity.from_str(str(self._trade_size)),
+        )
+        self.submit_order(order)
+        self._position_side = side
+        self._entry_price = close_f
+        self._current_entry_time = bar_time_ist
+        self._entry_ema_fast = ema_fast
+        self._entry_ema_slow = ema_slow
 
-        # Long entry: close above R1 + buffer
-        long_trigger = self._pivot_points.r1 * (1 + buffer_multiplier)
-        long_entry = close_f > long_trigger
-
-        # Short entry: close below S1 - buffer
-        short_trigger = self._pivot_points.s1 * (1 - buffer_multiplier)
-        short_entry = close_f < short_trigger
-
-        if short_entry and self._enable_shorts:
-            order = self.order_factory.market(
-                instrument_id=self._instrument_id,
-                order_side=OrderSide.SELL,
-                quantity=Quantity.from_str(str(self._trade_size)),
-            )
-            self.submit_order(order)
-            self._position_side = "SHORT"
-            self._entry_price = close_f
-            self._current_entry_time = bar_time_ist
-        elif long_entry:
-            order = self.order_factory.market(
-                instrument_id=self._instrument_id,
-                order_side=OrderSide.BUY,
-                quantity=Quantity.from_str(str(self._trade_size)),
-            )
-            self.submit_order(order)
-            self._position_side = "LONG"
-            self._entry_price = close_f
-            self._current_entry_time = bar_time_ist
-
-    def _manage(self, bar, position, bar_time_ist):
+    def _manage(self, bar, position, bar_time_ist, ema_fast: float, ema_slow: float):
         cur_price = float(bar.close)
 
         if self._position_side == "SHORT":
@@ -482,11 +338,11 @@ class SRBreakoutNautilusStrategy(Strategy):
             pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
 
         if pnl_pct >= self._tp_pct:
-            self._exit(bar, position, "TP", bar_time_ist)
+            self._exit(bar, position, "TP", bar_time_ist, ema_fast, ema_slow)
         elif pnl_pct <= -self._sl_pct:
-            self._exit(bar, position, "SL", bar_time_ist)
+            self._exit(bar, position, "SL", bar_time_ist, ema_fast, ema_slow)
 
-    def _exit(self, bar, position, reason, bar_time_ist):
+    def _exit(self, bar, position, reason, bar_time_ist, ema_fast: float, ema_slow: float):
         cur_price = float(bar.close)
         pos_qty = int(float(position.quantity)) if position.quantity else 0
 
@@ -505,16 +361,8 @@ class SRBreakoutNautilusStrategy(Strategy):
         if self._current_entry_time and bar_time_ist:
             hold_minutes = int((bar_time_ist - self._current_entry_time).total_seconds() / 60)
 
-        # Store pivot levels for trade record
-        pp_data = {}
-        if self._pivot_points:
-            pp_data = {
-                'pp': round(self._pivot_points.pp, 2),
-                'r1': round(self._pivot_points.r1, 2),
-                's1': round(self._pivot_points.s1, 2),
-                'r2': round(self._pivot_points.r2, 2),
-                's2': round(self._pivot_points.s2, 2),
-            }
+        entry_ema_fast = getattr(self, '_entry_ema_fast', ema_fast)
+        entry_ema_slow = getattr(self, '_entry_ema_slow', ema_slow)
 
         self.trades.append({
             'entry_price': self._entry_price,
@@ -531,7 +379,8 @@ class SRBreakoutNautilusStrategy(Strategy):
             'hold_duration_minutes': hold_minutes,
             'date': self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None,
             'side': self._position_side,
-            **pp_data,
+            'ema_fast': round(entry_ema_fast, 2),
+            'ema_slow': round(entry_ema_slow, 2),
         })
 
         self.close_all_positions(self._instrument_id)
@@ -545,17 +394,19 @@ class SRBreakoutNautilusStrategy(Strategy):
 
     def on_reset(self):
         self._current_date = None
-        self._pivot_points = None
         self._position_side = None
         self._entry_price = None
+        self._close_prices = []
+        self._prev_ema_fast = None
+        self._prev_ema_slow = None
 
 
-class SRBreakoutConfig(StrategyConfig, kw_only=True):
-    """Configuration for Support & Resistance Breakout strategy."""
+class EMACrossConfig(StrategyConfig, kw_only=True):
+    """Configuration for EMA Crossover strategy."""
     instrument_id: InstrumentId
     bar_type: BarType
-    pivot_type: str = 'classic'
-    breakout_buffer_pct: float = 0.1
+    ema_fast_period: int = 9
+    ema_slow_period: int = 21
     sl_pct: float = 0.5
     tp_pct: float = 1.5
     trade_size: int = 100
@@ -564,46 +415,37 @@ class SRBreakoutConfig(StrategyConfig, kw_only=True):
     historical_df: Optional[pd.DataFrame] = None
 
 
-class SRBreakoutStrategy(BaseStrategy):
-    """Support & Resistance Breakout Strategy - API wrapper."""
+class EMACrossStrategy(BaseStrategy):
+    """EMA Crossover Strategy - API wrapper."""
 
     @classmethod
     def get_name(cls) -> str:
-        return "S/R Breakout - Support & Resistance Breakout"
+        return "EMA Crossover"
 
     @classmethod
     def get_description(cls) -> str:
-        return (
-            "Pivot Point Breakout: Calculate PP/R1-R3/S1-S3 from previous day's HLC, "
-            "enter on resistance breakout (long) or support breakdown (short), "
-            "manage with SL/TP, optional shorts, optional cooldown."
-        )
+        return "EMA Crossover strategy. Long when fast EMA crosses above slow EMA, short when fast crosses below."
 
     @classmethod
     def get_params(cls) -> List[StrategyParam]:
         return [
             StrategyParam(
-                key='pivot_type',
-                label='Pivot Type',
-                type='select',
-                default='classic',
-                options=['classic', 'fibonacci', 'camarilla'],
-            ),
-            StrategyParam(
-                key='breakout_buffer_pct',
-                label='Breakout Buffer %',
+                key='ema_fast_period',
+                label='Fast EMA Period',
                 type='number',
-                default=0.1,
-                min=0.0,
-                max=0.5,
-                step=0.05,
+                default=9,
+                min=3,
+                max=50,
+                step=1,
             ),
             StrategyParam(
-                key='timeframe',
-                label='Timeframe',
-                type='select',
-                default='5',
-                options=['1', '5', '15'],
+                key='ema_slow_period',
+                label='Slow EMA Period',
+                type='number',
+                default=21,
+                min=10,
+                max=200,
+                step=1,
             ),
             StrategyParam(
                 key='stop_loss_pct',
@@ -611,7 +453,7 @@ class SRBreakoutStrategy(BaseStrategy):
                 type='number',
                 default=0.5,
                 min=0.1,
-                max=2.0,
+                max=3.0,
                 step=0.1,
             ),
             StrategyParam(
@@ -619,9 +461,18 @@ class SRBreakoutStrategy(BaseStrategy):
                 label='Take Profit %',
                 type='number',
                 default=1.5,
-                min=0.2,
-                max=4.0,
+                min=0.3,
+                max=5.0,
                 step=0.1,
+            ),
+            StrategyParam(
+                key='timeframe',
+                label='Candle Timeframe (min)',
+                type='number',
+                default=5,
+                min=1,
+                max=60,
+                step=1,
             ),
             StrategyParam(
                 key='trade_size',
@@ -629,35 +480,61 @@ class SRBreakoutStrategy(BaseStrategy):
                 type='number',
                 default=100,
                 min=1,
-                max=5000,
-                step=1,
-            ),
-            StrategyParam(
-                key='cooldown_bars',
-                label='Cooldown Bars',
-                type='number',
-                default=3,
-                min=0,
-                max=20,
+                max=10000,
                 step=1,
             ),
             StrategyParam(
                 key='enable_shorts',
-                label='Enable Shorts',
+                label='Enable Short Trades',
                 type='boolean',
                 default=False,
+            ),
+            StrategyParam(
+                key='cooldown_bars',
+                label='Cooldown Bars After Exit',
+                type='number',
+                default=3,
+                min=1,
+                max=20,
+                step=1,
+            ),
+            StrategyParam(
+                key='include_costs',
+                label='Include Trading Costs',
+                type='boolean',
+                default=True,
             ),
         ]
 
     def validate_params(self, params: Dict) -> List[str]:
         errors = []
 
-        if str(params.get('pivot_type', 'classic')) not in {'classic', 'fibonacci', 'camarilla'}:
-            errors.append("Pivot Type must be one of classic, fibonacci, camarilla")
-        if float(params.get('stop_loss_pct', 0.5)) >= float(params.get('take_profit_pct', 1.5)):
+        ema_fast = int(params.get('ema_fast_period', 9))
+        ema_slow = int(params.get('ema_slow_period', 21))
+        sl_pct = float(params.get('stop_loss_pct', 0.5))
+        tp_pct = float(params.get('take_profit_pct', 1.5))
+        timeframe = int(params.get('timeframe', 5))
+        trade_size = int(params.get('trade_size', 100))
+        cooldown_bars = int(params.get('cooldown_bars', 3))
+
+        if ema_fast >= ema_slow:
+            errors.append("Fast EMA Period must be less than Slow EMA Period")
+        if ema_fast < 3 or ema_fast > 50:
+            errors.append("Fast EMA Period must be between 3 and 50")
+        if ema_slow < 10 or ema_slow > 200:
+            errors.append("Slow EMA Period must be between 10 and 200")
+        if sl_pct < 0.1 or sl_pct > 3.0:
+            errors.append("Stop Loss % must be between 0.1 and 3.0")
+        if tp_pct < 0.3 or tp_pct > 5.0:
+            errors.append("Take Profit % must be between 0.3 and 5.0")
+        if sl_pct >= tp_pct:
             errors.append("Stop Loss must be less than Take Profit")
-        if str(params.get('timeframe', '5')) not in {'1', '5', '15'}:
-            errors.append("Timeframe must be one of 1, 5, 15")
+        if timeframe < 1 or timeframe > 60:
+            errors.append("Timeframe must be between 1 and 60 minutes")
+        if trade_size < 1 or trade_size > 10000:
+            errors.append("Trade Size must be between 1 and 10000")
+        if cooldown_bars < 1 or cooldown_bars > 20:
+            errors.append("Cooldown Bars must be between 1 and 20")
 
         return errors
 
@@ -715,7 +592,7 @@ class SRBreakoutStrategy(BaseStrategy):
         total_win_rate = (total_wins / total_trades * 100) if total_trades > 0 else 0
 
         return {
-            'strategy': 'sr_breakout',
+            'strategy': 'ema_cross',
             'config': {
                 'symbols': symbols,
                 'days': days,
@@ -736,55 +613,36 @@ class SRBreakoutStrategy(BaseStrategy):
         }
 
     def get_visuals(self, trades: List[Dict], params: Dict) -> List[Dict]:
-        """Return Pivot Point levels as chart visuals."""
+        """Return EMA line overlays on chart."""
         if not trades:
             return []
 
         visuals = []
-        # Group trades by date to find Pivot levels
         dates_seen = set()
         for trade in trades:
             trade_date = trade.get('date')
             if trade_date and trade_date not in dates_seen:
                 dates_seen.add(trade_date)
-                pp = trade.get('pp')
-                r1 = trade.get('r1')
-                s1 = trade.get('s1')
-                
-                pivot_type = params.get('pivot_type', 'classic').capitalize()
-                
-                if pp is not None:
-                    # Pivot Point line
+                ema_fast = trade.get('ema_fast')
+                ema_slow = trade.get('ema_slow')
+
+                if ema_fast is not None:
                     visuals.append({
-                        'id': f"pp_{trade_date}",
+                        'id': f"ema_fast_{trade_date}",
                         'type': 'line',
-                        'label': f'PP ({pivot_type})',
-                        'color': '#ff9f43',
-                        'value': pp,
-                        'date': trade_date,
-                        'dash': [4, 4]
-                    })
-                if r1 is not None:
-                    # Resistance 1 line
-                    visuals.append({
-                        'id': f"r1_{trade_date}",
-                        'type': 'line',
-                        'label': 'R1',
-                        'color': '#ee5253',
-                        'value': r1,
-                        'date': trade_date,
-                        'dash': [2, 2]
-                    })
-                if s1 is not None:
-                    # Support 1 line
-                    visuals.append({
-                        'id': f"s1_{trade_date}",
-                        'type': 'line',
-                        'label': 'S1',
+                        'label': 'EMA Fast',
                         'color': '#10ac84',
-                        'value': s1,
+                        'value': ema_fast,
                         'date': trade_date,
-                        'dash': [2, 2]
                     })
-        
+                if ema_slow is not None:
+                    visuals.append({
+                        'id': f"ema_slow_{trade_date}",
+                        'type': 'line',
+                        'label': 'EMA Slow',
+                        'color': '#ee5253',
+                        'value': ema_slow,
+                        'date': trade_date,
+                    })
+
         return visuals

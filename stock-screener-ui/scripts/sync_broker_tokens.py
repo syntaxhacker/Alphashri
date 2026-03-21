@@ -9,6 +9,7 @@ Usage:
     python scripts/sync_broker_tokens.py --dry-run
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -19,18 +20,17 @@ from rich.console import Console
 
 console = Console()
 
-PROD_DATABASE_URL = (
-    "postgresql://alphashri:fuoGOIx86IrrJr5RXHKxwlNTnWaJR7OD"
-    "@dpg-d6qh4e7kijhs73b5rvpg-a.oregon-postgres.render.com/alphashri"
-)
+PROD_DATABASE_URL = os.getenv("PROD_DATABASE_URL", "")
 
 LOCAL_DB_PATH = Path(__file__).parent.parent / "db" / "alphashri.db"
 LOCAL_DATABASE_URL = f"sqlite:///{LOCAL_DB_PATH}"
 
 
 def sync_broker_tokens(broker: str = None, dry_run: bool = False):
-    import os
-    prod_url = os.getenv("PROD_DATABASE_URL") or PROD_DATABASE_URL
+    prod_url = os.getenv("PROD_DATABASE_URL", "")
+    if not prod_url:
+        console.print("[red]PROD_DATABASE_URL env var not set. Exiting.[/red]")
+        return
     prod_engine = create_engine(prod_url)
     local_engine = create_engine(LOCAL_DATABASE_URL)
 

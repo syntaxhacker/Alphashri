@@ -19,6 +19,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 import traceback
 
+INTRADAY_STRATEGY_TYPES = {"ORB", "SR_BREAKOUT", "EMA_CROSS"}
+SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET"}
+
 # Add project paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'scanners'))
@@ -34,6 +37,10 @@ console = Console()
 from trading.shared_portfolio import SharedPortfolioManager, OrderSide
 from trading.global_risk_manager import GlobalRiskManager
 from trading.orb_signals import ORBSignalGenerator, ORBSignal, SignalType, create_entry_signal
+from trading.sr_breakout_signals import SRBreakoutSignalGenerator
+from trading.week52_chaser_signals import Week52ChaserSignalGenerator
+from trading.week52_target_signals import Week52TargetSignalGenerator
+from trading.ema_cross_signals import EMACrossSignalGenerator
 from trading.journal import TradeJournal, get_journal
 
 # Database imports
@@ -63,8 +70,7 @@ class StrategyRunner:
 
     def __post_init__(self):
         """Initialize signal generator based on strategy type."""
-        if self.strategy_type == "ORB" or self.strategy_type == "52W_CHASER":
-            # Both ORB and 52W Chaser use ORB signal generator
+        if self.strategy_type == "ORB":
             self.signal_generator = ORBSignalGenerator(
                 or_minutes=self.config.get('or_minutes', 45),
                 sl_pct=self.config.get('sl_pct', 0.4),
@@ -72,8 +78,16 @@ class StrategyRunner:
                 min_or_range_pct=self.config.get('min_or_range_pct', 0.5),
                 max_or_range_pct=self.config.get('max_or_range_pct', 3.0),
             )
+        elif self.strategy_type == "SR_BREAKOUT":
+            self.signal_generator = SRBreakoutSignalGenerator(self.config)
+        elif self.strategy_type == "52W_CHASER":
+            self.signal_generator = Week52ChaserSignalGenerator(self.config)
+        elif self.strategy_type == "52W_TARGET":
+            self.signal_generator = Week52TargetSignalGenerator(self.config)
+        elif self.strategy_type == "EMA_CROSS":
+            self.signal_generator = EMACrossSignalGenerator(self.config)
         else:
-            console.print(f"[yellow]Unknown strategy type '{self.strategy_type}', using default ORB generator[/yellow]")
+            console.print(f"[yellow]Unknown strategy type '{self.strategy_type}', using ORB generator as fallback[/yellow]")
             self.signal_generator = ORBSignalGenerator()
 
 
@@ -359,12 +373,168 @@ class MultiStrategyRunner:
             console.print(f"[dim red]Error fetching OR for {symbol}: {e}[/dim red]")
             return None
 
-    def scan_for_signals(self, strategy_id: int) -> List[ORBSignal]:
+    def fetch_daily_data(self, symbol: str) -> Optional[dict]:
+        """Fetch daily OHLCV data for a symbol (used by swing strategies)."""
+        try:
+            fetcher = self._get_data_fetcher()
+            if not fetcher:
+                return None
+
+            from datetime import timedelta as td
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - td(days=400)).strftime('%Y-%m-%d')
+
+            df = fetcher.upstox_api.fetch_historical_data_v3(
+                symbol=symbol,
+                unit='days',
+                interval=1,
+                to_date=to_date,
+                from_date=from_date,
+            )
+
+            if df is None or df.empty:
+                return None
+
+            closes = df['close'].tolist()
+            highs = df['high'].tolist()
+            lows = df['low'].tolist()
+            volumes = df['volume'].tolist() if 'volume' in df.columns else []
+
+            window_252_highs = highs[-252:] if len(highs) >= 252 else highs
+            high_52w = max(window_252_highs) if window_252_highs else 0.0
+
+            avg_volume_20d = 0.0
+            if len(volumes) >= 20:
+                avg_volume_20d = sum(volumes[-20:]) / 20
+
+            ma50 = 0.0
+            ma200 = 0.0
+            if len(closes) >= 50:
+                ma50 = sum(closes[-50:]) / 50
+            if len(closes) >= 200:
+                ma200 = sum(closes[-200:]) / 200
+
+            return {
+                'current_price': closes[-1],
+                'high_52w': high_52w,
+                'daily_highs': highs,
+                'daily_closes': closes,
+                'volume': volumes[-1] if volumes else 0.0,
+                'avg_volume_20d': avg_volume_20d,
+                'ma50': ma50,
+                'ma200': ma200,
+                'prev_high': highs[-2] if len(highs) >= 2 else highs[-1],
+                'prev_low': lows[-2] if len(lows) >= 2 else lows[-1],
+                'prev_close': closes[-2] if len(closes) >= 2 else closes[-1],
+            }
+
+        except Exception as e:
+            console.print(f"[dim red]Error fetching daily data for {symbol}: {e}[/dim red]")
+            return None
+
+    def fetch_previous_day_data(self, symbol: str) -> Optional[dict]:
+        """Fetch previous day's HLC for pivot point calculation."""
+        try:
+            fetcher = self._get_data_fetcher()
+            if not fetcher:
+                return None
+
+            from datetime import timedelta as td
+            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - td(days=10)).strftime('%Y-%m-%d')
+
+            df = fetcher.upstox_api.fetch_historical_data_v3(
+                symbol=symbol,
+                unit='days',
+                interval=1,
+                to_date=to_date,
+                from_date=from_date,
+            )
+
+            if df is None or df.empty or len(df) < 2:
+                return None
+
+            prev_row = df.iloc[-2]
+            current_price = df.iloc[-1]['close']
+
+            return {
+                'current_price': current_price,
+                'prev_high': prev_row['high'],
+                'prev_low': prev_row['low'],
+                'prev_close': prev_row['close'],
+            }
+
+        except Exception as e:
+            console.print(f"[dim red]Error fetching prev day data for {symbol}: {e}[/dim red]")
+            return None
+
+    def fetch_ema_data(self, symbol: str, ema_fast_period: int = 9, ema_slow_period: int = 21) -> Optional[dict]:
+        """Fetch intraday data and compute EMA crossover state for a symbol."""
+        try:
+            fetcher = self._get_data_fetcher()
+            if not fetcher:
+                return None
+
+            df = fetcher.upstox_api.fetch_intraday_data_v3(
+                symbol=symbol,
+                interval='5',
+            )
+
+            if df is None or df.empty:
+                return None
+
+            closes = df['close'].tolist()
+            if len(closes) < ema_slow_period + 2:
+                return None
+
+            multiplier_fast = 2.0 / (ema_fast_period + 1)
+            multiplier_slow = 2.0 / (ema_slow_period + 1)
+
+            ema_fast = [closes[0]]
+            ema_slow = [closes[0]]
+
+            for price in closes[1:]:
+                ema_fast.append(price * multiplier_fast + ema_fast[-1] * (1 - multiplier_fast))
+                ema_slow.append(price * multiplier_slow + ema_slow[-1] * (1 - multiplier_slow))
+
+            current_price = closes[-1]
+            ema_fast_current = ema_fast[-1]
+            ema_fast_prev = ema_fast[-2]
+            ema_slow_current = ema_slow[-1]
+            ema_slow_prev = ema_slow[-2]
+
+            return {
+                'current_price': current_price,
+                'ema_fast_current': round(ema_fast_current, 2),
+                'ema_fast_prev': round(ema_fast_prev, 2),
+                'ema_slow_current': round(ema_slow_current, 2),
+                'ema_slow_prev': round(ema_slow_prev, 2),
+                'closes': closes,
+            }
+
+        except Exception as e:
+            console.print(f"[dim red]Error fetching EMA data for {symbol}: {e}[/dim red]")
+            return None
+
+    def scan_for_signals(self, strategy_id: int) -> list:
         """
         Scan watchlist for signals for a specific strategy.
 
-        Each strategy applies its own filters (OR range %, etc.)
+        Dispatches to the appropriate scan method based on strategy type.
         """
+        runner = self.strategies.get(strategy_id)
+        if not runner or runner.status != "running":
+            return []
+
+        if runner.strategy_type in INTRADAY_STRATEGY_TYPES:
+            return self._scan_intraday_strategy(strategy_id)
+        elif runner.strategy_type in SWING_STRATEGY_TYPES:
+            return self._scan_swing_strategy(strategy_id)
+        else:
+            return self._scan_intraday_strategy(strategy_id)
+
+    def _scan_intraday_strategy(self, strategy_id: int) -> list:
+        """Scan for signals using intraday data (ORB, SR_BREAKOUT)."""
         runner = self.strategies.get(strategy_id)
         if not runner or runner.status != "running":
             return []
@@ -376,12 +546,10 @@ class MultiStrategyRunner:
         scan_items = []
 
         for symbol in self.watchlist:
-            # Check if already have position for this strategy+symbol
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
 
-            # Check cooldown
             if symbol in self.cooldown_stocks:
                 exit_time = self.cooldown_stocks[symbol]
                 cooldown_end = exit_time + timedelta(minutes=runner.config.get('cooldown_minutes', 30))
@@ -390,98 +558,195 @@ class MultiStrategyRunner:
                 else:
                     del self.cooldown_stocks[symbol]
 
-            # Fetch OR data
-            or_levels = self.fetch_or_data(symbol)
-            if not or_levels:
+            if runner.strategy_type == "SR_BREAKOUT":
+                prev_data = self.fetch_previous_day_data(symbol)
+                if not prev_data:
+                    continue
+
+                gen = runner.signal_generator
+                pivot_points = gen.calculate_pivot_points(
+                    prev_data['prev_high'], prev_data['prev_low'], prev_data['prev_close']
+                )
+
+                market_data = {
+                    'current_price': prev_data['current_price'],
+                    'pivot_points': pivot_points,
+                }
+
+                signal = gen.check_entry(symbol, market_data)
+
+                scan_item = {
+                    'symbol': symbol,
+                    'price': prev_data['current_price'],
+                    'status': 'watching',
+                    'side': None,
+                    'reason': None,
+                }
+
+            elif runner.strategy_type == "EMA_CROSS":
+                ema_data = self.fetch_ema_data(
+                    symbol,
+                    runner.config.get('ema_fast_period', 9),
+                    runner.config.get('ema_slow_period', 21),
+                )
+                if not ema_data:
+                    continue
+
+                signal = runner.signal_generator.check_entry(symbol, ema_data)
+
+                scan_item = {
+                    'symbol': symbol,
+                    'price': ema_data.get('current_price', 0),
+                    'status': 'watching',
+                    'side': None,
+                    'reason': None,
+                }
+
+            else:
+                or_levels = self.fetch_or_data(symbol)
+                if not or_levels:
+                    continue
+
+                self.or_levels[symbol] = or_levels
+
+                current_price = or_levels.get('latest_price', or_levels['or_close'])
+                or_high = or_levels['or_high']
+                or_low = or_levels['or_low']
+                or_range_pct = or_levels.get('or_range_pct', 0)
+
+                scan_item = {
+                    'symbol': symbol,
+                    'price': current_price,
+                    'or_high': or_high,
+                    'or_low': or_low,
+                    'or_range_pct': or_range_pct,
+                    'status': 'watching',
+                    'side': None,
+                    'reason': None,
+                }
+
+                min_or_pct = runner.signal_generator.min_or_range_pct
+                max_or_pct = runner.signal_generator.max_or_range_pct
+
+                if or_range_pct < min_or_pct or or_range_pct > max_or_pct:
+                    scan_item['status'] = 'skipped'
+                    scan_item['reason'] = f'OR range {or_range_pct:.2f}% outside [{min_or_pct}-{max_or_pct}]%'
+                    scan_items.append(scan_item)
+                    continue
+
+                signal = runner.signal_generator.check_breakout(
+                    symbol=symbol,
+                    current_price=current_price,
+                    or_levels=or_levels,
+                )
+
+            if signal:
+                max_distance = runner.config.get('max_distance_from_or_pct', 1.5)
+
+                if signal.signal_type == SignalType.LONG_ENTRY:
+                    if runner.strategy_type == "ORB":
+                        day_open = or_levels.get('or_open', current_price)
+                        day_change_pct = ((current_price - day_open) / day_open) * 100 if day_open > 0 else 0
+                        if day_change_pct > 2.0:
+                            scan_item['status'] = 'skipped'
+                            scan_item['reason'] = f'Day already up {day_change_pct:.1f}%'
+                            scan_items.append(scan_item)
+                            continue
+
+                    scan_item['status'] = 'signal'
+                    scan_item['side'] = 'LONG'
+                    scan_item['reason'] = signal.notes
+
+                elif signal.signal_type == SignalType.SHORT_ENTRY:
+                    if runner.strategy_type == "ORB":
+                        day_open = or_levels.get('or_open', current_price)
+                        day_change_pct = ((current_price - day_open) / day_open) * 100 if day_open > 0 else 0
+                        if day_change_pct > 1.0:
+                            scan_item['status'] = 'skipped'
+                            scan_item['reason'] = f'Uptrend, skip SHORT'
+                            scan_items.append(scan_item)
+                            continue
+
+                    scan_item['status'] = 'signal'
+                    scan_item['side'] = 'SHORT'
+                    scan_item['reason'] = signal.notes
+
+                new_signals.append(signal)
+                runner.signals_generated += 1
+                console.print(f"[green]✓ {runner.strategy_name}: Signal {signal.signal_type.value} {signal.symbol} @ ₹{signal.price:.2f}[/green]")
+
+            scan_items.append(scan_item)
+
+        runner.last_scan_items = scan_items
+        runner.last_scan_time = datetime.now()
+        return new_signals
+
+    def _scan_swing_strategy(self, strategy_id: int) -> list:
+        """Scan for signals using daily data (52W_CHASER, 52W_TARGET)."""
+        runner = self.strategies.get(strategy_id)
+        if not runner or runner.status != "running":
+            return []
+
+        if not self.is_market_open():
+            return []
+
+        new_signals = []
+        scan_items = []
+
+        for symbol in self.watchlist:
+            key = f"{strategy_id}_{symbol}"
+            if key in self.portfolio.positions:
                 continue
 
-            self.or_levels[symbol] = or_levels
+            if symbol in self.cooldown_stocks:
+                exit_time = self.cooldown_stocks[symbol]
+                cooldown_days = runner.config.get('cooldown_days', 30)
+                cooldown_end = exit_time + timedelta(days=cooldown_days)
+                if datetime.now() < cooldown_end:
+                    continue
+                else:
+                    del self.cooldown_stocks[symbol]
 
-            current_price = or_levels.get('latest_price', or_levels['or_close'])
-            or_high = or_levels['or_high']
-            or_low = or_levels['or_low']
-            or_range_pct = or_levels.get('or_range_pct', 0)
+            daily_data = self.fetch_daily_data(symbol)
+            if not daily_data:
+                continue
 
-            # Build scan item for UI
+            market_data = {
+                'current_price': daily_data['current_price'],
+                'high_52w': daily_data['high_52w'],
+                'daily_highs': daily_data['daily_highs'],
+                'volume': daily_data['volume'],
+                'avg_volume_20d': daily_data['avg_volume_20d'],
+                'ma50': daily_data['ma50'],
+                'ma200': daily_data['ma200'],
+            }
+
+            signal = runner.signal_generator.check_entry(symbol, market_data)
+
             scan_item = {
                 'symbol': symbol,
-                'price': current_price,
-                'or_high': or_high,
-                'or_low': or_low,
-                'or_range_pct': or_range_pct,
+                'price': daily_data['current_price'],
+                'high_52w': daily_data['high_52w'],
                 'status': 'watching',
                 'side': None,
                 'reason': None,
             }
 
-            # Check if OR range matches strategy criteria
-            min_or_pct = runner.signal_generator.min_or_range_pct
-            max_or_pct = runner.signal_generator.max_or_range_pct
-
-            if or_range_pct < min_or_pct or or_range_pct > max_or_pct:
-                scan_item['status'] = 'skipped'
-                scan_item['reason'] = f'OR range {or_range_pct:.2f}% outside [{min_or_pct}-{max_or_pct}]%'
-                scan_items.append(scan_item)
-                continue
-
-            # Use strategy's signal generator to check for signals
-            signal = runner.signal_generator.check_breakout(
-                symbol=symbol,
-                current_price=current_price,
-                or_levels=or_levels,
-            )
-
             if signal:
-                # Additional filters from strategy config
-                max_distance = runner.config.get('max_distance_from_or_pct', 1.5)
-                day_open = or_levels.get('or_open', current_price)
-                day_change_pct = ((current_price - day_open) / day_open) * 100 if day_open > 0 else 0
-
-                if signal.signal_type == SignalType.LONG_ENTRY:
-                    distance_from_or = ((current_price - or_high) / or_high) * 100
-                    if distance_from_or > max_distance:
-                        scan_item['status'] = 'skipped'
-                        scan_item['reason'] = f'Too far above OR ({distance_from_or:.1f}%)'
-                        scan_items.append(scan_item)
-                        console.print(f"[dim yellow]{runner.strategy_name}: {symbol} too far above OR ({distance_from_or:.2f}%)[/dim yellow]")
-                        continue
-                    if day_change_pct > 2.0:
-                        scan_item['status'] = 'skipped'
-                        scan_item['reason'] = f'Day already up {day_change_pct:.1f}%'
-                        scan_items.append(scan_item)
-                        console.print(f"[dim yellow]{runner.strategy_name}: {symbol} day already up {day_change_pct:.1f}%[/dim yellow]")
-                        continue
-
-                    scan_item['status'] = 'signal'
-                    scan_item['side'] = 'LONG'
-                    scan_item['reason'] = f'ORB breakout above ₹{or_high:.2f}'
-
-                elif signal.signal_type == SignalType.SHORT_ENTRY:
-                    distance_from_or = ((or_low - current_price) / or_low) * 100
-                    if distance_from_or > max_distance:
-                        scan_item['status'] = 'skipped'
-                        scan_item['reason'] = f'Too far below OR ({distance_from_or:.1f}%)'
-                        scan_items.append(scan_item)
-                        console.print(f"[dim yellow]{runner.strategy_name}: {symbol} too far below OR ({distance_from_or:.2f}%)[/dim yellow]")
-                        continue
-                    if day_change_pct > 1.0:
-                        scan_item['status'] = 'skipped'
-                        scan_item['reason'] = f'Uptrend, skip SHORT'
-                        scan_items.append(scan_item)
-                        console.print(f"[dim yellow]{runner.strategy_name}: {symbol} uptrend, skip SHORT[/dim yellow]")
-                        continue
-
-                    scan_item['status'] = 'signal'
-                    scan_item['side'] = 'SHORT'
-                    scan_item['reason'] = f'ORB breakdown below ₹{or_low:.2f}'
+                scan_item['status'] = 'signal'
+                scan_item['side'] = 'LONG'
+                scan_item['reason'] = signal.notes
 
                 new_signals.append(signal)
                 runner.signals_generated += 1
                 console.print(f"[green]✓ {runner.strategy_name}: Signal {signal.signal_type.value} {symbol} @ ₹{signal.price:.2f}[/green]")
+            else:
+                distance_pct = ((daily_data['high_52w'] - daily_data['current_price']) / daily_data['current_price']) * 100 if daily_data['current_price'] > 0 else 0
+                scan_item['status'] = 'skipped'
+                scan_item['reason'] = f'52W high distance: {distance_pct:.1f}%'
 
             scan_items.append(scan_item)
 
-        # Save scan items to runner for snapshot
         runner.last_scan_items = scan_items
         runner.last_scan_time = datetime.now()
         return new_signals
@@ -553,6 +818,15 @@ class MultiStrategyRunner:
 
         if position:
             runner.trades_executed += 1
+            if runner.strategy_type in SWING_STRATEGY_TYPES:
+                if not hasattr(position, 'metadata'):
+                    position.metadata = {}
+                position.metadata['strategy_type'] = runner.strategy_type
+                if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
+                    position.metadata['entry_52w_high'] = signal.or_high if signal.or_high > 0 else None
+                    position.metadata['max_holding_days'] = runner.config.get('max_holding_days', 30)
+                    position.metadata['trailing_stop_pct'] = runner.config.get('trailing_stop_pct', 3.0)
+                    position.metadata['enable_trailing_stop'] = runner.config.get('enable_trailing_stop', False)
             return True
 
         return False
@@ -619,6 +893,27 @@ class MultiStrategyRunner:
                     exit_triggered = True
                     exit_price = pos.take_profit
                     exit_reason = "TP"
+
+            if not exit_triggered:
+                runner = self.strategies.get(pos.strategy_id)
+                if runner and runner.strategy_type in SWING_STRATEGY_TYPES:
+                    gen = runner.signal_generator
+                    exit_signal = gen.check_exit(
+                        symbol=pos.symbol,
+                        position_side=pos.side.value,
+                        entry_price=pos.entry_price,
+                        stop_loss=pos.stop_loss,
+                        take_profit=pos.take_profit,
+                        current_price=data['close'],
+                        highest_price_since_entry=pos.peak_price,
+                        entry_52w_high=pos.metadata.get('entry_52w_high') if hasattr(pos, 'metadata') else None,
+                        current_52w_high=pos.metadata.get('current_52w_high') if hasattr(pos, 'metadata') else None,
+                        days_in_position=(datetime.now() - pos.entry_time).days,
+                    )
+                    if exit_signal:
+                        exit_triggered = True
+                        exit_price = exit_signal.price
+                        exit_reason = exit_signal.notes.split(':')[-1].strip() if ':' in exit_signal.notes else exit_signal.notes
 
             if exit_triggered:
                 positions_to_close.append((pos.strategy_id, pos.symbol, exit_price, exit_reason))
@@ -869,6 +1164,8 @@ class MultiStrategyRunner:
                 # Scan for signals for each strategy
                 for strategy_id, runner in self.strategies.items():
                     if runner.status == "running":
+                        if runner.strategy_type in SWING_STRATEGY_TYPES and cycle % 30 != 0:
+                            continue
                         signals = self.scan_for_signals(strategy_id)
                         for signal in signals:
                             self.execute_signal(strategy_id, signal)
