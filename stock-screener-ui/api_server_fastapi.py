@@ -693,6 +693,13 @@ async def lifespan(app: FastAPI):
     init_db()
     print("✅ Database initialized")
     _load_instruments()
+    from cache.redis_client import get_redis_client, is_cache_available, _load_stats_from_redis
+    get_redis_client()
+    if is_cache_available():
+        _load_stats_from_redis()
+        print("✅ Redis cache connected")
+    else:
+        print("⚠️ Redis unavailable — caching disabled")
     news_poller = asyncio.create_task(news_poller_task())
     print("📰 News poller started")
     asyncio.create_task(news_startup_prefetch())
@@ -700,6 +707,9 @@ async def lifespan(app: FastAPI):
     yield
     news_poller.cancel()
     print("📰 News poller stopped")
+    from cache.redis_client import close_redis
+    close_redis()
+    print("🔌 Redis connection closed")
 
 app = FastAPI(title="Alphashri API", lifespan=lifespan)
 
@@ -786,9 +796,20 @@ async def get_screener_data(
     if min_cap_b is not None:
         profile_filters['min_cap_b'] = min_cap_b
 
+    from cache.redis_client import cache_get, cache_set, is_cache_available, make_cache_key
+    cache_key = make_cache_key("screener", provider, mode, screener, **profile_filters)
+    cached = cache_get(cache_key) if is_cache_available() else None
+    if cached is not None:
+        return cached
+
     data = fetch_screener_data(provider, mode, screener, profile_filters)
     data['applied_profile_filters'] = profile_filters
-    return _sanitize_for_json(data)
+    result = _sanitize_for_json(data)
+
+    if is_cache_available():
+        cache_set(cache_key, result, ttl=60)
+
+    return result
 
 
 # Backtest API routes
@@ -812,9 +833,46 @@ async def run_backtest(
     request: BacktestRunRequest,
     include_chart_data: bool = Query(False, description="Include candle/chart data in response (default: False for smaller responses)")
 ):
+    from cache.redis_client import cache_get, cache_set, is_cache_available
+    from backtest.api import build_backtest_cache_key
+
     body = request.model_dump()
-    body['user_id'] = 1
-    
+    user_id = body['user_id'] = 1
+
+    cache_key = build_backtest_cache_key(
+        user_id=user_id,
+        strategy_id=body.get('strategy', 'orb'),
+        symbols=body.get('symbols', []),
+        params=body.get('params', {}),
+        days=body.get('days', 90),
+        variation_id=body.get('variation_id'),
+    )
+
+    cached = cache_get(cache_key) if is_cache_available() else None
+    if cached is not None:
+        _backtest_handler.backtest_cache = {
+            'candles': cached.get('candles', {}),
+            'chart_data': cached.get('chart_data', {}),
+            'config': cached.get('config', {}),
+            'results': cached.get('results', []),
+        }
+        _backtest_handler.progress_state['running'] = False
+        response = {
+            'strategy': cached.get('strategy'),
+            'variation_id': cached.get('variation_id'),
+            'config': cached.get('config'),
+            'results': cached.get('results'),
+            'totals': cached.get('totals'),
+            'skipped_stocks': cached.get('skipped_stocks', []),
+            'run_time': cached.get('run_time'),
+            'saved_uuid': cached.get('saved_uuid'),
+            'from_cache': True,
+        }
+        if include_chart_data:
+            response['candles'] = cached.get('candles', {})
+            response['chart_data'] = cached.get('chart_data', {})
+        return _sanitize_for_json(response)
+
     _backtest_handler.progress_state['running'] = True
     _backtest_handler.progress_state['current'] = 0
     _backtest_handler.progress_state['total'] = len(body.get('symbols', []))
@@ -829,6 +887,21 @@ async def run_backtest(
             'config': result.get('config', {}),
             'results': result.get('results', []),
         }
+
+        if is_cache_available():
+            cache_data = {
+                'strategy': result.get('strategy'),
+                'variation_id': result.get('variation_id'),
+                'config': result.get('config'),
+                'results': result.get('results'),
+                'totals': result.get('totals'),
+                'skipped_stocks': result.get('skipped_stocks', []),
+                'run_time': result.get('run_time'),
+                'saved_uuid': result.get('saved_uuid'),
+                'candles': result.get('candles', {}),
+                'chart_data': result.get('chart_data', {}),
+            }
+            cache_set(cache_key, cache_data, ttl=86400)
 
     _backtest_handler.progress_state['running'] = False
 
@@ -904,18 +977,31 @@ async def get_results():
 
 @app.get("/api/backtest/history")
 async def get_backtest_history():
-    # In a real app, we'd get user_id from auth token
     user_id = 1
+    from cache.redis_client import cache_get, cache_set
+    _bh_key = f"backtest:{user_id}:history:list"
+    _cached = cache_get(_bh_key)
+    if _cached is not None:
+        return _cached
     history = list_backtest_history(user_id)
-    return _sanitize_for_json({'history': history})
+    result = _sanitize_for_json({'history': history})
+    cache_set(_bh_key, result, ttl=30)
+    return result
 
 
 @app.get("/api/backtest/history/{uuid}")
 async def get_backtest_details(uuid: str):
+    from cache.redis_client import cache_get, cache_set
+    _bd_key = f"backtest:detail:{uuid}"
+    _cached = cache_get(_bd_key)
+    if _cached is not None:
+        return _cached
     details = get_backtest_history_details(uuid)
     if not details:
         raise HTTPException(status_code=404, detail="Backtest not found")
-    return _sanitize_for_json(details)
+    result = _sanitize_for_json(details)
+    cache_set(_bd_key, result, ttl=300)
+    return result
 
 
 @app.delete("/api/backtest/history/{uuid}")
@@ -923,6 +1009,9 @@ async def delete_backtest(uuid: str):
     success = delete_backtest_history(uuid)
     if not success:
         raise HTTPException(status_code=404, detail="Backtest not found or could not be deleted")
+    from cache.redis_client import cache_delete
+    cache_delete(f"backtest:detail:{uuid}")
+    cache_delete("backtest:1:history:list")
     return {'status': 'success'}
 
 
@@ -1237,8 +1326,15 @@ async def get_chart_preview(
     """
     from datetime import timedelta
     from db.models import get_shared_broker_token
+    from cache.redis_client import cache_get, cache_set, make_cache_key
     import config as app_config
     import pandas as pd
+
+    cache_key = make_cache_key("chart", symbol.upper(), tf= tf, days=days, or_minutes=or_minutes)
+    cached = cache_get(cache_key)
+    if cached is not None:
+        cached["from_cache"] = True
+        return cached
 
     api_key = app_config.UPSTOX_API_KEY
     api_secret = app_config.UPSTOX_API_SECRET
@@ -1314,19 +1410,12 @@ async def get_chart_preview(
                 'total_candles': 0,
             }
 
-        # Calculate ORB zones from 1-min data before resampling
         orb_zones = _calculate_orb_zones(df, or_minutes)
-
-        # Calculate pivot points from 1-min data
         pivot_levels = _calculate_pivot_points(df)
-
-        # Resample to requested timeframe
         df_tf = _resample_candles(df, tf)
-
-        # Format candles for chart
         candles = _format_candles_for_chart(df_tf)
 
-        return _sanitize_for_json({
+        result = _sanitize_for_json({
             'symbol': symbol,
             'candles': candles,
             'orb_zones': orb_zones,
@@ -1335,6 +1424,9 @@ async def get_chart_preview(
             'or_minutes': or_minutes,
             'total_candles': len(candles),
         })
+
+        cache_set(cache_key, result, ttl=60)
+        return result
 
     except Exception as e:
         return {
@@ -1777,6 +1869,17 @@ async def news_poller_task():
                                             analysis=analysis
                                         )
                                         saved_count += 1
+
+                                        from cache.redis_client import cache_delete_pattern, is_cache_available
+                                        if is_cache_available():
+                                            cache_delete_pattern("news:all:*")
+                                            cache_delete_pattern("news:recent:*")
+                                            if analysis:
+                                                for sym in symbols:
+                                                    code = sym.get('code', '') if isinstance(sym, dict) else str(sym)
+                                                    if code:
+                                                        cache_delete_pattern(f"news:sentiment:{code.upper()}")
+                                            poller_logger.debug("Invalidated news cache after saving article")
                                     except Exception as save_err:
                                         poller_logger.error(f"Failed to save article {url}: {save_err}")
                                         
@@ -1830,6 +1933,13 @@ async def get_news(
             # Single source: scrape live
             news = await asyncio.to_thread(fetch_news, source=source, limit=limit)
         else:
+            from cache.redis_client import cache_get, cache_set, is_cache_available
+
+            cache_key = f"news:all:recent:{limit}"
+            cached = cache_get(cache_key) if is_cache_available() else None
+            if cached is not None:
+                return cached
+
             # All sources: serve from DB sorted by published_at
             from services.news_persistence import get_persistence_service
             persistence = get_persistence_service()
@@ -1848,12 +1958,19 @@ async def get_news(
                     'fetchedAt': a.get('fetched_at', ''),
                 })
 
-        return {
+        result = {
             'items': news,
             'source': source or 'all',
             'total': len(news),
             'fetchedAt': datetime.now().isoformat()
         }
+
+        if not source or source == 'all':
+            from cache.redis_client import cache_set, is_cache_available
+            if is_cache_available():
+                cache_set(cache_key, result, ttl=60)
+
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1865,6 +1982,12 @@ async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol
     """
     if not _news_available or not _llm_available:
         raise HTTPException(status_code=503, detail="News/LLM API not available")
+
+    from cache.redis_client import cache_get, cache_set, is_cache_available
+    cache_key = f"news:sentiment:{symbol.upper()}"
+    cached = cache_get(cache_key) if is_cache_available() else None
+    if cached is not None:
+        return cached
 
     try:
         # First, we need to gather news. Since we don't have a direct symbol search
@@ -1951,7 +2074,7 @@ async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol
         elif raw_score <= -30: label = "BEARISH"
         else: label = "NEUTRAL"
 
-        return {
+        result = {
              "symbol": symbol.upper(),
              "status": "SUCCESS",
              "sentiment_score": round(raw_score, 1),
@@ -1960,6 +2083,11 @@ async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol
              "trade_ideas": all_trade_ideas,
              "articles": analyzed_data
         }
+
+        if is_cache_available():
+            cache_set(cache_key, result, ttl=300)
+
+        return result
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1973,6 +2101,14 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
     """
     if not _news_available:
         raise HTTPException(status_code=503, detail="News API not available")
+
+    from cache.redis_client import cache_get, cache_set
+    import hashlib as _hashlib
+    _article_cache_key = f"news:article:{_hashlib.md5(url.encode()).hexdigest()[:16]}"
+    _cached_article = cache_get(_article_cache_key)
+    if _cached_article is not None:
+        _cached_article["from_cache"] = True
+        return _cached_article
 
     try:
         article = await asyncio.to_thread(fetch_article_content, url)
@@ -2051,6 +2187,7 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
         except Exception as persist_error:
             print(f"⚠️ Could not persist article: {persist_error}")
         
+        cache_set(_article_cache_key, article, ttl=86400)
         return article
     except HTTPException:
         raise
@@ -2065,6 +2202,13 @@ async def analyze_news(url: str = Query(..., description="URL of the news articl
     """
     if not _news_available or not _llm_available:
         raise HTTPException(status_code=503, detail="News/LLM API not available")
+
+    from cache.redis_client import cache_get, cache_set, is_cache_available
+    import hashlib
+    cache_key = f"news:llm:{hashlib.md5(url.encode()).hexdigest()[:16]}"
+    cached = cache_get(cache_key) if is_cache_available() else None
+    if cached is not None:
+        return cached
         
     try:
         from news_api import fetch_article_content
@@ -2082,12 +2226,17 @@ async def analyze_news(url: str = Query(..., description="URL of the news articl
         analysis = await asyncio.to_thread(article_analyzer.analyze_article, url, headline, content)
         
         # 3. Stitch together
-        return {
+        result = {
             "url": url,
             "headline": headline,
             "content_preview": content[:200] + "..." if len(content) > 200 else content,
             "analysis": analysis
         }
+
+        if is_cache_available():
+            cache_set(cache_key, result, ttl=86400)
+
+        return result
         
     except HTTPException:
         raise
@@ -2132,6 +2281,113 @@ async def get_llm_stats(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/admin/cache-stats")
+async def get_cache_stats_endpoint(
+    current_user=Depends(get_current_user)
+):
+    """
+    Get Redis cache statistics.
+    Requires admin access.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from cache.redis_client import get_cache_stats
+    return get_cache_stats()
+
+
+@app.post("/api/admin/cache-stats/reset")
+async def reset_cache_stats_endpoint(
+    current_user=Depends(get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from cache.redis_client import reset_stats
+    reset_stats()
+    return {"status": "ok", "message": "Cache stats reset"}
+
+
+@app.get("/api/admin/cache-keys")
+async def get_cache_keys_endpoint(
+    prefix: Optional[str] = Query(default=None, description="Filter by key prefix (e.g. backtest, news, screener, chart)"),
+    top: int = Query(default=20, ge=1, le=100, description="Number of top keys by memory usage"),
+    current_user=Depends(get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from cache.redis_client import get_cache_keys
+    return {"keys": get_cache_keys(prefix=prefix, top=top)}
+
+
+@app.delete("/api/cache/backtest")
+async def invalidate_all_backtest_cache(
+    user_id: int = Query(default=1, description="User ID to invalidate cache for"),
+    current_user=Depends(get_current_user)
+):
+    """
+    Invalidate all backtest cache entries for a user.
+    Requires admin access.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from cache.redis_client import invalidate_backtest_cache
+    deleted = invalidate_backtest_cache(user_id)
+    return {"deleted": deleted, "message": f"Invalidated {deleted} backtest cache entries"}
+
+
+@app.delete("/api/cache/backtest/{strategy_id}")
+async def invalidate_strategy_backtest_cache(
+    strategy_id: str,
+    user_id: int = Query(default=1, description="User ID to invalidate cache for"),
+    current_user=Depends(get_current_user)
+):
+    """
+    Invalidate backtest cache entries for a specific strategy.
+    Requires admin access.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from cache.redis_client import invalidate_backtest_cache
+    deleted = invalidate_backtest_cache(user_id, strategy_id)
+    return {"deleted": deleted, "message": f"Invalidated {deleted} backtest cache entries for strategy {strategy_id}"}
+
+
+@app.delete("/api/cache/news")
+async def invalidate_news_cache_endpoint(
+    current_user=Depends(get_current_user)
+):
+    """
+    Invalidate all news-related cache entries.
+    Requires admin access.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from cache.redis_client import invalidate_news_cache
+    deleted = invalidate_news_cache()
+    return {"deleted": deleted, "message": f"Invalidated {deleted} news cache entries"}
+
+
+@app.delete("/api/cache/screener")
+async def invalidate_screener_cache_endpoint(
+    current_user=Depends(get_current_user)
+):
+    """
+    Invalidate all screener cache entries.
+    Requires admin access.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from cache.redis_client import invalidate_screener_cache
+    deleted = invalidate_screener_cache()
+    return {"deleted": deleted, "message": f"Invalidated {deleted} screener cache entries"}
 
 
 @app.websocket("/ws/news")
