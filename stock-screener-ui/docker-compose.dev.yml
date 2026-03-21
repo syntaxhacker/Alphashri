@@ -13,9 +13,29 @@ services:
       - PORT=8765
       - LOG_LEVEL=DEBUG
       - SEED_DATA=false
+      - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env.dev
     volumes:
       - ./db:/app/stock-screener-ui/db
       - ./journals:/app/stock-screener-ui/journals
       - ./scripts:/app/stock-screener-ui/scripts
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: alphashri-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis_dev_data:
