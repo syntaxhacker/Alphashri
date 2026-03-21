@@ -52,11 +52,13 @@ async def get_chart_for_symbol(
     symbol: str,
     days: int = Query(default=30, ge=1, le=365, description="Number of days of historical data")
 ):
-    """
-    Get 1-month (or custom) daily chart data for a symbol mentioned in news.
-    
-    Returns OHLCV data suitable for charting.
-    """
+    from cache.redis_client import cache_get, cache_set, make_cache_key
+
+    _nc_key = make_cache_key("news", "chart", symbol, days=days)
+    _cached = cache_get(_nc_key)
+    if _cached is not None:
+        return _cached
+
     mapper = get_mapper()
     mapping = mapper.map_symbol(symbol)
     
@@ -91,7 +93,7 @@ async def get_chart_for_symbol(
         persistence = get_persistence_service()
         articles = persistence.get_articles_for_instrument(instrument_key, limit=5)
         
-        return {
+        result = {
             "symbol": symbol,
             "trading_symbol": mapping.trading_symbol,
             "instrument_key": instrument_key,
@@ -105,6 +107,8 @@ async def get_chart_for_symbol(
             "news_count": len(articles),
             "recent_news": articles[:3]
         }
+        cache_set(_nc_key, result, ttl=300)
+        return result
         
     except requests.RequestException as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch chart data: {str(e)}")
@@ -116,19 +120,20 @@ async def get_articles_for_symbol(
     limit: int = Query(default=10, ge=1, le=50),
     offset: int = Query(default=0, ge=0)
 ):
-    """
-    Get all news articles mentioning a specific symbol.
-    
-    Uses both the original symbol code and mapped trading symbol for matching.
-    """
+    from cache.redis_client import cache_get, cache_set, make_cache_key
+
+    _na_key = make_cache_key("news", "articles", symbol, limit=limit, offset=offset)
+    _cached = cache_get(_na_key)
+    if _cached is not None:
+        return _cached
+
     persistence = get_persistence_service()
     mapper = get_mapper()
     
     mapping = mapper.map_symbol(symbol)
-    
     articles = persistence.get_articles_for_symbol(symbol, limit=limit, offset=offset)
     
-    return {
+    result = {
         "symbol": symbol,
         "trading_symbol": mapping.trading_symbol,
         "instrument_key": mapping.instrument_key,
@@ -136,6 +141,8 @@ async def get_articles_for_symbol(
         "total": len(articles),
         "articles": articles
     }
+    cache_set(_na_key, result, ttl=60)
+    return result
 
 
 @router.get("/instruments/{instrument_key:path}/articles")
@@ -144,11 +151,14 @@ async def get_articles_for_instrument(
     limit: int = Query(default=10, ge=1, le=50),
     offset: int = Query(default=0, ge=0)
 ):
-    """
-    Get news articles for a specific Upstox instrument key.
-    """
+    from cache.redis_client import cache_get, cache_set, make_cache_key
+
+    _ni_key = make_cache_key("news", "inst_articles", instrument_key, limit=limit, offset=offset)
+    _cached = cache_get(_ni_key)
+    if _cached is not None:
+        return _cached
+
     persistence = get_persistence_service()
-    
     decoded_key = urllib.parse.unquote(instrument_key)
     
     articles = persistence.get_articles_for_instrument(
@@ -157,11 +167,13 @@ async def get_articles_for_instrument(
         offset=offset
     )
     
-    return {
+    result = {
         "instrument_key": decoded_key,
         "total": len(articles),
         "articles": articles
     }
+    cache_set(_ni_key, result, ttl=60)
+    return result
 
 
 @router.get("/articles/{article_id}")
@@ -219,6 +231,13 @@ async def get_recent_articles(
     """
     Get recent news articles from the database.
     """
+    from cache.redis_client import cache_get, cache_set, is_cache_available
+
+    cache_key = f"news:recent:{hours}:{source or 'all'}:{limit}"
+    cached = cache_get(cache_key) if is_cache_available() else None
+    if cached is not None:
+        return cached
+
     persistence = get_persistence_service()
     
     articles = persistence.get_recent_articles(
@@ -227,12 +246,17 @@ async def get_recent_articles(
         limit=limit
     )
     
-    return {
+    result = {
         "hours": hours,
         "source": source,
         "total": len(articles),
         "articles": articles
     }
+
+    if is_cache_available():
+        cache_set(cache_key, result, ttl=60)
+
+    return result
 
 
 @router.get("/search")
