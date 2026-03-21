@@ -434,3 +434,9 @@ class TestChartPreview:
             # Test lowercase (should still work)
             response_lower = client.get("/api/chart/preview/reliance")
             assert response_lower.status_code == 200
+
+            data_upper = response_upper.json()
+            data_lower = response_lower.json()
+            assert data_upper['symbol'] == 'RELIANCE'
+            assert data_lower['symbol'] == 'reliance'
+            assert data_upper['candles'] == data_lower['candles']

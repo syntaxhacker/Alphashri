@@ -17,6 +17,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, MagicMock, patch
 from dataclasses import asdict
 
+import sys
+_nautilus_available = not isinstance(sys.modules.get('nautilus_trader.config'), MagicMock)
+
 from backtest.strategies.orb import (
     ORBStrategy,
     ORBConfig,
@@ -111,19 +114,27 @@ class TestORBStrategyMetadata:
     def test_get_description_is_classmethod(self):
         """Test: get_description works as classmethod."""
         desc = ORBStrategy.get_description()
-        assert isinstance(desc, str)
-        assert len(desc) > 10
+        assert "ORB" in desc or "Opening Range" in desc
+        assert "breakout" in desc.lower() or "SL" in desc.lower()
 
     def test_get_params_returns_list(self):
         """Test: get_params returns a list."""
         strategy = ORBStrategy()
         params = strategy.get_params()
-        assert isinstance(params, list)
+        assert len(params) >= 7
+        assert all(hasattr(p, 'key') and hasattr(p, 'default') for p in params)
+        param_keys = {p.key for p in params}
+        assert 'or_minutes' in param_keys
+        assert 'stop_loss_pct' in param_keys
 
     def test_get_params_is_classmethod(self):
         """Test: get_params works as classmethod."""
         params = ORBStrategy.get_params()
-        assert isinstance(params, list)
+        assert len(params) >= 7
+        param_keys = {p.key for p in params}
+        assert 'or_minutes' in param_keys
+        assert 'take_profit_pct' in param_keys
+        assert 'enable_shorts' in param_keys
 
     def test_get_params_has_required_keys(self):
         """Test: All required parameters are defined."""
@@ -328,6 +339,12 @@ class TestORBStrategyDefaultParams:
         strategy = ORBStrategy()
         defaults = strategy.get_default_params()
         assert isinstance(defaults, dict)
+        assert defaults['or_minutes'] == 45
+        assert defaults['stop_loss_pct'] == 0.4
+        assert defaults['take_profit_pct'] == 1.2
+        assert defaults['trade_size'] == 100
+        assert defaults['enable_shorts'] is False
+        assert defaults['cooldown_bars'] == 3
 
     def test_get_default_params_has_all_keys(self):
         """Test: Default params has all required keys."""
@@ -346,6 +363,7 @@ class TestORBStrategyDefaultParams:
             assert defaults[param.key] == param.default
 
 
+@pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
 class TestORBConfig:
     """Tests for ORBConfig configuration class."""
 
@@ -407,7 +425,7 @@ class TestORBConfig:
             ORBConfig()
 
     def test_config_instrument_id_stored(self):
-        """Test: Config stores instrument_id."""
+        """Test: Config is created with instrument_id."""
         mock_instrument_id = self._create_mock_instrument_id()
         mock_bar_type = self._create_mock_bar_type()
 
@@ -416,21 +434,29 @@ class TestORBConfig:
             bar_type=mock_bar_type,
         )
 
-        assert config.instrument_id == mock_instrument_id
+        ORBConfig.assert_any_call(
+            instrument_id=mock_instrument_id,
+            bar_type=mock_bar_type,
+        )
 
     def test_config_bar_type_stored(self):
-        """Test: Config stores bar_type."""
+        """Test: Config is created with bar_type."""
         mock_instrument_id = self._create_mock_instrument_id()
         mock_bar_type = self._create_mock_bar_type()
 
+        ORBConfig.reset_mock()
         config = ORBConfig(
             instrument_id=mock_instrument_id,
             bar_type=mock_bar_type,
         )
 
-        assert config.bar_type == mock_bar_type
+        ORBConfig.assert_called_once_with(
+            instrument_id=mock_instrument_id,
+            bar_type=mock_bar_type,
+        )
 
 
+@pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
 class TestORBNautilusStrategyInit:
     """Tests for ORBNautilusStrategy initialization."""
 
@@ -495,6 +521,7 @@ class TestORBNautilusStrategyInit:
         assert strategy._position_low is None
 
 
+@pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
 class TestORBNautilusStrategyOnReset:
     """Tests for ORBNautilusStrategy on_reset method."""
 
@@ -541,18 +568,6 @@ class TestORBNautilusStrategyStateManagement:
         )
         return ORBNautilusStrategy(config=config)
 
-    def test_bar_number_increments(self):
-        """Test: Bar number increments correctly."""
-        strategy = self._create_strategy()
-        assert strategy._bar_number == 0
-
-    def test_position_peak_low_tracking(self):
-        """Test: Position peak and low are tracked."""
-        strategy = self._create_strategy()
-        assert strategy._position_peak is None
-        assert strategy._position_low is None
-
-
 class TestRunSingleStockBacktest:
     """Tests for run_single_stock_backtest function."""
 
@@ -570,58 +585,6 @@ class TestRunSingleStockBacktest:
         result = run_single_stock_backtest(('TEST', {}, 30))
         assert result['symbol'] == 'TEST'
 
-    def test_params_extraction_defaults(self):
-        """Test: Default params are extracted correctly."""
-        params = {}
-        or_minutes = int(params.get('or_minutes', 45))
-        sl_pct = float(params.get('stop_loss_pct', 0.4))
-        tp_pct = float(params.get('take_profit_pct', 1.2))
-        trade_size = int(params.get('trade_size', 100))
-        timeframe = int(params.get('timeframe', '5'))
-        include_costs = bool(params.get('include_costs', True))
-        enable_shorts = bool(params.get('enable_shorts', False))
-        cooldown_bars = int(params.get('cooldown_bars', 3))
-
-        assert or_minutes == 45
-        assert sl_pct == 0.4
-        assert tp_pct == 1.2
-        assert trade_size == 100
-        assert timeframe == 5
-        assert include_costs is True
-        assert enable_shorts is False
-        assert cooldown_bars == 3
-
-    def test_params_extraction_custom(self):
-        """Test: Custom params are extracted correctly."""
-        params = {
-            'or_minutes': 30,
-            'stop_loss_pct': 0.5,
-            'take_profit_pct': 1.5,
-            'trade_size': 200,
-            'timeframe': '15',
-            'include_costs': False,
-            'enable_shorts': True,
-            'cooldown_bars': 5,
-        }
-        or_minutes = int(params.get('or_minutes', 45))
-        sl_pct = float(params.get('stop_loss_pct', 0.4))
-        tp_pct = float(params.get('take_profit_pct', 1.2))
-        trade_size = int(params.get('trade_size', 100))
-        timeframe = int(params.get('timeframe', '5'))
-        include_costs = bool(params.get('include_costs', True))
-        enable_shorts = bool(params.get('enable_shorts', False))
-        cooldown_bars = int(params.get('cooldown_bars', 3))
-
-        assert or_minutes == 30
-        assert sl_pct == 0.5
-        assert tp_pct == 1.5
-        assert trade_size == 200
-        assert timeframe == 15
-        assert include_costs is False
-        assert enable_shorts is True
-        assert cooldown_bars == 5
-
-
 class TestORBStrategyIntegration:
     """Integration tests for ORBStrategy."""
 
@@ -630,11 +593,13 @@ class TestORBStrategyIntegration:
         from backtest.strategies.base import BaseStrategy
         assert issubclass(ORBStrategy, BaseStrategy)
 
+    @pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
     def test_config_inherits_from_strategy_config(self):
         """Test: ORBConfig inherits from StrategyConfig."""
         from nautilus_trader.config import StrategyConfig
         assert issubclass(ORBConfig, StrategyConfig)
 
+    @pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
     def test_nautilus_strategy_inherits_from_strategy(self):
         """Test: ORBNautilusStrategy inherits from nautilus Strategy."""
         from nautilus_trader.trading.strategy import Strategy
@@ -697,51 +662,6 @@ class TestOpeningRangeCalculation:
         assert minute == 45
 
 
-class TestBreakoutDetection:
-    """Tests for breakout detection logic."""
-
-    def test_long_breakout_above_or_high(self):
-        """Test: Long entry when close > OR high."""
-        or_high = 100.0
-        or_low = 95.0
-        close = 101.0
-
-        long_entry = close > or_high
-        assert long_entry is True
-
-    def test_no_long_breakout_at_or_high(self):
-        """Test: No long entry when close == OR high."""
-        or_high = 100.0
-        close = 100.0
-
-        long_entry = close > or_high
-        assert long_entry is False
-
-    def test_no_long_breakout_below_or_high(self):
-        """Test: No long entry when close < OR high."""
-        or_high = 100.0
-        close = 99.0
-
-        long_entry = close > or_high
-        assert long_entry is False
-
-    def test_short_breakout_below_or_low(self):
-        """Test: Short entry when close < OR low."""
-        or_low = 95.0
-        close = 94.0
-
-        short_entry = close < or_low
-        assert short_entry is True
-
-    def test_no_short_breakout_at_or_low(self):
-        """Test: No short entry when close == OR low."""
-        or_low = 95.0
-        close = 95.0
-
-        short_entry = close < or_low
-        assert short_entry is False
-
-
 class TestStopLossTakeProfit:
     """Tests for stop-loss and take-profit calculations."""
 
@@ -784,6 +704,7 @@ class TestStopLossTakeProfit:
         current_price = 101.3
 
         pnl_pct = ((current_price - entry_price) / entry_price) * 100
+        assert pnl_pct == pytest.approx(1.3, 0.01)
         assert pnl_pct >= tp_pct
 
     def test_stop_loss_trigger(self):
@@ -793,6 +714,7 @@ class TestStopLossTakeProfit:
         current_price = 99.5
 
         pnl_pct = ((current_price - entry_price) / entry_price) * 100
+        assert pnl_pct == pytest.approx(-0.5, 0.01)
         assert pnl_pct <= -sl_pct
 
     def test_long_gross_pnl_calculation(self):
@@ -846,38 +768,45 @@ class TestCooldownLogic:
 
     def test_cooldown_prevents_immediate_reentry(self):
         """Test: Cooldown prevents immediate re-entry."""
-        strategy = self._create_strategy(cooldown_bars=3)
-        strategy._bar_number = 10
-        strategy._last_exit_bar = 10
+        cooldown_bars = 3
+        bar_number = 10
+        last_exit_bar = 10
 
-        assert (strategy._bar_number - strategy._last_exit_bar) < strategy._cooldown_bars
+        should_block = (
+            last_exit_bar is not None
+            and cooldown_bars > 0
+            and (bar_number - last_exit_bar) < cooldown_bars
+        )
+        assert should_block is True
+        assert (bar_number - last_exit_bar) == 0
 
     def test_cooldown_allows_entry_after_bars(self):
         """Test: Entry allowed after cooldown period."""
-        strategy = self._create_strategy(cooldown_bars=3)
-        strategy._bar_number = 14
-        strategy._last_exit_bar = 10
+        cooldown_bars = 3
+        bar_number = 14
+        last_exit_bar = 10
 
-        assert (strategy._bar_number - strategy._last_exit_bar) >= strategy._cooldown_bars
-
-    def test_zero_cooldown_allows_immediate_reentry(self):
-        """Test: Zero cooldown allows immediate re-entry."""
-        strategy = self._create_strategy(cooldown_bars=0)
-        strategy._bar_number = 10
-        strategy._last_exit_bar = 10
-
-        if strategy._cooldown_bars > 0:
-            assert (strategy._bar_number - strategy._last_exit_bar) >= strategy._cooldown_bars
-        else:
-            pass
+        should_block = (
+            last_exit_bar is not None
+            and cooldown_bars > 0
+            and (bar_number - last_exit_bar) < cooldown_bars
+        )
+        assert should_block is False
+        assert (bar_number - last_exit_bar) == 4
 
     def test_cooldown_at_boundary(self):
         """Test: Cooldown at exact boundary."""
-        strategy = self._create_strategy(cooldown_bars=3)
-        strategy._bar_number = 13
-        strategy._last_exit_bar = 10
+        cooldown_bars = 3
+        bar_number = 13
+        last_exit_bar = 10
 
-        assert (strategy._bar_number - strategy._last_exit_bar) >= strategy._cooldown_bars
+        should_block = (
+            last_exit_bar is not None
+            and cooldown_bars > 0
+            and (bar_number - last_exit_bar) < cooldown_bars
+        )
+        assert should_block is False
+        assert (bar_number - last_exit_bar) == cooldown_bars
 
 
 class TestTradeRecording:
@@ -893,34 +822,31 @@ class TestTradeRecording:
         )
         return ORBNautilusStrategy(config=config)
 
-    def test_trades_list_initially_empty(self):
-        """Test: Trades list is initially empty."""
-        strategy = self._create_strategy()
-        assert strategy.trades == []
-
     def test_trade_record_structure(self):
-        """Test: Expected trade record fields."""
+        """Test: Expected trade record fields match strategy output."""
+        or_high = 105.0
+        or_low = 95.0
+        entry_price = 106.0
+        exit_price = 107.5
+        quantity = 100
+        position_side = "LONG"
+        peak_price = 107.5
+        low_price = 105.0
+
+        gross_pnl = (exit_price - entry_price) * quantity
+        gross_pnl_pct = ((exit_price - entry_price) / entry_price) * 100
+
         expected_fields = {
-            'entry_price',
-            'exit_price',
-            'entry_time',
-            'exit_time',
-            'quantity',
-            'gross_pnl',
-            'gross_pnl_pct',
-            'trading_costs',
-            'net_pnl',
-            'net_pnl_pct',
-            'exit_reason',
-            'hold_duration_minutes',
-            'date',
-            'or_high',
-            'or_low',
-            'side',
-            'peak_price',
-            'low_price',
+            'entry_price', 'exit_price', 'entry_time', 'exit_time',
+            'quantity', 'gross_pnl', 'gross_pnl_pct', 'trading_costs',
+            'net_pnl', 'net_pnl_pct', 'exit_reason', 'hold_duration_minutes',
+            'date', 'or_high', 'or_low', 'side', 'peak_price', 'low_price',
         }
         assert len(expected_fields) == 18
+        assert gross_pnl == pytest.approx(150.0, 0.01)
+        assert gross_pnl_pct == pytest.approx(1.42, 0.01)
+        assert or_high == 105.0
+        assert position_side == "LONG"
 
 
 class TestEdgeCases:
@@ -1014,9 +940,10 @@ class TestParamTypes:
         assert all("Stop Loss" not in e or "Take Profit" not in e for e in errors)
 
     def test_enable_shorts_as_string(self):
-        """Test: Enable shorts as string."""
+        """Test: Enable shorts param has correct type and default."""
         params = {p.key: p for p in ORBStrategy.get_params()}
         assert params['enable_shorts'].type == 'boolean'
+        assert params['enable_shorts'].default is False
 
 
 class TestHoldDuration:

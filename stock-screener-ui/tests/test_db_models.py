@@ -148,16 +148,19 @@ class TestUserModel:
 
     def test_user_updated_at_on_update(self, db_session):
         """Test that updated_at changes on update."""
+        import time
         user = User(email="updated@example.com", hashed_password="hashed")
         db_session.add(user)
         db_session.commit()
         
         original_updated = user.updated_at
         
+        time.sleep(1)
+        
         user.display_name = "Updated Name"
         db_session.commit()
         
-        assert user.updated_at >= original_updated
+        assert user.updated_at > original_updated
 
 
 class TestUserSessionModel:
@@ -630,7 +633,13 @@ class TestModelConstraints:
     """Tests for database constraints."""
 
     def test_user_email_unique_case_insensitive(self, db_session):
-        """Test email uniqueness (note: SQLite is case-sensitive by default)."""
+        """Test email uniqueness (note: SQLite is case-sensitive by default).
+        
+        SQLite treats 'Case@Example.com' and 'case@example.com' as different
+        strings, so both are inserted successfully. A production database
+        with a case-insensitive collation or a unique index with LOWER()
+        would reject the second insert.
+        """
         user1 = User(email="Case@Example.com", hashed_password="h1")
         user2 = User(email="case@example.com", hashed_password="h2")
         db_session.add_all([user1, user2])
@@ -638,6 +647,8 @@ class TestModelConstraints:
         db_session.commit()
         
         assert user1.id != user2.id
+        assert user1.email == "Case@Example.com"
+        assert user2.email == "case@example.com"
 
     def test_foreign_key_user_session_to_user(self, db_session):
         """Test foreign key constraint on user_session.user_id."""
@@ -668,25 +679,34 @@ class TestModelTimestamps:
     """Tests for timestamp behavior across models."""
 
     def test_user_timestamps_auto_set(self, db_session):
-        """Test that User timestamps are auto-set."""
+        """Test that User timestamps are auto-set within expected range."""
+        before = datetime.utcnow() - timedelta(seconds=5)
         user = User(email="ts@example.com", hashed_password="hashed")
         db_session.add(user)
         db_session.commit()
+        after = datetime.utcnow() + timedelta(seconds=5)
         
         assert user.created_at is not None
         assert user.updated_at is not None
+        assert before <= user.created_at <= after
+        assert before <= user.updated_at <= after
 
     def test_strategy_timestamps_auto_set(self, db_session):
-        """Test that StrategyConfig timestamps are auto-set."""
+        """Test that StrategyConfig timestamps are auto-set within expected range."""
+        before = datetime.utcnow() - timedelta(seconds=5)
         strategy = StrategyConfig(name="ts_strategy", strategy_type="ORB")
         db_session.add(strategy)
         db_session.commit()
+        after = datetime.utcnow() + timedelta(seconds=5)
         
         assert strategy.created_at is not None
         assert strategy.updated_at is not None
+        assert before <= strategy.created_at <= after
+        assert before <= strategy.updated_at <= after
 
     def test_bot_timestamps_auto_set(self, db_session):
-        """Test that BotConfig timestamps are auto-set."""
+        """Test that BotConfig timestamps are auto-set within expected range."""
+        before = datetime.utcnow() - timedelta(seconds=5)
         user = User(email="bot_ts@example.com", hashed_password="hashed")
         db_session.add(user)
         db_session.commit()
@@ -694,9 +714,12 @@ class TestModelTimestamps:
         bot = BotConfig(name="ts_bot", user_id=user.id)
         db_session.add(bot)
         db_session.commit()
+        after = datetime.utcnow() + timedelta(seconds=5)
         
         assert bot.created_at is not None
         assert bot.updated_at is not None
+        assert before <= bot.created_at <= after
+        assert before <= bot.updated_at <= after
 
 
 class TestModelSerialization:

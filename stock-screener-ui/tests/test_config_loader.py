@@ -1112,6 +1112,9 @@ class TestEdgeCases:
         assert config.or_minutes == 0
         assert config.sl_pct == 0.0
         assert config.max_positions == 0
+        assert config.to_dict()['or_minutes'] == 0
+        import json
+        assert json.dumps(config.to_dict()) is not None
 
     def test_negative_values_allowed(self):
         """Test that negative values are allowed (no validation)."""
@@ -1122,6 +1125,8 @@ class TestEdgeCases:
         
         assert config.sl_pct == -0.5
         assert config.tp_pct == -1.0
+        assert config.sl_pct < 0
+        assert config.tp_pct < 0
 
     def test_large_values_allowed(self):
         """Test that large values are allowed."""
@@ -1132,6 +1137,7 @@ class TestEdgeCases:
         
         assert config.max_trade_value == 1000000000
         assert config.max_positions == 1000
+        assert config.max_trade_value > config.min_trade_value
 
 
 # ============================================================================

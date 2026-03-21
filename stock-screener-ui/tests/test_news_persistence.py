@@ -95,7 +95,11 @@ class TestNewsPersistenceService:
             )
             
             mock_db.add.assert_called()
-            mock_db.commit.assert_called()
+            mock_db.commit.assert_called_once()
+            added_article = mock_db.add.call_args_list[0][0][0]
+            assert added_article.url == 'https://example.com/article/1'
+            assert added_article.headline == 'Test Article'
+            assert added_article.source == 'moneycontrol'
     
     def test_save_article_existing(self, persistence_service):
         mock_db = MagicMock()
@@ -112,6 +116,8 @@ class TestNewsPersistenceService:
             )
             
             mock_db.add.assert_not_called()
+            mock_db.commit.assert_not_called()
+            assert result == existing_article
     
     def test_get_article_by_url(self, persistence_service):
         mock_db = MagicMock()
@@ -128,6 +134,8 @@ class TestNewsPersistenceService:
             
             assert result is not None
             assert result['url'] == 'https://example.com/article/1'
+            mock_db.query.assert_called_with(NewsArticle)
+            mock_db.query.return_value.filter.assert_called_once()
     
     def test_get_article_by_url_not_found(self, persistence_service):
         mock_db = MagicMock()
@@ -157,7 +165,10 @@ class TestNewsPersistenceService:
             result = persistence_service.get_articles_for_instrument('NSE_EQ|INE002A01018')
             
             assert len(result) == 2
-    
+            mock_db.query.assert_called()
+            filter_call = mock_db.query.return_value.filter.call_args
+            assert filter_call is not None
+
     def test_get_articles_for_instrument_no_results(self, persistence_service):
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = []
@@ -182,7 +193,9 @@ class TestNewsPersistenceService:
             result = persistence_service.get_articles_for_symbol('RELIANCE')
             
             assert len(result) == 1
-    
+            filter_call = mock_db.query.return_value.filter.call_args
+            assert filter_call is not None
+
     def test_get_recent_articles(self, persistence_service):
         mock_db = MagicMock()
         
@@ -196,7 +209,9 @@ class TestNewsPersistenceService:
             result = persistence_service.get_recent_articles(hours=24)
             
             assert len(result) == 2
-    
+            order_by_call = mock_db.query.return_value.filter.return_value.order_by.call_args
+            assert order_by_call is not None
+
     def test_get_recent_articles_with_source(self, persistence_service):
         mock_db = MagicMock()
         
@@ -209,7 +224,10 @@ class TestNewsPersistenceService:
             result = persistence_service.get_recent_articles(hours=24, source='moneycontrol')
             
             assert len(result) == 1
-    
+            assert result[0]['source'] == 'moneycontrol'
+            second_filter = mock_db.query.return_value.filter.return_value.filter.call_args
+            assert second_filter is not None
+
     def test_get_symbols_for_article(self, persistence_service):
         mock_db = MagicMock()
         
@@ -223,7 +241,11 @@ class TestNewsPersistenceService:
             result = persistence_service.get_symbols_for_article(article_id=1)
             
             assert len(result) == 2
-    
+            assert result[0]['symbol_code'] == 'RELIANCE'
+            assert result[1]['symbol_code'] == 'TCS'
+            filter_call = mock_db.query.return_value.filter.call_args
+            assert filter_call is not None
+
     def test_get_mapped_symbols_for_article(self, persistence_service):
         mock_db = MagicMock()
         
@@ -240,7 +262,10 @@ class TestNewsPersistenceService:
             result = persistence_service.get_mapped_symbols_for_article(article_id=1)
             
             assert len(result) == 1
-    
+            assert result[0]['instrument_key'] == 'NSE_EQ|INE002A01018'
+            assert result[0]['symbol_code'] == 'RELIANCE'
+            mock_query.filter.assert_called_once()
+
     def test_search_articles(self, persistence_service):
         mock_db = MagicMock()
         
@@ -253,7 +278,10 @@ class TestNewsPersistenceService:
             result = persistence_service.search_articles(query='Reliance')
             
             assert len(result) == 1
-    
+            assert result[0]['headline'] == 'Reliance Q3 Results'
+            filter_call = mock_db.query.return_value.filter.call_args
+            assert filter_call is not None
+
     def test_get_article_stats(self, persistence_service, mock_mapper):
         mock_db = MagicMock()
         
@@ -266,9 +294,14 @@ class TestNewsPersistenceService:
             result = persistence_service.get_article_stats()
             
             assert 'total_articles' in result
+            assert result['total_articles'] == 10
             assert 'total_symbol_mentions' in result
+            assert result['total_symbol_mentions'] == 10
             assert 'mapped_symbols' in result
             assert 'mapper_stats' in result
+            assert result['mapper_stats']['total_instruments'] == 100
+            assert 'moneycontrol' in result['sources']
+            assert 'economictimes' in result['sources']
     
     def test_cleanup_old_articles(self, persistence_service):
         mock_db = MagicMock()
@@ -279,6 +312,9 @@ class TestNewsPersistenceService:
             
             assert result == 5
             mock_db.commit.assert_called()
+            mock_db.query.return_value.filter.assert_called_once()
+            delete_call = mock_db.query.return_value.filter.return_value.delete.call_args
+            assert delete_call is not None
 
 
 class TestGlobalFunctions:
@@ -321,3 +357,7 @@ class TestIntegrationWithMapper:
                 )
                 
                 mock_mapper.map_symbols.assert_called_once()
+                call_args = mock_mapper.map_symbols.call_args[0][0]
+                assert len(call_args) == 2
+                assert call_args[0]['code'] == 'RELIANCE'
+                assert call_args[1]['code'] == 'TCS'

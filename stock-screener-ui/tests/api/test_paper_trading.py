@@ -716,18 +716,9 @@ class TestOrderManagement:
 class TestSignalGeneration:
     """Tests for signal endpoints."""
 
-    @pytest.mark.skip(reason="Asyncio event loop conflict with dynamic imports")
-    def test_get_signals(self, client):
-        """Test GET /api/paper/signals."""
-        # This endpoint calls the real screener with dynamic imports
-        # Skip this test due to asyncio event loop issues in pytest
-        pass
-
     def test_get_signals_error(self, client):
-        """Test GET /api/paper/signals with error."""
-        # Test that endpoint handles errors gracefully
+        """Test GET /api/paper/signals returns a response."""
         response = client.get("/api/paper/signals")
-        # May return 500 if screener unavailable, or 200 if it works
         assert response.status_code in [200, 500]
 
     def test_create_signal(self, client):
@@ -760,7 +751,6 @@ class TestTradeHistory:
 
     def test_get_trades_default_limit(self, client, mock_journal):
         """Test GET /api/paper/trades with default limit."""
-        # Add some trades to journal
         from trading.journal import TradeRecord
         for i in range(10):
             trade = TradeRecord(
@@ -784,8 +774,7 @@ class TestTradeHistory:
 
         assert response.status_code == 200
         data = response.json()
-        assert "total_trades" in data
-        assert "filtered_trades" in data
+        assert data["total_trades"] >= 0
         assert "trades" in data
 
     def test_get_trades_with_limit(self, client, mock_journal):
@@ -863,8 +852,7 @@ class TestTradeHistory:
 
         assert response.status_code == 200
         data = response.json()
-        # Should filter by notes containing the strategy name
-        assert len(data["trades"]) >= 0
+        assert isinstance(data["trades"], list)
 
     def test_get_journal_summary(self, client, mock_journal):
         """Test GET /api/paper/journal/summary."""
@@ -888,11 +876,11 @@ class TestTradeHistory:
 
         assert response.status_code == 200
         data = response.json()
-        assert "total_trades" in data
-        assert "winners" in data
-        assert "losers" in data
-        assert "net_pnl" in data
-        assert "win_rate" in data
+        assert data["total_trades"] == 2
+        assert data["winners"] == 1
+        assert data["losers"] == 1
+        assert data["net_pnl"] == 4650.0
+        assert data["win_rate"] == 0.5
 
     def test_get_symbol_performance(self, client, mock_journal):
         """Test GET /api/paper/journal/symbols."""
@@ -928,8 +916,9 @@ class TestTradeHistory:
 
         assert response.status_code == 200
         data = response.json()
-        assert "date" in data
-        assert "trades" in data
+        assert data["date"] == "2024-03-03"
+        assert data["trades"] == 10
+        assert data["net_pnl"] == 15000.0
 
     def test_export_journal(self, client, mock_journal):
         """Test GET /api/paper/journal/export."""
@@ -956,9 +945,11 @@ class TestRiskManagement:
 
         assert response.status_code == 200
         data = response.json()
-        assert "max_positions" in data
-        assert "max_capital_per_trade" in data
-        assert "max_daily_loss" in data
+        assert data["max_positions"] == 5
+        assert data["max_capital_per_trade"] == 0.10
+        assert data["max_daily_loss"] == 0.02
+        assert data["max_total_exposure"] == 0.50
+        assert data["risk_per_trade"] == 0.01
 
     def test_validate_trade_success(self, client, mock_risk_manager):
         """Test POST /api/paper/risk/validate - valid trade."""
@@ -1083,8 +1074,10 @@ class TestRunnerControl:
 
             assert response.status_code == 200
             data = response.json()
-            assert "watchlist" in data
-            assert "open_positions" in data
+            assert data["watchlist"] == ["RELIANCE", "TCS"]
+            assert len(data["open_positions"]) == 1
+            assert data["open_positions"][0]["symbol"] == "RELIANCE"
+            assert data["open_positions"][0]["quantity"] == 100
 
     def test_get_bot_snapshot_no_file(self, client):
         """Test GET /api/paper/bot/snapshot when file doesn't exist."""
@@ -1116,7 +1109,7 @@ class TestRunnerControl:
 
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] in ["started", "already_running"]
+            assert data["status"] == "started"
 
     def test_start_bot_already_running(self, client):
         """Test POST /api/paper/bot/start when already running."""
@@ -1152,7 +1145,7 @@ class TestRunnerControl:
 
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] in ["stopped", "not_running"]
+            assert data["status"] == "stopped"
 
     def test_stop_bot_not_running(self, client):
         """Test POST /api/paper/bot/stop when not running."""
@@ -1208,25 +1201,25 @@ class TestErrorHandling:
             "take_profit": 2575.0,
         }
 
-        # API should handle this gracefully
+        # TODO: API should reject empty symbol (returns 200)
         response = client.post("/api/paper/order", json=order_data)
 
-        # Either 200 (if mock accepts) or appropriate error
-        assert response.status_code in [200, 400, 422]
+        assert response.status_code in [200, 422]
 
     def test_invalid_quantity(self, client):
         """Test handling of invalid quantity."""
         order_data = {
             "symbol": "RELIANCE",
             "side": "BUY",
-            "quantity": 0,  # Invalid quantity
+            "quantity": 0,
             "price": 2500.0,
             "stop_loss": 2475.0,
             "take_profit": 2575.0,
         }
 
         response = client.post("/api/paper/order", json=order_data)
-        assert response.status_code in [200, 400, 422]
+        # TODO: API should reject zero quantity (returns 200)
+        assert response.status_code in [200, 422]
 
     def test_negative_price(self, client):
         """Test handling of negative price."""
@@ -1234,17 +1227,18 @@ class TestErrorHandling:
             "symbol": "RELIANCE",
             "side": "BUY",
             "quantity": 100,
-            "price": -100.0,  # Invalid price
+            "price": -100.0,
             "stop_loss": 2475.0,
             "take_profit": 2575.0,
         }
 
         response = client.post("/api/paper/order", json=order_data)
-        assert response.status_code in [200, 400, 422]
+        # API returns 400 for negative price
+        assert response.status_code in [400, 422]
 
     def test_invalid_date_format(self, client, mock_journal):
         """Test handling of invalid date format in trades query."""
         response = client.get("/api/paper/trades?date=invalid-date")
 
-        # Should handle gracefully
-        assert response.status_code in [200, 400, 422]
+        # TODO: API should reject invalid date format (returns 200)
+        assert response.status_code in [200, 422]

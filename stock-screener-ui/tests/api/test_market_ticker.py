@@ -449,6 +449,8 @@ class TestMarketTickerEndpoints:
         assert isinstance(nifty.timestamp, datetime)
         assert nifty.last_updated is not None
         assert isinstance(nifty.last_updated, datetime)
+        now = datetime.utcnow()
+        assert (now - nifty.timestamp).total_seconds() < 60
 
     @pytest.mark.asyncio
     async def test_source_field_in_ticker(self, mock_yfinance, clear_cache):
@@ -500,9 +502,13 @@ class TestMarketTickerEndpoints:
 
         # Check timestamp is recent
         assert isinstance(response.timestamp, datetime)
+        now = datetime.utcnow()
+        assert (now - response.timestamp).total_seconds() < 60
 
         # Check tickers is a dict
         assert isinstance(response.tickers, dict)
+        assert len(response.tickers) == 6
+        assert response.tickers['^NSEI'].price == 100.0
 
 
 class TestTickerConstants:
@@ -547,7 +553,8 @@ class TestTickerHelperFunctions:
 
         mock_yfinance.return_value = mock_ticker
 
-        symbol, data = await fetch_ticker_data('^NSEI', 'Nifty 50', '^NSEI')
+        result = fetch_ticker_data('^NSEI', 'Nifty 50', '^NSEI')
+        symbol, data = result
 
         assert symbol == '^NSEI'
         assert data['symbol'] == '^NSEI'
@@ -564,7 +571,8 @@ class TestTickerHelperFunctions:
 
         mock_yfinance.side_effect = Exception("API Error")
 
-        symbol, data = await fetch_ticker_data('^NSEI', 'Nifty 50', '^NSEI')
+        result = fetch_ticker_data('^NSEI', 'Nifty 50', '^NSEI')
+        symbol, data = result
 
         assert symbol == '^NSEI'
         assert 'error' in data

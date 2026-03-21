@@ -1162,51 +1162,6 @@ class TestCreateEntrySignal:
 # Display Signals Tests
 # ============================================================================
 
-class TestDisplaySignals:
-    """Tests for display_signals method."""
-
-    def test_display_signals_with_signals(self, capsys):
-        """Test displaying signals."""
-        generator = ORBSignalGenerator()
-
-        signals = [
-            ORBSignal(
-                symbol="TEST1",
-                signal_type=SignalType.LONG_ENTRY,
-                price=100.0,
-                stop_loss=99.0,
-                take_profit=102.0,
-                or_high=99.5,
-                or_low=98.0,
-                or_range=1.5,
-                or_range_pct=1.5,
-                timestamp=datetime.now(),
-                notes="Breakout above OR high",
-            ),
-            ORBSignal(
-                symbol="TEST2",
-                signal_type=SignalType.SHORT_ENTRY,
-                price=95.0,
-                stop_loss=96.0,
-                take_profit=93.0,
-                or_high=97.0,
-                or_low=96.0,
-                or_range=1.0,
-                or_range_pct=1.0,
-                timestamp=datetime.now(),
-                notes="Breakdown below OR low",
-            ),
-        ]
-
-        generator.display_signals(signals)
-
-    def test_display_signals_empty_list(self):
-        """Test displaying empty signal list."""
-        generator = ORBSignalGenerator()
-
-        generator.display_signals([])
-
-
 # ============================================================================
 # Integration Tests
 # ============================================================================

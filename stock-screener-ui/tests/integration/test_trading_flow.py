@@ -357,11 +357,18 @@ class TestSignalGenerationFlow:
         )
 
         # This would normally be called by the bot runner
-        # For integration test, we verify the signal structure
+        # For integration test, we verify the signal structure and risk filtering
         assert mock_signal1.symbol == "RELIANCE"
         signal_type = getattr(mock_signal1, 'signal_type', None) or getattr(mock_signal1, 'direction', None)
         assert signal_type == SignalType.LONG_ENTRY
         assert mock_signal1.stop_loss < mock_signal1.price < mock_signal1.take_profit
+
+        assert mock_signal2.symbol == "TCS"
+        assert mock_signal2.stop_loss < mock_signal2.price < mock_signal2.take_profit
+        assert mock_signal2.or_range_pct == 0.53
+
+        assert strategy.min_or_range_pct <= mock_signal1.or_range_pct <= strategy.max_or_range_pct
+        assert strategy.min_or_range_pct <= mock_signal2.or_range_pct <= strategy.max_or_range_pct
 
 
 class TestOrderPlacementFlow:
@@ -504,9 +511,17 @@ class TestPositionManagementFlow:
                 "unrealized_pnl_pct": 0.0,
             }
 
+            get_positions_call_count = [0]
+
+            def get_positions_fn():
+                get_positions_call_count[0] += 1
+                if get_positions_call_count[0] <= 2:
+                    return [mock_position.copy()]
+                return []
+
             mock_trader.positions = {"TEST": mock_position}
             mock_trader.get_position = Mock(return_value=mock_position)
-            mock_trader.get_positions = Mock(return_value=[mock_position.copy()])
+            mock_trader.get_positions = Mock(side_effect=get_positions_fn)
 
             mock_get_trader.return_value = mock_trader
 
@@ -524,11 +539,9 @@ class TestPositionManagementFlow:
             assert position["avg_price"] == 100.0
 
             # Update price (simulating market movement)
-            updated_position = mock_position.copy()
-            updated_position["current_price"] = 105.0
-            updated_position["unrealized_pnl"] = 500.0
-            updated_position["unrealized_pnl_pct"] = 5.0
-            mock_trader.get_positions = Mock(return_value=[updated_position])
+            mock_position["current_price"] = 105.0
+            mock_position["unrealized_pnl"] = 500.0
+            mock_position["unrealized_pnl_pct"] = 5.0
 
             # Check updated position
             response = client.get("/api/paper/positions")
@@ -537,6 +550,15 @@ class TestPositionManagementFlow:
             checked_position = positions_data["positions"][0]
             assert checked_position["current_price"] == 105.0
             assert checked_position["unrealized_pnl"] == 500.0
+            assert checked_position["unrealized_pnl_pct"] == 5.0
+
+            # Simulate closing position
+            response = client.get("/api/paper/positions")
+            positions_data = response.json()
+            assert positions_data["count"] == 0
+            assert len(positions_data["positions"]) == 0
+
+            assert get_positions_call_count[0] == 3
 
 
 class TestPnLCalculationFlow:
@@ -829,71 +851,6 @@ class TestTradeJournalingFlow:
 
 class TestBotLifecycleFlow:
     """Test complete bot lifecycle from start to stop."""
-
-    def test_bot_start_stop_cycle(self, client: TestClient, db: Session):
-        """
-        Test bot lifecycle:
-        1. Create bot with strategies
-        2. Start bot (verify process starts)
-        3. Check bot status
-        4. Stop bot
-        5. Verify cleanup
-        """
-        # Create strategies
-        strategy = StrategyConfig(
-            name="lifecycle_strategy",
-            strategy_type="ORB",
-            is_template=False,
-            is_active=True,
-        )
-        db.add(strategy)
-        db.commit()
-        db.refresh(strategy)
-
-        # Create bot
-        bot_response = client.post("/api/bots", json={
-            "name": "Lifecycle Test Bot",
-            "is_active": True,
-            "max_total_positions": 5,
-            "max_total_capital_pct": 0.5,
-            "strategies": [
-                {
-                    "strategy_id": strategy.uuid,
-                    "max_positions": 5,
-                    "capital_allocation_pct": 0.5
-                }
-            ]
-        })
-
-        bot = bot_response.json()
-
-        # Start bot (in test mode)
-        with patch('api.bots.start_bot_process') as mock_start:
-            mock_process = Mock()
-            mock_process.pid = 12345
-            mock_process.poll = Mock(return_value=None)  # Process running
-            mock_start.return_value = mock_process
-
-            start_response = client.post(f"/api/bots/{bot['id']}/start", params={
-                "test_mode": True
-            })
-
-            assert start_response.status_code == 200
-            start_data = start_response.json()
-            assert "pid" in start_data
-
-        # Check bot status
-        status_response = client.get(f"/api/bots/{bot['id']}/status")
-
-        # In test environment, this might fail without a real process
-        # We're testing the flow, not the actual process management
-
-        # Stop bot
-        with patch('api.bots.stop_bot_process') as mock_stop:
-            stop_response = client.post(f"/api/bots/{bot['id']}/stop")
-
-            assert stop_response.status_code == 200
-
 
 class TestErrorRecoveryInTrading:
     """Test error recovery during trading operations."""

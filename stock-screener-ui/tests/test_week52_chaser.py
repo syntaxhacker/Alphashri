@@ -26,17 +26,21 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 import pandas as pd
 
-from backtest.strategies.week52_chaser import (
-    Week52ChaserConfig,
-    Week52ChaserNautilusStrategy,
-    Week52ChaserStrategy,
-    Week52HighIndicator,
-)
-from nautilus_trader.model.identifiers import InstrumentId, Symbol
-from nautilus_trader.model.instruments import Equity
-from nautilus_trader.model.objects import Price, Quantity
-from nautilus_trader.model.currencies import INR
-from nautilus_trader.model.data import BarType, Bar
+try:
+    from backtest.strategies.week52_chaser import (
+        Week52ChaserConfig,
+        Week52ChaserNautilusStrategy,
+        Week52ChaserStrategy,
+        Week52HighIndicator,
+    )
+    from nautilus_trader.model.identifiers import InstrumentId, Symbol
+    from nautilus_trader.model.instruments import Equity
+    from nautilus_trader.model.objects import Price, Quantity
+    from nautilus_trader.model.currencies import INR
+    from nautilus_trader.model.data import BarType, Bar
+    _HAS_NAUTILUS = not hasattr(Equity, '_mock_name')
+except ImportError:
+    _HAS_NAUTILUS = False
 
 
 def _make_bar(close, high, low, ts_sec, bar_type_str="TEST.SIMULATED-1-DAY-LAST-EXTERNAL"):
@@ -56,6 +60,8 @@ def _make_bar(close, high, low, ts_sec, bar_type_str="TEST.SIMULATED-1-DAY-LAST-
 
 @pytest.fixture
 def mock_instrument():
+    if not _HAS_NAUTILUS:
+        pytest.skip("nautilus_trader not installed")
     return Equity(
         instrument_id=InstrumentId.from_str("TEST.SIMULATED"),
         raw_symbol=Symbol("TEST"),
@@ -166,6 +172,7 @@ class TestWeek52HighIndicator:
         assert val == 105.0
 
 
+@pytest.mark.skipif(not _HAS_NAUTILUS, reason="nautilus_trader not installed")
 class TestWeek52ChaserLogic:
     def _seed_indicator(self, strategy, high_value=100.0, bars=25):
         """Pump enough bars into the indicator so is_initialized() passes."""

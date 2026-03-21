@@ -280,7 +280,7 @@ class TestBacktestCostsEndpoint:
         """Test the full costs endpoint response."""
         result = handle_get_costs()
 
-        assert result['costs']
+        assert result['costs']['brokerage']['rate'] == '0.03%'
         assert 'updated' in result
 
         # Verify updated timestamp is recent
@@ -308,10 +308,13 @@ class TestBacktestProgressEndpoint:
         backtest_handler.progress_state['message'] = 'Processing...'
         backtest_handler.progress_state['running'] = True
 
+        assert isinstance(backtest_handler.progress_state, dict)
+        assert set(backtest_handler.progress_state.keys()) == {
+            'current', 'total', 'message', 'updated', 'running'
+        }
+        assert backtest_handler.progress_state['running'] is True
         assert backtest_handler.progress_state['current'] == 5
         assert backtest_handler.progress_state['total'] == 10
-        assert backtest_handler.progress_state['message'] == 'Processing...'
-        assert backtest_handler.progress_state['running'] is True
 
 
 class TestBacktestRunEndpoint:
@@ -765,7 +768,8 @@ class TestBacktestErrorScenarios:
         }
 
         result = handle_run_backtest(body)
-        # Should handle gracefully (depends on validation implementation)
+        # TODO: API should return error for negative days (currently returns result)
+        assert isinstance(result, dict)
 
     def test_backtest_with_large_symbol_list(self):
         """Test backtest with a large number of symbols."""
@@ -777,11 +781,9 @@ class TestBacktestErrorScenarios:
             'days': 90
         }
 
-        # This should not crash, but may take time
-        # We're just ensuring it doesn't raise an exception
         result = handle_run_backtest(body)
-        # Either returns error or processes (depending on mocking)
         assert isinstance(result, dict)
+        assert 'error' in result or 'results' in result
 
 
 class TestBacktestDataFormatting:

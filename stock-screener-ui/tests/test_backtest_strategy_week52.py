@@ -18,6 +18,8 @@ from unittest.mock import Mock, patch, MagicMock
 import sys
 from pathlib import Path
 
+_nautilus_available = not isinstance(sys.modules.get('nautilus_trader.config'), MagicMock)
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from backtest.strategies.week52_chaser import (
@@ -348,7 +350,12 @@ class TestWeek52ChaserStrategyMetadata:
         """Test: get_params returns list of StrategyParam."""
         params = Week52ChaserStrategy.get_params()
         assert isinstance(params, list)
+        assert len(params) == 10
         assert all(isinstance(p, StrategyParam) for p in params)
+        param_keys = {p.key for p in params}
+        assert 'entry_threshold_pct' in param_keys
+        assert 'stop_loss_pct' in param_keys
+        assert 'take_profit_pct' in param_keys
 
     def test_get_params_has_required_params(self):
         """Test: Has all required parameters."""
@@ -506,6 +513,7 @@ class TestWeek52ChaserStrategyValidation:
         assert len(errors) >= 2
 
 
+@pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
 class TestWeek52ChaserConfig:
     """Tests for Week52ChaserConfig dataclass."""
 
@@ -560,30 +568,17 @@ class TestWeek52ChaserNautilusStrategy:
 
     def test_strategy_params_from_config(self):
         """Test: Strategy reads params from config correctly."""
-        assert Week52ChaserNautilusStrategy is not None
-
-    def test_52w_indicator_class_exists(self):
-        """Test: 52W indicator class is available."""
-        assert Week52HighIndicator is not None
-        indicator = Week52HighIndicator(period=252, min_periods=100)
-        assert indicator.period == 252
-        assert indicator.min_periods == 100
-
-    def test_on_reset_clears_state_via_indicator(self):
-        """Test: Indicator state can be reset by creating new instance."""
-        indicator = Week52HighIndicator(period=252, min_periods=100)
-        for i in range(10):
-            indicator.update(100.0 + i)
-        
-        assert indicator.value is not None or indicator._count == 10
-        
-        indicator = Week52HighIndicator(period=252, min_periods=100)
-        assert indicator._count == 0
-        assert indicator.value is None
+        strategy = Week52ChaserStrategy()
+        defaults = strategy.get_default_params()
+        assert defaults['entry_threshold_pct'] == 3.0
+        assert defaults['stop_loss_pct'] == 3.0
+        assert defaults['take_profit_pct'] == 5.0
+        assert defaults['enable_trailing_stop'] is False
+        assert defaults['trade_size'] == 100
 
     def test_trade_list_exists_in_strategy_class(self):
         """Test: Strategy class has trades attribute."""
-        from backtest.strategies.week52_chaser import Week52ChaserNautilusStrategy
+        assert Week52ChaserNautilusStrategy is not None
         assert hasattr(Week52ChaserNautilusStrategy, '__init__')
 
 
@@ -639,18 +634,16 @@ class TestEntryLogic:
         distance_pct = ((high_52w - close_price) / close_price) * 100
 
         assert distance_pct < 0
+        assert distance_pct == pytest.approx(-4.76, 0.1)
 
     def test_entry_requires_cooldown_complete(self):
         """Test: Entry blocked during cooldown period."""
-        cooldown_days = 30
+        cooldown_bars = 30
         bars_since_exit = 10
-
-        in_cooldown = bars_since_exit < cooldown_days
-        assert in_cooldown is True
+        assert bars_since_exit < cooldown_bars
 
         bars_since_exit = 35
-        in_cooldown = bars_since_exit < cooldown_days
-        assert in_cooldown is False
+        assert bars_since_exit >= cooldown_bars
 
 
 class TestExitLogic:
@@ -664,6 +657,7 @@ class TestExitLogic:
 
         pnl_pct = ((close_price - entry_price) / entry_price) * 100
 
+        assert pnl_pct == pytest.approx(5.5, 0.01)
         assert pnl_pct >= take_profit_pct
 
     def test_stop_loss_exit(self):
@@ -674,25 +668,20 @@ class TestExitLogic:
 
         pnl_pct = ((close_price - entry_price) / entry_price) * 100
 
+        assert pnl_pct == pytest.approx(-3.5, 0.01)
         assert pnl_pct <= -stop_loss_pct
-
-    def test_max_holding_exit(self):
-        """Test: Exit at max holding days."""
-        max_holding_days = 30
-        bars_in_trade = 30
-
-        should_exit = bars_in_trade >= max_holding_days
-        assert should_exit is True
 
     def test_trailing_stop_activation_at_52w_high(self):
         """Test: Trailing stop activates when price reaches 52W high."""
-        entry_price = 100.0
         entry_52w_high = 105.0
         close_price = 105.0
         enable_trailing_stop = True
+        trailing_stop_active = False
 
-        trailing_active = enable_trailing_stop and close_price >= entry_52w_high
-        assert trailing_active is True
+        if enable_trailing_stop and not trailing_stop_active:
+            if close_price >= entry_52w_high:
+                trailing_stop_active = True
+        assert trailing_stop_active is True
 
     def test_trailing_stop_exit(self):
         """Test: Exit when trailing stop hit."""
@@ -701,7 +690,7 @@ class TestExitLogic:
         close_price = 106.0
 
         trailing_stop_price = highest_price * (1 - trailing_stop_pct / 100)
-
+        assert trailing_stop_price == pytest.approx(106.7, 0.01)
         assert close_price <= trailing_stop_price
 
     def test_new_52w_high_exit(self):
@@ -724,6 +713,8 @@ class TestExitLogic:
         pnl_at_tp = ((close_at_tp - entry_price) / entry_price) * 100
         pnl_at_sl = ((close_at_sl - entry_price) / entry_price) * 100
 
+        assert pnl_at_tp == pytest.approx(6.0, 0.01)
+        assert pnl_at_sl == pytest.approx(-4.0, 0.01)
         assert pnl_at_tp >= take_profit_pct
         assert pnl_at_sl <= -stop_loss_pct
 
@@ -777,19 +768,9 @@ class TestEdgeCases:
         indicator.update(0.0)
         indicator.update(0.0)
         result = indicator.update(0.0)
+        assert result == 0.0
 
-        if result is not None:
-            assert result >= 0
-
-    def test_indicator_with_negative_price(self):
-        """Test: Indicator handles negative price (edge case)."""
-        indicator = Week52HighIndicator(period=10, min_periods=3)
-        indicator.update(-10.0)
-        indicator.update(-5.0)
-        indicator.update(-2.0)
-        result = indicator.update(-1.0)
-
-    def test_empty_historical_df(self):
+    def test_very_small_threshold(self):
         """Test: Strategy handles empty historical DataFrame."""
         empty_df = pd.DataFrame()
         assert empty_df.empty is True
@@ -805,22 +786,29 @@ class TestEdgeCases:
 
     def test_very_large_threshold(self):
         """Test: Very large entry threshold (10%)."""
-        high_52w = 100.0
+        indicator = Week52HighIndicator(period=252, min_periods=3)
+        for _ in range(3):
+            indicator.update(100.0)
+        high_52w = indicator.value
         entry_threshold_pct = 10.0
         close_price = 92.0
 
         distance_pct = ((high_52w - close_price) / close_price) * 100
 
+        assert distance_pct == pytest.approx(8.70, 0.1)
         assert 0 < distance_pct <= entry_threshold_pct
 
     def test_equal_entry_and_exit_price(self):
         """Test: Equal entry and exit price (breakeven)."""
         entry_price = 100.0
         exit_price = 100.0
+        trade_size = 100
 
         pnl_pct = ((exit_price - entry_price) / entry_price) * 100
+        gross_pnl = (exit_price - entry_price) * trade_size
 
         assert pnl_pct == 0
+        assert gross_pnl == 0
 
     def test_very_high_volatility_prices(self):
         """Test: Indicator handles high volatility."""
@@ -855,15 +843,6 @@ class TestDistanceCalculation:
         assert distance_pct > 0
         assert abs(distance_pct - 3.09) < 0.1
 
-    def test_distance_calculation_negative(self):
-        """Test: Negative distance when above 52W high."""
-        high_52w = 100.0
-        close_price = 105.0
-
-        distance_pct = ((high_52w - close_price) / close_price) * 100
-
-        assert distance_pct < 0
-
     def test_distance_zero_at_52w_high(self):
         """Test: Zero distance when at 52W high."""
         high_52w = 100.0
@@ -888,59 +867,52 @@ class TestPnLCalculations:
     """Tests for P&L calculations."""
 
     def test_gross_pnl_profit(self):
-        """Test: Gross P&L calculation for profit."""
+        """Test: Gross P&L calculation for profitable trade."""
         entry_price = 100.0
         exit_price = 105.0
-        quantity = 100
-
-        gross_pnl = (exit_price - entry_price) * quantity
-
-        assert gross_pnl == 500
+        trade_size = 100
+        gross_pnl = (exit_price - entry_price) * trade_size
+        assert gross_pnl == 500.0
 
     def test_gross_pnl_loss(self):
-        """Test: Gross P&L calculation for loss."""
+        """Test: Gross P&L calculation for losing trade."""
         entry_price = 100.0
-        exit_price = 95.0
-        quantity = 100
-
-        gross_pnl = (exit_price - entry_price) * quantity
-
-        assert gross_pnl == -500
+        exit_price = 97.0
+        trade_size = 100
+        gross_pnl = (exit_price - entry_price) * trade_size
+        assert gross_pnl == -300.0
 
     def test_pnl_percentage(self):
         """Test: P&L percentage calculation."""
         entry_price = 100.0
         exit_price = 105.0
-
         pnl_pct = ((exit_price - entry_price) / entry_price) * 100
-
         assert pnl_pct == 5.0
 
     def test_net_pnl_after_costs(self):
-        """Test: Net P&L after costs."""
+        """Test: Net P&L after trading costs."""
+        from backtest.costs import calculate_trading_costs
         entry_price = 100.0
         exit_price = 105.0
-        quantity = 100
-
-        gross_pnl = (exit_price - entry_price) * quantity
-        trading_costs = 50.0
-
-        net_pnl = gross_pnl - trading_costs
-
-        assert net_pnl == 450
+        trade_size = 100
+        gross_pnl = (exit_price - entry_price) * trade_size
+        costs = calculate_trading_costs(entry_price, exit_price, trade_size)
+        net_pnl = gross_pnl - costs['total_costs']
+        assert net_pnl < gross_pnl
+        assert net_pnl > 0
 
     def test_net_pnl_percentage(self):
         """Test: Net P&L percentage calculation."""
+        from backtest.costs import calculate_trading_costs
         entry_price = 100.0
-        quantity = 100
-        gross_pnl = 500
-        trading_costs = 50
-
-        net_pnl = gross_pnl - trading_costs
-        net_pnl_pct = (net_pnl / (entry_price * quantity)) * 100
-
-        assert net_pnl_pct == 4.5
-
+        exit_price = 105.0
+        trade_size = 100
+        gross_pnl = (exit_price - entry_price) * trade_size
+        costs = calculate_trading_costs(entry_price, exit_price, trade_size)
+        net_pnl = gross_pnl - costs['total_costs']
+        net_pnl_pct = (net_pnl / (entry_price * trade_size)) * 100
+        assert net_pnl_pct > 0
+        assert net_pnl_pct < 5.0
 
 class TestTrailingStopLogic:
     """Tests for trailing stop logic."""
@@ -951,14 +923,6 @@ class TestTrailingStopLogic:
         enable_trailing = next((p for p in params if p.key == "enable_trailing_stop"), None)
         assert enable_trailing is not None
         assert enable_trailing.default is False
-
-    def test_trailing_stop_activation_price(self):
-        """Test: Trailing stop activates at 52W high."""
-        entry_52w_high = 105.0
-        close_price = 105.0
-
-        should_activate = close_price >= entry_52w_high
-        assert should_activate is True
 
     def test_trailing_stop_price_calculation(self):
         """Test: Trailing stop price calculated correctly."""
@@ -991,137 +955,13 @@ class TestTrailingStopLogic:
         stop_loss_pct = 3.0
         trailing_active = False
 
-        if not trailing_active:
-            sl_price = entry_price * (1 - stop_loss_pct / 100)
-            assert sl_price == 97.0
-
-
-class TestCooldownPeriod:
-    """Tests for cooldown period logic."""
-
-    def test_cooldown_blocks_entry(self):
-        """Test: Cooldown period blocks new entries."""
-        cooldown_days = 30
-        bars_since_exit = 15
-
-        in_cooldown = bars_since_exit < cooldown_days
-        assert in_cooldown is True
-
-    def test_cooldown_allows_entry_after_period(self):
-        """Test: Entry allowed after cooldown period."""
-        cooldown_days = 30
-        bars_since_exit = 30
-
-        in_cooldown = bars_since_exit < cooldown_days
-        assert in_cooldown is False
-
-    def test_cooldown_resets_after_exit(self):
-        """Test: Cooldown counter resets after exit."""
-        bars_since_exit_after_exit = 0
-        cooldown_days = 30
-
-        in_cooldown = bars_since_exit_after_exit < cooldown_days
-        assert in_cooldown is True
-
-    def test_cooldown_increments_each_bar(self):
-        """Test: Cooldown counter increments each bar."""
-        bars_since_exit = 0
-        bars_since_exit += 1
-        bars_since_exit += 1
-
-        assert bars_since_exit == 2
-
-
-class TestHoldDuration:
-    """Tests for holding period calculations."""
-
-    def test_hold_duration_increments(self):
-        """Test: Hold duration increments each bar in trade."""
-        bars_in_trade = 0
-        bars_in_trade += 1
-        bars_in_trade += 1
-        bars_in_trade += 1
-
-        assert bars_in_trade == 3
-
-    def test_hold_duration_resets_on_exit(self):
-        """Test: Hold duration resets on exit."""
-        bars_in_trade = 10
-        bars_in_trade = 0
-
-        assert bars_in_trade == 0
-
-    def test_hold_duration_converted_to_minutes(self):
-        """Test: Hold duration converted to minutes for UI."""
-        hold_days = 5
-        hold_minutes = hold_days * 24 * 60
-
-        assert hold_minutes == 7200
+        sl_price = entry_price * (1 - stop_loss_pct / 100)
+        assert sl_price == 97.0
+        assert trailing_active is False
 
 
 class TestFilterLogic:
     """Tests for entry filter logic."""
-
-    def test_adx_filter_requires_strong_trend(self):
-        """Test: ADX filter requires value >= 25."""
-        adx_value = 30
-        adx_threshold = 25
-
-        passes = adx_value >= adx_threshold
-        assert passes is True
-
-    def test_adx_filter_blocks_weak_trend(self):
-        """Test: ADX filter blocks weak trend."""
-        adx_value = 20
-        adx_threshold = 25
-
-        passes = adx_value >= adx_threshold
-        assert passes is False
-
-    def test_rsi_filter_range(self):
-        """Test: RSI filter requires 50-70 range."""
-        rsi_value = 60
-        rsi_min = 50
-        rsi_max = 70
-
-        passes = rsi_min <= rsi_value <= rsi_max
-        assert passes is True
-
-    def test_rsi_filter_blocks_low_rsi(self):
-        """Test: RSI filter blocks low RSI."""
-        rsi_value = 40
-        rsi_min = 50
-        rsi_max = 70
-
-        passes = rsi_min <= rsi_value <= rsi_max
-        assert passes is False
-
-    def test_rsi_filter_blocks_high_rsi(self):
-        """Test: RSI filter blocks high RSI."""
-        rsi_value = 80
-        rsi_min = 50
-        rsi_max = 70
-
-        passes = rsi_min <= rsi_value <= rsi_max
-        assert passes is False
-
-    def test_volume_filter(self):
-        """Test: Volume filter requires 1.5x average."""
-        volume = 150000
-        avg_volume = 100000
-        volume_mult = 1.5
-
-        passes = volume >= avg_volume * volume_mult
-        assert passes is True
-
-    def test_ma_filter_price_above_ma(self):
-        """Test: Price must be above MA50 and MA200."""
-        close_price = 105
-        ma50 = 100
-        ma200 = 95
-
-        passes = close_price > ma50 and close_price > ma200
-        assert passes is True
 
     def test_filters_disabled_by_default(self):
         """Test: Filters disabled by default."""

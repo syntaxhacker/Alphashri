@@ -2,12 +2,58 @@
 Centralized test fixtures for hybrid testing strategy.
 Provides both integration test fixtures (real DB) and unit test fixtures (mocks).
 """
+import sys
+from unittest.mock import MagicMock
+
+_MOCK_MODULES = [
+    'nautilus_trader',
+    'nautilus_trader.backtest',
+    'nautilus_trader.backtest.config',
+    'nautilus_trader.backtest.engine',
+    'nautilus_trader.config',
+    'nautilus_trader.model',
+    'nautilus_trader.model.enums',
+    'nautilus_trader.model.objects',
+    'nautilus_trader.model.identifiers',
+    'nautilus_trader.model.orders',
+    'nautilus_trader.model.instruments',
+    'nautilus_trader.model.core',
+    'nautilus_trader.model.currencies',
+    'nautilus_trader.model.data',
+    'nautilus_trader.persistence',
+    'nautilus_trader.persistence.wranglers',
+    'nautilus_trader.trading',
+    'nautilus_trader.trading.strategy',
+    'nautilus_trader.test_kit',
+    'nautilus_trader.test_kit.providers',
+    'upstox_trader',
+    'upstox_trader.config_and_utils',
+    'upstox_trader.config_and_utils.free_indian_apis',
+    'upstox_trader.screeners',
+    'upstox_trader.screeners.tv_screen_usage',
+    'trending_upside',
+    'moneycontrol_scraper',
+    'scanners',
+]
+
+for _mod in _MOCK_MODULES:
+    if _mod not in sys.modules:
+        sys.modules[_mod] = MagicMock()
+
+if 'nautilus_trader.model.enums' in sys.modules:
+    sys.modules['nautilus_trader.model.enums'].SignalType = MagicMock()
+
+_scanners_mock = MagicMock()
+_scanners_mock.pivot_levels.return_value = []
+sys.modules['scanners'] = _scanners_mock
+sys.modules['scanners.pivot_levels'] = _scanners_mock.pivot_levels
+
 import pytest
 import uuid
 import json
 from pathlib import Path
 from datetime import datetime
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool

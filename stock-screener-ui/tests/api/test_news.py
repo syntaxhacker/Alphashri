@@ -39,25 +39,23 @@ class TestNewsAPI:
         """
         Test getting news feed with default parameters.
 
-        Should return news items from all sources (when no source specified).
+        When no source specified, the API reads from DB persistence (not fetch_news).
         """
-        mock_fetch = Mock(return_value=sample_news_items)
-
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
+            with patch('services.news_persistence.get_persistence_service') as mock_ps:
+                mock_persistence = Mock()
+                mock_persistence.get_recent_articles.return_value = []
+                mock_ps.return_value = mock_persistence
                 response = client.get("/api/news")
                 assert response.status_code == 200
                 data = response.json()
 
-                # Verify response structure
                 assert 'items' in data
                 assert 'source' in data
                 assert 'total' in data
                 assert 'fetchedAt' in data
 
-                # Verify default behavior - should fetch from all sources (None)
                 assert data['source'] in ['all', None]
-                assert data['total'] == len(sample_news_items)
 
     def test_get_news_custom_source(self, client, sample_news_items):
         """
@@ -80,21 +78,21 @@ class TestNewsAPI:
         """
         Test getting news feed with custom limit.
 
-        Should return specified number of items (max 100).
+        When no source specified, reads from DB persistence.
         """
-        # Create limited sample
-        limited_items = sample_news_items[:2]
-        mock_fetch = Mock(return_value=limited_items)
-
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
+            with patch('services.news_persistence.get_persistence_service') as mock_ps:
+                mock_persistence = Mock()
+                mock_persistence.get_recent_articles.return_value = []
+                mock_ps.return_value = mock_persistence
                 response = client.get("/api/news?limit=10")
                 assert response.status_code == 200
                 data = response.json()
 
-                assert data['total'] == len(limited_items)
-                # When limit is specified but source is not, source defaults to None (all sources)
-                mock_fetch.assert_called_once_with(source=None, limit=10)
+                assert data['total'] >= 0
+                mock_persistence.get_recent_articles.assert_called_once()
+                call_args = mock_persistence.get_recent_articles.call_args
+                assert call_args.kwargs.get('limit') == 10
 
     def test_get_news_invalid_limit(self, client, sample_news_items):
         """
@@ -119,12 +117,13 @@ class TestNewsAPI:
         """
         Test getting news when no items are available.
 
-        Should return empty items array with total=0.
+        When no source specified, reads from DB persistence.
         """
-        mock_fetch = Mock(return_value=[])
-
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
+            with patch('services.news_persistence.get_persistence_service') as mock_ps:
+                mock_persistence = Mock()
+                mock_persistence.get_recent_articles.return_value = []
+                mock_ps.return_value = mock_persistence
                 response = client.get("/api/news")
                 assert response.status_code == 200
                 data = response.json()
@@ -151,46 +150,53 @@ class TestNewsAPI:
         """
         Test getting news when news API raises an exception.
 
-        Should return 500 error with error details.
+        When no source specified, reads from DB persistence which may raise.
         """
-        mock_fetch = Mock(side_effect=Exception("Network error"))
-
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
+            with patch('services.news_persistence.get_persistence_service') as mock_ps:
+                mock_persistence = Mock()
+                mock_persistence.get_recent_articles.side_effect = Exception("DB error")
+                mock_ps.return_value = mock_persistence
                 response = client.get("/api/news")
                 assert response.status_code == 500
                 data = response.json()
 
                 assert 'detail' in data
-                assert 'Network error' in data['detail']
 
-    def test_news_item_structure(self, client, sample_news_items):
+    def test_news_item_structure(self, client):
         """
-        Test that news items have correct structure.
+        Test that news items have correct structure from DB persistence.
 
-        Each item should contain:
-        - title: Headline
-        - description: Summary
-        - url: Link to article
-        - source: News source
-        - timestamp: Publication time
+        Items from DB have: headline, source, sourceUrl, publishedAt, fetchedAt, id.
         """
-        mock_fetch = Mock(return_value=sample_news_items)
-
+        sample_articles = [
+            {
+                'id': 1,
+                'headline': 'Markets hit all-time high',
+                'content': 'Positive global cues...',
+                'source': 'moneycontrol',
+                'url': 'https://moneycontrol.com/news/test',
+                'published_at': '2024-01-01T00:00:00',
+                'fetched_at': '2024-01-01T00:00:00',
+            },
+        ]
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
+            with patch('services.news_persistence.get_persistence_service') as mock_ps:
+                mock_persistence = Mock()
+                mock_persistence.get_recent_articles.return_value = sample_articles
+                mock_ps.return_value = mock_persistence
                 response = client.get("/api/news")
                 assert response.status_code == 200
                 data = response.json()
 
                 for item in data['items']:
-                    assert 'title' in item
-                    assert 'url' in item
-                    assert 'timestamp' in item
+                    assert 'headline' in item
+                    assert 'sourceUrl' in item
+                    assert 'publishedAt' in item
+                    assert 'source' in item
 
-                    # Verify types
-                    assert isinstance(item['title'], str)
-                    assert isinstance(item['url'], str)
+                assert data['items'][0]['headline'] == 'Markets hit all-time high'
+                assert data['total'] == 1
 
     def test_news_fetched_at_timestamp(self, client, sample_news_items):
         """
@@ -302,15 +308,10 @@ class TestNewsAPI:
                 assert response.status_code == 200
                 data = response.json()
 
-                # Verify content is present
                 assert 'content' in data
                 assert isinstance(data['content'], str)
-                assert len(data['content']) > 0
-
-                # Verify title is present
-                assert 'title' in data
-                assert isinstance(data['title'], str)
-                assert len(data['title']) > 0
+                assert 'Indian stock markets' in data['content']
+                assert data['title'] == 'Markets hit all-time high amid positive global cues'
 
     # ===========================
     # GET /api/news/sources Tests
@@ -329,8 +330,7 @@ class TestNewsAPI:
                 data = response.json()
 
                 assert 'sources' in data
-                assert isinstance(data['sources'], list)
-                assert len(data['sources']) > 0
+                assert data['sources'] == ['moneycontrol', 'economicstimes', 'livemint']
 
     def test_get_news_sources_unavailable(self, client):
         """
@@ -359,8 +359,9 @@ class TestNewsAPI:
 
                 for source in data['sources']:
                     assert isinstance(source, str)
-                    # Should be valid for use in URL
                     assert source.isidentifier() or '-' in source
+
+        assert 'moneycontrol' in data['sources']
 
     # ===========================
     # Integration Tests
@@ -402,56 +403,6 @@ class TestNewsAPI:
                         article_data = response.json()
                         assert 'title' in article_data
 
-    def test_news_category_filtering(self, client):
-        """
-        Test that news can be filtered by category.
-
-        Note: This depends on the implementation of fetch_news.
-        This test verifies the API accepts category parameter.
-        """
-        # Create categorized news items
-        tech_news = [
-            {
-                'title': 'Tech News',
-                'description': 'Technology update',
-                'url': 'https://example.com/tech',
-                'source': 'moneycontrol',
-                'timestamp': datetime.now().isoformat(),
-                'category': 'Technology'
-            }
-        ]
-
-        mock_fetch = Mock(return_value=tech_news)
-
-        with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
-                # Note: Category filtering may not be implemented in API
-                # This test verifies the endpoint works
-                response = client.get("/api/news")
-                assert response.status_code == 200
-
-    def test_news_pagination_simulation(self, client, sample_news_items):
-        """
-        Test news pagination through limit parameter.
-
-        Simulates fetching news in batches.
-        """
-        mock_fetch = Mock(return_value=sample_news_items)
-
-        with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
-                # Fetch first batch
-                response = client.get("/api/news?limit=2")
-                assert response.status_code == 200
-                batch1 = response.json()
-
-                # Fetch second batch
-                response = client.get("/api/news?limit=3&offset=2")
-                # Note: offset may not be implemented, but this verifies the endpoint
-                # handles the parameter without error
-                assert response.status_code in [200, 422]
-
-
 class TestAllSources:
     """
     Test suite for "All Sources" news functionality.
@@ -462,82 +413,84 @@ class TestAllSources:
     - The API correctly calls fetch_news with None for 'all sources'
     """
 
-    def test_get_news_all_sources_no_param(self, client, sample_news_items):
+    def test_get_news_all_sources_no_param(self, client):
         """
         Test getting news when no source parameter is provided.
-        
-        Should default to fetching from ALL sources (None passed to fetch_news).
-        """
-        mock_fetch = Mock(return_value=sample_news_items)
 
+        When no source specified, reads from DB persistence (not fetch_news).
+        """
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
+            with patch('services.news_persistence.get_persistence_service') as mock_ps:
+                mock_persistence = Mock()
+                mock_persistence.get_recent_articles.return_value = []
+                mock_ps.return_value = mock_persistence
                 response = client.get("/api/news")
                 assert response.status_code == 200
                 
-                # fetch_news should be called with source=None (all sources)
-                mock_fetch.assert_called_once()
-                call_kwargs = mock_fetch.call_args.kwargs
-                assert call_kwargs.get('source') is None
+                mock_persistence.get_recent_articles.assert_called_once()
+                call_args = mock_persistence.get_recent_articles.call_args
+                assert call_args is not None
 
-    def test_get_news_all_sources_explicit_all(self, client, sample_news_items):
+    def test_get_news_all_sources_explicit_all(self, client):
         """
         Test getting news when source='all' is explicitly provided.
-        
-        Should fetch from ALL sources.
-        """
-        mock_fetch = Mock(return_value=sample_news_items)
 
+        When source='all', reads from DB persistence (same as no source).
+        """
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
+            with patch('services.news_persistence.get_persistence_service') as mock_ps:
+                mock_persistence = Mock()
+                mock_persistence.get_recent_articles.return_value = []
+                mock_ps.return_value = mock_persistence
                 response = client.get("/api/news?source=all")
                 assert response.status_code == 200
                 
-                # fetch_news should be called with source=None or source='all'
-                mock_fetch.assert_called_once()
-                call_kwargs = mock_fetch.call_args.kwargs
-                assert call_kwargs.get('source') in [None, 'all']
+                mock_persistence.get_recent_articles.assert_called_once()
 
     def test_get_news_all_sources_returns_items_from_multiple_sources(self, client):
         """
         Test that 'all sources' returns news items from different sources.
-        
-        When fetching from all sources, the returned items should have
-        different source values (moneycontrol, economicstimes, etc.).
+
+        When fetching from all sources via DB, items should have different source values.
         """
-        # Create news items from different sources
-        multi_source_items = [
+        multi_source_articles = [
             {
-                'title': 'Moneycontrol News 1',
-                'description': 'Test news',
-                'url': 'https://moneycontrol.com/news1',
+                'id': 1,
+                'headline': 'Moneycontrol News 1',
+                'content': 'Test news',
                 'source': 'moneycontrol',
-                'timestamp': datetime.now().isoformat(),
+                'url': 'https://moneycontrol.com/news1',
+                'published_at': datetime.now().isoformat(),
+                'fetched_at': datetime.now().isoformat(),
             },
             {
-                'title': 'Economic Times News 1',
-                'description': 'Test news',
-                'url': 'https://economictimes.com/news1',
+                'id': 2,
+                'headline': 'Economic Times News 1',
+                'content': 'Test news',
                 'source': 'economicstimes',
-                'timestamp': datetime.now().isoformat(),
+                'url': 'https://economictimes.com/news1',
+                'published_at': datetime.now().isoformat(),
+                'fetched_at': datetime.now().isoformat(),
             },
             {
-                'title': 'LiveMint News 1',
-                'description': 'Test news',
-                'url': 'https://livemint.com/news1',
+                'id': 3,
+                'headline': 'LiveMint News 1',
+                'content': 'Test news',
                 'source': 'livemint',
-                'timestamp': datetime.now().isoformat(),
+                'url': 'https://livemint.com/news1',
+                'published_at': datetime.now().isoformat(),
+                'fetched_at': datetime.now().isoformat(),
             },
         ]
-        mock_fetch = Mock(return_value=multi_source_items)
-
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
+            with patch('services.news_persistence.get_persistence_service') as mock_ps:
+                mock_persistence = Mock()
+                mock_persistence.get_recent_articles.return_value = multi_source_articles
+                mock_ps.return_value = mock_persistence
                 response = client.get("/api/news")
                 assert response.status_code == 200
                 data = response.json()
                 
-                # Verify we got items from multiple sources
                 sources = {item['source'] for item in data['items']}
                 assert len(sources) >= 2, "Should have news from multiple sources"
 
@@ -576,19 +529,18 @@ class TestAllSources:
 
     def test_get_news_all_sources_limit_distribution(self, client):
         """
-        Test that limit is properly distributed when fetching all sources.
-        
-        If user requests limit=30 and there are 3 sources, each source should
-        get roughly 10 items (limit // num_sources).
-        """
-        mock_fetch = Mock(return_value=[])
+        Test that limit is properly passed when fetching all sources.
 
+        The limit should be passed to the persistence service.
+        """
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
+            with patch('services.news_persistence.get_persistence_service') as mock_ps:
+                mock_persistence = Mock()
+                mock_persistence.get_recent_articles.return_value = []
+                mock_ps.return_value = mock_persistence
                 response = client.get("/api/news?limit=30")
                 assert response.status_code == 200
                 
-                # The limit should be passed to fetch_news
-                mock_fetch.assert_called_once()
-                call_kwargs = mock_fetch.call_args.kwargs
-                assert call_kwargs.get('limit') == 30
+                mock_persistence.get_recent_articles.assert_called_once()
+                call_args = mock_persistence.get_recent_articles.call_args
+                assert call_args.kwargs.get('limit') == 30

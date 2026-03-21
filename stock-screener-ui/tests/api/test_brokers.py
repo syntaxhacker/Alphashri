@@ -131,8 +131,8 @@ class TestGetBrokerStatus:
         assert response.status_code == 200
         data = response.json()
         assert data["connected"] is True
-        # Token expires at 3:30 AM next day, so it should be > 0 hours remaining
         assert data["expires_in_hours"] > 0
+        assert data["expires_in_hours"] < 24
 
         delete_broker_token("upstox", user_id=None)
 

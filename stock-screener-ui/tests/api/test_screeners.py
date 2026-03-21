@@ -249,7 +249,7 @@ class TestScreenerDataRetrieval:
 
         assert 'approaching' in result
         # Filtered by direction=bullish and score >= 70
-        assert len(result['approaching']) >= 0
+        assert len(result['approaching']) <= 4
 
     @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
     @patch.object(trending_upside, 'fetch_trending_stocks')
@@ -299,6 +299,7 @@ class TestScreenerDataRetrieval:
 
         assert 'approaching' in result
         assert 'summary' in result
+        assert isinstance(result['summary'], list)
 
     @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
     @patch.object(trending_upside, 'fetch_trending_stocks')
@@ -321,6 +322,7 @@ class TestScreenerDataRetrieval:
 
         assert 'approaching' in result
         assert 'profile_meta' in result
+        assert result['profile_meta']['default_sort']['column'] is not None
 
     @pytest.mark.skip(reason="fetch_screener_data does not support symbols filter")
     @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
@@ -611,6 +613,11 @@ class TestScreenerDataStructure:
         )
 
         all_stocks = result['approaching'] + result['touched']
+        symbols = [s['symbol'] for s in all_stocks]
+
+        assert len(all_stocks) == 4
+        assert 'RELIANCE' in symbols
+        assert 'TCS' in symbols
 
         for stock in all_stocks:
             # Required fields
@@ -645,13 +652,12 @@ class TestScreenerDataStructure:
         assert 'summary' in result
         summary = result['summary']
 
-        # Summary should be a list of summary items
         assert isinstance(summary, list)
+        assert len(summary) > 0
 
-        if summary:
-            for item in summary:
-                assert 'label' in item
-                assert 'value' in item
+        for item in summary:
+            assert 'label' in item
+            assert 'value' in item
 
 
 class TestScreenerCaching:
@@ -681,7 +687,7 @@ class TestScreenerCaching:
         )
 
         # Results should be different due to different filters
-        # (This is a basic test - actual cache behavior depends on implementation)
+        assert result1['approaching'] != result2['approaching']
 
 
 class TestHelperFunctions:

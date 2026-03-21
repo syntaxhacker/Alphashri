@@ -20,6 +20,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch, MagicMock
 from dataclasses import asdict
 
+import sys
+_nautilus_available = not isinstance(sys.modules.get('nautilus_trader.config'), MagicMock)
+
 from backtest.strategies.sr_breakout import (
     PivotPoints,
     calculate_pivot_points,
@@ -351,15 +354,16 @@ class TestGetIstTime:
     def test_known_timestamp(self):
         ts_ns = 1704067200_000000000
         hour, minute, date = get_ist_time(ts_ns)
-        assert isinstance(hour, int)
-        assert isinstance(minute, int)
-        assert 0 <= hour <= 23
-        assert 0 <= minute <= 59
+        assert hour == 5
+        assert minute == 30
+        assert date == datetime(2024, 1, 1).date()
 
     def test_returns_tuple_of_three(self):
         ts_ns = 1704067200_000000000
-        result = get_ist_time(ts_ns)
-        assert len(result) == 3
+        hour, minute, date = get_ist_time(ts_ns)
+        assert hour == 5
+        assert minute == 30
+        assert date == datetime(2024, 1, 1).date()
 
     def test_market_open_time(self):
         dt = datetime(2024, 1, 2, 3, 45, 0, tzinfo=timezone.utc)
@@ -432,12 +436,20 @@ class TestSRBreakoutStrategyMetadata:
 
     def test_get_params_returns_list(self):
         params = SRBreakoutStrategy.get_params()
-        assert isinstance(params, list)
+        assert len(params) >= 8
+        param_keys = {p.key for p in params}
+        assert 'pivot_type' in param_keys
+        assert 'stop_loss_pct' in param_keys
+        assert 'take_profit_pct' in param_keys
 
     def test_get_params_returns_strategy_param_objects(self):
         params = SRBreakoutStrategy.get_params()
-        for param in params:
-            assert isinstance(param, StrategyParam)
+        assert all(isinstance(p, StrategyParam) for p in params)
+        params_dict = {p.key: p for p in params}
+        assert params_dict['pivot_type'].default == 'classic'
+        assert params_dict['stop_loss_pct'].default == 0.5
+        assert params_dict['take_profit_pct'].default == 1.5
+        assert params_dict['trade_size'].default == 100
 
     def test_get_params_has_required_keys(self):
         params = SRBreakoutStrategy.get_params()
@@ -603,6 +615,7 @@ class TestSRBreakoutStrategyGetDefaultParams:
         assert defaults['breakout_buffer_pct'] == 0.1
 
 
+@pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
 class TestSRBreakoutConfig:
     """Tests for SRBreakoutConfig dataclass."""
 
@@ -699,47 +712,45 @@ class TestBreakoutSignalGeneration:
         high, low, close = 110.0, 90.0, 100.0
         pp = calculate_pivot_points(high, low, close, 'classic')
         buffer_pct = 0.1
-        
+
         buffer_multiplier = buffer_pct / 100
         long_trigger = pp.r1 * (1 + buffer_multiplier)
-        
+
         test_close = long_trigger + 0.01
+        assert long_trigger == pytest.approx(110.11, 0.01)
         assert test_close > long_trigger
+        assert abs(test_close - long_trigger) == pytest.approx(0.01, 0.001)
 
     def test_close_below_trigger_generates_short_signal(self):
         high, low, close = 110.0, 90.0, 100.0
         pp = calculate_pivot_points(high, low, close, 'classic')
         buffer_pct = 0.1
-        
+
         buffer_multiplier = buffer_pct / 100
         short_trigger = pp.s1 * (1 - buffer_multiplier)
-        
+
         test_close = short_trigger - 0.01
+        assert short_trigger == pytest.approx(89.91, 0.01)
         assert test_close < short_trigger
+        assert abs(test_close - short_trigger) == pytest.approx(0.01, 0.001)
 
     def test_no_signal_when_close_between_levels(self):
         high, low, close = 110.0, 90.0, 100.0
         pp = calculate_pivot_points(high, low, close, 'classic')
         buffer_pct = 0.1
-        
+
         buffer_multiplier = buffer_pct / 100
         long_trigger = pp.r1 * (1 + buffer_multiplier)
         short_trigger = pp.s1 * (1 - buffer_multiplier)
-        
+
         test_close = pp.pp
+        assert test_close == 100.0
         assert test_close < long_trigger
         assert test_close > short_trigger
 
 
 class TestStopLossAndTakeProfit:
     """Tests for SL/TP calculation logic."""
-
-    def test_long_position_tp_calculation(self):
-        entry_price = 100.0
-        tp_pct = 1.5
-        
-        pnl_pct = 1.5
-        assert pnl_pct >= tp_pct
 
     def test_long_position_sl_calculation(self):
         entry_price = 100.0
@@ -846,21 +857,26 @@ class TestMarketTiming:
     def test_bar_before_market_open(self):
         cur_min = 9 * 60 + 10
         mkt_open = 9 * 60 + 15
+        assert cur_min == 550
+        assert mkt_open == 555
         assert cur_min < mkt_open
 
     def test_bar_at_market_open(self):
         cur_min = 9 * 60 + 15
         mkt_open = 9 * 60 + 15
+        assert cur_min == 555
         assert cur_min >= mkt_open
 
     def test_bar_at_eod_exit(self):
         cur_min = 15 * 60 + 15
         eod_exit = 15 * 60 + 15
+        assert cur_min == 915
         assert cur_min >= eod_exit
 
     def test_bar_before_eod(self):
         cur_min = 15 * 60 + 10
         eod_exit = 15 * 60 + 15
+        assert cur_min == 910
         assert cur_min < eod_exit
 
 
@@ -868,33 +884,32 @@ class TestCooldownLogic:
     """Tests for cooldown bar logic."""
 
     def test_cooldown_prevents_immediate_reentry(self):
+        cooldown_bars = 3
         last_exit_bar = 10
         current_bar = 11
-        cooldown_bars = 3
-        
-        bars_since_exit = current_bar - last_exit_bar
-        assert bars_since_exit < cooldown_bars
+
+        should_block = (
+            last_exit_bar is not None
+            and cooldown_bars > 0
+            and (current_bar - last_exit_bar) < cooldown_bars
+        )
+        assert should_block is True
+        assert (current_bar - last_exit_bar) == 1
 
     def test_cooldown_allows_entry_after_period(self):
+        cooldown_bars = 3
         last_exit_bar = 10
         current_bar = 14
-        cooldown_bars = 3
-        
-        bars_since_exit = current_bar - last_exit_bar
-        assert bars_since_exit >= cooldown_bars
 
-    def test_zero_cooldown_allows_immediate_entry(self):
-        last_exit_bar = 10
-        current_bar = 11
-        cooldown_bars = 0
-        
-        if cooldown_bars > 0:
-            bars_since_exit = current_bar - last_exit_bar
-            assert bars_since_exit >= cooldown_bars
-        else:
-            assert True
+        should_block = (
+            last_exit_bar is not None
+            and cooldown_bars > 0
+            and (current_bar - last_exit_bar) < cooldown_bars
+        )
+        assert should_block is False
+        assert (current_bar - last_exit_bar) == 4
 
-
+@pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
 class TestSRBreakoutNautilusStrategy:
     """Tests for SRBreakoutNautilusStrategy class."""
 
@@ -985,8 +1000,10 @@ class TestEdgeCases:
 
     def test_fractional_pip_prices(self):
         pp = calculate_pivot_points(100.125, 99.875, 100.0, 'classic')
-        
-        assert isinstance(pp.pp, float)
+
+        expected_pp = (100.125 + 99.875 + 100.0) / 3
+        assert pp.pp == expected_pp
+        assert pp.pp == pytest.approx(100.0, 0.001)
 
 
 class TestStrategyParamTypes:

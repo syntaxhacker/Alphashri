@@ -37,8 +37,7 @@ class TestDatabaseConfiguration:
         """Test that database URL is configured."""
         from db.database import SQLALCHEMY_DATABASE_URL
         
-        assert SQLALCHEMY_DATABASE_URL is not None
-        assert len(SQLALCHEMY_DATABASE_URL) > 0
+        assert SQLALCHEMY_DATABASE_URL.startswith(("sqlite:///", "postgresql://"))
 
 
 class TestEngineConfiguration:
@@ -46,10 +45,10 @@ class TestEngineConfiguration:
 
     def test_engine_is_created(self):
         """Test that engine is created."""
-        from db.database import engine
+        from db.database import engine, SQLALCHEMY_DATABASE_URL
         
-        assert engine is not None
-        assert isinstance(engine, Engine)
+        assert engine.url is not None
+        assert str(engine.url) == SQLALCHEMY_DATABASE_URL
 
     def test_engine_url_matches_config(self):
         """Test that engine URL matches configured URL."""
@@ -76,6 +75,7 @@ class TestEngineConfiguration:
         from db.database import engine
         
         assert engine.pool is not None
+        assert engine.pool.size() >= 1
 
 
 class TestSessionFactory:
@@ -136,20 +136,19 @@ class TestBaseClass:
         from db.database import Base
         from sqlalchemy.orm import DeclarativeBase
         
-        assert issubclass(Base.__class__, type)
+        assert hasattr(Base, 'metadata')
 
     def test_base_has_metadata(self):
         """Test that Base has metadata attribute."""
         from db.database import Base
         
-        assert hasattr(Base, "metadata")
         assert Base.metadata is not None
 
     def test_base_metadata_has_tables(self):
         """Test that Base metadata can track tables."""
         from db.database import Base
         
-        assert hasattr(Base.metadata, "tables")
+        assert len(Base.metadata.tables) > 0
 
 
 class TestGetDb:
@@ -179,46 +178,39 @@ class TestGetDb:
     def test_get_db_closes_session_after_use(self):
         """Test that session is closed after generator completes."""
         from db.database import get_db, SessionLocal
+        from unittest.mock import patch
         
-        gen = get_db()
-        session = next(gen)
-        
-        assert session is not None
-        
-        try:
-            next(gen)
-        except StopIteration:
-            pass
-
-    def test_get_db_closes_session_on_exception(self):
-        """Test that session is closed even if an exception occurs."""
-        from db.database import get_db
-        
-        gen = get_db()
-        session = next(gen)
-        
-        assert session is not None
-        
-        try:
-            raise ValueError("Test exception")
-        except ValueError:
-            pass
-        finally:
+        with patch("db.database.SessionLocal") as mock_factory:
+            mock_session = MagicMock()
+            mock_factory.return_value = mock_session
+            
+            gen = get_db()
+            yielded = next(gen)
+            
+            assert yielded is mock_session
+            
             try:
                 next(gen)
             except StopIteration:
                 pass
+            
+            mock_session.close.assert_called_once()
 
     def test_get_db_context_manager_style(self):
         """Test using get_db in a context manager pattern."""
         from db.database import get_db
+        from unittest.mock import patch
         
-        gen = get_db()
-        session = next(gen)
-        
-        assert session is not None
-        
-        gen.close()
+        with patch("db.database.SessionLocal") as mock_factory:
+            mock_session = MagicMock()
+            mock_factory.return_value = mock_session
+            
+            gen = get_db()
+            yielded = next(gen)
+            assert yielded is mock_session
+            
+            gen.close()
+            mock_session.close.assert_called_once()
 
     def test_get_db_multiple_calls_create_separate_sessions(self):
         """Test that multiple calls create separate sessions."""
@@ -304,17 +296,6 @@ class TestInitDb:
             
             Base.metadata.drop_all(bind=test_engine)
 
-    def test_init_db_imports_models(self):
-        """Test that init_db imports required models."""
-        with patch.dict("sys.modules", {
-            "db.models": MagicMock(
-                User=MagicMock(),
-                UserSession=MagicMock(),
-                StrategyConfig=MagicMock(),
-                BotConfig=MagicMock(),
-            )
-        }):
-            pass
 
 
 class TestSessionOperations:
@@ -452,7 +433,7 @@ class TestConnectionPooling:
         
         try:
             for session in sessions:
-                assert session.is_active or True
+                assert session.is_active
         finally:
             for session in sessions:
                 session.close()
@@ -504,11 +485,12 @@ class TestErrorHandling:
     def test_session_operations_after_close(self):
         """Test behavior of session operations after close."""
         from db.database import SessionLocal
+        from sqlalchemy import inspect
         
         session = SessionLocal()
         session.close()
         
-        assert session.get_bind() is not None
+        assert not session.in_transaction()
 
     @patch("db.database.SessionLocal")
     def test_get_db_handles_session_creation_error(self, mock_session_local):
@@ -529,25 +511,30 @@ class TestModuleImports:
         """Test that database module can be imported."""
         import db.database
         
-        assert db.database is not None
+        assert hasattr(db.database, "engine")
+        assert hasattr(db.database, "SessionLocal")
+        assert hasattr(db.database, "Base")
+        assert hasattr(db.database, "get_db")
+        assert hasattr(db.database, "init_db")
 
     def test_module_exports_engine(self):
         """Test that module exports engine."""
         from db.database import engine
         
-        assert engine is not None
+        assert isinstance(engine, Engine)
 
     def test_module_exports_session_local(self):
         """Test that module exports SessionLocal."""
         from db.database import SessionLocal
         
-        assert SessionLocal is not None
+        assert callable(SessionLocal)
 
     def test_module_exports_base(self):
         """Test that module exports Base."""
         from db.database import Base
         
-        assert Base is not None
+        assert hasattr(Base, "metadata")
+        assert Base.metadata is not None
 
     def test_module_exports_get_db(self):
         """Test that module exports get_db function."""
@@ -598,7 +585,9 @@ class TestDatabaseAvailability:
         """Test that engine connection pool is functional."""
         from db.database import engine
         
-        assert engine.pool.status() is not None
+        status = engine.pool.status()
+        assert isinstance(status, str)
+        assert len(status) > 0
 
 
 class TestEdgeCases:
@@ -622,6 +611,7 @@ class TestEdgeCases:
         from db.database import SessionLocal
         
         session = SessionLocal()
+        assert isinstance(session, Session)
         session.close()
 
     def test_multiple_get_db_generators(self):

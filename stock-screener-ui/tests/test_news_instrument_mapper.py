@@ -250,30 +250,45 @@ class TestGlobalFunctions:
     
     def test_map_news_symbol(self):
         with patch.object(NewsInstrumentMapper, '_try_default_paths'):
-            with patch.object(NewsInstrumentMapper, 'map_symbol') as mock_map:
-                mock_map.return_value = MappingResult(
-                    original_code='TEST',
-                    trading_symbol='TEST',
-                    instrument_key='KEY',
-                    company_name='Test',
-                    confidence=1.0,
-                    method='exact'
-                )
-                
-                result = map_news_symbol('TEST')
-                
-                assert result.trading_symbol == 'TEST'
-    
+            with patch.object(NewsInstrumentMapper, '_init_embeddings'):
+                mapper = NewsInstrumentMapper(fuzzy_threshold=0.8, use_embeddings=False)
+                mapper.instruments = [
+                    {
+                        'trading_symbol': 'RELIANCE',
+                        'instrument_key': 'NSE_EQ|INE002A01018',
+                        'name': 'Reliance Industries Ltd',
+                        'segment': 'NSE_EQ',
+                        'instrument_type': 'EQ'
+                    },
+                ]
+                mapper.symbol_to_instrument = {
+                    inst['trading_symbol']: inst for inst in mapper.instruments
+                }
+                with patch.object(NewsInstrumentMapper, 'map_symbol', wraps=mapper.map_symbol):
+                    result = map_news_symbol('RELIANCE')
+                    assert result.trading_symbol == 'RELIANCE'
+                    assert result.instrument_key == 'NSE_EQ|INE002A01018'
+
     def test_map_news_symbols(self):
         with patch.object(NewsInstrumentMapper, '_try_default_paths'):
-            with patch.object(NewsInstrumentMapper, 'map_symbols') as mock_map:
-                mock_map.return_value = [
-                    {'code': 'TEST', 'trading_symbol': 'TEST'}
+            with patch.object(NewsInstrumentMapper, '_init_embeddings'):
+                mapper = NewsInstrumentMapper(fuzzy_threshold=0.8, use_embeddings=False)
+                mapper.instruments = [
+                    {
+                        'trading_symbol': 'RELIANCE',
+                        'instrument_key': 'NSE_EQ|INE002A01018',
+                        'name': 'Reliance Industries Ltd',
+                        'segment': 'NSE_EQ',
+                        'instrument_type': 'EQ'
+                    },
                 ]
-                
-                results = map_news_symbols([{'code': 'TEST'}])
-                
-                assert len(results) == 1
+                mapper.symbol_to_instrument = {
+                    inst['trading_symbol']: inst for inst in mapper.instruments
+                }
+                with patch.object(NewsInstrumentMapper, 'map_symbols', wraps=mapper.map_symbols):
+                    results = map_news_symbols([{'code': 'RELIANCE', 'name': 'Reliance'}])
+                    assert len(results) == 1
+                    assert results[0]['trading_symbol'] == 'RELIANCE'
 
 
 class TestEdgeCases:
@@ -281,6 +296,7 @@ class TestEdgeCases:
         result = mapper.map_symbol('RELIANCE!')
         
         assert result.is_mapped
+        assert result.trading_symbol == 'RELIANCE'
     
     def test_numeric_symbol(self, mapper):
         result = mapper.map_symbol('12345')

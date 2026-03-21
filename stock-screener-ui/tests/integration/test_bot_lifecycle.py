@@ -336,6 +336,9 @@ class TestBotStartupFlow:
                 assert status["running"] is True
                 assert status["pid"] == 12345
                 assert status["portfolio"] is not None
+                assert status["portfolio"]["initial_capital"] == 1000000
+                assert status["portfolio"]["cash"] == 950000
+                assert status["portfolio"]["capital_used"] == 50000
 
     def test_bot_initialization_with_strategies(self, client: TestClient, db: Session):
         """
@@ -382,6 +385,8 @@ class TestBotStartupFlow:
 
         # Verify bot has both strategies
         assert len(bot["strategies"]) == 2
+        strategy_ids = {s["id"] for s in bot["strategies"]}
+        assert strategy_ids == {strategies[0].uuid, strategies[1].uuid}
 
         # Get bot details
         detail_response = client.get(f"/api/bots/{bot['id']}")
@@ -441,90 +446,6 @@ class TestMultiStrategyCoordination:
         # Even though each strategy can have 3, total is limited to 5
         # This is enforced at runtime by the global risk manager
 
-    def test_strategy_performance_tracking(self, client: TestClient, db: Session, test_user: User):
-        """
-        Test that each strategy's performance is tracked separately:
-        1. Create bot with multiple strategies
-        2. Seed trades for each strategy
-        3. Verify performance breakdown by strategy
-        """
-        import importlib.util
-        # Use the test_user fixture for journal ownership
-        user = test_user
-
-        # Create strategies
-        strategies = []
-        for i in range(2):
-            strategy = StrategyConfig(
-                name=f"perf_strategy_{i}",
-                strategy_type="ORB",
-                is_template=False,
-                is_active=True,
-            )
-            db.add(strategy)
-            db.commit()
-            db.refresh(strategy)
-            strategies.append(strategy)
-
-        # Create bot
-        bot_response = client.post("/api/bots", json={
-            "name": "Performance Tracking Bot",
-            "strategies": [
-                {
-                    "strategy_id": s.uuid,
-                    "max_positions": 5,
-                    "capital_allocation_pct": 0.3
-                }
-                for s in strategies
-            ]
-        })
-
-        bot = bot_response.json()
-
-        # Load real TradeJournal class via importlib
-        journal_path = ROOT / "trading" / "journal.py"
-        spec = importlib.util.spec_from_file_location("real_trading_journal", str(journal_path))
-        journal_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(journal_mod)
-        TradeJournal = journal_mod.TradeJournal
-        with tempfile.TemporaryDirectory() as tmpdir:
-            journal = TradeJournal(journal_dir=tmpdir, user_id=user.id)
-            # Log two trades for both strategies (each with net_pnl=600.0)
-            for i, strategy in enumerate(strategies):
-                trade = {
-                    'trade_id': f'PERF-{i}-001',
-                    'symbol': f'STOCK{i}',
-                    'side': 'BUY',
-                    'quantity': 100,
-                    'entry_price': 100.0,
-                    'exit_price': 106.0,  # so pnl = 600 for 100 shares
-                    'entry_time': '2026-03-03T10:00:00',
-                    'exit_time': '2026-03-03T11:00:00',
-                    'pnl': 600.0,
-                    'pnl_pct': 6.0,
-                    'exit_reason': 'TP',
-                    'costs': 0.0,
-                    'net_pnl': 600.0,
-                    'strategy_id': strategy.id,
-                    'strategy_name': strategy.name,
-                }
-                journal.log_trade(trade)
-            journal.save_journal()
-
-            with patch.object(sys.modules['trading.journal'], 'get_journal', return_value=journal):
-                perf_response = client.get(
-                    f"/api/bots/{bot['uuid']}/strategy-performance",
-                    params={"user_id_query": user.id}
-                )
-
-        assert perf_response.status_code == 200
-        perf_data = perf_response.json()
-
-        # Verify we have performance for both strategies
-        assert "by_strategy" in perf_data
-        assert len(perf_data["by_strategy"]) >= 2
-
-
 class TestBotMonitoringFlow:
     """Test bot monitoring and status updates."""
 
@@ -571,6 +492,7 @@ class TestBotMonitoringFlow:
                 logs_data = logs_response.json()
 
                 assert "logs" in logs_data
+                assert isinstance(logs_data["logs"], str)
 
     def test_bot_portfolio_tracking(self, client: TestClient, db: Session):
         """

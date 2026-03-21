@@ -95,6 +95,8 @@ class TestListStrategies:
         assert isinstance(data["strategies"], list)
         assert isinstance(data["count"], int)
         assert data["count"] == len(data["strategies"])
+        assert data["count"] >= 1
+        assert data["strategies"][0]["strategy_type"] == sample_strategy.strategy_type
 
     def test_strategies_sorted_by_type_and_name(
         self, client: TestClient, sample_strategies: list[StrategyConfig]
@@ -106,14 +108,15 @@ class TestListStrategies:
         data = response.json()
         strategies = data["strategies"]
 
-        # Check sorting: first by strategy_type, then by name
         for i in range(len(strategies) - 1):
             current = strategies[i]
             next_item = strategies[i + 1]
-            assert (
-                current["strategy_type"] <= next_item["strategy_type"]
-                or current["name"] <= next_item["name"]
-            )
+            if current["strategy_type"] == next_item["strategy_type"]:
+                assert current["name"] <= next_item["name"], \
+                    f"Same type not sorted by name: {current['name']} vs {next_item['name']}"
+            else:
+                assert current["strategy_type"] < next_item["strategy_type"], \
+                    f"Not sorted by type: {current['strategy_type']} vs {next_item['strategy_type']}"
 
     def test_list_empty_database(self, client: TestClient, db: Session):
         """Test listing strategies when database is empty."""
@@ -809,8 +812,8 @@ class TestGetStrategyPerformance:
         assert response.status_code == 200
         data_without_test = response.json()
 
-        # Without test trades should have fewer or equal trades
-        assert data_without_test["total_trades"] <= data_with_test["total_trades"]
+        assert data_with_test["total_trades"] == 1
+        assert data_without_test["total_trades"] == 1
 
     def test_get_performance_for_non_existent_strategy(self, client: TestClient):
         """Test getting performance for non-existent strategy returns 404."""
@@ -847,11 +850,9 @@ class TestGetStrategyPerformance:
         assert response.status_code == 200
 
         data = response.json()
-        assert "test_trades" in data
-        assert "has_test_data" in data
-
-        # If test_trades > 0, has_test_data should be True
-        assert (data["test_trades"] > 0) == data["has_test_data"]
+        assert data["test_trades"] == 1
+        assert data["has_test_data"] is True
+        assert data["total_trades"] == 2
 
 
 # ============================================================================
@@ -906,8 +907,8 @@ class TestGetStrategyTrades:
         )
         data_without_test = response.json()
 
-        # Without test trades should have fewer or equal
-        assert len(data_without_test["trades"]) <= len(data_with_test["trades"])
+        assert len(data_with_test["trades"]) == 2
+        assert len(data_without_test["trades"]) == 1
 
     def test_get_trades_for_non_existent_strategy(self, client: TestClient):
         """Test getting trades for non-existent strategy returns 404."""
@@ -925,10 +926,9 @@ class TestGetStrategyTrades:
         data = response.json()
         trades = data["trades"]
 
-        # Verify descending order by exit_time
-        for i in range(len(trades) - 1):
-            if trades[i].get("exit_time") and trades[i + 1].get("exit_time"):
-                assert trades[i]["exit_time"] >= trades[i + 1]["exit_time"]
+        exit_times = [t["exit_time"] for t in trades if t.get("exit_time")]
+        assert exit_times == sorted(exit_times, reverse=True), \
+            "Trades not sorted by exit_time descending"
 
     def test_verify_response_includes_strategy_name(
         self, client: TestClient, sample_strategy: StrategyConfig,
@@ -1046,13 +1046,13 @@ class TestStrategyEdgeCases:
         strategy_data = {
             "name": "Negative Values",
             "strategy_type": "ORB",
-            "sl_pct": -0.5,  # Negative
+            "sl_pct": -0.5,
         }
 
-        # API should accept this (no validation in current implementation)
         response = client.post("/api/strategies", json=strategy_data)
-        # The API currently doesn't validate ranges
+        # API does not validate parameter ranges; negative values are accepted as-is
         assert response.status_code == 200
+        assert response.json()["strategy"]["sl_pct"] == -0.5
 
     def test_create_strategy_with_zero_parameters(self, client: TestClient):
         """Test creating strategy with zero values."""
@@ -1063,7 +1063,9 @@ class TestStrategyEdgeCases:
         }
 
         response = client.post("/api/strategies", json=strategy_data)
+        # API does not validate parameter ranges; zero values are accepted as-is
         assert response.status_code == 200
+        assert response.json()["strategy"]["max_positions"] == 0
 
     def test_update_strategy_with_empty_body(
         self, client: TestClient, sample_strategy: StrategyConfig
@@ -1071,12 +1073,19 @@ class TestStrategyEdgeCases:
         """Test updating strategy with empty body (no changes)."""
         response = client.put(f"/api/strategies/{sample_strategy.id}", json={})
         assert response.status_code == 200
-        # Should return success but no changes
+        data = response.json()
+        assert data["strategy"]["name"] == sample_strategy.name
+        assert data["strategy"]["sl_pct"] == sample_strategy.sl_pct
+        assert data["strategy"]["tp_pct"] == sample_strategy.tp_pct
 
     def test_get_strategy_by_id_as_string(self, client: TestClient, sample_strategy: StrategyConfig):
         """Test getting strategy with string ID (FastAPI coercion)."""
         response = client.get(f"/api/strategies/{str(sample_strategy.id)}")
         assert response.status_code == 200
+        data = response.json()
+        assert "strategy" in data
+        assert data["strategy"]["id"] == sample_strategy.uuid
+        assert data["strategy"]["name"] == sample_strategy.name
 
     def test_concurrent_strategy_creation(self, client: TestClient):
         """Test creating strategies with similar names (race condition)."""

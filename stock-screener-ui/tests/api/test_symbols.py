@@ -149,9 +149,8 @@ class TestSymbolSearch:
                 data = response.json()
 
                 results = data['results']
-                if len(results) > 0:
-                    # First result should be RELIANCE (prefix match)
-                    assert results[0]['symbol'] == 'RELIANCE'
+                assert len(results) > 0
+                assert results[0]['symbol'] == 'RELIANCE'
 
     def test_symbol_search_exact_match_priority(self, client, sample_instruments):
         """
@@ -166,9 +165,8 @@ class TestSymbolSearch:
                 data = response.json()
 
                 results = data['results']
-                if len(results) > 0:
-                    # First result should be exact match
-                    assert results[0]['symbol'] == 'TCS'
+                assert len(results) > 0
+                assert results[0]['symbol'] == 'TCS'
 
     def test_symbol_search_limit(self, client, sample_instruments):
         """
@@ -284,18 +282,11 @@ class TestSymbolSearch:
                 assert response.status_code == 200
                 data = response.json()
 
-                for result in data['results']:
-                    assert 'symbol' in result
-                    assert 'name' in result
-                    assert 'isin' in result
-
-                    # Verify field types
-                    assert isinstance(result['symbol'], str)
-                    assert isinstance(result['name'], str)
-                    assert isinstance(result['isin'], str)
-
-                    # Verify score is not in response (internal use only)
-                    assert 'score' not in result
+                reliance = data['results'][0]
+                assert reliance['symbol'] == 'RELIANCE'
+                assert reliance['name'] == 'Reliance Industries Ltd'
+                assert reliance['isin'] == 'INE002A01018'
+                assert 'score' not in reliance
 
     def test_symbol_search_special_characters(self, client, sample_instruments):
         """
@@ -310,8 +301,11 @@ class TestSymbolSearch:
                 assert response.status_code == 200
                 data = response.json()
 
-                # Should handle special characters gracefully
                 assert 'results' in data
+                # TODO: API should not match special characters in symbol search
+                # Currently "M&M" matches "Tata Motors Ltd" because "m" is in "motors"
+                assert isinstance(data['results'], list)
+                assert data['total'] >= 0
 
     def test_symbol_search_whitespace_handling(self, client, sample_instruments):
         """
@@ -340,27 +334,6 @@ class TestSymbolSearch:
                 # Empty query should fail validation
                 response = client.get("/api/symbols/search?q=")
                 assert response.status_code == 422
-
-    def test_symbol_search_result_sorting(self, client, sample_instruments):
-        """
-        Test that results are sorted by relevance then symbol length.
-
-        Results should be sorted:
-        1. By score (descending)
-        2. By symbol length (ascending) for same score
-        """
-        with patch('api_server_fastapi._instruments_cache', sample_instruments):
-            with patch('api_server_fastapi._instruments_loaded', True):
-                response = client.get("/api/symbols/search?q=T")
-                assert response.status_code == 200
-                data = response.json()
-
-                results = data['results']
-                if len(results) > 1:
-                    # Results should be present
-                    # The sorting is by relevance score internally
-                    # Shorter symbols should rank higher for same score
-                    assert len(results) > 0
 
     def test_symbol_search_multiple_words(self, client, sample_instruments):
         """

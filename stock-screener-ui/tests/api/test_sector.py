@@ -374,6 +374,10 @@ class TestSectorEndpoints:
         assert "avg_rsi" in sector
         assert "avg_adx" in sector
         assert "top_movers" in sector
+        assert isinstance(sector["sector"], str)
+        assert isinstance(sector["avg_change"], (int, float))
+        assert isinstance(sector["stock_count"], int)
+        assert sector["stock_count"] > 0
 
     @patch('api.sector.TVQuery')
     def test_get_sector_performance_last_updated_is_iso(self, mock_tvquery_cls, sector_client):

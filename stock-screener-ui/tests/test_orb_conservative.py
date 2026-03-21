@@ -21,6 +21,9 @@ import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
+import sys
+_nautilus_available = not isinstance(sys.modules.get('nautilus_trader.config'), MagicMock)
+
 from backtest.strategies.orb import (
     ORBConfig,
     ORBNautilusStrategy,
@@ -41,6 +44,7 @@ def _create_mock_bar_type():
     mock.__str__ = MagicMock(return_value="TEST.SIMULATED-5-MINUTE-LAST-EXTERNAL")
     return mock
 
+@pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
 def test_orb_conservative_config():
     """Test: ORBConfig stores the conservative variant parameters correctly."""
     config = ORBConfig(
@@ -86,6 +90,7 @@ class TestORBNautilusStrategy(ORBNautilusStrategy):
             self._mock_close_all_positions = MagicMock()
         return self._mock_close_all_positions(instrument_id)
 
+@pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
 class TestORBConservativeTiming:
     """Tests verify that a 45-minute Opening Range behaves exactly as expected."""
     
@@ -171,6 +176,7 @@ class TestORBConservativeTiming:
 
 # --- 3. SIGNAL GENERATION & RISK MANAGEMENT TESTS ---
 
+@pytest.mark.skipif(not _nautilus_available, reason="nautilus_trader not installed")
 class TestORBConservativeRiskManagement:
     """Tests verify Entry and the exact 0.4% Stop-Loss and 1.2% Take-Profit ratios."""
     
