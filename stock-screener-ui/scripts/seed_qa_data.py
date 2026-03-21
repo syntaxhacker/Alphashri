@@ -6,7 +6,7 @@ Creates:
 1. QA Test User (qa@test.com / qa123)
 2. Multiple strategy variations
 3. A multi-strategy bot
-4. Sample trades in journal across multiple strategies
+4. Sample trades in journal across multiple strategies (opt-in via --seed-journals)
 
 Run with: python scripts/seed_qa_data.py
 """
@@ -471,7 +471,7 @@ def clean_qa_data():
         db.close()
 
 
-def seed_qa_data():
+def seed_qa_data(seed_journals: bool = False):
     """Seed QA data for multi-strategy testing."""
     db = SessionLocal()
     try:
@@ -497,9 +497,13 @@ def seed_qa_data():
         console.print("\n[bold]Step 4: Creating Multi-Strategy Bot for Admin[/bold]")
         admin_bot = create_bot(db, variations, 2, "Alpha Admin Bot")
 
-        # 5. Generate trades for QA user
-        console.print("\n[bold]Step 5: Generating Trades for QA[/bold]")
-        trades = generate_trades(user.id, bot, variations)
+        # 5. Generate trades for QA user (opt-in)
+        trades = []
+        if seed_journals:
+            console.print("\n[bold]Step 5: Generating Trades for QA[/bold]")
+            trades = generate_trades(user.id, bot, variations)
+        else:
+            console.print("\n[bold]Step 5: Skipping journal seeding (use --seed-journals to enable)[/bold]")
 
         # 6. Print summary
         print_summary(user, bot, variations, trades)
@@ -512,6 +516,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='Seed QA data for multi-strategy system')
     parser.add_argument('--clean', action='store_true', help='Clean existing QA data before seeding')
+    parser.add_argument('--seed-journals', action='store_true', help='Generate sample trades in journal (default: skip)')
     args = parser.parse_args()
 
     if args.clean:
@@ -519,9 +524,9 @@ def main():
         clean_qa_data()
         print("Done.\n")
         print("Now seeding fresh data...")
-        seed_qa_data()
+        seed_qa_data(seed_journals=args.seed_journals)
     else:
-        seed_qa_data()
+        seed_qa_data(seed_journals=args.seed_journals)
 
 
 if __name__ == "__main__":

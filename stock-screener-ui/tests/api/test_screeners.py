@@ -704,3 +704,50 @@ class TestHelperFunctions:
         # Unknown profile returns default (trending)
         meta = _profile_meta('unknown')
         assert meta['section_labels']['primary'] == '🎯 APPROACHING 52W HIGH'
+
+
+class TestScreenerSWR:
+    """Test stale-while-revalidate behavior on /api/screener endpoint."""
+
+    @pytest.fixture
+    def swr_fixtures(self, mock_trending_stocks, monkeypatch):
+        sample_result = {
+            'approaching': [],
+            'touched': [],
+            'last_updated': datetime.now().isoformat(),
+            'provider': 'upstox',
+            'mode': 'intraday',
+            'screener': 'trending',
+            'profile_meta': _profile_meta('trending'),
+            'summary': [],
+            'demo_mode': True,
+            'applied_profile_filters': {},
+        }
+        with patch('api_server_fastapi.TradingAPIFactory') as mock_api, \
+             patch.object(trending_upside, 'fetch_trending_stocks', return_value=mock_trending_stocks):
+            mock_api.create_from_config.side_effect = ValueError('No credentials')
+            yield sample_result
+
+    def test_screener_response_has_cache_metadata(self, client, swr_fixtures, monkeypatch):
+        """Response includes cache_status, served_from_cache, refreshing."""
+        response = client.get("/api/screener")
+        assert response.status_code == 200
+        data = response.json()
+        assert 'cache_status' in data
+        assert 'served_from_cache' in data
+        assert 'refreshing' in data
+        assert data['cache_status'] in ('fresh', 'stale', 'miss', 'coalesced')
+        assert isinstance(data['served_from_cache'], bool)
+        assert isinstance(data['refreshing'], bool)
+
+    def test_screener_has_x_cache_header(self, client, swr_fixtures, monkeypatch):
+        """Response includes X-Cache header."""
+        response = client.get("/api/screener")
+        assert 'x-cache' in response.headers
+        assert response.headers['x-cache'] in ('fresh', 'stale', 'miss', 'coalesced')
+
+    def test_screener_cache_header_matches_body(self, client, swr_fixtures, monkeypatch):
+        """X-Cache header matches cache_status in body."""
+        response = client.get("/api/screener")
+        data = response.json()
+        assert response.headers['x-cache'] == data['cache_status']

@@ -14,6 +14,7 @@ import pandas as pd
 import numpy as np
 import sys
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 from backtest.strategies.week52_target import run_single_stock_week52_target
 
@@ -76,23 +77,12 @@ def mock_week52_target_data():
 
 def test_week52_target_engine_integration(mock_week52_target_data, monkeypatch):
     """Integration test: 52W Target strategy executes a full trade via BacktestEngine."""
-    import upstox_trader.screeners.tv_screen_usage
+    mock_api = MagicMock()
+    mock_api.fetch_historical_data_v3.return_value = mock_week52_target_data
+    mock_api.fetch_intraday_data_v3.return_value = pd.DataFrame()
 
-    class MockUpstoxAPI:
-        def fetch_historical_data_v3(self, **kwargs):
-            return mock_week52_target_data
-        def fetch_intraday_data_v3(self, **kwargs):
-            return pd.DataFrame()
-
-    class MockTVScreenerUsage:
-        def __init__(self, enable_paper_trading=False):
-            self.upstox_api = MockUpstoxAPI()
-
-    monkeypatch.setattr(
-        upstox_trader.screeners.tv_screen_usage,
-        "TVScreenerUsage",
-        MockTVScreenerUsage,
-    )
+    monkeypatch.setattr('backtest.utils.get_upstox_client_from_db', lambda quiet=True: (mock_api, None))
+    monkeypatch.setattr('backtest.utils.get_upstox_client_with_token', lambda token, quiet=True: (mock_api, None))
 
     params = {
         "entry_threshold_pct": 2.0,
@@ -104,7 +94,7 @@ def test_week52_target_engine_integration(mock_week52_target_data, monkeypatch):
         "include_costs": False,
     }
 
-    result = run_single_stock_week52_target("TEST_STOCK", params, 30)
+    result = run_single_stock_week52_target(("TEST_STOCK", params, 30))
 
     assert result["success"] is True, f"Backtest failed: {result.get('error')}"
     assert result["trades"] >= 1, "Expected at least 1 trade to have been executed."

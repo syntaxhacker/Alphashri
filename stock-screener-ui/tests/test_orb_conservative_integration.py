@@ -104,11 +104,19 @@ def mock_screener_usage(monkeypatch, mock_conservative_data):
     yield MockTVScreenerUsage
 
 
-def test_orb_conservative_engine_integration(mock_screener_usage):
+def test_orb_conservative_engine_integration(mock_screener_usage, mock_conservative_data, monkeypatch):
     """
     Test: Run the BacktestEngine end-to-end with the ORB Conservative parameters
     and verify the final resulting P&L metrics align with a ~1.2% gain.
     """
+    mock_api = MagicMock()
+    mock_api.fetch_historical_data_v3.return_value = mock_conservative_data
+    mock_api.fetch_intraday_data_v3.return_value = pd.DataFrame()
+
+    monkeypatch.setattr('backtest.utils.get_upstox_client_from_db', lambda quiet=True: (mock_api, None))
+    monkeypatch.setattr('backtest.utils.get_upstox_client_with_token', lambda token, quiet=True: (mock_api, None))
+    monkeypatch.setattr('db.models.get_shared_broker_token', lambda broker: None)
+
     engine = BacktestEngine()
     
     # Conservative parameters based on QA seed data
