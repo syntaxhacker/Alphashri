@@ -1,13 +1,9 @@
-import { Page, Route, expect } from "@playwright/test";
+import { Page, expect } from "@playwright/test";
 import {
   setupApiMocks,
   loginAsTestUser,
   setupPaperTradingMocks,
   setupMultiStrategyBotMocks,
-  mockRoute,
-  mockBots,
-  mockScanItems,
-  mockBotPositions,
 } from "../mocks/apiResponses";
 
 // Re-export for convenience
