@@ -4,6 +4,7 @@ Backtest API Handlers
 HTTP handlers for backtest endpoints.
 """
 
+import hashlib
 import json
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
@@ -13,6 +14,8 @@ from typing import Dict, Any, Optional, List
 from .strategies import list_strategies, get_strategy
 from .costs import get_cost_breakdown
 from .chart_data import build_chart_data_for_symbol
+
+BACKTEST_CACHE_TTL = None  # No expiry — backtest results are deterministic
 
 
 def _sanitize_for_json(obj):
@@ -28,6 +31,20 @@ def _sanitize_for_json(obj):
     if hasattr(obj, 'isoformat'):
         return obj.isoformat()
     return obj
+
+
+def build_backtest_cache_key(user_id: int, strategy_id: str, symbols: List[str],
+                             params: Dict, days: int, variation_id: Optional[str] = None) -> str:
+    """Build a deterministic cache key for a backtest run."""
+    canonical = json.dumps({
+        'strategy': strategy_id,
+        'symbols': sorted(symbols),
+        'params': params,
+        'days': days,
+        'variation_id': variation_id,
+    }, sort_keys=True, default=str)
+    hash_hex = hashlib.md5(canonical.encode()).hexdigest()[:16]
+    return f"backtest:{user_id}:{strategy_id}:{hash_hex}"
 
 
 def handle_get_strategies() -> Dict:

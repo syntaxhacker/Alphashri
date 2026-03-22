@@ -529,8 +529,7 @@ class TestTickerConstants:
 class TestTickerHelperFunctions:
     """Test ticker helper functions."""
 
-    @pytest.mark.asyncio
-    async def test_fetch_ticker_data_success(self, mock_yfinance):
+    def test_fetch_ticker_data_success(self, mock_yfinance):
         """Test fetch_ticker_data function with successful response."""
         from api.market_ticker import fetch_ticker_data
 
@@ -547,7 +546,7 @@ class TestTickerHelperFunctions:
 
         mock_yfinance.return_value = mock_ticker
 
-        symbol, data = await fetch_ticker_data('^NSEI', 'Nifty 50', '^NSEI')
+        symbol, data = fetch_ticker_data('^NSEI', 'Nifty 50', '^NSEI')
 
         assert symbol == '^NSEI'
         assert data['symbol'] == '^NSEI'
@@ -557,14 +556,13 @@ class TestTickerHelperFunctions:
         assert data['is_positive'] is True
         assert data['source'] == 'yahoo'
 
-    @pytest.mark.asyncio
-    async def test_fetch_ticker_data_error(self, mock_yfinance):
+    def test_fetch_ticker_data_error(self, mock_yfinance):
         """Test fetch_ticker_data function handles errors gracefully."""
         from api.market_ticker import fetch_ticker_data
 
         mock_yfinance.side_effect = Exception("API Error")
 
-        symbol, data = await fetch_ticker_data('^NSEI', 'Nifty 50', '^NSEI')
+        symbol, data = fetch_ticker_data('^NSEI', 'Nifty 50', '^NSEI')
 
         assert symbol == '^NSEI'
         assert 'error' in data
