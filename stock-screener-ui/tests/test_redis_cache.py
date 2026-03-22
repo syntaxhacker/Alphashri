@@ -333,17 +333,32 @@ class TestCacheInvalidation:
             import cache.redis_client as rc
             rc._redis_available = True
 
-            rc.cache_set("backtest:1:abc123", {"strategy": "orb"}, ttl=60)
-            rc.cache_set("backtest:1:def456", {"strategy": "sr_breakout"}, ttl=60)
-            rc.cache_set("backtest:2:abc123", {"strategy": "orb"}, ttl=60)
+            rc.cache_set("backtest:1:orb:abc123", {"strategy": "orb"}, ttl=60)
+            rc.cache_set("backtest:1:sr_breakout:def456", {"strategy": "sr_breakout"}, ttl=60)
+            rc.cache_set("backtest:2:orb:abc123", {"strategy": "orb"}, ttl=60)
             rc.cache_set("news:all:recent:25", "news_data", ttl=60)
 
             deleted = rc.invalidate_backtest_cache(user_id=1)
             assert deleted == 2
-            assert rc.cache_get("backtest:1:abc123") is None
-            assert rc.cache_get("backtest:1:def456") is None
-            assert rc.cache_get("backtest:2:abc123") == {"strategy": "orb"}
+            assert rc.cache_get("backtest:1:orb:abc123") is None
+            assert rc.cache_get("backtest:1:sr_breakout:def456") is None
+            assert rc.cache_get("backtest:2:orb:abc123") == {"strategy": "orb"}
             assert rc.cache_get("news:all:recent:25") == "news_data"
+
+    def test_invalidate_backtest_cache_with_strategy_id(self, fake_redis):
+        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
+            import cache.redis_client as rc
+            rc._redis_available = True
+
+            rc.cache_set("backtest:1:orb:abc123", {"strategy": "orb"}, ttl=60)
+            rc.cache_set("backtest:1:sr_breakout:def456", {"strategy": "sr_breakout"}, ttl=60)
+            rc.cache_set("backtest:1:orb:ghi789", {"strategy": "orb", "params": {"sl": 0.7}}, ttl=60)
+
+            deleted = rc.invalidate_backtest_cache(user_id=1, strategy_id="orb")
+            assert deleted == 2
+            assert rc.cache_get("backtest:1:orb:abc123") is None
+            assert rc.cache_get("backtest:1:orb:ghi789") is None
+            assert rc.cache_get("backtest:1:sr_breakout:def456") == {"strategy": "sr_breakout"}
 
     def test_invalidate_news_cache(self, fake_redis):
         with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
@@ -501,6 +516,7 @@ class TestStaleWhileRevalidate:
             assert status == "miss"
             assert data == {"data": "fallback"}
             compute_fn.assert_called_once()
+            assert fake_redis.exists("test:swr:6:lock") == True
 
     @pytest.mark.asyncio
     async def test_redis_unavailable_computes_sync(self):
