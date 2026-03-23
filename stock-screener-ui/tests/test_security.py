@@ -844,6 +844,14 @@ class TestSensitiveDataExposure:
 class TestCORSSecurity:
     """Tests for CORS configuration."""
 
+    def test_dynamic_cors_middleware_registered(self):
+        try:
+            from api_server_fastapi import app, DynamicCORSMiddleware
+        except ImportError:
+            pytest.skip("DynamicCORSMiddleware not available in fallback app")
+        middleware_types = [getattr(m, "cls", type(m)) for m in app.user_middleware]
+        assert DynamicCORSMiddleware in middleware_types
+
     def test_cors_headers_present(self, client):
         response = client.options("/api/auth/login", headers={
             "Origin": "http://localhost:3000",
@@ -854,6 +862,27 @@ class TestCORSSecurity:
     def test_preflight_request_handled(self, client):
         response = client.options("/api/auth/login")
         assert response.status_code in [200, 204, 400, 405]
+
+    def test_preflight_reflects_requested_method(self, client):
+        response = client.options("/api/auth/login", headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "DELETE"
+        })
+        assert response.headers.get("Access-Control-Allow-Methods") == "DELETE"
+
+    def test_preflight_credentials_header_present(self, client):
+        response = client.options("/api/auth/login", headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST"
+        })
+        assert response.headers.get("Access-Control-Allow-Credentials") == "true"
+
+    def test_preflight_no_wildcard_headers_with_credentials(self, client):
+        response = client.options("/api/auth/login", headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST"
+        })
+        assert response.headers.get("Access-Control-Allow-Headers") != "*"
 
     def test_allowed_origin_reflected(self, client):
         response = client.get("/api/auth/me", headers={
