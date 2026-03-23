@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Modal,
   Stack,
@@ -234,6 +234,16 @@ export function StrategyForm({
 
   const defaultTab = isOrb ? "orb" : isSrBreakout ? "sr" : isEmaCross ? "ema" : "52w";
   const [activeTab, setActiveTab] = useState(defaultTab);
+
+  useEffect(() => {
+    setCurrentStrategyType(initialValues.strategy_type);
+    setActiveTab(
+      initialValues.strategy_type === "ORB" ? "orb"
+        : initialValues.strategy_type === "SR_BREAKOUT" ? "sr"
+          : initialValues.strategy_type === "EMA_CROSS" ? "ema"
+            : "52w",
+    );
+  }, [opened]);
 
   return (
     <Modal
