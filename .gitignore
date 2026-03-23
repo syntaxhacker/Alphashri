@@ -64,10 +64,6 @@ data_cache/
 # Upstox token (explicitly listed)
 .upstox_token.json
 
-# Configuration files with sensitive data
-config.py
-*_config.py
-!config_template.py
 
 TradingView-Screener/
 losing_trades_reports/
