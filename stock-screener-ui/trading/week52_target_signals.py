@@ -18,12 +18,12 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
     strategy_type: str = "52W_TARGET"
 
     def __init__(self, config: dict):
-        self.sl_pct: float = config.get("sl_pct", 2.0)
-        self.tp_pct: float = config.get("tp_pct", 0.0)
-        self.entry_threshold_pct: float = config.get("entry_threshold_pct", 2.0)
-        self.trailing_stop_pct: float = config.get("trailing_stop_pct", 0.5)
-        self.max_holding_days: int = config.get("max_holding_days", 15)
-        self.cooldown_days: int = config.get("cooldown_days", 7)
+        self.sl_pct: float = float(config.get("sl_pct", 2.0))
+        self.tp_pct: float = float(config.get("tp_pct", 0.0))
+        self.entry_threshold_pct: float = float(config.get("entry_threshold_pct", 2.0))
+        self.trailing_stop_pct: float = float(config.get("trailing_stop_pct", 0.5))
+        self.max_holding_days: int = int(config.get("max_holding_days", 15))
+        self.cooldown_days: int = int(config.get("cooldown_days", 7))
 
     def check_entry(
         self,
@@ -48,6 +48,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
             return None
 
         stop_loss = round(current_price * (1 - self.sl_pct / 100), 2)
+        # TP intentionally unreachable; exits managed entirely by trailing stop.
         take_profit = round(current_price * 10, 2)
 
         return self.create_signal(
@@ -56,6 +57,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
             price=round(current_price, 2),
             stop_loss=stop_loss,
             take_profit=take_profit,
+            or_high=round(calculated_high, 2),
             notes=f"52W Target entry: price={current_price:.2f}, 52W high={calculated_high:.2f}, "
                   f"within {self.entry_threshold_pct}% threshold",
         )

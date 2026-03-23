@@ -276,8 +276,8 @@ flowchart TD
         L2{Strategy position<br/>limit reached?}
         L2 -- Yes --> REJECT2[Reject Signal]
         L2 -- No --> L2B{Symbol exposure<br/>within limit?}
-        L2B -- Yes --> REJECT2
-        L2B -- No --> L2C{Strategy capital<br/>allocation available?}
+        L2B -- No --> REJECT2
+        L2B -- Yes --> L2C{Strategy capital<br/>allocation available?}
         L2C -- No --> REJECT2
         L2C -- Yes --> L3
     end

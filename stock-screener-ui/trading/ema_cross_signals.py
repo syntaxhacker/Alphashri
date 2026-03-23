@@ -30,8 +30,13 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
         if not closes:
             return []
         multiplier = 2.0 / (period + 1)
-        ema = [closes[0]]
-        for price in closes[1:]:
+        if len(closes) < period:
+            ema = [closes[0]]
+            for price in closes[1:]:
+                ema.append(price * multiplier + ema[-1] * (1 - multiplier))
+            return ema
+        ema = [sum(closes[:period]) / period]
+        for price in closes[period:]:
             ema.append(price * multiplier + ema[-1] * (1 - multiplier))
         return ema
 

@@ -356,11 +356,12 @@ class MultiStrategyRunner:
                     'close': row['close'],
                 })
 
-            # Calculate OR levels using the first strategy's signal generator
-            # (OR calculation is the same for all strategies)
-            first_strategy = next(iter(self.strategies.values()), None)
-            if first_strategy and first_strategy.signal_generator:
-                or_levels = first_strategy.signal_generator.calculate_or_levels(candles)
+            orb_runner = next(
+                (r for r in self.strategies.values() if r.strategy_type == "ORB"),
+                None,
+            )
+            if orb_runner and orb_runner.signal_generator:
+                or_levels = orb_runner.signal_generator.calculate_or_levels(candles)
                 if or_levels and candles:
                     or_levels['latest_price'] = candles[-1]['close']
                     or_levels['latest_high'] = candles[-1]['high']
@@ -961,10 +962,11 @@ class MultiStrategyRunner:
 
         # Check force exit time
         if self.is_force_exit_time():
-            console.print("\n[yellow]Force exit time reached. Closing all positions...[/yellow]")
+            console.print("\n[yellow]Force exit time reached. Closing intraday positions...[/yellow]")
             for key in list(self.portfolio.positions.keys()):
                 pos = self.portfolio.positions[key]
-                if pos.symbol in close_prices:
+                runner = self.strategies.get(pos.strategy_id)
+                if runner and runner.strategy_type not in SWING_STRATEGY_TYPES and pos.symbol in close_prices:
                     self.portfolio.close_position(
                         strategy_id=pos.strategy_id,
                         symbol=pos.symbol,
