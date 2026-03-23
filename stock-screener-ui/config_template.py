@@ -1,4 +1,5 @@
 import os
+import fnmatch
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -10,10 +11,24 @@ if env_file.exists():
 
 PORT = int(os.getenv("PORT", 8765))
 ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS", 
-    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:5174,http://localhost:3000,http://127.0.0.1:5173,https://alphashri.pages.dev"
 ).split(",")
 ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
+ALLOWED_ORIGIN_PATTERNS = os.getenv(
+    "ALLOWED_ORIGIN_PATTERNS",
+    "https://*.alphashri.pages.dev"
+).split(",")
+ALLOWED_ORIGIN_PATTERNS = [p.strip() for p in ALLOWED_ORIGIN_PATTERNS if p.strip()]
+
+
+def is_origin_allowed(origin: str) -> bool:
+    if origin in ALLOWED_ORIGINS:
+        return True
+    for pattern in ALLOWED_ORIGIN_PATTERNS:
+        if fnmatch.fnmatch(origin, pattern):
+            return True
+    return False
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
