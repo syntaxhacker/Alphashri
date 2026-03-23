@@ -6,8 +6,7 @@ Available strategies:
 - SR Breakout: Support & Resistance Breakout using Pivot Points
 - 52W Chaser: 52-Week High Breakout (Swing Trading)
 - 52W Target: Hold until 52W High reached
-- VWAP: Volume Weighted Average Price (future)
-- Momentum: Momentum-based entries (future)
+- EMA Cross: Exponential Moving Average Crossover
 """
 
 from .base import BaseStrategy, StrategyParam
@@ -15,6 +14,7 @@ from .orb import ORBStrategy
 from .sr_breakout import SRBreakoutStrategy
 from .week52_chaser import Week52ChaserStrategy
 from .week52_target import Week52TargetStrategy
+from .ema_cross import EMACrossStrategy
 
 # Strategy registry
 STRATEGIES = {
@@ -22,6 +22,7 @@ STRATEGIES = {
     'sr_breakout': SRBreakoutStrategy,
     '52w_chaser': Week52ChaserStrategy,
     '52w_target': Week52TargetStrategy,
+    'ema_cross': EMACrossStrategy,
 }
 
 
@@ -50,6 +51,7 @@ __all__ = [
     'SRBreakoutStrategy',
     'Week52ChaserStrategy',
     'Week52TargetStrategy',
+    'EMACrossStrategy',
     'STRATEGIES',
     'get_strategy',
     'list_strategies',

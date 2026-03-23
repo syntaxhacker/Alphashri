@@ -35,7 +35,7 @@ jobs:
         with:
           enable-cache: false
       - run: |
-          cd stock-screener-ui
+          cd stock-screener-ui/api
           uv pip install --system --python 3.11 -r requirements.txt
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
