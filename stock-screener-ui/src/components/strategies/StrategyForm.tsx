@@ -219,6 +219,11 @@ export function StrategyForm({
     const enableFiltersEl = form.querySelector("[name='enable_filters']") as HTMLInputElement;
     data.enable_filters = enableFiltersEl ? enableFiltersEl.checked : false;
 
+    if (data.strategy_type === "EMA_CROSS" && data.ema_fast_period >= data.ema_slow_period) {
+      window.alert("Fast EMA period must be less than Slow EMA period");
+      return;
+    }
+
     onSubmit(data);
   };
 
@@ -235,7 +240,7 @@ export function StrategyForm({
   const defaultTab = isOrb ? "orb" : isSrBreakout ? "sr" : isEmaCross ? "ema" : "52w";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  const SlTpRow = () => (
+  const renderSlTpRow = () => (
     <Group grow>
       <NumberInput
         label="Stop Loss %"
@@ -397,7 +402,7 @@ export function StrategyForm({
                       data-testid="strategy-min-or-range-input"
                     />
                   </Group>
-                  <SlTpRow />
+                  {renderSlTpRow()}
                   <NumberInput
                     label="Max OR Range %"
                     name="max_or_range_pct"
@@ -419,7 +424,7 @@ export function StrategyForm({
                 data-testid="strategy-panel-sr"
               >
                 <Stack gap="sm" mt="sm">
-                  <SlTpRow />
+                  {renderSlTpRow()}
                   <Select
                     label="Pivot Type"
                     name="pivot_type"
@@ -473,7 +478,7 @@ export function StrategyForm({
                       data-testid="strategy-ema-slow-period-input"
                     />
                   </Group>
-                  <SlTpRow />
+                  {renderSlTpRow()}
                 </Stack>
               </Tabs.Panel>
             )}
@@ -498,7 +503,7 @@ export function StrategyForm({
                       data-testid="strategy-entry-threshold-input"
                     />
                   </Group>
-                  <SlTpRow />
+                  {renderSlTpRow()}
                   <Group grow>
                     <NumberInput
                       label="Trailing Stop %"

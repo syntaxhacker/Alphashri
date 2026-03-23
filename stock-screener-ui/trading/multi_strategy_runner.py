@@ -638,8 +638,6 @@ class MultiStrategyRunner:
                 )
 
             if signal:
-                max_distance = runner.config.get('max_distance_from_or_pct', 1.5)
-
                 if signal.signal_type == SignalType.LONG_ENTRY:
                     if runner.strategy_type == "ORB":
                         day_open = or_levels.get('or_open', current_price)
@@ -895,6 +893,7 @@ class MultiStrategyRunner:
                 runner = self.strategies.get(pos.strategy_id)
                 if runner and runner.strategy_type in SWING_STRATEGY_TYPES:
                     gen = runner.signal_generator
+                    metadata = pos.metadata if hasattr(pos, 'metadata') and isinstance(pos.metadata, dict) else {}
                     exit_signal = gen.check_exit(
                         symbol=pos.symbol,
                         position_side=pos.side.value,
@@ -903,8 +902,8 @@ class MultiStrategyRunner:
                         take_profit=pos.take_profit,
                         current_price=data['close'],
                         highest_price_since_entry=pos.peak_price,
-                        entry_52w_high=pos.metadata.get('entry_52w_high') if hasattr(pos, 'metadata') else None,
-                        current_52w_high=pos.metadata.get('current_52w_high') if hasattr(pos, 'metadata') else None,
+                        entry_52w_high=metadata.get('entry_52w_high'),
+                        current_52w_high=metadata.get('current_52w_high'),
                         days_in_position=(datetime.now() - pos.entry_time).days,
                     )
                     if exit_signal:
