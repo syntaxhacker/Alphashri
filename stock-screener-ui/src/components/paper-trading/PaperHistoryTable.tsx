@@ -15,6 +15,7 @@ import {
   Button,
   Box,
   TextInput,
+  ScrollArea,
 } from "@mantine/core";
 import {
   getPaperTradingState,
@@ -29,7 +30,7 @@ import {
 import { fetchPaperChart, refreshHistoryData } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
 
-function formatNumber(num: number | undefined | null): string {
+export function formatNumber(num: number | undefined | null): string {
   if (num === undefined || num === null || isNaN(num)) {
     return "0";
   }
@@ -42,7 +43,7 @@ function formatNumber(num: number | undefined | null): string {
   return num.toFixed(0);
 }
 
-function formatTradeTimeOnly(isoStr: string): string {
+export function formatTradeTimeOnly(isoStr: string): string {
   if (!isoStr) return "-";
   const date = new Date(isoStr);
   if (Number.isNaN(date.getTime())) return isoStr;
@@ -54,7 +55,7 @@ function formatTradeTimeOnly(isoStr: string): string {
   });
 }
 
-function getUniqueStrategies(trades: PaperTrade[]): string[] {
+export function getUniqueStrategies(trades: PaperTrade[]): string[] {
   const strategies = new Set<string>();
   for (const trade of trades) {
     if (trade.strategy_name) {
@@ -64,7 +65,7 @@ function getUniqueStrategies(trades: PaperTrade[]): string[] {
   return Array.from(strategies).sort();
 }
 
-function getUniqueBots(trades: PaperTrade[]): Array<{ id: string; name: string }> {
+export function getUniqueBots(trades: PaperTrade[]): Array<{ id: string; name: string }> {
   const botsMap = new Map<string, string>();
   for (const trade of trades) {
     if (trade.bot_id && trade.bot_name) {
@@ -76,7 +77,7 @@ function getUniqueBots(trades: PaperTrade[]): Array<{ id: string; name: string }
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function filterByRange(
+export function filterByRange(
   trades: PaperTrade[],
   fromDate: string | null,
   toDate: string | null,
@@ -92,7 +93,7 @@ function filterByRange(
   });
 }
 
-function groupTradesByDate(trades: PaperTrade[]): Record<string, PaperTrade[]> {
+export function groupTradesByDate(trades: PaperTrade[]): Record<string, PaperTrade[]> {
   const groups: Record<string, PaperTrade[]> = {};
 
   for (const trade of trades) {
@@ -110,7 +111,7 @@ function groupTradesByDate(trades: PaperTrade[]): Record<string, PaperTrade[]> {
   return groups;
 }
 
-function formatDateHeader(date: string): string {
+export function formatDateHeader(date: string): string {
   const dateObj = new Date(date);
   return dateObj.toLocaleDateString("en-IN", {
     weekday: "short",
@@ -164,7 +165,7 @@ function DayGroup({
             {formatDateHeader(date)}
           </Text>
         </Group>
-        <Group gap="md">
+        <Group gap="sm">
           <Text size="sm" c={pnlColor} fw={600}>
             {pnlSign}₹{formatNumber(Math.abs(dayPnl))}
           </Text>
@@ -448,7 +449,7 @@ export function PaperHistoryTable() {
         id="history-filters"
       >
         <Group gap="md" justify="space-between">
-          <Group gap="md">
+          <Group gap="sm">
             {bots.length > 1 && (
               <Select
                 placeholder="All Bots"
@@ -492,13 +493,7 @@ export function PaperHistoryTable() {
         </Group>
       </Box>
 
-      <Box
-        flex="0 0 auto"
-        mb="sm"
-        style={{ flexShrink: 0 }}
-        className="paper-history-summary"
-        id="history-summary"
-      >
+      <Box style={{ flexShrink: 0 }} className="paper-history-list-wrapper">
         <Card
           shadow="sm"
           padding="sm"
@@ -510,7 +505,7 @@ export function PaperHistoryTable() {
         >
           <Group justify="space-between">
             <Text fw={600}>Trade History ({filteredTrades.length} trades)</Text>
-            <Group gap="md">
+            <Group gap="sm">
               <Text>
                 Total:{" "}
                 <Text component="span" fw={700} c={totalPnl >= 0 ? "green" : "red"}>

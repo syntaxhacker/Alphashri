@@ -16,6 +16,7 @@ Test cases cover:
 
 import sys
 from pathlib import Path
+from contextlib import contextmanager
 from unittest.mock import Mock, patch
 from datetime import datetime
 
@@ -39,23 +40,21 @@ class TestNewsAPI:
         """
         Test getting news feed with default parameters.
 
-        Should return news items with default source and limit.
+        Should return news items from the specified source.
         """
         mock_fetch = Mock(return_value=sample_news_items)
 
         with patch('api_server_fastapi._news_available', True):
             with patch('api_server_fastapi.fetch_news', mock_fetch):
-                response = client.get("/api/news")
+                response = client.get("/api/news?source=moneycontrol")
                 assert response.status_code == 200
                 data = response.json()
 
-                # Verify response structure
                 assert 'items' in data
                 assert 'source' in data
                 assert 'total' in data
                 assert 'fetchedAt' in data
 
-                # Verify default values
                 assert data['source'] == 'moneycontrol'
                 assert data['total'] == len(sample_news_items)
 
@@ -82,13 +81,12 @@ class TestNewsAPI:
 
         Should return specified number of items (max 100).
         """
-        # Create limited sample
         limited_items = sample_news_items[:2]
         mock_fetch = Mock(return_value=limited_items)
 
         with patch('api_server_fastapi._news_available', True):
             with patch('api_server_fastapi.fetch_news', mock_fetch):
-                response = client.get("/api/news?limit=10")
+                response = client.get("/api/news?source=moneycontrol&limit=10")
                 assert response.status_code == 200
                 data = response.json()
 
@@ -156,7 +154,7 @@ class TestNewsAPI:
 
         with patch('api_server_fastapi._news_available', True):
             with patch('api_server_fastapi.fetch_news', mock_fetch):
-                response = client.get("/api/news")
+                response = client.get("/api/news?source=moneycontrol")
                 assert response.status_code == 500
                 data = response.json()
 
@@ -178,7 +176,7 @@ class TestNewsAPI:
 
         with patch('api_server_fastapi._news_available', True):
             with patch('api_server_fastapi.fetch_news', mock_fetch):
-                response = client.get("/api/news")
+                response = client.get("/api/news?source=moneycontrol")
                 assert response.status_code == 200
                 data = response.json()
 
@@ -201,7 +199,7 @@ class TestNewsAPI:
 
         with patch('api_server_fastapi._news_available', True):
             with patch('api_server_fastapi.fetch_news', mock_fetch):
-                response = client.get("/api/news")
+                response = client.get("/api/news?source=moneycontrol")
                 assert response.status_code == 200
                 data = response.json()
 
@@ -282,9 +280,10 @@ class TestNewsAPI:
 
         with patch('api_server_fastapi._news_available', True):
             with patch('api_server_fastapi.fetch_article_content', mock_fetch):
-                url = "https://example.com/news/test"
-                response = client.get(f"/api/news/article?url={url}")
-                assert response.status_code == 500
+                with patch('cache.redis_client.cache_get', return_value=None):
+                    url = "https://example.com/news/test"
+                    response = client.get(f"/api/news/article?url={url}")
+                    assert response.status_code == 500
 
     def test_get_article_content_format(self, client, sample_article_content):
         """
@@ -408,7 +407,6 @@ class TestNewsAPI:
         Note: This depends on the implementation of fetch_news.
         This test verifies the API accepts category parameter.
         """
-        # Create categorized news items
         tech_news = [
             {
                 'title': 'Tech News',
@@ -424,9 +422,7 @@ class TestNewsAPI:
 
         with patch('api_server_fastapi._news_available', True):
             with patch('api_server_fastapi.fetch_news', mock_fetch):
-                # Note: Category filtering may not be implemented in API
-                # This test verifies the endpoint works
-                response = client.get("/api/news")
+                response = client.get("/api/news?source=moneycontrol")
                 assert response.status_code == 200
 
     def test_news_pagination_simulation(self, client, sample_news_items):
@@ -439,13 +435,106 @@ class TestNewsAPI:
 
         with patch('api_server_fastapi._news_available', True):
             with patch('api_server_fastapi.fetch_news', mock_fetch):
-                # Fetch first batch
-                response = client.get("/api/news?limit=2")
+                response = client.get("/api/news?source=moneycontrol&limit=2")
                 assert response.status_code == 200
                 batch1 = response.json()
 
-                # Fetch second batch
-                response = client.get("/api/news?limit=3&offset=2")
-                # Note: offset may not be implemented, but this verifies the endpoint
-                # handles the parameter without error
+                response = client.get("/api/news?source=moneycontrol&limit=3&offset=2")
                 assert response.status_code in [200, 422]
+
+
+class TestAllSources:
+
+    def _make_persistence_articles(self, sample_news_items):
+        return [
+            {
+                'id': i,
+                'headline': item['title'],
+                'content': item['description'],
+                'source': item['source'],
+                'url': item['url'],
+                'published_at': item.get('timestamp', ''),
+                'fetched_at': item.get('timestamp', ''),
+            }
+            for i, item in enumerate(sample_news_items)
+        ]
+
+    def _fetch_all_sources(self, client, items):
+        articles = self._make_persistence_articles(items)
+        mock_persistence = Mock()
+        mock_persistence.get_recent_articles = Mock(return_value=articles)
+        return mock_persistence
+
+    @contextmanager
+    def _patch_all_sources(self, mock_persistence):
+        with patch('api_server_fastapi._news_available', True):
+            with patch('services.news_persistence.get_persistence_service', return_value=mock_persistence):
+                with patch('cache.redis_client.is_cache_available', return_value=False):
+                    yield
+
+    @pytest.mark.parametrize("url,extra_kwarg", [
+        ("/api/news", {}),
+        ("/api/news?source=all", {}),
+        ("/api/news?limit=30", {"limit": 30}),
+    ])
+    def test_get_news_all_sources(self, client, sample_news_items, url, extra_kwarg):
+        if "multi" not in url:
+            items = sample_news_items
+        else:
+            items = [
+                {
+                    'title': 'Moneycontrol News 1',
+                    'description': 'Test news',
+                    'url': 'https://moneycontrol.com/news1',
+                    'source': 'moneycontrol',
+                    'timestamp': datetime.now().isoformat(),
+                },
+                {
+                    'title': 'Economic Times News 1',
+                    'description': 'Test news',
+                    'url': 'https://economictimes.com/news1',
+                    'source': 'economicstimes',
+                    'timestamp': datetime.now().isoformat(),
+                },
+                {
+                    'title': 'LiveMint News 1',
+                    'description': 'Test news',
+                    'url': 'https://livemint.com/news1',
+                    'source': 'livemint',
+                    'timestamp': datetime.now().isoformat(),
+                },
+            ]
+        mock_persistence = self._fetch_all_sources(client, items)
+
+        with self._patch_all_sources(mock_persistence):
+            response = client.get(url, params=extra_kwarg)
+            assert response.status_code == 200
+            data = response.json()
+
+        if "multi" in url:
+            sources = {item['source'] for item in data['items']}
+            assert len(sources) >= 2
+        elif "limit" in extra_kwarg:
+            mock_persistence.get_recent_articles.assert_called_once()
+            call_kwargs = mock_persistence.get_recent_articles.call_args.kwargs
+            assert call_kwargs.get('limit') == 30
+        else:
+            assert data['source'] in ['all', None]
+            assert data['total'] == len(items)
+
+    def test_get_news_specific_source_still_works(self, client, sample_news_items):
+        mock_fetch = Mock(return_value=sample_news_items)
+
+        with patch('api_server_fastapi._news_available', True):
+            with patch('api_server_fastapi.fetch_news', mock_fetch):
+                response = client.get("/api/news?source=moneycontrol")
+                assert response.status_code == 200
+                mock_fetch.assert_called_once_with(source='moneycontrol', limit=25)
+
+    def test_get_news_all_sources_response_source_field(self, client, sample_news_items):
+        mock_persistence = self._fetch_all_sources(client, sample_news_items)
+
+        with self._patch_all_sources(mock_persistence):
+            response = client.get("/api/news")
+            assert response.status_code == 200
+            assert response.json()['source'] == 'all'

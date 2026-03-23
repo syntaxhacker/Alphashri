@@ -8,6 +8,7 @@ technical strength, and top movers.
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
+import asyncio
 import pandas as pd
 from datetime import datetime
 import math
@@ -46,6 +47,26 @@ def _to_float(value, default=0.0):
     except Exception:
         return default
 
+def _fetch_sector_data(market: str, limit: int) -> pd.DataFrame:
+    """Synchronous TradingView query — must not be called directly in an async context."""
+    query = TVQuery().select('name', 'close', 'change', 'sector', 'market_cap_basic', 'RSI', 'ADX')
+    query = query.set_markets(market)
+
+    if market == 'india':
+        market_cap_filter = 5_000_000_000
+        query = query.where(
+            col('sector') != '',
+            col('market_cap_basic') > market_cap_filter
+        )
+    else:
+        query = query.where(col('sector') != '')
+
+    query = query.order_by('market_cap_basic', ascending=False).limit(limit)
+
+    _, df = query.get_scanner_data()
+    return df
+
+
 @router.get("", response_model=SectorResponse)
 async def get_sector_performance(
     market: str = Query("india", enum=["india", "america"]),
@@ -56,23 +77,7 @@ async def get_sector_performance(
     Based on scanners/sector_dashboard.py logic.
     """
     try:
-        # Build query based on market
-        query = TVQuery().select('name', 'close', 'change', 'sector', 'market_cap_basic', 'RSI', 'ADX')
-        query = query.set_markets(market)
-        
-        if market == 'india':
-            # ₹500 Cr filter for India
-            market_cap_filter = 5_000_000_000
-            query = query.where(
-                col('sector') != '',
-                col('market_cap_basic') > market_cap_filter
-            )
-        else:
-            query = query.where(col('sector') != '')
-            
-        query = query.order_by('market_cap_basic', ascending=False).limit(limit)
-        
-        _, df = query.get_scanner_data()
+        df = await asyncio.to_thread(_fetch_sector_data, market, limit)
 
         if df.empty:
             return SectorResponse(sectors=[], top_stock_movers=[], last_updated=datetime.now(), market=market)

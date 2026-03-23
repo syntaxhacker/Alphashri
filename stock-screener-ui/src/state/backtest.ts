@@ -14,6 +14,7 @@ import type {
   CostBreakdown,
 } from "../types/backtest";
 import { chartTradesToTrades } from "../api/chartBuilder";
+import { createSubscriber } from "./createSubscriber";
 
 // State interface
 export interface BacktestState {
@@ -116,19 +117,8 @@ export const initialBacktestState: BacktestState = {
 // Current state (mutable)
 let state: BacktestState = { ...initialBacktestState };
 
-// Subscribers for state changes
-const subscribers: Set<() => void> = new Set();
-
-// Notify all subscribers
-function notify() {
-  subscribers.forEach((callback) => callback());
-}
-
-// Subscribe to state changes
-export function subscribe(callback: () => void) {
-  subscribers.add(callback);
-  return () => subscribers.delete(callback);
-}
+const { subscribe: _subscribe, notify } = createSubscriber();
+export const subscribe = _subscribe;
 
 // Get current state
 export function getState(): BacktestState {
@@ -209,6 +199,16 @@ export function setSelectedVariation(variationId: string | null) {
         "cooldown_days",
         "trade_size",
       ],
+      ema_cross: [
+        "ema_fast_period",
+        "ema_slow_period",
+        "sl_pct",
+        "tp_pct",
+        "timeframe",
+        "trade_size",
+        "enable_shorts",
+        "cooldown_bars",
+      ],
     };
 
     const strategyType = variation.strategy_type.toLowerCase();
@@ -241,7 +241,7 @@ export function setSelectedVariation(variationId: string | null) {
 }
 
 // Helper function to get default params for a strategy
-function getStrategyDefaults(strategyId: string): Record<string, any> {
+export function getStrategyDefaults(strategyId: string): Record<string, any> {
   const defaults: Record<string, any> = {
     orb: {
       or_minutes: 45,
@@ -280,6 +280,16 @@ function getStrategyDefaults(strategyId: string): Record<string, any> {
       max_holding_days: 15,
       cooldown_days: 7,
       trade_size: 100,
+    },
+    ema_cross: {
+      ema_fast_period: 9,
+      ema_slow_period: 21,
+      stop_loss_pct: 0.5,
+      take_profit_pct: 1.5,
+      timeframe: "5",
+      trade_size: 100,
+      enable_shorts: false,
+      cooldown_bars: 3,
     },
   };
   return defaults[strategyId] || {};

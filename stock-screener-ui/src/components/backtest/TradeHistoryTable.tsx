@@ -2,7 +2,7 @@ import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Box } from "@mantine
 import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { Trade } from "../../types/backtest";
 
-function formatDateHuman(isoStr: string): string {
+export function formatDateHuman(isoStr: string): string {
   if (!isoStr) return "-";
   const parts = isoStr.split("T");
   const datePart = parts[0];
@@ -44,13 +44,13 @@ function formatDateHuman(isoStr: string): string {
   return `${d}${suffix} ${dayName} ${monthName}${timePart ? " " + timePart : ""}`;
 }
 
-function formatDuration(mins: number): string {
+export function formatDuration(mins: number): string {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
+export function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
   return [...trades].sort((a, b) => {
     let aVal: number | string = 0;
     let bVal: number | string = 0;

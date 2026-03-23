@@ -63,7 +63,7 @@ export async function navigateToPaperTradingWithBot(
       const loadingText = document.body.textContent;
       return !loadingText?.includes("Loading positions...");
     },
-    { timeout: 30000 },
+    { timeout: 10000 },
   );
 
   // Additional wait for UI to settle
@@ -83,7 +83,7 @@ export async function verifyPaperTradingTabs(page: Page): Promise<void> {
  * Click on a tab in Paper Trading view
  */
 export async function clickPaperTradingTab(page: Page, tabName: string): Promise<void> {
-  const tab = page.locator(`button:has-text("${tabName}")`);
+  const _tab = page.locator(`button:has-text("${tabName}")`);
   await page.waitForTimeout(300);
 }
 

@@ -5,26 +5,116 @@ import {
   expectBotsViewVisible,
   getBotListItems,
   getBotStatus,
+  setupBotsMocks,
+  mockBotsListRoute,
+  mockAvailableStrategiesRoute,
+  gotoBotsViewAndWait,
+  mockCreateBotRoute,
+  createBotAndSave,
 } from "../helpers/botsHelpers";
 
-// Shared beforeEach for bots tests
-async function setupBotsTest(page: import("@playwright/test").Page) {
-  await setupApiMocks(page);
-  await loginAsTestUser(page);
-}
+const BOT_ID_1 = "550e8400-e29b-41d4-a716-446655440000";
+const BOT_ID_2 = "81b1e4e1-de04-4989-8357-96daade0bd86";
+
+const mockBots = [
+  {
+    id: BOT_ID_1,
+    name: "Default Bot",
+    is_active: true,
+    max_total_positions: 10,
+    max_total_capital_pct: 0.8,
+    strategies: [
+      {
+        id: "strat-1",
+        name: "ORB Conservative",
+        strategy_type: "ORB",
+        max_positions: 5,
+        capital_allocation_pct: 0.5,
+      },
+    ],
+    created_at: "2026-01-01T00:00:00",
+    updated_at: "2026-01-01T00:00:00",
+    running: false,
+    pid: null,
+  },
+  {
+    id: BOT_ID_2,
+    name: "Multi-Strategy Bot",
+    is_active: true,
+    max_total_positions: 20,
+    max_total_capital_pct: 0.8,
+    strategies: [
+      {
+        id: "strat-2",
+        name: "ORB Conservative",
+        strategy_type: "ORB",
+        max_positions: 3,
+        capital_allocation_pct: 0.3,
+      },
+      {
+        id: "strat-3",
+        name: "ORB Aggressive",
+        strategy_type: "ORB",
+        max_positions: 3,
+        capital_allocation_pct: 0.3,
+      },
+      {
+        id: "strat-4",
+        name: "52W Chaser",
+        strategy_type: "52W_CHASER",
+        max_positions: 4,
+        capital_allocation_pct: 0.4,
+      },
+    ],
+    created_at: "2026-01-15T00:00:00",
+    updated_at: "2026-03-01T00:00:00",
+    running: true,
+    pid: 12345,
+  },
+];
+
+const mockAvailableStrategies = [
+  {
+    id: "strat-1",
+    name: "ORB Conservative",
+    strategy_type: "ORB",
+    is_template: false,
+    is_default: false,
+    sl_pct: 0.3,
+    tp_pct: 0.8,
+    max_positions: 5,
+  },
+  {
+    id: "strat-2",
+    name: "ORB Aggressive",
+    strategy_type: "ORB",
+    is_template: false,
+    is_default: false,
+    sl_pct: 0.6,
+    tp_pct: 2.0,
+    max_positions: 6,
+  },
+  {
+    id: "strat-3",
+    name: "52W Chaser",
+    strategy_type: "52W_CHASER",
+    is_template: false,
+    is_default: false,
+    sl_pct: 0.6,
+    tp_pct: 2.0,
+    max_positions: 3,
+  },
+];
 
 test.describe("Bots View - Navigation", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
+    await setupBotsMocks(page);
   });
 
   test("should navigate to bots view", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
-
     await page.locator('[data-testid="nav-bots"]').click();
-    await page.waitForTimeout(500);
-
     await expectBotsViewVisible(page);
   });
 
@@ -36,355 +126,244 @@ test.describe("Bots View - Navigation", () => {
 
 test.describe("Bots View - List", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
-
-    // Mock bots list
-    await page.route("**/api/bots", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            id: 1,
-            name: "Default Bot",
-            is_active: true,
-            running: false,
-            pid: null,
-            strategies: [{ id: 1, name: "ORB Conservative", capital_allocation_pct: 0.5 }],
-          },
-          {
-            id: 2,
-            name: "Multi-Strategy Bot",
-            is_active: true,
-            running: true,
-            pid: 12345,
-            strategies: [
-              { id: 1, name: "ORB Conservative", capital_allocation_pct: 0.3 },
-              { id: 2, name: "ORB Aggressive", capital_allocation_pct: 0.3 },
-              { id: 3, name: "52W Chaser", capital_allocation_pct: 0.4 },
-            ],
-          },
-        ]),
-      });
-    });
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
   });
 
-  test("should display list of bots", async ({ page }) => {
-    await gotoBotsView(page);
-    const count = await getBotListItems(page).count();
-    expect(count).toBeGreaterThan(0);
+  test("@smoke should display list of bots", async ({ page }) => {
+    await gotoBotsViewAndWait(page);
+    await expect(getBotListItems(page)).toHaveCount(2);
   });
 
-  test("should show bot status for each bot", async ({ page }) => {
-    await gotoBotsView(page);
-    const status = getBotStatus(page);
-    if ((await status.count()) > 0) {
-      await expect(status.first()).toBeVisible();
-    }
+  test("@smoke should show bot status for each bot", async ({ page }) => {
+    await gotoBotsViewAndWait(page);
+    await expect(getBotStatus(page)).toHaveCount(2);
+    await expect(getBotStatus(page).first()).toBeVisible();
   });
 
   test("should show strategies count for each bot", async ({ page }) => {
-    await gotoBotsView(page);
-    const strategiesInfo = page.locator(".strategies-count, :text('strategies')");
-    if ((await strategiesInfo.count()) > 0) {
-      await expect(strategiesInfo.first()).toBeVisible();
-    }
+    await gotoBotsViewAndWait(page);
+    await expect(page.locator(`[data-testid="bot-row-${BOT_ID_1}"]`)).toContainText("strategies");
   });
 
   test("should show PID for running bots", async ({ page }) => {
-    await gotoBotsView(page);
-    const pidInfo = page.locator(":text('PID'), :text('12345')");
-    if ((await pidInfo.count()) > 0) {
-      await expect(pidInfo.first()).toBeVisible();
-    }
+    await gotoBotsViewAndWait(page);
+    await expect(page.locator(`[data-testid="bot-status-${BOT_ID_2}"]`)).toContainText("12345");
   });
 });
 
 test.describe("Bots View - Create", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
+    await setupBotsMocks(page);
+    await mockAvailableStrategiesRoute(page, mockAvailableStrategies);
   });
 
   test("should have create bot button", async ({ page }) => {
-    await gotoBotsView(page);
-    const createBtn = page.locator('button:has-text("Create"), button:has-text("New Bot")');
-    if ((await createBtn.count()) > 0) {
-      await expect(createBtn).toBeVisible();
-    }
+    await mockBotsListRoute(page, []);
+    await gotoBotsViewAndWait(page);
+    await expect(page.locator('[data-testid="create-bot-btn"]')).toBeVisible();
   });
 
   test("should open create bot modal", async ({ page }) => {
-    await gotoBotsView(page);
-    const createBtn = page.locator('button:has-text("Create"), button:has-text("New Bot")');
-    if ((await createBtn.count()) > 0) {
-      await createBtn.click();
-      await page.waitForTimeout(300);
-
-      // Modal should open
-      const modal = page.locator(".modal, .bot-form-modal");
-      if ((await modal.count()) > 0) {
-        await expect(modal).toBeVisible();
-      }
-    }
+    await mockBotsListRoute(page, []);
+    await gotoBotsViewAndWait(page);
+    await page.locator('[data-testid="create-bot-btn"]').click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
   });
 
   test("should create new bot", async ({ page }) => {
-    await gotoBotsView(page);
-    const createBtn = page.locator('button:has-text("Create"), button:has-text("New Bot")');
-    if ((await createBtn.count()) > 0) {
-      await createBtn.click();
-      await page.waitForTimeout(300);
-
-      // Mock create API
-      await page.route("**/api/bots", async (route) => {
-        if (route.request().method() === "POST") {
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body: JSON.stringify({
-              id: 3,
-              name: "Test Bot",
-              is_active: true,
-              strategies: [],
-            }),
-          });
-        }
-      });
-
-      // Submit form
-      const submitBtn = page.locator('button:has-text("Save"), button:has-text("Create")').last();
-      if ((await submitBtn.count()) > 0) {
-        await submitBtn.click();
-        await page.waitForTimeout(500);
-      }
-    }
+    await mockCreateBotRoute(page, "new-bot-id-11111111-1111-1111-1111-111111111111", "Test Bot");
+    await createBotAndSave(page, "Test Bot");
   });
 });
 
 test.describe("Bots View - Edit", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
+    await mockAvailableStrategiesRoute(page, mockAvailableStrategies);
   });
 
   test("should have edit button for each bot", async ({ page }) => {
-    await gotoBotsView(page);
-    const editBtn = page.locator(".edit-btn, button:has-text('Edit')");
-    if ((await editBtn.count()) > 0) {
-      await expect(editBtn.first()).toBeVisible();
-    }
+    await gotoBotsViewAndWait(page);
+    await expect(page.locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`)).toBeVisible();
   });
 
   test("should open edit modal with current values", async ({ page }) => {
-    await gotoBotsView(page);
-    const editBtn = page.locator(".edit-btn, button:has-text('Edit')").first();
-    if ((await editBtn.count()) > 0) {
-      await editBtn.click();
-      await page.waitForTimeout(300);
-
-      const modal = page.locator(".modal, .bot-form-modal");
-      if ((await modal.count()) > 0) {
-        await expect(modal).toBeVisible();
-      }
-    }
+    await gotoBotsViewAndWait(page);
+    await page.locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`).click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
+    await expect(page.locator('[data-testid="bot-name-input"]')).toHaveValue("Default Bot");
   });
 
   test("should save edited bot", async ({ page }) => {
-    await gotoBotsView(page);
-    const editBtn = page.locator(".edit-btn, button:has-text('Edit')").first();
-    if ((await editBtn.count()) > 0) {
-      await editBtn.click();
-      await page.waitForTimeout(300);
-
-      const nameInput = page.locator("#bot-name, input[name='name']");
-      if ((await nameInput.count()) > 0) {
-        await nameInput.fill("Updated Bot Name");
+    await page.route(/\/api\/bots\/[^/]+$/, async (route) => {
+      if (route.request().method() === "PUT") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ...mockBots[0],
+            name: "Updated Bot Name",
+            updated_at: new Date().toISOString(),
+          }),
+        });
+      } else {
+        await route.continue();
       }
-
-      const saveBtn = page.locator('button:has-text("Save")').last();
-      if ((await saveBtn.count()) > 0) {
-        await saveBtn.click();
-        await page.waitForTimeout(500);
-      }
-    }
+    });
+    await gotoBotsViewAndWait(page);
+    await page.locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`).click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
+    await page.locator('[data-testid="bot-name-input"]').fill("Updated Bot Name");
+    await page.locator('[data-testid="save-bot-config-btn"]').click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
   });
 });
 
 test.describe("Bots View - Delete", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
+    await setupBotsMocks(page);
   });
 
   test("should have delete button for each bot", async ({ page }) => {
-    await gotoBotsView(page);
-    const deleteBtn = page.locator(".delete-btn, button:has-text('Delete')");
-    if ((await deleteBtn.count()) > 0) {
-      await expect(deleteBtn.first()).toBeVisible();
-    }
+    await mockBotsListRoute(page, mockBots);
+    await gotoBotsViewAndWait(page);
+    await expect(page.locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`)).toBeVisible();
   });
 
   test("should confirm before deleting", async ({ page }) => {
-    await gotoBotsView(page);
-    const deleteBtn = page.locator(".delete-btn, button:has-text('Delete')").first();
-    if ((await deleteBtn.count()) > 0) {
-      await deleteBtn.click();
-      await page.waitForTimeout(300);
-
-      const confirmBtn = page.locator('button:has-text("Confirm"), button:has-text("Yes")');
-      if ((await confirmBtn.count()) > 0) {
-        await expect(confirmBtn).toBeVisible();
-      }
-    }
+    await mockBotsListRoute(page, mockBots);
+    await gotoBotsViewAndWait(page);
+    page.on("dialog", async (dialog) => {
+      expect(dialog.type()).toBe("confirm");
+      await dialog.dismiss();
+    });
+    await page.locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`).click();
   });
 
   test("should remove bot after delete", async ({ page }) => {
-    await gotoBotsView(page);
-    const deleteBtn = page.locator(".delete-btn, button:has-text('Delete')").first();
-    if ((await deleteBtn.count()) > 0) {
-      const countBefore = await getBotListItems(page).count();
-      // ... delete logic
-    }
+    let deleted = false;
+    await page.route(/\/api\/bots(\?|$)/, async (route) => {
+      const bots = deleted ? [mockBots[1]] : mockBots;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(bots),
+      });
+    });
+    await page.route(/\/api\/bots\/[^/]+\/trade-count/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ count: 0 }),
+      });
+    });
+    await page.route(/\/api\/bots\/[^/]+$/, async (route) => {
+      if (route.request().method() === "DELETE") {
+        deleted = true;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Bot deleted" }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    page.on("dialog", async (dialog) => {
+      await dialog.accept();
+    });
+
+    await gotoBotsViewAndWait(page);
+    await expect(getBotListItems(page)).toHaveCount(2);
+    await page.locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`).click();
+    await expect(getBotListItems(page)).toHaveCount(1);
   });
 });
 
 test.describe("Bots View - Controls", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
   });
 
   test("should show Start Bot button when bot is not running", async ({ page }) => {
-    await gotoBotsView(page);
-    const startBtn = page.locator('button:has-text("Start"), .start-btn');
-    if ((await startBtn.count()) > 0) {
-      await expect(startBtn.first()).toBeVisible();
-    }
+    await gotoBotsViewAndWait(page);
+    await expect(page.locator(`[data-testid="start-bot-btn-${BOT_ID_1}"]`)).toBeVisible();
   });
 
   test("should show Stop Bot button when bot is running", async ({ page }) => {
-    await gotoBotsView(page);
-    const stopBtn = page.locator('button:has-text("Stop"), .stop-btn').first();
-    if ((await stopBtn.count()) > 0) {
-      await page.route("**/api/bots/*/stop", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ message: "Bot stopped" }),
-        });
+    await page.route(/\/api\/bots\/[^/]+\/stop/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Bot stopped" }),
       });
-      await stopBtn.click();
-      await page.waitForTimeout(500);
-    }
+    });
+    await gotoBotsViewAndWait(page);
+    await expect(page.locator(`[data-testid="stop-bot-btn-${BOT_ID_2}"]`)).toBeVisible();
+    await page.locator(`[data-testid="stop-bot-btn-${BOT_ID_2}"]`).click();
+    await page.waitForLoadState("networkidle");
   });
 });
 
-test.describe("Bots View - Logs", () => {
+test.describe("Bots View - Status", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
   });
 
-  test("should have view logs button", async ({ page }) => {
-    await gotoBotsView(page);
-    const logsBtn = page.locator('button:has-text("Logs"), button:has-text("View Logs")');
-    if ((await logsBtn.count()) > 0) {
-      await expect(logsBtn.first()).toBeVisible();
-    }
+  test("should have view status button for each bot", async ({ page }) => {
+    await gotoBotsViewAndWait(page);
+    await expect(page.locator(`[data-testid="view-bot-status-btn-${BOT_ID_1}"]`)).toBeVisible();
   });
 
-  test("should show bot logs", async ({ page }) => {
-    await gotoBotsView(page);
-    const logsBtn = page.locator('button:has-text("Logs"), button:has-text("View Logs")').first();
-    if ((await logsBtn.count()) > 0) {
-      await page.route("**/api/bots/*/logs", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            logs: [
-              { timestamp: "2026-03-02T10:00:00", level: "INFO", message: "Bot started" },
-              { timestamp: "2026-03-02T10:01:00", level: "INFO", message: "Scanning for signals" },
-            ],
-          }),
-        });
+  test("should show bot status panel", async ({ page }) => {
+    await page.route(/\/api\/bots\/[^/]+\/trades/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          bot_id: BOT_ID_1,
+          trades: [],
+          count: 0,
+        }),
       });
-
-      await logsBtn.click();
-      await page.waitForTimeout(500);
-
-      const logsPanel = page.locator(".logs-panel, .bot-logs");
-      if ((await logsPanel.count()) > 0) {
-        await expect(logsPanel).toBeVisible();
-      }
-    }
+    });
+    await gotoBotsViewAndWait(page);
+    await page.locator(`[data-testid="view-bot-status-btn-${BOT_ID_1}"]`).click();
+    await expect(page.locator('[data-testid="bot-status-panel"]')).toBeVisible();
   });
 });
 
 test.describe("Bots View - Assign Strategies", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
-
-    await page.route("**/api/bots", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            id: 1,
-            name: "Default Bot",
-            is_active: true,
-            running: false,
-            pid: null,
-            strategies: [{ id: 1, name: "ORB Conservative", capital_allocation_pct: 0.5 }],
-          },
-          {
-            id: 2,
-            name: "Multi-Strategy Bot",
-            is_active: true,
-            running: true,
-            pid: 12345,
-            strategies: [
-              { id: 1, name: "ORB Conservative", capital_allocation_pct: 0.3 },
-              { id: 2, name: "ORB Aggressive", capital_allocation_pct: 0.3 },
-              { id: 3, name: "52W Chaser", capital_allocation_pct: 0.4 },
-            ],
-          },
-        ]),
-      });
-    });
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
+    await mockAvailableStrategiesRoute(page, mockAvailableStrategies);
   });
 
   test("should show assigned strategies", async ({ page }) => {
-    await gotoBotsView(page);
-    const strategies = page.locator(".assigned-strategies, .bot-strategies");
-    if ((await strategies.count()) > 0) {
-      await expect(strategies.first()).toBeVisible();
-    }
+    await gotoBotsViewAndWait(page);
+    await expect(page.locator(`[data-testid="bot-row-${BOT_ID_2}"]`)).toContainText("3 strategies");
   });
 
   test("should add strategy to bot", async ({ page }) => {
-    await gotoBotsView(page);
-    const editBtn = page.locator(".edit-btn, button:has-text('Edit')").first();
-    if ((await editBtn.count()) > 0) {
-      await editBtn.click();
-      await page.waitForTimeout(300);
-
-      const addStrategyBtn = page.locator('button:has-text("Add Strategy")');
-      if ((await addStrategyBtn.count()) > 0) {
-        await addStrategyBtn.click();
-        await page.waitForTimeout(300);
-      }
-    }
+    await gotoBotsViewAndWait(page);
+    await page.locator(`[data-testid="edit-bot-btn-${BOT_ID_1}"]`).click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
+    await expect(page.locator('[data-testid="strategy-allocation-row"]')).toHaveCount(1);
+    await page.locator('[data-testid="add-strategy-btn"]').click();
+    await expect(page.locator('[data-testid="strategy-allocation-row"]')).toHaveCount(2);
   });
 
   test("should set capital allocation for strategy", async ({ page }) => {
-    await gotoBotsView(page);
-    const editBtn = page.locator(".edit-btn, button:has-text('Edit')").first();
-    if ((await editBtn.count()) > 0) {
-      await editBtn.click();
-      await page.waitForTimeout(300);
-
-      const allocationInput = page.locator("input[name*='allocation'], input[name*='capital']");
-      if ((await allocationInput.count()) > 0) {
-        await allocationInput.first().fill("0.3");
-      }
-    }
+    await gotoBotsViewAndWait(page);
+    await page.locator(`[data-testid="edit-bot-btn-${BOT_ID_2}"]`).click();
+    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
+    await expect(page.locator('[data-testid="bot-config-strategies"]')).toBeVisible();
+    await expect(page.locator('[data-testid="strategy-allocation-row"]').first()).toBeVisible();
   });
 });

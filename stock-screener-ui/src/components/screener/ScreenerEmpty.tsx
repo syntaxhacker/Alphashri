@@ -1,5 +1,6 @@
-import { Center, Text } from "@mantine/core";
+import { Group, Text } from "@mantine/core";
 import { IconDatabaseOff } from "@tabler/icons-react";
+import { CompactPanel } from "../common/compact";
 
 interface ScreenerEmptyProps {
   message?: string;
@@ -7,23 +8,20 @@ interface ScreenerEmptyProps {
 
 export function ScreenerEmpty({ message = "No results found" }: ScreenerEmptyProps) {
   return (
-    <Center
-      h={200}
-      style={{ flexDirection: "column", gap: 12 }}
+    <CompactPanel
       id="screener-empty"
       className="screener-empty"
-      data-testid="screener-empty"
-    >
-      <IconDatabaseOff
-        size={48}
-        stroke={1.5}
-        opacity={0.5}
-        className="empty-icon"
-        data-testid="empty-icon"
-      />
-      <Text c="dimmed" size="lg" className="empty-message" data-testid="empty-message">
-        {message}
-      </Text>
-    </Center>
+      testId="screener-empty"
+      title={
+        <Group gap="xs" wrap="nowrap">
+          <IconDatabaseOff size={18} stroke={1.7} />
+          <Text fw={600} size="sm">
+            No results found
+          </Text>
+        </Group>
+      }
+      description={message}
+      padded
+    />
   );
 }

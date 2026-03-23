@@ -13,6 +13,7 @@ import pytest
 import pandas as pd
 import sys
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 from backtest.strategies.week52_chaser import run_single_stock_backtest as run_single_stock_week52_chaser
 
@@ -77,24 +78,12 @@ def mock_week52_chaser_data():
 
 def test_week52_chaser_engine_integration(mock_week52_chaser_data, monkeypatch):
     """Integration test: 52W Chaser strategy executes a full trade via BacktestEngine."""
-    import upstox_trader.screeners.tv_screen_usage
+    mock_api = MagicMock()
+    mock_api.fetch_historical_data_v3.return_value = mock_week52_chaser_data
+    mock_api.fetch_intraday_data_v3.return_value = pd.DataFrame()
 
-    class MockUpstoxAPI:
-        def fetch_historical_data_v3(self, **kwargs):
-            return mock_week52_chaser_data
-
-        def fetch_intraday_data_v3(self, **kwargs):
-            return pd.DataFrame()
-
-    class MockTVScreenerUsage:
-        def __init__(self, enable_paper_trading=False):
-            self.upstox_api = MockUpstoxAPI()
-
-    monkeypatch.setattr(
-        upstox_trader.screeners.tv_screen_usage,
-        "TVScreenerUsage",
-        MockTVScreenerUsage,
-    )
+    monkeypatch.setattr('backtest.utils.get_upstox_client_from_db', lambda quiet=True: (mock_api, None))
+    monkeypatch.setattr('backtest.utils.get_upstox_client_with_token', lambda token, quiet=True: (mock_api, None))
 
     params = {
         "entry_threshold_pct": 2.0,

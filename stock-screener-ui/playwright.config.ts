@@ -7,13 +7,14 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: 0,
-  workers: 6,
-  reporter: 'list',
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 4 : 6,
+  reporter: process.env.CI ? [['blob'], ['list']] : 'list',
   timeout: 30000,
   expect: {
     timeout: 5000,
   },
+  globalSetup: './playwright.setup.ts',
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',

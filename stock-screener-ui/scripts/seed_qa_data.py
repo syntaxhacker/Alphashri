@@ -6,7 +6,7 @@ Creates:
 1. QA Test User (qa@test.com / qa123)
 2. Multiple strategy variations
 3. A multi-strategy bot
-4. Sample trades in journal across multiple strategies
+4. Sample trades in journal across multiple strategies (opt-in via --seed-journals)
 
 Run with: python scripts/seed_qa_data.py
 """
@@ -75,6 +75,15 @@ TEMPLATES = [
         'trailing_stop_pct': 0.5,
         'sl_pct': 2.0,
     },
+    {
+        'name': 'EMA Cross Template',
+        'strategy_type': 'EMA_CROSS',
+        'description': 'EMA Crossover strategy template',
+        'ema_fast_period': 9,
+        'ema_slow_period': 21,
+        'sl_pct': 0.5,
+        'tp_pct': 1.5,
+    },
 ]
 
 # Strategy variations (is_template=False)
@@ -136,6 +145,17 @@ STRATEGIES = [
         'sl_pct': 2.0,
         'max_holding_days': 15,
         'cooldown_days': 7,
+    },
+    {
+        'name': 'EMA Cross Default',
+        'strategy_type': 'EMA_CROSS',
+        'template_name': 'EMA Cross Template',
+        'description': 'EMA 9/21 crossover with standard SL/TP',
+        'ema_fast_period': 9,
+        'ema_slow_period': 21,
+        'sl_pct': 0.5,
+        'tp_pct': 1.5,
+        'max_positions': 5,
     },
 ]
 
@@ -250,7 +270,7 @@ def create_strategies(db) -> Dict[str, StrategyConfig]:
     return results
 
 
-def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name: str = "Multi-ORB QA Bot") -> BotConfig:
+def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name: str = "Multi-Strategy QA Bot") -> BotConfig:
     """Create multi-strategy bot with all strategies."""
 
     # Check if bot exists
@@ -268,7 +288,7 @@ def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name
         name=bot_name,
         user_id=user_id,
         is_active=True,
-        max_total_positions=10,
+        max_total_positions=20,
         max_total_capital_pct=0.90,
     )
     db.add(bot)
@@ -277,7 +297,7 @@ def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name
     console.print(f"[green]✓ Created bot '{bot.name}' (ID: {bot.id}) for User {user_id}[/green]")
 
     # Add strategies to bot
-    allocations = [0.40, 0.40, 0.15]  # Conservative, Aggressive, 52W Chaser
+    allocations = [0.25, 0.20, 0.15, 0.15, 0.15, 0.10]  # Conservative, Aggressive, 52W Chaser
     for idx, (strategy_id, strategy) in enumerate(strategies.items()):
         allocation_pct = allocations[idx] if idx < len(allocations) else 0.15
         max_positions = getattr(strategy, 'max_positions', 3)
@@ -442,7 +462,7 @@ def clean_qa_data():
     db = SessionLocal()
     try:
         # 1. Delete bots and their strategy links for both QA and Admin
-        for bot_name in ["Multi-ORB QA Bot", "Alpha Admin Bot"]:
+        for bot_name in ["Multi-Strategy QA Bot", "Multi-ORB QA Bot", "Alpha Admin Bot"]:
             bot = db.query(BotConfig).filter(BotConfig.name == bot_name).first()
             if bot:
                 db.execute(bot_strategies.delete().where(bot_strategies.c.bot_id == bot.id))
@@ -471,7 +491,7 @@ def clean_qa_data():
         db.close()
 
 
-def seed_qa_data():
+def seed_qa_data(seed_journals: bool = False):
     """Seed QA data for multi-strategy testing."""
     db = SessionLocal()
     try:
@@ -497,9 +517,13 @@ def seed_qa_data():
         console.print("\n[bold]Step 4: Creating Multi-Strategy Bot for Admin[/bold]")
         admin_bot = create_bot(db, variations, 2, "Alpha Admin Bot")
 
-        # 5. Generate trades for QA user
-        console.print("\n[bold]Step 5: Generating Trades for QA[/bold]")
-        trades = generate_trades(user.id, bot, variations)
+        # 5. Generate trades for QA user (opt-in)
+        trades = []
+        if seed_journals:
+            console.print("\n[bold]Step 5: Generating Trades for QA[/bold]")
+            trades = generate_trades(user.id, bot, variations)
+        else:
+            console.print("\n[bold]Step 5: Skipping journal seeding (use --seed-journals to enable)[/bold]")
 
         # 6. Print summary
         print_summary(user, bot, variations, trades)
@@ -512,6 +536,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='Seed QA data for multi-strategy system')
     parser.add_argument('--clean', action='store_true', help='Clean existing QA data before seeding')
+    parser.add_argument('--seed-journals', action='store_true', help='Generate sample trades in journal (default: skip)')
     args = parser.parse_args()
 
     if args.clean:
@@ -519,9 +544,9 @@ def main():
         clean_qa_data()
         print("Done.\n")
         print("Now seeding fresh data...")
-        seed_qa_data()
+        seed_qa_data(seed_journals=args.seed_journals)
     else:
-        seed_qa_data()
+        seed_qa_data(seed_journals=args.seed_journals)
 
 
 if __name__ == "__main__":

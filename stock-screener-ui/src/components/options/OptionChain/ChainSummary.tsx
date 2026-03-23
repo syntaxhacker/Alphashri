@@ -1,5 +1,6 @@
-import { Group, Paper, Text, Stack, RingProgress, Flex, Divider } from "@mantine/core";
+import { Group, Text, Stack, RingProgress, Divider } from "@mantine/core";
 import { useMemo } from "react";
+import { CompactPanel, CompactStat, CompactStatGrid } from "../../common/compact";
 
 interface ChainSummaryProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -8,79 +9,84 @@ interface ChainSummaryProps {
   summary?: any;
 }
 
+export interface StrikeRow {
+  strike: number;
+  ce: any;
+  pe: any;
+}
+
+export interface Summary {
+  pcr: number;
+  max_pain: number;
+  expected_move: { lower: number; upper: number; range: number } | null;
+  total_ce_oi: number;
+  total_pe_oi: number;
+}
+
+export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undefined) {
+  if (summary) {
+    return {
+      pcr: summary.pcr,
+      maxPain: summary.max_pain,
+      expectedMove: summary.expected_move,
+      totalCE_OI: summary.total_ce_oi,
+      totalPE_OI: summary.total_pe_oi,
+      resistanceStrike:
+        Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0)) > 0
+          ? strikeMatrix.reduce((prev, curr) =>
+              (curr.ce?.market_data?.oi ?? 0) > (prev.ce?.market_data?.oi ?? 0) ? curr : prev,
+            ).strike
+          : 0,
+      supportStrike:
+        Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.oi ?? 0)) > 0
+          ? strikeMatrix.reduce((prev, curr) =>
+              (curr.pe?.market_data?.oi ?? 0) > (prev.pe?.market_data?.oi ?? 0) ? curr : prev,
+            ).strike
+          : 0,
+    };
+  }
+
+  return {
+    pcr: 0,
+    maxPain: 0,
+    expectedMove: null,
+    totalCE_OI: 0,
+    totalPE_OI: 0,
+    resistanceStrike: 0,
+    supportStrike: 0,
+  };
+}
+
+export function computePcrColor(pcr: number): string {
+  return pcr > 1.2 ? "green" : pcr < 0.7 ? "red" : "blue";
+}
+
 export function ChainSummary({
   strikeMatrix,
   spotPrice,
   selectedExpiry,
   summary,
 }: ChainSummaryProps) {
-  const stats = useMemo(() => {
-    // If backend summary is available, use it!
-    if (summary) {
-      return {
-        pcr: summary.pcr,
-        maxPain: summary.max_pain,
-        expectedMove: summary.expected_move,
-        totalCE_OI: summary.total_ce_oi,
-        totalPE_OI: summary.total_pe_oi,
-        resistanceStrike:
-          Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0)) > 0
-            ? strikeMatrix.reduce((prev, curr) =>
-                (curr.ce?.market_data?.oi ?? 0) > (prev.ce?.market_data?.oi ?? 0) ? curr : prev,
-              ).strike
-            : 0,
-        supportStrike:
-          Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.oi ?? 0)) > 0
-            ? strikeMatrix.reduce((prev, curr) =>
-                (curr.pe?.market_data?.oi ?? 0) > (prev.pe?.market_data?.oi ?? 0) ? curr : prev,
-              ).strike
-            : 0,
-      };
-    }
+  const stats = useMemo(() => computeStats(strikeMatrix, summary), [strikeMatrix, summary]);
 
-    // Fallback: Minimal logic if backend fails (though it shouldn't now)
-    return {
-      pcr: 0,
-      maxPain: 0,
-      expectedMove: null,
-      totalCE_OI: 0,
-      totalPE_OI: 0,
-      resistanceStrike: 0,
-      supportStrike: 0,
-    };
-  }, [strikeMatrix, summary]);
-
-  const pcrColor = stats.pcr > 1.2 ? "green" : stats.pcr < 0.7 ? "red" : "blue";
-
-  const paperStyle = {
-    background: "light-dark(var(--mantine-color-white), var(--mantine-color-dark-7))",
-    border: "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
-  };
+  const pcrColor = computePcrColor(stats.pcr);
 
   return (
-    <Group id="chain-summary" className="chain-summary" grow gap="md" data-testid="chain-summary">
-      <Paper
-        p="sm"
-        radius="md"
-        style={paperStyle}
+    <CompactStatGrid data-testid="chain-summary">
+      <CompactPanel
         className="chain-summary-card chain-summary-pcr"
         data-testid="options-chain-summary-pcr"
       >
-        <Group justify="space-between" wrap="nowrap">
-          <Stack gap={0}>
-            <Text size="sm" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
-              PCR (Sentiment)
-            </Text>
-            <Text size="xl" fw={800} c={pcrColor}>
-              {stats.pcr.toFixed(2)}
-            </Text>
-            <Text size="sm" c={pcrColor} fw={500}>
-              {stats.pcr > 1 ? "Bullish Bias" : "Bearish Bias"}
+        <Group justify="space-between" wrap="nowrap" align="flex-start">
+          <Stack gap={2}>
+            <CompactStat label="PCR" value={stats.pcr.toFixed(2)} tone={pcrColor} />
+            <Text size="sm" c={pcrColor} fw={600}>
+              {stats.pcr > 1 ? "Bullish bias" : "Bearish bias"}
             </Text>
           </Stack>
           <RingProgress
-            size={70}
-            thickness={7}
+            size={60}
+            thickness={6}
             roundCaps
             sections={[
               {
@@ -94,68 +100,54 @@ export function ChainSummary({
             ]}
           />
         </Group>
-      </Paper>
+      </CompactPanel>
 
-      <Paper
-        p="sm"
-        radius="md"
-        style={paperStyle}
+      <CompactPanel
         className="chain-summary-card chain-summary-range"
         data-testid="options-chain-summary-range"
       >
-        <Stack gap={0}>
-          <Text size="sm" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
-            Market Range (Expected)
-          </Text>
-          {stats.expectedMove ? (
-            <Stack gap={0}>
-              <Text size="md" fw={800} c="blue.6">
-                {stats.expectedMove.lower} - {stats.expectedMove.upper}
-              </Text>
-              <Text size="sm" c="dimmed">
-                +/- {stats.expectedMove.range} points expected
-              </Text>
-            </Stack>
-          ) : (
-            <Text size="md" fw={800} c="dimmed">
-              Data Pending...
-            </Text>
-          )}
-          <Divider my={4} />
+        <Stack gap={4}>
+          <CompactStat
+            label="Market Range"
+            value={
+              stats.expectedMove
+                ? `${stats.expectedMove.lower} - ${stats.expectedMove.upper}`
+                : "Data pending"
+            }
+            tone={stats.expectedMove ? "blue.6" : "dimmed"}
+            hint={
+              stats.expectedMove ? `+/- ${stats.expectedMove.range} points expected` : undefined
+            }
+          />
+          <Divider my={2} />
           <Group
             gap="xs"
             className="chain-support-resistance"
             data-testid="options-chain-support-resistance"
           >
             <Text size="sm" fw={700} c="red.6">
-              RES: {stats.resistanceStrike}
+              RES {stats.resistanceStrike}
             </Text>
             <Text size="sm" fw={700} c="green.6">
-              SUP: {stats.supportStrike}
+              SUP {stats.supportStrike}
             </Text>
           </Group>
         </Stack>
-      </Paper>
+      </CompactPanel>
 
-      <Paper
-        p="sm"
-        radius="md"
-        style={paperStyle}
+      <CompactPanel
         className="chain-summary-card chain-summary-max-pain"
         data-testid="options-chain-summary-max-pain"
       >
-        <Stack gap={0}>
-          <Text size="sm" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
-            Max Pain
-          </Text>
-          <Text size="xl" fw={800} c="orange.6">
-            {stats.maxPain}
-          </Text>
-          <Text size="sm" c="dimmed">
-            Institutional target
-          </Text>
+        <Stack gap={2}>
+          <CompactStat
+            label="Max Pain"
+            value={stats.maxPain}
+            tone="orange.6"
+            hint="Institutional target"
+          />
         </Stack>
-      </Paper>
-    </Group>
+      </CompactPanel>
+    </CompactStatGrid>
   );
 }

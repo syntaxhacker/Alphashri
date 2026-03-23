@@ -118,6 +118,10 @@ class StrategyConfig(Base):
     cooldown_days = Column(Integer, default=30)  # Cooldown days after exit
     enable_filters = Column(Boolean, default=False)  # Enable trend/momentum filters
 
+    # EMA Crossover Parameters
+    ema_fast_period = Column(Integer, default=9)  # Fast EMA period
+    ema_slow_period = Column(Integer, default=21)  # Slow EMA period
+
     # S/R Breakout Parameters
     pivot_type = Column(String, default='classic')  # Pivot type: classic, fibonacci, camarilla
     breakout_buffer_pct = Column(Float, default=0.1)  # Breakout buffer percentage
@@ -180,6 +184,9 @@ class StrategyConfig(Base):
             "max_holding_days": self.max_holding_days,
             "cooldown_days": self.cooldown_days,
             "enable_filters": self.enable_filters,
+            # EMA Crossover Parameters
+            "ema_fast_period": self.ema_fast_period,
+            "ema_slow_period": self.ema_slow_period,
             # S/R Breakout Parameters
             "pivot_type": self.pivot_type,
             "breakout_buffer_pct": self.breakout_buffer_pct,

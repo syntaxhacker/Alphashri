@@ -17,6 +17,7 @@ import type {
 } from "../types/paperTrading";
 
 import { deleteTrade } from "../api/paperTrading";
+import { createSubscriber } from "./createSubscriber";
 
 // Initial state
 export const initialPaperTradingState: PaperTradingState = {
@@ -68,22 +69,11 @@ export type PaperViewState = "live" | "history";
 // Current state (mutable)
 let state: PaperTradingState = { ...initialPaperTradingState };
 
-// Subscribers for state changes
-const subscribers: Set<() => void> = new Set();
+const { subscribe: _subscribe, notify } = createSubscriber();
+export const subscribe = _subscribe;
 
 // Auto-refresh timer
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
-
-// Notify all subscribers
-function notify() {
-  subscribers.forEach((callback) => callback());
-}
-
-// Subscribe to state changes
-export function subscribe(callback: () => void) {
-  subscribers.add(callback);
-  return () => subscribers.delete(callback);
-}
 
 // Get current state
 export function getPaperTradingState(): Readonly<PaperTradingState> {

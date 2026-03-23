@@ -18,6 +18,30 @@ import {
   getBotsState,
 } from "../../state/bots";
 
+export function calculateTotalAllocation(strategies: StrategyAllocation[]): number {
+  return strategies.reduce((sum, s) => sum + s.capital_allocation_pct * 100, 0);
+}
+
+export function isAllocationOverLimit(total: number): boolean {
+  return total > 100;
+}
+
+export function formatAllocationPct(decimal: number): number {
+  return decimal * 100;
+}
+
+export function parseAllocationInput(percentage: number): number {
+  return percentage / 100;
+}
+
+export function formatMaxCapitalPct(decimal: number): number {
+  return decimal * 100;
+}
+
+export function parseMaxCapitalInput(percentage: number): number {
+  return percentage / 100;
+}
+
 export function renderBotConfigForm(
   bot: BotConfig | null,
   availableStrategies: AvailableStrategy[],
@@ -151,7 +175,7 @@ function renderStrategyAllocationRow(
   index: number,
   availableStrategies: AvailableStrategy[],
 ): string {
-  const selectedId = strategy?.strategy_id || "";
+  const selectedId = strategy?.id || "";
   const maxPositions = strategy?.max_positions || 3;
   const allocationPct = strategy ? strategy.capital_allocation_pct * 100 : 20;
 

@@ -11,14 +11,12 @@ test.describe("Authentication - Login", () => {
     await setupApiMocks(page);
   });
 
-  test("should show login form when not authenticated", async ({ page }) => {
+  test("@smoke should show login form when not authenticated", async ({ page }) => {
     // Don't set auth tokens - should show login form
     await page.goto("/");
 
     // Wait for auth check to complete
-    await page.waitForTimeout(1000);
-
-    // Should show login form using data-testid
+    await expect(page.locator('[data-testid="login-form"]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-testid="login-form"]')).toBeVisible();
     await expect(page.locator('[data-testid="login-email-input"]')).toBeVisible();
     await expect(page.locator('[data-testid="login-password-input"]')).toBeVisible();
@@ -27,15 +25,13 @@ test.describe("Authentication - Login", () => {
 
   test("should show register link on login form", async ({ page }) => {
     await page.goto("/");
-    await page.waitForTimeout(1000);
 
-    // Should have link to switch to register
+    await expect(page.locator('[data-testid="register-link"]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-testid="register-link"]')).toBeVisible();
   });
 
-  test("should login successfully with valid credentials", async ({ page }) => {
+  test("@smoke should login successfully with valid credentials", async ({ page }) => {
     await page.goto("/");
-    await page.waitForTimeout(1000);
 
     // Fill login form using data-testid
     await page.locator('[data-testid="login-email-input"]').fill("test@alphashri.dev");
@@ -73,7 +69,6 @@ test.describe("Authentication - Login", () => {
 
   test("should show error message with invalid credentials", async ({ page }) => {
     await page.goto("/");
-    await page.waitForTimeout(1000);
 
     // Fill login form with invalid credentials
     await page.locator('[data-testid="login-email-input"]').fill("wrong@example.com");
@@ -97,7 +92,6 @@ test.describe("Authentication - Login", () => {
 
   test("should validate email format", async ({ page }) => {
     await page.goto("/");
-    await page.waitForTimeout(1000);
 
     // Enter invalid email
     await page.locator('[data-testid="login-email-input"]').fill("invalid-email");
@@ -113,7 +107,6 @@ test.describe("Authentication - Login", () => {
 
   test("should require password field", async ({ page }) => {
     await page.goto("/");
-    await page.waitForTimeout(1000);
 
     // Enter only email
     await page.locator('[data-testid="login-email-input"]').fill("test@example.com");
@@ -135,7 +128,6 @@ test.describe("Authentication - Register", () => {
 
   test("should switch to register form", async ({ page }) => {
     await page.goto("/");
-    await page.waitForTimeout(1000);
 
     // Click register link using data-testid
     await page.locator('[data-testid="register-link"]').click();
@@ -147,11 +139,10 @@ test.describe("Authentication - Register", () => {
 
   test("should register new user successfully", async ({ page }) => {
     await page.goto("/");
-    await page.waitForTimeout(1000);
 
     // Switch to register form
     await page.locator('[data-testid="register-link"]').click();
-    await page.waitForTimeout(300);
+    await expect(page.locator('[data-testid="register-form"]')).toBeVisible({ timeout: 5000 });
 
     // Fill register form using data-testid
     await page.locator('[data-testid="register-email-input"]').fill("newuser@example.com");
@@ -233,7 +224,7 @@ test.describe("Authentication - Logout", () => {
     );
   });
 
-  test("should logout when clicking sign out", async ({ page }) => {
+  test("@smoke should logout when clicking sign out", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
@@ -264,9 +255,7 @@ test.describe("Authentication - Logout", () => {
 
     await openUserMenu(page);
     await page.locator('[data-testid="logout-button"]').click();
-    await page.waitForTimeout(1000);
-
-    // Check tokens are cleared
+    await expect(page.locator('[data-testid="login-form"]')).toBeVisible({ timeout: 5000 });
     const token = await page.evaluate(() => localStorage.getItem("alphashri_token"));
     expect(token).toBeNull();
   });
@@ -335,9 +324,9 @@ test.describe("Authentication - Session", () => {
     });
 
     await page.goto("/");
-    await page.waitForTimeout(2000);
 
     // Should show login form using data-testid
+    await expect(page.locator('[data-testid="login-form"]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-testid="login-form"]')).toBeVisible();
   });
 });

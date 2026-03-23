@@ -15,9 +15,7 @@ test.describe("UI Controls", () => {
     const refreshBtn = page.locator("#refreshBtn");
     if ((await refreshBtn.count()) > 0) {
       await refreshBtn.click();
-      await page.waitForTimeout(500);
-
-      // Verify table still shows data
+      await expect(page.locator("table tbody tr")).toBeVisible({ timeout: 5000 });
       const rows = page.locator("table tbody tr");
       expect(await rows.count()).toBeGreaterThan(0);
     }
@@ -34,9 +32,7 @@ test.describe("UI Controls", () => {
     const copyBtn = page.getByRole("button", { name: "Copy" });
     if ((await copyBtn.count()) > 0) {
       await copyBtn.first().click();
-      await page.waitForTimeout(300);
-
-      // Read clipboard (may not work in all browsers)
+      await page.waitForLoadState("networkidle");
       try {
         const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
         // Verify clipboard contains stock symbols
@@ -58,8 +54,7 @@ test.describe("UI Controls", () => {
 
     await autoRefreshInput.fill("30");
     await autoRefreshInput.blur();
-
-    await page.locator('[data-testid="auto-refresh-input"]').dispatch("change");
+    await autoRefreshInput.dispatchEvent("change");
 
     expect(await autoRefreshInput.inputValue()).toBe("30");
   });
@@ -70,8 +65,6 @@ test.describe("UI Controls", () => {
     });
 
     await page.goto("/");
-
-    await page.waitForTimeout(3000);
 
     const errorElement = page.getByTestId("screener-error");
     try {

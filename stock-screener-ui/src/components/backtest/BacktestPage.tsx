@@ -281,7 +281,7 @@ export function BacktestPage() {
           value="history"
           className="backtest-history-panel"
           flex={1}
-          style={{ minHeight: 0, overflow: "auto", paddingTop: "var(--mantine-spacing-md)" }}
+          style={{ minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
         >
           <BacktestHistory
             active={activeTab === "history"}
@@ -300,7 +300,7 @@ export function BacktestPage() {
     const hasTradeHistory = Boolean(state.tradeHistory && state.tradeHistorySymbol);
 
     return (
-      <Flex direction="column" gap="md" h="100%" style={{ minHeight: 0 }}>
+      <Flex direction="column" gap="sm" h="100%" style={{ minHeight: 0 }}>
         <Box
           style={{
             minHeight: 0,
@@ -331,8 +331,8 @@ export function BacktestPage() {
             }}
           >
             <TradeHistoryTable
-              symbol={state.tradeHistorySymbol}
-              trades={state.tradeHistory}
+              symbol={state.tradeHistorySymbol!}
+              trades={state.tradeHistory!}
               sortColumn={tradeSortColumn}
               sortDirection={tradeSortDirection}
               onSort={handleTradeSort}

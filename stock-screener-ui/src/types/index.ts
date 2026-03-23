@@ -1,7 +1,3 @@
-/**
- * Type definitions for Alphashri
- */
-
 export interface Stock {
   symbol: string;
   score: number;
@@ -32,11 +28,13 @@ export interface Stock {
   rationale?: string;
   is_bullish?: boolean;
   sentiment?: "bullish" | "lean_bull" | "neutral" | "lean_bear" | "bearish";
+  [key: string]: any;
 }
 
 export interface SummaryItem {
   label: string;
-  value: string;
+  value: string | number;
+  color?: string;
 }
 
 export interface ProfileFilter {
@@ -68,17 +66,10 @@ export interface ScreenerData {
   demo_mode?: boolean;
 }
 
-export interface Filters {
-  minScore: number;
-  maxPrice: number;
-  minReturn: number;
-  sector: string;
-}
-
 export interface ScreenerOption {
   id: string;
   label: string;
-  description: string;
+  description?: string;
 }
 
 export interface ChangeNotification {

@@ -21,6 +21,7 @@ export function renderVariationsPanel(
         <button
           class="btn btn-primary btn-small"
           onclick="window.createVariation(${template.id}, '${template.name}', '${template.strategy_type}')"
+          data-testid="add-variation-btn"
         >
           + Add Variation
         </button>

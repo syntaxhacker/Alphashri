@@ -10,8 +10,6 @@ import {
   Badge,
   ActionIcon,
   Table,
-  Card,
-  Modal,
   Loader,
 } from "@mantine/core";
 import {
@@ -27,7 +25,6 @@ import {
 import {
   getBotsState,
   subscribe,
-  loadBots,
   loadBotStatus,
   loadBotTrades,
   selectBot,
@@ -47,6 +44,7 @@ import {
 import type { BotConfig, BotsView } from "../../types/bots";
 import { BotConfigModal } from "./BotConfigModal";
 import { BotStatusPanel } from "./BotStatusPanel";
+import { CompactPage, CompactPanel } from "../common/compact";
 
 export function BotsPage() {
   const [state, setState] = useState(getBotsState());
@@ -105,14 +103,7 @@ export function BotsPage() {
   const renderBotsList = () => {
     if (state.bots.length === 0) {
       return (
-        <Card
-          shadow="sm"
-          padding="lg"
-          radius="md"
-          withBorder
-          id="bots-empty-state"
-          data-testid="bots-empty-state"
-        >
+        <CompactPanel id="bots-empty-state" data-testid="bots-empty-state">
           <Stack align="center" gap="xs">
             <Text size="xl">🤖</Text>
             <Text fw={600}>No bots configured</Text>
@@ -120,19 +111,12 @@ export function BotsPage() {
               Click "New Bot" to create one
             </Text>
           </Stack>
-        </Card>
+        </CompactPanel>
       );
     }
 
     return (
-      <Card
-        shadow="sm"
-        padding="md"
-        radius="md"
-        withBorder
-        id="bots-list-card"
-        data-testid="bots-list-card"
-      >
+      <CompactPanel id="bots-list-card" data-testid="bots-list-card">
         <Table striped highlightOnHover id="bots-table" data-testid="bots-table">
           <Table.Thead>
             <Table.Tr>
@@ -180,7 +164,18 @@ export function BotsPage() {
                     {bot.running ? `Running (PID ${bot.pid})` : "Stopped"}
                   </Badge>
                 </Table.Td>
-                <Table.Td>{bot.strategies.length} strategies</Table.Td>
+                <Table.Td>
+                  <Stack gap={4}>
+                    <Text size="sm">{bot.strategies.length} strategies</Text>
+                    <Group gap="xs" wrap="wrap">
+                      {bot.strategies.map((s) => (
+                        <Badge key={s.id} size="sm" variant="light">
+                          {s.strategy_type} - {s.name}
+                        </Badge>
+                      ))}
+                    </Group>
+                  </Stack>
+                </Table.Td>
                 <Table.Td>{bot.max_total_positions}</Table.Td>
                 <Table.Td>{(bot.max_total_capital_pct * 100).toFixed(0)}%</Table.Td>
                 <Table.Td>
@@ -243,36 +238,52 @@ export function BotsPage() {
             ))}
           </Table.Tbody>
         </Table>
-      </Card>
+      </CompactPanel>
     );
   };
 
   const isLoading = Object.values(state.loading).some((v) => v);
 
   return (
-    <Box
-      h="100%"
-      id="bots-page"
-      className="bots-page"
-      style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
-      data-testid="bots-view"
-    >
-      {state.error && (
-        <Alert
-          title="Error"
-          color="red"
-          variant="filled"
-          mb="md"
-          withCloseButton
-          onClose={handleClearError}
-          data-testid="bots-error"
+    <CompactPage
+      title="Bots"
+      description="Manage bot configurations, live status, and execution controls."
+      actions={
+        <Button
+          leftSection={<IconPlus size={16} />}
+          onClick={openCreateModal}
+          data-testid="create-bot-btn"
         >
-          {state.error}
-        </Alert>
-      )}
+          New Bot
+        </Button>
+      }
+    >
+      <Box
+        id="bots-page"
+        className="bots-page"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          overflow: "hidden",
+        }}
+        data-testid="bots-view"
+      >
+        {state.error && (
+          <Alert
+            title="Error"
+            color="red"
+            variant="filled"
+            mb="md"
+            withCloseButton
+            onClose={handleClearError}
+            data-testid="bots-error"
+          >
+            {state.error}
+          </Alert>
+        )}
 
-      <Box flex="0 0 auto" mb="md" className="bots-header">
-        <Group justify="space-between" align="center">
+        <Box flex="0 0 auto" mb="md" className="bots-header">
           <Tabs
             value={currentView}
             onChange={handleViewChange}
@@ -297,34 +308,26 @@ export function BotsPage() {
               </Tabs.Tab>
             </Tabs.List>
           </Tabs>
+        </Box>
 
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={openCreateModal}
-            data-testid="create-bot-btn"
-          >
-            New Bot
-          </Button>
-        </Group>
-      </Box>
-
-      <Box flex={1} style={{ minHeight: 0, overflowY: "auto" }}>
-        {isLoading ? (
-          <Stack align="center" justify="center" h="100%">
-            <Loader size="lg" />
-            <Text c="dimmed">Loading...</Text>
-          </Stack>
-        ) : currentView === "status" && state.selectedBot ? (
-          <BotStatusPanel
-            bot={state.selectedBot}
-            status={state.botStatus}
-            trades={state.botTrades}
-            onStart={handleStartBot}
-            onStop={handleStopBot}
-          />
-        ) : (
-          renderBotsList()
-        )}
+        <Box flex={1} style={{ minHeight: 0, overflowY: "auto" }}>
+          {isLoading ? (
+            <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
+              <Loader size="lg" />
+              <Text c="dimmed">Loading...</Text>
+            </Stack>
+          ) : currentView === "status" && state.selectedBot ? (
+            <BotStatusPanel
+              bot={state.selectedBot}
+              status={state.botStatus}
+              trades={state.botTrades}
+              onStart={handleStartBot}
+              onStop={handleStopBot}
+            />
+          ) : (
+            renderBotsList()
+          )}
+        </Box>
       </Box>
 
       <BotConfigModal
@@ -339,6 +342,6 @@ export function BotsPage() {
           }
         }}
       />
-    </Box>
+    </CompactPage>
   );
 }

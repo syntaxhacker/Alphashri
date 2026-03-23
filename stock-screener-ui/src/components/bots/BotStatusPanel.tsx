@@ -377,11 +377,11 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
       id="bot-status-panel"
       className="bot-status-panel"
     >
-      <Stack gap="md">
+      <Stack gap="sm">
         {/* Bot Header */}
         <Card
           shadow="sm"
-          padding="md"
+          padding="sm"
           radius="md"
           withBorder
           id="bot-header-card"
@@ -441,7 +441,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
         ) : (
           <Card
             shadow="sm"
-            padding="md"
+            padding="sm"
             radius="md"
             withBorder
             id="portfolio-placeholder"

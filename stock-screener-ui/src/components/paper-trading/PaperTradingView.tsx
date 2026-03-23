@@ -83,6 +83,11 @@ export function PaperTradingView() {
       const bots = await listBots();
       setAvailableBots(bots);
 
+      // Auto-select first bot if none selected and bots are available
+      if (!activeBotId && bots.length > 0) {
+        activeBotId = bots[0].id;
+      }
+
       if (activeBotId) {
         await refreshBotLiveData(activeBotId);
       } else {
@@ -272,22 +277,19 @@ export function PaperTradingView() {
   const renderFilters = () => {
     if (state.currentView === "live") {
       return (
-        <Group gap="md">
+        <Group gap="sm">
           <Group gap="xs">
             <Text size="sm" c="dimmed">
               Bot:
             </Text>
             <SegmentedControl
               size="sm"
-              value={activeBotId || "default"}
+              value={activeBotId || ""}
               onChange={handleBotSelect}
-              data={[
-                { value: "default", label: "Default" },
-                ...state.availableBots.map((bot: BotInfo) => ({
-                  value: bot.id,
-                  label: bot.name,
-                })),
-              ]}
+              data={state.availableBots.map((bot: BotInfo) => ({
+                value: bot.id,
+                label: bot.name,
+              }))}
               data-testid="bot-selector-dropdown"
             />
           </Group>
@@ -332,7 +334,7 @@ export function PaperTradingView() {
     if (state.currentView === "history") {
       const symbols = [...new Set(state.trades.map((t: PaperTrade) => t.symbol))].sort();
       return (
-        <Group gap="md">
+        <Group gap="sm">
           <Group gap="xs">
             <Text size="sm" c="dimmed">
               From:
@@ -381,10 +383,15 @@ export function PaperTradingView() {
 
   return (
     <Box
-      h="100%"
       className="paper-trading-view"
       id="paper-trading-main"
-      style={{ display: "flex", flexDirection: "column", padding: "var(--mantine-spacing-md)" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        padding: "var(--mantine-spacing-md)",
+        height: "100%",
+        overflow: "hidden",
+      }}
       data-testid="paper-trading-view"
     >
       {state.error && (

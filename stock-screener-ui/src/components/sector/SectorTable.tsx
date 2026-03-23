@@ -5,10 +5,21 @@ interface SectorTableProps {
   sectors: SectorItem[];
 }
 
-function getMovementBar(pctChange: number) {
+export function getMovementBarValue(pctChange: number): { capped: number; color: string } {
   const normalized = (pctChange + 3) / 6;
   const capped = Math.max(0, Math.min(1, normalized)) * 100;
   const color = pctChange >= 0 ? "green" : "red";
+  return { capped, color };
+}
+
+export function getStrengthInfo(avgAdx: number): { label: string; color: string } {
+  if (avgAdx > 25) return { label: "Strong", color: "green" };
+  if (avgAdx < 15) return { label: "Weak", color: "red" };
+  return { label: "Neutral", color: "gray" };
+}
+
+function getMovementBar(pctChange: number) {
+  const { capped, color } = getMovementBarValue(pctChange);
 
   return (
     <Box w={100}>
@@ -21,15 +32,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
     const pnlColor = row.avg_change >= 0 ? "green" : "red";
     const adColor = row.advances > row.declines ? "green" : "red";
 
-    let strength = "Neutral";
-    let strColor = "gray";
-    if (row.avg_adx > 25) {
-      strength = "Strong";
-      strColor = "green";
-    } else if (row.avg_adx < 15) {
-      strength = "Weak";
-      strColor = "red";
-    }
+    const { label: strength, color: strColor } = getStrengthInfo(row.avg_adx);
 
     return (
       <Table.Tr

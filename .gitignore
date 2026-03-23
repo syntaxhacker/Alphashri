@@ -45,6 +45,7 @@ ENV/
 .env.*.local
 
 cache/
+!stock-screener-ui/cache/
 
 
 visualizations/html/

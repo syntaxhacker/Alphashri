@@ -164,7 +164,7 @@ class NewsPersistenceService:
         source: Optional[str] = None,
         limit: int = 50
     ) -> List[Dict]:
-        """Get recent articles within specified hours."""
+        """Get recent articles within specified hours, sorted by publish date."""
         db = SessionLocal()
         try:
             since = datetime.utcnow() - timedelta(hours=hours)
@@ -173,10 +173,16 @@ class NewsPersistenceService:
             if source:
                 query = query.filter(NewsArticle.source == source)
             
-            articles = query.order_by(
-                NewsArticle.fetched_at.desc()
-            ).limit(limit).all()
+            # Sort by published_at (newest first), fallback to fetched_at
+            from sqlalchemy import case
+            query = query.order_by(
+                case(
+                    (NewsArticle.published_at.is_(None), NewsArticle.fetched_at),
+                    else_=NewsArticle.published_at
+                ).desc()
+            ).limit(limit)
             
+            articles = query.all()
             return [a.to_dict() for a in articles]
         finally:
             db.close()

@@ -4,18 +4,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-UI_HOST="${UI_HOST:-127.0.0.1}"
+UI_HOST="${UI_HOST:-0.0.0.0}"
 UI_PORT="${UI_PORT:-5173}"
 LOG_FILE="${LOG_FILE:-/tmp/alphashri-dev-prod.log}"
 
-ENV_FILE=".env.development.local"
-
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Error: $ENV_FILE not found. Create it with prod URLs:"
-  echo "  VITE_API_BASE_URL=https://earner-production.up.railway.app"
-  echo "  VITE_WS_BASE_URL=wss://earner-production.up.railway.app"
+if [[ ! -f ".env.production" ]]; then
+  echo "Error: .env.production not found."
   exit 1
 fi
+
+API_URL=$(grep "^VITE_API_BASE_URL=" .env.production | cut -d= -f2)
+echo "Using production backend: $API_URL"
 
 kill_port() {
   local port=$1
@@ -42,13 +41,26 @@ kill_port "$UI_PORT"
 
 : > "$LOG_FILE"
 echo "Logging to: $LOG_FILE"
+echo "API: $API_URL"
 
-echo "Starting UI (prod backend) on http://${UI_HOST}:${UI_PORT}"
-echo "API: $(grep VITE_API_BASE_URL $ENV_FILE | cut -d= -f2)"
-bun run dev --host "${UI_HOST}" --port "${UI_PORT}" >> "$LOG_FILE" 2>&1 &
+npx vite --mode production --host "${UI_HOST}" --port "${UI_PORT}" >> "$LOG_FILE" 2>&1 &
 UI_PID=$!
 
+sleep 3
+
+if ! kill -0 "$UI_PID" 2>/dev/null; then
+  echo "Failed to start vite. Check logs: $LOG_FILE"
+  cat "$LOG_FILE"
+  exit 1
+fi
+
 echo "UI PID: ${UI_PID}"
+echo ""
+echo "  ➜  Local:    http://localhost:${UI_PORT}/"
+grep -oP 'Network: \Khttp://[^\s]+' "$LOG_FILE" | while read -r url; do
+  echo "  ➜  Network: ${url}"
+done
+echo ""
 echo "Press Ctrl+C to stop."
 echo "Tail logs: tail -f $LOG_FILE"
 

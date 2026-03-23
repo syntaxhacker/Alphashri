@@ -1,4 +1,4 @@
-import { Table, Group, Text, ActionIcon, CopyButton, Tooltip, ScrollArea } from "@mantine/core";
+import { Table, Group, Text, ActionIcon, CopyButton, Tooltip } from "@mantine/core";
 import { IconArrowUp, IconArrowDown, IconCopy, IconCheck } from "@tabler/icons-react";
 import { StockRow } from "./StockRow";
 import type { ColumnDef } from "./columns";
@@ -78,39 +78,34 @@ export function ScreenerTable({
   };
 
   return (
-    <ScrollArea
-      h="100%"
-      offsetScrollbars
-      type="always"
-      className="screener-table-scroll"
-      data-testid="screener-table-scroll"
+    <Table
+      striped
+      highlightOnHover
+      withTableBorder
+      stickyHeader
+      verticalSpacing="xs"
+      horizontalSpacing="sm"
+      id="screener-table"
+      className="screener-table"
+      data-testid="screener-table"
+      style={{ width: "100%", minWidth: 0 }}
     >
-      <Table
-        striped
-        highlightOnHover
-        withTableBorder
-        stickyHeader
-        id="screener-table"
-        className="screener-table"
-        data-testid="screener-table"
-      >
-        <Table.Thead className="screener-table-header" data-testid="screener-table-header">
-          <Table.Tr>{columns.map(renderHeader)}</Table.Tr>
-        </Table.Thead>
-        <Table.Tbody className="screener-table-body" data-testid="screener-table-body">
-          {stocks.map((stock) => (
-            <StockRow
-              key={stock.symbol}
-              stock={stock}
-              columns={columns}
-              isTouched={touchedSymbols.has(stock.symbol)}
-              onSymbolClick={onSymbolClick}
-              onSymbolHover={onSymbolHover}
-              screenerType={screenerType}
-            />
-          ))}
-        </Table.Tbody>
-      </Table>
-    </ScrollArea>
+      <Table.Thead className="screener-table-header" data-testid="screener-table-header">
+        <Table.Tr>{columns.map(renderHeader)}</Table.Tr>
+      </Table.Thead>
+      <Table.Tbody className="screener-table-body" data-testid="screener-table-body">
+        {stocks.map((stock) => (
+          <StockRow
+            key={stock.symbol}
+            stock={stock}
+            columns={columns}
+            isTouched={touchedSymbols.has(stock.symbol)}
+            onSymbolClick={onSymbolClick}
+            onSymbolHover={onSymbolHover}
+            screenerType={screenerType}
+          />
+        ))}
+      </Table.Tbody>
+    </Table>
   );
 }

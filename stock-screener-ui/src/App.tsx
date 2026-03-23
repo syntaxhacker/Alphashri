@@ -120,7 +120,7 @@ function AppContent() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/admin" element={<AdminPage />} />
-        <Route path="/chart/:symbol" element={<ChartView />} />
+        <Route path="/chart/:symbol?" element={<ChartView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <NotificationContainer />

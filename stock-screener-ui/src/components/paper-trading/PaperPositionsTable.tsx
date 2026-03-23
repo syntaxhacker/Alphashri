@@ -9,12 +9,12 @@ import {
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 
-function formatCurrency(value: number | undefined | null): string {
+export function formatCurrency(value: number | undefined | null): string {
   if (value === undefined || value === null || isNaN(value)) return "0";
   return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
-function formatNum(value: number | undefined | null): string {
+export function formatNum(value: number | undefined | null): string {
   if (value === undefined || value === null || isNaN(value)) return "0";
   if (Math.abs(value) >= 100000) {
     return (value / 100000).toFixed(1) + "L";
@@ -25,7 +25,7 @@ function formatNum(value: number | undefined | null): string {
   return value.toFixed(0);
 }
 
-function formatDuration(entryTime: string | null | undefined): string {
+export function formatDuration(entryTime: string | null | undefined): string {
   if (!entryTime) return "-";
   try {
     const entry = new Date(entryTime);
@@ -44,7 +44,7 @@ function formatDuration(entryTime: string | null | undefined): string {
   }
 }
 
-function nearBreakoutPct(item: PaperScanItem): number {
+export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
   const orHigh = item.or_high;
   const orLow = item.or_low;
@@ -60,13 +60,13 @@ function nearBreakoutPct(item: PaperScanItem): number {
   return ((orLow - price) / orLow) * 100;
 }
 
-function formatNear(item: PaperScanItem): string {
+export function formatNear(item: PaperScanItem): string {
   const v = nearBreakoutPct(item);
   if (!Number.isFinite(v) || v >= 9999) return "-";
   return `${v.toFixed(2)}%`;
 }
 
-function groupPositionsByStrategy(positions: PaperPosition[]): Map<string, PaperPosition[]> {
+export function groupPositionsByStrategy(positions: PaperPosition[]): Map<string, PaperPosition[]> {
   const groups = new Map<string, PaperPosition[]>();
 
   for (const pos of positions) {
@@ -86,7 +86,7 @@ interface StrategySummary {
   count: number;
 }
 
-function calcStrategySummary(positions: PaperPosition[]): StrategySummary {
+export function calcStrategySummary(positions: PaperPosition[]): StrategySummary {
   let totalPnl = 0;
   let marginUsed = 0;
 

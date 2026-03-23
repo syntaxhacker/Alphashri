@@ -6,7 +6,7 @@ import type { ScreenerData, ScreenerOption } from "../types";
 import { API_URL, SCREENERS_URL } from "../constants";
 import * as state from "../state";
 import { getBacktestState } from "../state/backtest";
-import { buildProfileFilterQueryParams, detectAddedSymbols } from "../runtime_utils";
+import { detectAddedSymbols } from "../runtime_utils";
 import { pushNotification, markNewSymbols } from "../utils/notifications";
 import { abortPendingRequest, isAbortError } from "../hooks/useFetch";
 import { fetchWithAuth } from "../state/auth";
@@ -65,7 +65,7 @@ const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
   },
 ];
 
-function detectAutoRefreshChanges(prev: ScreenerData | null, next: ScreenerData | null) {
+export function detectAutoRefreshChanges(prev: ScreenerData | null, next: ScreenerData | null) {
   const { addedPrimary, addedSecondary } = detectAddedSymbols(prev, next);
   if (addedPrimary.length === 0 && addedSecondary.length === 0) return;
 
@@ -89,7 +89,7 @@ function detectAutoRefreshChanges(prev: ScreenerData | null, next: ScreenerData 
   }
 }
 
-export type FetchSource = "manual" | "auto" | "filter";
+export type FetchSource = "manual" | "auto";
 
 export async function fetchData(
   provider = "upstox",
@@ -117,10 +117,8 @@ export async function fetchData(
 
   let wasAborted = false;
   try {
-    const pfQuery = buildProfileFilterQueryParams(state.profileFilterValues);
-    const suffix = pfQuery ? `&${pfQuery}` : "";
     const res = await fetchWithAuth(
-      `${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}${suffix}`,
+      `${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}`,
       {
         signal: abortController.signal,
       },
@@ -160,7 +158,7 @@ export function resetLoadingState() {
   renderCallback();
 }
 
-export async function loadScreeners(initProfileFilters: (screener: string) => void) {
+export async function loadScreeners() {
   try {
     const res = await fetchWithAuth(SCREENERS_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -168,12 +166,10 @@ export async function loadScreeners(initProfileFilters: (screener: string) => vo
     state.setScreenerOptions(payload.screeners || []);
     state.setActiveScreener(payload.default || "trending");
     state.setProfileMetaById(payload.meta_by_id || {});
-    initProfileFilters(state.activeScreener);
   } catch {
     state.setScreenerOptions(DEFAULT_SCREENER_OPTIONS);
     state.setActiveScreener("trending");
     state.setProfileMetaById({});
-    initProfileFilters(state.activeScreener);
   }
 }
 

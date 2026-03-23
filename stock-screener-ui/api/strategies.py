@@ -4,6 +4,7 @@ Strategy Management API
 Provides endpoints for managing strategy configurations and variations.
 """
 
+import asyncio
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -66,114 +67,59 @@ class StrategyUpdate(BaseModel):
 
 
 # Strategy endpoints
-@router.get("")
-async def list_strategies(
-    include_templates: bool = False,
-    strategy_type: Optional[str] = None,
-    db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
-):
-    """List all strategy configurations."""
-    query = db.query(StrategyConfig)
 
+def _sync_list_strategies(db, include_templates, strategy_type):
+    query = db.query(StrategyConfig)
     if not include_templates:
         query = query.filter(StrategyConfig.is_template == False)
-
     if strategy_type:
         query = query.filter(StrategyConfig.strategy_type == strategy_type)
-
     strategies = query.order_by(StrategyConfig.strategy_type, StrategyConfig.name).all()
-
-    return {
-        "strategies": [s.to_dict() for s in strategies],
-        "count": len(strategies),
-    }
+    return strategies
 
 
-@router.get("/templates")
-async def list_templates(
-    db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
-):
-    """List all active template strategies."""
+def _sync_list_templates(db):
     templates = db.query(StrategyConfig).filter(
         StrategyConfig.is_template == True,
         StrategyConfig.is_active == True,
     ).order_by(StrategyConfig.name).all()
-
-    return {
-        "templates": [t.to_dict() for t in templates],
-        "count": len(templates),
-    }
+    return templates
 
 
-@router.get("/variations")
-async def list_all_variations(
-    db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
-):
-    """List all strategy variations and templates for selection."""
+def _sync_list_all_variations(db):
     variations = db.query(StrategyConfig).filter(
         StrategyConfig.is_active == True,
     ).order_by(StrategyConfig.is_template.desc(), StrategyConfig.strategy_type, StrategyConfig.name).all()
+    return variations
 
-    return [v.to_dict() for v in variations]
 
-
-@router.get("/{strategy_id}")
-async def get_strategy(
-    strategy_id: int,
-    db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
-):
-    """Get a specific strategy by ID."""
+def _sync_get_strategy(db, strategy_id):
     strategy = db.query(StrategyConfig).filter(
         StrategyConfig.id == strategy_id
     ).first()
-
-    if not strategy:
-        raise HTTPException(status_code=404, detail="Strategy not found")
-
-    # Get variations if this is a template
     variations = []
-    if strategy.is_template:
+    if strategy and strategy.is_template:
         variations = db.query(StrategyConfig).filter(
             StrategyConfig.parent_id == strategy_id,
             StrategyConfig.is_active == True,
         ).all()
-
-    return {
-        "strategy": strategy.to_dict(),
-        "variations": [v.to_dict() for v in variations],
-    }
+    return strategy, variations
 
 
-@router.post("")
-async def create_strategy(
-    request: StrategyCreate,
-    db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
-):
-    """Create a new strategy variation."""
-    # Check if name already exists
+def _sync_create_strategy(db, request):
     existing = db.query(StrategyConfig).filter(
         StrategyConfig.name == request.name
     ).first()
-
     if existing:
-        raise HTTPException(status_code=400, detail="Strategy name already exists")
+        return None, "name_exists"
 
-    # Get parent template defaults if parent_id provided
     defaults = {}
     if request.parent_id:
         parent = db.query(StrategyConfig).filter(
             StrategyConfig.id == request.parent_id
         ).first()
-
         if not parent:
-            raise HTTPException(status_code=400, detail="Parent strategy not found")
-
-        # Copy parent defaults
+            return None, "parent_not_found"
         defaults = {
             "or_minutes": parent.or_minutes,
             "sl_pct": parent.sl_pct,
@@ -198,7 +144,6 @@ async def create_strategy(
             "gst_pct": parent.gst_pct,
         }
 
-    # Override with provided values
     strategy_data = {
         "name": request.name,
         "strategy_type": request.strategy_type,
@@ -208,7 +153,6 @@ async def create_strategy(
         "is_active": True,
     }
 
-    # Add all parameters with request values overriding defaults
     for field in [
         "or_minutes", "sl_pct", "tp_pct", "min_or_range_pct", "max_or_range_pct",
         "max_positions", "max_capital_per_trade_pct", "max_daily_loss_pct",
@@ -222,6 +166,157 @@ async def create_strategy(
     db.add(strategy)
     db.commit()
     db.refresh(strategy)
+    return strategy, None
+
+
+def _sync_update_strategy(db, strategy_id, request):
+    strategy = db.query(StrategyConfig).filter(
+        StrategyConfig.id == strategy_id
+    ).first()
+    if not strategy:
+        return None, "not_found"
+    if strategy.is_template:
+        return None, "template"
+
+    update_data = request.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if value is not None and hasattr(strategy, key):
+            setattr(strategy, key, value)
+
+    if request.is_default:
+        db.query(StrategyConfig).filter(
+            StrategyConfig.id != strategy_id,
+            StrategyConfig.is_default == True,
+        ).update({"is_default": False})
+
+    db.commit()
+    db.refresh(strategy)
+    return strategy, None
+
+
+def _sync_delete_strategy(db, strategy_id):
+    strategy = db.query(StrategyConfig).filter(
+        StrategyConfig.id == strategy_id
+    ).first()
+    if not strategy:
+        return None, "not_found"
+    if strategy.is_template:
+        return None, "template"
+
+    strategy.is_active = False
+    db.commit()
+    return strategy, None
+
+
+def _sync_get_strategy_performance(db, strategy_id):
+    strategy = db.query(StrategyConfig).filter(
+        StrategyConfig.id == strategy_id
+    ).first()
+    return strategy
+
+
+def _sync_get_strategy_trades(db, strategy_id):
+    strategy = db.query(StrategyConfig).filter(
+        StrategyConfig.id == strategy_id
+    ).first()
+    return strategy
+
+
+def _sync_get_strategy_variations(db, strategy_id):
+    parent = db.query(StrategyConfig).filter(
+        StrategyConfig.id == strategy_id
+    ).first()
+    variations = []
+    if parent:
+        variations = db.query(StrategyConfig).filter(
+            StrategyConfig.parent_id == strategy_id,
+            StrategyConfig.is_active == True,
+        ).order_by(StrategyConfig.name).all()
+    return parent, variations
+
+
+def _sync_list_bots(db):
+    bots = db.query(BotConfig).order_by(BotConfig.name).all()
+    return bots
+
+
+def _sync_get_bot(db, bot_id):
+    bot = db.query(BotConfig).filter(BotConfig.id == bot_id).first()
+    return bot
+
+
+@router.get("")
+async def list_strategies(
+    include_templates: bool = False,
+    strategy_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    """List all strategy configurations."""
+    strategies = await asyncio.to_thread(_sync_list_strategies, db, include_templates, strategy_type)
+
+    return {
+        "strategies": [s.to_dict() for s in strategies],
+        "count": len(strategies),
+    }
+
+
+@router.get("/templates")
+async def list_templates(
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    """List all active template strategies."""
+    templates = await asyncio.to_thread(_sync_list_templates, db)
+
+    return {
+        "templates": [t.to_dict() for t in templates],
+        "count": len(templates),
+    }
+
+
+@router.get("/variations")
+async def list_all_variations(
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    """List all strategy variations and templates for selection."""
+    variations = await asyncio.to_thread(_sync_list_all_variations, db)
+
+    return [v.to_dict() for v in variations]
+
+
+@router.get("/{strategy_id}")
+async def get_strategy(
+    strategy_id: int,
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Get a specific strategy by ID."""
+    strategy, variations = await asyncio.to_thread(_sync_get_strategy, db, strategy_id)
+
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+
+    return {
+        "strategy": strategy.to_dict(),
+        "variations": [v.to_dict() for v in variations],
+    }
+
+
+@router.post("")
+async def create_strategy(
+    request: StrategyCreate,
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Create a new strategy variation."""
+    strategy, error = await asyncio.to_thread(_sync_create_strategy, db, request)
+
+    if error == "name_exists":
+        raise HTTPException(status_code=400, detail="Strategy name already exists")
+    if error == "parent_not_found":
+        raise HTTPException(status_code=400, detail="Parent strategy not found")
 
     return {
         "status": "success",
@@ -238,32 +333,12 @@ async def update_strategy(
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Update a strategy configuration."""
-    strategy = db.query(StrategyConfig).filter(
-        StrategyConfig.id == strategy_id
-    ).first()
+    strategy, error = await asyncio.to_thread(_sync_update_strategy, db, strategy_id, request)
 
-    if not strategy:
+    if error == "not_found":
         raise HTTPException(status_code=404, detail="Strategy not found")
-
-    # Don't allow editing templates
-    if strategy.is_template:
+    if error == "template":
         raise HTTPException(status_code=400, detail="Cannot edit template strategies")
-
-    # Update fields
-    update_data = request.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        if value is not None and hasattr(strategy, key):
-            setattr(strategy, key, value)
-
-    # If setting as default, unset other defaults
-    if request.is_default:
-        db.query(StrategyConfig).filter(
-            StrategyConfig.id != strategy_id,
-            StrategyConfig.is_default == True,
-        ).update({"is_default": False})
-
-    db.commit()
-    db.refresh(strategy)
 
     return {
         "status": "success",
@@ -279,20 +354,12 @@ async def delete_strategy(
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Delete a strategy (soft delete by setting is_active=False)."""
-    strategy = db.query(StrategyConfig).filter(
-        StrategyConfig.id == strategy_id
-    ).first()
+    strategy, error = await asyncio.to_thread(_sync_delete_strategy, db, strategy_id)
 
-    if not strategy:
+    if error == "not_found":
         raise HTTPException(status_code=404, detail="Strategy not found")
-
-    # Don't allow deleting templates
-    if strategy.is_template:
+    if error == "template":
         raise HTTPException(status_code=400, detail="Cannot delete template strategies")
-
-    # Soft delete
-    strategy.is_active = False
-    db.commit()
 
     return {
         "status": "success",
@@ -308,9 +375,7 @@ async def get_strategy_performance(
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Get performance statistics for a strategy."""
-    strategy = db.query(StrategyConfig).filter(
-        StrategyConfig.id == strategy_id
-    ).first()
+    strategy = await asyncio.to_thread(_sync_get_strategy_performance, db, strategy_id)
 
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found")
@@ -382,9 +447,7 @@ async def get_strategy_trades(
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Get trades for a specific strategy."""
-    strategy = db.query(StrategyConfig).filter(
-        StrategyConfig.id == strategy_id
-    ).first()
+    strategy = await asyncio.to_thread(_sync_get_strategy_trades, db, strategy_id)
 
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found")
@@ -416,20 +479,13 @@ async def get_strategy_variations(
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Get all variations of a template strategy."""
-    parent = db.query(StrategyConfig).filter(
-        StrategyConfig.id == strategy_id
-    ).first()
+    parent, variations = await asyncio.to_thread(_sync_get_strategy_variations, db, strategy_id)
 
     if not parent:
         raise HTTPException(status_code=404, detail="Strategy not found")
 
     if not parent.is_template:
         raise HTTPException(status_code=400, detail="Not a template strategy")
-
-    variations = db.query(StrategyConfig).filter(
-        StrategyConfig.parent_id == strategy_id,
-        StrategyConfig.is_active == True,
-    ).order_by(StrategyConfig.name).all()
 
     return {
         "parent": parent.to_dict(),
@@ -445,7 +501,7 @@ async def list_bots(
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """List all bot configurations."""
-    bots = db.query(BotConfig).order_by(BotConfig.name).all()
+    bots = await asyncio.to_thread(_sync_list_bots, db)
 
     return {
         "bots": [b.to_dict() for b in bots],
@@ -460,7 +516,7 @@ async def get_bot(
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Get a specific bot configuration."""
-    bot = db.query(BotConfig).filter(BotConfig.id == bot_id).first()
+    bot = await asyncio.to_thread(_sync_get_bot, db, bot_id)
 
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")

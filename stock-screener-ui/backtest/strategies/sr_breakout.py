@@ -208,21 +208,11 @@ def run_single_stock_backtest(args):
             symbol=symbol, unit="minutes", interval=timeframe, to_date=to_date, from_date=from_date
         )
 
-        # Fetch historical + intraday data
-        today = datetime.now()
-        to_date = today.strftime('%Y-%m-%d')
-        from_date = (today - timedelta(days=days + 30)).strftime('%Y-%m-%d')
-
-        screener = TVScreenerUsage(enable_paper_trading=False)
-        df = screener.upstox_api.fetch_historical_data_v3(
-            symbol=symbol, unit="minutes", interval=timeframe, to_date=to_date, from_date=from_date
-        )
-
         if df is None or df.empty:
             return {'symbol': symbol, 'success': False, 'error': 'No data'}
 
         try:
-            df_intraday = screener.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval=str(timeframe))
+            df_intraday = api.fetch_intraday_data_v3(symbol=symbol, interval=str(timeframe))
             if df_intraday is not None and not df_intraday.empty:
                 df = pd.concat([df, df_intraday]).drop_duplicates(keep='last').sort_index()
         except Exception:

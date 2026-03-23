@@ -16,13 +16,13 @@ test.describe("Screener - Data Display", () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test("should display correct columns in table", async ({ page }) => {
+  test("@smoke should display correct columns in table", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector(".mantine-Table-th", { timeout: 10000 });
 
     const headerTexts = await page.locator(".mantine-Table-th").allTextContents();
-    expect(headerTexts.some((h) => h.toLowerCase().includes("symbol"))).toBeTruthy();
-    expect(headerTexts.some((h) => h.toLowerCase().includes("score"))).toBeTruthy();
+    expect(headerTexts).toContain("Symbol");
+    expect(headerTexts).toContain("Score");
   });
 
   test("should display stock symbols as clickable links", async ({ page }) => {
@@ -51,7 +51,7 @@ test.describe("Screener - Data Display", () => {
     await page.waitForSelector('[data-testid="screener-page"]', { timeout: 15000 });
 
     // Check for status text (contains last updated timestamp)
-    const status = page.locator('[data-testid="status"]');
+    const status = page.locator('[data-testid="screener-header"] [data-testid="status"]');
     await expect(status).toBeVisible();
   });
 });
@@ -62,92 +62,54 @@ test.describe("Screener - Screener Navigation", () => {
     await loginAsTestUser(page);
   });
 
-  test("should display screener navigation tabs", async ({ page }) => {
+  test("@smoke should display screener navigation tabs", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
+    await page.waitForSelector('[data-testid="screener-nav"]', { timeout: 10000 });
 
-    const screenerNav = page.locator('[data-testid="screener-nav"]');
-    const count = await screenerNav.count();
-    if (count > 0) {
-      await expect(screenerNav).toBeVisible();
-    }
+    await expect(page.locator('[data-testid="screener-nav"]')).toBeVisible();
   });
 
   test("should switch between screeners", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
+    await page.waitForLoadState("networkidle");
 
-    const screenerTabs = page.locator(".mantine-SegmentedControl-control");
+    // Wait for table rows to be ready first
+    await page.waitForSelector(".mantine-Table-tr", { timeout: 15000 });
+
+    // Check if screener nav exists (may not show if only one screener option)
+    const screenerNav = page.locator('[data-testid="screener-nav"]');
+    const navCount = await screenerNav.count();
+
+    if (navCount === 0) {
+      // Screener nav not present, skip test
+      console.log("Screener nav not found - skipping test");
+      return;
+    }
+
+    // Get all tabs within the screener nav
+    const screenerTabs = page.locator(
+      '[data-testid="screener-nav"] .mantine-SegmentedControl-control',
+    );
     const count = await screenerTabs.count();
 
-    if (count > 1) {
-      await screenerTabs.nth(1).click();
-      await page.waitForTimeout(500);
-
-      await expect(page.locator(".mantine-Table-tr").first()).toBeVisible();
+    if (count < 2) {
+      console.log(`Only ${count} screener options - skipping test`);
+      return;
     }
+
+    // Click the second tab (index 1)
+    await screenerTabs.nth(1).click({ force: true });
+
+    // After switching, wait for table rows to be visible again
+    await expect(page.locator(".mantine-Table-tr").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("should show active screener highlighted", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
-    const activeTab = page.locator(".mantine-SegmentedControl-label");
-    if ((await activeTab.count()) > 0) {
-      await expect(activeTab.first()).toBeVisible();
-    } else {
-      const screenerTab = page.locator('[data-testid="screener-nav"]');
-      const count = await screenerTab.count();
-      if (count > 0) {
-        await expect(screenerTab.first()).toBeVisible();
-      }
-    }
-  });
-});
-
-test.describe("Screener - Profile Filters", () => {
-  test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-  });
-
-  test("should display profile filters for buyer interest screener", async ({ page }) => {
-    await page.goto("/?screener=buyer_interest_enhanced");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
-
-    const profileFilters = page.locator('[data-testid="screener-filters"]');
-    if ((await profileFilters.count()) > 0) {
-      await expect(profileFilters).toBeVisible();
-    }
-  });
-
-  test("should filter by direction in buyer interest", async ({ page }) => {
-    await page.goto("/?screener=buyer_interest_enhanced");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
-
-    const directionSelect = page.locator('[data-testid="mode-select"]');
-    if ((await directionSelect.count()) > 0) {
-      await directionSelect.click();
-      await page.waitForTimeout(300);
-      await page.keyboard.press("ArrowDown");
-      await page.keyboard.press("Enter");
-      await page.waitForTimeout(500);
-
-      await expect(page.locator(".mantine-Table-tr").first()).toBeVisible();
-    }
-  });
-
-  test("should filter by minimum score", async ({ page }) => {
-    await page.goto("/?screener=buyer_interest_enhanced");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
-
-    const minScoreInput = page.locator('[data-testid="min-score-input"]');
-    if ((await minScoreInput.count()) > 0) {
-      await minScoreInput.fill("80");
-      await page.waitForTimeout(500);
-
-      await expect(page.locator(".mantine-Table-tr").first()).toBeVisible();
-    }
+    await expect(page.locator('[data-testid="screener-nav"]')).toBeVisible();
+    await expect(page.locator('[data-testid="screener-nav-option-trending"]')).toBeVisible();
   });
 });
 
@@ -179,7 +141,7 @@ test.describe("Screener - Auto Refresh", () => {
     await autoRefreshInput.clear();
     await autoRefreshInput.fill("0");
     await autoRefreshInput.blur();
-    await page.waitForTimeout(300);
+    await page.waitForLoadState("networkidle");
 
     const value = await autoRefreshInput.inputValue();
     expect(value).toBe("0");
@@ -239,7 +201,7 @@ test.describe("Screener - Trading List", () => {
     const copyBtn = page.locator("button:has-text('Copy')");
     if ((await copyBtn.count()) > 0) {
       await copyBtn.first().click();
-      await page.waitForTimeout(300);
+      await page.waitForLoadState("networkidle");
 
       await expect(copyBtn.first()).toBeVisible();
     }
@@ -256,7 +218,7 @@ test.describe("Screener - Error Handling", () => {
     });
 
     await page.goto("/");
-    await page.waitForTimeout(3000);
+    await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
     const errorElement = page.getByTestId("screener-error");
     try {

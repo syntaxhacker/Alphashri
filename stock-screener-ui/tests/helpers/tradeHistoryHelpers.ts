@@ -1,4 +1,4 @@
-import { Page, Locator, expect } from "@playwright/test";
+import { Page, expect } from "@playwright/test";
 import {
   setupApiMocks,
   loginAsTestUser,
@@ -6,10 +6,6 @@ import {
   setupMultiStrategyBotMocks,
 } from "../mocks/apiResponses";
 
-/**
- * Setup all required mocks for trade history tests
- * Combines API mocks, user authentication, and paper trading mocks
- */
 export async function setupTradeHistoryMocks(page: Page): Promise<void> {
   await setupApiMocks(page);
   await loginAsTestUser(page);
@@ -17,52 +13,31 @@ export async function setupTradeHistoryMocks(page: Page): Promise<void> {
   await setupMultiStrategyBotMocks(page);
 }
 
-/**
- * Navigate to the Paper Trading section
- */
 export async function navigateToPaperTrading(page: Page): Promise<void> {
-  // Navigate directly to paper trading URL
   await page.goto("/paper");
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 20000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 30000 });
 }
 
-/**
- * Navigate to the Trade History tab within Paper Trading
- */
 export async function navigateToTradeHistoryTab(page: Page): Promise<void> {
   const tabButton = page.locator('[data-testid="trade-history-tab"]');
   await tabButton.click();
-  // Wait for the history panel to appear (it may take a moment for React to re-render)
   await page.waitForSelector('[data-testid="history-panel"]', { timeout: 20000 });
 }
 
-/**
- * Complete navigation from home to Trade History tab
- * Combines navigateToPaperTrading and navigateToTradeHistoryTab
- */
 export async function navigateToTradeHistory(page: Page): Promise<void> {
   await page.goto("/");
   await navigateToPaperTrading(page);
   await navigateToTradeHistoryTab(page);
 }
 
-/**
- * Navigate to the Live Positions tab
- */
 export async function navigateToLiveTab(page: Page): Promise<void> {
   const tabButton = page.locator('[data-testid="tab-live"]');
   await tabButton.click();
-  // Wait for the live panel to appear
   await page.waitForSelector('[data-testid="paper-left-panel"]', { timeout: 20000 });
 }
 
-/**
- * Select a bot from the segmented control by its ID
- * Note: Bot selector only appears in "live" view, so we need to ensure we're on that view first
- */
 export async function selectBot(page: Page, botId: string): Promise<void> {
-  // First ensure we're on the live tab where the bot selector is visible
   const livePanel = page.locator('[data-testid="paper-left-panel"]');
   const isLiveView = await livePanel.isVisible().catch(() => false);
 
@@ -70,178 +45,161 @@ export async function selectBot(page: Page, botId: string): Promise<void> {
     await navigateToLiveTab(page);
   }
 
-  // For Mantine SegmentedControl, we need to click the label that corresponds to the input with the bot ID value
-  // Mantine uses input elements with data-value attribute internally
   const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
   await segmentedControl.waitFor({ state: "visible", timeout: 10000 });
 
-  // Click the input/label with the bot ID - Mantine SegmentedControl uses data-value on inputs
-  const botInput = segmentedControl.locator(`input[data-value="${botId}"]`);
-  const botLabel = segmentedControl.locator(`label:has(input[data-value="${botId}"])`);
-
-  // Try clicking the label (which is the visible part users click)
-  const count = await botLabel.count();
-  if (count > 0) {
-    await botLabel.click();
-  } else {
-    // Fallback: click directly on the visible text label within the control
-    await segmentedControl
-      .getByText(botId === "default" ? "Default" : "Multi-Strategy Bot", { exact: false })
-      .first()
-      .click();
-  }
+  const botInput = segmentedControl.locator(`input[value="${botId}"]`);
+  await expect(botInput).toBeAttached({ timeout: 5000 });
+  await botInput.evaluate((el) => (el as HTMLInputElement).click());
   await page.waitForTimeout(500);
 }
 
-/**
- * Navigate to Trade History and select a specific bot
- * The bot selector is only available in live view, so we:
- * 1. Navigate to paper trading
- * 2. Select the bot in live view
- * 3. Then switch to history view
- */
 export async function navigateToTradeHistoryWithBot(
   page: Page,
   botId: string = "550e8400-e29b-41d4-a716-446655440000",
 ): Promise<void> {
   await navigateToPaperTrading(page);
-  // Select bot while in live view (where the selector is visible)
   await selectBot(page, botId);
-  // Now switch to history view
   await navigateToTradeHistoryTab(page);
 }
 
-/**
- * Verify that the history panel is visible
- */
 export async function verifyHistoryPanelVisible(page: Page): Promise<void> {
   await expect(page.locator('[data-testid="history-panel"]')).toBeVisible();
 }
 
-/**
- * Verify that the trades table is visible (if present)
- */
-export async function verifyTradesTableVisible(page: Page): Promise<boolean> {
-  const historyTable = page.locator('[data-testid^="trades-table"]');
-  const count = await historyTable.count();
-  if (count > 0) {
-    await expect(historyTable.first()).toBeVisible();
-    return true;
-  }
-  return false;
+export async function verifyTradesTableVisible(page: Page): Promise<void> {
+  const historyTable = page.locator('[data-testid="trades-table-container"]');
+  await expect(historyTable).toBeVisible();
 }
 
-/**
- * Mock empty trade history response
- */
 export async function mockEmptyTradeHistory(page: Page): Promise<void> {
-  await page.route("**/api/paper/history*", async (route) => {
+  await page.route("**/api/paper/trades*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ trades: [], count: 0 }),
+      body: JSON.stringify({ trades: [], total_trades: 0 }),
     });
   });
 }
 
-/**
- * Mock trade history with a specific number of trades
- */
 export async function mockTradeHistoryWithCount(page: Page, count: number): Promise<void> {
   const trades = Array.from({ length: count }, (_, i) => ({
-    id: i + 1,
+    trade_id: `trade-${i + 1}`,
     symbol: `STOCK${i}`,
-    side: "BUY",
+    side: i % 2 === 0 ? "BUY" : "SELL",
+    quantity: 10,
     entry_price: 100 + i,
     exit_price: 105 + i,
-    pnl: 5,
-    timestamp: new Date().toISOString(),
-    strategy_name: "ORB",
+    exit_time: new Date().toISOString(),
+    exit_reason: i % 3 === 0 ? "TP" : i % 3 === 1 ? "SL" : "EOD",
+    net_pnl: i % 2 === 0 ? 50 : -20,
+    strategy_name: i % 2 === 0 ? "ORB Conservative" : "ORB Aggressive",
+    bot_name: "Multi-Strategy Bot",
+    bot_id: "550e8400-e29b-41d4-a716-446655440000",
   }));
 
-  await page.route("**/api/paper/history*", async (route) => {
+  await page.route("**/api/paper/trades*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ trades, count }),
+      body: JSON.stringify({ trades, total_trades: count }),
     });
   });
 }
 
-/**
- * Fill date range filters (if present)
- */
+export async function mockTradeHistoryWithSampleData(page: Page): Promise<void> {
+  const trades = [
+    {
+      trade_id: "trade-1",
+      symbol: "TCS",
+      side: "BUY",
+      quantity: 10,
+      entry_price: 3750,
+      exit_price: 3825,
+      exit_time: "2026-03-18T10:30:00",
+      exit_reason: "TP",
+      net_pnl: 750,
+      strategy_name: "ORB Conservative",
+      bot_name: "Multi-Strategy Bot",
+      bot_id: "550e8400-e29b-41d4-a716-446655440000",
+    },
+    {
+      trade_id: "trade-2",
+      symbol: "INFY",
+      side: "BUY",
+      quantity: 20,
+      entry_price: 1480,
+      exit_price: 1455,
+      exit_time: "2026-03-18T11:15:00",
+      exit_reason: "SL",
+      net_pnl: -500,
+      strategy_name: "ORB Aggressive",
+      bot_name: "Multi-Strategy Bot",
+      bot_id: "550e8400-e29b-41d4-a716-446655440000",
+    },
+    {
+      trade_id: "trade-3",
+      symbol: "RELIANCE",
+      side: "BUY",
+      quantity: 5,
+      entry_price: 2450,
+      exit_price: 2520,
+      exit_time: "2026-03-17T14:00:00",
+      exit_reason: "TP",
+      net_pnl: 350,
+      strategy_name: "ORB Conservative",
+      bot_name: "Multi-Strategy Bot",
+      bot_id: "550e8400-e29b-41d4-a716-446655440000",
+    },
+  ];
+
+  await page.route("**/api/paper/trades*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ trades, total_trades: trades.length }),
+    });
+  });
+}
+
 export async function fillDateRangeFilters(
   page: Page,
   fromDate: string,
   toDate: string,
-): Promise<boolean> {
-  const fromDateInput = page.locator('input[type="date"]').first();
-  const toDateInput = page.locator('input[type="date"]').last();
+): Promise<void> {
+  const fromDateInput = page.locator('[data-testid="filter-from-date"]');
+  const toDateInput = page.locator('[data-testid="filter-to-date"]');
 
-  const fromCount = await fromDateInput.count();
-  const toCount = await toDateInput.count();
-
-  if (fromCount > 0 && toCount > 0) {
-    await fromDateInput.fill(fromDate);
-    await toDateInput.fill(toDate);
-    return true;
-  }
-  return false;
+  await expect(fromDateInput).toBeVisible();
+  await expect(toDateInput).toBeVisible();
+  await fromDateInput.fill(fromDate);
+  await toDateInput.fill(toDate);
 }
 
-/**
- * Click a button matching the given text pattern (if present)
- */
-export async function clickButtonIfExists(page: Page, pattern: RegExp): Promise<boolean> {
-  const button = page.locator("button, input").filter({ hasText: pattern });
-  const count = await button.count();
-  if (count > 0) {
-    await button.click();
-    await page.waitForTimeout(500);
-    return true;
-  }
-  return false;
+export async function clickButtonIfExists(page: Page, pattern: RegExp): Promise<void> {
+  const button = page.locator('[data-testid="quick-filter"] input').filter({ hasText: pattern });
+  await expect(button.first()).toBeVisible({ timeout: 5000 });
+  await button.first().click();
+  await page.waitForTimeout(500);
 }
 
-/**
- * Check if pagination controls are visible
- */
-export async function isPaginationVisible(page: Page): Promise<boolean> {
-  const pagination = page.locator(".pagination, .pager");
-  const count = await pagination.count();
-  if (count > 0) {
-    await expect(pagination).toBeVisible();
-    return true;
-  }
-  return false;
+export async function selectWeekFilter(page: Page): Promise<void> {
+  const quickFilter = page.locator('[data-testid="quick-filter"]');
+  await expect(quickFilter).toBeVisible();
+  await quickFilter.locator('label', { hasText: "Week" }).click();
+  await page.waitForTimeout(500);
 }
 
-/**
- * Click the Next page button (if present)
- */
-export async function clickNextPage(page: Page): Promise<boolean> {
-  const nextBtn = page.locator("button, input").filter({ hasText: /Next/ });
-  const count = await nextBtn.count();
-  if (count > 0) {
-    await nextBtn.click();
-    await page.waitForTimeout(300);
-    return true;
-  }
-  return false;
+export async function isPaginationVisible(page: Page): Promise<void> {
+  const pagination = page.locator('[data-testid="trades-header"]');
+  await expect(pagination).toBeVisible();
 }
 
-/**
- * Common test setup: setup mocks and navigate to trade history with bot selected
- */
 export async function setupTradeHistoryTest(page: Page, botId: string = "2"): Promise<void> {
   await setupTradeHistoryMocks(page);
   await navigateToTradeHistoryWithBot(page, botId);
 }
 
-/**
- * Common test setup without bot selection
- */
 export async function setupTradeHistoryTestNoBot(page: Page): Promise<void> {
   await setupTradeHistoryMocks(page);
   await navigateToTradeHistory(page);

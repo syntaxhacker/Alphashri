@@ -10,6 +10,12 @@ import {
   navigateToPaperTradingWithBot,
 } from "../helpers/paperTradingHelpers";
 
+async function selectBot(page: import("@playwright/test").Page, _botId: string) {
+  await page
+    .locator('[data-testid="bot-selector-dropdown"]')
+    .waitFor({ state: "visible", timeout: 10000 });
+}
+
 const TEST_BOT_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
 // Shared beforeEach for paper trading tests
@@ -26,7 +32,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test.beforeEach(async ({ page }) => {
     await setupPaperTradingTest(page);
   });
-  test("should display paper trading view with tabs", async ({ page }) => {
+  test("@smoke should display paper trading view with tabs", async ({ page }) => {
     await navigateToPaperTrading(page);
 
     // Verify tabs are visible
@@ -50,7 +56,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
     // Use the helper that works with Mantine SegmentedControl
     await selectBot(page, TEST_BOT_UUID);
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 5000 });
   });
 
   // Note: This test uses the mock data from setupMultiStrategyBotMocks
@@ -74,7 +80,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   });
 
   // Note: This test uses the mock data from setupMultiStrategyBotMocks
-  test("should show positions with strategy tabs when multiple strategies have positions", async ({
+  test("@smoke should show positions with strategy tabs when multiple strategies have positions", async ({
     page,
   }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
@@ -95,10 +101,10 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     // Click on "ORB Conservative" tab
     await page.locator('[data-testid="strategy-tab-orb-conservative"]').click();
 
-    // Wait for UI to update
-    await page.waitForTimeout(200);
-
     // Verify TCS position is visible (from ORB Conservative)
+    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
+      timeout: 5000,
+    });
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
   });
 
@@ -141,12 +147,13 @@ test.describe("Paper Trading - API Polling", () => {
     await setupPaperTradingTest(page);
   });
 
-  test("should call bots API when selecting a bot", async ({ page }) => {
+  test("should call bots API on load", async ({ page }) => {
     let botsApiCalled = false;
 
-    await page.route("**/api/bots", async (route) => {
-      botsApiCalled = true;
-      await route.continue();
+    page.on("request", (request) => {
+      if (request.url().includes("/api/bots") && request.method() === "GET") {
+        botsApiCalled = true;
+      }
     });
 
     await navigateToPaperTrading(page);
@@ -287,9 +294,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     // Click on "All" tab
     await page.locator('[data-testid="strategy-tab-all"]').click();
 
-    // Wait for UI to update
-    await page.waitForTimeout(200);
-
     // Verify both positions are visible
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("INFY");
@@ -300,9 +304,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
     // Click on "ORB Conservative" tab
     await page.locator('[data-testid="strategy-tab-orb-conservative"]').click();
-
-    // Wait for UI to update
-    await page.waitForTimeout(200);
 
     // Verify scan table shows strategy column
     await expect(page.locator('[data-testid="watchlist-scan-card"]')).toBeVisible();

@@ -66,8 +66,8 @@ def _get_previous_close(ticker, info: Optional[Dict[str, Any]] = None) -> float:
         return 0.0
 
 
-async def fetch_ticker_data(symbol: str, name: str, yf_symbol: str) -> tuple[str, Dict[str, Any]]:
-    """Fetch data for a single ticker using yfinance."""
+def fetch_ticker_data(symbol: str, name: str, yf_symbol: str) -> tuple[str, Dict[str, Any]]:
+    """Fetch data for a single ticker using yfinance (runs in thread pool)."""
     import yfinance as yf
 
     try:
@@ -126,7 +126,7 @@ _CACHE_TTL_SECONDS: int = 30  # Cache expires after 30 seconds
 
 
 async def get_all_tickers() -> Dict[str, TickerItem]:
-    """Fetch all ticker data."""
+    """Fetch all ticker data. Runs yfinance calls in thread pool to avoid blocking."""
     global _cache_timestamp
 
     now = time.time()
@@ -135,50 +135,55 @@ async def get_all_tickers() -> Dict[str, TickerItem]:
     # Return cached data if still fresh
     if _ticker_cache and cache_age < _CACHE_TTL_SECONDS:
         return _ticker_cache
-    # Fetch fresh data
+
+    # Run synchronous yfinance calls in thread pool
     tasks = []
     for symbol, meta in TICKER_SYMBOLS.items():
-        task = fetch_ticker_data(symbol, meta["name"], meta["yf_symbol"])
+        task = asyncio.to_thread(fetch_ticker_data, symbol, meta["name"], meta["yf_symbol"])
         tasks.append(task)
-    # Wait for all tasks to complete
-    results = await asyncio.gather(*tasks)
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
     # Process results
     tickers = {}
-    for symbol, result in results:
-            if "error" in result:
-                tickers[symbol] = TickerItem(
-                    symbol=result["symbol"],
-                    name=result.get("name", TICKER_SYMBOLS[symbol]["name"]),
-                    price=0,
-                    change=0,
-                    change_percent=0,
-                    high=None,
-                    low=None,
-                    prev_close=None,
-                    timestamp=datetime.now(),
-                    is_positive=False,
-                    error=result["error"],
-                    source="yahoo",
-                    update_time_ms=0,
-                    last_updated=datetime.now()
-                )
-            else:
-                tickers[symbol] = TickerItem(
-                    symbol=result["symbol"],
-                    name=result["name"],
-                    price=result["price"],
-                    change=result["change"],
-                    change_percent=result["change_percent"],
-                    high=result.get("high"),
-                    low=result.get("low"),
-                    prev_close=result.get("prev_close"),
-                    timestamp=result.get("timestamp"),
-                    is_positive=result["is_positive"],
-                    error=None,
-                    source=result["source"],
-                    update_time_ms=result["update_time_ms"],
-                    last_updated=result["last_updated"]
-                )
+    for result in results:
+        if isinstance(result, Exception):
+            continue
+        symbol, data = result
+        if "error" in data:
+            tickers[symbol] = TickerItem(
+                symbol=data["symbol"],
+                name=data.get("name", TICKER_SYMBOLS[symbol]["name"]),
+                price=0,
+                change=0,
+                change_percent=0,
+                high=None,
+                low=None,
+                prev_close=None,
+                timestamp=datetime.now(),
+                is_positive=False,
+                error=data["error"],
+                source="yahoo",
+                update_time_ms=0,
+                last_updated=datetime.now()
+            )
+        else:
+            tickers[symbol] = TickerItem(
+                symbol=data["symbol"],
+                name=data["name"],
+                price=data["price"],
+                change=data["change"],
+                change_percent=data["change_percent"],
+                high=data.get("high"),
+                low=data.get("low"),
+                prev_close=data.get("prev_close"),
+                timestamp=data.get("timestamp"),
+                is_positive=data["is_positive"],
+                error=None,
+                source=data["source"],
+                update_time_ms=data["update_time_ms"],
+                last_updated=data["last_updated"]
+            )
     # Update cache
     _ticker_cache.clear()
     for k, v in tickers.items():

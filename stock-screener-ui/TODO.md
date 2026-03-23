@@ -1,186 +1,50 @@
-# TODO
+# TODO — Duplicate Code (jscpd)
 
-## Test Coverage
+## Source Code (High Priority)
 
-### Status: **COMPLETE** ✅
+### Screener Columns — shared across 6 files
+- `src/components/screener/columns/trending.ts` (base)
+- `src/components/screener/columns/rsiReversal.ts`
+- `src/components/screener/columns/niftyMovers.ts`
+- `src/components/screener/columns/marketOpenGap.ts`
+- `src/components/screener/columns/highMomentum.ts`
+- `src/components/screener/columns/buyerInterest.ts`
+- Extract shared column definitions into a common base/factory
 
-**Test Summary:**
-- 31 Python test files
-- ~27,000 lines of test code
-- 1,595+ test methods
-- 19 E2E TypeScript tests
+### Type Duplicates
+- `src/types/index.ts` duplicates `src/components/screener/types.ts` (60+ lines)
+- `src/types/strategies.ts` duplicates `src/components/strategies/types.ts` (28 lines)
+- `src/types/paperTrading.ts` overlaps with `src/types/strategies.ts` (18 lines)
 
-### Covered ✅
+### State Duplicates
+- `src/state/backtest.ts` duplicates `src/state/paperTrading.ts` (14 lines)
+- `src/state/auth.ts` self-duplicate (~40 lines between login/register handlers)
 
-**Unit Tests (`tests/test_*.py`):**
-- ✅ `trading/journal.py` - 79 tests
-- ✅ `trading/risk_manager.py` - 76 tests
-- ✅ `trading/global_risk_manager.py` - 67 tests
-- ✅ `trading/shared_portfolio.py` - 89 tests
-- ✅ `trading/orb_signals.py` - 80 tests
-- ✅ `trading/paper_trader.py` - 113 tests
-- ✅ `trading/config_loader.py` - 53 tests
-- ✅ `trading/multi_strategy_runner.py` - 72 tests
-- ✅ `backtest/engine.py` - 39 tests
-- ✅ `backtest/costs.py` - 64 tests
-- ✅ `backtest/chart_data.py` - 99 tests
-- ✅ `backtest/api.py` - 73 tests
-- ✅ `backtest/strategies/orb.py` - 97 tests
-- ✅ `backtest/strategies/sr_breakout.py` - 112 tests
-- ✅ `backtest/strategies/week52_chaser.py` - 101 tests
-- ✅ `db/models.py` - 70 tests
-- ✅ `db/database.py` - 58 tests
+### Component Self-Duplicates
+- `src/components/backtest/BacktestChart.tsx` — 6 identical series blocks (lines 80-170)
+- `src/components/strategies/StrategyForm.tsx` — ~50 lines duplicated (form sections)
+- `src/components/paper-trading/PaperChart.tsx` — 74-line self-duplicate
+- `src/components/auth/AuthProvider.tsx` — 31-line self-duplicate (login/register)
+- `src/components/options/OptionChain/ChainSummary.tsx` — 22-line self-duplicate
 
-**API Tests (`tests/api/`):**
-- ✅ Auth (register, login, refresh, logout, user settings)
-- ✅ Bots (CRUD, start/stop, status, logs, portfolio, positions, performance)
-- ✅ Paper Trading (portfolio, orders, positions, trades, signals, journal)
-- ✅ Backtest (strategies, costs, progress, run, chart, results)
-- ✅ Screeners (trending, 52W breakout, buyer interest, gap, RSI reversal)
-- ✅ Market Ticker, Symbols, Chart, News, Health, Strategies
+## E2E Tests (Lower Priority)
 
-**Integration Tests (`tests/integration/`):**
-- ✅ Trading flow (strategy creation, bot lifecycle, order placement)
-- ✅ Bot lifecycle (start, monitor, stop)
-- ✅ Auth flow
+### Heavy Self-Duplication
+- `tests/e2e/backtest.spec.ts` — 73-line clone + multiple smaller ones
+- `tests/e2e/multi-strategy-signal-types.spec.ts` — extensive repeated patterns
+- `tests/e2e/news.spec.ts` — many repeated navigation/assertion blocks
+- `tests/e2e/navigation-v2.spec.ts` — same 10-line block repeated 5 times
+- `tests/e2e/sector.spec.ts` — repeated setup/teardown patterns
 
-**Contract Tests (`tests/contract/`):**
-- ✅ 27 tests - API contract validation against OpenAPI spec
+### Cross-File Test Duplicates
+- `tests/e2e/bots.spec.ts` duplicates `multi-strategy-signal-types.spec.ts` (26+18 lines)
+- `tests/e2e/backtest-mantine.spec.ts` duplicates `backtest.spec.ts` (multiple blocks)
+- `tests/e2e/layout.spec.ts` duplicates `market-ticker.spec.ts` (8 lines)
 
-**Testcontainers Tests (`tests/integration/testcontainers/`):**
-- ✅ 50 tests - Real PostgreSQL testing (catches SQLite vs PG differences)
+## Python Tests
 
-**Security Tests (`tests/test_security.py`):**
-- ✅ 82 tests - Authentication, input validation, authorization, API security
-
-**E2E Tests (`tests/e2e/`):**
-- ✅ 19 TypeScript Playwright test files for UI
-
-### Run Tests
-
-```bash
-# All unit tests
-uv run pytest tests/test_*.py -v
-
-# Contract tests (requires running server)
-uv run pytest tests/contract/ -v
-
-# Testcontainers tests (requires Docker)
-uv run pytest tests/integration/testcontainers/ -v
-
-# Security tests
-uv run pytest tests/test_security.py -v
-
-# API + integration tests
-uv run pytest tests/api tests/integration -v
-
-# All tests
-uv run pytest -v
-```
-
----
-
-## Testing Roadmap
-
-See [TESTING_ROADMAP.md](TESTING_ROADMAP.md) for detailed testing strategy.
-
-### Completed ✅
-
-| Category | Tests | Status |
-|----------|-------|--------|
-| Unit Tests | 1,436 | ✅ Complete |
-| Contract Tests | 27 | ✅ Complete |
-| Testcontainers | 50 | ✅ Complete |
-| Security Tests | 82 | ✅ Complete |
-| E2E Tests | 19 | ✅ Complete |
-
-### Pending ⏳
-
-| Category | Effort | Priority |
-|----------|--------|----------|
-| Smoke Tests | 1 day | High |
-| Load Tests | 1 day | Medium |
-| Chaos Tests | 2 days | Low |
-| CI/CD Pipeline | 1 day | High |
-
----
-
-## Deduplication
-
-### Status: **COMPLETE** ✅
-
-Current duplicate level: **4.74%** (target: < 5%)
-
-### Progress
-
-| Metric | Before | After |
-|--------|--------|-------|
-| **Duplicates** | 7.53% | 4.74% |
-| **Clones** | 133 | 77 |
-| **All tests** | 267 pass | 250 pass ✅ |
-
-### Commands
-
-```bash
-bun run check:duplicates  # Check duplicate code
-bun run check:unused      # Check unused exports
-bun run check:deps        # Check unused dependencies
-bun run check:all         # Run all checks
-```
-
----
-
-## Files Created This Session
-
-| File | Lines | Description |
-|------|-------|-------------|
-| `openapi.yaml` | 2,372 | OpenAPI 3.1 specification |
-| `tests/test_journal.py` | 1,286 | Trading journal tests |
-| `tests/test_risk_manager.py` | 962 | Risk manager tests |
-| `tests/test_global_risk_manager.py` | 1,154 | Global risk manager tests |
-| `tests/test_shared_portfolio.py` | 1,143 | Shared portfolio tests |
-| `tests/test_orb_signals.py` | 1,459 | ORB signal tests |
-| `tests/test_paper_trader.py` | 1,144 | Paper trader tests |
-| `tests/test_config_loader.py` | 1,161 | Config loader tests |
-| `tests/test_multi_strategy_runner.py` | 2,028 | Multi-strategy runner tests |
-| `tests/test_backtest_engine.py` | 716 | Backtest engine tests |
-| `tests/test_backtest_costs.py` | 603 | Backtest costs tests |
-| `tests/test_backtest_chart_data.py` | 1,064 | Chart data tests |
-| `tests/test_backtest_api.py` | 876 | Backtest API tests |
-| `tests/test_backtest_strategy_orb.py` | 1,047 | ORB strategy tests |
-| `tests/test_backtest_strategy_sr_breakout.py` | 1,021 | S/R breakout tests |
-| `tests/test_backtest_strategy_week52.py` | 1,129 | 52W chaser tests |
-| `tests/test_db_models.py` | 931 | Database model tests |
-| `tests/test_db_database.py` | 796 | Database connection tests |
-| `tests/test_security.py` | ~1,500 | Security tests |
-| `tests/contract/test_api_contract.py` | ~300 | Contract tests |
-| `tests/integration/testcontainers/*.py` | ~1,700 | PostgreSQL tests |
-| `TESTING_ROADMAP.md` | 301 | Testing strategy doc |
-
----
-
-## Dependencies Added
-
-```txt
-schemathesis>=4.11.0
-testcontainers>=4.14.1
-psycopg2-binary>=2.9.0
-bcrypt>=5.0.0
-pyjwt>=2.11.0
-email-validator>=2.3.0
-```
-
----
-
-## Unused Code (to clean)
-
-8 unused files:
-- src/counter.ts
-- src/components/auth/index.ts
-- src/components/paper-trading/multi-strategy-live.ts
-- src/integration_renderer.ts + test
-- src/runtime_utils.test.ts
-- src/ui_schema.test.ts
-- src/utils/ui-helpers.test.ts
-
-52 unused exports - review later.
+- `tests/api/test_sector.py` — 6 clones from same base block
+- `tests/api/test_market_ticker.py` — repeated test structure (5 clones)
+- `tests/test_week52_chaser.py` duplicates `test_week52_target.py` (48 lines total)
+- `tests/test_orb_conservative.py` duplicates `test_week52_target.py` (26 lines)
+- `tests/integration/testcontainers/test_real_db_bots.py` — 3 self-clones

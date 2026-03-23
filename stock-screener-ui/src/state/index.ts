@@ -4,14 +4,13 @@
 
 import type {
   ScreenerData,
-  Filters,
   ScreenerOption,
   ProfileMeta,
   ChangeNotification,
   NotifFilter,
   SortDirection,
 } from "../types";
-import { DEFAULT_FILTERS, DEFAULT_AUTO_REFRESH_SECONDS } from "../constants";
+import { DEFAULT_AUTO_REFRESH_SECONDS } from "../constants";
 
 export const DEFAULT_SCREENER_DATA: ScreenerData = {
   approaching: [],
@@ -43,9 +42,6 @@ export let error: string | null = null;
 export let autoRefreshInterval: ReturnType<typeof setInterval> | null = null;
 export let autoRefreshSeconds = DEFAULT_AUTO_REFRESH_SECONDS;
 
-// Filter state
-export let filters: Filters = { ...DEFAULT_FILTERS };
-
 // Sort state
 export let sortColumn: string | null = null;
 export let sortDirection: SortDirection = "desc";
@@ -54,7 +50,6 @@ export let sortDirection: SortDirection = "desc";
 export let screenerOptions: ScreenerOption[] = [];
 export let activeScreener = "trending";
 export let profileMetaById: Record<string, ProfileMeta> = {};
-export let profileFilterValues: Record<string, string | number> = {};
 
 // Notification state
 export let notifications: ChangeNotification[] = [];
@@ -90,20 +85,6 @@ export function setAutoRefreshSeconds(seconds: number) {
   notifySubscribers();
 }
 
-export function setFilters(newFilters: Filters) {
-  filters = newFilters;
-  notifySubscribers();
-}
-
-export function updateFilter(key: keyof Filters, value: string | number) {
-  if (key === "sector") {
-    filters[key] = value as string;
-  } else {
-    filters[key] = value as number;
-  }
-  notifySubscribers();
-}
-
 export function setSortColumn(column: string | null) {
   sortColumn = column;
 }
@@ -124,14 +105,6 @@ export function setActiveScreener(screener: string) {
 
 export function setProfileMetaById(meta: Record<string, ProfileMeta>) {
   profileMetaById = meta;
-}
-
-export function setProfileFilterValues(values: Record<string, string | number>) {
-  profileFilterValues = values;
-}
-
-export function updateProfileFilterValue(key: string, value: string | number) {
-  profileFilterValues[key] = value;
 }
 
 export function addNotification(notification: ChangeNotification) {
@@ -161,9 +134,4 @@ export function setNotifFilter(filter: NotifFilter) {
 
 export function setRecentAddedSymbols(symbols: Record<string, number>) {
   recentAddedSymbols = symbols;
-}
-
-export function resetFilters() {
-  filters = { ...DEFAULT_FILTERS };
-  notifySubscribers();
 }

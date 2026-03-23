@@ -147,7 +147,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       id="bot-config-modal"
     >
       <form onSubmit={handleSubmit} data-testid="bot-config-form">
-        <Stack gap="md">
+        <Stack gap="sm">
           {/* Basic Info */}
           <div className="bot-config-section" data-testid="bot-config-basic-info">
             <Text fw={600} mb="xs">
@@ -261,6 +261,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                       variant="subtle"
                       onClick={() => handleRemoveStrategy(strategy.id)}
                       title="Remove"
+                      data-testid={`remove-strategy-btn-${strategy.id}`}
                     >
                       <IconTrash size={16} />
                     </ActionIcon>

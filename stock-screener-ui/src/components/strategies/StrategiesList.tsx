@@ -1,6 +1,7 @@
-import { Table, Group, Text, ActionIcon, Alert, Stack, Badge, Tooltip } from "@mantine/core";
+import { Table, Group, Text, ActionIcon, Badge, Tooltip } from "@mantine/core";
 import { IconEdit, IconTrash, IconCheck, IconAlertCircle } from "@tabler/icons-react";
 import type { StrategiesListProps } from "./types";
+import { CompactPanel } from "../common/compact";
 
 export function StrategiesList({
   strategies,
@@ -25,27 +26,37 @@ export function StrategiesList({
 
   if (isLoading) {
     return (
-      <Stack align="center" gap="md" mt="xl" className="strategy-list-loading">
-        <div className="spinner" data-testid="strategies-loading" />
-        <Text size="sm" c="dimmed">
-          Loading strategies...
-        </Text>
-      </Stack>
+      <CompactPanel
+        className="strategy-list-loading"
+        testId="strategies-loading-state"
+        title={
+          <Group gap="xs" wrap="nowrap">
+            <div className="spinner" data-testid="strategies-loading" />
+            <Text fw={600} size="sm">
+              Loading strategies
+            </Text>
+          </Group>
+        }
+        description="Fetching strategy variations and defaults"
+      />
     );
   }
 
   if (nonTemplates.length === 0) {
     return (
-      <Alert
-        icon={<IconAlertCircle size={16} />}
-        title="No Strategies"
-        color="yellow"
-        mt="xl"
+      <CompactPanel
         className="strategy-list-empty"
-        data-testid="strategies-empty-state"
-      >
-        No strategy variations created yet. Create one from a template.
-      </Alert>
+        testId="strategies-empty-state"
+        title={
+          <Group gap="xs" wrap="nowrap">
+            <IconAlertCircle size={18} />
+            <Text fw={600} size="sm">
+              No strategies yet
+            </Text>
+          </Group>
+        }
+        description="Create a variation from a template to populate this list."
+      />
     );
   }
 
@@ -147,30 +158,39 @@ export function StrategiesList({
   ));
 
   return (
-    <Table
-      striped
-      highlightOnHover
-      withTableBorder
-      withColumnBorders
-      className="strategy-list-table"
+    <CompactPanel
+      title="All strategies"
+      description="Review active variations and manage defaults"
+      className="strategy-list-table-card"
       id="strategy-list"
-      data-testid="strategy-list-table"
+      testId="strategy-list-table"
     >
-      <Table.Thead className="strategy-list-header" data-testid="strategy-list-header">
-        <Table.Tr>
-          <Table.Th>Name</Table.Th>
-          <Table.Th>Type</Table.Th>
-          <Table.Th>Parent</Table.Th>
-          <Table.Th>SL%</Table.Th>
-          <Table.Th>TP%</Table.Th>
-          <Table.Th>Max Positions</Table.Th>
-          <Table.Th>Status</Table.Th>
-          <Table.Th>Actions</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody className="strategy-list-body" data-testid="strategy-list-body">
-        {rows}
-      </Table.Tbody>
-    </Table>
+      <Table
+        striped
+        highlightOnHover
+        withTableBorder
+        withColumnBorders
+        verticalSpacing="xs"
+        horizontalSpacing="sm"
+        className="strategy-list-table"
+        data-testid="strategy-list-table-inner"
+      >
+        <Table.Thead className="strategy-list-header" data-testid="strategy-list-header">
+          <Table.Tr>
+            <Table.Th>Name</Table.Th>
+            <Table.Th>Type</Table.Th>
+            <Table.Th>Parent</Table.Th>
+            <Table.Th>SL%</Table.Th>
+            <Table.Th>TP%</Table.Th>
+            <Table.Th>Max Positions</Table.Th>
+            <Table.Th>Status</Table.Th>
+            <Table.Th>Actions</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody className="strategy-list-body" data-testid="strategy-list-body">
+          {rows}
+        </Table.Tbody>
+      </Table>
+    </CompactPanel>
   );
 }

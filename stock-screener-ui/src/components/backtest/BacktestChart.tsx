@@ -7,7 +7,7 @@ declare const echarts: any;
 
 const chartInstances = new Map<string, any>();
 
-function normalizeTime(time: string): string {
+export function normalizeTime(time: string): string {
   if (!time) return "";
 
   // Handle date-only format (YYYY-MM-DD) - for daily candles
@@ -73,106 +73,86 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     return idx;
   };
 
-  const getExitReason = (t: ChartTrade) => (t.trade as any).exit_reason;
+  type MarkerConfig = {
+    filter: (t: ChartTrade) => boolean;
+    color: string;
+    symbol: string;
+    symbolSize: number;
+    symbolRotate?: number;
+  };
 
-  // Entry markers - bright cyan
-  const entryMarkers = trades
-    .filter((t) => t.type === "entry")
-    .map((t) => ({ ...t, computedIdx: getCandleIdx(t) }))
-    .filter((t) => t.computedIdx !== undefined)
-    .map((t) => ({
-      value: [t.computedIdx!, t.price],
-      itemStyle: { color: "#00FFFF", borderColor: "#FFFFFF", borderWidth: 2 },
+  const buildMarkers = (trades: ChartTrade[], config: MarkerConfig) =>
+    trades
+      .filter(config.filter)
+      .map((t) => ({ ...t, computedIdx: getCandleIdx(t) }))
+      .filter((t) => t.computedIdx !== undefined)
+      .map((t) => ({
+        value: [t.computedIdx!, t.price],
+        itemStyle: { color: config.color, borderColor: "#FFFFFF", borderWidth: 2 },
+        symbol: config.symbol,
+        ...(config.symbolRotate !== undefined ? { symbolRotate: config.symbolRotate } : {}),
+        symbolSize: config.symbolSize,
+        trade: t.trade,
+        trade_id: t.trade_id,
+      }));
+
+  const exitReason = (t: ChartTrade) => (t.trade as any).exit_reason;
+
+  const markerConfigs: MarkerConfig[] = [
+    {
+      filter: (t) => t.type === "entry",
+      color: "#00FFFF",
       symbol: "triangle",
-      symbolRotate: 180,
       symbolSize: 18,
-      trade: t.trade,
-      trade_id: t.trade_id,
-    }));
-
-  // TP markers - bright yellow
-  const tpMarkers = trades
-    .filter((t) => t.type === "exit" && getExitReason(t) === "TP")
-    .map((t) => ({ ...t, computedIdx: getCandleIdx(t) }))
-    .filter((t) => t.computedIdx !== undefined)
-    .map((t) => ({
-      value: [t.computedIdx!, t.price],
-      itemStyle: { color: "#FFFF00", borderColor: "#FFFFFF", borderWidth: 2 },
+      symbolRotate: 180,
+    },
+    {
+      filter: (t) => t.type === "exit" && exitReason(t) === "TP",
+      color: "#FFFF00",
       symbol: "circle",
       symbolSize: 16,
-      trade: t.trade,
-      trade_id: t.trade_id,
-    }));
-
-  // SL markers - magenta
-  const slMarkers = trades
-    .filter((t) => t.type === "exit" && getExitReason(t) === "SL")
-    .map((t) => ({ ...t, computedIdx: getCandleIdx(t) }))
-    .filter((t) => t.computedIdx !== undefined)
-    .map((t) => ({
-      value: [t.computedIdx!, t.price],
-      itemStyle: { color: "#FF00FF", borderColor: "#FFFFFF", borderWidth: 2 },
+    },
+    {
+      filter: (t) => t.type === "exit" && exitReason(t) === "SL",
+      color: "#FF00FF",
       symbol: "circle",
       symbolSize: 16,
-      trade: t.trade,
-      trade_id: t.trade_id,
-    }));
-
-  // EOD markers - orange
-  const eodMarkers = trades
-    .filter((t) => t.type === "exit" && getExitReason(t) === "EOD")
-    .map((t) => ({ ...t, computedIdx: getCandleIdx(t) }))
-    .filter((t) => t.computedIdx !== undefined)
-    .map((t) => ({
-      value: [t.computedIdx!, t.price],
-      itemStyle: { color: "#FFA500", borderColor: "#FFFFFF", borderWidth: 2 },
+    },
+    {
+      filter: (t) => t.type === "exit" && exitReason(t) === "EOD",
+      color: "#FFA500",
       symbol: "diamond",
       symbolSize: 16,
-      trade: t.trade,
-      trade_id: t.trade_id,
-    }));
-
-  // Trailing stop markers - purple
-  const trailingMarkers = trades
-    .filter((t) => t.type === "exit" && getExitReason(t) === "TRAILING_STOP")
-    .map((t) => ({ ...t, computedIdx: getCandleIdx(t) }))
-    .filter((t) => t.computedIdx !== undefined)
-    .map((t) => ({
-      value: [t.computedIdx!, t.price],
-      itemStyle: { color: "#9C27B0", borderColor: "#FFFFFF", borderWidth: 2 },
+    },
+    {
+      filter: (t) => t.type === "exit" && exitReason(t) === "TRAILING_STOP",
+      color: "#9C27B0",
       symbol: "circle",
       symbolSize: 16,
-      trade: t.trade,
-      trade_id: t.trade_id,
-    }));
-
-  // Max holding markers - orange
-  const maxHoldMarkers = trades
-    .filter((t) => t.type === "exit" && getExitReason(t) === "MAX_HOLDING")
-    .map((t) => ({ ...t, computedIdx: getCandleIdx(t) }))
-    .filter((t) => t.computedIdx !== undefined)
-    .map((t) => ({
-      value: [t.computedIdx!, t.price],
-      itemStyle: { color: "#FF9800", borderColor: "#FFFFFF", borderWidth: 2 },
+    },
+    {
+      filter: (t) => t.type === "exit" && exitReason(t) === "MAX_HOLDING",
+      color: "#FF9800",
       symbol: "diamond",
       symbolSize: 16,
-      trade: t.trade,
-      trade_id: t.trade_id,
-    }));
-
-  // New 52W high markers - cyan
-  const new52wMarkers = trades
-    .filter((t) => t.type === "exit" && getExitReason(t) === "NEW_52W_HIGH")
-    .map((t) => ({ ...t, computedIdx: getCandleIdx(t) }))
-    .filter((t) => t.computedIdx !== undefined)
-    .map((t) => ({
-      value: [t.computedIdx!, t.price],
-      itemStyle: { color: "#00BCD4", borderColor: "#FFFFFF", borderWidth: 2 },
+    },
+    {
+      filter: (t) => t.type === "exit" && exitReason(t) === "NEW_52W_HIGH",
+      color: "#00BCD4",
       symbol: "circle",
       symbolSize: 16,
-      trade: t.trade,
-      trade_id: t.trade_id,
-    }));
+    },
+  ];
+
+  const [
+    entryMarkers,
+    tpMarkers,
+    slMarkers,
+    eodMarkers,
+    trailingMarkers,
+    maxHoldMarkers,
+    new52wMarkers,
+  ] = markerConfigs.map((cfg) => buildMarkers(trades, cfg));
 
   const series: any[] = [
     {
