@@ -35,7 +35,8 @@ _STATS_KEY = "cache:stats"
 _STATS_FLUSH_INTERVAL = 60
 _last_flush_time = 0
 
-KNOWN_DOMAINS = ["backtest", "news", "screener", "chart", "article", "other"]
+_CONSECUTIVE_FAILURES = 0
+_MAX_FAILURES_BEFORE_RESET = 5
 
 
 def _get_redis_url() -> str:
@@ -47,7 +48,7 @@ def _extract_domain(key: str) -> str:
 
 
 def get_redis_client():
-    global _redis_client, _redis_available
+    global _redis_client, _redis_available, _CONSECUTIVE_FAILURES
 
     if _redis_client is not None:
         return _redis_client
@@ -65,10 +66,13 @@ def get_redis_client():
         )
         _redis_client.ping()
         _redis_available = True
+        _CONSECUTIVE_FAILURES = 0
         logger.info("Redis connected: %s", url)
     except Exception as e:
         _redis_client = None
-        _redis_available = False
+        _CONSECUTIVE_FAILURES += 1
+        if _CONSECUTIVE_FAILURES >= _MAX_FAILURES_BEFORE_RESET:
+            _redis_available = False
         logger.warning("Redis unavailable, caching disabled: %s", e)
 
     return _redis_client
@@ -94,7 +98,7 @@ def _deserialize(data: str) -> Any:
 
 
 def cache_get(key: str) -> Optional[Any]:
-    global _global_hits, _global_misses
+    global _global_hits, _global_misses, _CONSECUTIVE_FAILURES
     client = get_redis_client()
     if client is None:
         return None
@@ -150,10 +154,15 @@ def cache_delete_pattern(pattern: str) -> int:
     if client is None:
         return 0
     try:
-        keys = client.keys(pattern)
-        if keys:
-            return client.delete(*keys)
-        return 0
+        deleted = 0
+        cursor = 0
+        while True:
+            cursor, keys = client.scan(cursor=cursor, match=pattern, count=500)
+            if keys:
+                deleted += client.delete(*keys)
+            if cursor == 0:
+                break
+        return deleted
     except Exception as e:
         logger.warning("cache_delete_pattern error for %s: %s", pattern, e)
         return 0
@@ -405,7 +414,7 @@ def get_cache_keys(prefix: Optional[str] = None, top: int = 20) -> list[dict]:
 
 
 def invalidate_backtest_cache(user_id: int, strategy_id: Optional[str] = None) -> int:
-    if strategy_id:
+    if strategy_id is not None:
         return cache_delete_pattern(f"backtest:{user_id}:{strategy_id}:*")
     return cache_delete_pattern(f"backtest:{user_id}:*")
 
@@ -518,31 +527,29 @@ async def stale_while_revalidate(
         return data, "stale"
 
     acquired = _try_acquire_lock(lock_key, lock_ttl)
-    if acquired:
-        try:
+    try:
+        if acquired:
             result = await asyncio.to_thread(compute_fn)
             if result is not None:
                 cache_set(key, result, ttl=stale_ttl)
                 cache_set(fresh_key, "1", ttl=fresh_ttl)
             return result, "miss"
-        except Exception as e:
-            raise
-        finally:
-            _release_lock(lock_key)
 
-    elapsed = 0.0
-    while elapsed < wait_timeout:
-        await asyncio.sleep(poll_interval)
-        elapsed += poll_interval
-        fresh_data = cache_get(key)
-        if fresh_data is not None:
-            return fresh_data, "coalesced"
+        elapsed = 0.0
+        while elapsed < wait_timeout:
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+            fresh_data = cache_get(key)
+            if fresh_data is not None:
+                return fresh_data, "coalesced"
 
-    try:
         result = await asyncio.to_thread(compute_fn)
         if result is not None:
             cache_set(key, result, ttl=stale_ttl)
             cache_set(fresh_key, "1", ttl=fresh_ttl)
         return result, "miss"
+    except Exception:
+        raise
     finally:
-        _release_lock(lock_key)
+        if acquired:
+            _release_lock(lock_key)

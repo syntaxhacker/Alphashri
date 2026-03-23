@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query, HTTPException, Path, Depends
 from pydantic import BaseModel
 
 from api.screener import _sanitize_for_json
+from api.auth import get_current_user
 
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
@@ -47,13 +48,14 @@ async def get_progress():
 @router.post("/run")
 async def run_backtest(
     request: BacktestRunRequest,
-    include_chart_data: bool = Query(False, description="Include candle/chart data in response (default: False for smaller responses)")
+    include_chart_data: bool = Query(False, description="Include candle/chart data in response (default: False for smaller responses)"),
+    current_user=Depends(get_current_user),
 ):
     from cache.redis_client import cache_get, cache_set, is_cache_available
     from backtest.api import build_backtest_cache_key
 
     body = request.model_dump()
-    user_id = body['user_id'] = 1
+    user_id = body['user_id'] = current_user.id
 
     cache_key = build_backtest_cache_key(
         user_id=user_id,
@@ -191,8 +193,8 @@ async def get_results():
 
 
 @router.get("/history")
-async def get_backtest_history_list():
-    user_id = 1
+async def list_history(current_user=Depends(get_current_user)):
+    user_id = current_user.id
     from cache.redis_client import cache_get, cache_set
     _bh_key = f"backtest:{user_id}:history:list"
     _cached = cache_get(_bh_key)
@@ -220,11 +222,11 @@ async def get_backtest_details(uuid: str):
 
 
 @router.delete("/history/{uuid}")
-async def delete_backtest(uuid: str):
+async def delete_backtest(uuid: str, current_user=Depends(get_current_user)):
     success = delete_backtest_history(uuid)
     if not success:
         raise HTTPException(status_code=404, detail="Backtest not found or could not be deleted")
     from cache.redis_client import cache_delete
     cache_delete(f"backtest:detail:{uuid}")
-    cache_delete("backtest:1:history:list")
+    cache_delete(f"backtest:{current_user.id}:history:list")
     return {'status': 'success'}
