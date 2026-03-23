@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { gotoBacktest, selectSymbolAndRun, waitForBacktestResult } from "./helpers/backtestHelpers";
 
 const mockBacktestResults = {
   results: [
@@ -12,31 +13,10 @@ const mockBacktestResults = {
       tp_exits: 8,
       sl_exits: 4,
     },
-    {
-      symbol: "INFY",
-      net_pnl: 8500,
-      trades: 8,
-      win_rate: 75,
-      pf: 3.0,
-      tp_exits: 6,
-      sl_exits: 2,
-    },
-    {
-      symbol: "TCS",
-      net_pnl: -3200,
-      trades: 5,
-      win_rate: 40,
-      pf: 0.8,
-      tp_exits: 2,
-      sl_exits: 3,
-    },
+    { symbol: "INFY", net_pnl: 8500, trades: 8, win_rate: 75, pf: 3.0, tp_exits: 6, sl_exits: 2 },
+    { symbol: "TCS", net_pnl: -3200, trades: 5, win_rate: 40, pf: 0.8, tp_exits: 2, sl_exits: 3 },
   ],
-  totals: {
-    net_pnl: 20300,
-    total_costs: 2500,
-    win_rate: 64,
-    trades: 25,
-  },
+  totals: { net_pnl: 20300, total_costs: 2500, win_rate: 64, trades: 25 },
 };
 
 const mockChartData = {
@@ -177,12 +157,7 @@ async function mockBacktestApi(page: Page) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify([
-        {
-          id: "default-variation",
-          name: "Default",
-          strategy_type: "ORB",
-          is_template: true,
-        },
+        { id: "default-variation", name: "Default", strategy_type: "ORB", is_template: true },
       ]),
     });
   });
@@ -229,9 +204,7 @@ async function mockBacktestApi(page: Page) {
         results: mockBacktestResults.results,
         totals: mockBacktestResults.totals,
         run_time: "2024-01-01T00:00:00Z",
-        chart_data: {
-          RELIANCE: mockChartData,
-        },
+        chart_data: { RELIANCE: mockChartData },
       }),
     });
   });
@@ -254,37 +227,8 @@ async function mockBacktestApi(page: Page) {
 }
 
 async function setupBacktest(page: Page) {
-  await page.waitForSelector('[data-testid="symbol-multiselect"]', {
-    state: "visible",
-    timeout: 5000,
-  });
-
-  const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-  await symbolSelect.click();
-  await expect(page.locator(".mantine-MultiSelect-dropdown")).toBeVisible({ timeout: 5000 });
-
-  await page.keyboard.type("RELIANCE", { delay: 50 });
-  await page.waitForSelector(".mantine-MultiSelect-option", { timeout: 5000 });
-
-  const options = page.locator(".mantine-MultiSelect-option");
-  await options.first().waitFor({ state: "visible", timeout: 5000 });
-  await options.first().click();
-
-  const runBtn = page.locator('[data-testid="run-backtest-btn"]');
-  await expect(runBtn).toBeEnabled({ timeout: 5000 });
-  await runBtn.click();
-
-  try {
-    await page.waitForSelector('[data-testid="results-summary"]', { timeout: 15000 });
-  } catch (e) {
-    const errorAlert = page.locator('[data-testid="backtest-error"]');
-    if (await errorAlert.isVisible()) {
-      const errorText = await errorAlert.textContent();
-      throw new Error(`Backtest failed with error: ${errorText}`);
-    }
-    throw e;
-  }
-  await expect(page.locator('[data-testid="results-summary"]')).toBeVisible({ timeout: 5000 });
+  await selectSymbolAndRun(page);
+  await waitForBacktestResult(page, "results-summary");
 }
 
 test.describe("Backtest - Mantine Features", () => {
@@ -292,7 +236,6 @@ test.describe("Backtest - Mantine Features", () => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await mockBacktestApi(page);
-
     await page.route("**/api/auth/me", async (route) => {
       await route.fulfill({
         status: 200,
@@ -310,19 +253,12 @@ test.describe("Backtest - Mantine Features", () => {
 
   test.describe("Chart Zoom Functionality", () => {
     test("should display zoom dropdown with All, 30D, 7D, 1D options", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
       await expect(zoomSelect).toBeVisible();
-
-      // Click to open dropdown (using force to ensure click works)
       await zoomSelect.click({ force: true });
-      await page.waitForTimeout(300); // Small delay for dropdown animation
-
-      // Verify dropdown is visible - filter for the one containing zoom options
+      await page.waitForTimeout(300);
       const dropdown = page
         .locator(".mantine-Select-dropdown")
         .filter({ hasText: /All.*30D.*7D.*1D/ });
@@ -332,38 +268,25 @@ test.describe("Backtest - Mantine Features", () => {
 
   test.describe("Chart Symbol Tabs", () => {
     test("should display symbol tabs when multiple symbols in results", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const chartTabs = page.locator('[data-testid="chart-tabs"]');
       await expect(chartTabs).toBeVisible();
-
-      const relianceTab = page.locator('[data-testid="chart-tab-RELIANCE"]');
-      await expect(relianceTab).toBeVisible();
+      await expect(page.locator('[data-testid="chart-tab-RELIANCE"]')).toBeVisible();
     });
 
     test("should switch chart when clicking different symbol tab", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const chartTabs = page.locator('[data-testid="chart-tabs"]');
-      await expect(chartTabs).toBeVisible();
+      await expect(page.locator('[data-testid="chart-tabs"]')).toBeVisible();
     });
   });
 
-  test.describe("Trade Row Click → Chart Zoom", () => {
+  test.describe("Trade Row Click -> Chart Zoom", () => {
     test("should highlight trade row when clicked", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-
       if (await tradeHistoryPanel.isVisible()) {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
@@ -376,47 +299,35 @@ test.describe("Backtest - Mantine Features", () => {
 
   test.describe("Trade Row Highlight", () => {
     test("should highlight trade row with golden background when clicked", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-
       if (await tradeHistoryPanel.isVisible()) {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.click();
           await page.waitForLoadState("networkidle");
-
-          const hasHighlight = await firstTradeRow.evaluate((el) => {
-            return el.classList.contains("trade-row-highlighted");
-          });
-          expect(hasHighlight).toBe(true);
+          expect(
+            await firstTradeRow.evaluate((el) => el.classList.contains("trade-row-highlighted")),
+          ).toBe(true);
         }
       }
     });
 
     test("should remove highlight after timeout", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-
       if (await tradeHistoryPanel.isVisible()) {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.click();
           await page.waitForLoadState("networkidle");
           await page.waitForLoadState("networkidle");
-          await page.waitForTimeout(6000); // Wait for highlight removal (5 second timeout)
-
-          const hasHighlight = await firstTradeRow.evaluate((el) => {
-            return el.classList.contains("trade-row-highlighted");
-          });
-          expect(hasHighlight).toBe(false);
+          await page.waitForTimeout(6000);
+          expect(
+            await firstTradeRow.evaluate((el) => el.classList.contains("trade-row-highlighted")),
+          ).toBe(false);
         }
       }
     });
@@ -424,14 +335,9 @@ test.describe("Backtest - Mantine Features", () => {
 
   test.describe("Results Table Sorting", () => {
     test("should sort results when clicking column header", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const resultsTableWrapper = page.locator('[data-testid="results-table-wrapper"]');
-      await expect(resultsTableWrapper).toBeVisible();
-
+      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible();
       const netPnlHeader = page.locator('[data-testid="th-net_pnl"]');
       await expect(netPnlHeader).toBeVisible();
       await netPnlHeader.click();
@@ -441,18 +347,13 @@ test.describe("Backtest - Mantine Features", () => {
     });
 
     test("should toggle sort direction when clicking same column twice", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const netPnlHeader = page.locator('[data-testid="th-net_pnl"]');
-
       await netPnlHeader.click();
       await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
         timeout: 5000,
       });
-
       await netPnlHeader.click();
       await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
         timeout: 5000,
@@ -462,24 +363,17 @@ test.describe("Backtest - Mantine Features", () => {
 
   test.describe("Backtest Progress", () => {
     test("@smoke should have working run backtest button", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
       await symbolSelect.click({ force: true });
-
-      // Type to search
       await page.keyboard.type("RELIANCE");
       await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
         timeout: 5000,
       });
-
-      // Click on the option from dropdown
       const option = page.locator(".mantine-MultiSelect-option").first();
       if (await option.isVisible()) {
         await option.click();
       }
-
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
       await runBtn.click();
       await expect(page.locator('[data-testid="results-summary"]')).toBeVisible({ timeout: 10000 });
@@ -488,56 +382,35 @@ test.describe("Backtest - Mantine Features", () => {
 
   test.describe("Results Summary", () => {
     test("should display Net PnL in summary", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const resultsSummary = page.locator('[data-testid="results-summary"]');
-      await expect(resultsSummary).toBeVisible();
-
-      const netPnl = page.locator('[data-testid="summary-net-pnl"]');
-      await expect(netPnl).toBeVisible();
+      await expect(page.locator('[data-testid="results-summary"]')).toBeVisible();
+      await expect(page.locator('[data-testid="summary-net-pnl"]')).toBeVisible();
     });
 
     test("should display Costs in summary", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const costs = page.locator('[data-testid="summary-costs"]');
-      await expect(costs).toBeVisible();
+      await expect(page.locator('[data-testid="summary-costs"]')).toBeVisible();
     });
 
     test("should display Win Rate in summary", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const winRate = page.locator('[data-testid="summary-wr"]');
-      await expect(winRate).toBeVisible();
+      await expect(page.locator('[data-testid="summary-wr"]')).toBeVisible();
     });
 
     test("should display Trades count in summary", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const trades = page.locator('[data-testid="summary-trades"]');
-      await expect(trades).toBeVisible();
+      await expect(page.locator('[data-testid="summary-trades"]')).toBeVisible();
     });
   });
 
   test.describe("Empty State", () => {
     test("@smoke should show empty state when no results", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
-      const resultsEmpty = page.locator('[data-testid="results-empty"]');
-      await expect(resultsEmpty).toBeVisible();
+      await gotoBacktest(page);
+      await expect(page.locator('[data-testid="results-empty"]')).toBeVisible();
     });
   });
 
@@ -545,8 +418,6 @@ test.describe("Backtest - Mantine Features", () => {
     test("should display error alert when backtest fails", async ({ page }) => {
       await setupApiMocks(page);
       await loginAsTestUser(page);
-
-      // Mock failed backtest response
       await page.route("**/api/backtest/run**", async (route) => {
         await route.fulfill({
           status: 500,
@@ -554,25 +425,17 @@ test.describe("Backtest - Mantine Features", () => {
           body: JSON.stringify({ error: "Internal server error" }),
         });
       });
-
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
       await symbolSelect.click({ force: true });
-
-      // Type to search
       await page.keyboard.type("RELIANCE");
       await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
         timeout: 5000,
       });
-
-      // Click on the option from dropdown
       const option = page.locator(".mantine-MultiSelect-option").first();
       if (await option.isVisible()) {
         await option.click();
       }
-
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
       await runBtn.click();
       await expect(page.locator('[data-testid="backtest-error"]')).toBeVisible({ timeout: 5000 });
@@ -581,26 +444,17 @@ test.describe("Backtest - Mantine Features", () => {
 
   test.describe("Chart Legend", () => {
     test("should display chart legend", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const echartsContainer = page.locator('[data-testid="echarts-container"]');
-      await expect(echartsContainer).toBeVisible();
-
-      const legendItem = page.locator("text=Entry");
-      await expect(legendItem.first()).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible();
+      await expect(page.locator("text=Entry").first()).toBeVisible({ timeout: 5000 });
     });
   });
 
   test.describe("Trade History Sorting", () => {
     test("should sort trade history by time", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
       if (await tradeHistoryPanel.isVisible()) {
         const timeHeader = page.locator('[data-testid="th-entry_time"]');
@@ -612,11 +466,8 @@ test.describe("Backtest - Mantine Features", () => {
     });
 
     test("should sort trade history by P&L", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
       if (await tradeHistoryPanel.isVisible()) {
         const pnlHeader = page.locator('[data-testid="th-net_pnl"]');
@@ -630,29 +481,19 @@ test.describe("Backtest - Mantine Features", () => {
 
   test.describe("Trade History Details", () => {
     test("should display trade summary in history panel", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
       if (await tradeHistoryPanel.isVisible()) {
-        const tradeSummaryPnl = page.locator('[data-testid="trade-summary-pnl"]');
-        const tradeSummaryWr = page.locator('[data-testid="trade-summary-wr"]');
-        const tradeSummaryWins = page.locator('[data-testid="trade-summary-wins"]');
-
-        await expect(tradeSummaryPnl).toBeVisible();
-        await expect(tradeSummaryWr).toBeVisible();
-        await expect(tradeSummaryWins).toBeVisible();
+        await expect(page.locator('[data-testid="trade-summary-pnl"]')).toBeVisible();
+        await expect(page.locator('[data-testid="trade-summary-wr"]')).toBeVisible();
+        await expect(page.locator('[data-testid="trade-summary-wins"]')).toBeVisible();
       }
     });
 
     test("should close trade history panel", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
       const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
       if (await tradeHistoryPanel.isVisible()) {
         const closeBtn = page.locator('[data-testid="close-trade-history-btn"]');
@@ -666,83 +507,48 @@ test.describe("Backtest - Mantine Features", () => {
 
   test.describe("Results Table Details", () => {
     test("should display symbol in results", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const symbolCell = page.locator('[data-testid="symbol-RELIANCE"]');
-      await expect(symbolCell).toBeVisible();
+      await expect(page.locator('[data-testid="symbol-RELIANCE"]')).toBeVisible();
     });
 
     test("should display P&L value in results", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const pnlCell = page.locator('[data-testid="net-pnl-RELIANCE"]');
-      await expect(pnlCell).toBeVisible();
+      await expect(page.locator('[data-testid="net-pnl-RELIANCE"]')).toBeVisible();
     });
 
     test("should display trades count in results", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const tradesCell = page.locator('[data-testid="trades-RELIANCE"]');
-      await expect(tradesCell).toBeVisible();
+      await expect(page.locator('[data-testid="trades-RELIANCE"]')).toBeVisible();
     });
 
     test("should display win rate in results", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const wrCell = page.locator('[data-testid="wr-RELIANCE"]');
-      await expect(wrCell).toBeVisible();
+      await expect(page.locator('[data-testid="wr-RELIANCE"]')).toBeVisible();
     });
 
     test("should display profit factor in results", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const pfCell = page.locator('[data-testid="pf-RELIANCE"]');
-      await expect(pfCell).toBeVisible();
+      await expect(page.locator('[data-testid="pf-RELIANCE"]')).toBeVisible();
     });
 
     test("should display TP/SL exits in results", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      const tpslCell = page.locator('[data-testid="tpsl-RELIANCE"]');
-      await expect(tpslCell).toBeVisible();
+      await expect(page.locator('[data-testid="tpsl-RELIANCE"]')).toBeVisible();
     });
   });
 
   test.describe("Reset Functionality", () => {
     test("should reset backtest state when reset button clicked", async ({ page }) => {
-      await page.goto("/backtest");
-      await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
-
-      // Run backtest first
+      await gotoBacktest(page);
       await setupBacktest(page);
-
-      // Verify results are shown
-      const resultsSummary = page.locator('[data-testid="results-summary"]');
-      await expect(resultsSummary).toBeVisible();
-
-      // Click reset button
-      const resetBtn = page.locator('[data-testid="reset-btn"]');
-      await resetBtn.click();
-
-      // Results should be cleared
+      await expect(page.locator('[data-testid="results-summary"]')).toBeVisible();
+      await page.locator('[data-testid="reset-btn"]').click();
       await expect(page.locator('[data-testid="results-empty"]')).toBeVisible({ timeout: 5000 });
     });
   });

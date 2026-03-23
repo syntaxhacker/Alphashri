@@ -250,20 +250,19 @@ class TestLoginUser:
         assert "detail" in data
         assert "disabled" in data["detail"].lower()
 
+    def _login_and_decode_token(self, client, email, password, token_field="access_token"):
+        response = client.post("/api/auth/login", json={
+            "email": email,
+            "password": password
+        })
+        return response.json()[token_field]
+
     def test_login_verify_jwt_token_structure(
         self, client: TestClient, test_user: User, test_password: str
     ):
         """Test: Verify JWT token structure (has sub, jti, type, exp)."""
-        response = client.post("/api/auth/login", json={
-            "email": test_user.email,
-            "password": test_password
-        })
-
-        data = response.json()
-        access_token = data["access_token"]
-
         payload = jwt.decode(
-            access_token,
+            self._login_and_decode_token(client, test_user.email, test_password),
             JWT_SECRET_KEY,
             algorithms=[JWT_ALGORITHM]
         )
@@ -275,20 +274,16 @@ class TestLoginUser:
         assert "exp" in payload
         assert "iat" in payload
 
-    def test_login_verify_access_token_expires_in_24_hours(
-        self, client: TestClient, test_user: User, test_password: str
+    @pytest.mark.parametrize("token_field,duration_units", [
+        ("access_token", "hours"),
+        ("refresh_token", "days"),
+    ], ids=["access_token_24h", "refresh_token_7d"])
+    def test_login_verify_token_expiration(
+        self, client: TestClient, test_user: User, test_password: str,
+        token_field, duration_units,
     ):
-        """Test: Verify access token expires in 24 hours."""
-        response = client.post("/api/auth/login", json={
-            "email": test_user.email,
-            "password": test_password
-        })
-
-        data = response.json()
-        access_token = data["access_token"]
-
         payload = jwt.decode(
-            access_token,
+            self._login_and_decode_token(client, test_user.email, test_password, token_field),
             JWT_SECRET_KEY,
             algorithms=[JWT_ALGORITHM]
         )
@@ -297,36 +292,14 @@ class TestLoginUser:
         iat = datetime.fromtimestamp(payload["iat"])
         delta = exp - iat
 
-        # Should be approximately 24 hours (allow small margin)
-        assert timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS - 1) < delta
-        assert delta < timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS + 1)
-
-    def test_login_verify_refresh_token_expires_in_7_days(
-        self, client: TestClient, test_user: User, test_password: str, db: Session
-    ):
-        """Test: Verify refresh token expires in 7 days."""
-        response = client.post("/api/auth/login", json={
-            "email": test_user.email,
-            "password": test_password
-        })
-
-        data = response.json()
-        refresh_token = data["refresh_token"]
-
-        payload = jwt.decode(
-            refresh_token,
-            JWT_SECRET_KEY,
-            algorithms=[JWT_ALGORITHM]
-        )
-
-        exp = datetime.fromtimestamp(payload["exp"])
-        iat = datetime.fromtimestamp(payload["iat"])
-        delta = exp - iat
-
-        # Should be approximately 7 days (allow small margin)
-        expected_days = REFRESH_TOKEN_EXPIRE_DAYS
-        assert timedelta(days=expected_days - 1) < delta
-        assert delta < timedelta(days=expected_days + 1)
+        if duration_units == "hours":
+            expected = ACCESS_TOKEN_EXPIRE_HOURS
+            assert timedelta(hours=expected - 1) < delta
+            assert delta < timedelta(hours=expected + 1)
+        else:
+            expected = REFRESH_TOKEN_EXPIRE_DAYS
+            assert timedelta(days=expected - 1) < delta
+            assert delta < timedelta(days=expected + 1)
 
 
 # =============================================================================

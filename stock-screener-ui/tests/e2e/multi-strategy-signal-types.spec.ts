@@ -1,6 +1,13 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-import { gotoBotsView, expectBotsViewVisible, getBotListItems } from "../helpers/botsHelpers";
+import {
+  gotoBotsView,
+  setupBotsMocks,
+  mockBotsListRoute,
+  mockAvailableStrategiesRoute,
+  gotoBotsViewAndWait,
+  mockCreateBotRoute,
+  createBotAndSave,
+} from "../helpers/botsHelpers";
 
 const BOT_ORB_ID = "bot-orb-001";
 const BOT_MIXED_ID = "bot-mixed-001";
@@ -93,43 +100,10 @@ const mockAvailableStrategies = [
   { id: "strat-tpl-1", name: "ORB Template", strategy_type: "ORB", is_template: true },
 ];
 
-async function setupMultiStrategyTest(page: import("@playwright/test").Page) {
-  await setupApiMocks(page);
-  await loginAsTestUser(page);
-}
-
-async function mockMultiTypeBotsList(
-  page: import("@playwright/test").Page,
-  bots: typeof mockMultiTypeBots = mockMultiTypeBots,
-) {
-  await page.route(/\/api\/bots(\?|$)/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(bots),
-    });
-  });
-}
-
-async function mockAvailableStrategiesRoute(page: import("@playwright/test").Page) {
-  await page.route("**/api/bots/available-strategies", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(mockAvailableStrategies),
-    });
-  });
-}
-
-async function gotoBotsViewAndWait(page: import("@playwright/test").Page) {
-  await gotoBotsView(page);
-  await page.waitForLoadState("networkidle");
-}
-
 test.describe("Multi-Strategy Bot - Signal Type Display", () => {
   test.beforeEach(async ({ page }) => {
-    await setupMultiStrategyTest(page);
-    await mockMultiTypeBotsList(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockMultiTypeBots);
   });
 
   test("should display ORB strategy type in bot list", async ({ page }) => {
@@ -192,278 +166,46 @@ test.describe("Multi-Strategy Bot - Signal Type Display", () => {
 
 test.describe("Multi-Strategy Bot - Create with Different Strategy Types", () => {
   test.beforeEach(async ({ page }) => {
-    await setupMultiStrategyTest(page);
-    await mockAvailableStrategiesRoute(page);
-    await mockMultiTypeBotsList(page, []);
+    await setupBotsMocks(page);
+    await mockAvailableStrategiesRoute(page, mockAvailableStrategies);
+    await mockBotsListRoute(page, []);
   });
 
   test("should create a bot with ORB strategy", async ({ page }) => {
-    let capturedBody: any = null;
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
-      if (route.request().method() === "POST") {
-        capturedBody = route.request().postDataJSON();
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: "new-bot-orb",
-            name: "ORB Bot",
-            is_active: true,
-            max_total_positions: 10,
-            max_total_capital_pct: 0.8,
-            strategies: capturedBody?.strategies ?? [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            running: false,
-            pid: null,
-          }),
-        });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify([]),
-        });
-      }
-    });
-    await gotoBotsViewAndWait(page);
-    await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
-    await page.locator('[data-testid="bot-name-input"]').fill("ORB Bot");
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
+    await mockCreateBotRoute(page, "new-bot-orb", "ORB Bot");
+    await createBotAndSave(page, "ORB Bot");
   });
 
   test("should create a bot with SR_BREAKOUT strategy", async ({ page }) => {
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
-      if (route.request().method() === "POST") {
-        const body = route.request().postDataJSON();
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: "new-bot-sr",
-            name: "SR Breakout Bot",
-            is_active: true,
-            max_total_positions: 10,
-            max_total_capital_pct: 0.8,
-            strategies: body?.strategies ?? [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            running: false,
-            pid: null,
-          }),
-        });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify([]),
-        });
-      }
-    });
-    await gotoBotsViewAndWait(page);
-    await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
-    await page.locator('[data-testid="bot-name-input"]').fill("SR Breakout Bot");
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
+    await mockCreateBotRoute(page, "new-bot-sr", "SR Breakout Bot");
+    await createBotAndSave(page, "SR Breakout Bot");
   });
 
   test("should create a bot with 52W_CHASER strategy", async ({ page }) => {
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
-      if (route.request().method() === "POST") {
-        const body = route.request().postDataJSON();
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: "new-bot-52wc",
-            name: "52W Chaser Bot",
-            is_active: true,
-            max_total_positions: 10,
-            max_total_capital_pct: 0.8,
-            strategies: body?.strategies ?? [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            running: false,
-            pid: null,
-          }),
-        });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify([]),
-        });
-      }
-    });
-    await gotoBotsViewAndWait(page);
-    await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
-    await page.locator('[data-testid="bot-name-input"]').fill("52W Chaser Bot");
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
+    await mockCreateBotRoute(page, "new-bot-52wc", "52W Chaser Bot");
+    await createBotAndSave(page, "52W Chaser Bot");
   });
 
   test("should create a bot with 52W_TARGET strategy", async ({ page }) => {
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
-      if (route.request().method() === "POST") {
-        const body = route.request().postDataJSON();
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: "new-bot-52wt",
-            name: "52W Target Bot",
-            is_active: true,
-            max_total_positions: 10,
-            max_total_capital_pct: 0.8,
-            strategies: body?.strategies ?? [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            running: false,
-            pid: null,
-          }),
-        });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify([]),
-        });
-      }
-    });
-    await gotoBotsViewAndWait(page);
-    await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
-    await page.locator('[data-testid="bot-name-input"]').fill("52W Target Bot");
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
+    await mockCreateBotRoute(page, "new-bot-52wt", "52W Target Bot");
+    await createBotAndSave(page, "52W Target Bot");
   });
 
   test("should create a bot with EMA_CROSS strategy", async ({ page }) => {
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
-      if (route.request().method() === "POST") {
-        const body = route.request().postDataJSON();
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: "new-bot-ema",
-            name: "EMA Cross Bot",
-            is_active: true,
-            max_total_positions: 10,
-            max_total_capital_pct: 0.8,
-            strategies: body?.strategies ?? [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            running: false,
-            pid: null,
-          }),
-        });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify([]),
-        });
-      }
-    });
-    await gotoBotsViewAndWait(page);
-    await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
-    await page.locator('[data-testid="bot-name-input"]').fill("EMA Cross Bot");
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
+    await mockCreateBotRoute(page, "new-bot-ema", "EMA Cross Bot");
+    await createBotAndSave(page, "EMA Cross Bot");
   });
 
   test("should create a bot with mixed strategy types (ORB + 52W_CHASER + SR_BREAKOUT)", async ({
     page,
   }) => {
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
-      if (route.request().method() === "POST") {
-        const body = route.request().postDataJSON();
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: "new-bot-mixed",
-            name: "Mixed Types Bot",
-            is_active: true,
-            max_total_positions: 15,
-            max_total_capital_pct: 0.9,
-            strategies: body?.strategies ?? [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            running: false,
-            pid: null,
-          }),
-        });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify([]),
-        });
-      }
-    });
-    await gotoBotsViewAndWait(page);
-    await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
-    await page.locator('[data-testid="bot-name-input"]').fill("Mixed Types Bot");
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await expect(page.locator('[data-testid="strategy-allocation-row"]')).toHaveCount(3);
-    await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
+    await mockCreateBotRoute(page, "new-bot-mixed", "Mixed Types Bot", 15, 0.9);
+    await createBotAndSave(page, "Mixed Types Bot", 3);
   });
 
   test("should create a bot with all four strategy types", async ({ page }) => {
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
-      if (route.request().method() === "POST") {
-        const body = route.request().postDataJSON();
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: "new-bot-all-types",
-            name: "All Types Bot",
-            is_active: true,
-            max_total_positions: 20,
-            max_total_capital_pct: 0.95,
-            strategies: body?.strategies ?? [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            running: false,
-            pid: null,
-          }),
-        });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify([]),
-        });
-      }
-    });
-    await gotoBotsViewAndWait(page);
-    await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
-    await page.locator('[data-testid="bot-name-input"]').fill("All Types Bot");
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await page.locator('[data-testid="add-strategy-btn"]').click();
-    await expect(page.locator('[data-testid="strategy-allocation-row"]')).toHaveCount(4);
-    await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
+    await mockCreateBotRoute(page, "new-bot-all-types", "All Types Bot", 20, 0.95);
+    await createBotAndSave(page, "All Types Bot", 4);
   });
 
   test("should validate total allocation does not exceed 100%", async ({ page }) => {
@@ -493,9 +235,9 @@ test.describe("Multi-Strategy Bot - Create with Different Strategy Types", () =>
 
 test.describe("Multi-Strategy Bot - Edit Strategy Types", () => {
   test.beforeEach(async ({ page }) => {
-    await setupMultiStrategyTest(page);
-    await mockMultiTypeBotsList(page);
-    await mockAvailableStrategiesRoute(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockMultiTypeBots);
+    await mockAvailableStrategiesRoute(page, mockAvailableStrategies);
   });
 
   test("should allow adding a new strategy to existing bot", async ({ page }) => {
@@ -526,7 +268,7 @@ test.describe("Multi-Strategy Bot - Edit Strategy Types", () => {
     await page
       .locator('[data-testid="strategy-allocation-row"]')
       .last()
-      .locator('[data-testid="remove-strategy-btn"]')
+      .locator('[data-testid^="remove-strategy-btn-"]')
       .click();
     await expect(page.locator('[data-testid="strategy-allocation-row"]')).toHaveCount(1);
   });

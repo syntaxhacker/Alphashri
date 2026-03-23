@@ -5,10 +5,11 @@ import {
   navigateToTradeHistoryWithBot,
   verifyHistoryPanelVisible,
   mockEmptyTradeHistory,
-  mockTradeHistoryWithCount,
   mockTradeHistoryWithSampleData,
-  fillDateRangeFilters,
+  isPaginationVisible,
+  selectWeekFilter,
 } from "../helpers/tradeHistoryHelpers";
+import { mockTradeHistoryWithCount } from "../helpers/tradeHistoryHelpers";
 
 test.describe("Trade History - Display", () => {
   test.beforeEach(async ({ page }) => {
@@ -93,8 +94,8 @@ test.describe("Trade History - Trade Details", () => {
     await navigateToTradeHistoryWithBot(page);
     await verifyHistoryPanelVisible(page);
     await expect(page.locator('[data-testid="trade-row-trade-1"]')).toBeVisible();
-    await expect(page.locator('[data-testid="trade-row-trade-1"]')).toContainText("₹3750.00");
-    await expect(page.locator('[data-testid="trade-row-trade-1"]')).toContainText("₹3825.00");
+    await expect(page.locator('[data-testid="trade-row-trade-1"]')).toContainText("\u20B93750.00");
+    await expect(page.locator('[data-testid="trade-row-trade-1"]')).toContainText("\u20B93825.00");
   });
 
   test("should show P&L for each trade", async ({ page }) => {
@@ -158,23 +159,10 @@ test.describe("Trade History - Pagination", () => {
     await expect(page.locator('[data-testid="trades-header"]')).toContainText("100 trades");
   });
 
-  test("should navigate to next page", async ({ page }) => {
+  test("should filter trades by week", async ({ page }) => {
     await mockTradeHistoryWithCount(page, 100);
     await navigateToTradeHistoryWithBot(page);
-    await clickNextPage(page);
+    await selectWeekFilter(page);
     await expect(page.locator('[data-testid="trades-header"]')).toBeVisible();
   });
 });
-
-async function isPaginationVisible(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.locator('[data-testid="trades-header"]')).toBeVisible();
-}
-
-async function clickNextPage(page: import("@playwright/test").Page): Promise<void> {
-  const quickFilter = page.locator('[data-testid="quick-filter"]');
-  await expect(quickFilter).toBeVisible();
-  const weekOption = quickFilter.locator('input[value="week"]');
-  await expect(weekOption).toBeAttached({ timeout: 5000 });
-  await weekOption.evaluate((el) => (el as HTMLInputElement).click());
-  await page.waitForTimeout(500);
-}

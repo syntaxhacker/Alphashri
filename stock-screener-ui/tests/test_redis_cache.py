@@ -7,6 +7,7 @@ Uses fakeredis for in-memory Redis testing (no real Redis needed).
 import json
 import time
 import pytest
+from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 
 from cache.redis_client import (
@@ -25,7 +26,6 @@ from cache.redis_client import (
 
 @pytest.fixture(autouse=True)
 def _reset_redis_state():
-    """Reset Redis client state between tests."""
     import cache.redis_client as rc
     rc._redis_client = None
     rc._redis_available = False
@@ -40,6 +40,23 @@ def _reset_redis_state():
     rc._global_misses = 0
     rc._domain_hits.clear()
     rc._domain_misses.clear()
+
+
+@pytest.fixture
+def fake_redis():
+    try:
+        import fakeredis
+        return fakeredis.FakeRedis(decode_responses=True)
+    except ImportError:
+        pytest.skip("fakeredis not installed")
+
+
+@contextmanager
+def _patched_redis(fake_redis):
+    with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
+        import cache.redis_client as rc
+        rc._redis_available = True
+        yield rc
 
 
 class TestMakeCacheKey:
@@ -174,34 +191,20 @@ class TestCachedDecorator:
 class TestCacheIntegration:
     """Tests that use fakeredis for real Redis-like behavior."""
 
-    @pytest.fixture
-    def fake_redis(self):
-        try:
-            import fakeredis
-            return fakeredis.FakeRedis(decode_responses=True)
-        except ImportError:
-            pytest.skip("fakeredis not installed")
-
     def test_set_and_get(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             assert cache_set("test:1", {"value": 42}, ttl=60) is True
             result = cache_get("test:1")
             assert result == {"value": 42}
 
     def test_get_miss(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             assert cache_get("nonexistent:key") is None
 
     def test_delete(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             cache_set("test:del", "value", ttl=60)
             assert cache_get("test:del") == "value"
@@ -209,9 +212,7 @@ class TestCacheIntegration:
             assert cache_get("test:del") is None
 
     def test_delete_pattern(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             cache_set("screener:abc", "a", ttl=60)
             cache_set("screener:def", "b", ttl=60)
@@ -224,9 +225,7 @@ class TestCacheIntegration:
             assert cache_get("other:key") == "c"
 
     def test_ttl_expiry(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             cache_set("test:ttl", "expires", ttl=1)
             assert cache_get("test:ttl") == "expires"
@@ -234,9 +233,7 @@ class TestCacheIntegration:
             assert cache_get("test:ttl") is None
 
     def test_large_payload_roundtrip(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             big_data = {"data": list(range(5000)), "nested": {"a": "b" * 1000}}
             cache_set("test:big", big_data, ttl=60)
@@ -305,9 +302,7 @@ class TestCacheStats:
             pytest.skip("fakeredis not installed")
 
         fake_redis = fakeredis.FakeRedis(decode_responses=True)
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
             rc._global_hits = 7
             rc._global_misses = 3
 
@@ -320,18 +315,8 @@ class TestCacheStats:
 
 
 class TestCacheInvalidation:
-    @pytest.fixture
-    def fake_redis(self):
-        try:
-            import fakeredis
-            return fakeredis.FakeRedis(decode_responses=True)
-        except ImportError:
-            pytest.skip("fakeredis not installed")
-
     def test_invalidate_backtest_cache(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             rc.cache_set("backtest:1:orb:abc123", {"strategy": "orb"}, ttl=60)
             rc.cache_set("backtest:1:sr_breakout:def456", {"strategy": "sr_breakout"}, ttl=60)
@@ -346,9 +331,7 @@ class TestCacheInvalidation:
             assert rc.cache_get("news:all:recent:25") == "news_data"
 
     def test_invalidate_backtest_cache_with_strategy_id(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             rc.cache_set("backtest:1:orb:abc123", {"strategy": "orb"}, ttl=60)
             rc.cache_set("backtest:1:sr_breakout:def456", {"strategy": "sr_breakout"}, ttl=60)
@@ -361,9 +344,7 @@ class TestCacheInvalidation:
             assert rc.cache_get("backtest:1:sr_breakout:def456") == {"strategy": "sr_breakout"}
 
     def test_invalidate_news_cache(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             rc.cache_set("news:all:recent:25", "a", ttl=60)
             rc.cache_set("news:recent:24:all:50", "b", ttl=60)
@@ -380,9 +361,7 @@ class TestCacheInvalidation:
             assert rc.cache_get("screener:xyz") == "e"
 
     def test_invalidate_screener_cache(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             rc.cache_set("screener:abc123", "data1", ttl=60)
             rc.cache_set("screener:def456", "data2", ttl=60)
@@ -409,19 +388,9 @@ class TestStaleWhileRevalidate:
     def _reset(self, _reset_redis_state):
         pass
 
-    @pytest.fixture
-    def fake_redis(self):
-        try:
-            import fakeredis
-            return fakeredis.FakeRedis(decode_responses=True)
-        except ImportError:
-            pytest.skip("fakeredis not installed")
-
     @pytest.mark.asyncio
     async def test_fresh_hit_returns_cached(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
             rc.cache_set("test:swr:1", {"data": "fresh"}, ttl=600)
             fake_redis.set("test:swr:1:fresh", "1", ex=300)
 
@@ -451,9 +420,7 @@ class TestStaleWhileRevalidate:
 
     @pytest.mark.asyncio
     async def test_stale_lock_prevents_duplicate_refresh(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
             fake_redis.set("test:swr:3", rc._serialize({"data": "stale"}), ex=600)
             fake_redis.set("test:swr:3:lock", "1", ex=30)
 
@@ -466,9 +433,7 @@ class TestStaleWhileRevalidate:
 
     @pytest.mark.asyncio
     async def test_miss_singleflight_computes(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             compute_fn = MagicMock(return_value={"data": "computed"})
             data, status = await rc.stale_while_revalidate("test:swr:4", compute_fn, fresh_ttl=300, stale_ttl=600)
@@ -503,9 +468,7 @@ class TestStaleWhileRevalidate:
 
     @pytest.mark.asyncio
     async def test_miss_timeout_fallback(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
             fake_redis.set("test:swr:6:lock", "1", ex=30)
 
             compute_fn = MagicMock(return_value={"data": "fallback"})
@@ -533,9 +496,7 @@ class TestStaleWhileRevalidate:
 
     @pytest.mark.asyncio
     async def test_compute_failure_on_miss_raises(self, fake_redis):
-        with patch("cache.redis_client.get_redis_client", return_value=fake_redis):
-            import cache.redis_client as rc
-            rc._redis_available = True
+        with _patched_redis(fake_redis) as rc:
 
             compute_fn = MagicMock(side_effect=ValueError("compute error"))
             with pytest.raises(ValueError, match="compute error"):

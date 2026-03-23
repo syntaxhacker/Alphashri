@@ -14,6 +14,7 @@ import type {
   CostBreakdown,
 } from "../types/backtest";
 import { chartTradesToTrades } from "../api/chartBuilder";
+import { createSubscriber } from "./createSubscriber";
 
 // State interface
 export interface BacktestState {
@@ -116,19 +117,8 @@ export const initialBacktestState: BacktestState = {
 // Current state (mutable)
 let state: BacktestState = { ...initialBacktestState };
 
-// Subscribers for state changes
-const subscribers: Set<() => void> = new Set();
-
-// Notify all subscribers
-function notify() {
-  subscribers.forEach((callback) => callback());
-}
-
-// Subscribe to state changes
-export function subscribe(callback: () => void) {
-  subscribers.add(callback);
-  return () => subscribers.delete(callback);
-}
+const { subscribe: _subscribe, notify } = createSubscriber();
+export const subscribe = _subscribe;
 
 // Get current state
 export function getState(): BacktestState {

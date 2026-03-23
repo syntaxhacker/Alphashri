@@ -1,10 +1,13 @@
-/**
- * Strategy Management Component Types
- */
-
-import type { StrategyConfig, StrategyPerformance, BotConfig } from "../../types/strategies";
+import type {
+  StrategyConfig,
+  StrategyPerformance,
+  BotConfig,
+  StrategyCreate,
+} from "../../types/strategies";
 
 export type StrategyView = "templates" | "list" | "performance";
+
+export type StrategyFormData = StrategyCreate;
 
 export interface StrategiesPageProps {
   // State
@@ -85,37 +88,6 @@ export interface StrategyFormProps {
   onSubmit: (data: StrategyFormData) => void;
 }
 
-export interface StrategyFormData {
-  name: string;
-  strategy_type: string;
-  parent_id?: number | null;
-  description?: string;
-  or_minutes?: number;
-  sl_pct?: number;
-  tp_pct?: number;
-  min_or_range_pct?: number;
-  max_or_range_pct?: number;
-  max_positions?: number;
-  max_capital_per_trade_pct?: number;
-  max_daily_loss_pct?: number;
-  max_total_exposure_pct?: number;
-  risk_per_trade_pct?: number;
-  min_trade_value?: number;
-  max_trade_value?: number;
-  cooldown_minutes?: number;
-  max_distance_from_or_pct?: number;
-  entry_threshold_pct?: number;
-  enable_trailing_stop?: boolean;
-  trailing_stop_pct?: number;
-  trailing_activation_pct?: number;
-  max_holding_days?: number;
-  cooldown_days?: number;
-  enable_filters?: boolean;
-  ema_fast_period?: number;
-  ema_slow_period?: number;
-  pivot_type?: string;
-  breakout_buffer_pct?: number;
-}
 
 export interface TemplateCardProps {
   template: StrategyConfig;
