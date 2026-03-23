@@ -57,7 +57,7 @@ stock-screener-ui/
 │   └── api/conftest.py # API-specific fixtures (TestClient, candles, news)
 ├── api_server_fastapi.py  # Main FastAPI app (routes defined here)
 ├── config.py           # Central config (env vars via python-dotenv)
-└── requirements.txt    # Python deps
+└── api/requirements.txt    # Python deps
 ```
 
 ## Code Style — Python

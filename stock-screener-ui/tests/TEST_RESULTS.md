@@ -262,7 +262,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r api/requirements.txt
           pip install pytest pytest-cov
       - name: Run tests
         run: pytest tests/api/ --cov=api --cov-report=xml

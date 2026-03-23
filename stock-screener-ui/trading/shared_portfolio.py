@@ -53,6 +53,7 @@ class SharedPosition:
     unrealized_pnl_pct: float = 0.0
     peak_price: float = 0.0
     low_price: float = float('inf')
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -537,6 +538,8 @@ class SharedPortfolioManager:
                 'entry_time': pos.entry_time.isoformat(),
                 'strategy_id': pos.strategy_id,
                 'strategy_name': pos.strategy_name,
+                'peak_price': pos.peak_price,
+                'metadata': pos.metadata,
             }
             for pos in self.positions.values()
         ]
@@ -567,6 +570,9 @@ class SharedPortfolioManager:
             strategy_id=strategy_id,
             strategy_name=pos_data['strategy_name'],
             current_price=pos_data.get('current_price', pos_data['entry_price']),
+            peak_price=pos_data.get('peak_price', pos_data['entry_price']),
+            low_price=pos_data.get('low_price', pos_data['entry_price']),
+            metadata=pos_data.get('metadata', {}),
         )
         
         self.positions[key] = pos

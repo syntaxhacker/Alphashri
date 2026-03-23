@@ -209,6 +209,16 @@ export function setSelectedVariation(variationId: string | null) {
         "cooldown_days",
         "trade_size",
       ],
+      ema_cross: [
+        "ema_fast_period",
+        "ema_slow_period",
+        "sl_pct",
+        "tp_pct",
+        "timeframe",
+        "trade_size",
+        "enable_shorts",
+        "cooldown_bars",
+      ],
     };
 
     const strategyType = variation.strategy_type.toLowerCase();
@@ -280,6 +290,16 @@ export function getStrategyDefaults(strategyId: string): Record<string, any> {
       max_holding_days: 15,
       cooldown_days: 7,
       trade_size: 100,
+    },
+    ema_cross: {
+      ema_fast_period: 9,
+      ema_slow_period: 21,
+      stop_loss_pct: 0.5,
+      take_profit_pct: 1.5,
+      timeframe: "5",
+      trade_size: 100,
+      enable_shorts: false,
+      cooldown_bars: 3,
     },
   };
   return defaults[strategyId] || {};

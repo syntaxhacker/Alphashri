@@ -104,6 +104,17 @@ export interface StrategyFormData {
   max_trade_value?: number;
   cooldown_minutes?: number;
   max_distance_from_or_pct?: number;
+  entry_threshold_pct?: number;
+  enable_trailing_stop?: boolean;
+  trailing_stop_pct?: number;
+  trailing_activation_pct?: number;
+  max_holding_days?: number;
+  cooldown_days?: number;
+  enable_filters?: boolean;
+  ema_fast_period?: number;
+  ema_slow_period?: number;
+  pivot_type?: string;
+  breakout_buffer_pct?: number;
 }
 
 export interface TemplateCardProps {

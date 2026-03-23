@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-COPY stock-screener-ui/requirements.txt .
+COPY stock-screener-ui/api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .

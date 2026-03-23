@@ -30,6 +30,20 @@ export interface StrategyConfig {
   // Runner Parameters
   cooldown_minutes: number;
   max_distance_from_or_pct: number;
+  // 52W Chaser Parameters
+  entry_threshold_pct: number;
+  enable_trailing_stop: boolean;
+  trailing_stop_pct: number;
+  trailing_activation_pct: number;
+  max_holding_days: number;
+  cooldown_days: number;
+  enable_filters: boolean;
+  // EMA Crossover Parameters
+  ema_fast_period: number;
+  ema_slow_period: number;
+  // S/R Breakout Parameters
+  pivot_type: string;
+  breakout_buffer_pct: number;
   // Cost Parameters
   brokerage_pct: number;
   min_brokerage: number;
@@ -66,6 +80,20 @@ export interface StrategyCreate {
   // Runner parameters
   cooldown_minutes?: number;
   max_distance_from_or_pct?: number;
+  // 52W Chaser parameters
+  entry_threshold_pct?: number;
+  enable_trailing_stop?: boolean;
+  trailing_stop_pct?: number;
+  trailing_activation_pct?: number;
+  max_holding_days?: number;
+  cooldown_days?: number;
+  enable_filters?: boolean;
+  // EMA Crossover parameters
+  ema_fast_period?: number;
+  ema_slow_period?: number;
+  // S/R Breakout parameters
+  pivot_type?: string;
+  breakout_buffer_pct?: number;
 }
 
 // Strategy update request
@@ -88,6 +116,17 @@ export interface StrategyUpdate {
   max_trade_value?: number;
   cooldown_minutes?: number;
   max_distance_from_or_pct?: number;
+  entry_threshold_pct?: number;
+  enable_trailing_stop?: boolean;
+  trailing_stop_pct?: number;
+  trailing_activation_pct?: number;
+  max_holding_days?: number;
+  cooldown_days?: number;
+  enable_filters?: boolean;
+  ema_fast_period?: number;
+  ema_slow_period?: number;
+  pivot_type?: string;
+  breakout_buffer_pct?: number;
 }
 
 // Strategy with variations (for template view)
