@@ -849,12 +849,47 @@ class TestCORSSecurity:
             "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "POST"
         })
-        
-        assert response.status_code in [200, 400, 405]
+        assert response.status_code in [200, 204, 400, 405]
 
     def test_preflight_request_handled(self, client):
         response = client.options("/api/auth/login")
-        assert response.status_code in [200, 400, 405]
+        assert response.status_code in [200, 204, 400, 405]
+
+    def test_allowed_origin_reflected(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "http://localhost:3000"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") == "http://localhost:3000"
+
+    def test_disallowed_origin_blocked(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://evil-site.com"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") is None
+
+    def test_cloudflare_pages_preview_allowed(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://ux-re.alphashri.pages.dev"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") == "https://ux-re.alphashri.pages.dev"
+
+    def test_cloudflare_pages_production_allowed(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://alphashri.pages.dev"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") == "https://alphashri.pages.dev"
+
+    def test_wildcard_pattern_allows_subdomain(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://fix-xyz.alphashri.pages.dev"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") == "https://fix-xyz.alphashri.pages.dev"
+
+    def test_different_pages_dev_subdomain_blocked(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://evil.pages.dev"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") is None
 
 
 class TestHTTPSecurityHeaders:

@@ -21,9 +21,11 @@ sys.path.insert(0, str(_script_dir))
 import config
 
 from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 import uvicorn
 
 import trending_upside
@@ -112,13 +114,27 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Alphashri API", lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=config.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        origin = request.headers.get("origin")
+        if origin and config.is_origin_allowed(origin):
+            if request.method == "OPTIONS":
+                response = Response(status_code=204)
+            else:
+                response = await call_next(request)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            requested_method = request.headers.get("access-control-request-method")
+            if requested_method:
+                response.headers["Access-Control-Allow-Methods"] = requested_method
+            return response
+        return await call_next(request)
+
+
+app.add_middleware(DynamicCORSMiddleware)
 
 _sector_dashboard_dir = _project_root / 'historical_sector_cycles'
 if _sector_dashboard_dir.exists():
