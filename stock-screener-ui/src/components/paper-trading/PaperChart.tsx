@@ -576,6 +576,37 @@ function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolea
   );
 }
 
+function ChartEmptyState({
+  className,
+  icon,
+  children,
+}: {
+  className: string;
+  icon?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <CompactPanel
+      data-testid="paper-chart-container"
+      className={`paper-chart-container ${className}`}
+      id="paper-chart"
+      style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+    >
+      <Box
+        data-testid={icon ? undefined : "chart-placeholder-content"}
+        style={{ textAlign: "center" }}
+      >
+        {icon && (
+          <Text size="lg" c="dimmed" mb="sm">
+            {icon}
+          </Text>
+        )}
+        {children}
+      </Box>
+    </CompactPanel>
+  );
+}
+
 export function PaperChart() {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<any>(null);
@@ -641,76 +672,39 @@ export function PaperChart() {
 
   if (!state.selectedSymbol) {
     return (
-      <CompactPanel
-        data-testid="paper-chart-container"
-        className="paper-chart-container paper-chart-empty"
-        id="paper-chart"
-        style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
-      >
-        <Box data-testid="chart-placeholder-content" style={{ textAlign: "center" }}>
-          <Text size="lg" c="dimmed" mb="sm">
-            📈
-          </Text>
-          <Text c="dimmed">Select a position or trade to view chart</Text>
-        </Box>
-      </CompactPanel>
+      <ChartEmptyState className="paper-chart-empty">
+        <Text c="dimmed">Select a position or trade to view chart</Text>
+      </ChartEmptyState>
     );
   }
 
   if (state.chartLoading) {
     return (
-      <CompactPanel
-        data-testid="paper-chart-container"
-        className="paper-chart-container paper-chart-loading"
-        id="paper-chart"
-        style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
-      >
-        <Box data-testid="chart-loading" style={{ textAlign: "center" }}>
-          <Text c="dimmed">Loading {state.selectedSymbol} chart...</Text>
-        </Box>
-      </CompactPanel>
+      <ChartEmptyState className="paper-chart-loading">
+        <Text c="dimmed">Loading {state.selectedSymbol} chart...</Text>
+      </ChartEmptyState>
     );
   }
 
   if (!state.chartData) {
     return (
-      <CompactPanel
-        data-testid="paper-chart-container"
-        className="paper-chart-container paper-chart-error"
-        id="paper-chart"
-        style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
-      >
-        <Box data-testid="chart-error" style={{ textAlign: "center" }}>
-          <Text size="lg" c="dimmed" mb="sm">
-            ⚠️
-          </Text>
-          <Text c="dimmed">No data available for {state.selectedSymbol}</Text>
-          <Text size="sm" c="dimmed" mt="xs">
-            Stock data may not be available or symbol is invalid
-          </Text>
-        </Box>
-      </CompactPanel>
+      <ChartEmptyState className="paper-chart-error" icon="⚠️">
+        <Text c="dimmed">No data available for {state.selectedSymbol}</Text>
+        <Text size="sm" c="dimmed" mt="xs">
+          Stock data may not be available or symbol is invalid
+        </Text>
+      </ChartEmptyState>
     );
   }
 
   if (!state.chartData.candles || state.chartData.candles.length === 0) {
     return (
-      <CompactPanel
-        data-testid="paper-chart-container"
-        className="paper-chart-container paper-chart-no-data"
-        id="paper-chart"
-        style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
-      >
-        <Box data-testid="chart-error" style={{ textAlign: "center" }}>
-          <Text size="lg" c="dimmed" mb="sm">
-            ⚠️
-          </Text>
-          <Text c="dimmed">No candle data for {state.selectedSymbol}</Text>
-          <Text size="sm" c="dimmed" mt="xs">
-            Market may be closed or data unavailable for this date
-          </Text>
-        </Box>
-      </CompactPanel>
+      <ChartEmptyState className="paper-chart-no-data" icon="⚠️">
+        <Text c="dimmed">No candle data for {state.selectedSymbol}</Text>
+        <Text size="sm" c="dimmed" mt="xs">
+          Market may be closed or data unavailable for this date
+        </Text>
+      </ChartEmptyState>
     );
   }
 

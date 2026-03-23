@@ -189,22 +189,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, [checkAuth]);
 
-  const login = useCallback(
-    async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const authenticate = useCallback(
+    async (
+      endpoint: string,
+      body: Record<string, unknown>,
+      errorFallback: string,
+    ): Promise<{ success: boolean; error?: string }> => {
       setLoading(true);
       setError(null);
 
       try {
-        const response = await fetch(`${API_BASE}/api/auth/login`, {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify(body),
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-          const errorMessage = data.detail || "Login failed";
+          const errorMessage = data.detail || errorFallback;
           setError(errorMessage);
           setLoading(false);
           return { success: false, error: errorMessage };
@@ -212,7 +216,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setStoredTokens(data.access_token, data.refresh_token);
 
-        // Fetch user info
         const userResponse = await fetch(`${API_BASE}/api/auth/me`, {
           headers: { Authorization: `Bearer ${data.access_token}` },
         });
@@ -235,54 +238,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const login = useCallback(
+    (email: string, password: string) =>
+      authenticate("/api/auth/login", { email, password }, "Login failed"),
+    [authenticate],
+  );
+
   const register = useCallback(
-    async (
-      email: string,
-      password: string,
-      displayName?: string,
-    ): Promise<{ success: boolean; error?: string }> => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch(`${API_BASE}/api/auth/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, display_name: displayName }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          const errorMessage = data.detail || "Registration failed";
-          setError(errorMessage);
-          setLoading(false);
-          return { success: false, error: errorMessage };
-        }
-
-        setStoredTokens(data.access_token, data.refresh_token);
-
-        // Fetch user info
-        const userResponse = await fetch(`${API_BASE}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${data.access_token}` },
-        });
-
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          setStoredUser(userData);
-          setUser(userData);
-        }
-
-        setLoading(false);
-        return { success: true };
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Network error";
-        setError(errorMessage);
-        setLoading(false);
-        return { success: false, error: errorMessage };
-      }
-    },
-    [],
+    (email: string, password: string, displayName?: string) =>
+      authenticate(
+        "/api/auth/register",
+        { email, password, display_name: displayName },
+        "Registration failed",
+      ),
+    [authenticate],
   );
 
   const logout = useCallback(async () => {

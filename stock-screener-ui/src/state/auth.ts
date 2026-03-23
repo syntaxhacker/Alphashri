@@ -100,30 +100,30 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
 }
 
 // Auth API functions
-export async function login(
-  email: string,
-  password: string,
+async function authenticateWithEndpoint(
+  endpoint: string,
+  body: Record<string, unknown>,
+  fallbackLabel: string,
 ): Promise<{ success: boolean; error?: string }> {
   updateState({ loading: true, error: null });
 
   try {
-    const response = await fetch(`${API_BASE}/api/auth/login`, {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(body),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      const error = data.detail || "Login failed";
+      const error = data.detail || fallbackLabel;
       updateState({ loading: false, error });
       return { success: false, error };
     }
 
     setTokens(data.access_token, data.refresh_token);
 
-    // Fetch user info
     const userResponse = await fetchWithAuth(`${API_BASE}/api/auth/me`);
     if (userResponse.ok) {
       const user = await userResponse.json();
@@ -150,54 +150,23 @@ export async function login(
   }
 }
 
+export async function login(
+  email: string,
+  password: string,
+): Promise<{ success: boolean; error?: string }> {
+  return authenticateWithEndpoint("/api/auth/login", { email, password }, "Login failed");
+}
+
 export async function register(
   email: string,
   password: string,
   displayName?: string,
 ): Promise<{ success: boolean; error?: string }> {
-  updateState({ loading: true, error: null });
-
-  try {
-    const response = await fetch(`${API_BASE}/api/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, display_name: displayName }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      const error = data.detail || "Registration failed";
-      updateState({ loading: false, error });
-      return { success: false, error };
-    }
-
-    setTokens(data.access_token, data.refresh_token);
-
-    // Fetch user info
-    const userResponse = await fetchWithAuth(`${API_BASE}/api/auth/me`);
-    if (userResponse.ok) {
-      const user = await userResponse.json();
-      setStoredUser(user);
-      updateState({
-        isAuthenticated: true,
-        user,
-        loading: false,
-        error: null,
-      });
-    } else {
-      updateState({
-        isAuthenticated: true,
-        loading: false,
-      });
-    }
-
-    return { success: true };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Network error";
-    updateState({ loading: false, error: errorMessage });
-    return { success: false, error: errorMessage };
-  }
+  return authenticateWithEndpoint(
+    "/api/auth/register",
+    { email, password, display_name: displayName },
+    "Registration failed",
+  );
 }
 
 export async function logout(): Promise<void> {

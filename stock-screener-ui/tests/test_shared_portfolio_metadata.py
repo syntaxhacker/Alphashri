@@ -6,26 +6,24 @@ from trading.shared_portfolio import SharedPosition, SharedPortfolioManager, Ord
 
 class TestSharedPositionMetadata:
 
-    def test_default_metadata_empty_dict(self):
-        pos = SharedPosition(
+    @pytest.fixture
+    def base_position(self):
+        return SharedPosition(
             symbol="TEST", side=OrderSide.BUY, quantity=10,
             entry_price=100.0, stop_loss=95.0, take_profit=110.0,
             entry_time=datetime.now(), strategy_id=1, strategy_name="test",
         )
-        assert pos.metadata == {}
 
-    def test_metadata_stored_and_retrieved(self):
-        pos = SharedPosition(
-            symbol="TEST", side=OrderSide.BUY, quantity=10,
-            entry_price=100.0, stop_loss=95.0, take_profit=110.0,
-            entry_time=datetime.now(), strategy_id=1, strategy_name="test",
-        )
-        pos.metadata["key1"] = "value1"
-        pos.metadata["key2"] = 42
-        pos.metadata["nested"] = {"a": 1, "b": 2}
-        assert pos.metadata["key1"] == "value1"
-        assert pos.metadata["key2"] == 42
-        assert pos.metadata["nested"]["a"] == 1
+    def test_default_metadata_empty_dict(self, base_position):
+        assert base_position.metadata == {}
+
+    def test_metadata_stored_and_retrieved(self, base_position):
+        base_position.metadata["key1"] = "value1"
+        base_position.metadata["key2"] = 42
+        base_position.metadata["nested"] = {"a": 1, "b": 2}
+        assert base_position.metadata["key1"] == "value1"
+        assert base_position.metadata["key2"] == 42
+        assert base_position.metadata["nested"]["a"] == 1
 
     def test_metadata_with_52w_high(self):
         pos = SharedPosition(

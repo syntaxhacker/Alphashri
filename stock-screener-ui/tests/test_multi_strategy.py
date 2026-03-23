@@ -355,8 +355,18 @@ class TestSharedPortfolioManager:
 class TestGlobalRiskManager:
     """Tests for GlobalRiskManager class."""
 
+    _STRATEGY_LIMITS_KWARGS = dict(
+        strategy_id=1,
+        strategy_name="Test",
+        strategy_max_positions=3,
+        strategy_allocation_pct=0.40,
+        current_strategy_positions=1,
+        current_strategy_capital_used=100_000,
+        allocated_capital=400_000,
+        trade_value=50_000,
+    )
+
     def test_initialization(self):
-        """Test risk manager initialization."""
         rm = GlobalRiskManager(
             max_total_positions=10,
             max_total_capital_pct=0.80,
@@ -368,38 +378,16 @@ class TestGlobalRiskManager:
         assert rm.config.max_symbol_exposure_pct == 0.20
 
     def test_check_strategy_limits_success(self):
-        """Test strategy limits check - success."""
         rm = GlobalRiskManager()
-
-        allowed, reason = rm.check_strategy_limits(
-            strategy_id=1,
-            strategy_name="Test",
-            strategy_max_positions=3,
-            strategy_allocation_pct=0.40,
-            current_strategy_positions=1,
-            current_strategy_capital_used=100_000,
-            allocated_capital=400_000,
-            trade_value=50_000,
-        )
-
+        allowed, reason = rm.check_strategy_limits(**self._STRATEGY_LIMITS_KWARGS)
         assert allowed is True
         assert reason == "OK"
 
     def test_check_strategy_limits_max_positions(self):
-        """Test strategy limits check - max positions."""
         rm = GlobalRiskManager()
-
         allowed, reason = rm.check_strategy_limits(
-            strategy_id=1,
-            strategy_name="Test",
-            strategy_max_positions=2,
-            strategy_allocation_pct=0.40,
-            current_strategy_positions=2,
-            current_strategy_capital_used=100_000,
-            allocated_capital=400_000,
-            trade_value=50_000,
+            **{**self._STRATEGY_LIMITS_KWARGS, "strategy_max_positions": 2, "current_strategy_positions": 2}
         )
-
         assert allowed is False
         assert "max positions" in reason.lower()
 
@@ -459,6 +447,23 @@ class TestGlobalRiskManager:
         assert allowed is False
         assert "exposure" in reason.lower()
 
+    _COMMON_CAN_TRADE_KWARGS = dict(
+        strategy_id=1,
+        strategy_name="Test",
+        symbol="RELIANCE",
+        trade_value=100_000,
+        total_capital=1_000_000,
+        cash_available=500_000,
+        current_total_positions=3,
+        current_total_capital_used=300_000,
+        strategy_max_positions=3,
+        strategy_allocation_pct=0.40,
+        current_strategy_positions=1,
+        current_strategy_capital_used=100_000,
+        current_symbol_exposure=0,
+        daily_pnl=0,
+    )
+
     def test_can_trade_comprehensive(self):
         """Test comprehensive can_trade check."""
         rm = GlobalRiskManager(
@@ -467,22 +472,7 @@ class TestGlobalRiskManager:
             max_symbol_exposure_pct=0.20,
         )
 
-        allowed, reason = rm.can_trade(
-            strategy_id=1,
-            strategy_name="Test",
-            symbol="RELIANCE",
-            trade_value=100_000,
-            total_capital=1_000_000,
-            cash_available=500_000,
-            current_total_positions=3,
-            current_total_capital_used=300_000,
-            strategy_max_positions=3,
-            strategy_allocation_pct=0.40,
-            current_strategy_positions=1,
-            current_strategy_capital_used=100_000,
-            current_symbol_exposure=0,
-            daily_pnl=0,
-        )
+        allowed, reason = rm.can_trade(**self._COMMON_CAN_TRADE_KWARGS)
 
         assert allowed is True
         assert reason == "OK"
@@ -491,100 +481,62 @@ class TestGlobalRiskManager:
         """Test can_trade with insufficient cash."""
         rm = GlobalRiskManager()
 
-        allowed, reason = rm.can_trade(
-            strategy_id=1,
-            strategy_name="Test",
-            symbol="RELIANCE",
-            trade_value=100_000,
-            total_capital=1_000_000,
-            cash_available=50_000,  # Not enough
-            current_total_positions=3,
-            current_total_capital_used=300_000,
-            strategy_max_positions=3,
-            strategy_allocation_pct=0.40,
-            current_strategy_positions=1,
-            current_strategy_capital_used=100_000,
-            current_symbol_exposure=0,
-            daily_pnl=0,
-        )
+        kwargs = {**self._COMMON_CAN_TRADE_KWARGS, 'cash_available': 50_000}
+        allowed, reason = rm.can_trade(**kwargs)
 
         assert allowed is False
         assert "insufficient cash" in reason.lower()
 
-    def test_validate_trade_success(self):
-        """Test trade validation - success."""
+    _COMMON_VALIDATE_KWARGS = dict(
+        strategy_id=1,
+        strategy_name="Test",
+        symbol="RELIANCE",
+        entry_price=2000,
+        stop_loss=1900,
+        side="BUY",
+        total_capital=1_000_000,
+        cash_available=500_000,
+        current_total_positions=3,
+        current_total_capital_used=300_000,
+        strategy_max_positions=3,
+        strategy_allocation_pct=0.40,
+        current_strategy_positions=1,
+        current_strategy_capital_used=100_000,
+        current_symbol_exposure=0,
+        daily_pnl=0,
+    )
+
+    @pytest.mark.parametrize("take_profit,expected_valid,expected_rr_ratio", [
+        (2400, True, 4.0),
+        (2050, False, None),
+    ])
+    def test_validate_trade(self, take_profit, expected_valid, expected_rr_ratio):
         rm = GlobalRiskManager()
 
-        result = rm.validate_trade(
-            strategy_id=1,
-            strategy_name="Test",
-            symbol="RELIANCE",
-            entry_price=2000,
-            stop_loss=1900,  # 5% risk
-            take_profit=2400,  # 20% reward = 1:4 ratio
-            side="BUY",
-            total_capital=1_000_000,
-            cash_available=500_000,
-            current_total_positions=3,
-            current_total_capital_used=300_000,
-            strategy_max_positions=3,
-            strategy_allocation_pct=0.40,
-            current_strategy_positions=1,
-            current_strategy_capital_used=100_000,
-            current_symbol_exposure=0,
-            daily_pnl=0,
-        )
+        result = rm.validate_trade(**self._COMMON_VALIDATE_KWARGS, take_profit=take_profit)
 
-        assert result['valid'] is True
-        assert result['shares'] > 0
-        assert result['rr_ratio'] == 4.0  # 1:4 ratio
+        assert result['valid'] is expected_valid
+        if expected_valid:
+            assert result['shares'] > 0
+            assert result['rr_ratio'] == expected_rr_ratio
+        else:
+            assert "risk/reward" in result['reason'].lower()
 
-    def test_validate_trade_bad_rr_ratio(self):
-        """Test trade validation - bad risk/reward ratio."""
+    @pytest.mark.parametrize("daily_pnl,expected_within", [
+        (-20_000, True),
+        (-35_000, False),
+    ], ids=["within_limit", "exceeded_limit"])
+    def test_daily_loss_limit(self, daily_pnl, expected_within):
         rm = GlobalRiskManager()
+        rm.config.max_daily_loss_pct = 0.03
 
-        result = rm.validate_trade(
-            strategy_id=1,
-            strategy_name="Test",
-            symbol="RELIANCE",
-            entry_price=2000,
-            stop_loss=1900,  # 5% risk
-            take_profit=2050,  # 2.5% reward = 1:0.5 ratio (bad)
-            side="BUY",
-            total_capital=1_000_000,
-            cash_available=500_000,
-            current_total_positions=3,
-            current_total_capital_used=300_000,
-            strategy_max_positions=3,
-            strategy_allocation_pct=0.40,
-            current_strategy_positions=1,
-            current_strategy_capital_used=100_000,
-            current_symbol_exposure=0,
-            daily_pnl=0,
-        )
-
-        assert result['valid'] is False
-        assert "risk/reward" in result['reason'].lower()
-
-    def test_daily_loss_limit(self):
-        """Test daily loss limit check."""
-        rm = GlobalRiskManager()
-        rm.config.max_daily_loss_pct = 0.03  # 3%
-
-        # Within limit
         within, reason = rm.check_daily_loss_limit(
             total_capital=1_000_000,
-            daily_pnl=-20_000,  # 2% loss
+            daily_pnl=daily_pnl,
         )
-        assert within is True
-
-        # Exceeded limit
-        within, reason = rm.check_daily_loss_limit(
-            total_capital=1_000_000,
-            daily_pnl=-35_000,  # 3.5% loss
-        )
-        assert within is False
-        assert "loss limit" in reason.lower()
+        assert within is expected_within
+        if not expected_within:
+            assert "loss limit" in reason.lower()
 
 
 # ============================================

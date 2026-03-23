@@ -844,17 +844,81 @@ class TestSensitiveDataExposure:
 class TestCORSSecurity:
     """Tests for CORS configuration."""
 
+    def test_dynamic_cors_middleware_registered(self):
+        try:
+            from api_server_fastapi import app, DynamicCORSMiddleware
+        except ImportError:
+            pytest.skip("DynamicCORSMiddleware not available in fallback app")
+        middleware_types = [getattr(m, "cls", type(m)) for m in app.user_middleware]
+        assert DynamicCORSMiddleware in middleware_types
+
     def test_cors_headers_present(self, client):
         response = client.options("/api/auth/login", headers={
             "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "POST"
         })
-        
-        assert response.status_code in [200, 400, 405]
+        assert response.status_code in [200, 204, 400, 405]
 
     def test_preflight_request_handled(self, client):
         response = client.options("/api/auth/login")
-        assert response.status_code in [200, 400, 405]
+        assert response.status_code in [200, 204, 400, 405]
+
+    def test_preflight_reflects_requested_method(self, client):
+        response = client.options("/api/auth/login", headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "DELETE"
+        })
+        assert response.headers.get("Access-Control-Allow-Methods") == "DELETE"
+
+    def test_preflight_credentials_header_present(self, client):
+        response = client.options("/api/auth/login", headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST"
+        })
+        assert response.headers.get("Access-Control-Allow-Credentials") == "true"
+
+    def test_preflight_no_wildcard_headers_with_credentials(self, client):
+        response = client.options("/api/auth/login", headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST"
+        })
+        assert response.headers.get("Access-Control-Allow-Headers") != "*"
+
+    def test_allowed_origin_reflected(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "http://localhost:3000"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") == "http://localhost:3000"
+
+    def test_disallowed_origin_blocked(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://evil-site.com"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") is None
+
+    def test_cloudflare_pages_preview_allowed(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://ux-re.alphashri.pages.dev"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") == "https://ux-re.alphashri.pages.dev"
+
+    def test_cloudflare_pages_production_allowed(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://alphashri.pages.dev"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") == "https://alphashri.pages.dev"
+
+    def test_wildcard_pattern_allows_subdomain(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://fix-xyz.alphashri.pages.dev"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") == "https://fix-xyz.alphashri.pages.dev"
+
+    def test_different_pages_dev_subdomain_blocked(self, client):
+        response = client.get("/api/auth/me", headers={
+            "Origin": "https://evil.pages.dev"
+        })
+        assert response.headers.get("Access-Control-Allow-Origin") is None
 
 
 class TestHTTPSecurityHeaders:

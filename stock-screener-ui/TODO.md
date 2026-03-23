@@ -1,51 +1,50 @@
-# TODO - Frontend Testing
+# TODO — Duplicate Code (jscpd)
 
-## A. `data-testid` Attributes - COMPLETE
-All ~616 data-testids verified present in components. 2 new ones added:
-- [x] `bots-loading` -> `BotsPage.tsx:304`
-- [x] `add-variation-btn` -> `variations.ts:26`
+## Source Code (High Priority)
 
-## B. Unit Tests - COMPLETE
+### Screener Columns — shared across 6 files
+- `src/components/screener/columns/trending.ts` (base)
+- `src/components/screener/columns/rsiReversal.ts`
+- `src/components/screener/columns/niftyMovers.ts`
+- `src/components/screener/columns/marketOpenGap.ts`
+- `src/components/screener/columns/highMomentum.ts`
+- `src/components/screener/columns/buyerInterest.ts`
+- Extract shared column definitions into a common base/factory
 
-### Created: 46 new test files, 1212 tests passing
+### Type Duplicates
+- `src/types/index.ts` duplicates `src/components/screener/types.ts` (60+ lines)
+- `src/types/strategies.ts` duplicates `src/components/strategies/types.ts` (28 lines)
+- `src/types/paperTrading.ts` overlaps with `src/types/strategies.ts` (18 lines)
 
-| Directory | Files | Tests |
-|-----------|-------|-------|
-| `src/utils/` | 4 | 80 |
-| `src/api/` | 6 | 111 |
-| `src/store/` | 2 | 17 |
-| `src/state/` | 7 | 216 |
-| `src/hooks/` | 4 | 31 |
-| `src/components/screener/` | 2 | 120 |
-| `src/components/backtest/` | 6 | 85 |
-| `src/components/strategies/` | 3 | 77 |
-| `src/components/bots/` | 3 | 54 |
-| `src/components/options/` | 1 | 28 |
-| `src/components/paper-trading/` | 4 | 114 |
-| `src/components/sector/` | 2 | 31 |
-| `src/components/settings/` | 1 | 4 |
-| `src/components/auth/` | 1 | 8 |
-| `src/components/` (other) | 2 | 16 |
-| `src/pages/` | 2 | 51 |
-| `src/` (root) | 2 | 79 |
+### State Duplicates
+- `src/state/backtest.ts` duplicates `src/state/paperTrading.ts` (14 lines)
+- `src/state/auth.ts` self-duplicate (~40 lines between login/register handlers)
 
-## C. Break-Verify Validation - COMPLETE
+### Component Self-Duplicates
+- `src/components/backtest/BacktestChart.tsx` — 6 identical series blocks (lines 80-170)
+- `src/components/strategies/StrategyForm.tsx` — ~50 lines duplicated (form sections)
+- `src/components/paper-trading/PaperChart.tsx` — 74-line self-duplicate
+- `src/components/auth/AuthProvider.tsx` — 31-line self-duplicate (login/register)
+- `src/components/options/OptionChain/ChainSummary.tsx` — 22-line self-duplicate
 
-All 32 test files verified by intentionally breaking source code:
-- 30 caught regressions on first pass
-- 2 fixed (brokers.test.ts, BrokerConnectionCard.test.ts) to import from source
-- All changes reverted, all 1212 tests passing
+## E2E Tests (Lower Priority)
 
-## D. Remaining (Low Priority - require React Testing Library or E2E)
+### Heavy Self-Duplication
+- `tests/e2e/backtest.spec.ts` — 73-line clone + multiple smaller ones
+- `tests/e2e/multi-strategy-signal-types.spec.ts` — extensive repeated patterns
+- `tests/e2e/news.spec.ts` — many repeated navigation/assertion blocks
+- `tests/e2e/navigation-v2.spec.ts` — same 10-line block repeated 5 times
+- `tests/e2e/sector.spec.ts` — repeated setup/teardown patterns
 
-- [ ] Component rendering tests (require @testing-library/react setup)
-- [ ] E2E coverage for ~496 uncovered data-testids
-- [ ] CSS selector migration in 4 E2E files
+### Cross-File Test Duplicates
+- `tests/e2e/bots.spec.ts` duplicates `multi-strategy-signal-types.spec.ts` (26+18 lines)
+- `tests/e2e/backtest-mantine.spec.ts` duplicates `backtest.spec.ts` (multiple blocks)
+- `tests/e2e/layout.spec.ts` duplicates `market-ticker.spec.ts` (8 lines)
 
-## Stats
-| Metric | Count |
-|--------|-------|
-| Test files | 61 |
-| Total tests | 1,212 |
-| Source files with tests | ~50 |
-| Source functions exported for testing | ~60+ |
+## Python Tests
+
+- `tests/api/test_sector.py` — 6 clones from same base block
+- `tests/api/test_market_ticker.py` — repeated test structure (5 clones)
+- `tests/test_week52_chaser.py` duplicates `test_week52_target.py` (48 lines total)
+- `tests/test_orb_conservative.py` duplicates `test_week52_target.py` (26 lines)
+- `tests/integration/testcontainers/test_real_db_bots.py` — 3 self-clones

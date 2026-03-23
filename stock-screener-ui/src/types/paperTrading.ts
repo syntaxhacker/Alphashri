@@ -3,6 +3,10 @@
  */
 
 // Open position from paper trader
+export type { StrategyConfig } from "./strategies";
+
+import type { StrategyConfig } from "./strategies";
+
 export interface PaperPosition {
   symbol: string;
   side: "BUY" | "SELL";
@@ -230,46 +234,4 @@ export interface BotInfo {
     strategy_type: string;
   }>;
   is_active: boolean;
-}
-
-// Strategy configuration from database
-export interface StrategyConfig {
-  id?: string; // UUID string
-  internal_id?: number; // Internal integer ID
-  name: string;
-  strategy_type: string;
-  is_active: boolean;
-  is_default: boolean;
-  // Parent/child relationship
-  parent_id?: number | null;
-  is_template?: boolean;
-  description?: string | null;
-  // ORB Parameters
-  or_minutes: number;
-  sl_pct: number;
-  tp_pct: number;
-  min_or_range_pct: number;
-  max_or_range_pct: number;
-  // Risk Parameters
-  max_positions: number;
-  max_capital_per_trade_pct: number;
-  max_daily_loss_pct: number;
-  max_total_exposure_pct: number;
-  risk_per_trade_pct: number;
-  min_trade_value: number;
-  max_trade_value: number;
-  // Runner Parameters
-  cooldown_minutes: number;
-  max_distance_from_or_pct: number;
-  // Cost Parameters
-  brokerage_pct: number;
-  min_brokerage: number;
-  stt_pct: number;
-  exchange_pct: number;
-  sebi_pct: number;
-  stamp_pct: number;
-  gst_pct: number;
-  // Metadata
-  created_at?: string | null;
-  updated_at?: string | null;
 }
