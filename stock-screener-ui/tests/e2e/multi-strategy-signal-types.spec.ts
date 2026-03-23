@@ -1,8 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import {
   gotoBotsView,
-  getBotListItems,
   setupBotsMocks,
   mockBotsListRoute,
   mockAvailableStrategiesRoute,
@@ -270,7 +268,7 @@ test.describe("Multi-Strategy Bot - Edit Strategy Types", () => {
     await page
       .locator('[data-testid="strategy-allocation-row"]')
       .last()
-      .locator('[data-testid="remove-strategy-btn"]')
+      .locator('[data-testid^="remove-strategy-btn-"]')
       .click();
     await expect(page.locator('[data-testid="strategy-allocation-row"]')).toHaveCount(1);
   });

@@ -88,6 +88,7 @@ export interface StrategyFormProps {
   onSubmit: (data: StrategyFormData) => void;
 }
 
+
 export interface TemplateCardProps {
   template: StrategyConfig;
   variations: StrategyConfig[];
