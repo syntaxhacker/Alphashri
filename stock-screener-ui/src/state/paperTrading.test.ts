@@ -426,12 +426,16 @@ describe("bot status", () => {
 });
 
 describe("strategy config", () => {
-  it("setStrategyConfig updates config and resets error/dirty", () => {
-    const config: StrategyConfig = {
+  function createMockStrategyConfig(overrides: Partial<StrategyConfig> = {}): StrategyConfig {
+    return {
+      id: "test-uuid",
       name: "Test",
       strategy_type: "orb",
+      parent_id: null,
+      is_template: false,
       is_active: true,
       is_default: false,
+      description: null,
       or_minutes: 45,
       sl_pct: 0.5,
       tp_pct: 1.5,
@@ -446,6 +450,17 @@ describe("strategy config", () => {
       max_trade_value: 50000,
       cooldown_minutes: 30,
       max_distance_from_or_pct: 2,
+      entry_threshold_pct: 0,
+      enable_trailing_stop: false,
+      trailing_stop_pct: 0,
+      trailing_activation_pct: 0,
+      max_holding_days: 0,
+      cooldown_days: 0,
+      enable_filters: false,
+      ema_fast_period: 0,
+      ema_slow_period: 0,
+      pivot_type: "",
+      breakout_buffer_pct: 0,
       brokerage_pct: 0.03,
       min_brokerage: 20,
       stt_pct: 0.1,
@@ -453,7 +468,14 @@ describe("strategy config", () => {
       sebi_pct: 0.0001,
       stamp_pct: 0.003,
       gst_pct: 18,
+      created_at: null,
+      updated_at: null,
+      ...overrides,
     };
+  }
+
+  it("setStrategyConfig updates config and resets error/dirty", () => {
+    const config = createMockStrategyConfig();
     setConfigError("old error");
     setConfigDirty(true);
     setStrategyConfig(config);
@@ -488,33 +510,7 @@ describe("strategy config", () => {
   });
 
   it("updateConfigValue updates a specific config key and sets dirty", () => {
-    const config: StrategyConfig = {
-      name: "Test",
-      strategy_type: "orb",
-      is_active: true,
-      is_default: false,
-      or_minutes: 45,
-      sl_pct: 0.5,
-      tp_pct: 1.5,
-      min_or_range_pct: 0.2,
-      max_or_range_pct: 5,
-      max_positions: 5,
-      max_capital_per_trade_pct: 20,
-      max_daily_loss_pct: 3,
-      max_total_exposure_pct: 80,
-      risk_per_trade_pct: 2,
-      min_trade_value: 5000,
-      max_trade_value: 50000,
-      cooldown_minutes: 30,
-      max_distance_from_or_pct: 2,
-      brokerage_pct: 0.03,
-      min_brokerage: 20,
-      stt_pct: 0.1,
-      exchange_pct: 0.00345,
-      sebi_pct: 0.0001,
-      stamp_pct: 0.003,
-      gst_pct: 18,
-    };
+    const config = createMockStrategyConfig();
     setStrategyConfig(config);
     setConfigDirty(false);
     updateConfigValue("or_minutes", 60);

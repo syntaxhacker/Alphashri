@@ -1,20 +1,22 @@
 import { test, expect } from "@playwright/test";
 import {
-  setupApiMocks,
-  loginAsTestUser,
   setupStrategiesMocks,
   setupStrategiesEmptyMocks,
   setupStrategiesErrorMocks,
   setupStrategiesLoadingMocks,
 } from "../mocks/apiResponses";
-
-const STRATEGIES_URL = "/strategies";
+import {
+  STRATEGIES_URL,
+  setupStrategiesTest,
+  gotoStrategies,
+  switchToStrategiesTab,
+  openCreateStrategyDialog,
+  openEditStrategyDialog,
+} from "./helpers/strategiesHelpers";
 
 test.describe("Strategies V2", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupStrategiesMocks(page);
+    await setupStrategiesTest(page);
   });
 
   test.describe("Navigation", () => {
@@ -26,15 +28,13 @@ test.describe("Strategies V2", () => {
     });
 
     test("@smoke navigate via URL /strategies -> strategies-view visible", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
+      await gotoStrategies(page);
     });
   });
 
   test.describe("Tab Navigation", () => {
     test("strategies-nav-tabs visible, default Templates tab active", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
+      await gotoStrategies(page);
       await expect(page.getByTestId("strategies-nav-tabs")).toBeVisible();
       const templatesTab = page
         .getByTestId("strategies-nav-tabs")
@@ -43,52 +43,35 @@ test.describe("Strategies V2", () => {
     });
 
     test("click All Strategies tab -> strategy-list-table visible", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "All Strategies" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "All Strategies");
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
     });
 
     test("click Performance tab -> performance-view visible", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "Performance" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "Performance");
       await expect(page.getByTestId("performance-view")).toBeVisible();
     });
 
     test("click back Templates -> templates-view visible", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "All Strategies" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "All Strategies");
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "Templates" })
-        .click();
+      await switchToStrategiesTab(page, "Templates");
       await expect(page.getByTestId("templates-view")).toBeVisible();
     });
   });
 
   test.describe("Templates View", () => {
     test("@smoke templates-grid visible with strategy-card items", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
+      await gotoStrategies(page);
       await expect(page.getByTestId("templates-grid")).toBeVisible();
       await expect(page.getByTestId("strategy-card").first()).toBeVisible();
     });
 
     test("each card has create-from-template-btn", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
+      await gotoStrategies(page);
       const cards = page.getByTestId("strategy-card");
       const count = await cards.count();
       for (let i = 0; i < count; i++) {
@@ -100,31 +83,22 @@ test.describe("Strategies V2", () => {
       page,
     }) => {
       await setupStrategiesEmptyMocks(page);
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
+      await gotoStrategies(page);
       await expect(page.getByTestId("templates-empty-state")).toBeVisible();
     });
   });
 
   test.describe("Strategy List", () => {
     test("strategy-list-table with strategy-list-body visible", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "All Strategies" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "All Strategies");
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       await expect(page.getByTestId("strategy-list-body")).toBeVisible();
     });
 
     test("strategy-row items have edit-strategy-btn and delete-strategy-btn", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "All Strategies" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "All Strategies");
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       const rows = page.locator('[data-testid^="strategy-row-"]');
       const count = await rows.count();
@@ -137,12 +111,8 @@ test.describe("Strategies V2", () => {
 
     test("loading state visible briefly during API call", async ({ page }) => {
       await setupStrategiesLoadingMocks(page);
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "All Strategies" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "All Strategies");
       await expect(page.getByTestId("strategies-loading-state")).toBeVisible({ timeout: 3000 });
       await expect(page.getByTestId("strategy-list-table")).toBeVisible({ timeout: 15000 });
     });
@@ -150,21 +120,15 @@ test.describe("Strategies V2", () => {
 
   test.describe("Create Strategy", () => {
     test("click create-from-template-btn -> modal visible", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole("dialog")).toBeVisible();
+      await gotoStrategies(page);
+      await openCreateStrategyDialog(page);
     });
 
     test("strategy-form-modal has strategy-name-input and strategy-type-input", async ({
       page,
     }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole("dialog")).toBeVisible();
+      await gotoStrategies(page);
+      await openCreateStrategyDialog(page);
       await expect(page.getByTestId("strategy-name-input")).toBeVisible();
       await expect(page.getByTestId("strategy-type-input")).toBeVisible();
     });
@@ -172,11 +136,8 @@ test.describe("Strategies V2", () => {
     test("strategy-form-tabs has strategy-tab-orb, strategy-tab-risk, strategy-tab-runner", async ({
       page,
     }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole("dialog")).toBeVisible();
+      await gotoStrategies(page);
+      await openCreateStrategyDialog(page);
       await expect(page.getByTestId("strategy-form-tabs")).toBeVisible();
       await expect(page.getByTestId("strategy-tab-orb")).toBeVisible();
       await expect(page.getByTestId("strategy-tab-risk")).toBeVisible();
@@ -184,21 +145,15 @@ test.describe("Strategies V2", () => {
     });
 
     test("click strategy-tab-risk -> strategy-panel-risk visible", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole("dialog")).toBeVisible();
+      await gotoStrategies(page);
+      await openCreateStrategyDialog(page);
       await page.getByTestId("strategy-tab-risk").click();
       await expect(page.getByTestId("strategy-panel-risk")).toBeVisible();
     });
 
     test("fill name Test Strategy, click strategy-cancel-btn -> modal closes", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
-      await page.getByTestId("create-from-template-btn").first().click();
-      await expect(page.getByRole("dialog")).toBeVisible();
+      await gotoStrategies(page);
+      await openCreateStrategyDialog(page);
       await page.getByTestId("strategy-name-input").fill("Test Strategy");
       await page.getByTestId("strategy-cancel-btn").click();
       await expect(page.getByRole("dialog")).not.toBeVisible();
@@ -207,43 +162,24 @@ test.describe("Strategies V2", () => {
 
   test.describe("Edit Strategy", () => {
     test("click edit-strategy-btn -> modal visible", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "All Strategies" })
-        .click();
-      await expect(page.getByTestId("strategy-list-table")).toBeVisible();
-      await page.getByTestId("edit-strategy-btn").first().click();
-      await expect(page.getByRole("dialog")).toBeVisible();
+      await gotoStrategies(page);
+      await openEditStrategyDialog(page);
     });
 
     test("strategy-name-input pre-filled, click submit-strategy-btn", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "All Strategies" })
-        .click();
-      await expect(page.getByTestId("strategy-list-table")).toBeVisible();
-      await page.getByTestId("edit-strategy-btn").first().click();
-      await expect(page.getByRole("dialog")).toBeVisible();
+      await gotoStrategies(page);
+      await openEditStrategyDialog(page);
       const nameInput = page.getByTestId("strategy-name-input");
       await expect(nameInput).toBeVisible();
-      const nameValue = await nameInput.inputValue();
-      expect(nameValue).toBe("ORB Conservative");
+      expect(await nameInput.inputValue()).toBe("ORB Conservative");
       await page.getByTestId("submit-strategy-btn").click();
     });
   });
 
   test.describe("Delete Strategy", () => {
     test("click delete-strategy-btn -> confirm dialog", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "All Strategies" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "All Strategies");
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       await page.evaluate(() => {
         (window as any).deleteStrategy = () => {
@@ -273,12 +209,8 @@ test.describe("Strategies V2", () => {
     });
 
     test("confirm -> dialog accepted", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "All Strategies" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "All Strategies");
       await expect(page.getByTestId("strategy-list-table")).toBeVisible();
       await page.evaluate(() => {
         (window as any).deleteStrategy = () => {
@@ -307,12 +239,8 @@ test.describe("Strategies V2", () => {
 
   test.describe("Performance View", () => {
     test("performance-view with stat cards", async ({ page }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "Performance" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "Performance");
       await expect(page.getByTestId("performance-view")).toBeVisible();
       await expect(page.locator(".performance-card-trades")).toBeVisible({ timeout: 10000 });
       await expect(page.locator(".performance-card-winrate")).toBeVisible();
@@ -323,12 +251,8 @@ test.describe("Strategies V2", () => {
     test("performance-table with performance-table-header and performance-table-body", async ({
       page,
     }) => {
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "Performance" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "Performance");
       await expect(page.getByTestId("performance-view")).toBeVisible();
       await expect(page.getByTestId("performance-table")).toBeVisible();
       await expect(page.getByTestId("performance-table-header")).toBeVisible({ timeout: 10000 });
@@ -339,12 +263,8 @@ test.describe("Strategies V2", () => {
       page,
     }) => {
       await setupStrategiesEmptyMocks(page);
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
-      await page
-        .getByTestId("strategies-nav-tabs")
-        .locator("label", { hasText: "Performance" })
-        .click();
+      await gotoStrategies(page);
+      await switchToStrategiesTab(page, "Performance");
       await expect(page.getByTestId("performance-empty-state")).toBeVisible({ timeout: 10000 });
     });
   });
@@ -352,15 +272,13 @@ test.describe("Strategies V2", () => {
   test.describe("Error State", () => {
     test("with setupStrategiesErrorMocks -> strategies-error visible", async ({ page }) => {
       await setupStrategiesErrorMocks(page);
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
+      await gotoStrategies(page);
       await expect(page.getByTestId("strategies-error")).toBeVisible();
     });
 
     test("strategies-retry-btn and strategies-dismiss-btn visible", async ({ page }) => {
       await setupStrategiesErrorMocks(page);
-      await page.goto(STRATEGIES_URL);
-      await expect(page.getByTestId("strategies-view")).toBeVisible({ timeout: 10000 });
+      await gotoStrategies(page);
       await expect(page.getByTestId("strategies-error")).toBeVisible();
       await expect(page.getByTestId("strategies-retry-btn")).toBeVisible();
       await expect(page.getByTestId("strategies-dismiss-btn")).toBeVisible();

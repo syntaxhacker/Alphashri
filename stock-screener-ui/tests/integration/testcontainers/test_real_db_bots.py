@@ -75,6 +75,53 @@ class TestBotCreationPostgreSQL:
         assert bot.max_total_capital_pct == 0.8
 
 
+def _add_bot_with_strategy(clean_postgres_session, name="Bot", strategy_id=None, max_positions=5, cap_pct=0.50):
+    bot = BotConfig(name=name, is_active=True)
+    clean_postgres_session.add(bot)
+    clean_postgres_session.flush()
+    if strategy_id is not None:
+        clean_postgres_session.execute(
+            bot_strategies.insert().values(
+                bot_id=bot.id,
+                strategy_id=strategy_id,
+                max_positions=max_positions,
+                capital_allocation_pct=cap_pct,
+            )
+        )
+    return bot
+
+
+def _create_strategy(clean_postgres_session, name="test_strategy", strategy_type="ORB", **kwargs):
+    strategy = StrategyConfig(
+        name=name,
+        strategy_type=strategy_type,
+        is_template=kwargs.pop("is_template", False),
+        is_active=kwargs.pop("is_active", True),
+        **kwargs,
+    )
+    clean_postgres_session.add(strategy)
+    clean_postgres_session.flush()
+    return strategy
+
+
+def _setup_bot_with_association(clean_postgres_session, bot_name="Test Bot", strategy_id=None, max_positions=5, cap_pct=0.50):
+    bot = BotConfig(name=bot_name, is_active=True)
+    clean_postgres_session.add(bot)
+    clean_postgres_session.flush()
+    if strategy_id is not None:
+        clean_postgres_session.execute(
+            bot_strategies.insert().values(
+                bot_id=bot.id,
+                strategy_id=strategy_id,
+                max_positions=max_positions,
+                capital_allocation_pct=cap_pct,
+            )
+        )
+    clean_postgres_session.commit()
+    clean_postgres_session.refresh(bot)
+    return bot
+
+
 class TestBotStrategyRelationshipPostgreSQL:
     """Test bot-strategy many-to-many relationships."""
     
@@ -84,21 +131,7 @@ class TestBotStrategyRelationshipPostgreSQL:
         pg_template_strategy: StrategyConfig
     ):
         """Test adding a single strategy to a bot."""
-        bot = BotConfig(
-            name="Single Strategy Bot",
-            is_active=True,
-        )
-        clean_postgres_session.add(bot)
-        clean_postgres_session.flush()
-        
-        clean_postgres_session.execute(
-            bot_strategies.insert().values(
-                bot_id=bot.id,
-                strategy_id=pg_template_strategy.id,
-                max_positions=5,
-                capital_allocation_pct=0.50,
-            )
-        )
+        bot = _add_bot_with_strategy(clean_postgres_session, "Single Strategy Bot", pg_template_strategy.id)
         clean_postgres_session.commit()
         
         clean_postgres_session.refresh(bot)
@@ -106,27 +139,13 @@ class TestBotStrategyRelationshipPostgreSQL:
         assert bot.strategies[0].name == "pg_template_orb"
     
     def test_bot_with_multiple_strategies(self, clean_postgres_session: Session):
-        """Test adding multiple strategies to a bot."""
-        strategies = []
-        for i in range(3):
-            strategy = StrategyConfig(
-                name=f"multi_strategy_{i}",
-                strategy_type="ORB",
-                is_template=False,
-                is_active=True,
-            )
-            clean_postgres_session.add(strategy)
-            strategies.append(strategy)
-        
-        clean_postgres_session.flush()
-        
-        bot = BotConfig(
-            name="Multi Strategy Bot",
-            is_active=True,
-        )
-        clean_postgres_session.add(bot)
-        clean_postgres_session.flush()
-        
+        strategies = [
+            _create_strategy(clean_postgres_session, f"multi_strategy_{i}")
+            for i in range(3)
+        ]
+
+        bot = _add_bot_with_strategy(clean_postgres_session, "Multi Strategy Bot")
+
         for i, strategy in enumerate(strategies):
             clean_postgres_session.execute(
                 bot_strategies.insert().values(
@@ -136,9 +155,9 @@ class TestBotStrategyRelationshipPostgreSQL:
                     capital_allocation_pct=0.30,
                 )
             )
-        
+
         clean_postgres_session.commit()
-        
+
         clean_postgres_session.refresh(bot)
         assert len(bot.strategies) == 3
     
@@ -150,20 +169,8 @@ class TestBotStrategyRelationshipPostgreSQL:
         """Test that a strategy can be used by multiple bots."""
         bots = []
         for i in range(3):
-            bot = BotConfig(
-                name=f"Shared Strategy Bot {i}",
-                is_active=True,
-            )
-            clean_postgres_session.add(bot)
-            clean_postgres_session.flush()
-            
-            clean_postgres_session.execute(
-                bot_strategies.insert().values(
-                    bot_id=bot.id,
-                    strategy_id=pg_template_strategy.id,
-                    max_positions=5,
-                    capital_allocation_pct=0.50,
-                )
+            bot = _add_bot_with_strategy(
+                clean_postgres_session, f"Shared Strategy Bot {i}", pg_template_strategy.id
             )
             bots.append(bot)
         
@@ -180,34 +187,13 @@ class TestBotStrategyRelationshipPostgreSQL:
         """Test that adding same strategy to bot twice fails."""
         from sqlalchemy.exc import IntegrityError
         
-        bot = BotConfig(
-            name="Duplicate Test Bot",
-            is_active=True,
-        )
-        clean_postgres_session.add(bot)
-        clean_postgres_session.flush()
-        
-        # First insert should succeed
-        clean_postgres_session.execute(
-            bot_strategies.insert().values(
-                bot_id=bot.id,
-                strategy_id=pg_template_strategy.id,
-                max_positions=5,
-                capital_allocation_pct=0.50,
-            )
-        )
+        bot = _add_bot_with_strategy(clean_postgres_session, "Duplicate Test Bot", pg_template_strategy.id)
         clean_postgres_session.flush()
         
         # Second insert with same (bot_id, strategy_id) should fail
-        # PostgreSQL enforces primary key constraint at execute time
         with pytest.raises(IntegrityError):
-            clean_postgres_session.execute(
-                bot_strategies.insert().values(
-                    bot_id=bot.id,
-                    strategy_id=pg_template_strategy.id,
-                    max_positions=3,
-                    capital_allocation_pct=0.30,
-                )
+            _add_bot_with_strategy(
+                clean_postgres_session, "Dupe Bot 2", pg_template_strategy.id, max_positions=3, cap_pct=0.30
             )
             clean_postgres_session.flush()
 
@@ -259,45 +245,22 @@ class TestCascadeDeleteBehaviorPostgreSQL:
         self,
         clean_postgres_session: Session
     ):
-        """Test that deleting a strategy removes it from bots."""
-        strategy = StrategyConfig(
-            name="strategy_to_delete",
-            strategy_type="ORB",
-            is_template=False,
-            is_active=True,
-        )
-        clean_postgres_session.add(strategy)
-        clean_postgres_session.flush()
-        
-        bot = BotConfig(
-            name="Bot With Delete Strategy",
-            is_active=True,
-        )
-        clean_postgres_session.add(bot)
-        clean_postgres_session.flush()
-        
-        clean_postgres_session.execute(
-            bot_strategies.insert().values(
-                bot_id=bot.id,
-                strategy_id=strategy.id,
-                max_positions=5,
-                capital_allocation_pct=0.50,
-            )
-        )
-        clean_postgres_session.commit()
-        
+        strategy = _create_strategy(clean_postgres_session, "strategy_to_delete")
+
+        bot = _setup_bot_with_association(clean_postgres_session, "Bot With Delete Strategy", strategy.id)
+
         strategy_id = strategy.id
         bot_id = bot.id
-        
+
         clean_postgres_session.delete(strategy)
         clean_postgres_session.commit()
-        
+
         bot = clean_postgres_session.query(BotConfig).filter(
             BotConfig.id == bot_id
         ).first()
         assert bot is not None
         assert len(bot.strategies) == 0
-        
+
         result = clean_postgres_session.execute(
             text("SELECT COUNT(*) FROM bot_strategies WHERE strategy_id = :sid"),
             {"sid": strategy_id}
@@ -375,24 +338,8 @@ class TestAssociationTableValuesPostgreSQL:
         clean_postgres_session: Session,
         pg_template_strategy: StrategyConfig
     ):
-        """Test that extra columns in association table work correctly."""
-        bot = BotConfig(
-            name="Association Test Bot",
-            is_active=True,
-        )
-        clean_postgres_session.add(bot)
-        clean_postgres_session.flush()
-        
-        clean_postgres_session.execute(
-            bot_strategies.insert().values(
-                bot_id=bot.id,
-                strategy_id=pg_template_strategy.id,
-                max_positions=7,
-                capital_allocation_pct=0.35,
-            )
-        )
-        clean_postgres_session.commit()
-        
+        bot = _setup_bot_with_association(clean_postgres_session, "Association Test Bot", pg_template_strategy.id, max_positions=7, cap_pct=0.35)
+
         result = clean_postgres_session.execute(
             text("""
                 SELECT max_positions, capital_allocation_pct 
@@ -402,34 +349,18 @@ class TestAssociationTableValuesPostgreSQL:
             {"bot_id": bot.id, "sid": pg_template_strategy.id}
         )
         row = result.fetchone()
-        
+
         assert row is not None
         assert row[0] == 7
         assert row[1] == 0.35
-    
+
     def test_update_association_values(
         self,
         clean_postgres_session: Session,
         pg_template_strategy: StrategyConfig
     ):
-        """Test updating values in the association table."""
-        bot = BotConfig(
-            name="Update Association Bot",
-            is_active=True,
-        )
-        clean_postgres_session.add(bot)
-        clean_postgres_session.flush()
-        
-        clean_postgres_session.execute(
-            bot_strategies.insert().values(
-                bot_id=bot.id,
-                strategy_id=pg_template_strategy.id,
-                max_positions=5,
-                capital_allocation_pct=0.50,
-            )
-        )
-        clean_postgres_session.commit()
-        
+        bot = _setup_bot_with_association(clean_postgres_session, "Update Association Bot", pg_template_strategy.id)
+
         clean_postgres_session.execute(
             text("""
                 UPDATE bot_strategies 
@@ -444,7 +375,7 @@ class TestAssociationTableValuesPostgreSQL:
             }
         )
         clean_postgres_session.commit()
-        
+
         result = clean_postgres_session.execute(
             text("""
                 SELECT max_positions, capital_allocation_pct 
@@ -454,6 +385,6 @@ class TestAssociationTableValuesPostgreSQL:
             {"bot_id": bot.id, "sid": pg_template_strategy.id}
         )
         row = result.fetchone()
-        
+
         assert row[0] == 10
         assert row[1] == 0.75

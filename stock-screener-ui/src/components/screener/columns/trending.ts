@@ -1,28 +1,12 @@
 import type { ColumnDef } from "./index";
 import type { Stock } from "../../../types";
+import { symbolCol, scoreCol, sectorCol, recentReturn5dCol, perfWCol, touched52wCol } from "./base";
 
 export function getTrendingColumns(): ColumnDef[] {
   return [
-    {
-      key: "symbol",
-      label: "Symbol",
-      type: "string",
-      sortable: true,
-    },
-    {
-      key: "score",
-      label: "Score",
-      type: "number",
-      sortable: true,
-      format: (value: number) => String(value),
-    },
-    {
-      key: "touched_52w",
-      label: "Touched",
-      type: "badge",
-      sortable: true,
-      format: (value: boolean) => (value ? "Yes" : "No"),
-    },
+    symbolCol,
+    scoreCol,
+    touched52wCol,
     {
       key: "tv_price",
       label: "Price",
@@ -57,32 +41,8 @@ export function getTrendingColumns(): ColumnDef[] {
         return { value: `${value > 0 ? "+" : ""}${value.toFixed(2)}%`, className: cls };
       },
     },
-    {
-      key: "recent_return_5d",
-      label: "Return 5D",
-      type: "number",
-      sortable: true,
-      format: (value: number) => {
-        const icon = value > 5 ? "🚀" : value > 0 ? "🟢" : "🔴";
-        const cls = value > 0 ? "green" : "red";
-        return { value: `${icon} ${value > 0 ? "+" : ""}${value.toFixed(1)}%`, className: cls };
-      },
-    },
-    {
-      key: "perf_w",
-      label: "Perf W",
-      type: "number",
-      sortable: true,
-      format: (value: number) => {
-        const cls = value > 0 ? "green" : "red";
-        return { value: `${value > 0 ? "+" : ""}${value.toFixed(1)}%`, className: cls };
-      },
-    },
-    {
-      key: "sector",
-      label: "Sector",
-      type: "string",
-      sortable: true,
-    },
+    recentReturn5dCol,
+    perfWCol,
+    sectorCol,
   ];
 }

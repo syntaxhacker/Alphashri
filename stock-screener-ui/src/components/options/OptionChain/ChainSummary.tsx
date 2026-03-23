@@ -67,43 +67,9 @@ export function ChainSummary({
   selectedExpiry,
   summary,
 }: ChainSummaryProps) {
-  const stats = useMemo(() => {
-    // If backend summary is available, use it!
-    if (summary) {
-      return {
-        pcr: summary.pcr,
-        maxPain: summary.max_pain,
-        expectedMove: summary.expected_move,
-        totalCE_OI: summary.total_ce_oi,
-        totalPE_OI: summary.total_pe_oi,
-        resistanceStrike:
-          Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0)) > 0
-            ? strikeMatrix.reduce((prev, curr) =>
-                (curr.ce?.market_data?.oi ?? 0) > (prev.ce?.market_data?.oi ?? 0) ? curr : prev,
-              ).strike
-            : 0,
-        supportStrike:
-          Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.oi ?? 0)) > 0
-            ? strikeMatrix.reduce((prev, curr) =>
-                (curr.pe?.market_data?.oi ?? 0) > (prev.pe?.market_data?.oi ?? 0) ? curr : prev,
-              ).strike
-            : 0,
-      };
-    }
+  const stats = useMemo(() => computeStats(strikeMatrix, summary), [strikeMatrix, summary]);
 
-    // Fallback: Minimal logic if backend fails (though it shouldn't now)
-    return {
-      pcr: 0,
-      maxPain: 0,
-      expectedMove: null,
-      totalCE_OI: 0,
-      totalPE_OI: 0,
-      resistanceStrike: 0,
-      supportStrike: 0,
-    };
-  }, [strikeMatrix, summary]);
-
-  const pcrColor = stats.pcr > 1.2 ? "green" : stats.pcr < 0.7 ? "red" : "blue";
+  const pcrColor = computePcrColor(stats.pcr);
 
   return (
     <CompactStatGrid data-testid="chain-summary">

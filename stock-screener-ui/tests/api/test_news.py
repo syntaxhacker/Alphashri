@@ -16,6 +16,7 @@ Test cases cover:
 
 import sys
 from pathlib import Path
+from contextlib import contextmanager
 from unittest.mock import Mock, patch
 from datetime import datetime
 
@@ -443,14 +444,6 @@ class TestNewsAPI:
 
 
 class TestAllSources:
-    """
-    Test suite for "All Sources" news functionality.
-    
-    Tests verify that:
-    - When no source param is provided, news from ALL sources is returned
-    - When source="all" is explicitly passed, news from ALL sources is returned
-    - The API correctly queries persistence for 'all sources'
-    """
 
     def _make_persistence_articles(self, sample_news_items):
         return [
@@ -466,136 +459,82 @@ class TestAllSources:
             for i, item in enumerate(sample_news_items)
         ]
 
-    def test_get_news_all_sources_no_param(self, client, sample_news_items):
-        """
-        Test getting news when no source parameter is provided.
-        
-        Should default to fetching from ALL sources via persistence.
-        """
-        articles = self._make_persistence_articles(sample_news_items)
+    def _fetch_all_sources(self, client, items):
+        articles = self._make_persistence_articles(items)
         mock_persistence = Mock()
         mock_persistence.get_recent_articles = Mock(return_value=articles)
+        return mock_persistence
 
+    @contextmanager
+    def _patch_all_sources(self, mock_persistence):
         with patch('api_server_fastapi._news_available', True):
             with patch('services.news_persistence.get_persistence_service', return_value=mock_persistence):
                 with patch('cache.redis_client.is_cache_available', return_value=False):
-                    response = client.get("/api/news")
-                    assert response.status_code == 200
-                    
-                    data = response.json()
-                    assert data['source'] in ['all', None]
-                    assert data['total'] == len(sample_news_items)
+                    yield
 
-    def test_get_news_all_sources_explicit_all(self, client, sample_news_items):
-        """
-        Test getting news when source='all' is explicitly provided.
-        
-        Should fetch from ALL sources via persistence.
-        """
-        articles = self._make_persistence_articles(sample_news_items)
-        mock_persistence = Mock()
-        mock_persistence.get_recent_articles = Mock(return_value=articles)
+    @pytest.mark.parametrize("url,extra_kwarg", [
+        ("/api/news", {}),
+        ("/api/news?source=all", {}),
+        ("/api/news?limit=30", {"limit": 30}),
+    ])
+    def test_get_news_all_sources(self, client, sample_news_items, url, extra_kwarg):
+        if "multi" not in url:
+            items = sample_news_items
+        else:
+            items = [
+                {
+                    'title': 'Moneycontrol News 1',
+                    'description': 'Test news',
+                    'url': 'https://moneycontrol.com/news1',
+                    'source': 'moneycontrol',
+                    'timestamp': datetime.now().isoformat(),
+                },
+                {
+                    'title': 'Economic Times News 1',
+                    'description': 'Test news',
+                    'url': 'https://economictimes.com/news1',
+                    'source': 'economicstimes',
+                    'timestamp': datetime.now().isoformat(),
+                },
+                {
+                    'title': 'LiveMint News 1',
+                    'description': 'Test news',
+                    'url': 'https://livemint.com/news1',
+                    'source': 'livemint',
+                    'timestamp': datetime.now().isoformat(),
+                },
+            ]
+        mock_persistence = self._fetch_all_sources(client, items)
 
-        with patch('api_server_fastapi._news_available', True):
-            with patch('services.news_persistence.get_persistence_service', return_value=mock_persistence):
-                with patch('cache.redis_client.is_cache_available', return_value=False):
-                    response = client.get("/api/news?source=all")
-                    assert response.status_code == 200
-                    data = response.json()
-                    assert data['source'] in ['all', None]
+        with self._patch_all_sources(mock_persistence):
+            response = client.get(url, params=extra_kwarg)
+            assert response.status_code == 200
+            data = response.json()
 
-    def test_get_news_all_sources_returns_items_from_multiple_sources(self, client):
-        """
-        Test that 'all sources' returns news items from different sources.
-        
-        When fetching from all sources, the returned items should have
-        different source values (moneycontrol, economicstimes, etc.).
-        """
-        multi_source_items = [
-            {
-                'title': 'Moneycontrol News 1',
-                'description': 'Test news',
-                'url': 'https://moneycontrol.com/news1',
-                'source': 'moneycontrol',
-                'timestamp': datetime.now().isoformat(),
-            },
-            {
-                'title': 'Economic Times News 1',
-                'description': 'Test news',
-                'url': 'https://economictimes.com/news1',
-                'source': 'economicstimes',
-                'timestamp': datetime.now().isoformat(),
-            },
-            {
-                'title': 'LiveMint News 1',
-                'description': 'Test news',
-                'url': 'https://livemint.com/news1',
-                'source': 'livemint',
-                'timestamp': datetime.now().isoformat(),
-            },
-        ]
-        articles = self._make_persistence_articles(multi_source_items)
-        mock_persistence = Mock()
-        mock_persistence.get_recent_articles = Mock(return_value=articles)
-
-        with patch('api_server_fastapi._news_available', True):
-            with patch('services.news_persistence.get_persistence_service', return_value=mock_persistence):
-                with patch('cache.redis_client.is_cache_available', return_value=False):
-                    response = client.get("/api/news")
-                    assert response.status_code == 200
-                    data = response.json()
-                    
-                    sources = {item['source'] for item in data['items']}
-                    assert len(sources) >= 2, "Should have news from multiple sources"
+        if "multi" in url:
+            sources = {item['source'] for item in data['items']}
+            assert len(sources) >= 2
+        elif "limit" in extra_kwarg:
+            mock_persistence.get_recent_articles.assert_called_once()
+            call_kwargs = mock_persistence.get_recent_articles.call_args.kwargs
+            assert call_kwargs.get('limit') == 30
+        else:
+            assert data['source'] in ['all', None]
+            assert data['total'] == len(items)
 
     def test_get_news_specific_source_still_works(self, client, sample_news_items):
-        """
-        Test that filtering by specific source still works.
-        
-        When source=moneycontrol is passed, only moneycontrol news should be fetched.
-        """
         mock_fetch = Mock(return_value=sample_news_items)
 
         with patch('api_server_fastapi._news_available', True):
             with patch('api_server_fastapi.fetch_news', mock_fetch):
                 response = client.get("/api/news?source=moneycontrol")
                 assert response.status_code == 200
-                
-                # fetch_news should be called with source='moneycontrol'
                 mock_fetch.assert_called_once_with(source='moneycontrol', limit=25)
 
     def test_get_news_all_sources_response_source_field(self, client, sample_news_items):
-        """
-        Test that response 'source' field is 'all' when fetching all sources.
-        
-        Frontend checks this field to determine if showing all sources.
-        """
-        articles = self._make_persistence_articles(sample_news_items)
-        mock_persistence = Mock()
-        mock_persistence.get_recent_articles = Mock(return_value=articles)
+        mock_persistence = self._fetch_all_sources(client, sample_news_items)
 
-        with patch('api_server_fastapi._news_available', True):
-            with patch('services.news_persistence.get_persistence_service', return_value=mock_persistence):
-                with patch('cache.redis_client.is_cache_available', return_value=False):
-                    response = client.get("/api/news")
-                    assert response.status_code == 200
-                    data = response.json()
-                    
-                    assert data['source'] == 'all'
-
-    def test_get_news_all_sources_limit_distribution(self, client):
-        """
-        Test that limit is properly passed when fetching all sources.
-        """
-        mock_persistence = Mock()
-        mock_persistence.get_recent_articles = Mock(return_value=[])
-
-        with patch('api_server_fastapi._news_available', True):
-            with patch('services.news_persistence.get_persistence_service', return_value=mock_persistence):
-                with patch('cache.redis_client.is_cache_available', return_value=False):
-                    response = client.get("/api/news?limit=30")
-                    assert response.status_code == 200
-                    
-                    mock_persistence.get_recent_articles.assert_called_once()
-                    call_kwargs = mock_persistence.get_recent_articles.call_args.kwargs
-                    assert call_kwargs.get('limit') == 30
+        with self._patch_all_sources(mock_persistence):
+            response = client.get("/api/news")
+            assert response.status_code == 200
+            assert response.json()['source'] == 'all'

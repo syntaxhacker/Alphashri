@@ -5,6 +5,12 @@ import {
   expectBotsViewVisible,
   getBotListItems,
   getBotStatus,
+  setupBotsMocks,
+  mockBotsListRoute,
+  mockAvailableStrategiesRoute,
+  gotoBotsViewAndWait,
+  mockCreateBotRoute,
+  createBotAndSave,
 } from "../helpers/botsHelpers";
 
 const BOT_ID_1 = "550e8400-e29b-41d4-a716-446655440000";
@@ -100,42 +106,9 @@ const mockAvailableStrategies = [
   },
 ];
 
-async function setupBotsTest(page: import("@playwright/test").Page) {
-  await setupApiMocks(page);
-  await loginAsTestUser(page);
-}
-
-async function mockBotsList(
-  page: import("@playwright/test").Page,
-  bots: typeof mockBots = mockBots,
-) {
-  await page.route(/\/api\/bots(\?|$)/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(bots),
-    });
-  });
-}
-
-async function mockAvailableStrategiesRoute(page: import("@playwright/test").Page) {
-  await page.route("**/api/bots/available-strategies", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(mockAvailableStrategies),
-    });
-  });
-}
-
-async function gotoBotsViewAndWait(page: import("@playwright/test").Page) {
-  await gotoBotsView(page);
-  await page.waitForLoadState("networkidle");
-}
-
 test.describe("Bots View - Navigation", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
+    await setupBotsMocks(page);
   });
 
   test("should navigate to bots view", async ({ page }) => {
@@ -153,8 +126,8 @@ test.describe("Bots View - Navigation", () => {
 
 test.describe("Bots View - List", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
-    await mockBotsList(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
   });
 
   test("@smoke should display list of bots", async ({ page }) => {
@@ -181,64 +154,34 @@ test.describe("Bots View - List", () => {
 
 test.describe("Bots View - Create", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
-    await mockAvailableStrategiesRoute(page);
+    await setupBotsMocks(page);
+    await mockAvailableStrategiesRoute(page, mockAvailableStrategies);
   });
 
   test("should have create bot button", async ({ page }) => {
-    await mockBotsList(page, []);
+    await mockBotsListRoute(page, []);
     await gotoBotsViewAndWait(page);
     await expect(page.locator('[data-testid="create-bot-btn"]')).toBeVisible();
   });
 
   test("should open create bot modal", async ({ page }) => {
-    await mockBotsList(page, []);
+    await mockBotsListRoute(page, []);
     await gotoBotsViewAndWait(page);
     await page.locator('[data-testid="create-bot-btn"]').click();
     await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
   });
 
   test("should create new bot", async ({ page }) => {
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
-      if (route.request().method() === "POST") {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: "new-bot-id-11111111-1111-1111-1111-111111111111",
-            name: "Test Bot",
-            is_active: true,
-            max_total_positions: 10,
-            max_total_capital_pct: 0.8,
-            strategies: [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            running: false,
-            pid: null,
-          }),
-        });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify([]),
-        });
-      }
-    });
-    await gotoBotsViewAndWait(page);
-    await page.locator('[data-testid="create-bot-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();
-    await page.locator('[data-testid="bot-name-input"]').fill("Test Bot");
-    await page.locator('[data-testid="save-bot-config-btn"]').click();
-    await expect(page.locator('[data-testid="bot-config-form"]')).toBeHidden();
+    await mockCreateBotRoute(page, "new-bot-id-11111111-1111-1111-1111-111111111111", "Test Bot");
+    await createBotAndSave(page, "Test Bot");
   });
 });
 
 test.describe("Bots View - Edit", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
-    await mockBotsList(page);
-    await mockAvailableStrategiesRoute(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
+    await mockAvailableStrategiesRoute(page, mockAvailableStrategies);
   });
 
   test("should have edit button for each bot", async ({ page }) => {
@@ -280,17 +223,17 @@ test.describe("Bots View - Edit", () => {
 
 test.describe("Bots View - Delete", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
+    await setupBotsMocks(page);
   });
 
   test("should have delete button for each bot", async ({ page }) => {
-    await mockBotsList(page);
+    await mockBotsListRoute(page, mockBots);
     await gotoBotsViewAndWait(page);
     await expect(page.locator(`[data-testid="delete-bot-btn-${BOT_ID_1}"]`)).toBeVisible();
   });
 
   test("should confirm before deleting", async ({ page }) => {
-    await mockBotsList(page);
+    await mockBotsListRoute(page, mockBots);
     await gotoBotsViewAndWait(page);
     page.on("dialog", async (dialog) => {
       expect(dialog.type()).toBe("confirm");
@@ -342,8 +285,8 @@ test.describe("Bots View - Delete", () => {
 
 test.describe("Bots View - Controls", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
-    await mockBotsList(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
   });
 
   test("should show Start Bot button when bot is not running", async ({ page }) => {
@@ -368,8 +311,8 @@ test.describe("Bots View - Controls", () => {
 
 test.describe("Bots View - Status", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
-    await mockBotsList(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
   });
 
   test("should have view status button for each bot", async ({ page }) => {
@@ -397,9 +340,9 @@ test.describe("Bots View - Status", () => {
 
 test.describe("Bots View - Assign Strategies", () => {
   test.beforeEach(async ({ page }) => {
-    await setupBotsTest(page);
-    await mockBotsList(page);
-    await mockAvailableStrategiesRoute(page);
+    await setupBotsMocks(page);
+    await mockBotsListRoute(page, mockBots);
+    await mockAvailableStrategiesRoute(page, mockAvailableStrategies);
   });
 
   test("should show assigned strategies", async ({ page }) => {
