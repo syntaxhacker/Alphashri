@@ -170,15 +170,10 @@ export function BotsPage() {
                     <Group gap="xs" wrap="wrap">
                       {bot.strategies.map((s) => (
                         <Badge key={s.id} size="sm" variant="light">
-                          {s.strategy_type}
+                          {s.strategy_type} - {s.name}
                         </Badge>
                       ))}
                     </Group>
-                    {bot.strategies.map((s) => (
-                      <Text key={`name-${s.id}`} size="xs" c="dimmed">
-                        {s.name}
-                      </Text>
-                    ))}
                   </Stack>
                 </Table.Td>
                 <Table.Td>{bot.max_total_positions}</Table.Td>
