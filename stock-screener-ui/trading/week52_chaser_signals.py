@@ -28,6 +28,7 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
         self.max_holding_days = int(config.get("max_holding_days", 30))
         self.cooldown_days = int(config.get("cooldown_days", 30))
         self.enable_filters = bool(config.get("enable_filters", False))
+        super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
 
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
         current_price = market_data.get("current_price")
