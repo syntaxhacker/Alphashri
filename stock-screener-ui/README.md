@@ -58,10 +58,10 @@ bun install
 
 # Install backend dependencies (choose one)
 # Option 1: Using uv (recommended)
-uv pip install -r requirements.txt
+uv pip install -r api/requirements.txt
 
 # Option 2: Using pip
-pip install -r requirements.txt
+pip install -r api/requirements.txt
 ```
 
 ### 2. Environment Setup
@@ -323,12 +323,12 @@ rm -rf node_modules bun.lockb
 bun install
 
 # Backend: Using uv (recommended)
-uv pip install -r requirements.txt --upgrade
-uv pip install -r requirements.txt --reinstall
+uv pip install -r api/requirements.txt --upgrade
+uv pip install -r api/requirements.txt --reinstall
 
 # Backend: Using pip
-pip install -r requirements.txt --upgrade
-pip install -r requirements.txt --force-reinstall
+pip install -r api/requirements.txt --upgrade
+pip install -r api/requirements.txt --force-reinstall
 ```
 
 ## License
