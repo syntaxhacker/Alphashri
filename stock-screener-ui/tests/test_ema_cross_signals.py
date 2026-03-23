@@ -7,6 +7,10 @@ from trading.orb_signals import SignalType
 
 class TestEMACrossSignalGenerator:
 
+    @pytest.fixture
+    def gen(self):
+        return EMACrossSignalGenerator({})
+
     def test_calculate_ema_basic(self):
         closes = [10, 11, 12, 11, 13]
         result = EMACrossSignalGenerator.calculate_ema(closes, 3)
@@ -38,88 +42,57 @@ class TestEMACrossSignalGenerator:
         assert gen.sl_pct == 1.0
         assert gen.tp_pct == 2.0
 
-    def test_check_entry_bullish_crossover(self):
-        gen = EMACrossSignalGenerator({})
-        market_data = {
-            "current_price": 100.0,
-            "ema_fast_prev": 99.0,
-            "ema_slow_prev": 100.0,
-            "ema_fast_current": 101.0,
-            "ema_slow_current": 100.0,
-        }
+    @pytest.mark.parametrize("market_data,expected_type,expected_price", [
+        (
+            {"current_price": 100.0, "ema_fast_prev": 99.0, "ema_slow_prev": 100.0,
+             "ema_fast_current": 101.0, "ema_slow_current": 100.0},
+            SignalType.LONG_ENTRY, 100.0,
+        ),
+        (
+            {"current_price": 100.0, "ema_fast_prev": 101.0, "ema_slow_prev": 100.0,
+             "ema_fast_current": 99.0, "ema_slow_current": 100.0},
+            SignalType.SHORT_ENTRY, 100.0,
+        ),
+        (
+            {"current_price": 100.0, "ema_fast_prev": 102.0, "ema_slow_prev": 100.0,
+             "ema_fast_current": 103.0, "ema_slow_current": 101.0},
+            None, None,
+        ),
+        (
+            {"current_price": 100.0, "ema_fast_prev": 98.0, "ema_slow_prev": 100.0,
+             "ema_fast_current": 97.0, "ema_slow_current": 99.0},
+            None, None,
+        ),
+        (
+            {"current_price": 100.0, "ema_fast_prev": 100.0, "ema_slow_prev": 100.0,
+             "ema_fast_current": 100.0, "ema_slow_current": 100.0},
+            None, None,
+        ),
+        (
+            {"current_price": 100.0, "ema_fast_prev": 100.0, "ema_slow_prev": 100.0,
+             "ema_fast_current": 101.0, "ema_slow_current": 100.0},
+            SignalType.LONG_ENTRY, 100.0,
+        ),
+    ], ids=[
+        "bullish_crossover", "bearish_crossover",
+        "no_crossover_fast_above", "no_crossover_fast_below",
+        "equal_no_cross", "bullish_from_equal",
+    ])
+    def test_check_entry_scenarios(self, gen, market_data, expected_type, expected_price):
         signal = gen.check_entry("RELIANCE", market_data)
-        assert signal is not None
-        assert signal.signal_type == SignalType.LONG_ENTRY
-        assert signal.price == 100.0
+        if expected_type is None:
+            assert signal is None
+        else:
+            assert signal is not None
+            assert signal.signal_type == expected_type
+            assert signal.price == expected_price
 
-    def test_check_entry_bearish_crossover(self):
-        gen = EMACrossSignalGenerator({})
-        market_data = {
-            "current_price": 100.0,
-            "ema_fast_prev": 101.0,
-            "ema_slow_prev": 100.0,
-            "ema_fast_current": 99.0,
-            "ema_slow_current": 100.0,
-        }
-        signal = gen.check_entry("RELIANCE", market_data)
-        assert signal is not None
-        assert signal.signal_type == SignalType.SHORT_ENTRY
-        assert signal.price == 100.0
-
-    def test_check_entry_no_crossover_fast_above(self):
-        gen = EMACrossSignalGenerator({})
-        market_data = {
-            "current_price": 100.0,
-            "ema_fast_prev": 102.0,
-            "ema_slow_prev": 100.0,
-            "ema_fast_current": 103.0,
-            "ema_slow_current": 101.0,
-        }
-        assert gen.check_entry("RELIANCE", market_data) is None
-
-    def test_check_entry_no_crossover_fast_below(self):
-        gen = EMACrossSignalGenerator({})
-        market_data = {
-            "current_price": 100.0,
-            "ema_fast_prev": 98.0,
-            "ema_slow_prev": 100.0,
-            "ema_fast_current": 97.0,
-            "ema_slow_current": 99.0,
-        }
-        assert gen.check_entry("RELIANCE", market_data) is None
-
-    def test_check_entry_equal_no_cross(self):
-        gen = EMACrossSignalGenerator({})
-        market_data = {
-            "current_price": 100.0,
-            "ema_fast_prev": 100.0,
-            "ema_slow_prev": 100.0,
-            "ema_fast_current": 100.0,
-            "ema_slow_current": 100.0,
-        }
-        assert gen.check_entry("RELIANCE", market_data) is None
-
-    def test_check_entry_bullish_from_equal(self):
-        gen = EMACrossSignalGenerator({})
-        market_data = {
-            "current_price": 100.0,
-            "ema_fast_prev": 100.0,
-            "ema_slow_prev": 100.0,
-            "ema_fast_current": 101.0,
-            "ema_slow_current": 100.0,
-        }
-        signal = gen.check_entry("RELIANCE", market_data)
-        assert signal is not None
-        assert signal.signal_type == SignalType.LONG_ENTRY
-
-    def test_check_entry_missing_data(self):
-        gen = EMACrossSignalGenerator({})
+    def test_check_entry_missing_data(self, gen):
         assert gen.check_entry("RELIANCE", {}) is None
         assert gen.check_entry("RELIANCE", {"current_price": 100.0}) is None
         assert gen.check_entry("RELIANCE", {"current_price": None}) is None
 
-    def test_check_entry_sl_tp_calculated(self):
-        gen = EMACrossSignalGenerator({})
+    def test_check_entry_sl_tp_calculated(self, gen):
         market_data = {
             "current_price": 200.0,
             "ema_fast_prev": 199.0,
@@ -144,8 +117,7 @@ class TestEMACrossSignalGenerator:
         assert short_signal.stop_loss == round(200.0 * (1 + 0.5 / 100), 2)
         assert short_signal.take_profit == round(200.0 * (1 - 1.5 / 100), 2)
 
-    def test_check_entry_notes_contain_periods(self):
-        gen = EMACrossSignalGenerator({})
+    def test_check_entry_notes_contain_periods(self, gen):
         market_data = {
             "current_price": 100.0,
             "ema_fast_prev": 99.0,
@@ -158,106 +130,35 @@ class TestEMACrossSignalGenerator:
         assert "EMA9" in signal.notes
         assert "EMA21" in signal.notes
 
-    def test_check_exit_stop_loss_long(self):
-        gen = EMACrossSignalGenerator({})
+    @pytest.mark.parametrize("side,entry,sl,tp,current,hour,minute,expected_type,expected_notes", [
+        ("BUY", 100.0, 99.0, 105.0, 98.5, 11, 0, SignalType.LONG_EXIT, "Stop loss hit"),
+        ("BUY", 100.0, 99.0, 105.0, 106.0, 11, 0, SignalType.LONG_EXIT, "Take profit hit"),
+        ("SELL", 100.0, 101.0, 95.0, 102.0, 11, 0, SignalType.SHORT_EXIT, "Stop loss hit"),
+        ("SELL", 100.0, 101.0, 95.0, 94.0, 11, 0, SignalType.SHORT_EXIT, "Take profit hit"),
+        ("BUY", 100.0, 99.0, 105.0, 102.0, 11, 0, None, None),
+        ("BUY", 100.0, 99.0, 105.0, 102.0, 14, 46, SignalType.LONG_EXIT, "EOD force exit (14:45)"),
+        ("BUY", 100.0, 99.0, 105.0, 102.0, 14, 0, None, None),
+    ], ids=[
+        "stop_loss_long", "take_profit_long",
+        "stop_loss_short", "take_profit_short",
+        "no_trigger", "eod_force_exit", "before_eod",
+    ])
+    def test_check_exit_scenarios(self, gen, side, entry, sl, tp, current, hour, minute, expected_type, expected_notes):
         signal = gen.check_exit(
             symbol="RELIANCE",
-            position_side="BUY",
-            entry_price=100.0,
-            stop_loss=99.0,
-            take_profit=105.0,
-            current_price=98.5,
-            timestamp=datetime(2025, 1, 1, 11, 0),
+            position_side=side,
+            entry_price=entry,
+            stop_loss=sl,
+            take_profit=tp,
+            current_price=current,
+            timestamp=datetime(2025, 1, 1, hour, minute),
         )
-        assert signal is not None
-        assert signal.signal_type == SignalType.LONG_EXIT
-        assert signal.notes == "Stop loss hit"
-
-    def test_check_exit_take_profit_long(self):
-        gen = EMACrossSignalGenerator({})
-        signal = gen.check_exit(
-            symbol="RELIANCE",
-            position_side="BUY",
-            entry_price=100.0,
-            stop_loss=99.0,
-            take_profit=105.0,
-            current_price=106.0,
-            timestamp=datetime(2025, 1, 1, 11, 0),
-        )
-        assert signal is not None
-        assert signal.signal_type == SignalType.LONG_EXIT
-        assert signal.notes == "Take profit hit"
-
-    def test_check_exit_stop_loss_short(self):
-        gen = EMACrossSignalGenerator({})
-        signal = gen.check_exit(
-            symbol="RELIANCE",
-            position_side="SELL",
-            entry_price=100.0,
-            stop_loss=101.0,
-            take_profit=95.0,
-            current_price=102.0,
-            timestamp=datetime(2025, 1, 1, 11, 0),
-        )
-        assert signal is not None
-        assert signal.signal_type == SignalType.SHORT_EXIT
-        assert signal.notes == "Stop loss hit"
-
-    def test_check_exit_take_profit_short(self):
-        gen = EMACrossSignalGenerator({})
-        signal = gen.check_exit(
-            symbol="RELIANCE",
-            position_side="SELL",
-            entry_price=100.0,
-            stop_loss=101.0,
-            take_profit=95.0,
-            current_price=94.0,
-            timestamp=datetime(2025, 1, 1, 11, 0),
-        )
-        assert signal is not None
-        assert signal.signal_type == SignalType.SHORT_EXIT
-        assert signal.notes == "Take profit hit"
-
-    def test_check_exit_no_trigger(self):
-        gen = EMACrossSignalGenerator({})
-        signal = gen.check_exit(
-            symbol="RELIANCE",
-            position_side="BUY",
-            entry_price=100.0,
-            stop_loss=99.0,
-            take_profit=105.0,
-            current_price=102.0,
-            timestamp=datetime(2025, 1, 1, 11, 0),
-        )
-        assert signal is None
-
-    def test_check_exit_eod_force_exit(self):
-        gen = EMACrossSignalGenerator({})
-        signal = gen.check_exit(
-            symbol="RELIANCE",
-            position_side="BUY",
-            entry_price=100.0,
-            stop_loss=99.0,
-            take_profit=105.0,
-            current_price=102.0,
-            timestamp=datetime(2025, 1, 1, 14, 46),
-        )
-        assert signal is not None
-        assert signal.signal_type == SignalType.LONG_EXIT
-        assert signal.notes == "EOD force exit (14:45)"
-
-    def test_check_exit_before_eod(self):
-        gen = EMACrossSignalGenerator({})
-        signal = gen.check_exit(
-            symbol="RELIANCE",
-            position_side="BUY",
-            entry_price=100.0,
-            stop_loss=99.0,
-            take_profit=105.0,
-            current_price=102.0,
-            timestamp=datetime(2025, 1, 1, 14, 0),
-        )
-        assert signal is None
+        if expected_type is None:
+            assert signal is None
+        else:
+            assert signal is not None
+            assert signal.signal_type == expected_type
+            assert signal.notes == expected_notes
 
     def test_strategy_type_attribute(self):
         assert EMACrossSignalGenerator.strategy_type == "EMA_CROSS"

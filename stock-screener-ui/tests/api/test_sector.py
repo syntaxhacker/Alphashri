@@ -19,7 +19,6 @@ from datetime import datetime
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -32,10 +31,6 @@ from api.sector import (
     get_sector_performance,
 )
 
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 SAMPLE_SECTOR_DATA = pd.DataFrame({
     'name': ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'LT'],
@@ -51,19 +46,27 @@ SAMPLE_SECTOR_DATA = pd.DataFrame({
 
 @pytest.fixture
 def sector_client():
-    """Create a FastAPI TestClient with only the sector router."""
     app = FastAPI()
     app.include_router(router)
     with TestClient(app) as c:
         yield c
 
 
-# ===========================================================================
-# TestSectorModels
-# ===========================================================================
+def _setup_mock_tvquery(mock_tvquery_cls, data=None):
+    if data is None:
+        data = SAMPLE_SECTOR_DATA
+    mock_query = MagicMock()
+    mock_query.select.return_value = mock_query
+    mock_query.set_markets.return_value = mock_query
+    mock_query.where.return_value = mock_query
+    mock_query.order_by.return_value = mock_query
+    mock_query.limit.return_value = mock_query
+    mock_query.get_scanner_data.return_value = (None, data.copy())
+    mock_tvquery_cls.return_value = mock_query
+    return mock_query
+
 
 class TestSectorModels:
-    """Test Pydantic model validation for SectorItem, StockMover, SectorResponse."""
 
     def test_sector_item_valid(self):
         item = SectorItem(
@@ -82,10 +85,9 @@ class TestSectorModels:
 
     def test_sector_item_missing_field_raises(self):
         with pytest.raises(Exception):
-            SectorItem(sector="Tech", avg_change=1.0)  # missing required fields
+            SectorItem(sector="Tech", avg_change=1.0)
 
     def test_sector_item_type_coercion(self):
-        """Pydantic coerces compatible types."""
         item = SectorItem(
             sector="Finance",
             avg_change="2.5",
@@ -106,7 +108,7 @@ class TestSectorModels:
 
     def test_stock_mover_missing_field_raises(self):
         with pytest.raises(Exception):
-            StockMover(symbol="TCS")  # missing 'change'
+            StockMover(symbol="TCS")
 
     def test_sector_response_valid(self):
         resp = SectorResponse(
@@ -135,73 +137,41 @@ class TestSectorModels:
         assert resp.top_stock_movers == []
 
 
-# ===========================================================================
-# TestSectorHelperLogic
-# ===========================================================================
-
 class TestSectorHelperLogic:
-    """Test _to_float helper function."""
 
-    def test_to_float_valid_int(self):
-        assert _to_float(10) == 10.0
-
-    def test_to_float_valid_float(self):
-        assert _to_float(3.14) == 3.14
-
-    def test_to_float_valid_string(self):
-        assert _to_float("2.71") == 2.71
-
-    def test_to_float_none_returns_default(self):
-        assert _to_float(None) == 0.0
+    @pytest.mark.parametrize("input_val,expected", [
+        (10, 10.0),
+        (3.14, 3.14),
+        ("2.71", 2.71),
+        (None, 0.0),
+        (float('inf'), 0.0),
+        (float('-inf'), 0.0),
+        (float('nan'), 0.0),
+        ("not_a_number", 0.0),
+        ("", 0.0),
+        (0, 0.0),
+        (-5.5, -5.5),
+    ])
+    def test_to_float(self, input_val, expected):
+        assert _to_float(input_val) == expected
 
     def test_to_float_none_custom_default(self):
         assert _to_float(None, default=5.0) == 5.0
 
-    def test_to_float_inf_returns_default(self):
-        assert _to_float(float('inf')) == 0.0
 
-    def test_to_float_neg_inf_returns_default(self):
-        assert _to_float(float('-inf')) == 0.0
+def _fetch_sector_data(mock_tvquery_cls, sector_client, data=None, params=None):
+    _setup_mock_tvquery(mock_tvquery_cls, data)
+    response = sector_client.get("/api/sector", params=params or {})
+    assert response.status_code == 200
+    return response.json()
 
-    def test_to_float_nan_returns_default(self):
-        assert _to_float(float('nan')) == 0.0
-
-    def test_to_float_invalid_string_returns_default(self):
-        assert _to_float("not_a_number") == 0.0
-
-    def test_to_float_empty_string_returns_default(self):
-        assert _to_float("") == 0.0
-
-    def test_to_float_zero(self):
-        assert _to_float(0) == 0.0
-
-    def test_to_float_negative(self):
-        assert _to_float(-5.5) == -5.5
-
-
-# ===========================================================================
-# TestSectorEndpoints
-# ===========================================================================
 
 class TestSectorEndpoints:
-    """Test /api/sector endpoints with mocked TradingView data."""
 
     @patch('api.sector.TVQuery')
     def test_get_sector_performance_success(self, mock_tvquery_cls, sector_client):
-        """Test successful sector performance response."""
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.get_scanner_data.return_value = (None, SAMPLE_SECTOR_DATA.copy())
-        mock_tvquery_cls.return_value = mock_query
+        data = _fetch_sector_data(mock_tvquery_cls, sector_client, params={"market": "india", "limit": 500})
 
-        response = sector_client.get("/api/sector", params={"market": "india", "limit": 500})
-
-        assert response.status_code == 200
-        data = response.json()
         assert "sectors" in data
         assert "top_stock_movers" in data
         assert "last_updated" in data
@@ -211,93 +181,39 @@ class TestSectorEndpoints:
 
     @patch('api.sector.TVQuery')
     def test_get_sector_performance_empty_dataframe(self, mock_tvquery_cls, sector_client):
-        """Test response when TradingView returns empty data."""
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.get_scanner_data.return_value = (None, pd.DataFrame())
-        mock_tvquery_cls.return_value = mock_query
+        data = _fetch_sector_data(mock_tvquery_cls, sector_client, data=pd.DataFrame(), params={"market": "america"})
 
-        response = sector_client.get("/api/sector", params={"market": "america"})
-
-        assert response.status_code == 200
-        data = response.json()
         assert data["sectors"] == []
         assert data["top_stock_movers"] == []
         assert data["market"] == "america"
 
     @patch('api.sector.TVQuery')
     def test_get_sector_performance_sectors_sorted_by_performance(self, mock_tvquery_cls, sector_client):
-        """Test that sectors are sorted by avg_change descending."""
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.get_scanner_data.return_value = (None, SAMPLE_SECTOR_DATA.copy())
-        mock_tvquery_cls.return_value = mock_query
-
-        response = sector_client.get("/api/sector", params={"market": "india"})
-
-        assert response.status_code == 200
-        sectors = response.json()["sectors"]
-        changes = [s["avg_change"] for s in sectors]
+        data = _fetch_sector_data(mock_tvquery_cls, sector_client, params={"market": "india"})
+        changes = [s["avg_change"] for s in data["sectors"]]
         assert changes == sorted(changes, reverse=True)
 
     @patch('api.sector.TVQuery')
     def test_get_sector_performance_top_movers_populated(self, mock_tvquery_cls, sector_client):
-        """Test that top_stock_movers are returned and sorted by change."""
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.get_scanner_data.return_value = (None, SAMPLE_SECTOR_DATA.copy())
-        mock_tvquery_cls.return_value = mock_query
-
-        response = sector_client.get("/api/sector", params={"market": "india"})
-
-        assert response.status_code == 200
-        movers = response.json()["top_stock_movers"]
+        data = _fetch_sector_data(mock_tvquery_cls, sector_client, params={"market": "india"})
+        movers = data["top_stock_movers"]
         assert len(movers) > 0
-        # Verify sorted descending by change
         changes = [m["change"] for m in movers]
         assert changes == sorted(changes, reverse=True)
 
+    @pytest.mark.parametrize("params,expected_market", [
+        ({}, "india"),
+        ({"market": "america"}, "america"),
+    ])
     @patch('api.sector.TVQuery')
-    def test_get_sector_performance_default_params(self, mock_tvquery_cls, sector_client):
-        """Test endpoint with default query parameters."""
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.get_scanner_data.return_value = (None, SAMPLE_SECTOR_DATA.copy())
-        mock_tvquery_cls.return_value = mock_query
-
-        response = sector_client.get("/api/sector")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["market"] == "india"  # default market
+    def test_get_sector_performance_market_param(self, mock_tvquery_cls, sector_client, params, expected_market):
+        data = _fetch_sector_data(mock_tvquery_cls, sector_client, params=params)
+        assert data["market"] == expected_market
 
     @patch('api.sector.TVQuery')
     def test_get_sector_performance_api_error(self, mock_tvquery_cls, sector_client):
-        """Test that TradingView API errors are handled as 500."""
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
+        mock_query = _setup_mock_tvquery(mock_tvquery_cls)
         mock_query.get_scanner_data.side_effect = Exception("Connection timeout")
-        mock_tvquery_cls.return_value = mock_query
 
         response = sector_client.get("/api/sector", params={"market": "india"})
 
@@ -305,25 +221,7 @@ class TestSectorEndpoints:
         assert "Connection timeout" in response.json()["detail"]
 
     @patch('api.sector.TVQuery')
-    def test_get_sector_performance_america_market(self, mock_tvquery_cls, sector_client):
-        """Test america market path (no market cap filter)."""
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.get_scanner_data.return_value = (None, SAMPLE_SECTOR_DATA.copy())
-        mock_tvquery_cls.return_value = mock_query
-
-        response = sector_client.get("/api/sector", params={"market": "america"})
-
-        assert response.status_code == 200
-        assert response.json()["market"] == "america"
-
-    @patch('api.sector.TVQuery')
     def test_get_sector_performance_deduplicates_stocks(self, mock_tvquery_cls, sector_client):
-        """Test that duplicate stock names are deduplicated."""
         df_with_dupes = pd.DataFrame({
             'name': ['RELIANCE', 'RELIANCE', 'TCS'],
             'close': [2500.0, 2505.0, 3800.0],
@@ -333,63 +231,20 @@ class TestSectorEndpoints:
             'RSI': [65.0, 65.0, 45.0],
             'ADX': [35.0, 35.0, 25.0],
         })
+        data = _fetch_sector_data(mock_tvquery_cls, sector_client, data=df_with_dupes, params={"market": "india"})
 
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.get_scanner_data.return_value = (None, df_with_dupes)
-        mock_tvquery_cls.return_value = mock_query
-
-        response = sector_client.get("/api/sector", params={"market": "india"})
-
-        assert response.status_code == 200
-        # Total top movers should reflect deduplicated stocks (2 unique)
-        movers = response.json()["top_stock_movers"]
-        mover_symbols = [m["symbol"] for m in movers]
+        mover_symbols = [m["symbol"] for m in data["top_stock_movers"]]
         assert mover_symbols.count("RELIANCE") == 1
 
     @patch('api.sector.TVQuery')
     def test_get_sector_performance_sector_item_fields(self, mock_tvquery_cls, sector_client):
-        """Test that SectorItem contains all expected fields."""
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.get_scanner_data.return_value = (None, SAMPLE_SECTOR_DATA.copy())
-        mock_tvquery_cls.return_value = mock_query
-
-        response = sector_client.get("/api/sector", params={"market": "india"})
-
-        sector = response.json()["sectors"][0]
-        assert "sector" in sector
-        assert "avg_change" in sector
-        assert "stock_count" in sector
-        assert "advances" in sector
-        assert "declines" in sector
-        assert "avg_rsi" in sector
-        assert "avg_adx" in sector
-        assert "top_movers" in sector
+        data = _fetch_sector_data(mock_tvquery_cls, sector_client, params={"market": "india"})
+        sector = data["sectors"][0]
+        for field in ("sector", "avg_change", "stock_count", "advances", "declines", "avg_rsi", "avg_adx", "top_movers"):
+            assert field in sector
 
     @patch('api.sector.TVQuery')
     def test_get_sector_performance_last_updated_is_iso(self, mock_tvquery_cls, sector_client):
-        """Test that last_updated is a valid ISO datetime string."""
-        mock_query = MagicMock()
-        mock_query.select.return_value = mock_query
-        mock_query.set_markets.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.get_scanner_data.return_value = (None, SAMPLE_SECTOR_DATA.copy())
-        mock_tvquery_cls.return_value = mock_query
-
-        response = sector_client.get("/api/sector", params={"market": "india"})
-
-        last_updated = response.json()["last_updated"]
-        # Should be parseable as ISO datetime
-        parsed = datetime.fromisoformat(last_updated)
+        data = _fetch_sector_data(mock_tvquery_cls, sector_client, params={"market": "india"})
+        parsed = datetime.fromisoformat(data["last_updated"])
         assert isinstance(parsed, datetime)
