@@ -488,15 +488,11 @@ class MultiStrategyRunner:
             if len(closes) < ema_slow_period + 2:
                 return None
 
-            multiplier_fast = 2.0 / (ema_fast_period + 1)
-            multiplier_slow = 2.0 / (ema_slow_period + 1)
+            ema_fast = EMACrossSignalGenerator.calculate_ema(closes, ema_fast_period)
+            ema_slow = EMACrossSignalGenerator.calculate_ema(closes, ema_slow_period)
 
-            ema_fast = [closes[0]]
-            ema_slow = [closes[0]]
-
-            for price in closes[1:]:
-                ema_fast.append(price * multiplier_fast + ema_fast[-1] * (1 - multiplier_fast))
-                ema_slow.append(price * multiplier_slow + ema_slow[-1] * (1 - multiplier_slow))
+            if len(ema_fast) < 2 or len(ema_slow) < 2:
+                return None
 
             current_price = closes[-1]
             ema_fast_current = ema_fast[-1]

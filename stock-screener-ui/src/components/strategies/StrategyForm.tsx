@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Modal,
   Stack,
@@ -222,14 +223,14 @@ export function StrategyForm({
   };
 
   const initialValues = getInitialValues();
-  const strategyType = initialValues.strategy_type;
-  const isIntraday = INTRADAY_TYPES.includes(strategyType);
-  const isSwing = SWING_TYPES.includes(strategyType);
-  const isOrb = strategyType === "ORB";
-  const isSrBreakout = strategyType === "SR_BREAKOUT";
-  const isEmaCross = strategyType === "EMA_CROSS";
-  const is52wChaser = strategyType === "52W_CHASER";
-  const is52wTarget = strategyType === "52W_TARGET";
+  const [currentStrategyType, setCurrentStrategyType] = useState(initialValues.strategy_type);
+  const isIntraday = INTRADAY_TYPES.includes(currentStrategyType);
+  const isSwing = SWING_TYPES.includes(currentStrategyType);
+  const isOrb = currentStrategyType === "ORB";
+  const isSrBreakout = currentStrategyType === "SR_BREAKOUT";
+  const isEmaCross = currentStrategyType === "EMA_CROSS";
+  const is52wChaser = currentStrategyType === "52W_CHASER";
+  const is52wTarget = currentStrategyType === "52W_TARGET";
 
   const strategyTabValue = isOrb ? "orb" : isSrBreakout ? "sr" : isEmaCross ? "ema" : "52w";
 
@@ -286,6 +287,9 @@ export function StrategyForm({
             data={STRATEGY_TYPES}
             defaultValue={initialValues.strategy_type}
             disabled={mode === "edit"}
+            onChange={(val) => {
+              if (val) setCurrentStrategyType(val);
+            }}
             required
             data-testid="strategy-type-input"
           />
@@ -299,7 +303,7 @@ export function StrategyForm({
           />
 
           <Tabs
-            defaultValue={strategyTabValue}
+            value={strategyTabValue}
             className="strategy-form-tabs"
             data-testid="strategy-form-tabs"
           >

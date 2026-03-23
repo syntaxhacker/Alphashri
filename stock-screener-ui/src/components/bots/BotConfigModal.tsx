@@ -261,6 +261,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                       variant="subtle"
                       onClick={() => handleRemoveStrategy(strategy.id)}
                       title="Remove"
+                      data-testid="remove-strategy-btn"
                     >
                       <IconTrash size={16} />
                     </ActionIcon>

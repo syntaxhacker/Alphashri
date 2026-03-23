@@ -11,11 +11,11 @@ class TestEMACrossSignalGenerator:
         closes = [10, 11, 12, 11, 13]
         result = EMACrossSignalGenerator.calculate_ema(closes, 3)
         multiplier = 2.0 / 4
-        assert result[0] == 10
-        assert result[1] == 11 * multiplier + 10 * (1 - multiplier)
-        assert result[2] == 12 * multiplier + result[1] * (1 - multiplier)
-        assert result[3] == 11 * multiplier + result[2] * (1 - multiplier)
-        assert result[4] == 13 * multiplier + result[3] * (1 - multiplier)
+        sma_seed = sum(closes[:3]) / 3
+        assert len(result) == 3
+        assert result[0] == sma_seed
+        assert result[1] == 11 * multiplier + sma_seed * (1 - multiplier)
+        assert result[2] == 13 * multiplier + result[1] * (1 - multiplier)
 
     def test_calculate_ema_empty_list(self):
         assert EMACrossSignalGenerator.calculate_ema([], 5) == []
