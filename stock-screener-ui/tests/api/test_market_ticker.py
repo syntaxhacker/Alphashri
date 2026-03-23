@@ -299,7 +299,7 @@ class TestMarketTickerEndpoints:
             assert response.tickers[symbol].name == name
 
     @pytest.mark.asyncio
-    async def test_all_ticker_symbols_present(self, mock_yfinance, clear_cache):
+    async def test_ticker_symbols_via_helper(self, mock_yfinance, clear_cache):
         response = await _fetch_all_tickers_standard(mock_yfinance)
 
         expected_symbols = {

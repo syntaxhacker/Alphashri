@@ -171,6 +171,7 @@ class TestChartPreview:
             assert isinstance(candle['open'], (int, float))
             assert isinstance(candle['high'], (int, float))
             isinstance(candle['low'], (int, float))
+            assert isinstance(candle['low'], (int, float))
             assert isinstance(candle['close'], (int, float))
             assert isinstance(candle['volume'], (int, float))
 

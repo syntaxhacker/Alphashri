@@ -240,7 +240,7 @@ export function StrategyForm({
         name="sl_pct"
         defaultValue={initialValues.sl_pct}
         min={0.1}
-        max={isSwing ? 10 : 10}
+        max={isSwing ? 30 : 10}
         step={0.1}
         suffix="%"
         required
@@ -254,7 +254,7 @@ export function StrategyForm({
         max={isSwing ? 20 : 10}
         step={isSwing ? 0.5 : 0.1}
         suffix="%"
-        required
+        required={!isSwing}
         data-testid="strategy-tp-pct-input"
       />
     </Group>
