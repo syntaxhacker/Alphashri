@@ -9,28 +9,34 @@ Usage:
     python scripts/sync_broker_tokens.py --dry-run
 """
 
+import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+BASE_DIR = Path(__file__).parent.parent.absolute()
+env_file = BASE_DIR / ".env.local"
+if env_file.exists():
+    load_dotenv(env_file)
 
 from sqlalchemy import create_engine, text
 from rich.console import Console
 
 console = Console()
 
-PROD_DATABASE_URL = (
-    "postgresql://alphashri:fuoGOIx86IrrJr5RXHKxwlNTnWaJR7OD"
-    "@dpg-d6qh4e7kijhs73b5rvpg-a.oregon-postgres.render.com/alphashri"
-)
-
 LOCAL_DB_PATH = Path(__file__).parent.parent / "db" / "alphashri.db"
 LOCAL_DATABASE_URL = f"sqlite:///{LOCAL_DB_PATH}"
 
 
 def sync_broker_tokens(broker: str = None, dry_run: bool = False):
-    import os
-    prod_url = os.getenv("PROD_DATABASE_URL") or PROD_DATABASE_URL
+    prod_url = os.getenv("PROD_DATABASE_URL")
+    if not prod_url:
+        console.print("[red]Error: PROD_DATABASE_URL environment variable is not set.[/red]")
+        console.print("Set it in .env.local or export it: export PROD_DATABASE_URL=postgresql://user:pass@host/db")
+        sys.exit(1)
     prod_engine = create_engine(prod_url)
     local_engine = create_engine(LOCAL_DATABASE_URL)
 

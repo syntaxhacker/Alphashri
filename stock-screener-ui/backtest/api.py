@@ -44,7 +44,7 @@ def build_backtest_cache_key(user_id: int, strategy_id: str, symbols: List[str],
         'variation_id': variation_id,
     }, sort_keys=True, default=str)
     hash_hex = hashlib.md5(canonical.encode()).hexdigest()[:16]
-    return f"backtest:{user_id}:{hash_hex}"
+    return f"backtest:{user_id}:{strategy_id}:{hash_hex}"
 
 
 def handle_get_strategies() -> Dict:
