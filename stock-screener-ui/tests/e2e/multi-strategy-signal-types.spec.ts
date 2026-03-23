@@ -175,7 +175,7 @@ test.describe("Multi-Strategy Bot - Signal Type Display", () => {
   test("should show strategy count including all strategy types", async ({ page }) => {
     await gotoBotsViewAndWait(page);
     await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "4 strategies",
+      "5 strategies",
     );
   });
 
@@ -186,6 +186,7 @@ test.describe("Multi-Strategy Bot - Signal Type Display", () => {
     await expect(mixedRow).toContainText("52W Chaser Swing");
     await expect(mixedRow).toContainText("Classic S/R Breakout");
     await expect(mixedRow).toContainText("52W Target Hold");
+    await expect(mixedRow).toContainText("EMA Cross Default");
   });
 });
 

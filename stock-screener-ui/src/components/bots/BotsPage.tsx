@@ -164,7 +164,23 @@ export function BotsPage() {
                     {bot.running ? `Running (PID ${bot.pid})` : "Stopped"}
                   </Badge>
                 </Table.Td>
-                <Table.Td>{bot.strategies.length} strategies</Table.Td>
+                <Table.Td>
+                  <Stack gap={4}>
+                    <Text size="sm">{bot.strategies.length} strategies</Text>
+                    <Group gap="xs" wrap="wrap">
+                      {bot.strategies.map((s) => (
+                        <Badge key={s.id} size="sm" variant="light">
+                          {s.strategy_type}
+                        </Badge>
+                      ))}
+                    </Group>
+                    {bot.strategies.map((s) => (
+                      <Text key={`name-${s.id}`} size="xs" c="dimmed">
+                        {s.name}
+                      </Text>
+                    ))}
+                  </Stack>
+                </Table.Td>
                 <Table.Td>{bot.max_total_positions}</Table.Td>
                 <Table.Td>{(bot.max_total_capital_pct * 100).toFixed(0)}%</Table.Td>
                 <Table.Td>
