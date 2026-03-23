@@ -154,10 +154,15 @@ def cache_delete_pattern(pattern: str) -> int:
     if client is None:
         return 0
     try:
-        keys = list(client.scan_iter(match=pattern, count=500))
-        if keys:
-            return client.delete(*keys)
-        return 0
+        deleted = 0
+        cursor = 0
+        while True:
+            cursor, keys = client.scan(cursor=cursor, match=pattern, count=500)
+            if keys:
+                deleted += client.delete(*keys)
+            if cursor == 0:
+                break
+        return deleted
     except Exception as e:
         logger.warning("cache_delete_pattern error for %s: %s", pattern, e)
         return 0
@@ -409,6 +414,8 @@ def get_cache_keys(prefix: Optional[str] = None, top: int = 20) -> list[dict]:
 
 
 def invalidate_backtest_cache(user_id: int, strategy_id: Optional[str] = None) -> int:
+    if strategy_id is not None:
+        return cache_delete_pattern(f"backtest:{user_id}:{strategy_id}:*")
     return cache_delete_pattern(f"backtest:{user_id}:*")
 
 
@@ -520,31 +527,29 @@ async def stale_while_revalidate(
         return data, "stale"
 
     acquired = _try_acquire_lock(lock_key, lock_ttl)
-    if acquired:
-        try:
+    try:
+        if acquired:
             result = await asyncio.to_thread(compute_fn)
             if result is not None:
                 cache_set(key, result, ttl=stale_ttl)
                 cache_set(fresh_key, "1", ttl=fresh_ttl)
             return result, "miss"
-        except Exception as e:
-            raise
-        finally:
-            _release_lock(lock_key)
 
-    elapsed = 0.0
-    while elapsed < wait_timeout:
-        await asyncio.sleep(poll_interval)
-        elapsed += poll_interval
-        fresh_data = cache_get(key)
-        if fresh_data is not None:
-            return fresh_data, "coalesced"
+        elapsed = 0.0
+        while elapsed < wait_timeout:
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+            fresh_data = cache_get(key)
+            if fresh_data is not None:
+                return fresh_data, "coalesced"
 
-    try:
         result = await asyncio.to_thread(compute_fn)
         if result is not None:
             cache_set(key, result, ttl=stale_ttl)
             cache_set(fresh_key, "1", ttl=fresh_ttl)
         return result, "miss"
-    except Exception as e:
+    except Exception:
         raise
+    finally:
+        if acquired:
+            _release_lock(lock_key)

@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { StrategiesState, StrategyPerformance } from "../../types/strategies";
 import {

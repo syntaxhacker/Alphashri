@@ -45,6 +45,23 @@ class StrategyConfigData:
     cooldown_minutes: int = 30
     max_distance_from_or_pct: float = 1.5
 
+    # 52W Chaser Parameters
+    entry_threshold_pct: float = 3.0
+    enable_trailing_stop: bool = False
+    trailing_stop_pct: float = 3.0
+    trailing_activation_pct: float = 2.0
+    max_holding_days: int = 30
+    cooldown_days: int = 30
+    enable_filters: bool = False
+
+    # EMA Crossover Parameters
+    ema_fast_period: int = 9
+    ema_slow_period: int = 21
+
+    # S/R Breakout Parameters
+    pivot_type: str = "classic"
+    breakout_buffer_pct: float = 0.1
+
     # Cost Parameters
     brokerage_pct: float = 0.0003
     min_brokerage: float = 20
@@ -80,6 +97,17 @@ class StrategyConfigData:
             max_trade_value=model.max_trade_value,
             cooldown_minutes=model.cooldown_minutes,
             max_distance_from_or_pct=model.max_distance_from_or_pct,
+            entry_threshold_pct=model.entry_threshold_pct,
+            enable_trailing_stop=model.enable_trailing_stop,
+            trailing_stop_pct=model.trailing_stop_pct,
+            trailing_activation_pct=model.trailing_activation_pct,
+            max_holding_days=model.max_holding_days,
+            cooldown_days=model.cooldown_days,
+            enable_filters=model.enable_filters,
+            pivot_type=model.pivot_type,
+            breakout_buffer_pct=model.breakout_buffer_pct,
+            ema_fast_period=model.ema_fast_period,
+            ema_slow_period=model.ema_slow_period,
             brokerage_pct=model.brokerage_pct,
             min_brokerage=model.min_brokerage,
             stt_pct=model.stt_pct,
@@ -114,6 +142,17 @@ class StrategyConfigData:
             "max_trade_value": self.max_trade_value,
             "cooldown_minutes": self.cooldown_minutes,
             "max_distance_from_or_pct": self.max_distance_from_or_pct,
+            "entry_threshold_pct": self.entry_threshold_pct,
+            "enable_trailing_stop": self.enable_trailing_stop,
+            "trailing_stop_pct": self.trailing_stop_pct,
+            "trailing_activation_pct": self.trailing_activation_pct,
+            "max_holding_days": self.max_holding_days,
+            "cooldown_days": self.cooldown_days,
+            "enable_filters": self.enable_filters,
+            "pivot_type": self.pivot_type,
+            "breakout_buffer_pct": self.breakout_buffer_pct,
+            "ema_fast_period": self.ema_fast_period,
+            "ema_slow_period": self.ema_slow_period,
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
             "stt_pct": self.stt_pct,
