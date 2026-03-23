@@ -232,7 +232,8 @@ export function StrategyForm({
   const is52wChaser = currentStrategyType === "52W_CHASER";
   const is52wTarget = currentStrategyType === "52W_TARGET";
 
-  const strategyTabValue = isOrb ? "orb" : isSrBreakout ? "sr" : isEmaCross ? "ema" : "52w";
+  const defaultTab = isOrb ? "orb" : isSrBreakout ? "sr" : isEmaCross ? "ema" : "52w";
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   return (
     <Modal
@@ -288,7 +289,10 @@ export function StrategyForm({
             defaultValue={initialValues.strategy_type}
             disabled={mode === "edit"}
             onChange={(val) => {
-              if (val) setCurrentStrategyType(val);
+              if (val) {
+                setCurrentStrategyType(val);
+                setActiveTab(val === "ORB" ? "orb" : val === "SR_BREAKOUT" ? "sr" : val === "EMA_CROSS" ? "ema" : "52w");
+              }
             }}
             required
             data-testid="strategy-type-input"
@@ -303,7 +307,8 @@ export function StrategyForm({
           />
 
           <Tabs
-            value={strategyTabValue}
+            value={activeTab}
+            onChange={setActiveTab}
             className="strategy-form-tabs"
             data-testid="strategy-form-tabs"
           >
