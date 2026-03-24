@@ -31,7 +31,7 @@ from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.config import StrategyConfig
 
 from .base import BaseStrategy, StrategyParam
-from ..costs import calculate_trading_costs
+from ..costs import calculate_total_cost
 
 # Add project root to path for imports
 _current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -138,6 +138,7 @@ class Week52ChaserNautilusStrategy(Strategy):
         self._max_holding_bars = config.max_holding_days
         self._cooldown_bars = config.cooldown_days
         self._trade_size = config.trade_size
+        self._quantity = Quantity.from_str(str(config.trade_size))
         self._enable_filters = config.enable_filters
         self._historical_df = config.historical_df
 
@@ -307,7 +308,7 @@ class Week52ChaserNautilusStrategy(Strategy):
         order = self.order_factory.market(
             instrument_id=self._instrument_id,
             order_side=OrderSide.BUY,
-            quantity=Quantity.from_str(str(self._trade_size)),
+            quantity=self._quantity,
         )
         self.submit_order(order)
 
@@ -326,8 +327,8 @@ class Week52ChaserNautilusStrategy(Strategy):
         pnl_pct = ((price - self._entry_price) / self._entry_price) * 100
         gross_pnl = (price - self._entry_price) * self._trade_size
 
-        costs = calculate_trading_costs(self._entry_price, price, self._trade_size)
-        net_pnl = gross_pnl - costs['total_costs']
+        costs = calculate_total_cost(self._entry_price, price, self._trade_size)
+        net_pnl = gross_pnl - costs
         net_pnl_pct = (net_pnl / (self._entry_price * self._trade_size)) * 100
 
         # Calculate hold duration in days
@@ -347,7 +348,7 @@ class Week52ChaserNautilusStrategy(Strategy):
             'quantity': self._trade_size,
             'gross_pnl': round(gross_pnl, 2),
             'gross_pnl_pct': round(pnl_pct, 2),
-            'trading_costs': round(costs['total_costs'], 2),
+            'trading_costs': round(costs, 2),
             'net_pnl': round(net_pnl, 2),
             'net_pnl_pct': round(net_pnl_pct, 2),
             'exit_reason': reason,
@@ -439,9 +440,9 @@ def run_single_stock_backtest(args):
         from_date = (today - timedelta(days=fetch_days)).strftime('%Y-%m-%d')
 
         if access_token:
-            api, error = get_upstox_client_with_token(access_token), None
+            api, error = get_upstox_client_with_token(access_token, quiet=True)
         else:
-            api, error = get_upstox_client_from_db()
+            api, error = get_upstox_client_from_db(quiet=True)
         
         if error or not api:
             return {'symbol': symbol, 'success': False, 'error': error or 'No API client'}

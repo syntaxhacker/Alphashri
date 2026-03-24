@@ -29,7 +29,7 @@ from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.config import StrategyConfig
 
 from .base import BaseStrategy, StrategyParam
-from ..costs import calculate_trading_costs
+from ..costs import calculate_total_cost
 
 _current_file_dir = os.path.dirname(os.path.abspath(__file__))
 _backtest_dir = os.path.dirname(_current_file_dir)
@@ -237,6 +237,7 @@ class EMACrossNautilusStrategy(Strategy):
         self._sl_pct = config.sl_pct
         self._tp_pct = config.tp_pct
         self._trade_size = config.trade_size
+        self._quantity = Quantity.from_str(str(config.trade_size))
         self._enable_shorts = config.enable_shorts
         self._cooldown_bars = config.cooldown_bars
         self._historical_df = config.historical_df
@@ -258,11 +259,14 @@ class EMACrossNautilusStrategy(Strategy):
         self.subscribe_bars(self._bar_type)
 
     def on_bar(self, bar):
-        hour, minute, date = get_ist_time(bar.ts_event)
+        bar_time_ist = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc) + timedelta(hours=5, minutes=30)
+        hour = bar_time_ist.hour
+        minute = bar_time_ist.minute
+        date = bar_time_ist.date()
         cur_min = hour * 60 + minute
         close_f = float(bar.close)
-        bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
-        bar_time_ist = bar_time + timedelta(hours=5, minutes=30)
+        high_f = float(bar.high)
+        low_f = float(bar.low)
 
         self._bar_number += 1
 
@@ -279,11 +283,12 @@ class EMACrossNautilusStrategy(Strategy):
             return
 
         if cur_min >= 14 * 60 + 45:
-            positions = self.cache.positions_open(instrument_id=self._instrument_id)
-            if positions:
-                ema_fast = calculate_ema(self._close_prices, self._ema_fast_period) if self._close_prices else 0.0
-                ema_slow = calculate_ema(self._close_prices, self._ema_slow_period) if self._close_prices else 0.0
-                self._exit(bar, positions[0], "EOD", bar_time_ist, ema_fast, ema_slow)
+            if self._position_side is not None:
+                positions = self.cache.positions_open(instrument_id=self._instrument_id)
+                if positions:
+                    ema_fast = calculate_ema(self._close_prices, self._ema_fast_period) if self._close_prices else 0.0
+                    ema_slow = calculate_ema(self._close_prices, self._ema_slow_period) if self._close_prices else 0.0
+                    self._exit(close_f, positions[0], "EOD", bar_time_ist, ema_fast, ema_slow)
             return
 
         self._close_prices.append(close_f)
@@ -294,10 +299,11 @@ class EMACrossNautilusStrategy(Strategy):
         ema_fast = calculate_ema(self._close_prices, self._ema_fast_period)
         ema_slow = calculate_ema(self._close_prices, self._ema_slow_period)
 
-        positions = self.cache.positions_open(instrument_id=self._instrument_id)
-        if positions:
-            self._manage(bar, positions[0], bar_time_ist, ema_fast, ema_slow)
-            return
+        if self._position_side is not None:
+            positions = self.cache.positions_open(instrument_id=self._instrument_id)
+            if positions:
+                self._manage(close_f, high_f, low_f, positions[0], bar_time_ist, ema_fast, ema_slow)
+                return
 
         if self._prev_ema_fast is not None and self._prev_ema_slow is not None:
             bullish_cross = self._prev_ema_fast <= self._prev_ema_slow and ema_fast > ema_slow
@@ -320,7 +326,7 @@ class EMACrossNautilusStrategy(Strategy):
         order = self.order_factory.market(
             instrument_id=self._instrument_id,
             order_side=order_side,
-            quantity=Quantity.from_str(str(self._trade_size)),
+            quantity=self._quantity,
         )
         self.submit_order(order)
         self._position_side = side
@@ -329,21 +335,19 @@ class EMACrossNautilusStrategy(Strategy):
         self._entry_ema_fast = ema_fast
         self._entry_ema_slow = ema_slow
 
-    def _manage(self, bar, position, bar_time_ist, ema_fast: float, ema_slow: float):
-        cur_price = float(bar.close)
-
+    def _manage(self, close_f: float, high_f: float, low_f: float, position, bar_time_ist, ema_fast: float, ema_slow: float):
         if self._position_side == "SHORT":
-            pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
+            pnl_pct = ((self._entry_price - close_f) / self._entry_price) * 100
         else:
-            pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
+            pnl_pct = ((close_f - self._entry_price) / self._entry_price) * 100
 
         if pnl_pct >= self._tp_pct:
-            self._exit(bar, position, "TP", bar_time_ist, ema_fast, ema_slow)
+            self._exit(close_f, position, "TP", bar_time_ist, ema_fast, ema_slow)
         elif pnl_pct <= -self._sl_pct:
-            self._exit(bar, position, "SL", bar_time_ist, ema_fast, ema_slow)
+            self._exit(close_f, position, "SL", bar_time_ist, ema_fast, ema_slow)
 
-    def _exit(self, bar, position, reason, bar_time_ist, ema_fast: float, ema_slow: float):
-        cur_price = float(bar.close)
+    def _exit(self, close_f: float, position, reason, bar_time_ist, ema_fast: float, ema_slow: float):
+        cur_price = close_f
         pos_qty = int(float(position.quantity)) if position.quantity else 0
 
         if self._position_side == "SHORT":
@@ -353,8 +357,8 @@ class EMACrossNautilusStrategy(Strategy):
             gross_pnl = (cur_price - self._entry_price) * abs(pos_qty)
             gross_pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
 
-        costs = calculate_trading_costs(self._entry_price, cur_price, abs(pos_qty))
-        net_pnl = gross_pnl - costs['total_costs']
+        total_costs = calculate_total_cost(self._entry_price, cur_price, abs(pos_qty))
+        net_pnl = gross_pnl - total_costs
         net_pnl_pct = (net_pnl / (self._entry_price * abs(pos_qty))) * 100 if pos_qty != 0 else 0
 
         hold_minutes = 0
@@ -372,7 +376,7 @@ class EMACrossNautilusStrategy(Strategy):
             'quantity': abs(pos_qty),
             'gross_pnl': gross_pnl,
             'gross_pnl_pct': gross_pnl_pct,
-            'trading_costs': costs['total_costs'],
+            'trading_costs': total_costs,
             'net_pnl': net_pnl,
             'net_pnl_pct': net_pnl_pct,
             'exit_reason': reason,

@@ -19,6 +19,26 @@ GST_PCT = 0.18                # 18% on brokerage + exchange + SEBI
 DP_CHARGES = 0                # ₹13.5 per stock per day (not applicable for intraday)
 
 
+def calculate_total_cost(entry_price: float, exit_price: float, quantity: int) -> float:
+    """Calculate total round-trip trading cost (lightweight, no breakdown dict)."""
+    buy_value = entry_price * quantity
+    sell_value = exit_price * quantity
+
+    buy_brokerage = min(20, buy_value * BROKERAGE_PCT)
+    buy_exchange = buy_value * EXCHANGE_CHARGES_PCT
+    buy_sebi = buy_value * SEBI_FEE_PCT
+    buy_gst = GST_PCT * (buy_brokerage + buy_exchange + buy_sebi)
+    buy_total = buy_brokerage + buy_value * STAMP_DUTY_PCT + buy_exchange + buy_sebi + buy_gst
+
+    sell_brokerage = min(20, sell_value * BROKERAGE_PCT)
+    sell_exchange = sell_value * EXCHANGE_CHARGES_PCT
+    sell_sebi = sell_value * SEBI_FEE_PCT
+    sell_gst = GST_PCT * (sell_brokerage + sell_exchange + sell_sebi)
+    sell_total = sell_brokerage + sell_value * STT_PCT + sell_exchange + sell_sebi + sell_gst
+
+    return round(buy_total + sell_total, 2)
+
+
 def calculate_trading_costs(entry_price: float, exit_price: float, quantity: int) -> dict:
     """
     Calculate realistic Indian intraday trading costs.

@@ -29,7 +29,7 @@ from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.config import StrategyConfig
 
 from .base import BaseStrategy, StrategyParam
-from ..costs import calculate_trading_costs
+from ..costs import calculate_total_cost
 
 # Add project root to path for imports
 _current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -341,6 +341,7 @@ class SRBreakoutNautilusStrategy(Strategy):
         self._sl_pct = config.sl_pct
         self._tp_pct = config.tp_pct
         self._trade_size = config.trade_size
+        self._quantity = Quantity.from_str(str(config.trade_size))
         self._enable_shorts = config.enable_shorts
         self._cooldown_bars = config.cooldown_bars
         self._historical_df = config.historical_df
@@ -359,11 +360,14 @@ class SRBreakoutNautilusStrategy(Strategy):
         self.subscribe_bars(self._bar_type)
 
     def on_bar(self, bar):
-        hour, minute, date = get_ist_time(bar.ts_event)
+        bar_time_ist = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc) + timedelta(hours=5, minutes=30)
+        hour = bar_time_ist.hour
+        minute = bar_time_ist.minute
+        date = bar_time_ist.date()
         cur_min = hour * 60 + minute
         close_f = float(bar.close)
-        bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
-        bar_time_ist = bar_time + timedelta(hours=5, minutes=30)
+        high_f = float(bar.high)
+        low_f = float(bar.low)
 
         self._bar_number += 1
 
@@ -392,16 +396,18 @@ class SRBreakoutNautilusStrategy(Strategy):
 
         # EOD safety exit (3:15 PM IST)
         if cur_min >= 15 * 60 + 15:
-            positions = self.cache.positions_open(instrument_id=self._instrument_id)
-            if positions:
-                self._exit(bar, positions[0], "EOD", bar_time_ist)
+            if self._position_side is not None:
+                positions = self.cache.positions_open(instrument_id=self._instrument_id)
+                if positions:
+                    self._exit(close_f, positions[0], "EOD", bar_time_ist)
             return
 
         # Manage existing position
-        positions = self.cache.positions_open(instrument_id=self._instrument_id)
-        if positions:
-            self._manage(bar, positions[0], bar_time_ist)
-            return
+        if self._position_side is not None:
+            positions = self.cache.positions_open(instrument_id=self._instrument_id)
+            if positions:
+                self._manage(close_f, high_f, low_f, positions[0], bar_time_ist)
+                return
 
         # Check for new entry
         self._check_entry(close_f, bar_time_ist)
@@ -456,7 +462,7 @@ class SRBreakoutNautilusStrategy(Strategy):
             order = self.order_factory.market(
                 instrument_id=self._instrument_id,
                 order_side=OrderSide.SELL,
-                quantity=Quantity.from_str(str(self._trade_size)),
+                quantity=self._quantity,
             )
             self.submit_order(order)
             self._position_side = "SHORT"
@@ -466,15 +472,15 @@ class SRBreakoutNautilusStrategy(Strategy):
             order = self.order_factory.market(
                 instrument_id=self._instrument_id,
                 order_side=OrderSide.BUY,
-                quantity=Quantity.from_str(str(self._trade_size)),
+                quantity=self._quantity,
             )
             self.submit_order(order)
             self._position_side = "LONG"
             self._entry_price = close_f
             self._current_entry_time = bar_time_ist
 
-    def _manage(self, bar, position, bar_time_ist):
-        cur_price = float(bar.close)
+    def _manage(self, close_f, high_f, low_f, position, bar_time_ist):
+        cur_price = close_f
 
         if self._position_side == "SHORT":
             pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
@@ -482,12 +488,12 @@ class SRBreakoutNautilusStrategy(Strategy):
             pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
 
         if pnl_pct >= self._tp_pct:
-            self._exit(bar, position, "TP", bar_time_ist)
+            self._exit(close_f, position, "TP", bar_time_ist)
         elif pnl_pct <= -self._sl_pct:
-            self._exit(bar, position, "SL", bar_time_ist)
+            self._exit(close_f, position, "SL", bar_time_ist)
 
-    def _exit(self, bar, position, reason, bar_time_ist):
-        cur_price = float(bar.close)
+    def _exit(self, close_f, position, reason, bar_time_ist):
+        cur_price = close_f
         pos_qty = int(float(position.quantity)) if position.quantity else 0
 
         if self._position_side == "SHORT":
@@ -497,8 +503,8 @@ class SRBreakoutNautilusStrategy(Strategy):
             gross_pnl = (cur_price - self._entry_price) * abs(pos_qty)
             gross_pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
 
-        costs = calculate_trading_costs(self._entry_price, cur_price, abs(pos_qty))
-        net_pnl = gross_pnl - costs['total_costs']
+        total_costs = calculate_total_cost(self._entry_price, cur_price, abs(pos_qty))
+        net_pnl = gross_pnl - total_costs
         net_pnl_pct = (net_pnl / (self._entry_price * abs(pos_qty))) * 100 if pos_qty != 0 else 0
 
         hold_minutes = 0
@@ -524,7 +530,7 @@ class SRBreakoutNautilusStrategy(Strategy):
             'quantity': abs(pos_qty),
             'gross_pnl': gross_pnl,
             'gross_pnl_pct': gross_pnl_pct,
-            'trading_costs': costs['total_costs'],
+            'trading_costs': total_costs,
             'net_pnl': net_pnl,
             'net_pnl_pct': net_pnl_pct,
             'exit_reason': reason,

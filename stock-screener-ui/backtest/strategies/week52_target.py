@@ -33,7 +33,7 @@ from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.config import StrategyConfig
 
 from .base import BaseStrategy, StrategyParam
-from ..costs import calculate_trading_costs
+from ..costs import calculate_total_cost
 
 # Add project root to path for imports
 _current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -85,7 +85,8 @@ class Week52TargetNautilusStrategy(Strategy):
         self._max_holding_days = config.max_holding_days
         self._cooldown_days = config.cooldown_days
         self._trade_size = config.trade_size
-        
+        self._quantity = Quantity.from_str(str(config.trade_size))
+
         # Instrument
         self._instrument_id = config.instrument_id
         self._bar_type = config.bar_type
@@ -202,7 +203,7 @@ class Week52TargetNautilusStrategy(Strategy):
         order = self.order_factory.market(
             instrument_id=self._instrument_id,
             order_side=OrderSide.BUY,
-            quantity=Quantity.from_str(str(self._trade_size)),
+            quantity=self._quantity,
         )
         self.submit_order(order)
         
@@ -221,7 +222,7 @@ class Week52TargetNautilusStrategy(Strategy):
         
         # Convert to float if Decimal
         price = float(price)
-        entry_price = float(self._entry_price)
+        entry_price = self._entry_price
         
         # Format entry/exit times properly
         entry_date_str = self._entry_time.strftime('%Y-%m-%dT%H:%M') if self._entry_time else bar_time.strftime('%Y-%m-%dT%H:%M')
@@ -232,11 +233,11 @@ class Week52TargetNautilusStrategy(Strategy):
         pnl_pct = ((price - entry_price) / entry_price) * 100
         
         # Calculate trading costs
-        costs = calculate_trading_costs(
+        costs = calculate_total_cost(
             entry_price, price, self._trade_size
         )
-        
-        net_pnl = gross_pnl - costs['total_costs']
+
+        net_pnl = gross_pnl - costs
         net_pnl_pct = (net_pnl / (self._entry_price * self._trade_size)) * 100
         
         # Calculate hold duration
@@ -250,7 +251,7 @@ class Week52TargetNautilusStrategy(Strategy):
             'quantity': self._trade_size,
             'gross_pnl': round(gross_pnl, 2),
             'gross_pnl_pct': round(pnl_pct, 2),
-            'trading_costs': round(costs['total_costs'], 2),
+            'trading_costs': round(costs, 2),
             'net_pnl': round(net_pnl, 2),
             'net_pnl_pct': round(net_pnl_pct, 2),
             'exit_reason': reason,
