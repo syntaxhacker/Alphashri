@@ -1,2 +1,4 @@
 {"type":"config","name":"vbt-52w-target-opt","metricName":"sharpe_ratio","metricUnit":"","bestDirection":"higher"}
 {"run":3,"commit":"d784be6","metric":-0.3446,"metrics":{"oos_win_rate":54.02,"oos_profit_factor":0.83,"oos_total_return":0,"param_stability":0.2231,"trades_per_year":0.7},"status":"discard","description":"70+ stocks Nifty50+midcaps, wider grid, still low trades (0.7/yr), worse sharpe","timestamp":1774387979,"segment":0}
+{"run":15,"commit":"9238066","metric":-1.4712,"metrics":{"oos_win_rate":48.93,"oos_profit_factor":0.99,"oos_total_return":-1.63,"param_stability":0.0,"trades_per_year":6.3},"status":"discard","description":"volume filter (1-1.5x avg) - filters out good entries, worse","timestamp":1774390690,"segment":0}
+{"run":17,"commit":"9238066","metric":0,"metrics":{},"status":"crash","description":"finer grid (3840 combos) with 206 stocks - timeout","timestamp":1774391925,"segment":0}
