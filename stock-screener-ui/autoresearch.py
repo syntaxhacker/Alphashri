@@ -20,14 +20,85 @@ logger = logging.getLogger(__name__)
 INSTRUMENTS = {
     'RELIANCE': 'NSE_EQ|INE002A01018',
     'TCS': 'NSE_EQ|INE467B01029',
-    'INFY': 'NSE_EQ|INE009A01021',
     'HDFCBANK': 'NSE_EQ|INE040A01034',
+    'INFY': 'NSE_EQ|INE009A01021',
     'ICICIBANK': 'NSE_EQ|INE090A01021',
     'SBIN': 'NSE_EQ|INE062A01020',
+    'BHARTIARTL': 'NSE_EQ|INE397D01024',
+    'ITC': 'NSE_EQ|INE154A01025',
+    'KOTAKBANK': 'NSE_EQ|INE237A01036',
+    'LT': 'NSE_EQ|INE018A01030',
+    'AXISBANK': 'NSE_EQ|INE238A01034',
     'BAJFINANCE': 'NSE_EQ|INE296A01032',
     'MARUTI': 'NSE_EQ|INE585B01010',
-    'TATASTEEL': 'NSE_EQ|INE081A01020',
+    'TITAN': 'NSE_EQ|INE280A01028',
+    'SUNPHARMA': 'NSE_EQ|INE044A01036',
+    'WIPRO': 'NSE_EQ|INE075A01022',
+    'ULTRACEMCO': 'NSE_EQ|INE481G01011',
+    'HCLTECH': 'NSE_EQ|INE860A01027',
     'ADANIENT': 'NSE_EQ|INE423A01024',
+    'ONGC': 'NSE_EQ|INE213A01029',
+    'NTPC': 'NSE_EQ|INE733E01010',
+    'POWERGRID': 'NSE_EQ|INE752E01010',
+    'TATASTEEL': 'NSE_EQ|INE081A01020',
+    'JSWSTEEL': 'NSE_EQ|INE019A01038',
+    'COALINDIA': 'NSE_EQ|INE522F01014',
+    'INDUSINDBK': 'NSE_EQ|INE095A01012',
+    'HINDUNILVR': 'NSE_EQ|INE030A01027',
+    'DMART': 'NSE_EQ|INE192R01011',
+    'NESTLEIND': 'NSE_EQ|INE239A01024',
+    'CIPLA': 'NSE_EQ|INE059A01026',
+    'TECHM': 'NSE_EQ|INE669C01036',
+    'GRASIM': 'NSE_EQ|INE047A01021',
+    'BAJAJFINSV': 'NSE_EQ|INE918I01026',
+    'DRREDDY': 'NSE_EQ|INE089A01031',
+    'EICHERMOT': 'NSE_EQ|INE066A01021',
+    'HEROMOTOCO': 'NSE_EQ|INE158A01026',
+    'BPCL': 'NSE_EQ|INE029A01011',
+    'DIVISLAB': 'NSE_EQ|INE361B01024',
+    'BRITANNIA': 'NSE_EQ|INE216A01030',
+    'SHRIRAMFIN': 'NSE_EQ|INE721A01047',
+    'HINDALCO': 'NSE_EQ|INE038A01020',
+    'APOLLOHOSP': 'NSE_EQ|INE437A01024',
+    'TATACONSUM': 'NSE_EQ|INE192A01025',
+    'ASIANPAINT': 'NSE_EQ|INE021A01026',
+    'TATAMOTORS': 'NSE_EQ|INE155A01022',
+    'M_M': 'NSE_EQ|INE101A01026',
+    'TATAPOWER': 'NSE_EQ|INE245A01021',
+    'CHOLAHLDNG': 'NSE_EQ|INE149A01033',
+    'PIDILITIND': 'NSE_EQ|INE318A01026',
+    'INDIGO': 'NSE_EQ|INE646L01027',
+    'PAGEIND': 'NSE_EQ|INE761H01022',
+    'AUBANK': 'NSE_EQ|INE949L01017',
+    'IDFCFIRSTB': 'NSE_EQ|INE092T01019',
+    'FEDERALBNK': 'NSE_EQ|INE171A01029',
+    'MANAPPURAM': 'NSE_EQ|INE522D01027',
+    'BANDHANBNK': 'NSE_EQ|INE545U01014',
+    'RBLBANK': 'NSE_EQ|INE976G01028',
+    'CANBK': 'NSE_EQ|INE476A01022',
+    'CGPOWER': 'NSE_EQ|INE067A01029',
+    'LALPATHLAB': 'NSE_EQ|INE600L01024',
+    'LAURUSLABS': 'NSE_EQ|INE947Q01028',
+    'ALKEM': 'NSE_EQ|INE540L01014',
+    'VBL': 'NSE_EQ|INE200M01039',
+    'OFSS': 'NSE_EQ|INE881D01027',
+    'TRENT': 'NSE_EQ|INE849A01020',
+    'DABUR': 'NSE_EQ|INE016A01026',
+    'BERGEPAINT': 'NSE_EQ|INE463A01038',
+    'NAUKRI': 'NSE_EQ|INE663F01032',
+    'ZYDUSLIFE': 'NSE_EQ|INE010B01027',
+    'HINDZINC': 'NSE_EQ|INE267A01025',
+    'COLPAL': 'NSE_EQ|INE259A01022',
+    'JUBLFOOD': 'NSE_EQ|INE797F01020',
+    'MUTHOOTFIN': 'NSE_EQ|INE414G01012',
+    'YESBANK': 'NSE_EQ|INE528G01035',
+    'SUZLON': 'NSE_EQ|INE040H01021',
+    'ADANIPOWER': 'NSE_EQ|INE814H01029',
+    'IRFC': 'NSE_EQ|INE053F01010',
+    'NHPC': 'NSE_EQ|INE848E01016',
+    'IRCTC': 'NSE_EQ|INE335Y01020',
+    'CDSL': 'NSE_EQ|INE736A01011',
+    'IDEA': 'NSE_EQ|INE669E01016',
 }
 
 API_KEY = os.getenv('UPSTOX_API_KEY', '93b32fc7-a2f4-4efc-9fe8-c28a9f6b4181')
@@ -100,15 +171,10 @@ def fetch_all_stocks(symbols: List[str] = None, days_back: int = 1200) -> Dict[s
     for sym in symbols:
         key = INSTRUMENTS.get(sym)
         if not key:
-            logger.warning(f"No instrument key for {sym}, skipping")
             continue
-        logger.info(f"Fetching {sym} ({key})...")
         df = fetch_upstox_v3(sym, key, from_date, to_date)
         if df is not None and len(df) >= 500:
             data[sym] = df
-            logger.info(f"  {sym}: {len(df)} bars, {df.index[0].date()} to {df.index[-1].date()}")
-        else:
-            logger.warning(f"  {sym}: insufficient data ({len(df) if df is not None else 0} bars)")
         time.sleep(0.3)
 
     return data
@@ -150,10 +216,6 @@ def run_52w_target_backtest(
         if len(window) >= 100:
             w52_high[i] = np.max(window)
 
-    entries = np.zeros(n, dtype=bool)
-    exits = np.zeros(n, dtype=bool)
-    entry_prices = np.full(n, np.nan)
-    exit_prices = np.full(n, np.nan)
     in_position = False
     entry_price = 0.0
     entry_idx = 0
@@ -207,8 +269,7 @@ def run_52w_target_backtest(
 
             if exit_reason is not None:
                 gross_ret = (exit_price - entry_price) / entry_price
-                cost = fees
-                net_ret = gross_ret - cost
+                net_ret = gross_ret - fees
 
                 trades.append({
                     'entry_idx': entry_idx,
@@ -236,40 +297,35 @@ def run_52w_target_backtest(
 
     gross_profit = float(np.sum(returns[returns > 0])) if wins > 0 else 0.0
     gross_loss = float(abs(np.sum(returns[returns < 0]))) if losses > 0 else 0.001
-    profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
+    profit_factor = min(gross_profit / gross_loss if gross_loss > 0 else 10.0, 10.0)
 
-    if len(returns) > 1 and np.std(returns) > 0:
-        sharpe = float(np.mean(returns) / np.std(returns) * np.sqrt(252))
+    daily_returns = np.zeros(n)
+    for t in trades:
+        if t['exit_idx'] < n:
+            daily_returns[t['exit_idx']] = t['return_pct'] / 100
+
+    nonzero = daily_returns[daily_returns != 0]
+    if len(nonzero) > 1 and np.std(nonzero) > 0:
+        sharpe = float(np.mean(nonzero) / np.std(nonzero) * np.sqrt(252))
     else:
         sharpe = 0.0
+    sharpe = max(-10.0, min(sharpe, 10.0))
 
-    cum_returns = np.cumsum(returns)
-    peak = np.maximum.accumulate(cum_returns)
-    drawdown = cum_returns - peak
-    max_dd = float(abs(np.min(drawdown))) if len(drawdown) > 0 else 0.0
+    cum = np.cumsum(returns)
+    peak = np.maximum.accumulate(cum)
+    dd = cum - peak
+    max_dd = float(abs(np.min(dd))) if len(dd) > 0 else 0.0
 
     date_range_days = (df.index[-1] - df.index[0]).days
-    trades_per_year = total / (date_range_days / 365.25) if date_range_days > 0 else 0
+    tpy = total / (date_range_days / 365.25) if date_range_days > 0 else 0
 
-    return TradeResult(
-        total_trades=total,
-        wins=wins,
-        losses=losses,
-        win_rate=win_rate,
-        total_return_pct=total_return,
-        profit_factor=profit_factor,
-        avg_return_pct=avg_return,
-        sharpe_ratio=sharpe,
-        max_drawdown_pct=max_dd,
-        trades_per_year=trades_per_year,
-        pnl_series=returns,
-    )
+    return TradeResult(total, wins, losses, win_rate, total_return, profit_factor, avg_return, sharpe, max_dd, tpy, returns)
 
 
-def walk_forward_optimize(
+def anchored_walk_forward(
     df: pd.DataFrame,
-    train_months: int = 12,
-    test_months: int = 6,
+    train_bars: int = 500,
+    test_bars: int = 300,
     n_folds: int = 3,
     param_grid: Optional[Dict] = None,
 ) -> Dict:
@@ -282,29 +338,25 @@ def walk_forward_optimize(
             'cooldown_days': [5, 7, 10],
         }
 
-    total_bars = len(df)
-    train_bars = int(train_months * 21)
-    test_bars = int(test_months * 21)
-    step_bars = test_bars
-
+    n = len(df)
     fold_results = []
 
     for fold in range(n_folds):
-        test_end = total_bars - fold * step_bars
+        test_end = n - fold * test_bars
         test_start = test_end - test_bars
         train_end = test_start
         train_start = max(0, train_end - train_bars)
 
-        if train_start < 252 or test_end > total_bars:
+        if test_end > n or test_start < 0 or train_start < 0:
             break
 
         train_df = df.iloc[train_start:train_end]
         test_df = df.iloc[test_start:test_end]
 
-        if len(train_df) < 300 or len(test_df) < 100:
+        if len(train_df) < 300 or len(test_df) < 60:
             continue
 
-        best_train_sharpe = -999
+        best_score = -999
         best_params = None
 
         keys = list(param_grid.keys())
@@ -314,12 +366,12 @@ def walk_forward_optimize(
             params = dict(zip(keys, combo))
             result = run_52w_target_backtest(train_df, **params)
 
-            if result.total_trades < 5:
+            if result.total_trades < 2:
                 continue
 
-            score = result.sharpe_ratio + 0.1 * min(result.win_rate, 70) / 70
-            if score > best_train_sharpe:
-                best_train_sharpe = score
+            score = result.sharpe_ratio + 0.3 * min(result.win_rate, 70) / 70 + 0.1 * min(result.total_trades, 20) / 20
+            if score > best_score:
+                best_score = score
                 best_params = params
 
         if best_params is None:
@@ -334,7 +386,7 @@ def walk_forward_optimize(
             'test_start': test_df.index[0].strftime('%Y-%m-%d'),
             'test_end': test_df.index[-1].strftime('%Y-%m-%d'),
             'best_params': best_params,
-            'train_sharpe': round(best_train_sharpe, 4),
+            'train_sharpe': round(best_score, 4),
             'test_sharpe': round(test_result.sharpe_ratio, 4),
             'test_win_rate': round(test_result.win_rate, 2),
             'test_pf': round(test_result.profit_factor, 2),
@@ -344,7 +396,7 @@ def walk_forward_optimize(
         })
 
     if not fold_results:
-        return {'avg_oos_sharpe': 0, 'avg_oos_win_rate': 0, 'folds': []}
+        return {'avg_oos_sharpe': 0, 'avg_oos_win_rate': 0, 'avg_oos_trades': 0, 'avg_oos_return': 0, 'param_stability': {}, 'folds': []}
 
     avg_sharpe = np.mean([f['test_sharpe'] for f in fold_results])
     avg_wr = np.mean([f['test_win_rate'] for f in fold_results])
@@ -367,77 +419,41 @@ def walk_forward_optimize(
     }
 
 
-def monte_carlo_significance(df: pd.DataFrame, params: Dict, n_simulations: int = 100) -> float:
-    result_real = run_52w_target_backtest(df, **params)
-    real_sharpe = result_real.sharpe_ratio
-
-    shuffled_sharpes = []
-    close_values = df['close'].values.copy()
-
-    for _ in range(n_simulations):
-        np.random.shuffle(close_values)
-        df_shuffled = df.copy()
-        df_shuffled['close'] = close_values
-        df_shuffled['high'] = np.maximum(df_shuffled['high'], close_values)
-        df_shuffled['low'] = np.minimum(df_shuffled['low'], close_values)
-        result_shuffled = run_52w_target_backtest(df_shuffled, **params)
-        shuffled_sharpes.append(result_shuffled.sharpe_ratio)
-
-    shuffled_sharpes = np.array(shuffled_sharpes)
-    p_value = float(np.mean(shuffled_sharpes >= real_sharpe)) if real_sharpe > 0 else 1.0
-
-    return p_value
-
-
 def run_full_optimization(
     stock_data: Dict[str, pd.DataFrame],
     param_grid: Optional[Dict] = None,
-    train_months: int = 12,
-    test_months: int = 6,
+    train_bars: int = 500,
+    test_bars: int = 300,
     n_folds: int = 3,
 ) -> Dict:
     stock_results = {}
 
     for sym, df in stock_data.items():
-        logger.info(f"\nOptimizing {sym}...")
-        result = walk_forward_optimize(df, train_months, test_months, n_folds, param_grid)
+        result = anchored_walk_forward(df, train_bars, test_bars, n_folds, param_grid)
         result['symbol'] = sym
         stock_results[sym] = result
-        logger.info(f"  OOS Sharpe: {result['avg_oos_sharpe']}, WR: {result['avg_oos_win_rate']}%, Trades: {result['avg_oos_trades']}")
-
-        if result['folds']:
-            for fold in result['folds']:
-                logger.info(f"    Fold {fold['fold']}: train={fold['train_start']} to {fold['train_end']}, "
-                           f"test={fold['test_start']} to {fold['test_end']}, "
-                           f"sharpe={fold['test_sharpe']}, WR={fold['test_win_rate']}%, "
-                           f"trades={fold['test_trades']}")
 
     all_sharpes = [r['avg_oos_sharpe'] for r in stock_results.values() if r['avg_oos_sharpe'] != 0]
     all_wrs = [r['avg_oos_win_rate'] for r in stock_results.values() if r['avg_oos_win_rate'] != 0]
+    all_returns = [r['avg_oos_return'] for r in stock_results.values() if 'avg_oos_return' in r and r['avg_oos_return'] != 0]
 
     avg_sharpe = float(np.mean(all_sharpes)) if all_sharpes else 0
     avg_wr = float(np.mean(all_wrs)) if all_wrs else 0
     median_sharpe = float(np.median(all_sharpes)) if all_sharpes else 0
+    avg_return = float(np.mean(all_returns)) if all_returns else 0.0
 
     profitable_stocks = sum(1 for s in all_sharpes if s > 0)
     consistency = profitable_stocks / len(all_sharpes) * 100 if all_sharpes else 0
 
-    if all_sharpes:
-        stability_score = 1.0 / (1.0 + float(np.std(all_sharpes)))
-    else:
-        stability_score = 0
+    stability_score = 1.0 / (1.0 + float(np.std(all_sharpes))) if all_sharpes else 0
 
     composite = 0.4 * avg_sharpe + 0.3 * (avg_wr / 100) + 0.2 * stability_score + 0.1 * (consistency / 100)
-
-    all_param_stabilities = []
-    for r in stock_results.values():
-        if 'param_stability' in r:
-            all_param_stabilities.append(r['param_stability'])
 
     return {
         'avg_oos_sharpe': round(avg_sharpe, 4),
         'median_oos_sharpe': round(median_sharpe, 4),
         'avg_oos_win_rate': round(avg_wr, 2),
+        'avg_oos_return': round(avg_return, 2),
         'consistency_pct': round(consistency, 1),
         'profitable_stocks': profitable_stocks,
         'total_stocks': len(all_sharpes),
@@ -452,57 +468,52 @@ def main():
     t0 = time.time()
 
     param_grid = {
-        'entry_threshold_pct': [2.0, 3.0, 4.0, 5.0],
-        'stop_loss_pct': [1.5, 2.0, 3.0],
-        'trailing_stop_pct': [0.5, 1.0, 1.5],
-        'max_holding_days': [10, 15, 20],
-        'cooldown_days': [5, 7, 10],
+        'entry_threshold_pct': [2.0, 3.0, 4.0, 5.0, 7.0, 10.0],
+        'stop_loss_pct': [1.5, 2.0, 3.0, 5.0],
+        'trailing_stop_pct': [0.5, 1.0, 1.5, 2.5],
+        'max_holding_days': [10, 15, 20, 30],
+        'cooldown_days': [3, 5, 7, 10],
     }
 
-    logger.info("Fetching data for 10 stocks...")
-    stock_data = fetch_all_stocks(list(INSTRUMENTS.keys()), days_back=1200)
+    symbols = list(INSTRUMENTS.keys())
+    logger.info(f"Fetching data for {len(symbols)} stocks...")
+    stock_data = fetch_all_stocks(symbols, days_back=1200)
 
     if len(stock_data) < 5:
-        logger.error(f"Only {len(stock_data)} stocks fetched, need at least 5")
-        print(f"METRIC sharpe_ratio=0")
-        print(f"METRIC oos_win_rate=0")
-        print(f"METRIC oos_profit_factor=0")
-        print(f"METRIC oos_total_return=0")
-        print(f"METRIC param_stability=0")
-        print(f"METRIC trades_per_year=0")
+        logger.error(f"Only {len(stock_data)} stocks fetched")
+        print("METRIC sharpe_ratio=0")
+        print("METRIC oos_win_rate=0")
+        print("METRIC oos_profit_factor=0")
+        print("METRIC oos_total_return=0")
+        print("METRIC param_stability=0")
+        print("METRIC trades_per_year=0")
         return
 
-    logger.info(f"\nRunning walk-forward optimization across {len(stock_data)} stocks...")
-    results = run_full_optimization(stock_data, param_grid, train_months=12, test_months=6, n_folds=3)
+    logger.info(f"Fetched {len(stock_data)} stocks. Running anchored walk-forward (500 train / 300 test / 3 folds)...")
+    results = run_full_optimization(stock_data, param_grid, train_bars=500, test_bars=300, n_folds=3)
 
     elapsed = time.time() - t0
-    logger.info(f"\nCompleted in {elapsed:.1f}s")
-
-    logger.info(f"\n=== RESULTS ===")
-    logger.info(f"Avg OOS Sharpe: {results['avg_oos_sharpe']}")
-    logger.info(f"Median OOS Sharpe: {results['median_oos_sharpe']}")
-    logger.info(f"Avg OOS Win Rate: {results['avg_oos_win_rate']}%")
-    logger.info(f"Consistency: {results['consistency_pct']}% ({results['profitable_stocks']}/{results['total_stocks']})")
-    logger.info(f"Stability Score: {results['stability_score']}")
-    logger.info(f"Composite Score: {results['composite_score']}")
+    logger.info(f"Completed in {elapsed:.1f}s")
 
     avg_pf = 0
     avg_trades = 0
-    for sym, sr in results['stock_results'].items():
+    stab_count = 0
+    avg_stability = 0
+
+    for sr in results['stock_results'].values():
         if sr['folds']:
             avg_pf += np.mean([f['test_pf'] for f in sr['folds']])
-            avg_trades += sr['avg_oos_trades']
-    avg_pf /= len(results['stock_results']) if results['stock_results'] else 1
-    avg_trades /= len(results['stock_results']) if results['stock_results'] else 1
-
-    avg_stability = 0
-    stab_count = 0
-    for sym, sr in results['stock_results'].items():
-        if 'param_stability' in sr and sr['param_stability']:
+            avg_trades += sr.get('avg_oos_trades', 0)
+        if sr.get('param_stability'):
             vals = list(sr['param_stability'].values())
-            avg_stability += np.mean(vals)
-            stab_count += 1
-    avg_stability /= stab_count if stab_count else 1
+            if vals:
+                avg_stability += np.mean(vals)
+                stab_count += 1
+
+    n_stocks = max(len(results['stock_results']), 1)
+    avg_pf /= n_stocks
+    avg_trades /= n_stocks
+    avg_stability /= max(stab_count, 1)
 
     print(f"METRIC sharpe_ratio={results['avg_oos_sharpe']}")
     print(f"METRIC oos_win_rate={results['avg_oos_win_rate']}")

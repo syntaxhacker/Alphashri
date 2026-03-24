@@ -1,1 +1,2 @@
 {"type":"config","name":"vbt-52w-target-opt","metricName":"sharpe_ratio","metricUnit":"","bestDirection":"higher"}
+{"run":3,"commit":"d784be6","metric":-0.3446,"metrics":{"oos_win_rate":54.02,"oos_profit_factor":0.83,"oos_total_return":0,"param_stability":0.2231,"trades_per_year":0.7},"status":"discard","description":"70+ stocks Nifty50+midcaps, wider grid, still low trades (0.7/yr), worse sharpe","timestamp":1774387979,"segment":0}
