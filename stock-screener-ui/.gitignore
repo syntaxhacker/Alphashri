@@ -52,6 +52,12 @@ htmlcov/
 # Embedding cache (generated, can be regenerated)
 services/.embedding_cache/
 
+# Backtest data cache
+.cache/
+
+# Generated dashboards
+*-dashboard.html
+
 # Test outputs
 test-results/
 playwright-report/

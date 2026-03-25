@@ -165,17 +165,19 @@ def run_52w_target_backtest(
     max_holding_days: int = 15,
     cooldown_days: int = 7,
     fees: float = 0.0005,
+    lookback: int = 252,
 ) -> TradeResult:
     close = df['close'].values
     high = df['high'].values
     low = df['low'].values
 
     n = len(df)
+    min_window = max(50, lookback // 3)
     w52_high = np.full(n, np.nan)
     for i in range(n):
-        start = max(0, i - 252)
+        start = max(0, i - lookback)
         window = high[start:i]
-        if len(window) >= 100:
+        if len(window) >= min_window:
             w52_high[i] = np.max(window)
 
     in_position = False
@@ -331,7 +333,9 @@ def anchored_walk_forward(
             if result.total_trades < 2:
                 continue
 
-            score = result.sharpe_ratio + 0.3 * min(result.win_rate, 70) / 70 + 0.1 * min(result.total_trades, 20) / 20
+            dd_penalty = 0.4 * max(0, 1.0 - result.max_drawdown_pct / 15.0) if result.max_drawdown_pct > 0 else 0.4
+            pf_bonus = 0.15 * min(result.profit_factor, 3.0) / 3.0
+            score = result.sharpe_ratio + 0.3 * min(result.win_rate, 70) / 70 + 0.1 * min(result.total_trades, 20) / 20 + dd_penalty + pf_bonus
             if score > best_score:
                 best_score = score
                 best_params = params
@@ -430,11 +434,12 @@ def main():
     t0 = time.time()
 
     param_grid = {
-        'entry_threshold_pct': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 12.0, 15.0],
-        'stop_loss_pct': [2.0, 3.0, 5.0],
-        'trailing_stop_pct': [0.5, 1.0, 1.5, 2.0],
+        'entry_threshold_pct': [1.0, 4.0, 10.0, 20.0],
+        'stop_loss_pct': [2.0, 3.0, 5.0, 7.0],
+        'trailing_stop_pct': [0.5, 1.0, 1.5, 2.0, 3.0],
         'max_holding_days': [10, 20],
-        'cooldown_days': [5, 7],
+        'cooldown_days': [3, 7],
+        'lookback': [63, 126, 189, 252],
     }
 
     symbols = list(INSTRUMENTS.keys())
@@ -483,6 +488,78 @@ def main():
     print(f"METRIC oos_total_return={results.get('avg_oos_return', 0)}")
     print(f"METRIC param_stability={round(avg_stability, 4)}")
     print(f"METRIC trades_per_year={round(avg_trades, 1)}")
+
+    report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'autoresearch-report.json')
+    report = {
+        'generated_at': datetime.now().isoformat(),
+        'config': {
+            'param_grid': param_grid,
+            'train_bars': 500,
+            'test_bars': 300,
+            'n_folds': 3,
+            'n_stocks': len(stock_data),
+            'scoring': 'sharpe + 0.3*wr + 0.1*trades + 0.4*dd_penalty + 0.15*pf',
+            'dd_penalty_formula': '0.4 * max(0, 1 - max_dd / 15)',
+        },
+        'summary': {
+            'avg_oos_sharpe': results['avg_oos_sharpe'],
+            'median_oos_sharpe': results['median_oos_sharpe'],
+            'avg_oos_win_rate': results['avg_oos_win_rate'],
+            'avg_oos_return': results.get('avg_oos_return', 0),
+            'avg_oos_pf': round(avg_pf, 2),
+            'consistency_pct': results['consistency_pct'],
+            'profitable_stocks': results['profitable_stocks'],
+            'total_stocks': results['total_stocks'],
+            'stability_score': results['stability_score'],
+            'composite_score': results['composite_score'],
+        },
+        'top_stocks': [],
+        'worst_stocks': [],
+        'param_frequency': {},
+    }
+
+    stock_sharpes = []
+    for sym, sr in results['stock_results'].items():
+        if sr['folds'] and sr['avg_oos_sharpe'] != 0:
+            stock_sharpes.append((sym, sr))
+
+    stock_sharpes.sort(key=lambda x: x[1]['avg_oos_sharpe'], reverse=True)
+
+    report['top_stocks'] = [
+        {
+            'symbol': sym,
+            'sharpe': sr['avg_oos_sharpe'],
+            'win_rate': sr['avg_oos_win_rate'],
+            'return': sr.get('avg_oos_return', 0),
+            'trades': sr.get('avg_oos_trades', 0),
+            'best_params': sr['folds'][0]['best_params'] if sr['folds'] else {},
+        }
+        for sym, sr in stock_sharpes[:20]
+    ]
+    report['worst_stocks'] = [
+        {
+            'symbol': sym,
+            'sharpe': sr['avg_oos_sharpe'],
+            'win_rate': sr['avg_oos_win_rate'],
+            'return': sr.get('avg_oos_return', 0),
+            'trades': sr.get('avg_oos_trades', 0),
+        }
+        for sym, sr in stock_sharpes[-10:]
+    ]
+
+    from collections import Counter
+    for sym, sr in stock_sharpes:
+        for fold in sr.get('folds', []):
+            for k, v in fold.get('best_params', {}).items():
+                report['param_frequency'].setdefault(k, Counter())
+                report['param_frequency'][k][v] += 1
+
+    for k in report['param_frequency']:
+        report['param_frequency'][k] = dict(report['param_frequency'][k].most_common(5))
+
+    with open(report_path, 'w') as f:
+        json.dump(report, f, indent=2, default=str)
+    logger.info(f"Report saved to {report_path}")
 
 
 if __name__ == '__main__':
