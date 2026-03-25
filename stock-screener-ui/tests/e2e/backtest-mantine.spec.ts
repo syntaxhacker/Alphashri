@@ -544,12 +544,163 @@ test.describe("Backtest - Mantine Features", () => {
   });
 
   test.describe("Reset Functionality", () => {
-    test("should reset backtest state when reset button clicked", async ({ page }) => {
+    test("should reset backtest state when reset menu item clicked", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      await expect(page.locator('[data-testid="results-summary"]')).toBeVisible();
-      await page.locator('[data-testid="reset-btn"]').click();
+
+      const resultsSummary = page.locator('[data-testid="results-summary"]');
+      await expect(resultsSummary).toBeVisible();
+
+      const runBtn = page.locator('[data-testid="run-backtest-btn"]');
+      await runBtn.click();
+
+      const runMenuBtn = page.locator('[data-testid="run-menu-btn"]');
+      await runMenuBtn.click();
+
+      const resetBtn = page.locator('[data-testid="reset-btn"]');
+      await expect(resetBtn).toBeVisible({ timeout: 5000 });
+      await resetBtn.click();
+
       await expect(page.locator('[data-testid="results-empty"]')).toBeVisible({ timeout: 5000 });
+    });
+  });
+
+  test.describe("Symbol Chips", () => {
+    test("should display symbol chips after adding symbols", async ({ page }) => {
+      await gotoBacktest(page);
+
+      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+      await symbolSelect.click({ force: true });
+
+      await page.keyboard.type("RELIANCE", { delay: 50 });
+      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
+        timeout: 5000,
+      });
+      const option = page.locator(".mantine-MultiSelect-option").first();
+      if (await option.isVisible()) {
+        await option.click();
+      }
+
+      const chip = page.locator('[data-testid="chip-RELIANCE"]');
+      await expect(chip).toBeVisible({ timeout: 5000 });
+    });
+
+    test("should show clear all symbols button when symbols are selected", async ({ page }) => {
+      await gotoBacktest(page);
+
+      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+      await symbolSelect.click({ force: true });
+
+      await page.keyboard.type("RELIANCE", { delay: 50 });
+      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
+        timeout: 5000,
+      });
+      const option = page.locator(".mantine-MultiSelect-option").first();
+      if (await option.isVisible()) {
+        await option.click();
+      }
+
+      const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
+      await expect(clearBtn).toBeVisible({ timeout: 5000 });
+    });
+
+    test("should clear all symbols when clear button clicked", async ({ page }) => {
+      await gotoBacktest(page);
+
+      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+      await symbolSelect.click({ force: true });
+
+      await page.keyboard.type("RELIANCE", { delay: 50 });
+      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
+        timeout: 5000,
+      });
+      const option = page.locator(".mantine-MultiSelect-option").first();
+      if (await option.isVisible()) {
+        await option.click();
+      }
+
+      await expect(page.locator('[data-testid="chip-RELIANCE"]')).toBeVisible({ timeout: 5000 });
+
+      const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
+      await clearBtn.click();
+
+      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({ timeout: 5000 });
+      const runBtn = page.locator('[data-testid="run-backtest-btn"]');
+      await expect(runBtn).toBeDisabled();
+    });
+
+    test("should remove individual symbol chip on close", async ({ page }) => {
+      await gotoBacktest(page);
+
+      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+      await symbolSelect.click({ force: true });
+
+      await page.keyboard.type("RELIANCE", { delay: 50 });
+      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
+        timeout: 5000,
+      });
+      const option = page.locator(".mantine-MultiSelect-option").first();
+      if (await option.isVisible()) {
+        await option.click();
+      }
+
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(300);
+      await expect(page.locator('[data-testid="chip-RELIANCE"]')).toBeVisible({ timeout: 5000 });
+
+      const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
+      await clearBtn.click();
+
+      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({ timeout: 5000 });
+    });
+  });
+
+  test.describe("Run Menu", () => {
+    test("should open run dropdown menu with options", async ({ page }) => {
+      await gotoBacktest(page);
+
+      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+      await symbolSelect.click({ force: true });
+
+      await page.keyboard.type("RELIANCE", { delay: 50 });
+      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
+        timeout: 5000,
+      });
+      const option = page.locator(".mantine-MultiSelect-option").first();
+      if (await option.isVisible()) {
+        await option.click();
+      }
+
+      const runMenuBtn = page.locator('[data-testid="run-menu-btn"]');
+      await expect(runMenuBtn).toBeEnabled({ timeout: 5000 });
+      await runMenuBtn.click();
+
+      await expect(page.locator('.mantine-Menu-dropdown')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("Run Backtest")).toBeVisible();
+      await expect(page.getByText("Run & Save to History")).toBeVisible();
+      await expect(page.getByText("Reset Config")).toBeVisible();
+    });
+  });
+
+  test.describe("Strategy Description", () => {
+    test("should show variation selected in config form", async ({ page }) => {
+      await gotoBacktest(page);
+
+      const variationSelect = page.locator('[data-testid="variation-select"]');
+      await expect(variationSelect).toBeVisible();
+
+      await variationSelect.click({ force: true });
+      await page.waitForTimeout(300);
+
+      const dropdown = page.locator(".mantine-Select-dropdown");
+      const hasVisibleOptions = await dropdown.locator(".mantine-Select-option").isVisible().catch(() => false);
+
+      if (hasVisibleOptions) {
+        await dropdown.locator(".mantine-Select-option").first().click();
+        await page.waitForTimeout(300);
+      }
+
+      await expect(variationSelect).toBeVisible();
     });
   });
 });

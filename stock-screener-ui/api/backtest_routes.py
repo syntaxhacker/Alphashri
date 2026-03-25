@@ -51,6 +51,21 @@ async def run_backtest(
     include_chart_data: bool = Query(False, description="Include candle/chart data in response (default: False for smaller responses)"),
     current_user=Depends(get_current_user),
 ):
+    import config as app_config
+
+    api_key = getattr(app_config, 'UPSTOX_API_KEY', None)
+    api_secret = getattr(app_config, 'UPSTOX_API_SECRET', None)
+
+    if not api_key or not api_secret:
+        from db.models import get_shared_broker_token
+        token_data = get_shared_broker_token('upstox')
+        if not token_data or not token_data.get('access_token'):
+            raise HTTPException(
+                status_code=503,
+                detail="Upstox API credentials not configured and no active broker token found. "
+                       "Please set UPSTOX_API_KEY/UPSTOX_API_SECRET in your environment or connect your broker in Settings."
+            )
+
     from cache.redis_client import cache_get, cache_set, is_cache_available
     from backtest.api import build_backtest_cache_key
 
@@ -106,7 +121,10 @@ async def run_backtest(
             'results': result.get('results', []),
         }
 
-        if is_cache_available():
+        totals = result.get('totals', {})
+        has_trades = totals.get('trades', 0) > 0
+
+        if is_cache_available() and has_trades:
             cache_data = {
                 'strategy': result.get('strategy'),
                 'variation_id': result.get('variation_id'),

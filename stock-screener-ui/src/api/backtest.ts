@@ -127,6 +127,16 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
       }),
     });
 
+    if (!response.ok) {
+      let msg = `Request failed (${response.status})`;
+      try {
+        const errBody = await response.json();
+        msg = errBody.detail || errBody.error || msg;
+      } catch {}
+      setError(msg);
+      return null;
+    }
+
     const data: BacktestResponse & { chart_data?: any; candles?: any; saved_uuid?: string } =
       await response.json();
 
