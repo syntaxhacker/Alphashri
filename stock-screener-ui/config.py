@@ -15,7 +15,7 @@ if env_file.exists():
 PORT = int(os.getenv("PORT", 8765))
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://localhost:5174,http://localhost:3000,http://127.0.0.1:5173,http://192.168.0.4:5173,http://192.168.0.4:5174,https://alphashri.pages.dev"
+    "http://localhost:5173,http://localhost:5174,http://localhost:3000,http://127.0.0.1:5173,https://alphashri.pages.dev"
 ).split(",")
 ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
 ALLOWED_ORIGIN_PATTERNS = os.getenv(
