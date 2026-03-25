@@ -712,10 +712,6 @@ kbd {
   height: calc(100vh - 16px);
   padding: 8px;
 }
-.backtest-config-row {
-  flex-shrink: 0;
-  margin-bottom: 8px;
-}
 .backtest-main {
   display: flex;
   flex: 1;
@@ -737,191 +733,24 @@ kbd {
   min-width: 0;
 }
 
-/* Strategy Config Horizontal */
-.strategy-config-horizontal {
-  background: #0f0f0f;
-  border: 1px solid #222;
-  padding: 8px 12px;
+/* Backtest Config */
+.config-symbols-chips {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 32px;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+  margin-top: 4px;
+}
+.config-symbols-chips.expanded {
+  max-height: none;
+}
+.config-params-row {
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
-  flex-wrap: wrap;
-}
-.config-section {
-  display: flex;
   align-items: center;
-  gap: 6px;
-}
-.config-section label {
-  font-size: var(--font-size-sm);
-  color: #888;
-  white-space: nowrap;
-}
-.config-input-small {
-  width: 60px;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  color: #e0e0e0;
-  padding: 3px 6px;
-  font: var(--font-size-sm) var(--font-family);
-}
-.config-select-small {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  color: #e0e0e0;
-  padding: 3px 6px;
-  font: var(--font-size-sm) var(--font-family);
-}
-.config-input-small:focus,
-.config-select-small:focus {
-  outline: none;
-  border-color: #00ff9d;
-}
-.checkbox-section {
-  margin-left: 4px;
-}
-.checkbox-label-inline {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--font-size-sm);
-  color: #888;
-  cursor: pointer;
-}
-.checkbox-label-inline input {
-  width: auto;
-}
-.config-actions {
-  margin-left: auto;
-}
-.symbols-input-inline {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-.symbol-tag-small {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  padding: 1px 6px;
-  font-size: var(--font-size-sm);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.symbol-remove-small {
-  background: none;
-  border: none;
-  color: #666;
-  cursor: pointer;
-  padding: 0;
-  font-size: var(--font-size-sm);
-  line-height: 1;
-}
-.symbol-remove-small:hover {
-  color: #ff4757;
-}
-.symbol-add-input-small {
-  width: 70px;
-  min-width: 70px;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  color: #e0e0e0;
-  padding: 3px 6px;
-  font: var(--font-size-sm) var(--font-family);
-}
-
-/* Strategy Config (fallback) */
-.strategy-config {
-  background: #0f0f0f;
-  border: 1px solid #222;
-  padding: 12px;
-}
-.config-header {
-  margin-bottom: 12px;
-}
-.config-header h3 {
-  font-size: var(--font-size-md);
-  color: #00ff9d;
-}
-.config-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.config-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.config-label {
-  font-size: var(--font-size-sm);
-  color: #888;
-  width: 100px;
-  flex-shrink: 0;
-}
-.config-input,
-.config-select {
-  flex: 1;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  color: #e0e0e0;
-  padding: 4px 6px;
-  font: var(--font-size-sm) var(--font-family);
-}
-.config-input:focus,
-.config-select:focus {
-  outline: none;
-  border-color: #00ff9d;
-}
-.config-footer {
-  margin-top: 12px;
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-/* Symbols Input */
-.symbols-row {
-  align-items: flex-start;
-}
-.symbols-input {
-  flex: 1;
-}
-.symbols-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 4px;
-}
-.symbol-tag {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  padding: 2px 6px;
-  font-size: var(--font-size-sm);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.symbol-remove {
-  background: none;
-  border: none;
-  color: #666;
-  cursor: pointer;
-  padding: 0;
-  font-size: var(--font-size-md);
-  line-height: 1;
-}
-.symbol-remove:hover {
-  color: #ff4757;
-}
-.symbol-add-input {
-  width: 100%;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  color: #e0e0e0;
-  padding: 4px 6px;
-  font: var(--font-size-sm) var(--font-family);
 }
 
 /* Symbol Search Autocomplete */

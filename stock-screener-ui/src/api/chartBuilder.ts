@@ -124,10 +124,14 @@ function formatCandleData(raw: RawCandle): CandleData[] {
   for (let i = 0; i < indices.length; i++) {
     try {
       const timeStr = indices[i];
-      // Time is already in IST, just extract parts
-      // Format: "2025-10-24T09:15:00" or "2025-10-24T09:15:00+00:00"
       const cleanTime = timeStr.replace(/\+00:00$|Z$/, "");
       const [datePart, timePart] = cleanTime.split("T");
+
+      if (!datePart || !timePart) {
+        console.error("Error parsing candle:", indices[i], "missing date or time part");
+        continue;
+      }
+
       const [hours, minutes] = timePart.split(":");
 
       const dateRaw = datePart; // YYYY-MM-DD for matching
