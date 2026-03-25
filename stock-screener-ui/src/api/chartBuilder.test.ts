@@ -87,6 +87,46 @@ describe("buildChartData", () => {
     expect(result.candles[0].time).toBe("2025-10-24T09:15");
   });
 
+  test("skips candles with date-only strings (no time component)", () => {
+    const candles = makeRawCandle({
+      index: [
+        "2026-02-01",
+        "2025-10-24T09:15:00",
+        "2026-03-01",
+      ],
+      open: [100, 101, 103],
+      high: [102, 104, 106],
+      low: [99, 100, 102],
+      close: [101, 103, 105],
+      volume: [1000, 2000, 3000],
+    });
+    const result = buildChartData("TEST", candles, []);
+
+    expect(result.candles).toHaveLength(1);
+    expect(result.candles[0].time).toBe("2025-10-24T09:15");
+  });
+
+  test("handles mixed valid and malformed candle timestamps", () => {
+    const candles = makeRawCandle({
+      index: [
+        "2025-10-24T09:15:00",
+        "2025-10-24T09:30:00",
+        "invalid-timestamp",
+        "2025-10-24T10:00:00+00:00",
+        "",
+        "2025-10-24T10:30:00Z",
+      ],
+      open: [100, 101, 102, 103, 104, 105],
+      high: [102, 104, 106, 108, 110, 112],
+      low: [99, 100, 101, 102, 103, 104],
+      close: [101, 103, 105, 107, 109, 111],
+      volume: [1000, 2000, 3000, 1500, 2500, 3500],
+    });
+    const result = buildChartData("TEST", candles, []);
+
+    expect(result.candles).toHaveLength(4);
+  });
+
   test("calculates ORB zones for trade dates only", () => {
     const candles = makeRawCandle({
       index: [
