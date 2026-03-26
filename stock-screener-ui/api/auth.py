@@ -191,7 +191,14 @@ async def get_current_user(
             detail="Invalid token: missing subject",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    user_id = int(user_id)
+    try:
+        user_id = int(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: malformed subject",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     def _sync():
         return db.query(User).filter(User.id == user_id, User.is_active == True).first()

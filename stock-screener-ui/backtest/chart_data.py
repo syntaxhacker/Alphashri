@@ -362,8 +362,6 @@ def calculate_52w_high_series(candles_df: pd.DataFrame, period: int = 252) -> Li
 
     return levels
 
-    return levels
-
 
 def build_chart_data_for_symbol(
     symbol: str,
