@@ -7,7 +7,7 @@ import {
   mockEmptyTradeHistory,
   mockTradeHistoryWithSampleData,
   isPaginationVisible,
-  clickNextPage,
+  selectWeekFilter,
 } from "../helpers/tradeHistoryHelpers";
 import { mockTradeHistoryWithCount } from "../helpers/tradeHistoryHelpers";
 
@@ -162,7 +162,7 @@ test.describe("Trade History - Pagination", () => {
   test("should navigate to next page", async ({ page }) => {
     await mockTradeHistoryWithCount(page, 100);
     await navigateToTradeHistoryWithBot(page);
-    await clickNextPage(page);
+    await selectWeekFilter(page);
     await expect(page.locator('[data-testid="trades-header"]')).toBeVisible();
   });
 });
