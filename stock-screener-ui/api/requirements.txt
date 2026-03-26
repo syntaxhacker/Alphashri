@@ -42,6 +42,9 @@ fakeredis>=2.0.0
 # Caching
 redis>=5.0.0
 
+# Migrations
+alembic>=1.13.0
+
 # Contract testing
 schemathesis>=3.19.0
 hypothesis>=6.68.0

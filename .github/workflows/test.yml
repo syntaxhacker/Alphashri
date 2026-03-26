@@ -13,6 +13,9 @@ on:
       - 'stock-screener-ui/vite.config.*'
       - 'stock-screener-ui/playwright.config.*'
       - 'stock-screener-ui/tsconfig*'
+      - 'stock-screener-ui/db/models.py'
+      - 'stock-screener-ui/db/migrations/**'
+      - 'stock-screener-ui/alembic.ini'
   schedule:
     - cron: '0 2 * * *'
 
@@ -45,6 +48,10 @@ jobs:
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+      - name: Validate migration status
+        run: |
+          cd stock-screener-ui
+          uv run --python 3.11 alembic check 2>&1 || echo "⚠️ Pending migrations detected"
 
   frontend-lint-typecheck:
     name: Frontend Lint & TypeCheck

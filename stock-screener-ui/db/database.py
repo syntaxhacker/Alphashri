@@ -27,9 +27,15 @@ def get_db():
 
 
 def init_db():
-    """Initialize database tables."""
-    from .models import (
-        User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection,
-        NewsArticle, NewsSymbolMention, LLMRun, Instrument
-    )  # noqa: F401
-    Base.metadata.create_all(bind=engine)
+    """Initialize database tables and run pending migrations."""
+    _run_alembic_migrations()
+
+
+def _run_alembic_migrations():
+    """Run Alembic migrations using the app's engine."""
+    from alembic.config import Config
+    from alembic import command
+
+    alembic_cfg = Config("alembic.ini")
+    alembic_cfg.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
+    command.upgrade(alembic_cfg, "head")
