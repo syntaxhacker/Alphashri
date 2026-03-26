@@ -32,9 +32,6 @@ JWT_ALGORITHM = config.JWT_ALGORITHM
 ACCESS_TOKEN_EXPIRE_HOURS = config.ACCESS_TOKEN_EXPIRE_MINUTES // 60
 REFRESH_TOKEN_EXPIRE_DAYS = config.REFRESH_TOKEN_EXPIRE_DAYS
 
-# Environment-based auth requirement
-# Set REQUIRE_AUTH=true for production to enforce authentication
-REQUIRE_AUTH = os.environ.get("REQUIRE_AUTH", "false").lower() in ("true", "1", "yes")
 
 # Router
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -208,30 +205,6 @@ async def get_current_user(
         )
 
     return user
-
-
-async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: Session = Depends(get_db)
-) -> Optional[User]:
-    """
-    Get current user from JWT token.
-
-    - If REQUIRE_AUTH=true (production): Returns user or raises 401
-    - If REQUIRE_AUTH=false (development): Returns user or None (allows unauthenticated access)
-    """
-    if REQUIRE_AUTH:
-        # Production mode: require authentication
-        return await get_current_user(credentials, db)
-
-    # Development mode: optional authentication
-    if credentials is None:
-        return None
-
-    try:
-        return await get_current_user(credentials, db)
-    except HTTPException:
-        return None
 
 
 # API Endpoints

@@ -33,15 +33,8 @@ from trading.orb_signals import ORBSignalGenerator, ORBSignal, SignalType, creat
 from trading.risk_manager import RiskManager, get_risk_manager
 from trading.journal import TradeJournal, get_journal
 
-# Optional auth imports
-try:
-    from api.auth import get_current_user_optional
-    from db.models import User
-    _auth_available = True
-except ImportError:
-    _auth_available = False
-    async def get_current_user_optional():
-        return None
+from api.auth import get_current_user
+from db.models import User
 
 console = Console()
 
@@ -169,13 +162,12 @@ class UpdatePricesRequest(BaseModel):
 DEFAULT_USER_ID = 1
 
 
-def _get_user_id(user: Optional["User"]) -> int:
-    """Get user ID, defaulting to admin user (1) if not authenticated."""
-    return user.id if user else DEFAULT_USER_ID
+def _get_user_id(user: "User") -> int:
+    return user.id
 
 
 @router.get("/portfolio")
-async def get_portfolio(user: Optional["User"] = Depends(get_current_user_optional)):
+async def get_portfolio(user: "User" = Depends(get_current_user)):
     """Get current paper trading portfolio status."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
@@ -255,7 +247,7 @@ async def get_portfolio(user: Optional["User"] = Depends(get_current_user_option
 
 
 @router.post("/reset")
-async def reset_portfolio(request: ResetRequest, user: Optional["User"] = Depends(get_current_user_optional)):
+async def reset_portfolio(request: ResetRequest, user: "User" = Depends(get_current_user)):
     """Reset paper trading with new capital."""
     user_id = _get_user_id(user)
     trader = reset_paper_trader(user_id, request.capital)
@@ -267,7 +259,7 @@ async def reset_portfolio(request: ResetRequest, user: Optional["User"] = Depend
 
 
 @router.get("/positions")
-async def get_positions(user: Optional["User"] = Depends(get_current_user_optional)):
+async def get_positions(user: "User" = Depends(get_current_user)):
     """Get all open positions."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
@@ -297,7 +289,7 @@ async def get_trades(
     symbol: Optional[str] = None,
     strategy: Optional[str] = None,
     bot_id: Optional[str] = None,
-    user: Optional["User"] = Depends(get_current_user_optional),
+    user: "User" = Depends(get_current_user),
 ):
     """Get trade history from journal with filters."""
     from trading.journal import TradeJournal
@@ -418,7 +410,7 @@ async def get_trades(
 @router.delete("/trades/{trade_id}")
 async def delete_trade(
     trade_id: str,
-    user: Optional["User"] = Depends(get_current_user_optional)
+    user: "User" = Depends(get_current_user)
 ):
     """Delete a single trade from the journal."""
     user_id = _get_user_id(user)
@@ -440,7 +432,7 @@ async def delete_trade(
 # ============== Order Endpoints ==============
 
 @router.post("/order")
-async def place_order(request: OrderRequest, user: Optional["User"] = Depends(get_current_user_optional)):
+async def place_order(request: OrderRequest, user: "User" = Depends(get_current_user)):
     """Place a paper trading order."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
@@ -492,7 +484,7 @@ async def place_order(request: OrderRequest, user: Optional["User"] = Depends(ge
 
 
 @router.post("/close")
-async def close_position(request: ClosePositionRequest, user: Optional["User"] = Depends(get_current_user_optional)):
+async def close_position(request: ClosePositionRequest, user: "User" = Depends(get_current_user)):
     """Close a specific position."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
@@ -544,7 +536,7 @@ async def close_position(request: ClosePositionRequest, user: Optional["User"] =
 
 
 @router.post("/close-all")
-async def close_all_positions(request: UpdatePricesRequest, user: Optional["User"] = Depends(get_current_user_optional)):
+async def close_all_positions(request: UpdatePricesRequest, user: "User" = Depends(get_current_user)):
     """Close all open positions."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
@@ -560,7 +552,7 @@ async def close_all_positions(request: UpdatePricesRequest, user: Optional["User
 
 
 @router.post("/update-prices")
-async def update_prices(request: UpdatePricesRequest, user: Optional["User"] = Depends(get_current_user_optional)):
+async def update_prices(request: UpdatePricesRequest, user: "User" = Depends(get_current_user)):
     """Update prices and check for SL/TP triggers."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
@@ -649,6 +641,7 @@ async def create_signal(
     side: str = "LONG",
     sl_pct: float = 0.4,
     tp_pct: float = 1.2,
+    user: "User" = Depends(get_current_user),
 ):
     """Create a manual ORB signal."""
     signal = create_entry_signal(
@@ -677,7 +670,7 @@ async def create_signal(
 # ============== Journal Endpoints ==============
 
 @router.get("/journal/summary")
-async def get_journal_summary(user: Optional["User"] = Depends(get_current_user_optional)):
+async def get_journal_summary(user: "User" = Depends(get_current_user)):
     """Get trading performance summary."""
     user_id = _get_user_id(user)
     journal = get_journal(user_id)
@@ -685,7 +678,7 @@ async def get_journal_summary(user: Optional["User"] = Depends(get_current_user_
 
 
 @router.get("/journal/symbols")
-async def get_symbol_performance(user: Optional["User"] = Depends(get_current_user_optional)):
+async def get_symbol_performance(user: "User" = Depends(get_current_user)):
     """Get performance by symbol."""
     user_id = _get_user_id(user)
     journal = get_journal(user_id)
@@ -693,7 +686,7 @@ async def get_symbol_performance(user: Optional["User"] = Depends(get_current_us
 
 
 @router.get("/journal/daily")
-async def get_daily_report(date: Optional[str] = None, user: Optional["User"] = Depends(get_current_user_optional)):
+async def get_daily_report(date: Optional[str] = None, user: "User" = Depends(get_current_user)):
     """Get daily trading report."""
     user_id = _get_user_id(user)
     journal = get_journal(user_id)
@@ -701,7 +694,7 @@ async def get_daily_report(date: Optional[str] = None, user: Optional["User"] = 
 
 
 @router.get("/journal/export")
-async def export_journal(user: Optional["User"] = Depends(get_current_user_optional)):
+async def export_journal(user: "User" = Depends(get_current_user)):
     """Export journal to CSV."""
     user_id = _get_user_id(user)
     journal = get_journal(user_id)
@@ -851,7 +844,7 @@ async def get_paper_bot_snapshot():
 
 
 @router.post("/bot/start")
-async def start_paper_bot():
+async def start_paper_bot(user: "User" = Depends(get_current_user)):
     """Start background paper trading runner process."""
     global _paper_bot_process
 
@@ -896,7 +889,7 @@ async def start_paper_bot():
 
 
 @router.post("/bot/stop")
-async def stop_paper_bot():
+async def stop_paper_bot(user: "User" = Depends(get_current_user)):
     """Stop background paper trading runner process."""
     global _paper_bot_process, _paper_bot_log_handle
 
@@ -963,7 +956,7 @@ async def get_paper_chart(
     symbol: str,
     date: Optional[str] = None,
     timeframe: str = "5min",
-    user: Optional["User"] = Depends(get_current_user_optional),
+    user: "User" = Depends(get_current_user),
 ):
     """
     Get intraday chart data with paper trade markers.
@@ -1337,7 +1330,7 @@ async def get_strategy_config_endpoint(
 async def update_strategy_config_endpoint(
     request: StrategyConfigUpdate,
     name: str = "orb_default",
-    user: Optional["User"] = Depends(get_current_user_optional),
+    user: "User" = Depends(get_current_user),
 ):
     """Update strategy configuration in database."""
     try:
@@ -1373,7 +1366,7 @@ async def update_strategy_config_endpoint(
 
 
 @router.post("/config/reset")
-async def reset_strategy_config_endpoint(name: str = "orb_default"):
+async def reset_strategy_config_endpoint(name: str = "orb_default", user: "User" = Depends(get_current_user)):
     """Reset strategy configuration to defaults."""
     try:
         from db.database import SessionLocal

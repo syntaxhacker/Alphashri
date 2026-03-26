@@ -36,14 +36,14 @@ from tests.helpers.db import import_all_models
 def app():
     """Create a test FastAPI app with the bots router."""
     from api.bots import router
-    from api.auth import get_current_user_optional
+    from api.auth import get_current_user
     from db.models import User
 
     app = FastAPI()
     app.include_router(router)
 
     mock_user = User(id=1, email="test@example.com")
-    app.dependency_overrides[get_current_user_optional] = lambda: mock_user
+    app.dependency_overrides[get_current_user] = lambda: mock_user
 
     return app
 

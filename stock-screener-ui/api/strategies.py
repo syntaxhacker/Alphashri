@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from db.database import get_db
 from db.models import StrategyConfig, BotConfig, User
-from api.auth import get_current_user_optional
+from api.auth import get_current_user
 
 router = APIRouter(prefix="/api/strategies", tags=["strategies"])
 
@@ -250,7 +250,7 @@ async def list_strategies(
     include_templates: bool = False,
     strategy_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """List all strategy configurations."""
     strategies = await asyncio.to_thread(_sync_list_strategies, db, include_templates, strategy_type)
@@ -264,7 +264,7 @@ async def list_strategies(
 @router.get("/templates")
 async def list_templates(
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """List all active template strategies."""
     templates = await asyncio.to_thread(_sync_list_templates, db)
@@ -278,7 +278,7 @@ async def list_templates(
 @router.get("/variations")
 async def list_all_variations(
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """List all strategy variations and templates for selection."""
     variations = await asyncio.to_thread(_sync_list_all_variations, db)
@@ -290,7 +290,7 @@ async def list_all_variations(
 async def get_strategy(
     strategy_id: int,
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Get a specific strategy by ID."""
     strategy, variations = await asyncio.to_thread(_sync_get_strategy, db, strategy_id)
@@ -308,7 +308,7 @@ async def get_strategy(
 async def create_strategy(
     request: StrategyCreate,
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Create a new strategy variation."""
     strategy, error = await asyncio.to_thread(_sync_create_strategy, db, request)
@@ -330,7 +330,7 @@ async def update_strategy(
     strategy_id: int,
     request: StrategyUpdate,
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Update a strategy configuration."""
     strategy, error = await asyncio.to_thread(_sync_update_strategy, db, strategy_id, request)
@@ -351,7 +351,7 @@ async def update_strategy(
 async def delete_strategy(
     strategy_id: int,
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Delete a strategy (soft delete by setting is_active=False)."""
     strategy, error = await asyncio.to_thread(_sync_delete_strategy, db, strategy_id)
@@ -372,7 +372,7 @@ async def get_strategy_performance(
     strategy_id: int,
     include_test: bool = True,  # Include test/seeded data by default
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Get performance statistics for a strategy."""
     strategy = await asyncio.to_thread(_sync_get_strategy_performance, db, strategy_id)
@@ -444,7 +444,7 @@ async def get_strategy_trades(
     limit: int = 50,
     include_test: bool = True,  # Include test/seeded data by default
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Get trades for a specific strategy."""
     strategy = await asyncio.to_thread(_sync_get_strategy_trades, db, strategy_id)
@@ -476,7 +476,7 @@ async def get_strategy_trades(
 async def get_strategy_variations(
     strategy_id: int,
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Get all variations of a template strategy."""
     parent, variations = await asyncio.to_thread(_sync_get_strategy_variations, db, strategy_id)
@@ -498,7 +498,7 @@ async def get_strategy_variations(
 @router.get("/bots")
 async def list_bots(
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """List all bot configurations."""
     bots = await asyncio.to_thread(_sync_list_bots, db)
@@ -513,7 +513,7 @@ async def list_bots(
 async def get_bot(
     bot_id: int,
     db: Session = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Get a specific bot configuration."""
     bot = await asyncio.to_thread(_sync_get_bot, db, bot_id)
