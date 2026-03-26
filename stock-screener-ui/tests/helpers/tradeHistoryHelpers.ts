@@ -183,18 +183,16 @@ export async function clickButtonIfExists(page: Page, pattern: RegExp): Promise<
   await page.waitForTimeout(500);
 }
 
+export async function selectWeekFilter(page: Page): Promise<void> {
+  const quickFilter = page.locator('[data-testid="quick-filter"]');
+  await expect(quickFilter).toBeVisible();
+  await quickFilter.locator('label', { hasText: "Week" }).click();
+  await page.waitForTimeout(500);
+}
+
 export async function isPaginationVisible(page: Page): Promise<void> {
   const pagination = page.locator('[data-testid="trades-header"]');
   await expect(pagination).toBeVisible();
-}
-
-export async function clickNextPage(page: Page): Promise<void> {
-  const nextBtn = page.locator('[data-testid="quick-filter"]');
-  await expect(nextBtn).toBeVisible();
-  const weekOption = nextBtn.locator('input[value="week"]');
-  await expect(weekOption).toBeVisible();
-  await weekOption.click();
-  await page.waitForTimeout(500);
 }
 
 export async function setupTradeHistoryTest(page: Page, botId: string = "2"): Promise<void> {

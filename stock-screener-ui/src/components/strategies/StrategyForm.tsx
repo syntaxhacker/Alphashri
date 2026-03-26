@@ -219,6 +219,11 @@ export function StrategyForm({
     const enableFiltersEl = form.querySelector("[name='enable_filters']") as HTMLInputElement;
     data.enable_filters = enableFiltersEl ? enableFiltersEl.checked : false;
 
+    if (data.strategy_type === "EMA_CROSS" && data.ema_fast_period >= data.ema_slow_period) {
+      window.alert("Fast EMA period must be less than Slow EMA period");
+      return;
+    }
+
     onSubmit(data);
   };
 
