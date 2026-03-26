@@ -48,6 +48,10 @@ jobs:
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+      - name: Run migrations on test DB
+        run: |
+          cd stock-screener-ui
+          uv run --python 3.11 alembic upgrade head
       - name: Validate migration status
         run: |
           cd stock-screener-ui
