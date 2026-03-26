@@ -101,6 +101,7 @@ describe("calculateTotals", () => {
 describe("runBacktest", () => {
   it("sends correct POST body with state params", async () => {
     mockedFetch.mockResolvedValue({
+      ok: true,
       json: async () => ({ results: [{ trades: 10, wins: 5, gross_pnl: 1000, total_costs: 100 }] }),
     } as Response);
 
@@ -124,6 +125,7 @@ describe("runBacktest", () => {
 
   it("defaults saveToHistory to false", async () => {
     mockedFetch.mockResolvedValue({
+      ok: true,
       json: async () => ({ results: [] }),
     } as Response);
 
@@ -135,6 +137,7 @@ describe("runBacktest", () => {
 
   it("returns null when response contains error", async () => {
     mockedFetch.mockResolvedValue({
+      ok: true,
       json: async () => ({ error: "Invalid strategy" }),
     } as Response);
 
@@ -151,9 +154,55 @@ describe("runBacktest", () => {
     expect(result).toBeNull();
   });
 
+  it("returns null and calls setError on non-2xx response", async () => {
+    const { setError } = await import("../state/backtest");
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ detail: "Upstox API credentials not configured" }),
+    } as Response);
+
+    const result = await runBacktest();
+
+    expect(result).toBeNull();
+    expect(setError).toHaveBeenCalledWith("Upstox API credentials not configured");
+  });
+
+  it("returns null with status message when error body has no detail", async () => {
+    const { setError } = await import("../state/backtest");
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ message: "Internal server error" }),
+    } as Response);
+
+    const result = await runBacktest();
+
+    expect(result).toBeNull();
+    expect(setError).toHaveBeenCalledWith("Request failed (500)");
+  });
+
+  it("returns null with status message when json parse fails on error", async () => {
+    const { setError } = await import("../state/backtest");
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new Error("not json");
+      },
+    } as unknown as Response);
+
+    const result = await runBacktest();
+
+    expect(result).toBeNull();
+    expect(setError).toHaveBeenCalledWith("Request failed (502)");
+  });
+
   it("returns data when response has no results", async () => {
     const data = { message: "queued" };
     mockedFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
       json: async () => data,
     } as Response);
 

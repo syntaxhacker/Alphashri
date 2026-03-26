@@ -833,3 +833,151 @@ class TestBacktestDataFormatting:
         result = _sanitize_for_json(data)
 
         assert result['timestamp'] == '2024-01-01T12:00:00'
+
+
+class TestBacktestRunCredentialCheck:
+    """Test credential validation in POST /api/backtest/run."""
+
+    def test_run_returns_503_when_no_api_key_and_no_token(self, client, auth_headers):
+        """Test 503 when UPSTOX_API_KEY missing and no broker token."""
+        import config
+        from unittest.mock import patch as upatch
+        with upatch.object(config, 'UPSTOX_API_KEY', None), \
+             upatch.object(config, 'UPSTOX_API_SECRET', None), \
+             upatch('db.models.get_shared_broker_token', return_value=None):
+            response = client.post(
+                "/api/backtest/run",
+                json={
+                    'strategy': 'orb',
+                    'symbols': ['RELIANCE'],
+                    'params': {},
+                    'days': 90,
+                },
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 503
+        assert 'Upstox API credentials not configured' in response.json()['detail']
+
+    def test_run_allows_when_api_key_missing_but_token_exists(self, client, auth_headers):
+        """Test request proceeds when no API key but active broker token exists."""
+        import config
+        from unittest.mock import patch as upatch
+        with upatch.object(config, 'UPSTOX_API_KEY', None), \
+             upatch.object(config, 'UPSTOX_API_SECRET', None), \
+             upatch('db.models.get_shared_broker_token', return_value={'access_token': 'test-token'}):
+            response = client.post(
+                "/api/backtest/run",
+                json={
+                    'strategy': 'orb',
+                    'symbols': ['RELIANCE'],
+                    'params': {},
+                    'days': 90,
+                },
+                headers=auth_headers,
+            )
+
+        assert response.status_code != 503
+
+    def test_run_allows_when_api_key_present(self, client, auth_headers):
+        """Test request proceeds when UPSTOX_API_KEY is set."""
+        import config
+        from unittest.mock import patch as upatch
+        with upatch.object(config, 'UPSTOX_API_KEY', 'test-key'), \
+             upatch.object(config, 'UPSTOX_API_SECRET', 'test-secret'):
+            response = client.post(
+                "/api/backtest/run",
+                json={
+                    'strategy': 'orb',
+                    'symbols': ['RELIANCE'],
+                    'params': {},
+                    'days': 90,
+                },
+                headers=auth_headers,
+            )
+
+        assert response.status_code != 503
+
+
+class TestBacktestRunCaching:
+    """Test that empty backtest results are not cached."""
+
+    def test_zero_trade_results_not_cached(self, client, auth_headers):
+        """Test that results with 0 trades are not cached to Redis."""
+        import config
+        import cache.redis_client as rc
+        from unittest.mock import patch as upatch, MagicMock
+        original_set = rc.cache_set
+        original_get = rc.cache_get
+        original_avail = rc.is_cache_available
+        try:
+            rc.cache_set = MagicMock()
+            rc.cache_get = MagicMock(return_value=None)
+            rc.is_cache_available = MagicMock(return_value=True)
+            config.UPSTOX_API_KEY = 'test-key'
+            config.UPSTOX_API_SECRET = 'test-secret'
+            with upatch('api.backtest_routes.handle_run_backtest', return_value={
+                'strategy': 'orb',
+                'results': [],
+                'totals': {'trades': 0, 'net_pnl': 0, 'gross_pnl': 0, 'total_costs': 0, 'win_rate': 0},
+                'chart_data': {},
+                'candles': {},
+                'config': {},
+            }):
+                response = client.post(
+                    "/api/backtest/run",
+                    json={
+                        'strategy': 'orb',
+                        'symbols': ['RELIANCE'],
+                        'params': {},
+                        'days': 90,
+                    },
+                    headers=auth_headers,
+                )
+
+            assert response.status_code == 200
+            rc.cache_set.assert_not_called()
+        finally:
+            rc.cache_set = original_set
+            rc.cache_get = original_get
+            rc.is_cache_available = original_avail
+
+    def test_results_with_trades_are_cached(self, client, auth_headers):
+        """Test that results with trades > 0 are cached to Redis."""
+        import config
+        import cache.redis_client as rc
+        from unittest.mock import patch as upatch, MagicMock
+        original_set = rc.cache_set
+        original_get = rc.cache_get
+        original_avail = rc.is_cache_available
+        try:
+            rc.cache_set = MagicMock()
+            rc.cache_get = MagicMock(return_value=None)
+            rc.is_cache_available = MagicMock(return_value=True)
+            config.UPSTOX_API_KEY = 'test-key'
+            config.UPSTOX_API_SECRET = 'test-secret'
+            with upatch('api.backtest_routes.handle_run_backtest', return_value={
+                'strategy': 'orb',
+                'results': [{'symbol': 'RELIANCE', 'trades': 5, 'net_pnl': 2500}],
+                'totals': {'trades': 5, 'net_pnl': 2500, 'gross_pnl': 3000, 'total_costs': 500, 'win_rate': 60.0},
+                'chart_data': {},
+                'candles': {},
+                'config': {},
+            }):
+                response = client.post(
+                    "/api/backtest/run",
+                    json={
+                        'strategy': 'orb',
+                        'symbols': ['RELIANCE'],
+                        'params': {},
+                        'days': 90,
+                    },
+                    headers=auth_headers,
+                )
+
+            assert response.status_code == 200
+            rc.cache_set.assert_called_once()
+        finally:
+            rc.cache_set = original_set
+            rc.cache_get = original_get
+            rc.is_cache_available = original_avail
