@@ -18,6 +18,17 @@ if [ $? -ne 0 ]; then
 fi
 echo "✅ Python unit tests passed."
 
+# Auto-generate schema docs if db/models.py was staged
+STAGED_PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E 'stock-screener-ui/db/models\.py$')
+if [ ! -z "$STAGED_PY_FILES" ]; then
+  echo "Regenerating schema docs..."
+  cd stock-screener-ui
+  uv run --python 3.11 python scripts/generate_schema_docs.py
+  git add docs/schema.md
+  echo "✅ Schema docs updated."
+  cd ..
+fi
+
 # Get staged files (only .ts, .tsx, .js, .jsx, .css)
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx|css)$' | head -50)
 

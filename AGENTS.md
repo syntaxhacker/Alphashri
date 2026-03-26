@@ -49,6 +49,7 @@ stock-screener-ui/
 ├── backtest/           # Backtesting engine + strategies/
 ├── cache/              # Redis caching layer (graceful degradation)
 ├── db/                 # SQLAlchemy models, database.py, alphashri.db (local)
+│   └── migrations/     # Alembic migration scripts and versions
 ├── services/           # News persistence, instrument mapping
 ├── trading/            # Risk manager, paper trader, journal, signals
 ├── src/                # React frontend (api/, components/, store/, types/, hooks/)
@@ -107,6 +108,34 @@ Env vars loaded in `config.py` via `python-dotenv` from `.env.local`.
 ### Database
 SQLAlchemy 2.0 ORM. Models in `db/models.py`. Session via `Depends(get_db)`.
 Tests use in-memory SQLite with `StaticPool` and savepoint-based isolation.
+
+### Database Migrations (Alembic)
+Schema changes are managed via Alembic. Never modify the database schema without a migration.
+
+```bash
+cd stock-screener-ui
+alembic revision --autogenerate -m "description"   # generate migration
+alembic upgrade head                                # apply migrations
+alembic check                                       # verify DB is in sync
+```
+
+- Config: `alembic.ini` (uses date-prefixed file template)
+- Env: `db/migrations/env.py` (imports all models, uses app engine)
+- Versions: `db/migrations/versions/`
+- `init_db()` in `db/database.py` runs `alembic upgrade head` on startup
+- Docker entrypoints run migrations before server start (hard-fail on error)
+- CI validates migration status on PRs that touch `db/models.py` or `db/migrations/`
+
+### Schema Documentation
+`docs/schema.md` is auto-generated from `db/models.py`. Do not edit manually.
+
+```bash
+cd stock-screener-ui
+python scripts/generate_schema_docs.py   # regenerate
+```
+
+- Pre-commit hook auto-regenerates when `db/models.py` is staged
+- CI fails if `docs/schema.md` is out of sync with models
 
 ## Code Style — TypeScript
 
