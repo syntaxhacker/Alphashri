@@ -51,7 +51,7 @@ jobs:
       - name: Validate migration status
         run: |
           cd stock-screener-ui
-          uv run --python 3.11 alembic check 2>&1 || echo "⚠️ Pending migrations detected"
+          uv run --python 3.11 alembic check
 
   frontend-lint-typecheck:
     name: Frontend Lint & TypeCheck

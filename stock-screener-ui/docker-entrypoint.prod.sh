@@ -51,7 +51,7 @@ fi
 # Run database migrations
 echo "📦 Running database migrations..."
 cd /app/stock-screener-ui
-alembic upgrade head 2>&1 || echo "⚠️ Migration failed (tables may already exist)"
+alembic upgrade head
 
 # Never auto-seed in production (SEED_DATA defaults to false)
 if [ "${SEED_DATA:-false}" = "true" ]; then

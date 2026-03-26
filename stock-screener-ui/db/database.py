@@ -33,9 +33,12 @@ def init_db():
 
 def _run_alembic_migrations():
     """Run Alembic migrations using the app's engine."""
+    from pathlib import Path
+
     from alembic.config import Config
     from alembic import command
 
-    alembic_cfg = Config("alembic.ini")
+    alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
+    alembic_cfg = Config(str(alembic_ini))
     alembic_cfg.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
     command.upgrade(alembic_cfg, "head")

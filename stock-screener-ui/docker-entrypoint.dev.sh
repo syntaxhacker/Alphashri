@@ -7,7 +7,7 @@ echo "🚀 Starting Alphashri Dev Server (SQLite)..."
 
 # Run database migrations
 echo "📦 Running database migrations..."
-alembic upgrade head 2>&1 || echo "⚠️ Migration failed"
+alembic upgrade head
 
 # Seed instruments if table is empty
 python -c "
