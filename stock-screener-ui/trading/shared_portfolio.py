@@ -377,9 +377,9 @@ class SharedPortfolioManager:
             strategy_name=position.strategy_name,
         )
 
-        # Return cash
+        # Return cash (minus costs)
         exit_value = exit_price * position.quantity
-        self.cash += exit_value
+        self.cash += exit_value - costs
 
         # Update strategy allocation
         entry_value = position.entry_price * position.quantity

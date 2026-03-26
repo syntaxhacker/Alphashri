@@ -11,6 +11,9 @@ SQLALCHEMY_DATABASE_URL = config.DATABASE_URL
 engine_args = {}
 if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     engine_args["connect_args"] = {"check_same_thread": False}
+else:
+    engine_args["pool_pre_ping"] = True
+    engine_args["pool_recycle"] = 300
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, **engine_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

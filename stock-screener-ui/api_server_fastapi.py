@@ -108,8 +108,10 @@ async def lifespan(app: FastAPI):
     news_poller.cancel()
     print("📰 News poller stopped")
     from cache.redis_client import close_redis
+    from db.database import engine
     close_redis()
-    print("🔌 Redis connection closed")
+    engine.dispose()
+    print("🔌 Redis closed, DB pool disposed")
 
 
 app = FastAPI(title="Alphashri API", lifespan=lifespan)

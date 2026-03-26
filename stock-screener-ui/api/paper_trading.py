@@ -323,12 +323,11 @@ async def get_trades(
             except Exception as e:
                 console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
     elif from_date:
-        # Load trades from a date range
         start_dt = datetime.strptime(from_date, '%Y-%m-%d')
         if to_date:
             end_dt = datetime.strptime(to_date, '%Y-%m-%d')
         else:
-            end_dt = datetime.now()
+            end_dt = min(datetime.now(), start_dt + timedelta(days=90))
         
         current_dt = start_dt
         while current_dt <= end_dt:

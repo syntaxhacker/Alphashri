@@ -187,7 +187,14 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user_id = int(payload.get("sub"))
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing subject",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user_id = int(user_id)
 
     def _sync():
         return db.query(User).filter(User.id == user_id, User.is_active == True).first()

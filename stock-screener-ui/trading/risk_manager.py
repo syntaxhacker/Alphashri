@@ -117,9 +117,9 @@ class RiskManager:
         # Check min/max trade value
         trade_value = shares * entry_price
         if trade_value < self.config.min_trade_value:
-            # Try to bump to min value
             shares = int(self.config.min_trade_value / entry_price)
-            # But don't exceed max capital per trade or total capital
+            if shares * risk_per_share > max_risk:
+                return 0
             if shares * entry_price > max_capital or shares * entry_price > capital:
                 return 0
         elif trade_value > self.config.max_trade_value:
@@ -292,6 +292,11 @@ def get_risk_manager(config_name: str = None) -> RiskManager:
     global _risk_manager
     if _risk_manager is None:
         _risk_manager = RiskManager(config_name=config_name)
+    elif config_name is not None:
+        import logging
+        logging.getLogger(__name__).warning(
+            "get_risk_manager called with config_name=%s but singleton already initialized", config_name
+        )
     return _risk_manager
 
 

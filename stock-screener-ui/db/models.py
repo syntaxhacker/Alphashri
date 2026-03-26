@@ -226,7 +226,7 @@ class BotConfig(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     strategies = relationship("StrategyConfig", secondary=bot_strategies, back_populates="bots")
-    user = relationship("User", backref="bots")
+    user = relationship("User", backref="bots", cascade="all")
 
     __table_args__ = (
         UniqueConstraint('user_id', 'name', name='uq_bot_name_per_user'),
@@ -292,7 +292,7 @@ class BacktestResult(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationship
-    user = relationship("User", backref="backtest_results")
+    user = relationship("User", backref="backtest_results", cascade="all")
 
     def __repr__(self):
         return f"<BacktestResult(id={self.id}, uuid='{self.uuid}', strategy='{self.strategy_id}', pnl={self.total_pnl})>"
@@ -343,7 +343,11 @@ class BrokerConnection(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    user = relationship("User", backref="broker_connections")
+    user = relationship("User", backref="broker_connections", cascade="all")
+
+    __table_args__ = (
+        UniqueConstraint('broker_name', 'user_id', name='uq_broker_name_user'),
+    )
 
     def __repr__(self):
         return f"<BrokerConnection(id={self.id}, broker='{self.broker_name}', user_id={self.user_id})>"

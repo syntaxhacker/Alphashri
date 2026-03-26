@@ -258,9 +258,12 @@ class NewsPersistenceService:
         db = SessionLocal()
         try:
             cutoff = datetime.utcnow() - timedelta(days=days)
-            deleted = db.query(NewsArticle).filter(
+            articles = db.query(NewsArticle).filter(
                 NewsArticle.fetched_at < cutoff
-            ).delete()
+            ).all()
+            deleted = len(articles)
+            for article in articles:
+                db.delete(article)
             db.commit()
             return deleted
         except Exception as e:
