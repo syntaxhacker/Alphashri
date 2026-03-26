@@ -240,7 +240,7 @@ export function StrategyForm({
   const defaultTab = isOrb ? "orb" : isSrBreakout ? "sr" : isEmaCross ? "ema" : "52w";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  const renderSlTpRow = () => (
+  const SlTpRow = () => (
     <Group grow>
       <NumberInput
         label="Stop Loss %"
@@ -402,7 +402,7 @@ export function StrategyForm({
                       data-testid="strategy-min-or-range-input"
                     />
                   </Group>
-                  {renderSlTpRow()}
+                  <SlTpRow />
                   <NumberInput
                     label="Max OR Range %"
                     name="max_or_range_pct"
@@ -424,7 +424,7 @@ export function StrategyForm({
                 data-testid="strategy-panel-sr"
               >
                 <Stack gap="sm" mt="sm">
-                  {renderSlTpRow()}
+                  <SlTpRow />
                   <Select
                     label="Pivot Type"
                     name="pivot_type"
@@ -478,7 +478,7 @@ export function StrategyForm({
                       data-testid="strategy-ema-slow-period-input"
                     />
                   </Group>
-                  {renderSlTpRow()}
+                  <SlTpRow />
                 </Stack>
               </Tabs.Panel>
             )}
@@ -503,7 +503,7 @@ export function StrategyForm({
                       data-testid="strategy-entry-threshold-input"
                     />
                   </Group>
-                  {renderSlTpRow()}
+                  <SlTpRow />
                   <Group grow>
                     <NumberInput
                       label="Trailing Stop %"
