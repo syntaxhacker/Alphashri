@@ -29,15 +29,15 @@ graph TB
         WebSocket["WebSocket<br/>Real-time Updates"]
     end
 
-    subgraph Services ["Application Services"]
-        BacktestEngine["Backtest Engine<br/>Strategies: ORB, SR Breakout,<br/>52W Chaser, 52W Target"]
-        RiskMgr["Risk Manager<br/>Position Sizing, Exposure"]
-        PaperTrader["Paper Trader<br/>Simulated Execution"]
-        TradeJournal["Trade Journal<br/>P&L Tracking"]
-        NewsAnalyzer["LLM News Analyzer<br/>OpenAI / OpenRouter"]
-        NewsPersistence["News Persistence<br/>Symbol Mapping"]
-        MultiStrategy["Multi-Strategy Runner"]
-    end
+     subgraph Services ["Application Services"]
+         BacktestEngine["Backtest Engine<br/>Strategies: ORB, SR Breakout,<br/>52W Chaser, 52W Target"]
+         RiskMgr["Risk Manager<br/>Position Sizing, Exposure"]
+         PaperTrader["Paper Trader<br/>Simulated Execution"]
+         TradeJournal["Trade Journal<br/>P&L Tracking"]
+         NewsAnalyzer["LLM News Analyzer<br/>OpenAI / OpenRouter"]
+         NewsPersistence["News Persistence<br/>Symbol Mapping + Embeddings<br/>FastEmbed (ONNX)"]
+         MultiStrategy["Multi-Strategy Runner"]
+     end
 
     subgraph Data ["Data Layer"]
         Redis["Redis 7<br/>Cache Layer"]
