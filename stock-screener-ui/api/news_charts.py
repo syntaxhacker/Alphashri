@@ -14,7 +14,9 @@ from pathlib import Path
 from typing import Optional, List
 
 import requests
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from api.auth import get_current_user
+from db.models import User
 
 router = APIRouter(prefix="/api/news", tags=["news-charts"])
 
@@ -316,7 +318,8 @@ async def get_manual_mappings():
 @router.post("/mappings")
 async def add_manual_mapping(
     code: str = Query(..., description="Source symbol code (e.g., TM03)"),
-    trading_symbol: str = Query(..., description="NSE trading symbol (e.g., TATAMOTORS)")
+    trading_symbol: str = Query(..., description="NSE trading symbol (e.g., TATAMOTORS)"),
+    user: User = Depends(get_current_user),
 ):
     """
     Add or update a manual symbol mapping.
@@ -345,7 +348,7 @@ async def add_manual_mapping(
 
 
 @router.delete("/mappings/{code}")
-async def remove_manual_mapping(code: str):
+async def remove_manual_mapping(code: str, user: User = Depends(get_current_user)):
     """
     Remove a manual symbol mapping.
     """
@@ -376,7 +379,7 @@ async def remove_manual_mapping(code: str):
 
 
 @router.post("/mappings/blacklist/{code}")
-async def add_to_blacklist(code: str):
+async def add_to_blacklist(code: str, user: User = Depends(get_current_user)):
     """
     Add a symbol to the blacklist (will not be mapped).
     """

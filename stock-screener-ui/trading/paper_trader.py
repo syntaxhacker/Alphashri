@@ -565,7 +565,7 @@ class PaperTrader:
         )
 
         # Update cash and margin
-        exit_value = exit_price * position.quantity
+        exit_value = actual_exit_price * position.quantity
         self.cash += exit_value
         self.margin_used -= position.entry_price * position.quantity
 

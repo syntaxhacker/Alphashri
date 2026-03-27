@@ -176,6 +176,7 @@ erDiagram
 | updated_at | DateTime | Yes | - |
 | *(Index: `ix_broker_connections_broker_name` on broker_name)* | | | |
 | *(Index: `ix_broker_connections_user_id` on user_id)* | | | |
+| *(Unique: `uq_broker_name_user` on broker_name, user_id)* | | | |
 
 ### instruments
 

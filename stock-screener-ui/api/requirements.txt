@@ -46,5 +46,4 @@ redis>=5.0.0
 alembic>=1.13.0
 
 # Contract testing
-schemathesis>=3.19.0
 hypothesis>=6.68.0

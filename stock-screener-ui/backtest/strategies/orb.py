@@ -99,7 +99,7 @@ def run_single_stock_backtest(args):
             return {'symbol': symbol, 'success': False, 'error': 'No data'}
 
         try:
-            df_intraday = screener.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval=str(timeframe))
+            df_intraday = upstox_api.fetch_intraday_data_v3(symbol=symbol, interval=str(timeframe))
             if df_intraday is not None and not df_intraday.empty:
                 df = pd.concat([df, df_intraday]).drop_duplicates(keep='last').sort_index()
         except Exception:

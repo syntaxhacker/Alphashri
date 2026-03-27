@@ -198,8 +198,7 @@ def cached(prefix: str, ttl: Optional[int] = None, key_builder: Optional[Callabl
                 return result
             logger.debug("cache MISS: %s", key)
             result = func(*args, **kwargs)
-            if result is not None:
-                cache_set(key, result, ttl=ttl)
+            cache_set(key, result, ttl=ttl)
             return result
 
         @functools.wraps(func)
@@ -211,8 +210,7 @@ def cached(prefix: str, ttl: Optional[int] = None, key_builder: Optional[Callabl
                 return result
             logger.debug("cache MISS: %s", key)
             result = await func(*args, **kwargs)
-            if result is not None:
-                cache_set(key, result, ttl=ttl)
+            cache_set(key, result, ttl=ttl)
             return result
 
         if inspect.iscoroutinefunction(func):
@@ -335,7 +333,7 @@ def get_cache_stats() -> dict:
         stats["keyspace_hits"] = stats_info.get("keyspace_hits", 0)
         stats["keyspace_misses"] = stats_info.get("keyspace_misses", 0)
 
-        for domain in KNOWN_DOMAINS:
+        for domain in set(list(d_hits.keys()) + list(d_misses.keys())):
             dh = d_hits.get(domain, 0)
             dm = d_misses.get(domain, 0)
             if dh + dm > 0:
@@ -346,7 +344,7 @@ def get_cache_stats() -> dict:
                     "hit_rate": round(dh / (dh + dm) * 100, 1),
                 }
 
-        for prefix in KNOWN_DOMAINS:
+        for prefix in set(list(d_hits.keys()) + list(d_misses.keys())):
             try:
                 count = sum(1 for _ in client.scan_iter(match=f"{prefix}:*", count=500))
                 stats["by_prefix_keys"][prefix] = count
@@ -495,7 +493,7 @@ async def stale_while_revalidate(
     client = get_redis_client()
     if client is None:
         try:
-            result = compute_fn()
+            result = await asyncio.to_thread(compute_fn)
             return result, "miss"
         except Exception:
             raise

@@ -108,8 +108,10 @@ async def lifespan(app: FastAPI):
     news_poller.cancel()
     print("📰 News poller stopped")
     from cache.redis_client import close_redis
+    from db.database import engine
     close_redis()
-    print("🔌 Redis connection closed")
+    engine.dispose()
+    print("🔌 Redis closed, DB pool disposed")
 
 
 app = FastAPI(title="Alphashri API", lifespan=lifespan)
@@ -121,15 +123,10 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         if origin and config.is_origin_allowed(origin):
             if request.method == "OPTIONS":
                 response = Response(status_code=204)
-                requested_method = request.headers.get("access-control-request-method", "")
-                requested_headers = request.headers.get("access-control-request-headers", "")
-                allowed_methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-                if requested_method:
-                    allowed_methods = requested_method
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Credentials"] = "true"
-                response.headers["Access-Control-Allow-Methods"] = allowed_methods
-                response.headers["Access-Control-Allow-Headers"] = requested_headers if requested_headers else "Content-Type, Authorization, X-Requested-With"
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
                 response.headers["Access-Control-Max-Age"] = "86400"
                 return response
             response = await call_next(request)
