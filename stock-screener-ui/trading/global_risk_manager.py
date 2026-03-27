@@ -410,6 +410,9 @@ class GlobalRiskManager:
         if trade_value < min_trade_value:
             shares = int(min_trade_value / entry_price)
             trade_value = shares * entry_price
+            if risk > 0 and shares * risk > max_risk:
+                result['reason'] = "Min trade value exceeds risk limit"
+                return result
         elif trade_value > max_trade_value:
             shares = int(max_trade_value / entry_price)
             trade_value = shares * entry_price

@@ -12,7 +12,7 @@ services:
     environment:
       - PORT=8765
       - LOG_LEVEL=DEBUG
-      - SEED_DATA=false
+      - SEED_DATA=true
       - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env.dev

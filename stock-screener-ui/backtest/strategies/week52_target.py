@@ -130,12 +130,12 @@ class Week52TargetNautilusStrategy(Strategy):
         # Track price history for 52W high calculation
         self._price_history.append(high_price)
         
-        # Calculate 52W high (252 trading days)
-        if len(self._price_history) >= 252:
-            self._52w_high = max(self._price_history[-252:])
-        elif len(self._price_history) >= 100:
-            # Use available history if at least 100 days
-            self._52w_high = max(self._price_history)
+        # Calculate 52W high (252 trading days) — exclude current bar to avoid look-ahead bias
+        history_excluding_current = self._price_history[:-1]
+        if len(history_excluding_current) >= 252:
+            self._52w_high = max(history_excluding_current[-252:])
+        elif len(history_excluding_current) >= 100:
+            self._52w_high = max(history_excluding_current)
         
         # Debug logging
         if len(self._price_history) % 50 == 0:

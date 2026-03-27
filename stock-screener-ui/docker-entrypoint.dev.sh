@@ -5,6 +5,10 @@ echo "🚀 Starting Alphashri Dev Server (SQLite)..."
 
 # No database wait needed for SQLite
 
+# Run database migrations
+echo "📦 Running database migrations..."
+alembic upgrade head
+
 # Seed instruments if table is empty
 python -c "
 from db.database import SessionLocal
