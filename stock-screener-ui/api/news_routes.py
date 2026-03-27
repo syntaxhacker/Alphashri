@@ -3,6 +3,7 @@ News API — WebSocket managers, background pollers, news endpoints, and WebSock
 """
 
 import asyncio
+import concurrent.futures
 import logging
 import os
 import sys
@@ -268,6 +269,8 @@ async def news_poller_task():
 
     await asyncio.sleep(5)
 
+    _poller_executor = concurrent.futures.ThreadPoolExecutor(max_workers=3, thread_name_prefix="news_poller")
+
     while True:
         try:
             if not _news_available:
@@ -278,7 +281,7 @@ async def news_poller_task():
 
             for source_id in source_ids:
                 try:
-                    items = fetch_news(source=source_id, limit=20)
+                    items = await asyncio.to_thread(fetch_news, source=source_id, limit=20)
                     if not items:
                         poller_logger.warning(f"No items returned from {source_id}")
                         continue
@@ -318,7 +321,7 @@ async def news_poller_task():
                                     if existing:
                                         continue
 
-                                    full_article = fetch_article_content(url)
+                                    full_article = await asyncio.to_thread(fetch_article_content, url)
                                     content = full_article.get('description', '')
                                     symbols = full_article.get('symbols', [])
 
@@ -337,7 +340,7 @@ async def news_poller_task():
                                     analysis = None
                                     if _llm_available and article_analyzer:
                                         try:
-                                            analysis = article_analyzer.analyze_article(url, headline, content)
+                                            analysis = await asyncio.to_thread(article_analyzer.analyze_article, url, headline, content)
                                             item['analysis'] = analysis
 
                                             if analysis.get('impact_score', 0) >= 8:
@@ -346,7 +349,8 @@ async def news_poller_task():
                                             poller_logger.error(f"LLM analysis failed for {url}: {llm_err}")
 
                                     try:
-                                        persistence.save_article(
+                                        await asyncio.to_thread(
+                                            persistence.save_article,
                                             url=url,
                                             headline=headline,
                                             content=content,
@@ -399,6 +403,8 @@ async def news_poller_task():
 
                 except Exception as e:
                     poller_logger.error(f"Error polling {source_id}: {e}")
+
+                await asyncio.sleep(2)
 
         except Exception as e:
             poller_logger.error(f"Poller loop error: {e}")
@@ -576,7 +582,8 @@ async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol
         }
 
         if is_cache_available():
-            cache_set(cache_key, result, ttl=300)
+            from cache.redis_client import cache_set_smart
+            cache_set_smart(cache_key, result, full_ttl=300, skim_ttl=60)
 
         return result
 
@@ -675,7 +682,8 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
         except Exception as persist_error:
             print(f"⚠️ Could not persist article: {persist_error}")
 
-        cache_set(_article_cache_key, article, ttl=86400)
+        from cache.redis_client import cache_set_smart
+        cache_set_smart(_article_cache_key, article, full_ttl=86400, skim_ttl=300)
         return article
     except HTTPException:
         raise
@@ -719,7 +727,8 @@ async def analyze_news(url: str = Query(..., description="URL of the news articl
         }
 
         if is_cache_available():
-            cache_set(cache_key, result, ttl=86400)
+            from cache.redis_client import cache_set_smart
+            cache_set_smart(cache_key, result, full_ttl=86400, skim_ttl=300)
 
         return result
 
