@@ -204,7 +204,7 @@ def override_get_db():
 # Minimal FastAPI app with only the required routers
 # ============================================================================
 from db.models import User, StrategyConfig, BotConfig, bot_strategies, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
-from api.auth import hash_password, create_access_token, create_refresh_token, JWT_SECRET_KEY, JWT_ALGORITHM, get_current_user_optional
+from api.auth import hash_password, create_access_token, create_refresh_token, JWT_SECRET_KEY, JWT_ALGORITHM, get_current_user
 
 app = FastAPI()
 
@@ -320,7 +320,7 @@ def client(db: Session, test_user: User) -> TestClient:
     def mock_get_current_user():
         return test_user
     app.dependency_overrides[get_db] = get_test_db
-    app.dependency_overrides[get_current_user_optional] = mock_get_current_user
+    app.dependency_overrides[get_current_user] = mock_get_current_user
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

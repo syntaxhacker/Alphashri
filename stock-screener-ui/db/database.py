@@ -11,6 +11,9 @@ SQLALCHEMY_DATABASE_URL = config.DATABASE_URL
 engine_args = {}
 if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     engine_args["connect_args"] = {"check_same_thread": False}
+else:
+    engine_args["pool_pre_ping"] = True
+    engine_args["pool_recycle"] = 300
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, **engine_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -27,9 +30,18 @@ def get_db():
 
 
 def init_db():
-    """Initialize database tables."""
-    from .models import (
-        User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection,
-        NewsArticle, NewsSymbolMention, LLMRun, Instrument
-    )  # noqa: F401
-    Base.metadata.create_all(bind=engine)
+    """Initialize database tables and run pending migrations."""
+    _run_alembic_migrations()
+
+
+def _run_alembic_migrations():
+    """Run Alembic migrations using the app's engine."""
+    from pathlib import Path
+
+    from alembic.config import Config
+    from alembic import command
+
+    alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
+    alembic_cfg = Config(str(alembic_ini))
+    alembic_cfg.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
+    command.upgrade(alembic_cfg, "head")

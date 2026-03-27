@@ -202,13 +202,11 @@ class TestGetDb:
 
 class TestInitDb:
 
-    @patch("db.database.engine")
-    def test_init_db_creates_tables(self, mock_engine):
-        from db.database import init_db, Base
-        mock_metadata = MagicMock()
-        with patch.object(Base, "metadata", mock_metadata):
-            init_db()
-        mock_metadata.create_all.assert_called_once_with(bind=mock_engine)
+    @patch("db.database._run_alembic_migrations")
+    def test_init_db_runs_migrations(self, mock_migrate):
+        from db.database import init_db
+        init_db()
+        mock_migrate.assert_called_once()
 
     def test_init_db_with_temp_db(self):
         engine, tmpdir = _create_temp_engine("test.db")

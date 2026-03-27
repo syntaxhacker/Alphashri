@@ -3,6 +3,7 @@ Backtest API — routes for running, viewing, and managing backtests.
 """
 
 from typing import Optional, Dict, Any, List
+import asyncio
 
 from fastapi import APIRouter, Query, HTTPException, Path, Depends
 from pydantic import BaseModel
@@ -111,7 +112,7 @@ async def run_backtest(
     _backtest_handler.progress_state['total'] = len(body.get('symbols', []))
     _backtest_handler.progress_state['message'] = 'Starting...'
 
-    result = handle_run_backtest(body, _backtest_handler.progress_state)
+    result = await asyncio.to_thread(handle_run_backtest, body, _backtest_handler.progress_state)
 
     if 'error' not in result:
         _backtest_handler.backtest_cache = {

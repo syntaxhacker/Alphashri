@@ -347,20 +347,18 @@ def calculate_52w_high_series(candles_df: pd.DataFrame, period: int = 252) -> Li
     if candles_df.empty:
         return []
 
-        levels = []
-        for idx, row in candles_df.iterrows():
-            dt = idx
-            if hasattr(dt, 'tz_localize') and dt.tz is not None:
-                dt = dt.tz_localize(None)
+    levels = []
+    for idx, row in candles_df.iterrows():
+        dt = idx
+        if hasattr(dt, 'tz_localize') and dt.tz is not None:
+            dt = dt.tz_localize(None)
 
-            date_str = dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt)[:10]
-            levels.append({
-                'date': date_str,
-                'date_raw': date_str,
-                '52w_high': round(float(rolling_high.loc[idx]), 2),
-            })
-
-        return levels
+        date_str = dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt)[:10]
+        levels.append({
+            'date': date_str,
+            'date_raw': date_str,
+            '52w_high': round(float(rolling_high.loc[idx]), 2),
+        })
 
     return levels
 
