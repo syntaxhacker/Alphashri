@@ -43,6 +43,20 @@ class NewsPersistenceService:
         try:
             existing = db.query(NewsArticle).filter(NewsArticle.url == url).first()
             if existing:
+                if not existing.headline and headline:
+                    existing.headline = headline
+                if not existing.content and content:
+                    existing.content = content
+                if not existing.sentiment and sentiment:
+                    existing.sentiment = sentiment
+                if not existing.impact_score and impact_score:
+                    existing.impact_score = impact_score
+                if not existing.analysis_json and analysis:
+                    existing.analysis_json = json.dumps(analysis)
+                if symbols:
+                    self._save_symbols(db, existing.id, symbols)
+                db.commit()
+                db.refresh(existing)
                 return existing
             
             article = NewsArticle(
