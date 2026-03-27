@@ -63,7 +63,7 @@ class NewsInstrumentMapper:
     }
     
     COMMON_PREFIXES = ['THE ', 'M/S ', 'M/S. ']
-    EMBEDDING_MODEL = 'all-MiniLM-L6-v2'
+    EMBEDDING_MODEL = 'BAAI/bge-small-en-v1.5'
     
     def __init__(
         self, 
@@ -189,9 +189,9 @@ class NewsInstrumentMapper:
         self._embeddings_loading = True
         
         try:
-            from sentence_transformers import SentenceTransformer
+            from fastembed import TextEmbedding
         except ImportError:
-            print("⚠️ sentence-transformers not installed, embeddings disabled")
+            print("⚠️ fastembed not installed, embeddings disabled")
             self.use_embeddings = False
             self._embeddings_loading = False
             return False
@@ -213,7 +213,7 @@ class NewsInstrumentMapper:
                     cache_data = json.load(f)
                 self._company_names = cache_data['names']
                 self._company_to_symbol = cache_data['mapping']
-                self._embedder = SentenceTransformer(self.EMBEDDING_MODEL)
+                self._embedder = TextEmbedding(model_name=self.EMBEDDING_MODEL)
                 self._embeddings_loaded = True
                 print(f"✅ Loaded cached embeddings for {len(self._company_names)} companies")
                 return True
@@ -222,7 +222,7 @@ class NewsInstrumentMapper:
         
         print(f"🔄 Computing embeddings for {len(self.symbol_to_instrument)} companies...")
         
-        self._embedder = SentenceTransformer(self.EMBEDDING_MODEL)
+        self._embedder = TextEmbedding(model_name=self.EMBEDDING_MODEL)
         
         self._company_names = []
         self._company_to_symbol = {}
@@ -238,11 +238,7 @@ class NewsInstrumentMapper:
                     texts_to_embed.append(f"{symbol}: {cleaned}")
         
         if texts_to_embed:
-            self._company_embeddings = self._embedder.encode(
-                texts_to_embed, 
-                show_progress_bar=False,
-                convert_to_numpy=True
-            )
+            self._company_embeddings = np.array(list(self._embedder.embed(texts_to_embed)))
             
             np.save(str(embeddings_cache), self._company_embeddings)
             with open(names_cache, 'w') as f:
@@ -268,11 +264,7 @@ class NewsInstrumentMapper:
         if self._company_embeddings is None:
             return None
         
-        query_embedding = self._embedder.encode(
-            [query], 
-            show_progress_bar=False,
-            convert_to_numpy=True
-        )[0]
+        query_embedding = np.array(list(self._embedder.embed([query])))[0]
         
         similarities = np.dot(self._company_embeddings, query_embedding) / (
             np.linalg.norm(self._company_embeddings, axis=1) * np.linalg.norm(query_embedding) + 1e-8

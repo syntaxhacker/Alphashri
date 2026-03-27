@@ -35,7 +35,7 @@ def _resolve(name):
 # News module imports (with graceful degradation)
 # -----
 
-_project_root = PathlibPath(__file__).parent.parent.absolute()
+_project_root = PathlibPath(__file__).resolve().parent.parent.parent
 _news_module_path = _project_root / 'moneycontrol-scraper'
 if str(_news_module_path) not in sys.path:
     sys.path.insert(0, str(_news_module_path))
