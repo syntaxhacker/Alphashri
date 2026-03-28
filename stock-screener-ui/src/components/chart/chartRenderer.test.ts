@@ -6,7 +6,6 @@ import {
   buildPivotSeries,
   formatTimeLabel,
   formatTooltip,
-  type ChartRenderOptions,
 } from "./chartRenderer";
 
 const makeCandle = (overrides: Partial<PreviewCandle> = {}): PreviewCandle => ({

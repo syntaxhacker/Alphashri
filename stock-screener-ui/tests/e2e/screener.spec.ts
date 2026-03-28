@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser, mockTrendingResponse } from "../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 
 test.describe("Screener - Data Display", () => {
   test.beforeEach(async ({ page }) => {
@@ -231,7 +231,7 @@ test.describe("Screener - Error Handling", () => {
     }
   });
 
-  test.skip("should retry on error", async ({ page }) => {
+  test.skip("should retry on error", async () => {
     // Test is complex due to route handling conflicts - skipped for now
     // Can be reimplemented with proper mock setup if needed
   });

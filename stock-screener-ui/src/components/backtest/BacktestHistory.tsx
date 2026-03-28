@@ -49,7 +49,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
       const data = await fetchBacktestHistory();
       setHistory(data);
       setError(null);
-    } catch (err) {
+    } catch {
       setError("Failed to load backtest history");
     } finally {
       setLoading(false);

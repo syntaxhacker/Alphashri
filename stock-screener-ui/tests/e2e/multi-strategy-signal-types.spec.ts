@@ -1,8 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import {
-  gotoBotsView,
-  getBotListItems,
   setupBotsMocks,
   mockBotsListRoute,
   mockAvailableStrategiesRoute,

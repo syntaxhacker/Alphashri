@@ -1,17 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import dayjs from "dayjs";
-import {
-  Box,
-  Grid,
-  Tabs,
-  SegmentedControl,
-  Card,
-  Text,
-  Group,
-  Stack,
-  Loader,
-  Alert,
-} from "@mantine/core";
+import { Box, Grid, Tabs, SegmentedControl, Text, Group, Stack, Alert } from "@mantine/core";
 import { IconActivity, IconHistory, IconSettings } from "@tabler/icons-react";
 import {
   getPaperTradingState,
@@ -20,19 +9,13 @@ import {
   setFilterFromDate,
   setFilterToDate,
   setFilterSymbol,
-  setFilterStrategy,
   setError,
   setAvailableBots,
 } from "../../state/paperTrading";
 import type {
   PaperTradingState,
   PaperTradingView,
-  PaperPosition,
   PaperTrade,
-  PaperChartData,
-  PortfolioStatus,
-  PaperBotSnapshot,
-  StrategyConfig,
   BotInfo,
 } from "../../types/paperTrading";
 
@@ -49,15 +32,11 @@ import {
   stopLiveAutoRefresh,
   startPaperBot,
   stopPaperBot,
-  fetchPaperBotStatus,
   fetchStrategyConfig,
   refreshBotLiveData,
   listBots,
   startBot,
   stopBot,
-  fetchBotPortfolio,
-  fetchBotPositions,
-  fetchBotScanItems,
 } from "../../api/paperTrading";
 
 let activeBotId: string | null = null;

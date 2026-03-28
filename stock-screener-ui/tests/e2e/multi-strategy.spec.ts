@@ -317,10 +317,6 @@ async function getScanTableHeaders(page: Page): Promise<string[]> {
   return await scanCard.locator("th").allTextContents();
 }
 
-async function getStrategyTabCount(page: Page): Promise<number> {
-  return await page.locator('[data-testid^="strategy-tab-"]').count();
-}
-
 test.describe.configure({ mode: "serial" });
 test.describe("Multi-Strategy System - Signal Generators", () => {
   const botId = BOT_IDS.signalGenerators;

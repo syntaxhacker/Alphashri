@@ -156,7 +156,7 @@ function renderStrategiesStatus(
   `;
 }
 
-function renderStrategyCard(strategy: StrategyStatus, isRunning: boolean): string {
+function renderStrategyCard(strategy: StrategyStatus, _isRunning: boolean): string {
   const pnlColor = strategy.total_pnl >= 0 ? "positive" : "negative";
   const usedPct = strategy.capital_used_pct;
 

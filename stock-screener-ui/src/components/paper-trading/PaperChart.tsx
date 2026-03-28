@@ -11,8 +11,6 @@ import type {
 import { theme } from "../../theme";
 import { CompactPanel } from "../common/compact";
 
-declare const echarts: any;
-
 const TIMEFRAME_OPTIONS = [
   { value: "1min", label: "1m" },
   { value: "5min", label: "5m" },
@@ -23,7 +21,6 @@ const TIMEFRAME_OPTIONS = [
 function buildChartOption(data: PaperChartData, isDark: boolean): any {
   const { candles, trades, orb_levels, week52_levels, current_position } = data;
   const fontSizes = theme.fontSizes;
-  const fontFamily = theme.fontFamily;
 
   if (!candles || candles.length === 0) {
     return {};
@@ -98,7 +95,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
     return -1;
   };
 
-  trades.forEach((trade: PaperTrade, idx: number) => {
+  trades.forEach((trade: PaperTrade, _idx: number) => {
     const entryIdx = findCandleIndex(trade.entry_time);
     const exitIdx = findCandleIndex(trade.exit_time);
 

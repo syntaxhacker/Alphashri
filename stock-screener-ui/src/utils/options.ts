@@ -12,7 +12,7 @@ export function getAvailableUnderlyings(): string[] {
 /**
  * Get available expiry dates for an instrument
  */
-export function getExpiryDates(instrumentKey: string): string[] {
+export function getExpiryDates(_instrumentKey: string): string[] {
   const today = new Date();
   const expiries: string[] = [];
 

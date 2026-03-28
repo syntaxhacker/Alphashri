@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
 import { buildSummaryItems, getTone } from "./ScreenerSummary";
-import type { SummaryItem } from "./ScreenerSummary";
 
 describe("ScreenerSummary", () => {
   describe("summary item rendering", () => {

@@ -101,7 +101,6 @@ const meta: Meta<typeof MarketTicker> = {
         json: () => Promise.resolve(data),
       }) as unknown as ReturnType<typeof fetch>;
 
-      const originalFetch = window.fetch;
       window.fetch = () => mockFetch;
 
       return (

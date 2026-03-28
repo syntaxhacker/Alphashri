@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { setCurrentView } from "./state/backtest";
-import { useAppDispatch, useAppSelector } from "./store/hooks";
-import { setCurrentView as setReduxView, type AppRouteView } from "./store/appSlice";
+import { Navigate, Route, Routes } from "react-router-dom";
 import ChartView from "./components/chart/ChartView";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
@@ -19,55 +16,6 @@ import { SettingsPage } from "./components/settings/SettingsPage";
 import { NewsWebSocketProvider } from "./state/newsWebSocket";
 import NewsPage from "./pages/NewsPage";
 import AdminPage from "./pages/AdminPage";
-
-// Wrapper for legacy views (backtest, paper, bots) that still use string-based HTML rendering
-function LegacyShell({ view }: { view: AppRouteView }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const dispatch = useAppDispatch();
-  const currentReduxView = useAppSelector((state) => state.app.currentView);
-
-  useEffect(() => {
-    // Load legacy app once
-    void import("./legacy-main");
-  }, []);
-
-  useEffect(() => {
-    dispatch(setReduxView(view));
-    setCurrentView(view);
-  }, [dispatch, view, location.pathname]);
-
-  useEffect(() => {
-    (window as any).navigateToRoute = (nextView: AppRouteView) => {
-      const path =
-        nextView === "backtest"
-          ? "/backtest"
-          : nextView === "paper"
-            ? "/paper"
-            : nextView === "sector"
-              ? "/sector"
-              : nextView === "strategies"
-                ? "/strategies"
-                : nextView === "bots"
-                  ? "/bots"
-                  : "/";
-      if (location.pathname !== path) {
-        navigate(path);
-      }
-    };
-    return () => {
-      delete (window as any).navigateToRoute;
-    };
-  }, [navigate, location.pathname]);
-
-  return (
-    <div
-      id="app-content"
-      data-view={currentReduxView}
-      style={{ height: "100%", display: "flex", flexDirection: "column" }}
-    />
-  );
-}
 
 function AuthScreen() {
   const [showRegister, setShowRegister] = useState(false);

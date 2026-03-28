@@ -66,7 +66,7 @@ export function SettingsPage() {
         }),
       );
       await fetchStatus();
-    } catch (error) {
+    } catch {
       dispatch(
         addNotification({
           type: "error",

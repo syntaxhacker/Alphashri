@@ -9,7 +9,6 @@ import type {
   StrategiesState,
   StrategiesView,
   StrategyPerformance,
-  BotConfig,
   StrategyCreate,
   StrategyUpdate,
 } from "../types/strategies";
@@ -149,8 +148,8 @@ export async function loadInitialData(): Promise<void> {
             ...s,
             is_active: s.id === defaultStrategy.id,
           }));
-        } catch (error) {
-          console.error("Failed to auto-activate default strategy:", error);
+        } catch (_error) {
+          console.error("Failed to auto-activate default strategy:", _error);
         }
       }
     }
@@ -303,7 +302,7 @@ export async function loadAllPerformance(): Promise<void> {
       try {
         const perf = await api.getStrategyPerformance(strategyId);
         performanceResults.push(perf);
-      } catch (error) {
+      } catch {
         // Add placeholder for strategies with no trades
         performanceResults.push({
           strategy_id: strategyId,

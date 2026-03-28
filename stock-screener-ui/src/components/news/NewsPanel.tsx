@@ -67,11 +67,6 @@ function formatTimeAgo(isoString: string): string {
   }
 }
 
-function truncateText(text: string, maxLength: number): string {
-  if (!text || text.length <= maxLength) return text;
-  return text.slice(0, maxLength).trim() + "...";
-}
-
 function getReadIds(): Set<string> {
   try {
     const stored = localStorage.getItem(LS_READ_IDS);
@@ -284,9 +279,6 @@ export default function NewsPanel() {
   };
 
   const sourceData = getSourceOptions(sources);
-
-  const currentRefreshLabel =
-    AUTO_REFRESH_INTERVALS.find((i) => i.value === autoRefreshMs)?.label || "Off";
 
   return (
     <>
