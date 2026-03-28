@@ -1,6 +1,8 @@
 import { Table, Text, Group } from "@mantine/core";
-import { IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { BacktestResult } from "../../types/backtest";
+import { getPnLTextColor, getWinRateColor, formatPnl } from "../../utils/ui-helpers";
+import { SortableHeader } from "../common/SortableHeader";
+import { DataTable } from "../common/DataTable";
 
 interface BacktestResultsTableProps {
   results: BacktestResult[];
@@ -26,21 +28,6 @@ const columns: ColumnDef[] = [
   { key: "tp_sl", label: "TP/SL", sortable: false },
 ];
 
-export function getPnlColor(value: number): string {
-  return value >= 0 ? "green" : "red";
-}
-
-export function getWinRateColor(value: number): string {
-  if (value >= 50) return "green";
-  if (value >= 40) return "dimmed";
-  return "red";
-}
-
-export function formatPnl(value: number): string {
-  const sign = value >= 0 ? "+" : "";
-  return `${sign}₹${(value / 1000).toFixed(1)}K`;
-}
-
 export function BacktestResultsTable({
   results,
   selectedSymbol,
@@ -49,34 +36,9 @@ export function BacktestResultsTable({
   onRowClick,
   onSort,
 }: BacktestResultsTableProps) {
-  const renderHeader = (column: ColumnDef) => {
-    const isSorted = sortColumn === column.key;
-    const isActive = isSorted && column.sortable;
-
-    return (
-      <Table.Th
-        key={column.key}
-        style={{ cursor: column.sortable ? "pointer" : "default" }}
-        onClick={() => column.sortable && onSort(column.key)}
-        data-testid={`th-${column.key}`}
-      >
-        <Group gap={4} wrap="nowrap">
-          <Text size="sm" fw={500}>
-            {column.label}
-          </Text>
-          {isActive && (
-            <span className={`sort-indicator ${sortDirection}`}>
-              {sortDirection === "asc" ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />}
-            </span>
-          )}
-        </Group>
-      </Table.Th>
-    );
-  };
-
   const renderRow = (result: BacktestResult) => {
     const isSelected = selectedSymbol === result.symbol;
-    const pnlColor = getPnlColor(result.net_pnl);
+    const pnlColor = getPnLTextColor(result.net_pnl);
     const wrColor = getWinRateColor(result.win_rate);
 
     return (
@@ -133,12 +95,25 @@ export function BacktestResultsTable({
 
   return (
     <div id="results-table" className="backtest-results-table" data-testid="results-table-wrapper">
-      <Table striped highlightOnHover withTableBorder stickyHeader className="results-table">
+      <DataTable withTableBorder stickyHeader className="results-table">
         <Table.Thead>
-          <Table.Tr>{columns.map(renderHeader)}</Table.Tr>
+          <Table.Tr>
+            {columns.map((column) => (
+              <SortableHeader
+                key={column.key}
+                label={column.label}
+                columnKey={column.key}
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                sortable={column.sortable}
+                testId={`th-${column.key}`}
+              />
+            ))}
+          </Table.Tr>
         </Table.Thead>
         <Table.Tbody data-testid="results-tbody">{results.map(renderRow)}</Table.Tbody>
-      </Table>
+      </DataTable>
     </div>
   );
 }

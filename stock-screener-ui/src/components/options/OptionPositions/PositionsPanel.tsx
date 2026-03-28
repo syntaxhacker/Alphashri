@@ -1,5 +1,6 @@
 import { Table, Text, Stack, Badge, Paper, Alert } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
+import { DataTable } from "../../common/DataTable";
 
 interface Position {
   instrument_key: string;
@@ -78,7 +79,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
         className="positions-table-container"
         data-testid="options-positions-table-container"
       >
-        <Table highlightOnHover className="positions-table" data-testid="options-positions-table">
+        <DataTable striped={false} className="positions-table" dataTestId="options-positions-table">
           <Table.Thead className="positions-table-head">
             <Table.Tr className="positions-header-row">
               <Table.Th className="positions-header-cell">Symbol</Table.Th>
@@ -154,7 +155,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
               ))
             )}
           </Table.Tbody>
-        </Table>
+        </DataTable>
       </Paper>
     </Stack>
   );

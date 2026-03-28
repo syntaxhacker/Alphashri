@@ -1,17 +1,28 @@
 import { describe, expect, test } from "vitest";
 import {
   formatCurrency,
+  formatCurrencyIN,
   formatNumber,
   formatCurrencyCompact,
   formatPercentage,
+  formatPnl,
   formatDateTimeHuman,
   formatDateTimeCompact,
   formatTradeTime,
   formatDuration,
+  formatElapsed,
+  formatTimeOnly,
+  formatDateHeader,
   getOrdinalSuffix,
   getPnLClass,
   getPnLColor,
+  getPnLTextColor,
+  getValueColor,
+  getWinRateColor,
+  getScoreColor,
   getExitReasonColor,
+  formatExitReason,
+  getStatusColor,
   renderSortIndicator,
   getNextSortDirection,
   normalizeTime,
@@ -278,5 +289,190 @@ describe("normalizeTime", () => {
   test("handles date-only format for daily candles", () => {
     const result = normalizeTime("2026-01-28");
     expect(result).toBe("2026-01-28");
+  });
+});
+
+describe("formatElapsed", () => {
+  test("returns dash for null, undefined, empty string", () => {
+    expect(formatElapsed(null)).toBe("-");
+    expect(formatElapsed(undefined)).toBe("-");
+    expect(formatElapsed("")).toBe("-");
+  });
+
+  test("returns duration for valid ISO string", () => {
+    const fiveMinsAgo = new Date(Date.now() - 5 * 60000).toISOString();
+    const result = formatElapsed(fiveMinsAgo);
+    expect(result).toBe("5m");
+  });
+
+  test("returns 0m for invalid date string (non-throwing)", () => {
+    expect(formatElapsed("not-a-date")).toBe("0m");
+  });
+});
+
+describe("formatTimeOnly", () => {
+  test("returns dash for empty string", () => {
+    expect(formatTimeOnly("")).toBe("-");
+  });
+
+  test("returns HH:MM format for valid ISO string", () => {
+    const result = formatTimeOnly("2026-03-20T14:30:00+05:30");
+    expect(result).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  test("returns raw string for invalid input", () => {
+    expect(formatTimeOnly("not-a-date")).toBe("not-a-date");
+  });
+});
+
+describe("formatDateHeader", () => {
+  test("formats date with day and month", () => {
+    const result = formatDateHeader("2026-03-20");
+    expect(result).toContain("20");
+    expect(result).toContain("Mar");
+  });
+
+  test("includes weekday", () => {
+    const result = formatDateHeader("2026-03-20");
+    const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    expect(weekdays.some((d) => result.includes(d))).toBe(true);
+  });
+});
+
+describe("getPnLTextColor", () => {
+  test("returns green for positive values", () => {
+    expect(getPnLTextColor(100)).toBe("green");
+  });
+
+  test("returns red for negative values", () => {
+    expect(getPnLTextColor(-100)).toBe("red");
+  });
+
+  test("returns green for zero", () => {
+    expect(getPnLTextColor(0)).toBe("green");
+  });
+});
+
+describe("getValueColor", () => {
+  test("returns undefined for null, undefined, NaN", () => {
+    expect(getValueColor(null)).toBe(undefined);
+    expect(getValueColor(undefined)).toBe(undefined);
+    expect(getValueColor(NaN)).toBe(undefined);
+  });
+
+  test("returns green for positive values", () => {
+    expect(getValueColor(10)).toBe("green");
+  });
+
+  test("returns red for negative values", () => {
+    expect(getValueColor(-10)).toBe("red");
+  });
+
+  test("returns undefined for zero", () => {
+    expect(getValueColor(0)).toBe(undefined);
+  });
+});
+
+describe("getWinRateColor", () => {
+  test("returns green for >= 50", () => {
+    expect(getWinRateColor(50)).toBe("green");
+    expect(getWinRateColor(75)).toBe("green");
+  });
+
+  test("returns dimmed for >= 40", () => {
+    expect(getWinRateColor(40)).toBe("dimmed");
+    expect(getWinRateColor(45)).toBe("dimmed");
+  });
+
+  test("returns red for < 40", () => {
+    expect(getWinRateColor(39)).toBe("red");
+    expect(getWinRateColor(0)).toBe("red");
+  });
+});
+
+describe("getScoreColor", () => {
+  test("returns green for >= 80", () => {
+    expect(getScoreColor(80)).toBe("green");
+    expect(getScoreColor(100)).toBe("green");
+  });
+
+  test("returns lime for >= 60", () => {
+    expect(getScoreColor(60)).toBe("lime");
+    expect(getScoreColor(75)).toBe("lime");
+  });
+
+  test("returns yellow for >= 40", () => {
+    expect(getScoreColor(40)).toBe("yellow");
+    expect(getScoreColor(55)).toBe("yellow");
+  });
+
+  test("returns orange for >= 20", () => {
+    expect(getScoreColor(20)).toBe("orange");
+    expect(getScoreColor(35)).toBe("orange");
+  });
+
+  test("returns red for < 20", () => {
+    expect(getScoreColor(19)).toBe("red");
+    expect(getScoreColor(0)).toBe("red");
+  });
+});
+
+describe("formatExitReason", () => {
+  test("maps known reasons", () => {
+    expect(formatExitReason("target")).toBe("Target");
+    expect(formatExitReason("stop_loss")).toBe("Stop Loss");
+    expect(formatExitReason("signal")).toBe("Signal");
+    expect(formatExitReason("manual")).toBe("Manual");
+    expect(formatExitReason("timeout")).toBe("Timeout");
+  });
+
+  test("returns raw string for unknown reason", () => {
+    expect(formatExitReason("unknown_reason")).toBe("unknown_reason");
+  });
+});
+
+describe("getStatusColor", () => {
+  test("returns green for success (case-insensitive)", () => {
+    expect(getStatusColor("success")).toBe("green");
+    expect(getStatusColor("SUCCESS")).toBe("green");
+  });
+
+  test("returns red for error", () => {
+    expect(getStatusColor("error")).toBe("red");
+  });
+
+  test("returns yellow for pending", () => {
+    expect(getStatusColor("pending")).toBe("yellow");
+  });
+
+  test("returns gray for unknown status", () => {
+    expect(getStatusColor("something")).toBe("gray");
+  });
+});
+
+describe("formatPnl", () => {
+  test("formats positive P&L with plus sign", () => {
+    expect(formatPnl(5000)).toBe("+₹5.0K");
+  });
+
+  test("formats negative P&L with minus", () => {
+    expect(formatPnl(-3000)).toBe("₹-3.0K");
+  });
+
+  test("formats zero P&L with plus sign", () => {
+    expect(formatPnl(0)).toBe("+₹0.0K");
+  });
+});
+
+describe("formatCurrencyIN", () => {
+  test("formats number with Indian locale commas", () => {
+    const result = formatCurrencyIN(1234567.89);
+    expect(result).toContain(",");
+  });
+
+  test("returns 0 for null, undefined, NaN", () => {
+    expect(formatCurrencyIN(null)).toBe("0");
+    expect(formatCurrencyIN(undefined)).toBe("0");
+    expect(formatCurrencyIN(NaN)).toBe("0");
   });
 });

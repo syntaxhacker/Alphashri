@@ -1,5 +1,6 @@
 import { Table, Text, Badge, Group, ScrollArea, Progress, Box } from "@mantine/core";
 import type { SectorItem } from "../../types/sector";
+import { DataTable } from "../common/DataTable";
 
 interface SectorTableProps {
   sectors: SectorItem[];
@@ -70,14 +71,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
 
   return (
     <ScrollArea h="100%" offsetScrollbars>
-      <Table
-        striped
-        highlightOnHover
-        withTableBorder
-        stickyHeader
-        id="sector-table"
-        data-testid="sector-table"
-      >
+      <DataTable withTableBorder stickyHeader id="sector-table" dataTestId="sector-table">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Sector</Table.Th>
@@ -89,7 +83,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>{rows}</Table.Tbody>
-      </Table>
+      </DataTable>
     </ScrollArea>
   );
 }

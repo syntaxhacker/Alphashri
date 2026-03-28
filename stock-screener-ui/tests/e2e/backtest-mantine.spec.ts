@@ -624,7 +624,9 @@ test.describe("Backtest - Mantine Features", () => {
       const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
       await clearBtn.click();
 
-      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({
+        timeout: 5000,
+      });
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
       await expect(runBtn).toBeDisabled();
     });
@@ -651,7 +653,9 @@ test.describe("Backtest - Mantine Features", () => {
       const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
       await clearBtn.click();
 
-      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({
+        timeout: 5000,
+      });
     });
   });
 
@@ -675,7 +679,7 @@ test.describe("Backtest - Mantine Features", () => {
       await expect(runMenuBtn).toBeEnabled({ timeout: 5000 });
       await runMenuBtn.click();
 
-      await expect(page.locator('.mantine-Menu-dropdown')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator(".mantine-Menu-dropdown")).toBeVisible({ timeout: 5000 });
       await expect(page.getByText("Run Backtest")).toBeVisible();
       await expect(page.getByText("Run & Save to History")).toBeVisible();
       await expect(page.getByText("Reset Config")).toBeVisible();
@@ -693,7 +697,10 @@ test.describe("Backtest - Mantine Features", () => {
       await page.waitForTimeout(300);
 
       const dropdown = page.locator(".mantine-Select-dropdown");
-      const hasVisibleOptions = await dropdown.locator(".mantine-Select-option").isVisible().catch(() => false);
+      const hasVisibleOptions = await dropdown
+        .locator(".mantine-Select-option")
+        .isVisible()
+        .catch(() => false);
 
       if (hasVisibleOptions) {
         await dropdown.locator(".mantine-Select-option").first().click();

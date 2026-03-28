@@ -1,5 +1,6 @@
 import { Table, Group, Text, ActionIcon, CopyButton, Tooltip } from "@mantine/core";
 import { IconArrowUp, IconArrowDown, IconCopy, IconCheck } from "@tabler/icons-react";
+import { DataTable } from "../common/DataTable";
 import { StockRow } from "./StockRow";
 import type { ColumnDef } from "./columns";
 import type { Stock } from "../../types";
@@ -13,7 +14,6 @@ interface ScreenerTableProps {
   onSortChange: (column: string) => void;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
-  screenerType?: string;
 }
 
 export function ScreenerTable({
@@ -25,7 +25,6 @@ export function ScreenerTable({
   onSortChange,
   onSymbolClick,
   onSymbolHover,
-  screenerType,
 }: ScreenerTableProps) {
   const allSymbols = stocks.map((s) => s.symbol).join(", ");
 
@@ -78,16 +77,12 @@ export function ScreenerTable({
   };
 
   return (
-    <Table
-      striped
-      highlightOnHover
+    <DataTable
       withTableBorder
       stickyHeader
-      verticalSpacing="xs"
-      horizontalSpacing="sm"
       id="screener-table"
       className="screener-table"
-      data-testid="screener-table"
+      dataTestId="screener-table"
       style={{ width: "100%", minWidth: 0 }}
     >
       <Table.Thead className="screener-table-header" data-testid="screener-table-header">
@@ -102,10 +97,9 @@ export function ScreenerTable({
             isTouched={touchedSymbols.has(stock.symbol)}
             onSymbolClick={onSymbolClick}
             onSymbolHover={onSymbolHover}
-            screenerType={screenerType}
           />
         ))}
       </Table.Tbody>
-    </Table>
+    </DataTable>
   );
 }

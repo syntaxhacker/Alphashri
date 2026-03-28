@@ -10,9 +10,8 @@ export const symbolCol: ColumnDef = {
 export const scoreCol: ColumnDef = {
   key: "score",
   label: "Score",
-  type: "number",
+  type: "badge",
   sortable: true,
-  format: (value: number) => String(value),
 };
 
 export const sectorCol: ColumnDef = {

@@ -8,41 +8,7 @@ import {
 } from "../../state/paperTrading";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
-
-export function formatCurrency(value: number | undefined | null): string {
-  if (value === undefined || value === null || isNaN(value)) return "0";
-  return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-}
-
-export function formatNum(value: number | undefined | null): string {
-  if (value === undefined || value === null || isNaN(value)) return "0";
-  if (Math.abs(value) >= 100000) {
-    return (value / 100000).toFixed(1) + "L";
-  }
-  if (Math.abs(value) >= 1000) {
-    return (value / 1000).toFixed(1) + "K";
-  }
-  return value.toFixed(0);
-}
-
-export function formatDuration(entryTime: string | null | undefined): string {
-  if (!entryTime) return "-";
-  try {
-    const entry = new Date(entryTime);
-    const now = new Date();
-    const diffMs = now.getTime() - entry.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 60) {
-      return `${diffMins}m`;
-    }
-    const hours = Math.floor(diffMins / 60);
-    const mins = diffMins % 60;
-    return `${hours}h ${mins}m`;
-  } catch {
-    return "-";
-  }
-}
+import { formatCurrencyIN, formatNumber, formatElapsed } from "../../utils/ui-helpers";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
@@ -103,7 +69,7 @@ interface PositionsTableProps {
   selectedSymbol: string | null;
 }
 
-function PositionsTableBody({ positions, selectedSymbol }: PositionsTableProps) {
+function PositionsTableBody({ positions, selectedSymbol: _selectedSymbol }: PositionsTableProps) {
   const handleClosePosition = async (symbol: string, currentPrice: number) => {
     if (confirm(`Close position for ${symbol} at ₹${currentPrice.toFixed(2)}?`)) {
       try {
@@ -141,7 +107,6 @@ function PositionsTableBody({ positions, selectedSymbol }: PositionsTableProps) 
       </Table.Thead>
       <Table.Tbody>
         {positions.map((pos) => {
-          const isSelected = pos.symbol === selectedSymbol;
           const pnlClass = (pos.pnl ?? 0) >= 0 ? "green" : "red";
           const pnlSign = (pos.pnl ?? 0) >= 0 ? "+" : "";
 
@@ -169,7 +134,7 @@ function PositionsTableBody({ positions, selectedSymbol }: PositionsTableProps) 
               <Table.Td>₹{(pos.current_price ?? 1).toFixed(2)}</Table.Td>
               <Table.Td>
                 <Text c={pnlClass} fw={600}>
-                  {pnlSign}₹{formatNum(pos.pnl)}
+                  {pnlSign}₹{formatNumber(pos.pnl)}
                   <Text span c="dimmed" fs="italic" size="sm">
                     {" "}
                     ({pnlSign}
@@ -184,7 +149,7 @@ function PositionsTableBody({ positions, selectedSymbol }: PositionsTableProps) 
                   {pos.strategy_name || "Default"}
                 </Badge>
               </Table.Td>
-              <Table.Td>{formatDuration(pos.entry_time)}</Table.Td>
+              <Table.Td>{formatElapsed(pos.entry_time)}</Table.Td>
               <Table.Td>
                 <Tooltip label="Close Position">
                   <ActionIcon
@@ -234,7 +199,7 @@ interface WatchlistScanProps {
   selectedSymbol: string | null;
 }
 
-function WatchlistScan({ snapshot, selectedSymbol }: WatchlistScanProps) {
+function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: WatchlistScanProps) {
   const state = getPaperTradingState();
 
   const handleSelectSymbol = async (symbol: string) => {
@@ -387,10 +352,10 @@ function StrategySummaryFooter({
                 <Text fw={600}>{s.name}</Text>
               </Table.Td>
               <Table.Td>{s.count}</Table.Td>
-              <Table.Td>₹{formatCurrency(s.marginUsed)}</Table.Td>
+              <Table.Td>₹{formatCurrencyIN(s.marginUsed)}</Table.Td>
               <Table.Td>
                 <Text c={s.totalPnl >= 0 ? "green" : "red"} fw={600}>
-                  {s.totalPnl >= 0 ? "+" : ""}₹{formatNum(s.totalPnl)}
+                  {s.totalPnl >= 0 ? "+" : ""}₹{formatNumber(s.totalPnl)}
                 </Text>
               </Table.Td>
             </Table.Tr>
@@ -520,7 +485,7 @@ export function PaperPositionsTable() {
                     {positions.length}
                   </Badge>
                   <Text size="sm" c={allSummary.totalPnl >= 0 ? "green" : "red"}>
-                    {allSummary.totalPnl >= 0 ? "+" : ""}₹{formatNum(allSummary.totalPnl)}
+                    {allSummary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(allSummary.totalPnl)}
                   </Text>
                 </Group>
               </Tabs.Tab>
@@ -539,7 +504,7 @@ export function PaperPositionsTable() {
                         {summary.count}
                       </Badge>
                       <Text size="sm" c={summary.totalPnl >= 0 ? "green" : "red"}>
-                        {summary.totalPnl >= 0 ? "+" : ""}₹{formatNum(summary.totalPnl)}
+                        {summary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(summary.totalPnl)}
                       </Text>
                     </Group>
                   </Tabs.Tab>
