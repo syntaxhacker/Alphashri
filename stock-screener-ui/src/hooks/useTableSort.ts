@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 
-interface UseTableSortOptions<T> {
+interface UseTableSortOptions {
   initialColumn?: string;
   initialDirection?: "asc" | "desc";
   defaultDirection?: "asc" | "desc";
@@ -13,7 +13,7 @@ interface UseTableSortReturn<T> {
   getSortedData: (data: T[], getColumnValue: (item: T) => string | number) => T[];
 }
 
-export function useTableSort<T>(options?: UseTableSortOptions<T>): UseTableSortReturn<T> {
+export function useTableSort<T>(options?: UseTableSortOptions): UseTableSortReturn<T> {
   const { initialColumn, initialDirection = "desc", defaultDirection = "desc" } = options || {};
 
   const [sortColumn, setSortColumn] = useState<string | null>(initialColumn ?? null);

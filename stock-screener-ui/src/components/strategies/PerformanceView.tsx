@@ -54,7 +54,6 @@ export function PerformanceView({
 
   const rows = performance.map((perf) => {
     const winRate = perf.total_trades > 0 ? perf.win_rate : 0;
-    const pnlClass = perf.net_pnl >= 0 ? "positive" : "negative";
     const pnlColor = perf.net_pnl >= 0 ? "teal" : "red";
 
     return (

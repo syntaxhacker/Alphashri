@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import {
   Box,
   Card,
@@ -11,7 +10,6 @@ import {
   Progress,
   Table,
   ActionIcon,
-  Loader,
 } from "@mantine/core";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type {
@@ -25,8 +23,6 @@ import type {
 import {
   loadBotStatus,
   loadBotTrades,
-  startBotAction,
-  stopBotAction,
   startAutoRefresh,
   stopAutoRefresh,
 } from "../../state/bots";
@@ -43,7 +39,6 @@ interface BotStatusPanelProps {
 
 function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
   const pnlColor = portfolio.total_pnl >= 0 ? "green" : "red";
-  const dailyPnlColor = portfolio.daily_pnl >= 0 ? "green" : "red";
 
   return (
     <Card shadow="sm" padding="md" radius="md" withBorder data-testid="portfolio-summary">
@@ -96,7 +91,7 @@ function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
 
 function StrategyStatusCard({
   strategy,
-  isRunning,
+  isRunning: _isRunning,
 }: {
   strategy: StrategyStatus;
   isRunning: boolean;

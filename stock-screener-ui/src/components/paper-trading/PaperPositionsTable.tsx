@@ -69,7 +69,7 @@ interface PositionsTableProps {
   selectedSymbol: string | null;
 }
 
-function PositionsTableBody({ positions, selectedSymbol }: PositionsTableProps) {
+function PositionsTableBody({ positions, selectedSymbol: _selectedSymbol }: PositionsTableProps) {
   const handleClosePosition = async (symbol: string, currentPrice: number) => {
     if (confirm(`Close position for ${symbol} at ₹${currentPrice.toFixed(2)}?`)) {
       try {
@@ -107,7 +107,6 @@ function PositionsTableBody({ positions, selectedSymbol }: PositionsTableProps) 
       </Table.Thead>
       <Table.Tbody>
         {positions.map((pos) => {
-          const isSelected = pos.symbol === selectedSymbol;
           const pnlClass = (pos.pnl ?? 0) >= 0 ? "green" : "red";
           const pnlSign = (pos.pnl ?? 0) >= 0 ? "+" : "";
 
@@ -200,7 +199,7 @@ interface WatchlistScanProps {
   selectedSymbol: string | null;
 }
 
-function WatchlistScan({ snapshot, selectedSymbol }: WatchlistScanProps) {
+function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: WatchlistScanProps) {
   const state = getPaperTradingState();
 
   const handleSelectSymbol = async (symbol: string) => {

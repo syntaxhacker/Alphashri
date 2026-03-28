@@ -12,10 +12,7 @@ import {
   Loader,
   Collapse,
   SegmentedControl,
-  Button,
   Box,
-  TextInput,
-  ScrollArea,
 } from "@mantine/core";
 import {
   getPaperTradingState,
@@ -100,7 +97,7 @@ interface DayGroupProps {
 function DayGroup({
   date,
   trades,
-  selectedSymbol,
+  selectedSymbol: _selectedSymbol,
   onSelectSymbol,
   onDeleteTrade,
   expanded,
