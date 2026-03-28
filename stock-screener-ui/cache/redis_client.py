@@ -137,6 +137,23 @@ def cache_set(key: str, value: Any, ttl: Optional[int] = None) -> bool:
         return False
 
 
+def cache_set_smart(
+    key: str,
+    value: Any,
+    full_ttl: int,
+    skim_ttl: int = 300,
+    richness_check: Optional[callable] = None,
+) -> bool:
+    if richness_check is None:
+        richness_check = lambda v: bool(
+            v.get('headline') or v.get('description') or v.get('summary')
+            or v.get('analysis') or v.get('sentiment_score') or v.get('items')
+            or v.get('articles') or v.get('candles')
+        )
+    ttl = full_ttl if richness_check(value) else skim_ttl
+    return cache_set(key, value, ttl=ttl)
+
+
 def cache_delete(key: str) -> bool:
     client = get_redis_client()
     if client is None:

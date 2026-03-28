@@ -197,6 +197,16 @@ async def get_resource(param: str = Query(...), current_user=Depends(get_current
 ### Admin Endpoints
 Require `current_user.is_admin` check, return appropriate status codes.
 
+### Embeddings (FastEmbed + ONNX)
+Semantic embeddings use `fastembed` (ONNX Runtime, no PyTorch) instead of `sentence-transformers`. Model: `BAAI/bge-small-en-v1.5` (384-dim, 67MB). Defined in `services/news_instrument_mapper.py`. Do not add `sentence-transformers` to requirements — it pulls PyTorch (~2.3GB) and is unnecessary for inference-only workloads.
+
+```python
+from fastembed import TextEmbedding
+
+model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+embeddings = np.array(list(model.embed(["text1", "text2"])))
+```
+
 ## Git / Pull Requests
 
 Use the `gh` CLI for all PR operations. Never create commits unless explicitly asked.

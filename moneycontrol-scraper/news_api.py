@@ -47,22 +47,36 @@ class BaseNewsScraper:
                 continue
         return None
 
+    def _extract_from_meta(self, page) -> Tuple[str, str]:
+        if not page:
+            return "", ""
+        title = ""
+        description = ""
+        for meta in page.css('meta'):
+            attrs = meta.attrib if hasattr(meta, 'attrib') else {}
+            prop = attrs.get('property', '') or attrs.get('name', '')
+            content = attrs.get('content', '')
+            if not content:
+                continue
+            if prop.lower() == 'og:title' and not title:
+                title = content.strip()
+            elif prop.lower() == 'og:description' and not description:
+                description = content.strip()
+            elif prop.lower() == 'description' and not description:
+                description = content.strip()
+        return title, description
+
     def _generic_article_extraction(self, page) -> Tuple[str, str, Optional[str], List[Dict]]:
-        """Generic fallback extractor for title, content, date, matched symbols."""
         if not page:
             return "", "", None, []
         
-        # Title
-        title = page.css('h1::text').get() or page.css('h2.title::text').get() or ""
-        
-        # Content
+        title = (page.css('h1::text').get() or '').strip() or (page.css('h2.title::text').get() or '').strip() or ""
         article_text = ""
         paragraphs = page.css('article p::text').getall() or page.css('.story p::text').getall() or page.css('div p::text').getall()
         article_paragraphs = [p.strip() for p in paragraphs if len(p.strip()) > 50]
         if article_paragraphs:
             article_text = '\n\n'.join(article_paragraphs[:10])
 
-        # Date (best effort)
         published_at = None
         date_elements = page.css('time::text').getall() + page.css('.date::text').getall() + page.css('.time::text').getall()
         for d in date_elements:
@@ -70,6 +84,34 @@ class BaseNewsScraper:
             if parsed:
                 published_at = parsed.isoformat()
                 break
+
+        if not title or not article_text:
+            ld_data = self._extract_ld_json(page)
+            if not title:
+                for item in ld_data:
+                    t = item.get('headline') or item.get('name')
+                    if t:
+                        title = t
+                        break
+            if not article_text:
+                for item in ld_data:
+                    desc = item.get('description') or item.get('articleBody') or item.get('text')
+                    if desc and len(desc) > 50:
+                        article_text = desc.strip()
+                        break
+                if not article_text:
+                    for item in ld_data:
+                        desc = item.get('description') or ''
+                        if desc:
+                            article_text = desc.strip()
+                            break
+
+        if not title or not article_text:
+            meta_title, meta_desc = self._extract_from_meta(page)
+            if not title:
+                title = meta_title
+            if not article_text:
+                article_text = meta_desc
 
         return title.strip(), article_text, published_at, []
 
@@ -159,19 +201,20 @@ class BaseNewsScraper:
         }
 
     def _extract_ld_json(self, page) -> List[Dict]:
-        """Extract all ld+json structured data from the page."""
         results = []
         for script in page.css('script[type="application/ld+json"]'):
             text = ' '.join(script.css('::text').getall()).strip()
-            if text:
-                try:
-                    data = json.loads(text)
-                    if isinstance(data, list):
-                        results.extend(data)
-                    elif isinstance(data, dict):
-                        results.append(data)
-                except json.JSONDecodeError:
-                    pass
+            if not text:
+                continue
+            text = re.sub(r'[\x00-\x1f]', ' ', text)
+            try:
+                data = json.loads(text)
+                if isinstance(data, list):
+                    results.extend(data)
+                elif isinstance(data, dict):
+                    results.append(data)
+            except json.JSONDecodeError:
+                pass
         return results
 
     def _is_news_article(self, url: str) -> bool:
