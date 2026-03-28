@@ -1,22 +1,5 @@
-import {
-  Box,
-  Group,
-  Text,
-  Stack,
-  Badge,
-  ThemeIcon,
-  Timeline,
-  ActionIcon,
-  Tooltip,
-} from "@mantine/core";
-import {
-  IconBellRinging,
-  IconTrendingUp,
-  IconTrendingDown,
-  IconBolt,
-  IconWall,
-  IconActivity,
-} from "@tabler/icons-react";
+import { Box, Group, Text, Badge, ThemeIcon, Timeline } from "@mantine/core";
+import { IconBellRinging, IconBolt, IconWall, IconActivity } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { CompactPanel } from "../../common/compact";
 
@@ -35,7 +18,6 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
         if (!opt) return;
         const type = idx === 0 ? "CE" : "PE";
         const m = opt.market_data;
-        const g = opt.option_greeks;
 
         const oi = m?.oi ?? 0;
         const prevOi = m?.prev_oi ?? 0;
@@ -83,7 +65,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       });
     });
 
-    return list.sort((a, b) => (a.type === "SQUEEZE" ? -1 : 1)).slice(0, 5);
+    return list.sort((_a, _b) => (_a.type === "SQUEEZE" ? -1 : 1)).slice(0, 5);
   }, [strikeMatrix, spotPrice]);
 
   return (

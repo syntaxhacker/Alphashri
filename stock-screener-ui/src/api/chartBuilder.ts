@@ -19,7 +19,6 @@ import type {
   Trade,
   Week52Levels,
 } from "../types/backtest";
-
 interface RawCandle {
   index: string[]; // IST strings like "2025-10-24T09:15:00"
   open: number[];
@@ -28,7 +27,6 @@ interface RawCandle {
   close: number[];
   volume: number[];
 }
-
 interface RawTrade {
   entry_price: number;
   exit_price: number;
@@ -58,7 +56,6 @@ interface RawTrade {
   "52w_high_entry"?: number;
   trailing_active?: boolean;
 }
-
 export function buildChartData(
   symbol: string,
   rawCandles: RawCandle,
@@ -78,17 +75,10 @@ export function buildChartData(
 
   // Extract 52W high levels from trades (for 52W Chaser strategy)
   const week52Levels = extractWeek52Levels(rawTrades);
-
   const trades = formatTradeMarkers(rawTrades, candles);
-
   const startDates = candles.map((c) => c.date_raw).filter((d) => d);
   const startDate = startDates[0] || null;
   const endDate = startDates[startDates.length - 1] || null;
-
-  console.log(
-    `buildChartData: ${candles.length} candles, ${orbZones.length} ORB zones, ${pivotLevels.length} pivot levels, ${week52Levels.length} 52W levels, ${trades.length} trade markers`,
-  );
-
   return {
     symbol,
     candles,
@@ -118,22 +108,16 @@ function formatCandleData(raw: RawCandle): CandleData[] {
   const lows = raw.low || [];
   const closes = raw.close || [];
   const volumes = raw.volume || [];
-
-  console.log(`formatCandleData: ${indices.length} raw candles`);
-
   for (let i = 0; i < indices.length; i++) {
     try {
       const timeStr = indices[i];
       const cleanTime = timeStr.replace(/\+00:00$|Z$/, "");
       const [datePart, timePart] = cleanTime.split("T");
-
       if (!datePart || !timePart) {
         console.error("Error parsing candle:", indices[i], "missing date or time part");
         continue;
       }
-
       const [hours, minutes] = timePart.split(":");
-
       const dateRaw = datePart; // YYYY-MM-DD for matching
       const timeDisplay = `${hours}:${minutes}`; // HH:MM for display
       const comparableTime = `${dateRaw}T${timeDisplay}`; // For matching with trades
@@ -152,11 +136,6 @@ function formatCandleData(raw: RawCandle): CandleData[] {
       console.error("Error parsing candle:", indices[i], e);
     }
   }
-
-  if (candles.length > 0) {
-    console.log(`Candles: ${candles[0].time} to ${candles[candles.length - 1].time}`);
-  }
-
   return candles;
 }
 
@@ -174,15 +153,12 @@ function createORBZone(date: string, orCandles: CandleData[], orEndMinutes: numb
     or_end_time: `${String(Math.floor(orEndMinutes / 60)).padStart(2, "0")}:${String(orEndMinutes % 60).padStart(2, "0")}`,
   };
 }
-
 function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
   const zones: ORBZone[] = [];
   let currentDate: string | null = null;
   let orCandles: CandleData[] = [];
-
   const marketOpenMinutes = 9 * 60 + 15; // 9:15 AM
   const orEndMinutes = marketOpenMinutes + orMinutes;
-
   for (const candle of candles) {
     const timeParts = candle.time_str.split(":");
     const candleMinutes = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1]);
@@ -193,7 +169,6 @@ function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
       if (orCandles.length > 0 && currentDate) {
         zones.push(createORBZone(currentDate, orCandles, orEndMinutes));
       }
-
       currentDate = candle.date;
       orCandles = [];
     }
@@ -208,7 +183,6 @@ function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
   if (orCandles.length > 0 && currentDate) {
     zones.push(createORBZone(currentDate, orCandles, orEndMinutes));
   }
-
   return zones;
 }
 
@@ -218,7 +192,6 @@ function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
  */
 function extractPivotLevels(trades: RawTrade[]): PivotLevels[] {
   const levelsByDate = new Map<string, PivotLevels>();
-
   for (const trade of trades) {
     if (trade.pp && trade.r1 && trade.s1) {
       // Only add if not already added for this date
@@ -235,7 +208,6 @@ function extractPivotLevels(trades: RawTrade[]): PivotLevels[] {
       }
     }
   }
-
   return Array.from(levelsByDate.values());
 }
 
@@ -245,7 +217,6 @@ function extractPivotLevels(trades: RawTrade[]): PivotLevels[] {
  */
 function extractWeek52Levels(trades: RawTrade[]): Week52Levels[] {
   const levelsByDate = new Map<string, Week52Levels>();
-
   for (const trade of trades) {
     // Support both 52w_chaser (52w_high) and 52w_target (52w_high_entry)
     const week52High = trade["52w_high_entry"] ?? trade["52w_high"];
@@ -260,7 +231,6 @@ function extractWeek52Levels(trades: RawTrade[]): Week52Levels[] {
       }
     }
   }
-
   return Array.from(levelsByDate.values());
 }
 
@@ -275,12 +245,6 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
   // Build lookup map for candle times
   const candleTimeMap = new Map<string, number>();
   candles.forEach((c, i) => candleTimeMap.set(c.time, i));
-
-  console.log(
-    `Sample candle times for matching:`,
-    candles.slice(0, 3).map((c) => c.time),
-  );
-
   trades.forEach((trade, idx) => {
     // Trade time format: "2025-10-27T11:25:00" or "2025-10-27T11:25:00+00:00"
     // Normalize to "YYYY-MM-DDTHH:MM"
@@ -290,21 +254,12 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
     const entryDateOnly = normalizeTradeTimeToDate(trade.entry_time);
     const exitDateOnly = normalizeTradeTimeToDate(trade.exit_time);
 
-    if (idx < 3) {
-      console.log(
-        `Trade ${idx + 1}: ${trade.entry_time} -> ${entryNormalized} -> date: ${entryDateOnly}`,
-      );
-    }
-
     // Find candle index using date-only matching for daily candles
     const entryCandleIdx = candleTimeMap.get(entryDateOnly);
     const exitCandleIdx = candleTimeMap.get(exitDateOnly);
-
     if (entryCandleIdx === undefined) {
-      console.warn(`Entry time not found: ${entryNormalized}`);
     }
     if (exitCandleIdx === undefined) {
-      console.warn(`Exit time not found: ${exitNormalized}`);
     }
 
     // Shared trade data for both entry and exit markers
@@ -351,7 +306,6 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
       SL: "#FF1744",
       EOD: "#FFEA00",
     };
-
     markers.push({
       trade_id: idx + 1,
       type: "exit",
@@ -367,7 +321,6 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
       trade: tradeData,
     });
   });
-
   return markers;
 }
 
@@ -401,7 +354,6 @@ function normalizeTradeTimeToDate(time: string): string {
 // Helper to convert chart trades to Trade[] for modal
 export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
   const trades: Trade[] = [];
-
   chartTrades
     .filter((ct) => ct.type === "entry")
     .forEach((ct) => {
@@ -431,6 +383,5 @@ export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
         trailing_active: ct.trade.trailing_active,
       });
     });
-
   return trades;
 }

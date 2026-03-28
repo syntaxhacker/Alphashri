@@ -104,7 +104,7 @@ export default function NewsPage() {
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
   const [articleContent, setArticleContent] = useState<ArticleContent | null>(null);
   const [articleLoading, setArticleLoading] = useState(false);
-  const [articleError, setArticleError] = useState<string | null>(null);
+  const [_articleError, setArticleError] = useState<string | null>(null);
   const [showFullContent, setShowFullContent] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const articleFetchId = useRef(0);

@@ -6,15 +6,11 @@
 
 import type {
   BotConfig,
-  BotStatus,
   BotsState,
   BotsView,
-  AvailableStrategy,
-  StrategyComparison,
   BotCreate,
   BotUpdate,
   BotLoadingKey,
-  BotTrade,
 } from "../types/bots";
 import * as api from "../api/bots";
 import { createLoadingState, setLoading as setLoadingState } from "../utils/loading";

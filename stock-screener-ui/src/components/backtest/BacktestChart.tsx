@@ -1,9 +1,7 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { Box, Text, useMantineColorScheme } from "@mantine/core";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import { theme } from "../../theme";
-
-declare const echarts: any;
 
 const chartInstances = new Map<string, any>();
 
@@ -33,7 +31,6 @@ interface BacktestChartProps {
 function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   const { candles, orb_zones, pivot_levels, week52_levels, trades, visuals } = data;
   const fontSizes = theme.fontSizes;
-  const fontFamily = theme.fontFamily;
 
   if (!candles || !trades) {
     console.warn("buildChartOption: Missing candles or trades data", data);
@@ -46,7 +43,6 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   const borderColor = isDark ? "#333" : "#e0e0e0";
   const splitLineColor = isDark ? "#222" : "#eeeeee";
   const tooltipBg = isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
-  const dataZoomBg = isDark ? "#111" : "#f5f5f5";
 
   console.log("buildChartOption for", data.symbol, {
     candleCount: candles.length,
@@ -327,9 +323,6 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
         for (const p of params) {
           if (p.data && p.data.trade) {
             const t = p.data.trade;
-            const holdHours = Math.floor(t.hold_duration_minutes / 60);
-            const holdMins = t.hold_duration_minutes % 60;
-            const holdStr = holdHours > 0 ? `${holdHours}h ${holdMins}m` : `${holdMins}m`;
             const pnlColor = t.net_pnl >= 0 ? "#00E676" : "#FF1744";
 
             return `

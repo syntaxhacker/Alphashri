@@ -17,7 +17,7 @@ export * from "./types";
 
 // Legacy components (keep for backward compatibility during migration)
 import { renderTemplateCard, initTemplateHandlers } from "./templates";
-import { renderVariationsPanel, initVariationsHandlers } from "./variations";
+import { initVariationsHandlers } from "./variations";
 import { renderStrategyForm, initFormHandlers } from "./form";
 import {
   renderPerformanceView,
@@ -30,7 +30,6 @@ import {
   setCurrentView,
   loadTemplates,
   loadStrategies,
-  loadInitialData,
   clearError,
   loadAllPerformance,
   initStrategiesState,

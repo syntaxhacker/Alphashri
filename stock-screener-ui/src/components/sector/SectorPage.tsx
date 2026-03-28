@@ -15,7 +15,6 @@ import {
   Table,
   ScrollArea,
   useMantineColorScheme,
-  useMantineTheme,
 } from "@mantine/core";
 import {
   IconChartBar,
@@ -28,7 +27,7 @@ import {
 import { SectorTable } from "./SectorTable";
 import { fetchSectorPerformance } from "../../api/sector";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
-import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -100,7 +99,6 @@ export function buildTreemapData(sectors: SectorItem[]) {
 }
 
 function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
-  const theme = useMantineTheme();
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
 

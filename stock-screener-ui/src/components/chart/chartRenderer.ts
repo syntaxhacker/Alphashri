@@ -35,7 +35,6 @@ export function buildChartOption(options: ChartRenderOptions): any {
   } = options;
 
   const fontSizes = theme.fontSizes;
-  const fontFamily = theme.fontFamily;
 
   if (!candles || candles.length === 0) {
     return null;

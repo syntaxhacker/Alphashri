@@ -45,7 +45,6 @@ import type { BotConfig, BotsView } from "../../types/bots";
 import { BotConfigModal } from "./BotConfigModal";
 import { BotStatusPanel } from "./BotStatusPanel";
 import { CompactPage, CompactPanel } from "../common/compact";
-import { DataTable } from "../common/DataTable";
 
 export function BotsPage() {
   const [state, setState] = useState(getBotsState());
@@ -118,7 +117,7 @@ export function BotsPage() {
 
     return (
       <CompactPanel id="bots-list-card" data-testid="bots-list-card">
-        <DataTable id="bots-table" dataTestId="bots-table">
+        <Table striped highlightOnHover id="bots-table" data-testid="bots-table">
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Name</Table.Th>
@@ -243,7 +242,7 @@ export function BotsPage() {
               </Table.Tr>
             ))}
           </Table.Tbody>
-        </DataTable>
+        </Table>
       </CompactPanel>
     );
   };

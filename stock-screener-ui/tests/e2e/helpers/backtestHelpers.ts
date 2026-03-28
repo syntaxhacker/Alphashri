@@ -1,5 +1,5 @@
 import { Page, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser, testUser } from "../../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser } from "../../mocks/apiResponses";
 
 export async function mockSymbolSearch(page: Page) {
   await page.route("**/api/symbols/search**", async (route) => {

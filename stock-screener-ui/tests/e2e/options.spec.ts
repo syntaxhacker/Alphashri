@@ -73,8 +73,6 @@ test.describe("Options View - Option Chain", () => {
   });
 
   test("should switch between table and analysis views", async ({ page }) => {
-    const tabs = page.locator('[data-testid="chain-view-tabs"]');
-
     // Switch to Analysis
     await page.locator('[data-testid="chain-tab-analysis"]').click();
     await expect(page.locator('[data-testid="oi-analysis"]')).toBeVisible();

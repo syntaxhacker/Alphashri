@@ -3,12 +3,7 @@
  */
 
 import type { StrategyConfig, StrategyPerformance } from "../../types/strategies";
-import {
-  selectStrategy,
-  loadStrategy,
-  openEditModal,
-  deleteStrategyAction,
-} from "../../state/strategies";
+import { openEditModal, deleteStrategyAction } from "../../state/strategies";
 
 export function renderVariationsPanel(
   template: StrategyConfig,

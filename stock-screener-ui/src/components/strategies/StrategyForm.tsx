@@ -235,7 +235,6 @@ export function StrategyForm({
   const isSrBreakout = currentStrategyType === "SR_BREAKOUT";
   const isEmaCross = currentStrategyType === "EMA_CROSS";
   const is52wChaser = currentStrategyType === "52W_CHASER";
-  const is52wTarget = currentStrategyType === "52W_TARGET";
 
   const defaultTab = isOrb ? "orb" : isSrBreakout ? "sr" : isEmaCross ? "ema" : "52w";
   const [activeTab, setActiveTab] = useState(defaultTab);
