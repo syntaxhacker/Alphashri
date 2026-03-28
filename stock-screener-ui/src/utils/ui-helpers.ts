@@ -32,6 +32,11 @@ export function formatPnl(value: number): string {
   return `${sign}₹${(value / 1000).toFixed(1)}K`;
 }
 
+export function formatSignedPnl(value: number): string {
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}₹${formatNumber(value)}`;
+}
+
 export function formatPercentage(
   value: number,
   precision: number = 2,
@@ -292,33 +297,6 @@ export function normalizeTime(time: string): string {
 }
 
 // ============================================
-// Empty/Loading States
-// ============================================
-
-/**
- * Render empty state HTML
- */
-export function renderEmptyState(message: string, icon: string = "📊"): string {
-  return `
-    <div class="empty-state">
-      <div class="empty-icon">${icon}</div>
-      <p>${message}</p>
-    </div>
-  `;
-}
-
-/**
- * Render loading state HTML
- */
-export function renderLoadingState(message: string = "Loading..."): string {
-  return `
-    <div class="loading-state">
-      <p>${message}</p>
-    </div>
-  `;
-}
-
-// ============================================
 // Duration Formatting
 // ============================================
 
@@ -414,5 +392,28 @@ export function getStatusColor(status: string): string {
       return "yellow";
     default:
       return "gray";
+  }
+}
+
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+export function formatTimeAgo(isoString: string): string {
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  } catch {
+    return "";
   }
 }

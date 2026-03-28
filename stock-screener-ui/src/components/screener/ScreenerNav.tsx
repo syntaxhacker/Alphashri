@@ -1,10 +1,5 @@
 import { SegmentedControl, Tooltip } from "@mantine/core";
-
-interface ScreenerOption {
-  id: string;
-  label: string;
-  description?: string;
-}
+import type { ScreenerOption } from "../../types";
 
 interface ScreenerNavProps {
   options: ScreenerOption[];

@@ -1,6 +1,7 @@
 import { Box, Flex, Alert, Tabs } from "@mantine/core";
 import { IconAlertCircle, IconTable, IconHistory } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   BacktestConfig,
   BacktestResultsTable,
@@ -32,7 +33,7 @@ import { chartTradesToTrades } from "../../api/chartBuilder";
 import type { BacktestState } from "../../state/backtest";
 
 export function BacktestPage() {
-  const [state, setState] = useState<BacktestState>(getBacktestState);
+  const [state, _setState] = useState<BacktestState>(getBacktestState);
   const [resultsSortColumn, setResultsSortColumn] = useState("net_pnl");
   const [resultsSortDirection, setResultsSortDirection] = useState<"asc" | "desc">("desc");
   const [tradeSortColumn, setTradeSortColumn] = useState("entry_time");
@@ -40,16 +41,12 @@ export function BacktestPage() {
   const [activeTab, setActiveTab] = useState<string | null>("results");
   const [saveToHistory, setSaveToHistory] = useState(true);
 
+  useStoreSubscription(subscribe);
+
   useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      setState(getBacktestState());
-    });
     fetchStrategies();
     fetchVariations();
     fetchCosts();
-    return () => {
-      unsubscribe();
-    };
   }, []);
 
   // Switch to results tab when a backtest starts running

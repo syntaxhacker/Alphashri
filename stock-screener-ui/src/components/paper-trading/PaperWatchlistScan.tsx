@@ -1,4 +1,5 @@
 import { Card, Table, Text, Badge } from "@mantine/core";
+import { formatCurrencyIN, getPnLTextColor } from "../../utils/ui-helpers";
 
 export interface ScanItem {
   symbol: string;
@@ -12,11 +13,6 @@ export interface ScanItem {
 interface PaperWatchlistScanProps {
   scanItems: ScanItem[];
   onSymbolClick: (symbol: string) => void;
-}
-
-export function formatCurrency(value: number | undefined | null): string {
-  if (value === undefined || value === null || isNaN(value)) return "-";
-  return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
 export function formatChange(value: number | undefined | null): string {
@@ -83,12 +79,12 @@ export function PaperWatchlistScan({ scanItems, onSymbolClick }: PaperWatchlistS
                 <Table.Td>
                   <Text fw={600}>{item.symbol}</Text>
                 </Table.Td>
-                <Table.Td>₹{formatCurrency(item.ltp)}</Table.Td>
+                <Table.Td>₹{formatCurrencyIN(item.ltp)}</Table.Td>
                 <Table.Td>
-                  <Text c={item.change >= 0 ? "green" : "red"}>{formatChange(item.change)}</Text>
+                  <Text c={getPnLTextColor(item.change)}>{formatChange(item.change)}</Text>
                 </Table.Td>
-                <Table.Td>₹{formatCurrency(item.or_high)}</Table.Td>
-                <Table.Td>₹{formatCurrency(item.or_low)}</Table.Td>
+                <Table.Td>₹{formatCurrencyIN(item.or_high)}</Table.Td>
+                <Table.Td>₹{formatCurrencyIN(item.or_low)}</Table.Td>
                 <Table.Td>
                   {item.breakout_type === "bullish" && (
                     <Badge

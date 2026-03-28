@@ -2,6 +2,8 @@ import type { ColumnDef } from "./index";
 import type { Stock } from "../../../types";
 import { symbolCol, scoreCol, sectorCol, recentReturn5dCol, perfWCol, touched52wCol } from "./base";
 
+const formatSignedPercent = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+
 export function getTrendingColumns(): ColumnDef[] {
   return [
     symbolCol,
@@ -28,7 +30,7 @@ export function getTrendingColumns(): ColumnDef[] {
       sortable: true,
       format: (value: number, _stock: Stock) => {
         const cls = Math.abs(value) < 1.0 ? "green" : "yellow";
-        return { value: `${value > 0 ? "+" : ""}${value.toFixed(2)}%`, className: cls };
+        return { value: formatSignedPercent(value), className: cls };
       },
     },
     {
@@ -38,7 +40,7 @@ export function getTrendingColumns(): ColumnDef[] {
       sortable: true,
       format: (value: number) => {
         const cls = value < 0 ? "green" : value > 0.5 ? "red" : "";
-        return { value: `${value > 0 ? "+" : ""}${value.toFixed(2)}%`, className: cls };
+        return { value: formatSignedPercent(value), className: cls };
       },
     },
     recentReturn5dCol,

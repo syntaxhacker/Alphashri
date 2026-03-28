@@ -1,9 +1,5 @@
 import { CompactStat, CompactStatGrid } from "../common/compact";
-import type { SummaryItem } from "../../types";
-
-interface ScreenerSummaryProps {
-  summary: SummaryItem[];
-}
+import type { SummaryItem, ScreenerSummaryProps } from "./types";
 
 export function buildSummaryItems(items: SummaryItem[]): SummaryItem[] {
   return items;

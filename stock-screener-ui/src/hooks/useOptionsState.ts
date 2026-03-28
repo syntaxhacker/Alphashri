@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import * as optionsState from "../state/optionsStore";
 import {
   subscribe,
@@ -8,15 +8,10 @@ import {
   getAvailableUnderlyingSymbols,
 } from "../state/optionsStore";
 import { getMoneyness } from "../utils/options";
+import { useStoreSubscription } from "./useStoreSubscription";
 import type { OptionContract } from "../api/upstoxOptions";
-
-export interface OptionsFilters {
-  strikeRange: [number, number];
-  optionType: "CE" | "PE" | "BOTH";
-  moneyness: "ITM" | "OTM" | "ALL";
-  sortBy: string;
-  sortOrder: "asc" | "desc";
-}
+import type { OptionsFilters } from "../state/optionsStore";
+export type { OptionsFilters };
 
 export function applyChainFilters(
   chain: OptionContract[],
@@ -70,14 +65,7 @@ export function buildStrikeMatrix(
 }
 
 export function useOptionsState() {
-  const [, forceUpdate] = useState(0);
-
-  useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      forceUpdate((n) => n + 1);
-    });
-    return unsubscribe;
-  }, []);
+  useStoreSubscription(subscribe);
 
   useEffect(() => {
     void optionsState.initOptionsState();

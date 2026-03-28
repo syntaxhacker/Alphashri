@@ -1,7 +1,7 @@
 import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Box } from "@mantine/core";
 import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { Trade } from "../../types/backtest";
-import { formatDateTimeHuman, formatDuration } from "../../utils/ui-helpers";
+import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";
 import { SortableHeader } from "../common/SortableHeader";
 import { DataTable } from "../common/DataTable";
 
@@ -136,7 +136,7 @@ export function TradeHistoryTable({
       <Group gap="md" p="xs" data-testid="trade-history-summary">
         <Text size="sm" data-testid="trade-summary-pnl">
           P&L:{" "}
-          <Text component="span" fw={600} c={totalPnl >= 0 ? "green" : "red"}>
+          <Text component="span" fw={600} c={getPnLTextColor(totalPnl)}>
             ₹{totalPnl.toFixed(0)}
           </Text>
         </Text>
@@ -317,12 +317,12 @@ export function TradeHistoryTable({
                     <Text size="sm">₹{(t.exit_price ?? 0).toFixed(0)}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm" fw={600} c={t.net_pnl >= 0 ? "green" : "red"}>
+                    <Text size="sm" fw={600} c={getPnLTextColor(t.net_pnl ?? 0)}>
                       ₹{(t.net_pnl ?? 0).toFixed(0)}
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm" c={pnlPct >= 0 ? "green" : "red"}>
+                    <Text size="sm" c={getPnLTextColor(pnlPct)}>
                       {pnlPct >= 0 ? "+" : ""}
                       {pnlPct.toFixed(2)}%
                     </Text>

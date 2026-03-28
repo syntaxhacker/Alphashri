@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { PreviewCandle, ORBZone, PivotLevel } from "../../api/chartPreview";
+import type { PreviewCandle, PivotLevel } from "../../api/chartPreview";
+import type { ORBZone } from "../../types/backtest";
 import {
   buildChartOption,
   buildORBLine,

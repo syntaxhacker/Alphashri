@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { Table, Tabs, Badge, ActionIcon, Text, Group, Card, Tooltip } from "@mantine/core";
 import {
   getPaperTradingState,
@@ -8,7 +8,9 @@ import {
 } from "../../state/paperTrading";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
-import { formatCurrencyIN, formatNumber, formatElapsed } from "../../utils/ui-helpers";
+import { formatCurrencyIN, formatNumber, formatElapsed, getPnLTextColor } from "../../utils/ui-helpers";
+import { SideBadge } from "../common/BadgeComponents";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
@@ -107,7 +109,7 @@ function PositionsTableBody({ positions, selectedSymbol: _selectedSymbol }: Posi
       </Table.Thead>
       <Table.Tbody>
         {positions.map((pos) => {
-          const pnlClass = (pos.pnl ?? 0) >= 0 ? "green" : "red";
+          const pnlClass = getPnLTextColor(pos.pnl ?? 0);
           const pnlSign = (pos.pnl ?? 0) >= 0 ? "+" : "";
 
           return (
@@ -121,13 +123,7 @@ function PositionsTableBody({ positions, selectedSymbol: _selectedSymbol }: Posi
                 <Text fw={600}>{pos.symbol}</Text>
               </Table.Td>
               <Table.Td>
-                <Badge
-                  color={pos.side === "BUY" ? "green" : "red"}
-                  variant="light"
-                  data-testid={`side-badge-${pos.symbol}`}
-                >
-                  {pos.side === "BUY" ? "▲ BUY" : "▼ SELL"}
-                </Badge>
+                <SideBadge side={pos.side} data-testid={`side-badge-${pos.symbol}`} />
               </Table.Td>
               <Table.Td>{pos.quantity}</Table.Td>
               <Table.Td>₹{(pos.entry_price ?? 0).toFixed(2)}</Table.Td>
@@ -354,7 +350,7 @@ function StrategySummaryFooter({
               <Table.Td>{s.count}</Table.Td>
               <Table.Td>₹{formatCurrencyIN(s.marginUsed)}</Table.Td>
               <Table.Td>
-                <Text c={s.totalPnl >= 0 ? "green" : "red"} fw={600}>
+                <Text c={getPnLTextColor(s.totalPnl)} fw={600}>
                   {s.totalPnl >= 0 ? "+" : ""}₹{formatNumber(s.totalPnl)}
                 </Text>
               </Table.Td>
@@ -367,16 +363,7 @@ function StrategySummaryFooter({
 }
 
 export function PaperPositionsTable() {
-  const [, setTick] = useState(0);
-
-  useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      setTick((t) => t + 1);
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+  useStoreSubscription(subscribe);
 
   const state = getPaperTradingState();
   const { positions, selectedSymbol, selectedStrategyTab, botSnapshot, isLoading } = state;
@@ -484,7 +471,7 @@ export function PaperPositionsTable() {
                   <Badge size="sm" variant="filled" color="blue">
                     {positions.length}
                   </Badge>
-                  <Text size="sm" c={allSummary.totalPnl >= 0 ? "green" : "red"}>
+                  <Text size="sm" c={getPnLTextColor(allSummary.totalPnl)}>
                     {allSummary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(allSummary.totalPnl)}
                   </Text>
                 </Group>
@@ -503,7 +490,7 @@ export function PaperPositionsTable() {
                       <Badge size="sm" variant="filled" color="blue">
                         {summary.count}
                       </Badge>
-                      <Text size="sm" c={summary.totalPnl >= 0 ? "green" : "red"}>
+                      <Text size="sm" c={getPnLTextColor(summary.totalPnl)}>
                         {summary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(summary.totalPnl)}
                       </Text>
                     </Group>

@@ -2,6 +2,7 @@
  * State management for Alphashri
  */
 
+import { createSubscriber } from "./createSubscriber";
 import type {
   ScreenerData,
   ScreenerOption,
@@ -21,17 +22,8 @@ export const DEFAULT_SCREENER_DATA: ScreenerData = {
   screener: "trending",
 };
 
-// Subscriber mechanism for React hooks
-const subscribers: Set<() => void> = new Set();
-
-export function subscribe(callback: () => void): () => void {
-  subscribers.add(callback);
-  return () => subscribers.delete(callback);
-}
-
-function notifySubscribers() {
-  subscribers.forEach((callback) => callback());
-}
+const { subscribe, notify: notifySubscribers } = createSubscriber();
+export { subscribe };
 
 // Data state - initialize with empty structure to avoid null checks
 export let data: ScreenerData = { ...DEFAULT_SCREENER_DATA };

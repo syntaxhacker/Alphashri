@@ -20,12 +20,10 @@ export interface PreviewCandle {
   volume: number;
 }
 
-export interface ORBZone {
+export interface PivotLevel {
   date: string;
   date_raw: string;
-  or_high: number;
-  or_low: number;
-  or_end_time: string;
+  pp: number; // Pivot Point
 }
 
 export interface PivotLevel {

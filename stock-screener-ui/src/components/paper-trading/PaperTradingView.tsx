@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import dayjs from "dayjs";
 import { Box, Grid, Tabs, SegmentedControl, Text, Group, Stack, Alert } from "@mantine/core";
 import { IconActivity, IconHistory, IconSettings } from "@tabler/icons-react";
@@ -42,17 +43,14 @@ import {
 let activeBotId: string | null = null;
 
 export function PaperTradingView() {
-  const [state, setState] = useState<PaperTradingState>(getPaperTradingState);
+  const [state, _setState] = useState<PaperTradingState>(getPaperTradingState);
+
+  useStoreSubscription(subscribe);
 
   useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      setState(getPaperTradingState());
-    });
-
     loadInitialData();
 
     return () => {
-      unsubscribe();
       stopLiveAutoRefresh();
     };
   }, []);

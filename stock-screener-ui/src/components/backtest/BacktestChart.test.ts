@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { normalizeTime } from "./BacktestChart";
+import { normalizeTime } from "../../utils/ui-helpers";
 
 describe("normalizeTime", () => {
   test("strips +00:00 suffix", () => {
