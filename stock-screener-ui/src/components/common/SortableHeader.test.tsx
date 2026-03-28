@@ -25,7 +25,9 @@ vi.mock("@mantine/core", () => ({
 
 vi.mock("@tabler/icons-react", () => ({
   IconArrowUp: ({ size }: any) => <svg data-testid="icon-arrow-up" width={size} height={size} />,
-  IconArrowDown: ({ size }: any) => <svg data-testid="icon-arrow-down" width={size} height={size} />,
+  IconArrowDown: ({ size }: any) => (
+    <svg data-testid="icon-arrow-down" width={size} height={size} />
+  ),
 }));
 
 afterEach(() => {

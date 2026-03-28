@@ -89,11 +89,7 @@ describe("buildChartData", () => {
 
   test("skips candles with date-only strings (no time component)", () => {
     const candles = makeRawCandle({
-      index: [
-        "2026-02-01",
-        "2025-10-24T09:15:00",
-        "2026-03-01",
-      ],
+      index: ["2026-02-01", "2025-10-24T09:15:00", "2026-03-01"],
       open: [100, 101, 103],
       high: [102, 104, 106],
       low: [99, 100, 102],

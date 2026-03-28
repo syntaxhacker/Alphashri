@@ -323,7 +323,15 @@ export function StrategyForm({
             onChange={(val) => {
               if (val) {
                 setCurrentStrategyType(val);
-                setActiveTab(val === "ORB" ? "orb" : val === "SR_BREAKOUT" ? "sr" : val === "EMA_CROSS" ? "ema" : "52w");
+                setActiveTab(
+                  val === "ORB"
+                    ? "orb"
+                    : val === "SR_BREAKOUT"
+                      ? "sr"
+                      : val === "EMA_CROSS"
+                        ? "ema"
+                        : "52w",
+                );
               }
             }}
             required

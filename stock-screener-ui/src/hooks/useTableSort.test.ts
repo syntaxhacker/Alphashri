@@ -59,7 +59,7 @@ describe("useTableSort", () => {
 
   test("getSortedData sorts strings alphabetically ascending", () => {
     const { result } = renderHook(() =>
-      useTableSort<TestItem>({ initialColumn: "name", initialDirection: "asc" })
+      useTableSort<TestItem>({ initialColumn: "name", initialDirection: "asc" }),
     );
     const data: TestItem[] = [
       { name: "Charlie", value: 3 },
@@ -72,7 +72,7 @@ describe("useTableSort", () => {
 
   test("getSortedData sorts strings alphabetically descending", () => {
     const { result } = renderHook(() =>
-      useTableSort<TestItem>({ initialColumn: "name", initialDirection: "desc" })
+      useTableSort<TestItem>({ initialColumn: "name", initialDirection: "desc" }),
     );
     const data: TestItem[] = [
       { name: "Alice", value: 1 },
@@ -85,7 +85,7 @@ describe("useTableSort", () => {
 
   test("getSortedData sorts numbers numerically ascending", () => {
     const { result } = renderHook(() =>
-      useTableSort<TestItem>({ initialColumn: "value", initialDirection: "asc" })
+      useTableSort<TestItem>({ initialColumn: "value", initialDirection: "asc" }),
     );
     const data: TestItem[] = [
       { name: "a", value: 30 },
@@ -98,7 +98,7 @@ describe("useTableSort", () => {
 
   test("getSortedData sorts numbers numerically descending", () => {
     const { result } = renderHook(() =>
-      useTableSort<TestItem>({ initialColumn: "value", initialDirection: "desc" })
+      useTableSort<TestItem>({ initialColumn: "value", initialDirection: "desc" }),
     );
     const data: TestItem[] = [
       { name: "a", value: 10 },
@@ -122,7 +122,7 @@ describe("useTableSort", () => {
 
   test("getSortedData does not mutate original array", () => {
     const { result } = renderHook(() =>
-      useTableSort<TestItem>({ initialColumn: "value", initialDirection: "asc" })
+      useTableSort<TestItem>({ initialColumn: "value", initialDirection: "asc" }),
     );
     const data: TestItem[] = [
       { name: "a", value: 30 },
@@ -136,7 +136,7 @@ describe("useTableSort", () => {
 
   test("initialColumn and initialDirection options work", () => {
     const { result } = renderHook(() =>
-      useTableSort({ initialColumn: "price", initialDirection: "asc" })
+      useTableSort({ initialColumn: "price", initialDirection: "asc" }),
     );
     expect(result.current.sortColumn).toBe("price");
     expect(result.current.sortDirection).toBe("asc");
@@ -148,7 +148,7 @@ describe("useTableSort", () => {
         initialColumn: "name",
         initialDirection: "asc",
         defaultDirection: "desc",
-      })
+      }),
     );
     expect(result.current.sortDirection).toBe("asc");
 

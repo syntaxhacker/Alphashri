@@ -23,7 +23,11 @@ export async function clickSortHeader(page: Page, columnKey: string) {
   await page.locator(`[data-testid="sort-header-${columnKey}"]`).first().click();
 }
 
-export async function expectSortIndicator(page: Page, columnKey: string, direction: "asc" | "desc") {
+export async function expectSortIndicator(
+  page: Page,
+  columnKey: string,
+  direction: "asc" | "desc",
+) {
   const indicator = page.locator(`[data-testid="sort-indicator-${columnKey}"]`).first();
   await expect(indicator).toBeVisible();
   await expect(indicator).toHaveClass(new RegExp(direction));
@@ -34,14 +38,24 @@ export async function expectNoSortIndicator(page: Page, columnKey: string) {
   await expect(indicator).not.toBeVisible();
 }
 
-export async function getTableCellText(page: Page, rowIdx: number, colIdx: number, testId?: string): Promise<string> {
+export async function getTableCellText(
+  page: Page,
+  rowIdx: number,
+  colIdx: number,
+  testId?: string,
+): Promise<string> {
   const selector = testId
     ? `[data-testid="${testId}"] tbody tr:nth-child(${rowIdx + 1}) td:nth-child(${colIdx + 1})`
     : `table tbody tr:nth-child(${rowIdx + 1}) td:nth-child(${colIdx + 1})`;
   return (await page.locator(selector).textContent()) ?? "";
 }
 
-export async function getTableCellLocator(page: Page, testId: string, rowIdx: number, colIdx: number): Promise<Locator> {
+export async function getTableCellLocator(
+  page: Page,
+  testId: string,
+  rowIdx: number,
+  colIdx: number,
+): Promise<Locator> {
   const table = page.locator(`[data-testid="${testId}"]`);
   return table.locator(`tbody tr:nth-child(${rowIdx + 1}) td:nth-child(${colIdx + 1})`);
 }

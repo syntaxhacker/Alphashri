@@ -8,11 +8,7 @@ const mockTableProps: Record<string, any>[] = [];
 vi.mock("@mantine/core", () => ({
   Table: ({ children, ...props }: any) => {
     mockTableProps.push(props);
-    return (
-      <div data-testid="mantine-table">
-        {children}
-      </div>
-    );
+    return <div data-testid="mantine-table">{children}</div>;
   },
 }));
 

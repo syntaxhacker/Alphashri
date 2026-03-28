@@ -71,12 +71,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
 
   return (
     <ScrollArea h="100%" offsetScrollbars>
-      <DataTable
-        withTableBorder
-        stickyHeader
-        id="sector-table"
-        dataTestId="sector-table"
-      >
+      <DataTable withTableBorder stickyHeader id="sector-table" dataTestId="sector-table">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Sector</Table.Th>

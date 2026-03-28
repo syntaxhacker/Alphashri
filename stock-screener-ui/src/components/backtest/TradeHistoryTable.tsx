@@ -155,7 +155,12 @@ export function TradeHistoryTable({
         style={{ minHeight: 0 }}
         className="trade-history-scroll"
       >
-        <DataTable dataTestId="trade-history-table" className="trade-history-table" id="trade-history-data-table" style={{ minWidth: "100%" }}>
+        <DataTable
+          dataTestId="trade-history-table"
+          className="trade-history-table"
+          id="trade-history-data-table"
+          style={{ minWidth: "100%" }}
+        >
           <Table.Thead>
             <Table.Tr>
               <Table.Th>
@@ -163,18 +168,95 @@ export function TradeHistoryTable({
                   #
                 </Text>
               </Table.Th>
-              <SortableHeader label="Entry" columnKey="entry_time" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
-              <SortableHeader label="Exit" columnKey="exit_time" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
-              <SortableHeader label="Side" columnKey="side" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
-              <SortableHeader label="Qty" columnKey="quantity" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
-              <SortableHeader label="Entry" columnKey="entry_price" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
-              <SortableHeader label={has52w ? "52W High" : "Level Hi"} columnKey="level_high" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
-              {!has52w && <SortableHeader label="Level Lo" columnKey="level_low" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
-              <SortableHeader label="Exit" columnKey="exit_price" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
-              <SortableHeader label="P&L" columnKey="net_pnl" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
-              <SortableHeader label="%" columnKey="net_pnl_pct" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} testId="th-pnl-pct" />
-              <SortableHeader label="Hold" columnKey="hold_duration_minutes" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} testId="th-hold-duration" />
-              <SortableHeader label="Type" columnKey="exit_reason" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} testId="th-exit-reason" />
+              <SortableHeader
+                label="Entry"
+                columnKey="entry_time"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+              <SortableHeader
+                label="Exit"
+                columnKey="exit_time"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+              <SortableHeader
+                label="Side"
+                columnKey="side"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+              <SortableHeader
+                label="Qty"
+                columnKey="quantity"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+              <SortableHeader
+                label="Entry"
+                columnKey="entry_price"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+              <SortableHeader
+                label={has52w ? "52W High" : "Level Hi"}
+                columnKey="level_high"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+              {!has52w && (
+                <SortableHeader
+                  label="Level Lo"
+                  columnKey="level_low"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onSort={onSort}
+                />
+              )}
+              <SortableHeader
+                label="Exit"
+                columnKey="exit_price"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+              <SortableHeader
+                label="P&L"
+                columnKey="net_pnl"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+              <SortableHeader
+                label="%"
+                columnKey="net_pnl_pct"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                testId="th-pnl-pct"
+              />
+              <SortableHeader
+                label="Hold"
+                columnKey="hold_duration_minutes"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                testId="th-hold-duration"
+              />
+              <SortableHeader
+                label="Type"
+                columnKey="exit_reason"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                testId="th-exit-reason"
+              />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody data-testid="trade-history-tbody">
