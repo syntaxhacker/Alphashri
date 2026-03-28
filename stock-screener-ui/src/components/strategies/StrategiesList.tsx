@@ -2,6 +2,7 @@ import { Table, Group, Text, ActionIcon, Badge, Tooltip } from "@mantine/core";
 import { IconEdit, IconTrash, IconCheck, IconAlertCircle } from "@tabler/icons-react";
 import type { StrategiesListProps } from "./types";
 import { CompactPanel } from "../common/compact";
+import { DataTable } from "../common/DataTable";
 
 export function StrategiesList({
   strategies,
@@ -165,15 +166,13 @@ export function StrategiesList({
       id="strategy-list"
       testId="strategy-list-table"
     >
-      <Table
-        striped
-        highlightOnHover
+      <DataTable
         withTableBorder
         withColumnBorders
         verticalSpacing="xs"
         horizontalSpacing="sm"
         className="strategy-list-table"
-        data-testid="strategy-list-table-inner"
+        dataTestId="strategy-list-table-inner"
       >
         <Table.Thead className="strategy-list-header" data-testid="strategy-list-header">
           <Table.Tr>
@@ -190,7 +189,7 @@ export function StrategiesList({
         <Table.Tbody className="strategy-list-body" data-testid="strategy-list-body">
           {rows}
         </Table.Tbody>
-      </Table>
+      </DataTable>
     </CompactPanel>
   );
 }

@@ -29,31 +29,7 @@ import {
 } from "../../state/paperTrading";
 import { fetchPaperChart, refreshHistoryData } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
-
-export function formatNumber(num: number | undefined | null): string {
-  if (num === undefined || num === null || isNaN(num)) {
-    return "0";
-  }
-  if (Math.abs(num) >= 100000) {
-    return (num / 100000).toFixed(1) + "L";
-  }
-  if (Math.abs(num) >= 1000) {
-    return (num / 1000).toFixed(1) + "K";
-  }
-  return num.toFixed(0);
-}
-
-export function formatTradeTimeOnly(isoStr: string): string {
-  if (!isoStr) return "-";
-  const date = new Date(isoStr);
-  if (Number.isNaN(date.getTime())) return isoStr;
-
-  return date.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
+import { formatNumber, formatTimeOnly, formatDateHeader } from "../../utils/ui-helpers";
 
 export function getUniqueStrategies(trades: PaperTrade[]): string[] {
   const strategies = new Set<string>();
@@ -109,15 +85,6 @@ export function groupTradesByDate(trades: PaperTrade[]): Record<string, PaperTra
   }
 
   return groups;
-}
-
-export function formatDateHeader(date: string): string {
-  const dateObj = new Date(date);
-  return dateObj.toLocaleDateString("en-IN", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
 }
 
 interface DayGroupProps {
@@ -240,7 +207,7 @@ function DayGroup({
                       {trade.exit_reason}
                     </Badge>
                   </Table.Td>
-                  <Table.Td>{formatTradeTimeOnly(trade.exit_time)}</Table.Td>
+                  <Table.Td>{formatTimeOnly(trade.exit_time)}</Table.Td>
                   <Table.Td>
                     <ActionIcon
                       variant="subtle"

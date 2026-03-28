@@ -2,6 +2,7 @@ import { Table, Anchor, Badge, Tooltip, Group, Text, ActionIcon, CopyButton } fr
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { Stock } from "../../types";
 import type { ColumnDef, FormattedCell } from "./columns";
+import { getValueColor, getScoreColor } from "../../utils/ui-helpers";
 
 declare global {
   interface Window {
@@ -17,15 +18,6 @@ interface StockRowProps {
   isTouched: boolean;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
-  screenerType?: string;
-}
-
-function getScoreColor(score: number): string {
-  if (score >= 80) return "green";
-  if (score >= 60) return "lime";
-  if (score >= 40) return "yellow";
-  if (score >= 20) return "orange";
-  return "red";
 }
 
 function formatNumber(value: any): React.ReactNode {
@@ -35,22 +27,12 @@ function formatNumber(value: any): React.ReactNode {
   return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function getValueColor(value: any): string | undefined {
-  if (value === null || value === undefined) return undefined;
-  const num = typeof value === "number" ? value : parseFloat(value);
-  if (isNaN(num)) return undefined;
-  if (num > 0) return "green";
-  if (num < 0) return "red";
-  return undefined;
-}
-
 export function StockRow({
   stock,
   columns,
   isTouched,
   onSymbolClick,
   onSymbolHover,
-  screenerType,
 }: StockRowProps) {
   const handleMouseEnter = (e: React.MouseEvent, symbol: string) => {
     onSymbolHover(symbol);

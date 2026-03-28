@@ -1,54 +1,9 @@
 import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Box } from "@mantine/core";
 import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { Trade } from "../../types/backtest";
-
-export function formatDateHuman(isoStr: string): string {
-  if (!isoStr) return "-";
-  const parts = isoStr.split("T");
-  const datePart = parts[0];
-  const timePart =
-    parts[1]
-      ?.replace("Z", "")
-      .replace(/\+00:00/g, "")
-      .replace(/\+05:30/g, "")
-      ?.substring(0, 5) ?? "";
-  const [year, month, day] = datePart.split("-");
-  const d = parseInt(day);
-  const m = parseInt(month) - 1;
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-  const date = new Date(parseInt(year), m, d);
-  const dayName = days[date.getDay()];
-  const monthName = months[m];
-  const suffix =
-    d === 1 || d === 21 || d === 31
-      ? "st"
-      : d === 2 || d === 22
-        ? "nd"
-        : d === 3 || d === 23
-          ? "rd"
-          : "th";
-  return `${d}${suffix} ${dayName} ${monthName}${timePart ? " " + timePart : ""}`;
-}
-
-export function formatDuration(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
+import { formatDateTimeHuman, formatDuration } from "../../utils/ui-helpers";
+import { SortableHeader } from "../common/SortableHeader";
+import { DataTable } from "../common/DataTable";
 
 export function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
   return [...trades].sort((a, b) => {
@@ -149,21 +104,6 @@ export function TradeHistoryTable({
 
   const getTradeIndex = (trade: Trade) => trades.indexOf(trade);
 
-  const renderSortableTh = (column: string, label: string, testId?: string) => {
-    const isActive = sortColumn === column;
-    return (
-      <Table.Th style={{ cursor: "pointer" }} onClick={() => onSort(column)} data-testid={testId}>
-        <Group gap={4} wrap="nowrap">
-          <Text size="sm" fw={500}>
-            {label}
-          </Text>
-          {isActive &&
-            (sortDirection === "asc" ? <IconArrowUp size={12} /> : <IconArrowDown size={12} />)}
-        </Group>
-      </Table.Th>
-    );
-  };
-
   return (
     <Box
       id="trade-history-table"
@@ -215,15 +155,7 @@ export function TradeHistoryTable({
         style={{ minHeight: 0 }}
         className="trade-history-scroll"
       >
-        <Table
-          striped
-          highlightOnHover
-          withTableBorder
-          data-testid="trade-history-table"
-          className="trade-history-table"
-          id="trade-history-data-table"
-          style={{ minWidth: "100%" }}
-        >
+        <DataTable dataTestId="trade-history-table" className="trade-history-table" id="trade-history-data-table" style={{ minWidth: "100%" }}>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>
@@ -231,18 +163,18 @@ export function TradeHistoryTable({
                   #
                 </Text>
               </Table.Th>
-              {renderSortableTh("entry_time", "Entry")}
-              {renderSortableTh("exit_time", "Exit")}
-              {renderSortableTh("side", "Side")}
-              {renderSortableTh("quantity", "Qty")}
-              {renderSortableTh("entry_price", "Entry")}
-              {renderSortableTh("level_high", has52w ? "52W High" : "Level Hi")}
-              {!has52w && renderSortableTh("level_low", "Level Lo")}
-              {renderSortableTh("exit_price", "Exit")}
-              {renderSortableTh("net_pnl", "P&L")}
-              {renderSortableTh("net_pnl_pct", "%", "th-pnl-pct")}
-              {renderSortableTh("hold_duration_minutes", "Hold", "th-hold-duration")}
-              {renderSortableTh("exit_reason", "Type", "th-exit-reason")}
+              <SortableHeader label="Entry" columnKey="entry_time" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader label="Exit" columnKey="exit_time" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader label="Side" columnKey="side" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader label="Qty" columnKey="quantity" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader label="Entry" columnKey="entry_price" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader label={has52w ? "52W High" : "Level Hi"} columnKey="level_high" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              {!has52w && <SortableHeader label="Level Lo" columnKey="level_low" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
+              <SortableHeader label="Exit" columnKey="exit_price" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader label="P&L" columnKey="net_pnl" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader label="%" columnKey="net_pnl_pct" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} testId="th-pnl-pct" />
+              <SortableHeader label="Hold" columnKey="hold_duration_minutes" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} testId="th-hold-duration" />
+              <SortableHeader label="Type" columnKey="exit_reason" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} testId="th-exit-reason" />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody data-testid="trade-history-tbody">
@@ -267,10 +199,10 @@ export function TradeHistoryTable({
                     <Text size="sm">{tradeNumber}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm">{formatDateHuman(t.entry_time)}</Text>
+                    <Text size="sm">{formatDateTimeHuman(t.entry_time)}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm">{formatDateHuman(t.exit_time)}</Text>
+                    <Text size="sm">{formatDateTimeHuman(t.exit_time)}</Text>
                   </Table.Td>
                   <Table.Td>
                     {side === "LONG" ? (
@@ -336,7 +268,7 @@ export function TradeHistoryTable({
               );
             })}
           </Table.Tbody>
-        </Table>
+        </DataTable>
       </ScrollArea>
     </Box>
   );

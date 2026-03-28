@@ -1,12 +1,10 @@
 import { describe, expect, test } from "vitest";
+import { formatNumber, formatTimeOnly, formatDateHeader } from "../../utils/ui-helpers";
 import {
-  formatNumber,
-  formatTradeTimeOnly,
   getUniqueStrategies,
   getUniqueBots,
   filterByRange,
   groupTradesByDate,
-  formatDateHeader,
 } from "./PaperHistoryTable";
 import type { PaperTrade } from "../../types/paperTrading";
 
@@ -76,22 +74,22 @@ describe("formatNumber", () => {
   });
 });
 
-describe("formatTradeTimeOnly", () => {
+describe("formatTimeOnly", () => {
   test("returns dash for empty string", () => {
-    expect(formatTradeTimeOnly("")).toBe("-");
+    expect(formatTimeOnly("")).toBe("-");
   });
 
   test("formats valid ISO string to time only", () => {
-    const result = formatTradeTimeOnly("2026-03-20T14:30:00Z");
+    const result = formatTimeOnly("2026-03-20T14:30:00Z");
     expect(result).toMatch(/\d{2}:\d{2}/);
   });
 
   test("returns original string for invalid input", () => {
-    expect(formatTradeTimeOnly("not-a-date")).toBe("not-a-date");
+    expect(formatTimeOnly("not-a-date")).toBe("not-a-date");
   });
 
   test("formats time without timezone info", () => {
-    const result = formatTradeTimeOnly("2026-03-20T09:15:00");
+    const result = formatTimeOnly("2026-03-20T09:15:00");
     expect(result).toMatch(/\d{2}:\d{2}/);
   });
 });

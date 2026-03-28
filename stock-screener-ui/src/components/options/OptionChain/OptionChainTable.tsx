@@ -16,6 +16,7 @@ import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import { IconTarget, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import { fontWeights } from "../../../theme";
 import { getMoneyness } from "../../../utils/options";
+import { formatNumber } from "../../../utils/ui-helpers";
 import type { OptionContract } from "../../../api/upstoxOptions";
 
 interface OptionChainTableProps {
@@ -23,20 +24,6 @@ interface OptionChainTableProps {
   filters: any;
   spotPrice: number | null;
   onRowClick: (contract: OptionContract) => void;
-}
-
-// Format with K/L/Cr suffix (Indian style)
-function formatCompact(num: number): string {
-  if (num === 0) return "0";
-  const absNum = Math.abs(num);
-  let result = "";
-
-  if (absNum >= 10000000) result = (absNum / 10000000).toFixed(1) + "Cr";
-  else if (absNum >= 100000) result = (absNum / 100000).toFixed(1) + "L";
-  else if (absNum >= 1000) result = (absNum / 1000).toFixed(1) + "K";
-  else result = absNum.toString();
-
-  return num < 0 ? `-${result}` : result;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -357,15 +344,15 @@ function OptionColumn({
   const cellMeta = (
     type === "CE"
       ? [
-          { value: formatCompact(oi), kind: "oi", isOI: true },
+          { value: formatNumber(oi), kind: "oi", isOI: true },
           {
-            value: formatCompact(oiChange),
+            value: formatNumber(oiChange),
             kind: "change",
             c: oiChange >= 0 ? "green" : "red",
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
             positive: oiChange >= 0,
           },
-          { value: formatCompact(volume), kind: "volume" },
+          { value: formatNumber(volume), kind: "volume" },
           { value: iv.toFixed(1), kind: "iv", c: "dimmed" },
           {
             value: ltp.toFixed(2),
@@ -384,15 +371,15 @@ function OptionColumn({
             isLTP: true,
           },
           { value: iv.toFixed(1), kind: "iv", c: "dimmed" },
-          { value: formatCompact(volume), kind: "volume" },
+          { value: formatNumber(volume), kind: "volume" },
           {
-            value: formatCompact(oiChange),
+            value: formatNumber(oiChange),
             kind: "change",
             c: oiChange >= 0 ? "green" : "red",
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
             positive: oiChange >= 0,
           },
-          { value: formatCompact(oi), kind: "oi", isOI: true },
+          { value: formatNumber(oi), kind: "oi", isOI: true },
         ]
   ) as Array<{
     value: string;

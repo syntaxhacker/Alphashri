@@ -30,6 +30,8 @@ import {
   startAutoRefresh,
   stopAutoRefresh,
 } from "../../state/bots";
+import { formatNumber, formatExitReason } from "../../utils/ui-helpers";
+import { DataTable } from "../common/DataTable";
 
 interface BotStatusPanelProps {
   bot: BotConfig;
@@ -37,26 +39,6 @@ interface BotStatusPanelProps {
   trades: BotTrade[];
   onStart: (botId: string) => Promise<void>;
   onStop: (botId: string) => Promise<void>;
-}
-
-function formatNumber(num: number): string {
-  if (Math.abs(num) >= 100000) {
-    return (num / 100000).toFixed(1) + "L";
-  } else if (Math.abs(num) >= 1000) {
-    return (num / 1000).toFixed(1) + "K";
-  }
-  return num.toFixed(0);
-}
-
-function formatExitReason(reason: string): string {
-  const reasons: Record<string, string> = {
-    target: "Target",
-    stop_loss: "Stop Loss",
-    signal: "Signal",
-    manual: "Manual",
-    timeout: "Timeout",
-  };
-  return reasons[reason] || reason;
 }
 
 function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
@@ -184,7 +166,7 @@ function PositionsTable({ positions }: { positions: BotPosition[] }) {
       <Text fw={600} mb="sm">
         Open Positions
       </Text>
-      <Table striped highlightOnHover>
+      <DataTable>
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Strategy</Table.Th>
@@ -234,7 +216,7 @@ function PositionsTable({ positions }: { positions: BotPosition[] }) {
             );
           })}
         </Table.Tbody>
-      </Table>
+      </DataTable>
     </Card>
   );
 }
@@ -267,7 +249,7 @@ function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () 
         </ActionIcon>
       </Group>
       <Box style={{ overflowX: "auto" }}>
-        <Table striped highlightOnHover>
+        <DataTable>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Strategy</Table.Th>
@@ -342,7 +324,7 @@ function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () 
               );
             })}
           </Table.Tbody>
-        </Table>
+        </DataTable>
       </Box>
     </Card>
   );
