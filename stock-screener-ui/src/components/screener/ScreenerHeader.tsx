@@ -1,6 +1,5 @@
 import {
   Group,
-  Stack,
   Text,
   ActionIcon,
   NumberInput,

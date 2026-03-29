@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { clickSortHeader, expectSortIndicator } from "./helpers/tableHelpers";
 
 test.describe("Table Sorting", () => {
   test.beforeEach(async ({ page }) => {
@@ -11,22 +12,19 @@ test.describe("Table Sorting", () => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    const scoreHeader = page.getByTestId("sort-header-score").first();
-    await scoreHeader.click();
-    await expect(scoreHeader.locator(".sort-indicator")).toBeVisible({ timeout: 5000 });
+    await clickSortHeader(page, "score");
+    await expectSortIndicator(page, "score", "asc");
   });
 
   test("should toggle sort direction when clicking same column twice", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    const scoreHeader = page.getByTestId("sort-header-score").first();
+    await clickSortHeader(page, "score");
+    await expectSortIndicator(page, "score", "asc");
 
-    await scoreHeader.click();
-    await expect(scoreHeader.locator(".sort-indicator")).toBeVisible({ timeout: 5000 });
-
-    await scoreHeader.click();
-    await expect(scoreHeader.locator(".sort-indicator")).toBeVisible({ timeout: 5000 });
+    await clickSortHeader(page, "score");
+    await expectSortIndicator(page, "score", "desc");
   });
 
   test("should sort by Symbol column", async ({ page }) => {
@@ -34,7 +32,6 @@ test.describe("Table Sorting", () => {
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
     const symbolHeader = page.getByTestId("sort-header-symbol").first();
-    // Click on the text element to avoid clicking on the copy button
     await symbolHeader.getByText("Symbol").first().click({ force: true });
 
     const indicator = symbolHeader.locator(".sort-indicator");

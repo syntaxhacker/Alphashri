@@ -35,36 +35,46 @@ export async function navigateToPaperTradingWithBot(
 ): Promise<void> {
   await navigateToPaperTrading(page);
 
-  // Wait for bot selector to be visible
+  // Wait for positions data to load - either table (with data) or empty state
+  const positionsTable = page.locator('[data-testid="positions-table-container"]');
+  const positionsEmpty = page.locator('[data-testid="positions-empty"]');
+  await Promise.race([
+    positionsTable.waitFor({ state: "visible", timeout: 20000 }),
+    positionsEmpty.waitFor({ state: "visible", timeout: 20000 }),
+  ]).catch(() => {});
+
+  // Now try to find and click the bot selector if it's visible
   const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
-  await segmentedControl.waitFor({ state: "visible", timeout: 15000 });
+  const isSelectorVisible = await segmentedControl.isVisible().catch(() => false);
 
-  // For Mantine SegmentedControl with radio buttons, click the label with the bot name
-  // If botId is a UUID or "2", click "Multi-Strategy Bot", otherwise click "Default"
-  const botName = botId === "default" || botId === "1" ? "Default" : "Multi-Strategy Bot";
+  if (isSelectorVisible) {
+    // For Mantine SegmentedControl with radio buttons, click the label with the bot name
+    // If botId is a UUID or "2", click "Multi-Strategy Bot", otherwise click "Default"
+    const botName = botId === "default" || botId === "1" ? "Default" : "Multi-Strategy Bot";
 
-  // Wait for the option to be available and click it
-  const botLabel = segmentedControl.locator(`label:has-text("${botName}")`);
-  const count = await botLabel.count();
+    // Wait for the option to be available and click it
+    const botLabel = segmentedControl.locator(`label:has-text("${botName}")`);
+    const count = await botLabel.count();
 
-  if (count > 0) {
-    await botLabel.first().click({ timeout: 10000 });
-  } else {
-    // Fallback: click directly on the visible text within the control
-    await segmentedControl.getByText(botName, { exact: false }).first().click({ timeout: 10000 });
+    if (count > 0) {
+      await botLabel.first().click({ timeout: 10000 });
+    } else {
+      // Fallback: click directly on the visible text within the control
+      await segmentedControl.getByText(botName, { exact: false }).first().click({ timeout: 10000 });
+    }
+
+    // Wait a moment for the selection to register and API calls to start
+    await page.waitForTimeout(500);
+
+    // Wait for positions to load (either data appears or empty state)
+    await page.waitForFunction(
+      () => {
+        const loadingText = document.body.textContent;
+        return !loadingText?.includes("Loading positions...");
+      },
+      { timeout: 10000 },
+    );
   }
-
-  // Wait a moment for the selection to register and API calls to start
-  await page.waitForTimeout(500);
-
-  // Wait for positions to load (either data appears or empty state)
-  await page.waitForFunction(
-    () => {
-      const loadingText = document.body.textContent;
-      return !loadingText?.includes("Loading positions...");
-    },
-    { timeout: 10000 },
-  );
 
   // Additional wait for UI to settle
   await page.waitForTimeout(500);

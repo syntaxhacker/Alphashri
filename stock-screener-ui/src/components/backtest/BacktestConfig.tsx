@@ -102,8 +102,8 @@ export function BacktestConfig({
   days,
   includeCosts,
   isRunning,
-  saveToHistory,
-  onStrategyChange,
+  saveToHistory: _saveToHistory,
+  onStrategyChange: _onStrategyChange,
   onVariationChange,
   onParamChange,
   onDaysChange,
@@ -126,14 +126,18 @@ export function BacktestConfig({
       return;
     }
 
-    searchSymbols(debouncedSearch, 20).then((results) => {
-      setSymbolOptions(
-        results.map((r) => ({
-          value: r.symbol,
-          label: `${r.symbol} - ${r.name}`,
-        })),
-      );
-    });
+    searchSymbols(debouncedSearch, 20)
+      .then((results) => {
+        setSymbolOptions(
+          results.map((r) => ({
+            value: r.symbol,
+            label: `${r.symbol} - ${r.name}`,
+          })),
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to search symbols:", err);
+      });
   }, [debouncedSearch]);
 
   useEffect(() => {

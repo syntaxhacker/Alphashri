@@ -1,5 +1,6 @@
 import type { ColumnDef } from "./index";
 import { symbolCol, scoreCol, sectorCol, dayChangeCol, volumeMCol } from "./base";
+import { getPnLTextColor } from "../../../utils/ui-helpers";
 
 export function getNiftyMoversColumns(): ColumnDef[] {
   return [
@@ -11,8 +12,7 @@ export function getNiftyMoversColumns(): ColumnDef[] {
       type: "number",
       sortable: true,
       format: (value: number) => {
-        const cls = value >= 0 ? "green" : "red";
-        return { value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}`, className: cls };
+        return { value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}`, className: getPnLTextColor(value) };
       },
     },
     {

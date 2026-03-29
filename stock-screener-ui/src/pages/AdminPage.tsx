@@ -18,6 +18,9 @@ import {
   CompactStat,
   CompactStatGrid,
 } from "../components/common/compact";
+import { getStatusColor } from "../utils/ui-helpers";
+import { DataTable } from "../components/common/DataTable";
+export { getStatusColor } from "../utils/ui-helpers"; // backward compat for tests
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -71,19 +74,6 @@ export function formatDateTime(isoString: string): string {
 export function truncateUrl(url: string, maxLength: number = 50): string {
   if (url.length <= maxLength) return url;
   return url.substring(0, maxLength) + "...";
-}
-
-export function getStatusColor(status: string): string {
-  switch (status.toLowerCase()) {
-    case "success":
-      return "green";
-    case "error":
-      return "red";
-    case "pending":
-      return "yellow";
-    default:
-      return "gray";
-  }
 }
 
 export default function AdminPage() {
@@ -210,7 +200,7 @@ export default function AdminPage() {
                   No recent runs
                 </Text>
               ) : (
-                <Table striped highlightOnHover data-testid="runs-table">
+                <DataTable dataTestId="runs-table">
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>URL</Table.Th>
@@ -255,7 +245,7 @@ export default function AdminPage() {
                       </Table.Tr>
                     ))}
                   </Table.Tbody>
-                </Table>
+                </DataTable>
               )}
             </ScrollArea>
           </CompactPanel>

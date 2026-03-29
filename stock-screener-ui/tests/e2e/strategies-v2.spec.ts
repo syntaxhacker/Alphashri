@@ -1,12 +1,10 @@
 import { test, expect } from "@playwright/test";
 import {
-  setupStrategiesMocks,
   setupStrategiesEmptyMocks,
   setupStrategiesErrorMocks,
   setupStrategiesLoadingMocks,
 } from "../mocks/apiResponses";
 import {
-  STRATEGIES_URL,
   setupStrategiesTest,
   gotoStrategies,
   switchToStrategiesTab,

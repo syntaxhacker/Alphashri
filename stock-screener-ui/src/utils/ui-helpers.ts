@@ -1,30 +1,21 @@
-/**
- * Common UI Helper Functions
- *
- * Shared utilities for formatting numbers, dates, and rendering UI elements.
- * Used across backtest, paper-trading, and screener components.
- */
-
-// ============================================
-// Number Formatting
-// ============================================
-
-/**
- * Format a number as Indian currency (₹)
- */
-export function formatCurrency(amount: number, precision: number = 0): string {
+export function formatCurrency(amount: number | undefined | null, precision: number = 0): string {
+  if (amount === undefined || amount === null || isNaN(amount)) return "0";
   return `₹${amount.toFixed(precision)}`;
 }
 
-/**
- * Format a number with K/L suffixes for large values
- * E.g., 1500 → "1.5K", 150000 → "1.5L"
- */
-export function formatNumber(value: number): string {
+export function formatCurrencyIN(amount: number | undefined | null): string {
+  if (amount === undefined || amount === null || isNaN(amount)) return "0";
+  return amount.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+}
+
+export function formatNumber(value: number | undefined | null): string {
+  if (value === undefined || value === null || isNaN(value)) return "0";
   const absValue = Math.abs(value);
   const sign = value < 0 ? "-" : "";
 
-  if (absValue >= 100000) {
+  if (absValue >= 10000000) {
+    return `${sign}${(absValue / 10000000).toFixed(1)}Cr`;
+  } else if (absValue >= 100000) {
     return `${sign}${(absValue / 100000).toFixed(1)}L`;
   } else if (absValue >= 1000) {
     return `${sign}${(absValue / 1000).toFixed(1)}K`;
@@ -32,16 +23,20 @@ export function formatNumber(value: number): string {
   return `${sign}${absValue.toFixed(0)}`;
 }
 
-/**
- * Format currency with K/L suffix for display in tables
- */
-export function formatCurrencyCompact(amount: number): string {
-  return `₹${formatNumber(amount)}`;
+export function formatCurrencyCompact(amount: number | undefined | null): string {
+  return `₹${formatNumber(amount ?? 0)}`;
 }
 
-/**
- * Format a percentage with optional sign prefix
- */
+export function formatPnl(value: number): string {
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}₹${(value / 1000).toFixed(1)}K`;
+}
+
+export function formatSignedPnl(value: number): string {
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}₹${formatNumber(value)}`;
+}
+
 export function formatPercentage(
   value: number,
   precision: number = 2,
@@ -302,28 +297,123 @@ export function normalizeTime(time: string): string {
 }
 
 // ============================================
-// Empty/Loading States
+// Duration Formatting
 // ============================================
 
-/**
- * Render empty state HTML
- */
-export function renderEmptyState(message: string, icon: string = "📊"): string {
-  return `
-    <div class="empty-state">
-      <div class="empty-icon">${icon}</div>
-      <p>${message}</p>
-    </div>
-  `;
+export function formatElapsed(entryTime: string | null | undefined): string {
+  if (!entryTime) return "-";
+  try {
+    const entry = new Date(entryTime);
+    const now = new Date();
+    const diffMs = now.getTime() - entry.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    return formatDuration(Math.max(0, diffMins));
+  } catch {
+    return "-";
+  }
 }
 
-/**
- * Render loading state HTML
- */
-export function renderLoadingState(message: string = "Loading..."): string {
-  return `
-    <div class="loading-state">
-      <p>${message}</p>
-    </div>
-  `;
+// ============================================
+// Time-Only Formatting
+// ============================================
+
+export function formatTimeOnly(isoStr: string): string {
+  if (!isoStr) return "-";
+  const date = new Date(isoStr);
+  if (Number.isNaN(date.getTime())) return isoStr;
+  return date.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+export function formatDateHeader(date: string): string {
+  const dateObj = new Date(date);
+  return dateObj.toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+// ============================================
+// Mantine Color Helpers (for table cells)
+// ============================================
+
+export function getPnLTextColor(value: number): "green" | "red" {
+  return value >= 0 ? "green" : "red";
+}
+
+export function getValueColor(value: number | null | undefined): "green" | "red" | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (isNaN(value)) return undefined;
+  if (value > 0) return "green";
+  if (value < 0) return "red";
+  return undefined;
+}
+
+export function getWinRateColor(value: number): string {
+  if (value >= 50) return "green";
+  if (value >= 40) return "dimmed";
+  return "red";
+}
+
+export function getScoreColor(score: number): string {
+  if (score >= 80) return "green";
+  if (score >= 60) return "lime";
+  if (score >= 40) return "yellow";
+  if (score >= 20) return "orange";
+  return "red";
+}
+
+// ============================================
+// Domain Utilities
+// ============================================
+
+export function formatExitReason(reason: string): string {
+  const reasons: Record<string, string> = {
+    target: "Target",
+    stop_loss: "Stop Loss",
+    signal: "Signal",
+    manual: "Manual",
+    timeout: "Timeout",
+  };
+  return reasons[reason] || reason;
+}
+
+export function getStatusColor(status: string): string {
+  switch (status.toLowerCase()) {
+    case "success":
+      return "green";
+    case "error":
+      return "red";
+    case "pending":
+      return "yellow";
+    default:
+      return "gray";
+  }
+}
+
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+export function formatTimeAgo(isoString: string): string {
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  } catch {
+    return "";
+  }
 }

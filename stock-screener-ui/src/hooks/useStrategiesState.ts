@@ -1,5 +1,6 @@
-import { useEffect, useCallback, useState } from "react";
+import { useCallback } from "react";
 import * as strategiesState from "../state/strategies";
+import { useStoreSubscription } from "./useStoreSubscription";
 import type { StrategyConfig } from "../types/strategies";
 import type { StrategyView, StrategyFormData } from "../components/strategies/types";
 
@@ -19,17 +20,8 @@ export function getViewLoadAction(view: StrategyView): ViewLoadAction {
 }
 
 export function useStrategiesState() {
-  const [, setTick] = useState(0);
+  useStoreSubscription(strategiesState.subscribe);
   const state = strategiesState.getStrategiesState();
-
-  useEffect(() => {
-    const unsubscribe = strategiesState.subscribe(() => {
-      setTick((t) => t + 1);
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, []);
 
   const handleViewChange = useCallback((view: StrategyView) => {
     strategiesState.setCurrentView(view);

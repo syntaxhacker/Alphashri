@@ -1,13 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
-  formatCurrency,
-  formatNum,
-  formatDuration,
   nearBreakoutPct,
   formatNear,
   groupPositionsByStrategy,
   calcStrategySummary,
 } from "./PaperPositionsTable";
+import { formatCurrencyIN, formatNumber, formatElapsed } from "../../utils/ui-helpers";
 import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
 
 const mockPosition = (overrides: Partial<PaperPosition> = {}): PaperPosition => ({
@@ -28,104 +26,104 @@ const mockPosition = (overrides: Partial<PaperPosition> = {}): PaperPosition => 
   ...overrides,
 });
 
-describe("formatCurrency", () => {
+describe("formatCurrencyIN", () => {
   test("formats regular numbers with en-IN locale", () => {
-    const result = formatCurrency(12345.67);
+    const result = formatCurrencyIN(12345.67);
     expect(result).toContain("12,345");
   });
 
   test("returns 0 for undefined", () => {
-    expect(formatCurrency(undefined)).toBe("0");
+    expect(formatCurrencyIN(undefined)).toBe("0");
   });
 
   test("returns 0 for null", () => {
-    expect(formatCurrency(null)).toBe("0");
+    expect(formatCurrencyIN(null)).toBe("0");
   });
 
   test("returns 0 for NaN", () => {
-    expect(formatCurrency(NaN)).toBe("0");
+    expect(formatCurrencyIN(NaN)).toBe("0");
   });
 
   test("handles zero", () => {
-    expect(formatCurrency(0)).toBe("0");
+    expect(formatCurrencyIN(0)).toBe("0");
   });
 
   test("handles negative numbers", () => {
-    const result = formatCurrency(-5000);
+    const result = formatCurrencyIN(-5000);
     expect(result).toContain("5,000");
   });
 });
 
-describe("formatNum", () => {
+describe("formatNumber", () => {
   test("formats numbers below 1000 without suffix", () => {
-    expect(formatNum(500)).toBe("500");
-    expect(formatNum(999)).toBe("999");
+    expect(formatNumber(500)).toBe("500");
+    expect(formatNumber(999)).toBe("999");
   });
 
   test("formats thousands with K suffix", () => {
-    expect(formatNum(1500)).toBe("1.5K");
-    expect(formatNum(10000)).toBe("10.0K");
-    expect(formatNum(99999)).toBe("100.0K");
+    expect(formatNumber(1500)).toBe("1.5K");
+    expect(formatNumber(10000)).toBe("10.0K");
+    expect(formatNumber(99999)).toBe("100.0K");
   });
 
   test("formats lakhs with L suffix", () => {
-    expect(formatNum(100000)).toBe("1.0L");
-    expect(formatNum(150000)).toBe("1.5L");
-    expect(formatNum(1000000)).toBe("10.0L");
+    expect(formatNumber(100000)).toBe("1.0L");
+    expect(formatNumber(150000)).toBe("1.5L");
+    expect(formatNumber(1000000)).toBe("10.0L");
   });
 
   test("handles negative numbers", () => {
-    expect(formatNum(-1500)).toBe("-1.5K");
-    expect(formatNum(-100000)).toBe("-1.0L");
+    expect(formatNumber(-1500)).toBe("-1.5K");
+    expect(formatNumber(-100000)).toBe("-1.0L");
   });
 
   test("handles zero", () => {
-    expect(formatNum(0)).toBe("0");
+    expect(formatNumber(0)).toBe("0");
   });
 
   test("returns 0 for undefined", () => {
-    expect(formatNum(undefined)).toBe("0");
+    expect(formatNumber(undefined)).toBe("0");
   });
 
   test("returns 0 for null", () => {
-    expect(formatNum(null)).toBe("0");
+    expect(formatNumber(null)).toBe("0");
   });
 
   test("returns 0 for NaN", () => {
-    expect(formatNum(NaN)).toBe("0");
+    expect(formatNumber(NaN)).toBe("0");
   });
 });
 
-describe("formatDuration", () => {
+describe("formatElapsed", () => {
   test("returns dash for null", () => {
-    expect(formatDuration(null)).toBe("-");
+    expect(formatElapsed(null)).toBe("-");
   });
 
   test("returns dash for undefined", () => {
-    expect(formatDuration(undefined)).toBe("-");
+    expect(formatElapsed(undefined)).toBe("-");
   });
 
   test("returns dash for empty string", () => {
-    expect(formatDuration("")).toBe("-");
+    expect(formatElapsed("")).toBe("-");
   });
 
   test("formats minutes only", () => {
     const fiveMinsAgo = new Date(Date.now() - 5 * 60000).toISOString();
-    expect(formatDuration(fiveMinsAgo)).toBe("5m");
+    expect(formatElapsed(fiveMinsAgo)).toBe("5m");
   });
 
   test("formats hours and minutes", () => {
     const hourThirtyMinsAgo = new Date(Date.now() - 90 * 60000).toISOString();
-    expect(formatDuration(hourThirtyMinsAgo)).toBe("1h 30m");
+    expect(formatElapsed(hourThirtyMinsAgo)).toBe("1h 30m");
   });
 
   test("formats exact hours", () => {
     const twoHoursAgo = new Date(Date.now() - 120 * 60000).toISOString();
-    expect(formatDuration(twoHoursAgo)).toBe("2h 0m");
+    expect(formatElapsed(twoHoursAgo)).toBe("2h");
   });
 
-  test("returns NaN-based string for invalid date string", () => {
-    expect(formatDuration("not-a-date")).toBe("NaNh NaNm");
+  test("returns 0m for invalid date string", () => {
+    expect(formatElapsed("not-a-date")).toBe("0m");
   });
 });
 

@@ -5,7 +5,8 @@
  * Supports preview (mini), expanded, and full size charts.
  */
 
-import type { PreviewCandle, ORBZone, PivotLevel } from "../../api/chartPreview";
+import type { PreviewCandle, PivotLevel } from "../../api/chartPreview";
+import type { ORBZone } from "../../types/backtest";
 import { theme } from "../../theme";
 
 export type ChartSize = "preview" | "expanded" | "full";
@@ -35,7 +36,6 @@ export function buildChartOption(options: ChartRenderOptions): any {
   } = options;
 
   const fontSizes = theme.fontSizes;
-  const fontFamily = theme.fontFamily;
 
   if (!candles || candles.length === 0) {
     return null;

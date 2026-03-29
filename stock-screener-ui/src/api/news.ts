@@ -104,7 +104,6 @@ export function createNewsWebSocket(
     const ws = new WebSocket(`${WS_BASE}/ws/news`);
 
     ws.onopen = () => {
-      console.log("📰 News WebSocket connected");
       onConnect?.();
     };
 
@@ -121,8 +120,7 @@ export function createNewsWebSocket(
       console.error("📰 News WebSocket error:", error);
     };
 
-    ws.onclose = (event) => {
-      console.log(`📰 News WebSocket disconnected (code: ${event.code})`);
+    ws.onclose = () => {
       onDisconnect?.();
     };
 

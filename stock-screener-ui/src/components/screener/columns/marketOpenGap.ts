@@ -1,5 +1,6 @@
 import type { ColumnDef } from "./index";
 import { symbolCol, scoreCol, sectorCol, dayChangeCol, volumeMCol } from "./base";
+import { getPnLTextColor, formatPercentage } from "../../../utils/ui-helpers";
 
 export function getMarketOpenGapColumns(): ColumnDef[] {
   return [
@@ -11,8 +12,7 @@ export function getMarketOpenGapColumns(): ColumnDef[] {
       type: "number",
       sortable: true,
       format: (value: number) => {
-        const cls = value >= 0 ? "green" : "red";
-        return { value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`, className: cls };
+        return { value: formatPercentage(value, 2, true), className: getPnLTextColor(value) };
       },
     },
     {
@@ -21,8 +21,7 @@ export function getMarketOpenGapColumns(): ColumnDef[] {
       type: "number",
       sortable: true,
       format: (value: number) => {
-        const cls = value >= 0 ? "green" : "red";
-        return { value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`, className: cls };
+        return { value: formatPercentage(value, 2, true), className: getPnLTextColor(value) };
       },
     },
     dayChangeCol,

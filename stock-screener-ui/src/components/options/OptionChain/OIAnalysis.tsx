@@ -1,7 +1,6 @@
 import {
   Box,
   Group,
-  Paper,
   Text,
   Stack,
   SimpleGrid,

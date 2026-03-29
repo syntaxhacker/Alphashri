@@ -36,6 +36,7 @@ import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-t
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
 import { useNewsWebSocket } from "../../state/newsWebSocket";
 import { useNewsSourceGroups, getSourceOptions } from "./useNewsSourceGroups";
+import { formatTimeAgo } from "../../utils/ui-helpers";
 
 const LS_READ_IDS = "news_read_ids";
 const LS_LAST_SEEN_ID = "news_last_seen_id";
@@ -47,30 +48,6 @@ const AUTO_REFRESH_INTERVALS = [
   { label: "5m", value: "300000" },
   { label: "10m", value: "600000" },
 ];
-
-function formatTimeAgo(isoString: string): string {
-  try {
-    const date = new Date(isoString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  } catch {
-    return "";
-  }
-}
-
-function truncateText(text: string, maxLength: number): string {
-  if (!text || text.length <= maxLength) return text;
-  return text.slice(0, maxLength).trim() + "...";
-}
 
 function getReadIds(): Set<string> {
   try {
@@ -149,7 +126,11 @@ export default function NewsPanel() {
   }).length;
 
   useEffect(() => {
-    fetchNewsSources().then(setSources);
+    fetchNewsSources()
+      .then(setSources)
+      .catch((err) => {
+        console.error("Failed to load news sources:", err);
+      });
   }, []);
 
   // Clear pulse animation when panel opens
@@ -284,9 +265,6 @@ export default function NewsPanel() {
   };
 
   const sourceData = getSourceOptions(sources);
-
-  const currentRefreshLabel =
-    AUTO_REFRESH_INTERVALS.find((i) => i.value === autoRefreshMs)?.label || "Off";
 
   return (
     <>

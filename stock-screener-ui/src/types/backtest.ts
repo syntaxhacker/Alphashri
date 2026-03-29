@@ -171,24 +171,6 @@ export interface ChartTrade {
   };
 }
 
-export interface SymbolChartData {
-  symbol: string;
-  candles: CandleData[];
-  orb_zones: ORBZone[];
-  pivot_levels: PivotLevels[]; // S/R Breakout pivot levels
-  week52_levels: Week52Levels[]; // 52W Chaser levels
-  trades: ChartTrade[];
-  visuals?: {
-    overlays: any[];
-  };
-  date_range: {
-    start: string;
-    end: string;
-  };
-  total_candles: number;
-  total_trades: number;
-}
-
 // Progress state
 export interface BacktestProgress {
   current: number;

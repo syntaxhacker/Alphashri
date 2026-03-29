@@ -72,7 +72,6 @@ export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
         wsRef.current = ws;
 
         ws.onopen = () => {
-          console.log("📰 News WebSocket connected");
           setConnected(true);
           retryCount = 0; // reset on successful connection
         };
@@ -99,7 +98,6 @@ export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
         };
 
         ws.onclose = (event) => {
-          console.log(`📰 News WebSocket disconnected (code: ${event.code})`);
           setConnected(false);
           wsRef.current = null;
 
@@ -113,9 +111,6 @@ export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
 
           retryCount++;
           const delay = getRetryDelay();
-          console.log(
-            `📰 Reconnecting in ${Math.round(delay)}ms (attempt ${retryCount}/${maxRetries})`,
-          );
           reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
         };
       } catch (error) {

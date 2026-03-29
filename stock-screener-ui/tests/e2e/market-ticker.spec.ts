@@ -160,7 +160,7 @@ test.describe("Market Ticker", () => {
     await navigationPromise;
   });
 
-  test.skip("should auto-refresh ticker data", async ({ page }) => {
+  test.skip("should auto-refresh ticker data", async () => {
     // Skip this test - auto-refresh takes 30 seconds
   });
 });

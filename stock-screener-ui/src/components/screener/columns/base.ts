@@ -1,4 +1,5 @@
 import type { ColumnDef } from "./index";
+import { getPnLTextColor, formatPercentage } from "../../../utils/ui-helpers";
 
 export const symbolCol: ColumnDef = {
   key: "symbol",
@@ -10,9 +11,8 @@ export const symbolCol: ColumnDef = {
 export const scoreCol: ColumnDef = {
   key: "score",
   label: "Score",
-  type: "number",
+  type: "badge",
   sortable: true,
-  format: (value: number) => String(value),
 };
 
 export const sectorCol: ColumnDef = {
@@ -28,8 +28,7 @@ export const dayChangeCol: ColumnDef = {
   type: "number",
   sortable: true,
   format: (value: number) => {
-    const cls = value >= 0 ? "green" : "red";
-    return { value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`, className: cls };
+    return { value: formatPercentage(value, 2, true), className: getPnLTextColor(value) };
   },
 };
 

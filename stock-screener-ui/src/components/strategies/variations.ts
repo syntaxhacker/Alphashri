@@ -3,12 +3,8 @@
  */
 
 import type { StrategyConfig, StrategyPerformance } from "../../types/strategies";
-import {
-  selectStrategy,
-  loadStrategy,
-  openEditModal,
-  deleteStrategyAction,
-} from "../../state/strategies";
+import { openEditModal, deleteStrategyAction } from "../../state/strategies";
+import { getPnLTextColor } from "../../utils/ui-helpers";
 
 export function renderVariationsPanel(
   template: StrategyConfig,
@@ -125,7 +121,7 @@ function renderVariationDetailCard(variation: StrategyConfig): string {
 export function renderPerformancePanel(performance: StrategyPerformance): string {
   const winRateColor =
     performance.win_rate >= 60 ? "green" : performance.win_rate >= 40 ? "yellow" : "red";
-  const pnlColor = performance.net_pnl >= 0 ? "green" : "red";
+  const pnlColor = getPnLTextColor(performance.net_pnl);
 
   return `
     <div class="performance-panel" data-testid="performance-panel">
