@@ -337,12 +337,10 @@ export function setParam(key: string, value: number | string | boolean) {
 }
 
 export function setParams(params: Record<string, number | string | boolean>) {
-  console.log("setParams called with:", params);
   state = {
     ...state,
     params: { ...params },
   };
-  console.log("State after setParams:", state.params);
   notify();
 }
 
