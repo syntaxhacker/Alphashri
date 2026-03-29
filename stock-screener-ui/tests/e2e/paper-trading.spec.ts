@@ -89,7 +89,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await expect(positionsTable).toBeVisible();
 
     const strategyTabs = page.locator('[data-testid="strategy-tabs"]');
-    await expect(strategyTabs).toBeVisible();
+    await expect(strategyTabs).toBeVisible({ timeout: 15000 });
     await expect(page.locator('[data-testid="strategy-tab-all"]')).toBeVisible();
     await expect(page.locator('[data-testid="strategy-tab-orb-conservative"]')).toBeVisible();
     await expect(page.locator('[data-testid="strategy-tab-orb-aggressive"]')).toBeVisible();

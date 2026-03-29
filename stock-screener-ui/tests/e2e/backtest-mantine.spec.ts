@@ -362,22 +362,11 @@ test.describe("Backtest - Mantine Features", () => {
   });
 
   test.describe("Backtest Progress", () => {
-    test("@smoke should have working run backtest button", async ({ page }) => {
-      await gotoBacktest(page);
-      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-      await symbolSelect.click({ force: true });
-      await page.keyboard.type("RELIANCE");
-      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
-        timeout: 5000,
-      });
-      const option = page.locator(".mantine-MultiSelect-option").first();
-      if (await option.isVisible()) {
-        await option.click();
-      }
-      const runBtn = page.locator('[data-testid="run-backtest-btn"]');
-      await runBtn.click();
-      await expect(page.locator('[data-testid="results-summary"]')).toBeVisible({ timeout: 10000 });
-    });
+  test("@smoke should have working run backtest button", async ({ page }) => {
+    await gotoBacktest(page);
+    await selectSymbolAndRun(page, "RELIANCE");
+    await waitForBacktestResult(page, "results-summary");
+  });
   });
 
   test.describe("Results Summary", () => {
