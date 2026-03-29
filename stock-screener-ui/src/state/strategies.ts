@@ -4,6 +4,7 @@
  * Uses simple pub/sub pattern matching the existing backtest state.
  */
 
+import { createSubscriber } from "./createSubscriber";
 import type {
   StrategyConfig,
   StrategiesState,
@@ -37,23 +38,11 @@ let state: StrategiesState = { ...initialState };
 // Current view
 let currentViewValue: StrategiesView = "templates";
 
-// Subscribers for state changes
-const subscribers: Set<() => void> = new Set();
+const { subscribe, notify } = createSubscriber();
+export { subscribe };
 
-// Notify all subscribers
-function notify() {
-  subscribers.forEach((callback) => callback());
-}
-
-// Trigger a re-render (useful when only local state changes)
 export function triggerRerender() {
   notify();
-}
-
-// Subscribe to state changes
-export function subscribe(callback: () => void) {
-  subscribers.add(callback);
-  return () => subscribers.delete(callback);
 }
 
 // Get current state

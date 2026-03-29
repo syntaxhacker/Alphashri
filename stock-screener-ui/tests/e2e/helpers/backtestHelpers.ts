@@ -136,12 +136,45 @@ export async function setupFullBacktestMocks(page: Page) {
 export async function gotoBacktest(page: Page) {
   await page.goto("/backtest");
   await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
+  await page.reload();
+  await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 }
 
 export async function selectSymbolAndRun(page: Page, symbol: string = "RELIANCE") {
-  const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-  await symbolSelect.click();
-  await expect(page.locator(".mantine-MultiSelect-dropdown")).toBeVisible({ timeout: 5000 });
+  await page.waitForLoadState("networkidle");
+
+  const searchInput = page.locator(".mantine-MultiSelect-input input");
+  await searchInput.click();
+  await page.waitForTimeout(500);
+
+  const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
+  const clearBtnVisible = await clearBtn.isVisible().catch(() => false);
+  if (clearBtnVisible) {
+    await clearBtn.click({ force: true });
+    await page.waitForTimeout(500);
+  }
+
+  for (const sym of ["NETWEB", "SBILIFE"]) {
+    const chip = page.locator(`[data-testid="chip-${sym}"]`);
+    const chipVisible = await chip.isVisible().catch(() => false);
+    if (chipVisible) {
+      const removeBtn = chip.locator("button");
+      const count = await removeBtn.count();
+      if (count > 0) {
+        await removeBtn.first().click({ force: true });
+        await page.waitForTimeout(300);
+      } else {
+        const svg = chip.locator("svg");
+        const svgCount = await svg.count();
+        if (svgCount > 0) {
+          await svg.first().click({ force: true });
+          await page.waitForTimeout(300);
+        }
+      }
+    }
+  }
+
+  await searchInput.focus();
   await page.keyboard.type(symbol, { delay: 50 });
   await page.waitForSelector(".mantine-MultiSelect-option", { timeout: 5000 });
   const option = page.locator(".mantine-MultiSelect-option").first();

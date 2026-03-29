@@ -1,10 +1,7 @@
 import { Group, Text } from "@mantine/core";
 import { IconDatabaseOff } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
-
-interface ScreenerEmptyProps {
-  message?: string;
-}
+import type { ScreenerEmptyProps } from "./types";
 
 export function ScreenerEmpty({ message = "No results found" }: ScreenerEmptyProps) {
   return (

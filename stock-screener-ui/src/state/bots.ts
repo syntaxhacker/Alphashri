@@ -4,6 +4,7 @@
  * Uses simple pub/sub pattern matching the existing strategies state.
  */
 
+import { createSubscriber } from "./createSubscriber";
 import type {
   BotConfig,
   BotsState,
@@ -12,7 +13,7 @@ import type {
   BotUpdate,
   BotLoadingKey,
 } from "../types/bots";
-import * as api from "../api/bots";
+import { listBots, getBot, createBot, updateBot, startBot, stopBot, deleteBot, getBotStatus, getBotTrades, getBotTradeCount, listAvailableStrategies } from "../api/bots";
 import { createLoadingState, setLoading as setLoadingState } from "../utils/loading";
 
 // Initial state
@@ -49,23 +50,11 @@ let currentViewValue: BotsView = "list";
 // Auto-refresh interval
 let autoRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
-// Subscribers for state changes
-const subscribers: Set<() => void> = new Set();
+const { subscribe, notify } = createSubscriber();
+export { subscribe };
 
-// Notify all subscribers
-function notify() {
-  subscribers.forEach((callback) => callback());
-}
-
-// Trigger a re-render
 export function triggerRerender() {
   notify();
-}
-
-// Subscribe to state changes
-export function subscribe(callback: () => void) {
-  subscribers.add(callback);
-  return () => subscribers.delete(callback);
 }
 
 // Get current state
@@ -101,7 +90,7 @@ export async function loadBots(): Promise<void> {
   setLoading("list", true);
   setError(null);
   try {
-    const bots = await api.listBots();
+    const bots = await listBots();
     state = {
       ...state,
       bots,
@@ -123,7 +112,7 @@ export async function loadBot(botId: string): Promise<void> {
   setLoading("load", true);
   setError(null);
   try {
-    const bot = await api.getBot(botId);
+    const bot = await getBot(botId);
     state = {
       ...state,
       selectedBot: bot,
@@ -144,7 +133,7 @@ export async function loadBot(botId: string): Promise<void> {
 export async function loadBotStatus(botId: string): Promise<void> {
   setLoading("status", true);
   try {
-    const status = await api.getBotStatus(botId);
+    const status = await getBotStatus(botId);
     state = {
       ...state,
       botStatus: status,
@@ -162,7 +151,7 @@ export async function loadBotStatus(botId: string): Promise<void> {
 export async function loadBotTrades(botId: string, strategyId?: string): Promise<void> {
   setLoading("trades", true);
   try {
-    const result = await api.getBotTrades(botId, strategyId, 50);
+    const result = await getBotTrades(botId, strategyId, 50);
     state = {
       ...state,
       botTrades: result.trades,
@@ -184,7 +173,7 @@ export async function loadBotTrades(botId: string, strategyId?: string): Promise
 export async function loadAvailableStrategies(): Promise<void> {
   setLoading("strategies", true);
   try {
-    const strategies = await api.listAvailableStrategies();
+    const strategies = await listAvailableStrategies();
     state = {
       ...state,
       availableStrategies: strategies,
@@ -206,7 +195,7 @@ export async function createBotAction(data: BotCreate): Promise<BotConfig | null
   setLoading("create", true);
   setError(null);
   try {
-    const bot = await api.createBot(data);
+    const bot = await createBot(data);
     await loadBots();
     state = {
       ...state,
@@ -231,7 +220,7 @@ export async function updateBotAction(botId: string, data: BotUpdate): Promise<B
   setLoading("update", true);
   setError(null);
   try {
-    const bot = await api.updateBot(botId, data);
+    const bot = await updateBot(botId, data);
     await loadBots();
     state = {
       ...state,
@@ -257,7 +246,7 @@ export async function deleteBotAction(botId: string): Promise<boolean> {
   setLoading("delete", true);
   setError(null);
   try {
-    const tradeCount = await api.getBotTradeCount(botId);
+    const tradeCount = await getBotTradeCount(botId);
     if (tradeCount.count > 0) {
       state = {
         ...state,
@@ -268,7 +257,7 @@ export async function deleteBotAction(botId: string): Promise<boolean> {
       return false;
     }
 
-    await api.deleteBot(botId);
+    await deleteBot(botId);
     await loadBots();
     state = {
       ...state,
@@ -293,7 +282,7 @@ export async function startBotAction(botId: string, testMode: boolean = false): 
   setLoading("start", true);
   setError(null);
   try {
-    await api.startBot(botId, testMode);
+    await startBot(botId, testMode);
     await loadBots();
     state = { ...state, loading: setLoadingState<BotLoadingKey>(state.loading, "start", false) };
     notify();
@@ -314,7 +303,7 @@ export async function stopBotAction(botId: string): Promise<boolean> {
   setLoading("stop", true);
   setError(null);
   try {
-    await api.stopBot(botId);
+    await stopBot(botId);
     await loadBots();
     state = { ...state, loading: setLoadingState<BotLoadingKey>(state.loading, "stop", false) };
     notify();

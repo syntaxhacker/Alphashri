@@ -1,6 +1,7 @@
 import { Table, Text, Stack, Badge, Paper, Alert } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { DataTable } from "../../common/DataTable";
+import { getPnLTextColor, formatSignedPnl } from "../../../utils/ui-helpers";
 
 interface Position {
   instrument_key: string;
@@ -144,8 +145,8 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
                   </Table.Td>
                   <Table.Td className="position-pnl" data-testid={`options-position-pnl-${index}`}>
                     {pos.pnl !== undefined ? (
-                      <Text fw={600} c={pos.pnl >= 0 ? "green" : "red"}>
-                        {pos.pnl >= 0 ? "+" : ""}₹{pos.pnl.toFixed(2)}
+                      <Text fw={600} c={getPnLTextColor(pos.pnl)}>
+                        {formatSignedPnl(pos.pnl)}
                       </Text>
                     ) : (
                       "-"

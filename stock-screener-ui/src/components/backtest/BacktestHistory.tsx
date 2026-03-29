@@ -9,7 +9,6 @@ import {
   Tooltip,
   Card,
   Stack,
-  Loader,
   Alert,
 } from "@mantine/core";
 import {
@@ -32,6 +31,9 @@ import {
   setSelectedVariationId,
   getBacktestState,
 } from "../../state/backtest";
+import { DataTable } from "../common/DataTable";
+import { LoadingState, EmptyState } from "../common/states";
+import { getPnLTextColor } from "../../utils/ui-helpers";
 
 interface BacktestHistoryProps {
   onLoad?: () => void;
@@ -147,15 +149,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (loading) {
     return (
-      <Group
-        justify="center"
-        py="xl"
-        className="backtest-history-loading"
-        data-testid="backtest-history-loading"
-      >
-        <Loader size="md" />
-        <Text>Loading history...</Text>
-      </Group>
+      <LoadingState message="Loading history..." data-testid="backtest-history-loading" className="backtest-history-loading" size="md" />
     );
   }
 
@@ -175,22 +169,8 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (history.length === 0) {
     return (
-      <Card
-        withBorder
-        padding="xl"
-        radius="md"
-        className="backtest-history-empty"
-        data-testid="backtest-history-empty"
-      >
-        <Stack align="center" gap="xs">
-          <IconDatabase size={40} color="gray" />
-          <Text size="lg" fw={500}>
-            No backtest history
-          </Text>
-          <Text c="dimmed" size="sm">
-            Run a backtest and save it to see it here.
-          </Text>
-        </Stack>
+      <Card withBorder padding="xl" radius="md" className="backtest-history-empty" data-testid="backtest-history-empty">
+        <EmptyState icon={<IconDatabase size={40} color="gray" />} title="No backtest history" description="Run a backtest and save it to see it here." />
       </Card>
     );
   }
@@ -230,11 +210,10 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
           </Button>
         </Group>
       </Group>
-      <Table
-        highlightOnHover
+      <DataTable
         verticalSpacing="sm"
         className="history-table"
-        data-testid="history-table"
+        dataTestId="history-table"
       >
         <Table.Thead>
           <Table.Tr>
@@ -275,7 +254,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
                 </Text>
               </Table.Td>
               <Table.Td>
-                <Text size="sm" fw={700} c={item.metrics.total_pnl >= 0 ? "green" : "red"}>
+                <Text size="sm" fw={700} c={getPnLTextColor(item.metrics.total_pnl)}>
                   ₹{item.metrics.total_pnl.toLocaleString()} (
                   {item.metrics.total_pnl_pct.toFixed(2)}%)
                 </Text>
@@ -304,7 +283,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
             </Table.Tr>
           ))}
         </Table.Tbody>
-      </Table>
+      </DataTable>
     </Stack>
   );
 }

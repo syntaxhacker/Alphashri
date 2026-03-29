@@ -16,7 +16,7 @@ import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import { IconTarget, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import { fontWeights } from "../../../theme";
 import { getMoneyness } from "../../../utils/options";
-import { formatNumber } from "../../../utils/ui-helpers";
+import { clamp, formatNumber, getPnLTextColor } from "../../../utils/ui-helpers";
 import type { OptionContract } from "../../../api/upstoxOptions";
 
 interface OptionChainTableProps {
@@ -24,10 +24,6 @@ interface OptionChainTableProps {
   filters: any;
   spotPrice: number | null;
   onRowClick: (contract: OptionContract) => void;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -348,7 +344,7 @@ function OptionColumn({
           {
             value: formatNumber(oiChange),
             kind: "change",
-            c: oiChange >= 0 ? "green" : "red",
+            c: getPnLTextColor(oiChange),
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
             positive: oiChange >= 0,
           },
@@ -375,7 +371,7 @@ function OptionColumn({
           {
             value: formatNumber(oiChange),
             kind: "change",
-            c: oiChange >= 0 ? "green" : "red",
+            c: getPnLTextColor(oiChange),
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
             positive: oiChange >= 0,
           },
@@ -413,7 +409,7 @@ function OptionColumn({
         OI: {oi.toLocaleString()} ({oiChange >= 0 ? "+" : ""}
         {oiChange.toLocaleString()})
       </Text>
-      <Text size="sm" c={oiChange >= 0 ? "green" : "red"}>
+      <Text size="sm" c={getPnLTextColor(oiChange)}>
         OI Change %: {oiChangePct.toFixed(2)}%
       </Text>
       <Box

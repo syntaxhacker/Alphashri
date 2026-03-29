@@ -1,9 +1,6 @@
 import { Group, Loader, Text } from "@mantine/core";
 import { CompactPanel } from "../common/compact";
-
-interface ScreenerLoadingProps {
-  message?: string;
-}
+import type { ScreenerLoadingProps } from "./types";
 
 export function ScreenerLoading({ message }: ScreenerLoadingProps) {
   return (

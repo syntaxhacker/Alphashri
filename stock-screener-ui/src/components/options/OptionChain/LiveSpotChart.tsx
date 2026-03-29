@@ -16,6 +16,7 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
       try {
         const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
         const res = await fetch(`${API_BASE}/api/options/spot-history/${underlying}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.history) setHistory(data.history);
       } catch (e) {

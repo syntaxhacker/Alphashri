@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   Card,
   Text,
@@ -52,16 +53,7 @@ export function PaperSettings() {
     loadStrategies();
   }, []);
 
-  const [, setForceUpdate] = useState(0);
-
-  useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      setForceUpdate((n) => n + 1);
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+  useStoreSubscription(subscribe);
 
   const handleStrategyChange = useCallback(async (value: string | null) => {
     if (value) {
