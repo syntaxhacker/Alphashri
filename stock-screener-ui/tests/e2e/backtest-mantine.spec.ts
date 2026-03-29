@@ -435,7 +435,10 @@ test.describe("Backtest - Mantine Features", () => {
     test("should display chart legend", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible();
+      const firstRow = page.locator('[data-testid^="result-row-"]').first();
+      await expect(firstRow).toBeVisible({ timeout: 5000 });
+      await firstRow.click();
+      await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({ timeout: 15000 });
       await expect(page.locator("text=Entry").first()).toBeVisible({ timeout: 5000 });
     });
   });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import dayjs from "dayjs";
 import { Box, Grid, Tabs, SegmentedControl, Text, Group, Stack, Alert } from "@mantine/core";
@@ -14,7 +14,6 @@ import {
   setAvailableBots,
 } from "../../state/paperTrading";
 import type {
-  PaperTradingState,
   PaperTradingView,
   PaperTrade,
   BotInfo,
@@ -43,9 +42,8 @@ import {
 let activeBotId: string | null = null;
 
 export function PaperTradingView() {
-  const [state, _setState] = useState<PaperTradingState>(getPaperTradingState);
-
   useStoreSubscription(subscribe);
+  const state = getPaperTradingState();
 
   useEffect(() => {
     loadInitialData();

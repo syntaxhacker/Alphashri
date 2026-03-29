@@ -35,11 +35,13 @@ export async function navigateToPaperTradingWithBot(
 ): Promise<void> {
   await navigateToPaperTrading(page);
 
-  // Wait for the page to be fully loaded - positions table indicates APIs have returned data
-  // This is more reliable than waiting for bot-selector-dropdown which may not be visible
-  // when availableBots is empty on first render
+  // Wait for positions data to load - either table (with data) or empty state
   const positionsTable = page.locator('[data-testid="positions-table-container"]');
-  await positionsTable.waitFor({ state: "visible", timeout: 20000 });
+  const positionsEmpty = page.locator('[data-testid="positions-empty"]');
+  await Promise.race([
+    positionsTable.waitFor({ state: "visible", timeout: 20000 }),
+    positionsEmpty.waitFor({ state: "visible", timeout: 20000 }),
+  ]).catch(() => {});
 
   // Now try to find and click the bot selector if it's visible
   const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');

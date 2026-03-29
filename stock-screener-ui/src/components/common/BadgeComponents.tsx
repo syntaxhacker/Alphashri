@@ -24,7 +24,7 @@ interface ExitReasonBadgeProps {
 
 export function ExitReasonBadge({ reason, size = "sm", "data-testid": testId }: ExitReasonBadgeProps) {
   let color: string = "gray";
-  const r = reason.toLowerCase();
+  const r = (reason || "").toLowerCase();
   if (r === "tp" || r === "target") color = "green";
   else if (r === "sl" || r === "stop_loss") color = "red";
   else if (r === "trailing_stop" || r === "eod") color = "orange";
