@@ -652,10 +652,27 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> sub
 
     process = subprocess.Popen(
         cmd,
-        stdout=log_file,
+        stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
+
+    def _stream_bot_output(p: subprocess.Popen, lp: Path):
+        import threading
+        def _reader():
+            with open(lp, 'w') as f:
+                if p.stdout:
+                    for line in iter(p.stdout.readline, b''):
+                        text = line.decode('utf-8', errors='replace')
+                        f.write(text)
+                        f.flush()
+                        sys.__stdout__.write(text)
+                        sys.__stdout__.flush()
+                    p.stdout.close()
+        t = threading.Thread(target=_reader, daemon=True)
+        t.start()
+
+    _stream_bot_output(process, log_path)
 
     if user_id not in _bot_processes:
         _bot_processes[user_id] = {}
