@@ -235,12 +235,11 @@ export function StrategyForm({
   const isSrBreakout = currentStrategyType === "SR_BREAKOUT";
   const isEmaCross = currentStrategyType === "EMA_CROSS";
   const is52wChaser = currentStrategyType === "52W_CHASER";
-  const is52wTarget = currentStrategyType === "52W_TARGET";
 
   const defaultTab = isOrb ? "orb" : isSrBreakout ? "sr" : isEmaCross ? "ema" : "52w";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  const renderSlTpRow = () => (
+  const SlTpRow = () => (
     <Group grow>
       <NumberInput
         label="Stop Loss %"
@@ -323,7 +322,15 @@ export function StrategyForm({
             onChange={(val) => {
               if (val) {
                 setCurrentStrategyType(val);
-                setActiveTab(val === "ORB" ? "orb" : val === "SR_BREAKOUT" ? "sr" : val === "EMA_CROSS" ? "ema" : "52w");
+                setActiveTab(
+                  val === "ORB"
+                    ? "orb"
+                    : val === "SR_BREAKOUT"
+                      ? "sr"
+                      : val === "EMA_CROSS"
+                        ? "ema"
+                        : "52w",
+                );
               }
             }}
             required
@@ -402,7 +409,7 @@ export function StrategyForm({
                       data-testid="strategy-min-or-range-input"
                     />
                   </Group>
-                  {renderSlTpRow()}
+                  <SlTpRow />
                   <NumberInput
                     label="Max OR Range %"
                     name="max_or_range_pct"
@@ -424,7 +431,7 @@ export function StrategyForm({
                 data-testid="strategy-panel-sr"
               >
                 <Stack gap="sm" mt="sm">
-                  {renderSlTpRow()}
+                  <SlTpRow />
                   <Select
                     label="Pivot Type"
                     name="pivot_type"
@@ -478,7 +485,7 @@ export function StrategyForm({
                       data-testid="strategy-ema-slow-period-input"
                     />
                   </Group>
-                  {renderSlTpRow()}
+                  <SlTpRow />
                 </Stack>
               </Tabs.Panel>
             )}
@@ -503,7 +510,7 @@ export function StrategyForm({
                       data-testid="strategy-entry-threshold-input"
                     />
                   </Group>
-                  {renderSlTpRow()}
+                  <SlTpRow />
                   <Group grow>
                     <NumberInput
                       label="Trailing Stop %"

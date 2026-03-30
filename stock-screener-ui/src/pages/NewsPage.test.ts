@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { formatTimeAgo } from "./NewsPage";
+import { formatTimeAgo } from "../utils/ui-helpers";
 
 describe("formatTimeAgo", () => {
   const now = new Date("2025-06-15T12:00:00Z");

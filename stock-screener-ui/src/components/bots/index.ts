@@ -10,7 +10,6 @@ import {
   getBotsState,
   getCurrentView,
   setCurrentView,
-  loadBots,
   loadBotStatus,
   loadBotTrades,
   selectBot,

@@ -3,6 +3,7 @@ Backtest API — routes for running, viewing, and managing backtests.
 """
 
 from typing import Optional, Dict, Any, List
+import asyncio
 
 from fastapi import APIRouter, Query, HTTPException, Path, Depends
 from pydantic import BaseModel
@@ -51,6 +52,21 @@ async def run_backtest(
     include_chart_data: bool = Query(False, description="Include candle/chart data in response (default: False for smaller responses)"),
     current_user=Depends(get_current_user),
 ):
+    import config as app_config
+
+    api_key = getattr(app_config, 'UPSTOX_API_KEY', None)
+    api_secret = getattr(app_config, 'UPSTOX_API_SECRET', None)
+
+    if not api_key or not api_secret:
+        from db.models import get_shared_broker_token
+        token_data = get_shared_broker_token('upstox')
+        if not token_data or not token_data.get('access_token'):
+            raise HTTPException(
+                status_code=503,
+                detail="Upstox API credentials not configured and no active broker token found. "
+                       "Please set UPSTOX_API_KEY/UPSTOX_API_SECRET in your environment or connect your broker in Settings."
+            )
+
     from cache.redis_client import cache_get, cache_set, is_cache_available
     from backtest.api import build_backtest_cache_key
 
@@ -96,7 +112,7 @@ async def run_backtest(
     _backtest_handler.progress_state['total'] = len(body.get('symbols', []))
     _backtest_handler.progress_state['message'] = 'Starting...'
 
-    result = handle_run_backtest(body, _backtest_handler.progress_state)
+    result = await asyncio.to_thread(handle_run_backtest, body, _backtest_handler.progress_state)
 
     if 'error' not in result:
         _backtest_handler.backtest_cache = {
@@ -106,7 +122,10 @@ async def run_backtest(
             'results': result.get('results', []),
         }
 
-        if is_cache_available():
+        totals = result.get('totals', {})
+        has_trades = totals.get('trades', 0) > 0
+
+        if is_cache_available() and has_trades:
             cache_data = {
                 'strategy': result.get('strategy'),
                 'variation_id': result.get('variation_id'),

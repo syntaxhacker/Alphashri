@@ -290,7 +290,6 @@ def app(mock_session_local, sample_bot_snapshot, mock_journal):
     app.include_router(bots_router)
 
     with patch('api.bots._db_available', True), \
-         patch('api.bots._auth_available', True), \
          patch('api.bots.SessionLocal', return_value=mock_session_local), \
          patch('api.bots.get_bot_snapshot_path') as mock_snapshot_path, \
          patch('api.bots.load_bot_snapshot') as mock_load_snapshot, \
@@ -354,8 +353,7 @@ class TestAvailableStrategies:
         with patch('api.bots._db_available', False):
             response = client.get("/api/bots/available-strategies")
 
-            assert response.status_code == 500
-            assert "Database not available" in response.json()["detail"]
+            assert response.status_code == 401
 
 
 # ============================================================================

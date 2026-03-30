@@ -1,27 +1,10 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { Box, Text, useMantineColorScheme } from "@mantine/core";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import { theme } from "../../theme";
-
-declare const echarts: any;
+import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
 
 const chartInstances = new Map<string, any>();
-
-export function normalizeTime(time: string): string {
-  if (!time) return "";
-
-  // Handle date-only format (YYYY-MM-DD) - for daily candles
-  if (/^\d{4}-\d{2}-\d{2}$/.test(time)) {
-    return time;
-  }
-
-  // Strip timezone suffixes and return YYYY-MM-DDTHH:MM format
-  return time
-    .replace(/\+00:00$/, "")
-    .replace(/\+05:30$/, "")
-    .replace(/Z$/, "")
-    .substring(0, 16);
-}
 
 interface BacktestChartProps {
   symbol: string;
@@ -31,12 +14,11 @@ interface BacktestChartProps {
 }
 
 function buildChartOption(data: SymbolChartData, isDark: boolean): any {
-  const { candles, orb_zones, pivot_levels, week52_levels, trades, visuals } = data;
+  const { candles, pivot_levels, week52_levels, trades, visuals } = data;
   const fontSizes = theme.fontSizes;
-  const fontFamily = theme.fontFamily;
 
   if (!candles || !trades) {
-    console.warn("buildChartOption: Missing candles or trades data", data);
+
     return {};
   }
 
@@ -46,16 +28,6 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   const borderColor = isDark ? "#333" : "#e0e0e0";
   const splitLineColor = isDark ? "#222" : "#eeeeee";
   const tooltipBg = isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
-  const dataZoomBg = isDark ? "#111" : "#f5f5f5";
-
-  console.log("buildChartOption for", data.symbol, {
-    candleCount: candles.length,
-    orbZoneCount: orb_zones?.length || 0,
-    pivotLevelCount: pivot_levels?.length || 0,
-    week52LevelCount: week52_levels?.length || 0,
-    tradeCount: trades.length,
-    overlayCount: visuals?.overlays?.length || 0,
-  });
 
   const candleData = candles.map((c) => [c.open, c.close, c.low, c.high]);
   const timeData = candles.map((c) => c.time);
@@ -283,16 +255,12 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
 
     // Add 52W high levels for 52W Chaser strategy
     if (week52_levels && week52_levels.length > 0) {
-      console.log("Adding 52W levels to chart:", week52_levels);
+
       const week52HighData = candles.map((c) => {
         const level = week52_levels.find((l) => l.date === c.date);
         return level ? level["52w_high"] : null;
       });
-      console.log(
-        "52W high data for chart:",
-        week52HighData.filter((v) => v !== null).length,
-        "values",
-      );
+
 
       series.push({
         id: "52w-high",
@@ -327,9 +295,6 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
         for (const p of params) {
           if (p.data && p.data.trade) {
             const t = p.data.trade;
-            const holdHours = Math.floor(t.hold_duration_minutes / 60);
-            const holdMins = t.hold_duration_minutes % 60;
-            const holdStr = holdHours > 0 ? `${holdHours}h ${holdMins}m` : `${holdMins}m`;
             const pnlColor = t.net_pnl >= 0 ? "#00E676" : "#FF1744";
 
             return `
@@ -346,7 +311,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
                   <span>Gross: ₹${t.gross_pnl.toFixed(0)}</span>
                   <span>Cost: ₹${t.trading_costs.toFixed(0)}</span>
                   <span style="color: ${pnlColor}; font-weight: bold;">
-                    Net: ₹${t.net_pnl.toFixed(0)} (${t.net_pnl_pct >= 0 ? "+" : ""}${t.net_pnl_pct.toFixed(1)}%)
+                    Net: ₹${t.net_pnl.toFixed(0)} (${formatPercentage(t.net_pnl_pct, 1, true)})
                   </span>
                 </div>
               </div>
@@ -440,7 +405,7 @@ export function zoomToTrade(
 
   const chart = chartInstances.get(symbol);
   if (!chart) {
-    console.warn("Chart instance not found for", symbol);
+
     return;
   }
 
@@ -453,7 +418,7 @@ export function zoomToTrade(
   );
 
   if (!entryMarker) {
-    console.warn("Entry marker not found for trade", tradeIndex + 1);
+
     return;
   }
 
@@ -466,27 +431,6 @@ export function zoomToTrade(
     if (c.date_raw) candleDateMap.set(c.date_raw!, i);
   });
 
-  // Debug: Log sample candle times and dates
-  console.log(
-    "zoomToTrade: Sample candles:",
-    chartData.candles.slice(0, 3).map((c) => ({
-      time: c.time,
-      normalized: normalizeTime(c.time),
-      date: c.date,
-      date_raw: c.date_raw,
-    })),
-  );
-  console.log(
-    "zoomToTrade: candleDateMap sample dates:",
-    Array.from(candleDateMap.keys()).slice(0, 5),
-  );
-  console.log("zoomToTrade: entryMarker:", {
-    time: entryMarker.time,
-    normalized: normalizeTime(entryMarker.time),
-    date: entryMarker.date,
-    candle_idx: entryMarker.candle_idx,
-  });
-
   // Find candle index - either from pre-computed candle_idx or by matching time
   let entryIdx = entryMarker.candle_idx;
   let exitIdx = exitMarker?.candle_idx;
@@ -495,24 +439,14 @@ export function zoomToTrade(
     // First try exact time match
     const entryTime = normalizeTime(entryMarker.time);
     entryIdx = candleTimeMap.get(entryTime);
-    console.log("zoomToTrade: Looking for entryTime", entryTime, "found:", entryIdx);
-    console.log(
-      "zoomToTrade: candleTimeMap has",
-      candleTimeMap.size,
-      "entries, sample:",
-      Array.from(candleTimeMap.entries()).slice(0, 3),
-    );
+
+
 
     // If not found, try matching by date only (for daily candles)
     if (entryIdx === undefined && entryMarker.date) {
       entryIdx = candleDateMap.get(entryMarker.date);
-      console.log("zoomToTrade: Looking for date", entryMarker.date, "found:", entryIdx);
-      console.log(
-        "zoomToTrade: candleDateMap has",
-        candleDateMap.size,
-        "entries, sample:",
-        Array.from(candleDateMap.entries()).slice(0, 3),
-      );
+
+
     }
   }
 
@@ -525,19 +459,10 @@ export function zoomToTrade(
     }
   }
 
-  console.log(
-    "zoomToTrade: tradeIndex",
-    tradeIndex,
-    "entryIdx",
-    entryIdx,
-    "exitIdx",
-    exitIdx,
-    "entryMarker.date",
-    entryMarker.date,
-  );
+
 
   if (entryIdx === undefined) {
-    console.warn("Could not find candle index for trade", tradeIndex + 1);
+
     return;
   }
 
@@ -584,7 +509,7 @@ export function zoomToTrade(
   const startPercent = (startIdx / totalCandles) * 100;
   const endPercent = ((endIdx + 1) / totalCandles) * 100;
 
-  console.log(`Zooming to trade ${tradeIndex + 1}: candles ${startIdx} to ${endIdx}`);
+
 
   // Apply zoom
   chart.dispatchAction({
@@ -612,16 +537,6 @@ export function zoomToTrade(
     // For multi-day trades, show 52W high line for entire trade range
     const level52wHigh = (selectedTrade as any)["52w_high"];
     const show52wLine = !isSameDay && level52wHigh;
-
-    console.log("zoomToTrade ORB levels:", {
-      entryDate,
-      levelHigh,
-      levelLow,
-      show52wLine,
-      isSameDay,
-      or_high: (selectedTrade as any).or_high,
-      or_low: (selectedTrade as any).or_low,
-    });
 
     // Level high line: show on entry day
     const levelHighData = chartData.candles.map((c) => (c.date === entryDate ? levelHigh : null));
@@ -813,12 +728,12 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
 
   useEffect(() => {
     if (!chartRef.current) {
-      console.log("BacktestChart: No chartRef.current");
+
       return;
     }
 
     if (!chartData) {
-      console.log("BacktestChart: No chartData");
+
       return;
     }
 
@@ -827,13 +742,6 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
       console.error("BacktestChart: ECharts not loaded");
       return;
     }
-
-    console.log("BacktestChart: Initializing chart for", symbol, {
-      candles: chartData.candles?.length,
-      trades: chartData.trades?.length,
-      containerWidth: chartRef.current.offsetWidth,
-      containerHeight: chartRef.current.offsetHeight,
-    });
 
     if (chartInstance.current) {
       chartInstance.current.dispose();

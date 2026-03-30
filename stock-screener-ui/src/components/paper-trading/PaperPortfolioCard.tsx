@@ -1,5 +1,6 @@
 import { Group, Text, Badge } from "@mantine/core";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { formatCurrencyIN, getPnLTextColor } from "../../utils/ui-helpers";
 
 export interface Portfolio {
   total_value: number;
@@ -21,11 +22,6 @@ interface PaperPortfolioCardProps {
   strategySummaries: StrategySummary[];
 }
 
-export function formatCurrency(value: number | undefined | null): string {
-  if (value === undefined || value === null || isNaN(value)) return "0";
-  return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-}
-
 export function PaperPortfolioCard({
   portfolio,
   isMultiStrategy,
@@ -45,18 +41,18 @@ export function PaperPortfolioCard({
     );
   }
 
-  const pnlColor = portfolio.day_pnl >= 0 ? "green" : "red";
+  const pnlColor = getPnLTextColor(portfolio.day_pnl);
   const pnlSign = portfolio.day_pnl >= 0 ? "+" : "";
 
   return (
     <CompactPanel data-testid="portfolio-card" className="paper-portfolio-card" id="portfolio-card">
       <CompactStatGrid>
-        <CompactStat label="Total Value" value={`₹${formatCurrency(portfolio.total_value)}`} />
-        <CompactStat label="Cash" value={`₹${formatCurrency(portfolio.cash)}`} />
-        <CompactStat label="Margin Used" value={`₹${formatCurrency(portfolio.margin_used)}`} />
+        <CompactStat label="Total Value" value={`₹${formatCurrencyIN(portfolio.total_value)}`} />
+        <CompactStat label="Cash" value={`₹${formatCurrencyIN(portfolio.cash)}`} />
+        <CompactStat label="Margin Used" value={`₹${formatCurrencyIN(portfolio.margin_used)}`} />
         <CompactStat
           label="Day P&L"
-          value={`${pnlSign}₹${formatCurrency(portfolio.day_pnl)}`}
+          value={`${pnlSign}₹${formatCurrencyIN(portfolio.day_pnl)}`}
           tone={pnlColor}
         />
       </CompactStatGrid>
@@ -91,10 +87,10 @@ export function PaperPortfolioCard({
             <Badge
               key={summary.strategy_name}
               variant="light"
-              color={summary.pnl >= 0 ? "green" : "red"}
+              color={getPnLTextColor(summary.pnl)}
               data-testid={`strategy-badge-${summary.strategy_name}`}
             >
-              {summary.strategy_name}: {summary.pnl >= 0 ? "+" : ""}₹{formatCurrency(summary.pnl)}
+              {summary.strategy_name}: {summary.pnl >= 0 ? "+" : ""}₹{formatCurrencyIN(summary.pnl)}
             </Badge>
           ))}
         </Group>

@@ -2,6 +2,7 @@ import { Table, Text, Group, Stack, Badge, Progress } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import type { PerformanceViewProps } from "./types";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { DataTable } from "../common/DataTable";
 
 export function PerformanceView({
   performance,
@@ -53,7 +54,6 @@ export function PerformanceView({
 
   const rows = performance.map((perf) => {
     const winRate = perf.total_trades > 0 ? perf.win_rate : 0;
-    const pnlClass = perf.net_pnl >= 0 ? "positive" : "negative";
     const pnlColor = perf.net_pnl >= 0 ? "teal" : "red";
 
     return (
@@ -154,15 +154,13 @@ export function PerformanceView({
         title="Strategy Performance"
         description="Click a row to inspect the strategy's trade history"
       >
-        <Table
-          striped
-          highlightOnHover
+        <DataTable
           withTableBorder
           verticalSpacing="xs"
           horizontalSpacing="sm"
           className="performance-table"
           id="performance-table"
-          data-testid="performance-table"
+          dataTestId="performance-table"
         >
           <Table.Thead className="performance-table-header" data-testid="performance-table-header">
             <Table.Tr>
@@ -176,7 +174,7 @@ export function PerformanceView({
           <Table.Tbody className="performance-table-body" data-testid="performance-table-body">
             {rows}
           </Table.Tbody>
-        </Table>
+        </DataTable>
       </CompactPanel>
     </Stack>
   );

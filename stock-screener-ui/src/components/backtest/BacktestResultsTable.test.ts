@@ -1,19 +1,19 @@
 import { describe, expect, test } from "vitest";
-import { getPnlColor, getWinRateColor, formatPnl } from "./BacktestResultsTable";
+import { getPnLTextColor, getWinRateColor, formatPnl } from "../../utils/ui-helpers";
 
-describe("getPnlColor", () => {
+describe("getPnLTextColor", () => {
   test("returns green for positive values", () => {
-    expect(getPnlColor(100)).toBe("green");
-    expect(getPnlColor(0.01)).toBe("green");
+    expect(getPnLTextColor(100)).toBe("green");
+    expect(getPnLTextColor(0.01)).toBe("green");
   });
 
   test("returns green for zero", () => {
-    expect(getPnlColor(0)).toBe("green");
+    expect(getPnLTextColor(0)).toBe("green");
   });
 
   test("returns red for negative values", () => {
-    expect(getPnlColor(-100)).toBe("red");
-    expect(getPnlColor(-0.01)).toBe("red");
+    expect(getPnLTextColor(-100)).toBe("red");
+    expect(getPnLTextColor(-0.01)).toBe("red");
   });
 });
 

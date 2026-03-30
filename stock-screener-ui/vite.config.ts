@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
       sourcemap: true,
     },
     server: {
+      host: true,
       proxy: {
         '/api': {
           target: env.VITE_API_BASE_URL || 'http://localhost:8765',

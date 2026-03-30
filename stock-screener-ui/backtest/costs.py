@@ -19,20 +19,25 @@ GST_PCT = 0.18                # 18% on brokerage + exchange + SEBI
 DP_CHARGES = 0                # ₹13.5 per stock per day (not applicable for intraday)
 
 
-def calculate_trading_costs(entry_price: float, exit_price: float, quantity: int) -> dict:
+def calculate_trading_costs(entry_price: float, exit_price: float, quantity: int, side: str = "LONG") -> dict:
     """
     Calculate realistic Indian intraday trading costs.
 
     Args:
-        entry_price: Price at which stock was bought
-        exit_price: Price at which stock was sold
+        entry_price: Price at which position was entered
+        exit_price: Price at which position was exited
         quantity: Number of shares traded
+        side: "LONG" or "SHORT"
 
     Returns:
         dict with buy_costs, sell_costs, total_costs, and breakdown
     """
-    buy_value = entry_price * quantity
-    sell_value = exit_price * quantity
+    if side == "SHORT":
+        buy_value = exit_price * quantity
+        sell_value = entry_price * quantity
+    else:
+        buy_value = entry_price * quantity
+        sell_value = exit_price * quantity
 
     # Buy side costs
     buy_brokerage = min(20, buy_value * BROKERAGE_PCT)  # Lower of ₹20 or 0.03%

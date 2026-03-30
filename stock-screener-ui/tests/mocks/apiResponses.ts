@@ -659,6 +659,14 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
       }),
     });
   });
+
+  await page.route("**/api/paper/journal/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({}),
+    });
+  });
 }
 
 // Helper to get current config for a specific page (for test assertions)

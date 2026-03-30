@@ -43,6 +43,20 @@ class NewsPersistenceService:
         try:
             existing = db.query(NewsArticle).filter(NewsArticle.url == url).first()
             if existing:
+                if not existing.headline and headline:
+                    existing.headline = headline
+                if not existing.content and content:
+                    existing.content = content
+                if not existing.sentiment and sentiment:
+                    existing.sentiment = sentiment
+                if not existing.impact_score and impact_score:
+                    existing.impact_score = impact_score
+                if not existing.analysis_json and analysis:
+                    existing.analysis_json = json.dumps(analysis)
+                if symbols:
+                    self._save_symbols(db, existing.id, symbols)
+                db.commit()
+                db.refresh(existing)
                 return existing
             
             article = NewsArticle(
@@ -258,9 +272,12 @@ class NewsPersistenceService:
         db = SessionLocal()
         try:
             cutoff = datetime.utcnow() - timedelta(days=days)
-            deleted = db.query(NewsArticle).filter(
+            articles = db.query(NewsArticle).filter(
                 NewsArticle.fetched_at < cutoff
-            ).delete()
+            ).all()
+            deleted = len(articles)
+            for article in articles:
+                db.delete(article)
             db.commit()
             return deleted
         except Exception as e:

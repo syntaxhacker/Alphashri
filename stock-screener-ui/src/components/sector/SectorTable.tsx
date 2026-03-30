@@ -1,5 +1,7 @@
 import { Table, Text, Badge, Group, ScrollArea, Progress, Box } from "@mantine/core";
 import type { SectorItem } from "../../types/sector";
+import { DataTable } from "../common/DataTable";
+import { getPnLTextColor } from "../../utils/ui-helpers";
 
 interface SectorTableProps {
   sectors: SectorItem[];
@@ -8,7 +10,7 @@ interface SectorTableProps {
 export function getMovementBarValue(pctChange: number): { capped: number; color: string } {
   const normalized = (pctChange + 3) / 6;
   const capped = Math.max(0, Math.min(1, normalized)) * 100;
-  const color = pctChange >= 0 ? "green" : "red";
+  const color = getPnLTextColor(pctChange);
   return { capped, color };
 }
 
@@ -29,7 +31,7 @@ function getMovementBar(pctChange: number) {
 }
 export function SectorTable({ sectors }: SectorTableProps) {
   const rows = sectors.map((row) => {
-    const pnlColor = row.avg_change >= 0 ? "green" : "red";
+    const pnlColor = getPnLTextColor(row.avg_change);
     const adColor = row.advances > row.declines ? "green" : "red";
 
     const { label: strength, color: strColor } = getStrengthInfo(row.avg_adx);
@@ -70,14 +72,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
 
   return (
     <ScrollArea h="100%" offsetScrollbars>
-      <Table
-        striped
-        highlightOnHover
-        withTableBorder
-        stickyHeader
-        id="sector-table"
-        data-testid="sector-table"
-      >
+      <DataTable withTableBorder stickyHeader id="sector-table" dataTestId="sector-table">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Sector</Table.Th>
@@ -89,7 +84,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>{rows}</Table.Tbody>
-      </Table>
+      </DataTable>
     </ScrollArea>
   );
 }

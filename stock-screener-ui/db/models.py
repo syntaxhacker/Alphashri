@@ -345,6 +345,10 @@ class BrokerConnection(Base):
 
     user = relationship("User", backref="broker_connections")
 
+    __table_args__ = (
+        UniqueConstraint('broker_name', 'user_id', name='uq_broker_name_user'),
+    )
+
     def __repr__(self):
         return f"<BrokerConnection(id={self.id}, broker='{self.broker_name}', user_id={self.user_id})>"
 
@@ -553,50 +557,6 @@ class NewsSymbolMention(Base):
         }
 
 
-def get_articles_for_instrument(instrument_key: str, limit: int = 10) -> list:
-    """Get news articles mentioning a specific instrument."""
-    db = SessionLocal()
-    try:
-        mentions = db.query(NewsSymbolMention).filter(
-            NewsSymbolMention.instrument_key == instrument_key
-        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
-        
-        article_ids = [m.article_id for m in mentions]
-        if not article_ids:
-            return []
-        
-        articles = db.query(NewsArticle).filter(
-            NewsArticle.id.in_(article_ids)
-        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
-        
-        return [a.to_dict() for a in articles]
-    finally:
-        db.close()
-
-
-def get_articles_for_symbol(symbol: str, limit: int = 10) -> list:
-    """Get news articles mentioning a symbol (by trading_symbol or symbol_code)."""
-    db = SessionLocal()
-    try:
-        symbol_upper = symbol.upper()
-        mentions = db.query(NewsSymbolMention).filter(
-            (NewsSymbolMention.trading_symbol == symbol_upper) |
-            (NewsSymbolMention.symbol_code == symbol_upper)
-        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
-        
-        article_ids = [m.article_id for m in mentions]
-        if not article_ids:
-            return []
-        
-        articles = db.query(NewsArticle).filter(
-            NewsArticle.id.in_(article_ids)
-        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
-        
-        return [a.to_dict() for a in articles]
-    finally:
-        db.close()
-
-
 class Instrument(Base):
     """NSE instrument data for symbol search and trading."""
     __tablename__ = "instruments"
@@ -633,48 +593,3 @@ class Instrument(Base):
             "isin": self.isin,
         }
 
-
-def get_articles_for_instrument(instrument_key: str, limit: int = 10) -> list:
-    """Get news articles mentioning a specific instrument."""
-    from .database import SessionLocal
-    db = SessionLocal()
-    try:
-        mentions = db.query(NewsSymbolMention).filter(
-            NewsSymbolMention.instrument_key == instrument_key
-        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
-        
-        article_ids = [m.article_id for m in mentions]
-        if not article_ids:
-            return []
-        
-        articles = db.query(NewsArticle).filter(
-            NewsArticle.id.in_(article_ids)
-        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
-        
-        return [a.to_dict() for a in articles]
-    finally:
-        db.close()
-
-
-def get_articles_for_symbol(symbol: str, limit: int = 10) -> list:
-    """Get news articles mentioning a symbol (by trading_symbol or symbol_code)."""
-    from .database import SessionLocal
-    db = SessionLocal()
-    try:
-        symbol_upper = symbol.upper()
-        mentions = db.query(NewsSymbolMention).filter(
-            (NewsSymbolMention.trading_symbol == symbol_upper) |
-            (NewsSymbolMention.symbol_code == symbol_upper)
-        ).order_by(NewsSymbolMention.article_id.desc()).limit(limit).all()
-        
-        article_ids = [m.article_id for m in mentions]
-        if not article_ids:
-            return []
-        
-        articles = db.query(NewsArticle).filter(
-            NewsArticle.id.in_(article_ids)
-        ).order_by(NewsArticle.published_at.desc().nullslast()).all()
-        
-        return [a.to_dict() for a in articles]
-    finally:
-        db.close()

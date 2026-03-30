@@ -1,4 +1,4 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { setupApiMocks, testUser } from "../mocks/apiResponses";
 import {
   setupFullBacktestMocks,
@@ -75,9 +75,25 @@ test.describe("Backtest View - Navigation", () => {
     await expect(page.locator('[data-testid="include-costs-checkbox"]')).toBeVisible();
   });
 
-  test("should have reset button", async ({ page }) => {
+  test("should have reset option in run menu", async ({ page }) => {
     await gotoBacktest(page);
-    await expect(page.locator('[data-testid="reset-btn"]')).toBeVisible();
+
+    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
+    await symbolSelect.click();
+    await expect(page.locator(".mantine-MultiSelect-dropdown")).toBeVisible({ timeout: 5000 });
+    await page.keyboard.type("RELIANCE", { delay: 50 });
+    await page.waitForSelector(".mantine-MultiSelect-option", { timeout: 5000 });
+    const option = page.locator(".mantine-MultiSelect-option").first();
+    if (await option.isVisible()) {
+      await option.click();
+    }
+
+    const runMenuBtn = page.locator('[data-testid="run-menu-btn"]');
+    await expect(runMenuBtn).toBeEnabled({ timeout: 5000 });
+    await runMenuBtn.click();
+
+    const resetBtn = page.locator('[data-testid="reset-btn"]');
+    await expect(resetBtn).toBeVisible({ timeout: 5000 });
   });
 });
 

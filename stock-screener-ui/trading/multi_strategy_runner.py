@@ -638,6 +638,8 @@ class MultiStrategyRunner:
                 )
 
             if signal:
+                max_distance = runner.config.get('max_distance_from_or_pct', 1.5)
+
                 if signal.signal_type == SignalType.LONG_ENTRY:
                     if runner.strategy_type == "ORB":
                         day_open = or_levels.get('or_open', current_price)

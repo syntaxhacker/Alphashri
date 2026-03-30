@@ -6,7 +6,8 @@
 
 import type { StrategiesState, StrategyPerformance } from "../../types/strategies";
 import { triggerRerender } from "../../state/strategies";
-import * as api from "../../api/strategies";
+import { getStrategyTrades } from "../../api/strategies";
+import { getPnLTextColor, formatNumber } from "../../utils/ui-helpers";
 
 // Cache for strategy trades
 let strategyTradesCache: Map<number, any[]> = new Map();
@@ -146,7 +147,7 @@ function renderStrategyTrades(trades: any[], strategyName: string): string {
 }
 
 function renderTradeRow(trade: any): string {
-  const pnlClass = trade.net_pnl >= 0 ? "positive" : "negative";
+  const pnlClass = getPnLTextColor(trade.net_pnl);
   const sideClass = trade.side === "BUY" ? "side-long" : "side-short";
   const sideIcon = trade.side === "BUY" ? "▲" : "▼";
   const time = formatTradeTime(trade.exit_time);
@@ -163,19 +164,6 @@ function renderTradeRow(trade: any): string {
       <td class="time-cell">${time}</td>
     </tr>
   `;
-}
-
-function formatNumber(num: number | undefined | null): string {
-  if (num === undefined || num === null || isNaN(num)) {
-    return "0";
-  }
-  if (Math.abs(num) >= 100000) {
-    return (num / 100000).toFixed(1) + "L";
-  }
-  if (Math.abs(num) >= 1000) {
-    return (num / 1000).toFixed(1) + "K";
-  }
-  return num.toFixed(0);
 }
 
 function formatTradeTime(isoStr: string): string {
@@ -209,7 +197,7 @@ function renderSummaryCard(
 
 function renderPerformanceRow(perf: StrategyPerformance): string {
   const winRateClass = perf.win_rate >= 60 ? "good" : perf.win_rate >= 40 ? "average" : "poor";
-  const pnlClass = perf.net_pnl >= 0 ? "positive" : "negative";
+  const pnlClass = getPnLTextColor(perf.net_pnl);
 
   return `
     <tr class="performance-row ${pnlClass} clickable" onclick="window.selectStrategyForDetail(${perf.strategy_id})" data-testid="performance-row" data-strategy-id="${perf.strategy_id}">
@@ -313,7 +301,7 @@ export function initPerformanceHandlers() {
     // Load trades if not cached
     if (!strategyTradesCache.has(strategyId)) {
       try {
-        const result = await api.getStrategyTrades(strategyId, 100);
+        const result = await getStrategyTrades(strategyId, 100);
         strategyTradesCache.set(strategyId, result.trades);
       } catch (error) {
         console.error("Failed to load strategy trades:", error);
@@ -360,7 +348,7 @@ export async function selectStrategyByName(strategyName: string, strategies: any
       // Load trades for this strategy
       if (!strategyTradesCache.has(strategyId)) {
         try {
-          const result = await api.getStrategyTrades(strategyId, 100);
+          const result = await getStrategyTrades(strategyId, 100);
           strategyTradesCache.set(strategyId, result.trades);
         } catch (error) {
           console.error("Failed to load strategy trades:", error);

@@ -4,7 +4,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from api.auth import get_current_user
+from db.models import User
 from fastapi.responses import RedirectResponse
 import config
 from db.models import get_shared_broker_token, save_broker_token, delete_broker_token
@@ -208,7 +210,7 @@ async def upstox_callback(code: str = Query(...)):
 
 
 @router.post("/upstox/disconnect")
-async def upstox_disconnect():
+async def upstox_disconnect(user: User = Depends(get_current_user)):
     """
     Clears stored token from DB and any local files.
     """

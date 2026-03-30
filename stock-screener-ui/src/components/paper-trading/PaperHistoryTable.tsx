@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import dayjs from "dayjs";
 import {
   Table,
@@ -12,10 +12,7 @@ import {
   Loader,
   Collapse,
   SegmentedControl,
-  Button,
   Box,
-  TextInput,
-  ScrollArea,
 } from "@mantine/core";
 import {
   getPaperTradingState,
@@ -29,31 +26,9 @@ import {
 } from "../../state/paperTrading";
 import { fetchPaperChart, refreshHistoryData } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
-
-export function formatNumber(num: number | undefined | null): string {
-  if (num === undefined || num === null || isNaN(num)) {
-    return "0";
-  }
-  if (Math.abs(num) >= 100000) {
-    return (num / 100000).toFixed(1) + "L";
-  }
-  if (Math.abs(num) >= 1000) {
-    return (num / 1000).toFixed(1) + "K";
-  }
-  return num.toFixed(0);
-}
-
-export function formatTradeTimeOnly(isoStr: string): string {
-  if (!isoStr) return "-";
-  const date = new Date(isoStr);
-  if (Number.isNaN(date.getTime())) return isoStr;
-
-  return date.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
+import { formatNumber, formatTimeOnly, formatDateHeader, getPnLTextColor } from "../../utils/ui-helpers";
+import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 
 export function getUniqueStrategies(trades: PaperTrade[]): string[] {
   const strategies = new Set<string>();
@@ -111,15 +86,6 @@ export function groupTradesByDate(trades: PaperTrade[]): Record<string, PaperTra
   return groups;
 }
 
-export function formatDateHeader(date: string): string {
-  const dateObj = new Date(date);
-  return dateObj.toLocaleDateString("en-IN", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
-}
-
 interface DayGroupProps {
   date: string;
   trades: PaperTrade[];
@@ -133,7 +99,7 @@ interface DayGroupProps {
 function DayGroup({
   date,
   trades,
-  selectedSymbol,
+  selectedSymbol: _selectedSymbol,
   onSelectSymbol,
   onDeleteTrade,
   expanded,
@@ -142,7 +108,7 @@ function DayGroup({
   const dayPnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
   const wins = trades.filter((t) => t.net_pnl > 0).length;
   const losses = trades.filter((t) => t.net_pnl < 0).length;
-  const pnlColor = dayPnl >= 0 ? "green" : "red";
+  const pnlColor = getPnLTextColor(dayPnl);
   const pnlSign = dayPnl >= 0 ? "+" : "";
 
   return (
@@ -197,8 +163,7 @@ function DayGroup({
           </Table.Thead>
           <Table.Tbody>
             {trades.map((trade) => {
-              const tradePnlColor = trade.net_pnl >= 0 ? "green" : "red";
-              const sideColor = trade.side === "BUY" ? "green" : "red";
+              const tradePnlColor = getPnLTextColor(trade.net_pnl);
 
               return (
                 <Table.Tr
@@ -211,9 +176,7 @@ function DayGroup({
                     <Text fw={600}>{trade.symbol}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge color={sideColor} variant="light" size="sm">
-                      {trade.side === "BUY" ? "▲" : "▼"} {trade.side}
-                    </Badge>
+                    <SideBadge side={trade.side} />
                   </Table.Td>
                   <Table.Td>{trade.quantity}</Table.Td>
                   <Table.Td>₹{trade.entry_price.toFixed(2)}</Table.Td>
@@ -226,21 +189,9 @@ function DayGroup({
                   <Table.Td>{trade.bot_name || "-"}</Table.Td>
                   <Table.Td>{trade.strategy_name || "default"}</Table.Td>
                   <Table.Td>
-                    <Badge
-                      color={
-                        trade.exit_reason === "SL"
-                          ? "red"
-                          : trade.exit_reason === "TP"
-                            ? "green"
-                            : "gray"
-                      }
-                      variant="light"
-                      size="sm"
-                    >
-                      {trade.exit_reason}
-                    </Badge>
+                    <ExitReasonBadge reason={trade.exit_reason} />
                   </Table.Td>
-                  <Table.Td>{formatTradeTimeOnly(trade.exit_time)}</Table.Td>
+                  <Table.Td>{formatTimeOnly(trade.exit_time)}</Table.Td>
                   <Table.Td>
                     <ActionIcon
                       variant="subtle"
@@ -266,17 +217,9 @@ function DayGroup({
 }
 
 export function PaperHistoryTable() {
-  const [state, setState] = useState(getPaperTradingState());
+  useStoreSubscription(subscribeToPaperTrading);
+  const state = getPaperTradingState();
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    const unsubscribe = subscribeToPaperTrading(() => {
-      setState(getPaperTradingState());
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, []);
 
   const filteredTrades = useMemo(() => {
     let trades = [...state.trades];
@@ -508,7 +451,7 @@ export function PaperHistoryTable() {
             <Group gap="sm">
               <Text>
                 Total:{" "}
-                <Text component="span" fw={700} c={totalPnl >= 0 ? "green" : "red"}>
+                <Text component="span" fw={700} c={getPnLTextColor(totalPnl)}>
                   ₹{formatNumber(totalPnl)}
                 </Text>
               </Text>

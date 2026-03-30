@@ -181,8 +181,8 @@ def client_with_db(test_db_engine, test_user):
     app.dependency_overrides[get_db] = override_get_db
     
     try:
-        from api.auth import get_current_user_optional
-        app.dependency_overrides[get_current_user_optional] = lambda: test_user
+        from api.auth import get_current_user
+        app.dependency_overrides[get_current_user] = lambda: test_user
     except ImportError:
         pass
     

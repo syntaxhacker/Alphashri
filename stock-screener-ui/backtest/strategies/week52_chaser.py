@@ -439,7 +439,7 @@ def run_single_stock_backtest(args):
         from_date = (today - timedelta(days=fetch_days)).strftime('%Y-%m-%d')
 
         if access_token:
-            api, error = get_upstox_client_with_token(access_token), None
+            api, error = get_upstox_client_with_token(access_token)
         else:
             api, error = get_upstox_client_from_db()
         

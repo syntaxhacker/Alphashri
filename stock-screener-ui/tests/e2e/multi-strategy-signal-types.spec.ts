@@ -1,6 +1,5 @@
 import { test, expect } from "@playwright/test";
 import {
-  gotoBotsView,
   setupBotsMocks,
   mockBotsListRoute,
   mockAvailableStrategiesRoute,

@@ -38,13 +38,8 @@ except ImportError:
     _db_available = False
     get_db = None
 
-try:
-    from api.auth import get_current_user_optional
-    _auth_available = True
-except ImportError:
-    _auth_available = False
-    async def get_current_user_optional():
-        return None
+from api.auth import get_current_user
+from db.models import User
 
 router = APIRouter(prefix="/api/bots", tags=["Bots"])
 
@@ -516,7 +511,7 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
 
 @router.get("/available-strategies")
 async def list_available_strategies(
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -531,7 +526,7 @@ async def list_available_strategies(
 
 @router.get("", response_model=List[BotResponse])
 async def list_bots(
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -549,7 +544,7 @@ async def list_bots(
 @router.post("", response_model=BotResponse)
 async def create_bot(
     request: BotCreate,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -573,7 +568,7 @@ async def create_bot(
 @router.get("/{bot_id}", response_model=BotResponse)
 async def get_bot(
     bot_id: str,  # UUID string
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -594,7 +589,7 @@ async def get_bot(
 async def update_bot(
     bot_id: str,  # UUID string
     request: BotUpdate,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -618,7 +613,7 @@ async def update_bot(
 @router.delete("/{bot_id}")
 async def delete_bot(
     bot_id: str,  # UUID string
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -690,7 +685,7 @@ def stop_bot_process(user_id: int, bot_id: int):
 async def start_bot(
     bot_id: str,  # UUID string
     test_mode: bool = False,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -728,7 +723,7 @@ async def start_bot(
 @router.post("/{bot_id}/stop")
 async def stop_bot(
     bot_id: str,  # UUID string
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -759,7 +754,7 @@ async def stop_bot(
 @router.get("/{bot_id}/status", response_model=BotStatusResponse)
 async def get_bot_status(
     bot_id: str,  # UUID string
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -783,7 +778,7 @@ async def get_bot_status(
 async def get_bot_logs(
     bot_id: str,  # UUID string
     lines: int = 100,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -807,7 +802,7 @@ async def get_bot_logs(
 async def start_strategy(
     bot_id: str,  # UUID string
     strategy_id: str,  # UUID string
-    user=Depends(get_current_user_optional)
+    user=Depends(get_current_user)
 ):
     return {
         "message": "Strategy control requires bot restart. Stop the bot, update config, and restart.",
@@ -820,7 +815,7 @@ async def start_strategy(
 async def stop_strategy(
     bot_id: str,  # UUID string
     strategy_id: str,  # UUID string
-    user=Depends(get_current_user_optional)
+    user=Depends(get_current_user)
 ):
     return {
         "message": "Strategy control requires bot restart. Stop the bot, update config, and restart.",
@@ -832,7 +827,7 @@ async def stop_strategy(
 @router.get("/{bot_id}/portfolio")
 async def get_bot_portfolio(
     bot_id: str,  # UUID string
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -856,7 +851,7 @@ async def get_bot_portfolio(
 async def get_bot_positions(
     bot_id: str,  # UUID string
     strategy_id: Optional[str] = None,  # UUID string
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -903,7 +898,7 @@ async def get_bot_positions(
 async def get_bot_scan(
     bot_id: str,  # UUID string
     strategy_id: Optional[str] = None,  # UUID string
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -960,7 +955,7 @@ async def get_bot_scan(
 async def get_bot_performance(
     bot_id: str,  # UUID string
     days: int = 30,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -1030,7 +1025,7 @@ async def get_bot_performance(
 @router.get("/{bot_id}/performance/compare")
 async def compare_strategy_performance(
     bot_id: str,  # UUID string
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -1092,7 +1087,7 @@ async def get_bot_trades(
     limit: int = 100,
     include_test: bool = True,
     user_id_query: Optional[int] = None,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -1120,7 +1115,7 @@ async def get_bot_trades(
 async def get_bot_trade_count(
     bot_id: str,  # UUID string
     user_id_query: Optional[int] = None,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:
@@ -1163,7 +1158,7 @@ async def get_strategy_performance(
     days: int = 30,
     include_test: bool = True,
     user_id_query: Optional[int] = None,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
     if not _db_available:

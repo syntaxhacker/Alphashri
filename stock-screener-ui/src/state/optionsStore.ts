@@ -13,8 +13,9 @@ import {
   getPositions,
 } from "../api/upstoxOptions";
 import { getMoneyness } from "../utils/options";
+import { createSubscriber } from "./createSubscriber";
 
-interface OptionsFilters {
+export interface OptionsFilters {
   strikeRange: [number, number];
   optionType: "CE" | "PE" | "BOTH";
   moneyness: "ITM" | "OTM" | "ALL";
@@ -61,20 +62,14 @@ const initialState: OptionsStore = {
 };
 
 let state: OptionsStore = { ...initialState };
-const subscribers: Set<() => void> = new Set();
 let initialized = false;
 
-function notify(): void {
-  subscribers.forEach((callback) => callback());
-}
+const { subscribe, notify } = createSubscriber();
+
+export { subscribe };
 
 export function getOptionsState(): OptionsStore {
   return state;
-}
-
-export function subscribe(callback: () => void): () => void {
-  subscribers.add(callback);
-  return () => subscribers.delete(callback);
 }
 
 function setLoading(loading: boolean): void {

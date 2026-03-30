@@ -2,6 +2,8 @@
  * Auth state management for Alphashri
  */
 
+import { createSubscriber } from "./createSubscriber";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 const TOKEN_KEY = "alphashri_token";
 const REFRESH_TOKEN_KEY = "alphashri_refresh_token";
@@ -31,21 +33,12 @@ export let authState: AuthState = {
   error: null,
 };
 
-// Subscribers for state changes
-const subscribers: Set<() => void> = new Set();
-
-export function subscribe(callback: () => void): () => void {
-  subscribers.add(callback);
-  return () => subscribers.delete(callback);
-}
-
-function notifySubscribers(): void {
-  subscribers.forEach((cb) => cb());
-}
+const { subscribe, notify: notifyAuth } = createSubscriber();
+export { subscribe };
 
 function updateState(newState: Partial<AuthState>): void {
   authState = { ...authState, ...newState };
-  notifySubscribers();
+  notifyAuth();
 }
 
 // Token management

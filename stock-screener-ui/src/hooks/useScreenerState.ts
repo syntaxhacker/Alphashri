@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import * as state from "../state";
 import { subscribe } from "../state";
 import { fetchData, setupAutoRefresh, loadScreeners } from "../api";
 import { initPreviewChartHandlers } from "../components/common/previewChart";
+import { useStoreSubscription } from "./useStoreSubscription";
 import type { ScreenerData } from "../types";
 
 export interface ScreenerDefaults {
@@ -18,15 +19,7 @@ export function getScreenerDefaults(data?: ScreenerData | null): ScreenerDefault
 }
 
 export function useScreenerState() {
-  const [, forceUpdate] = useState(0);
-
-  // Subscribe to state changes
-  useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      forceUpdate((n) => n + 1);
-    });
-    return unsubscribe;
-  }, []);
+  useStoreSubscription(subscribe);
 
   // Load data on mount
   useEffect(() => {
@@ -35,14 +28,18 @@ export function useScreenerState() {
 
     // Initialize screeners if not loaded
     if (state.screenerOptions.length === 0) {
-      loadScreeners().then(() => {
-        fetchData(
-          state.data?.provider || "upstox",
-          state.data?.mode || "intraday",
-          state.activeScreener,
-        );
-        setupAutoRefresh();
-      });
+      loadScreeners()
+        .then(() => {
+          fetchData(
+            state.data?.provider || "upstox",
+            state.data?.mode || "intraday",
+            state.activeScreener,
+          );
+          setupAutoRefresh();
+        })
+        .catch((err) => {
+          console.error("Failed to load screeners:", err);
+        });
     } else {
       fetchData(
         state.data?.provider || "upstox",

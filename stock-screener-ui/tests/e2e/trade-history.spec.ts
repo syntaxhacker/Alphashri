@@ -159,7 +159,7 @@ test.describe("Trade History - Pagination", () => {
     await expect(page.locator('[data-testid="trades-header"]')).toContainText("100 trades");
   });
 
-  test("should filter trades by week", async ({ page }) => {
+  test("should navigate to next page", async ({ page }) => {
     await mockTradeHistoryWithCount(page, 100);
     await navigateToTradeHistoryWithBot(page);
     await selectWeekFilter(page);

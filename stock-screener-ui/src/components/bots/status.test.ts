@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatExitReason, formatNumber } from "./status";
+import { formatNumber, formatExitReason } from "../../utils/ui-helpers";
 
 describe("formatExitReason", () => {
   test("maps target to Target", () => {

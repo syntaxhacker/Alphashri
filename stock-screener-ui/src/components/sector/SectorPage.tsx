@@ -15,7 +15,6 @@ import {
   Table,
   ScrollArea,
   useMantineColorScheme,
-  useMantineTheme,
 } from "@mantine/core";
 import {
   IconChartBar,
@@ -28,7 +27,8 @@ import {
 import { SectorTable } from "./SectorTable";
 import { fetchSectorPerformance } from "../../api/sector";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
-import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -100,7 +100,6 @@ export function buildTreemapData(sectors: SectorItem[]) {
 }
 
 function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
-  const theme = useMantineTheme();
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -146,7 +145,6 @@ function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
     >
       {treemapData.map((sector, index) => {
         const span = tileSpans[index];
-        const changePrefix = sector.avgChange >= 0 ? "+" : "";
 
         return (
           <Box
@@ -171,8 +169,7 @@ function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
                 {sector.name}
               </Text>
               <Text fw={700} size={index === 0 ? "md" : "sm"} opacity={0.95}>
-                {changePrefix}
-                {sector.avgChange.toFixed(2)}%
+                {formatPercentage(sector.avgChange)}
               </Text>
             </Stack>
 
@@ -344,7 +341,7 @@ export function SectorPage() {
             label="Top Sector"
             value={topSector.sector}
             tone="var(--mantine-color-green-6)"
-            hint={`Avg Change: +${topSector.avg_change.toFixed(2)}%`}
+            hint={`Avg Change: ${formatPercentage(topSector.avg_change)}`}
           />
           <CompactStat
             label="Market Breadth"
@@ -363,7 +360,7 @@ export function SectorPage() {
             label="Weakest Sector"
             value={bottomSector.sector}
             tone="var(--mantine-color-red-6)"
-            hint={`Avg Change: ${bottomSector.avg_change.toFixed(2)}%`}
+            hint={`Avg Change: ${formatPercentage(bottomSector.avg_change)}`}
           />
         </CompactStatGrid>
 
@@ -440,8 +437,7 @@ export function SectorPage() {
                             [{alert.timestamp}] {alert.sector}
                           </Text>
                           <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="sm">
-                            {alert.direction} ({alert.delta > 0 ? "+" : ""}
-                            {alert.delta.toFixed(2)}%)
+                            {alert.direction} ({formatPercentage(alert.delta, 2, false)})
                           </Badge>
                         </Group>
                       </Paper>
@@ -484,7 +480,7 @@ export function SectorPage() {
                           <Table.Td align="right">{mover.prev_change.toFixed(2)}%</Table.Td>
                           <Table.Td align="right">{mover.change.toFixed(2)}%</Table.Td>
                           <Table.Td align="right">
-                            <Text c={mover.delta >= 0 ? "green" : "red"} fw={700}>
+                            <Text c={getPnLTextColor(mover.delta)} fw={700}>
                               {mover.delta > 0 ? "+" : ""}
                               {mover.delta.toFixed(2)}%
                             </Text>
