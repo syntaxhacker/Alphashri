@@ -978,7 +978,12 @@ async def get_paper_chart(
         import sys
         import pandas as pd
         sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-        from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
+        from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+        upstox_api = UpstoxAPI(
+            api_key=config.UPSTOX_API_KEY or "",
+            api_secret=config.UPSTOX_API_SECRET or "",
+            quiet=True,
+        )
 
         def _resample_to_5m(df_1m):
             """Resample 1-minute OHLCV to 5-minute OHLCV."""
@@ -1062,7 +1067,6 @@ async def get_paper_chart(
 
         # Always fetch 1-min data and resample to requested timeframe
         # This ensures all timeframes work consistently
-        screener = TVScreenerUsage(enable_paper_trading=False)
 
         def _fetch_chart_data():
             df_1m = None
@@ -1070,7 +1074,7 @@ async def get_paper_chart(
             # Use historical API for past dates, intraday for today
             if date == today:
                 # Fetch today's intraday 1-min data
-                df_1m = screener.upstox_api.fetch_intraday_data_v3(
+                df_1m = upstox_api.fetch_intraday_data_v3(
                     symbol=symbol.upper(),
                     interval='1'
                 )
@@ -1078,7 +1082,7 @@ async def get_paper_chart(
                 # Fetch historical 1-min data for past dates
                 from datetime import timedelta
                 from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
-                df_1m_full = screener.upstox_api.fetch_historical_data_v3(
+                df_1m_full = upstox_api.fetch_historical_data_v3(
                     symbol=symbol.upper(),
                     unit='minutes',
                     interval=1,
@@ -1095,7 +1099,7 @@ async def get_paper_chart(
                 # Fallback: try broader range if no data
                 if df_1m is None or df_1m.empty:
                     broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
-                    df_1m_full = screener.upstox_api.fetch_historical_data_v3(
+                    df_1m_full = upstox_api.fetch_historical_data_v3(
                         symbol=symbol.upper(),
                         unit='minutes',
                         interval=1,
@@ -1146,13 +1150,10 @@ async def get_paper_chart(
                 "or_range_pct": ((or_high - or_low) / or_open * 100) if or_open > 0 else 0,
             }
 
-        # Get 52-week levels from screener data
+        # Get 52-week levels from Upstox API
         week52_levels = None
         try:
-            from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
-            tv_screener = TVScreenerUsage(enable_paper_trading=False)
-            # Try to get 52W data from TV screener
-            df_52w = tv_screener.fetch_52w_data(symbol.upper())
+            df_52w = upstox_api.fetch_52w_data(symbol.upper())
             if df_52w is not None and not df_52w.empty:
                 row = df_52w.iloc[0]
                 high_52w = row.get('high_52w', 0)
