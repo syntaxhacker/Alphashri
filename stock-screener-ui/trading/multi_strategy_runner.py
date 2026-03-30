@@ -13,8 +13,10 @@ import signal
 import json
 import asyncio
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
+
+IST = timezone(timedelta(hours=5, minutes=30))
 from dataclasses import dataclass, field
 from enum import Enum
 import traceback
@@ -259,23 +261,23 @@ class MultiStrategyRunner:
                 console.print("[red]Could not import TVScreenerUsage[/red]")
         return self._data_fetcher
 
+    def _ist_now(self) -> datetime:
+        return datetime.now(IST)
+
     def is_market_open(self) -> bool:
-        """Check if market is currently open."""
-        now = datetime.now()
-        open_time = datetime(now.year, now.month, now.day, *self.MARKET_OPEN)
-        close_time = datetime(now.year, now.month, now.day, *self.MARKET_CLOSE)
+        now = self._ist_now()
+        open_time = datetime(now.year, now.month, now.day, *self.MARKET_OPEN, tzinfo=IST)
+        close_time = datetime(now.year, now.month, now.day, *self.MARKET_CLOSE, tzinfo=IST)
         return open_time <= now <= close_time
 
     def is_trading_hours(self) -> bool:
-        """Check if within trading hours (after OR, before force exit)."""
-        now = datetime.now()
-        or_end = datetime(now.year, now.month, now.day, *self.OR_END)
-        force_exit = datetime(now.year, now.month, now.day, *self.FORCE_EXIT)
+        now = self._ist_now()
+        or_end = datetime(now.year, now.month, now.day, *self.OR_END, tzinfo=IST)
+        force_exit = datetime(now.year, now.month, now.day, *self.FORCE_EXIT, tzinfo=IST)
         return or_end <= now <= force_exit
 
     def is_force_exit_time(self) -> bool:
-        """Check if it's force exit time."""
-        now = datetime.now()
+        now = self._ist_now()
         return now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]
 
     # Default fallback watchlist (F&O stocks commonly traded)
