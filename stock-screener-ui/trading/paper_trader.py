@@ -23,6 +23,8 @@ try:
 except ImportError:
     _config_available = False
 
+import config as app_config
+
 from rich.console import Console
 from rich.table import Table
 
@@ -202,7 +204,7 @@ class PaperTrader:
         # Daily tracking
         self.daily_pnl = 0.0
         self.daily_trades = 0
-        self.day_start = datetime.now().date()
+        self.day_start = datetime.now(app_config.IST).date()
 
         # Load today's trades from journal
         self._load_todays_trades_from_journal()
@@ -221,7 +223,7 @@ class PaperTrader:
             from trading.journal import TradeJournal, get_journal
 
             journal = get_journal(self.user_id) if self.user_id else TradeJournal()
-            today_str = datetime.now().strftime('%Y%m%d')
+            today_str = datetime.now(app_config.IST).strftime('%Y%m%d')
             if self.user_id:
                 journal_file = Path(__file__).parent.parent / 'journals' / str(self.user_id) / f'journal_{today_str}.json'
             else:
@@ -362,7 +364,7 @@ class PaperTrader:
                 price=price,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(app_config.IST),
                 status=OrderStatus.CANCELLED,
             )
             return order
@@ -378,7 +380,7 @@ class PaperTrader:
             price=price,
             stop_loss=stop_loss,
             take_profit=take_profit,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(app_config.IST),
         )
 
         # Check fill probability
@@ -416,7 +418,7 @@ class PaperTrader:
         # Immediately fill (paper trading)
         order.status = OrderStatus.FILLED
         order.fill_price = fill_price
-        order.fill_time = datetime.now()
+        order.fill_time = datetime.now(app_config.IST)
 
         # Deduct margin
         self.cash -= margin_required
@@ -430,7 +432,7 @@ class PaperTrader:
             entry_price=fill_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
-            entry_time=datetime.now(),
+            entry_time=datetime.now(app_config.IST),
             current_price=fill_price,
             peak_price=fill_price,
             low_price=fill_price,
@@ -552,7 +554,7 @@ class PaperTrader:
             entry_price=position.entry_price,
             exit_price=actual_exit_price,
             entry_time=position.entry_time,
-            exit_time=datetime.now(),
+            exit_time=datetime.now(app_config.IST),
             pnl=round(pnl, 2),
             pnl_pct=round(pnl_pct, 2),
             exit_reason=exit_reason,
@@ -675,7 +677,7 @@ class PaperTrader:
         """Reset daily tracking."""
         self.daily_pnl = 0.0
         self.daily_trades = 0
-        self.day_start = datetime.now().date()
+        self.day_start = datetime.now(app_config.IST).date()
 
     def display_status(self):
         """Display portfolio status in a table."""

@@ -53,9 +53,8 @@ PREWARM_INTERVAL = 60
 async def screener_prewarm_task():
     while True:
         try:
-            now = datetime.now()
-            hour = now.hour
-            is_market_hours = 3 <= hour <= 10
+            hour = datetime.now(config.IST).hour
+            is_market_hours = 8 <= hour <= 16
             if is_market_hours:
                 from cache.redis_client import make_cache_key, cache_ttl, stale_while_revalidate
                 for screener_id in PREWARM_SCREENERS:

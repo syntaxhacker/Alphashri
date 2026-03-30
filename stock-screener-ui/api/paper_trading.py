@@ -35,6 +35,7 @@ from trading.journal import TradeJournal, get_journal
 
 from api.auth import get_current_user
 from db.models import User
+import config
 
 console = Console()
 
@@ -174,8 +175,8 @@ async def get_portfolio(user: "User" = Depends(get_current_user)):
     status = trader.get_portfolio_status()
 
     # Get today's date for filtering closed trades
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    today_str_compact = datetime.now().strftime('%Y%m%d')
+    today_str = datetime.now(config.IST).strftime('%Y-%m-%d')
+    today_str_compact = datetime.now(config.IST).strftime('%Y%m%d')
 
     # Calculate realized P&L from today's closed trades
     realized_pnl_today = 0.0
@@ -319,7 +320,7 @@ async def get_trades(
         if to_date:
             end_dt = datetime.strptime(to_date, '%Y-%m-%d')
         else:
-            end_dt = min(datetime.now(), start_dt + timedelta(days=90))
+            end_dt = min(datetime.now(config.IST), start_dt + timedelta(days=90))
         
         current_dt = start_dt
         while current_dt <= end_dt:
@@ -335,7 +336,7 @@ async def get_trades(
             current_dt += timedelta(days=1)
     else:
         # No specific date or from_date - use days_back
-        today = datetime.now().strftime('%Y%m%d')
+        today = datetime.now(config.IST).strftime('%Y%m%d')
         journal = TradeJournal(user_id=user_id)
         journal_file = journal_dir / f"journal_{today}.json"
         if journal_file.exists():
@@ -347,7 +348,7 @@ async def get_trades(
 
         # Load recent journal files
         for i in range(0, days_back + 1):
-            day_str = (datetime.now() - timedelta(days=i)).strftime('%Y%m%d')
+            day_str = (datetime.now(config.IST) - timedelta(days=i)).strftime('%Y%m%d')
             journal_file = journal_dir / f"journal_{day_str}.json"
             if not journal_file.exists():
                 continue
@@ -1055,7 +1056,7 @@ async def get_paper_chart(
             return resampled if not resampled.empty else None
 
         # Get date to fetch
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = datetime.now(config.IST).strftime('%Y-%m-%d')
         if date is None:
             date = today
 

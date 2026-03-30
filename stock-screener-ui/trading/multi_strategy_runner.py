@@ -13,10 +13,11 @@ import signal
 import json
 import asyncio
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
-IST = timezone(timedelta(hours=5, minutes=30))
+import config
+IST = config.IST
 from dataclasses import dataclass, field
 from enum import Enum
 import traceback
@@ -384,8 +385,8 @@ class MultiStrategyRunner:
                 return None
 
             from datetime import timedelta as td
-            to_date = datetime.now().strftime('%Y-%m-%d')
-            from_date = (datetime.now() - td(days=400)).strftime('%Y-%m-%d')
+            to_date = datetime.now(IST).strftime('%Y-%m-%d')
+            from_date = (datetime.now(IST) - td(days=400)).strftime('%Y-%m-%d')
 
             df = fetcher.upstox_api.fetch_historical_data_v3(
                 symbol=symbol,
@@ -443,8 +444,8 @@ class MultiStrategyRunner:
                 return None
 
             from datetime import timedelta as td
-            to_date = datetime.now().strftime('%Y-%m-%d')
-            from_date = (datetime.now() - td(days=10)).strftime('%Y-%m-%d')
+            to_date = datetime.now(IST).strftime('%Y-%m-%d')
+            from_date = (datetime.now(IST) - td(days=10)).strftime('%Y-%m-%d')
 
             df = fetcher.upstox_api.fetch_historical_data_v3(
                 symbol=symbol,
@@ -552,7 +553,7 @@ class MultiStrategyRunner:
             if symbol in self.cooldown_stocks:
                 exit_time = self.cooldown_stocks[symbol]
                 cooldown_end = exit_time + timedelta(minutes=runner.config.get('cooldown_minutes', 30))
-                if datetime.now() < cooldown_end:
+                if datetime.now(IST) < cooldown_end:
                     continue
                 else:
                     del self.cooldown_stocks[symbol]
@@ -677,7 +678,7 @@ class MultiStrategyRunner:
             scan_items.append(scan_item)
 
         runner.last_scan_items = scan_items
-        runner.last_scan_time = datetime.now()
+        runner.last_scan_time = datetime.now(IST)
         return new_signals
 
     def _scan_swing_strategy(self, strategy_id: int) -> list:
@@ -701,7 +702,7 @@ class MultiStrategyRunner:
                 exit_time = self.cooldown_stocks[symbol]
                 cooldown_days = runner.config.get('cooldown_days', 30)
                 cooldown_end = exit_time + timedelta(days=cooldown_days)
-                if datetime.now() < cooldown_end:
+                if datetime.now(IST) < cooldown_end:
                     continue
                 else:
                     del self.cooldown_stocks[symbol]
@@ -747,7 +748,7 @@ class MultiStrategyRunner:
             scan_items.append(scan_item)
 
         runner.last_scan_items = scan_items
-        runner.last_scan_time = datetime.now()
+        runner.last_scan_time = datetime.now(IST)
         return new_signals
 
     def execute_signal(self, strategy_id: int, signal: ORBSignal) -> bool:
@@ -908,7 +909,7 @@ class MultiStrategyRunner:
                         highest_price_since_entry=pos.peak_price,
                         entry_52w_high=metadata.get('entry_52w_high'),
                         current_52w_high=metadata.get('current_52w_high'),
-                        days_in_position=(datetime.now() - pos.entry_time).days,
+                        days_in_position=(datetime.now(IST) - pos.entry_time).days,
                     )
                     if exit_signal:
                         exit_triggered = True
@@ -955,7 +956,7 @@ class MultiStrategyRunner:
 
                 trade_logged = True
                 # Add to cooldown
-                self.cooldown_stocks[symbol] = datetime.now()
+                self.cooldown_stocks[symbol] = datetime.now(IST)
         if trade_logged:
             self.journal.save_journal()
 
@@ -978,7 +979,7 @@ class MultiStrategyRunner:
         """Save current state to snapshot file for UI."""
         try:
             snapshot = {
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': datetime.now(IST).isoformat(),
                 'bot_id': self.bot_config.id,
                 'bot_name': self.bot_config.name,
                 'running': self.running,
@@ -1054,7 +1055,7 @@ class MultiStrategyRunner:
             f"[bold cyan]Multi-Strategy Bot: {self.bot_config.name}[/bold cyan]\n"
             f"Mode: {'TEST' if self.test_mode else 'LIVE'} | "
             f"Strategies: {len(self.strategies)} | "
-            f"Time: {datetime.now().strftime('%H:%M:%S')}",
+            f"Time: {datetime.now(IST).strftime('%H:%M:%S')}",
             border_style="green"
         ))
 
@@ -1149,7 +1150,7 @@ class MultiStrategyRunner:
             cycle += 1
 
             try:
-                console.print(f"\n[dim]--- Cycle {cycle} @ {datetime.now().strftime('%H:%M:%S')} ---[/dim]")
+                console.print(f"\n[dim]--- Cycle {cycle} @ {datetime.now(IST).strftime('%H:%M:%S')} ---[/dim]")
 
                 # Check market status
                 if not self.is_market_open():

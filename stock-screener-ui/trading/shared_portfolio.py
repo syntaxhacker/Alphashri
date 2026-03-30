@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 import asyncio
 
+import config
+
 from rich.console import Console
 
 console = Console()
@@ -133,7 +135,7 @@ class SharedPortfolioManager:
         # Daily tracking
         self.daily_pnl = 0.0
         self.daily_trades = 0
-        self.day_start = datetime.now().date()
+        self.day_start = datetime.now(config.IST).date()
 
     def _generate_trade_id(self) -> str:
         self._trade_counter += 1
@@ -302,7 +304,7 @@ class SharedPortfolioManager:
             entry_price=entry_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
-            entry_time=datetime.now(),
+            entry_time=datetime.now(config.IST),
             strategy_id=strategy_id,
             strategy_name=strategy_name,
             current_price=entry_price,
@@ -367,7 +369,7 @@ class SharedPortfolioManager:
             entry_price=position.entry_price,
             exit_price=exit_price,
             entry_time=position.entry_time,
-            exit_time=datetime.now(),
+            exit_time=datetime.now(config.IST),
             pnl=round(pnl, 2),
             pnl_pct=round(pnl_pct, 2),
             exit_reason=exit_reason,
@@ -587,7 +589,7 @@ class SharedPortfolioManager:
         """Reset daily tracking."""
         self.daily_pnl = 0.0
         self.daily_trades = 0
-        self.day_start = datetime.now().date()
+        self.day_start = datetime.now(config.IST).date()
 
 
 if __name__ == '__main__':

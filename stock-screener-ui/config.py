@@ -1,7 +1,10 @@
 import os
 import fnmatch
+from datetime import timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 # Base directory
 BASE_DIR = Path(__file__).parent.absolute()

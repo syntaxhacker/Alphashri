@@ -42,6 +42,9 @@ _project_root_dir = os.path.dirname(_ui_dir)
 if _project_root_dir not in sys.path:
     sys.path.insert(0, _project_root_dir)
 
+import config
+IST = config.IST
+
 
 def calculate_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Average Directional Index (ADX) - Trend Strength Indicator."""
@@ -433,7 +436,7 @@ def run_single_stock_backtest(args):
             isin=None,
         )
 
-        today = datetime.now()
+        today = datetime.now(IST)
         to_date = today.strftime('%Y-%m-%d')
         fetch_days = max(days + 400, 500)
         from_date = (today - timedelta(days=fetch_days)).strftime('%Y-%m-%d')

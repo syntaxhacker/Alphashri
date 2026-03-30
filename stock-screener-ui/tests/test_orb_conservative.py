@@ -26,6 +26,9 @@ import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
+import config
+IST = config.IST
+
 from backtest.strategies.orb import (
     ORBConfig,
     ORBNautilusStrategy,
@@ -42,7 +45,7 @@ def _create_mock_bar_type():
 
 
 def _get_ts_ns(year, month, day, hour_ist, min_ist):
-    dt_ist = datetime(year, month, day, hour_ist, min_ist, tzinfo=timezone(timedelta(hours=5, minutes=30)))
+    dt_ist = datetime(year, month, day, hour_ist, min_ist, tzinfo=IST)
     dt_utc = dt_ist.astimezone(timezone.utc)
     return int(dt_utc.timestamp() * 1_000_000_000)
 

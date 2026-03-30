@@ -44,6 +44,9 @@ _project_root_dir = os.path.dirname(_ui_dir)
 if _project_root_dir not in sys.path:
     sys.path.insert(0, _project_root_dir)
 
+import config
+IST = config.IST
+
 
 def get_date_from_ns(ts_ns: int) -> datetime:
     """Convert nanosecond timestamp to datetime."""
@@ -489,7 +492,7 @@ def run_single_stock_week52_target(args):
             isin=None,
         )
 
-        today = datetime.now()
+        today = datetime.now(IST)
         to_date = today.strftime('%Y-%m-%d')
         fetch_days = max(days + 400, 500)
         from_date = (today - timedelta(days=fetch_days)).strftime('%Y-%m-%d')

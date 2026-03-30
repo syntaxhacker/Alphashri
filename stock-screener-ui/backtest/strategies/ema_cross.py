@@ -15,6 +15,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
+import config
+IST = config.IST
+
 import pandas as pd
 
 from nautilus_trader.backtest.config import BacktestEngineConfig
@@ -44,7 +47,7 @@ def get_ist_time(ts_ns: int) -> tuple:
     """Convert nanosecond timestamp to IST time components."""
     ts_sec = ts_ns / 1_000_000_000
     dt_utc = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
-    dt_ist = dt_utc + timedelta(hours=5, minutes=30)
+    dt_ist = dt_utc.astimezone(IST)
     return dt_ist.hour, dt_ist.minute, dt_ist.date()
 
 
@@ -91,7 +94,7 @@ def run_single_stock_backtest(args):
             isin=None,
         )
 
-        today = datetime.now()
+        today = datetime.now(IST)
         to_date = today.strftime('%Y-%m-%d')
         from_date = (today - timedelta(days=days + 30)).strftime('%Y-%m-%d')
 
@@ -262,7 +265,7 @@ class EMACrossNautilusStrategy(Strategy):
         cur_min = hour * 60 + minute
         close_f = float(bar.close)
         bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
-        bar_time_ist = bar_time + timedelta(hours=5, minutes=30)
+        bar_time_ist = bar_time.astimezone(IST)
 
         self._bar_number += 1
 
