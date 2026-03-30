@@ -1,4 +1,7 @@
 import os
+from datetime import timedelta, timezone
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 UPSTOX_CONFIG = {
     "api_key": os.getenv("UPSTOX_API_KEY") or os.getenv("UPSTOX_CLIENT_ID", ""),
