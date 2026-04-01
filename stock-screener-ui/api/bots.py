@@ -419,44 +419,29 @@ def _sync_get_bot_portfolio(bot_uuid: str, user_id: int, db: Session) -> dict:
 def _sync_get_bot_trades(bot_uuid: str, user_id: int, strategy_id: Optional[str],
                          limit: int, include_test: bool, db: Session) -> dict:
     bot = get_bot_by_uuid(bot_uuid, user_id, db)
-    from trading.journal import get_journal
-    journal = get_journal(user_id)
-    journal.load_all_journals(days=30)
+    from db.models import Trade as TradeModel
+
     result = db.execute(
         bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
     ).fetchall()
-    strategy_ids = [row.strategy_id for row in result]
+    bot_strategy_ids = [row.strategy_id for row in result]
+
     strategy_internal_id = None
     if strategy_id is not None:
         strat = get_strategy_by_uuid(strategy_id, db)
         strategy_internal_id = strat.id
-    trades = []
-    for trade in journal.trades:
-        if trade.strategy_id in strategy_ids:
-            if strategy_internal_id is None or trade.strategy_id == strategy_internal_id:
-                if not include_test and getattr(trade, 'is_test', False):
-                    continue
-                trades.append({
-                    'trade_id': trade.trade_id,
-                    'symbol': trade.symbol,
-                    'side': trade.side,
-                    'quantity': trade.quantity,
-                    'entry_price': trade.entry_price,
-                    'exit_price': trade.exit_price,
-                    'entry_time': trade.entry_time,
-                    'exit_time': trade.exit_time,
-                    'pnl': trade.pnl,
-                    'pnl_pct': trade.pnl_pct,
-                    'exit_reason': trade.exit_reason,
-                    'costs': trade.costs,
-                    'net_pnl': trade.net_pnl,
-                    'strategy_id': trade.strategy_id,
-                    'strategy_name': trade.strategy_name,
-                    'is_test': getattr(trade, 'is_test', False),
-                    'source': getattr(trade, 'source', 'live'),
-                })
-    trades.sort(key=lambda x: x['exit_time'], reverse=True)
-    trades = trades[:limit]
+
+    query = db.query(TradeModel).filter(TradeModel.user_id == user_id)
+    if bot_strategy_ids:
+        query = query.filter(TradeModel.strategy_id.in_(bot_strategy_ids))
+    if strategy_internal_id is not None:
+        query = query.filter(TradeModel.strategy_id == strategy_internal_id)
+    if not include_test:
+        query = query.filter(TradeModel.is_test == False)
+    query = query.order_by(TradeModel.exit_time.desc()).limit(limit)
+
+    trades = [t.to_dict() for t in query.all()]
+
     return {
         "bot_id": bot.uuid,
         "trades": trades,
@@ -887,19 +872,16 @@ async def get_bot_positions(
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         snapshot = load_bot_snapshot(bot.id, user_id)
+        positions = snapshot.get('positions', []) if snapshot else []
 
-        if not snapshot:
-            return {
-                "bot_id": bot.uuid,
-                "positions": [],
-                "count": 0,
-            }
+        if not positions:
+            from db.models import Position as PositionModel
+            db_positions = db.query(PositionModel).filter(
+                PositionModel.bot_id == bot.id,
+            ).all()
+            positions = [p.to_dict() for p in db_positions]
 
-        positions = snapshot.get('positions', [])
-
-        # Filter by strategy UUID if provided
         if strategy_id is not None:
-            # Need to convert strategy UUID to internal ID for comparison
             strat = get_strategy_by_uuid(strategy_id, db)
             positions = [p for p in positions if p.get('strategy_id') == strat.id]
 

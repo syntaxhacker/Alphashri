@@ -265,6 +265,135 @@ class MultiStrategyRunner:
     def _ist_now(self) -> datetime:
         return datetime.now(IST)
 
+    def _get_db_session(self):
+        from db.database import SessionLocal
+        return SessionLocal()
+
+    def _persist_trade_to_db(self, trade_data: dict):
+        try:
+            db = self._get_db_session()
+            try:
+                from db.models import Trade
+                trade = Trade(
+                    user_id=self.user_id,
+                    bot_id=self.bot_config.id if self.bot_config else None,
+                    strategy_id=trade_data.get('strategy_id', 0),
+                    strategy_name=trade_data.get('strategy_name', ''),
+                    symbol=trade_data['symbol'],
+                    side=trade_data['side'],
+                    quantity=trade_data['quantity'],
+                    entry_price=trade_data['entry_price'],
+                    exit_price=trade_data.get('exit_price'),
+                    entry_time=trade_data['entry_time'] if isinstance(trade_data['entry_time'], datetime) else datetime.fromisoformat(trade_data['entry_time']),
+                    exit_time=trade_data.get('exit_time'),
+                    stop_loss=trade_data.get('stop_loss', 0.0),
+                    take_profit=trade_data.get('take_profit', 0.0),
+                    pnl=trade_data.get('pnl', 0.0),
+                    pnl_pct=trade_data.get('pnl_pct', 0.0),
+                    costs=trade_data.get('costs', 0.0),
+                    net_pnl=trade_data.get('net_pnl', 0.0),
+                    exit_reason=trade_data.get('exit_reason', ''),
+                    is_test=self.test_mode,
+                    source='live' if not self.test_mode else 'test',
+                )
+                db.add(trade)
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                console.print(f"[yellow]DB trade persist failed: {e}[/yellow]")
+            finally:
+                db.close()
+        except Exception:
+            pass
+
+    def _persist_position_to_db(self, pos_data: dict, action: str = "upsert"):
+        try:
+            db = self._get_db_session()
+            try:
+                from db.models import Position
+                from sqlalchemy import text
+                if action == "delete":
+                    db.execute(
+                        text("DELETE FROM positions WHERE bot_id = :bot_id AND strategy_id = :strategy_id AND symbol = :symbol"),
+                        {"bot_id": self.bot_config.id if self.bot_config else 0, "strategy_id": pos_data.get('strategy_id', 0), "symbol": pos_data['symbol']}
+                    )
+                    db.commit()
+                else:
+                    existing = db.query(Position).filter(
+                        Position.bot_id == (self.bot_config.id if self.bot_config else 0),
+                        Position.strategy_id == pos_data.get('strategy_id', 0),
+                        Position.symbol == pos_data['symbol'],
+                    ).first()
+                    if existing:
+                        existing.quantity = pos_data['quantity']
+                        existing.current_price = pos_data.get('current_price', 0.0)
+                        existing.stop_loss = pos_data.get('stop_loss', 0.0)
+                        existing.take_profit = pos_data.get('take_profit', 0.0)
+                        existing.unrealized_pnl = pos_data.get('unrealized_pnl', 0.0)
+                        existing.unrealized_pnl_pct = pos_data.get('unrealized_pnl_pct', 0.0)
+                    else:
+                        position = Position(
+                            user_id=self.user_id,
+                            bot_id=self.bot_config.id if self.bot_config else None,
+                            strategy_id=pos_data.get('strategy_id', 0),
+                            strategy_name=pos_data.get('strategy_name', ''),
+                            symbol=pos_data['symbol'],
+                            side=pos_data['side'],
+                            quantity=pos_data['quantity'],
+                            entry_price=pos_data['entry_price'],
+                            stop_loss=pos_data.get('stop_loss', 0.0),
+                            take_profit=pos_data.get('take_profit', 0.0),
+                            entry_time=pos_data['entry_time'] if isinstance(pos_data['entry_time'], datetime) else datetime.fromisoformat(pos_data['entry_time']),
+                            current_price=pos_data.get('current_price', 0.0),
+                            is_test=self.test_mode,
+                        )
+                        db.add(position)
+                    db.commit()
+            except Exception as e:
+                db.rollback()
+                console.print(f"[yellow]DB position persist failed: {e}[/yellow]")
+            finally:
+                db.close()
+        except Exception:
+            pass
+
+    def _load_positions_from_db(self):
+        try:
+            db = self._get_db_session()
+            try:
+                from db.models import Position
+                positions = db.query(Position).filter(
+                    Position.bot_id == (self.bot_config.id if self.bot_config else None),
+                ).all()
+                if positions:
+                    from trading.shared_portfolio import SharedPosition, OrderSide
+                    restored = 0
+                    for p in positions:
+                        try:
+                            side = OrderSide.BUY if p.side == "BUY" else OrderSide.SELL
+                            pos = self.portfolio.restore_position(
+                                strategy_id=p.strategy_id,
+                                strategy_name=p.strategy_name,
+                                symbol=p.symbol,
+                                side=side,
+                                quantity=p.quantity,
+                                entry_price=p.entry_price,
+                                stop_loss=p.stop_loss or 0.0,
+                                take_profit=p.take_profit or 0.0,
+                                entry_time=p.entry_time,
+                                current_price=p.current_price or p.entry_price,
+                            )
+                            if pos:
+                                restored += 1
+                        except Exception as e:
+                            console.print(f"[yellow]Failed to restore position {p.symbol}: {e}[/yellow]")
+                    if restored > 0:
+                        console.print(f"[green]Restored {restored} positions from database[/green]")
+            finally:
+                db.close()
+        except Exception:
+            pass
+
     def is_market_open(self) -> bool:
         now = self._ist_now()
         open_time = datetime(now.year, now.month, now.day, *self.MARKET_OPEN, tzinfo=IST)
@@ -818,6 +947,18 @@ class MultiStrategyRunner:
 
         if position:
             runner.trades_executed += 1
+            self._persist_position_to_db({
+                'strategy_id': strategy_id,
+                'strategy_name': runner.strategy_name,
+                'symbol': signal.symbol,
+                'side': "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+                'quantity': validation['shares'],
+                'entry_price': signal.price,
+                'stop_loss': signal.stop_loss or 0.0,
+                'take_profit': signal.take_profit or 0.0,
+                'entry_time': datetime.now(IST),
+                'current_price': signal.price,
+            }, action="upsert")
             if runner.strategy_type in SWING_STRATEGY_TYPES:
                 if not hasattr(position, 'metadata'):
                     position.metadata = {}
@@ -858,6 +999,9 @@ class MultiStrategyRunner:
         # Update portfolio prices
         close_prices = {s: d['close'] for s, d in prices.items()}
         self.portfolio.update_prices(close_prices)
+
+        for pos in self.portfolio.get_all_positions():
+            self._persist_position_to_db(pos, action="upsert")
 
         # Check exit conditions for each position
         positions_to_close = []
@@ -953,6 +1097,31 @@ class MultiStrategyRunner:
                     'strategy_id': trade.strategy_id,
                     'strategy_name': trade.strategy_name,
                 }, strategy_id=trade.strategy_id, strategy_name=trade.strategy_name, bot_id=self.bot_config.id, bot_name=self.bot_config.name)
+
+                self._persist_position_to_db({
+                    'strategy_id': strategy_id,
+                    'strategy_name': runner.strategy_name,
+                    'symbol': symbol,
+                }, action="delete")
+
+                self._persist_trade_to_db({
+                    'strategy_id': strategy_id,
+                    'strategy_name': runner.strategy_name,
+                    'symbol': trade.symbol,
+                    'side': trade.side.value,
+                    'quantity': trade.quantity,
+                    'entry_price': trade.entry_price,
+                    'exit_price': trade.exit_price,
+                    'entry_time': trade.entry_time,
+                    'exit_time': trade.exit_time,
+                    'pnl': trade.pnl,
+                    'pnl_pct': trade.pnl_pct,
+                    'costs': trade.costs,
+                    'net_pnl': trade.net_pnl,
+                    'exit_reason': trade.exit_reason,
+                    'stop_loss': trade.sl_price if hasattr(trade, 'sl_price') else 0.0,
+                    'take_profit': trade.tp_price if hasattr(trade, 'tp_price') else 0.0,
+                })
 
                 trade_logged = True
                 # Add to cooldown
@@ -1143,6 +1312,7 @@ class MultiStrategyRunner:
 
         # Initial setup
         self.refresh_watchlist()
+        self._load_positions_from_db()
 
         # Main loop
         cycle = 0
