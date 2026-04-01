@@ -639,7 +639,6 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> sub
         stop_bot_process(user_id, bot_id)
 
     log_path = Path(f"/tmp/bot-{user_id}-{bot_id}.log")
-    log_file = open(log_path, 'w')
 
     cmd = [
         sys.executable,
@@ -657,6 +656,8 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> sub
         start_new_session=True,
     )
 
+    _stream_output = os.getenv("STREAM_BOT_OUTPUT", "false").lower() == "true"
+
     def _stream_bot_output(p: subprocess.Popen, lp: Path):
         import threading
         def _reader():
@@ -666,8 +667,9 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> sub
                         text = line.decode('utf-8', errors='replace')
                         f.write(text)
                         f.flush()
-                        sys.__stdout__.write(text)
-                        sys.__stdout__.flush()
+                        if _stream_output:
+                            sys.__stdout__.write(text)
+                            sys.__stdout__.flush()
                     p.stdout.close()
         t = threading.Thread(target=_reader, daemon=True)
         t.start()
