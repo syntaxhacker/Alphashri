@@ -1150,14 +1150,26 @@ async def get_paper_chart(
                 "or_range_pct": ((or_high - or_low) / or_open * 100) if or_open > 0 else 0,
             }
 
-        # Get 52-week levels from Upstox API
+        # Get 52-week levels from historical data
         week52_levels = None
         try:
-            df_52w = upstox_api.fetch_52w_data(symbol.upper())
+            from datetime import timedelta as td
+            to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
+            from_date = (datetime.now(config.IST) - td(days=400)).strftime('%Y-%m-%d')
+            df_52w = upstox_api.fetch_historical_data_v3(
+                symbol=symbol.upper(),
+                unit='days',
+                interval=1,
+                to_date=to_date,
+                from_date=from_date,
+            )
             if df_52w is not None and not df_52w.empty:
-                row = df_52w.iloc[0]
-                high_52w = row.get('high_52w', 0)
-                low_52w = row.get('low_52w', 0)
+                highs = df_52w['high'].tolist()
+                lows = df_52w['low'].tolist()
+                window = highs[-252:] if len(highs) >= 252 else highs
+                high_52w = max(window) if window else 0
+                low_window = lows[-252:] if len(lows) >= 252 else lows
+                low_52w = min(low_window) if low_window else 0
                 if high_52w > 0:
                     current_price = candles[-1]['close'] if candles else 0
                     week52_levels = {
