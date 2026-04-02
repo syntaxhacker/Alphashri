@@ -1164,13 +1164,10 @@ async def get_paper_chart(
 
         df_1m = await asyncio.to_thread(_fetch_chart_data)
 
-        console.print(f"[cyan]chart: {symbol} date={date} df_1m={df_1m.shape if df_1m is not None else None}[/cyan]")
-
         # Resample to requested timeframe
         df = _resample_to_timeframe(df_1m, timeframe)
 
         if df is None or df.empty:
-            console.print(f"[red]chart: resampled df is None/empty, df_1m was {df_1m.shape if df_1m is not None else None}[/red]")
             return {"error": f"No data for {symbol} on {date}", "symbol": symbol, "date": date}
 
         # Build candle data

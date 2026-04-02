@@ -39,6 +39,9 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - Pandas date filtering: use `pd.Timestamp(date_str, tz=config.IST)` not raw strings — Timestamp vs string comparison raises TypeError
 - `fetch_intraday_data_v3` for today, `fetch_historical_data_v3` for past dates
 - API routes in `stock-screener-ui/api/`, DB models in `db/models.py`
+- **Trades endpoint** (`/api/paper/trades`): queries PostgreSQL first, falls back to journal files. The `get_trades` and `_get_trades_from_db` functions handle this.
+- **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug on production — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works locally because `railway run` may use different config. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the Docker container.
+- **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 
 ## Infrastructure
 - **Railway**: project `298aedcc-23a9-4ce3-9dbe-a87986f910de`, env `bc5056b2-6a82-4af3-bec2-2d1ac848fc5c`, service `b66dd871-18ac-49e7-a9fa-7addfb1be351`. Deploy via `git push` to `fix/*` or `develop` branch.
@@ -49,9 +52,12 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 
 ## Debugging
 - **Railway SSH**: `railway connect --project 298aedcc-23a9-4ce3-9dbe-a87986f910de --environment bc5056b2-6a82-4af3-bec2-2d1ac848fc5c --service b66dd871-18ac-49e7-a9fa-7addfb1be351` — shell + tunnel to services
+- **Railway run**: `railway run --project=... --environment=... --service=... python3 -c "..."` — execute commands in the container (non-interactive)
 - **Production Postgres**: use `DATABASE_URL` env var to connect — query prod DB directly
+- **Local DB dump**: `python scripts/dump_prod_to_local.py` — copies trades+positions from prod Postgres to local SQLite. Remember to update `user_id` after dump.
 - **Redis**: Upstash console or `redis-cli -u ` after Railway connect
-- **Logs**: `railway logs --project 298aedcc --environment bc5056b2 --service b66dd871` for backend stdout
+- **Logs**: `railway logs` for backend stdout (no `--project` flag needed when configured)
+- **Docker WORKDIR**: production container uses `/app/stock-screener-ui` (from Dockerfile.prod). `Path(__file__).parent.parent.parent` resolves to `/app`.
 
 ## Testing
 - Frontend: vitest, files co-located as `*.test.ts` / `*.test.tsx`
