@@ -292,11 +292,89 @@ async def get_trades(
     bot_id: Optional[str] = None,
     user: "User" = Depends(get_current_user),
 ):
-    """Get trade history from journal with filters."""
+    """Get trade history from DB first, then journal fallback."""
+    from db.database import SessionLocal
+    from db.models import Trade as TradeModel
+
+    user_id = _get_user_id(user)
+    all_trades = _get_trades_from_db(user_id, bot_id, symbol, strategy, from_date, to_date, days_back, limit)
+
+    if not all_trades:
+        all_trades = _get_trades_from_journals(user_id, date, from_date, to_date, days_back, bot_id, symbol, strategy, limit)
+
+    return {
+        "total_trades": len(all_trades),
+        "filtered_trades": len(all_trades),
+        "trades": all_trades
+    }
+
+
+def _get_trades_from_db(
+    user_id: int,
+    bot_id: Optional[str],
+    symbol: Optional[str],
+    strategy: Optional[str],
+    from_date: Optional[str],
+    to_date: Optional[str],
+    days_back: int,
+    limit: int,
+) -> list:
+    from datetime import timedelta
+    from db.database import SessionLocal
+    from db.models import Trade as TradeModel
+
+    try:
+        db = SessionLocal()
+        query = db.query(TradeModel).filter(TradeModel.user_id == user_id, TradeModel.is_test == False)
+
+        if bot_id and bot_id != "default":
+            try:
+                numeric_bot_id = int(bot_id)
+                query = query.filter(TradeModel.bot_id == numeric_bot_id)
+            except ValueError:
+                pass
+
+        if symbol:
+            query = query.filter(TradeModel.symbol == symbol.upper())
+
+        if strategy:
+            query = query.filter(TradeModel.strategy_name == strategy)
+
+        if from_date:
+            query = query.filter(TradeModel.exit_time >= datetime.strptime(from_date, '%Y-%m-%d').replace(tzinfo=config.IST))
+
+        if to_date:
+            query = query.filter(TradeModel.exit_time <= datetime.strptime(to_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=config.IST))
+
+        if not from_date and not to_date:
+            cutoff = datetime.now(config.IST) - timedelta(days=days_back)
+            query = query.filter(TradeModel.exit_time >= cutoff)
+
+        query = query.order_by(TradeModel.exit_time.desc()).limit(limit)
+        return [t.to_dict() for t in query.all()]
+    except Exception:
+        return []
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def _get_trades_from_journals(
+    user_id: int,
+    date: Optional[str],
+    from_date: Optional[str],
+    to_date: Optional[str],
+    days_back: int,
+    bot_id: Optional[str],
+    symbol: Optional[str],
+    strategy: Optional[str],
+    limit: int,
+) -> list:
     from trading.journal import TradeJournal
     from datetime import timedelta
 
-    user_id = _get_user_id(user)
     if user_id:
         journal_dir = Path(__file__).parent.parent / "journals" / str(user_id)
     else:
@@ -305,7 +383,6 @@ async def get_trades(
     all_trades = []
 
     if date:
-        # Load specific date's journal
         date_str = date.replace('-', '')
         journal_file = journal_dir / f"journal_{date_str}.json"
         if journal_file.exists():
@@ -321,7 +398,7 @@ async def get_trades(
             end_dt = datetime.strptime(to_date, '%Y-%m-%d')
         else:
             end_dt = min(datetime.now(config.IST), start_dt + timedelta(days=90))
-        
+
         current_dt = start_dt
         while current_dt <= end_dt:
             date_str = current_dt.strftime('%Y%m%d')
@@ -335,7 +412,6 @@ async def get_trades(
                     pass
             current_dt += timedelta(days=1)
     else:
-        # No specific date or from_date - use days_back
         today = datetime.now(config.IST).strftime('%Y%m%d')
         journal = TradeJournal(user_id=user_id)
         journal_file = journal_dir / f"journal_{today}.json"
@@ -346,7 +422,6 @@ async def get_trades(
                 console.print(f"[yellow]Could not reload journal: {e}[/yellow]")
         all_trades = [asdict(t) for t in journal.trades]
 
-        # Load recent journal files
         for i in range(0, days_back + 1):
             day_str = (datetime.now(config.IST) - timedelta(days=i)).strftime('%Y%m%d')
             journal_file = journal_dir / f"journal_{day_str}.json"
@@ -359,53 +434,28 @@ async def get_trades(
             except Exception:
                 pass
 
-    # Deduplicate trades
     deduped = {}
     for t in all_trades:
-        key = (
-            t.get('symbol'),
-            t.get('side'),
-            t.get('quantity'),
-            t.get('entry_time'),
-            t.get('exit_time'),
-        )
+        key = (t.get('symbol'), t.get('side'), t.get('quantity'), t.get('entry_time'), t.get('exit_time'))
         deduped[key] = t
     all_trades = list(deduped.values())
 
-    # Apply filters
-    filtered_trades = all_trades
-
     if symbol:
-        filtered_trades = [t for t in filtered_trades if t.get('symbol', '').upper() == symbol.upper()]
-
+        all_trades = [t for t in all_trades if t.get('symbol', '').upper() == symbol.upper()]
     if strategy:
-        # Filter by strategy if stored in notes
-        filtered_trades = [t for t in filtered_trades if strategy.lower() in (t.get('notes') or '').lower()]
-
+        all_trades = [t for t in all_trades if strategy.lower() in (t.get('notes') or '').lower()]
     if bot_id:
-        # Filter by bot_id - handle 'default' string and convert bot_id from query to same type as trade data
         if bot_id == "default":
-            # For default bot, we might want trades where bot_id is 0 or None
-            filtered_trades = [t for t in filtered_trades if t.get('bot_id') in (0, None, "0")]
+            all_trades = [t for t in all_trades if t.get('bot_id') in (0, None, "0")]
         else:
-            # Try numeric comparison first, then string
             try:
                 numeric_bot_id = int(bot_id)
-                filtered_trades = [t for t in filtered_trades if t.get('bot_id') == numeric_bot_id]
+                all_trades = [t for t in all_trades if t.get('bot_id') == numeric_bot_id]
             except ValueError:
-                filtered_trades = [t for t in filtered_trades if str(t.get('bot_id')) == str(bot_id)]
+                all_trades = [t for t in all_trades if str(t.get('bot_id')) == str(bot_id)]
 
-    # Sort by exit time descending
-    filtered_trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
-
-    # Apply limit
-    filtered_trades = filtered_trades[:limit]
-
-    return {
-        "total_trades": len(all_trades),
-        "filtered_trades": len(filtered_trades),
-        "trades": filtered_trades
-    }
+    all_trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
+    return all_trades[:limit]
 
 
 @router.delete("/trades/{trade_id}")
