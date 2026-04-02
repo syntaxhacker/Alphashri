@@ -458,6 +458,32 @@ def _get_trades_from_journals(
     return all_trades[:limit]
 
 
+def _get_symbol_trades_from_db(user_id: int, symbol: str, date: str) -> list:
+    from db.database import SessionLocal
+    from db.models import Trade as TradeModel
+
+    try:
+        db = SessionLocal()
+        date_start = datetime.strptime(date, '%Y-%m-%d').replace(tzinfo=config.IST)
+        date_end = date_start.replace(hour=23, minute=59, second=59)
+        query = db.query(TradeModel).filter(
+            TradeModel.user_id == user_id,
+            TradeModel.symbol == symbol.upper(),
+            TradeModel.is_test == False,
+        )
+        if date:
+            query = query.filter(TradeModel.exit_time >= date_start, TradeModel.exit_time <= date_end)
+        trades = [t.to_dict() for t in query.all()]
+        return trades
+    except Exception:
+        return []
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 @router.delete("/trades/{trade_id}")
 async def delete_trade(
     trade_id: str,
@@ -1231,50 +1257,73 @@ async def get_paper_chart(
             console.print(f"[yellow]Could not fetch 52W levels for {symbol}: {e}[/yellow]")
 
         # Get trades from journal for this symbol and date
-        # Load the journal file for the specific date
+        # First try DB, then fall back to journal files
         from trading.journal import TradeJournal
         uid = _get_user_id(user)
-        journal_dir = Path(__file__).parent.parent / "journals" / str(uid)
-        date_str = date.replace('-', '')  # 2026-02-23 -> 20260223
-        journal_file = journal_dir / f"journal_{date_str}.json"
 
-        symbol_trades = []
-        if journal_file.exists():
-            temp_journal = TradeJournal(user_id=uid)
-            try:
-                temp_journal.load_journal(str(journal_file))
+        symbol_trades = _get_symbol_trades_from_db(uid, symbol, date)
+
+        if not symbol_trades:
+            journal_dir = Path(__file__).parent.parent / "journals" / str(uid)
+            date_str = date.replace('-', '')  # 2026-02-23 -> 20260223
+            journal_file = journal_dir / f"journal_{date_str}.json"
+
+            if journal_file.exists():
+                temp_journal = TradeJournal(user_id=uid)
+                try:
+                    temp_journal.load_journal(str(journal_file))
+                    symbol_trades = [
+                        t for t in temp_journal.trades
+                        if t.symbol == symbol.upper()
+                    ]
+                except Exception as e:
+                    console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
+            else:
+                journal = get_journal(uid)
                 symbol_trades = [
-                    t for t in temp_journal.trades
-                    if t.symbol == symbol.upper()
+                    t for t in journal.trades
+                    if t.symbol == symbol.upper() and t.exit_time.startswith(date)
                 ]
-            except Exception as e:
-                console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
-        else:
-            # Fallback to global journal for today
-            journal = get_journal(uid)
-            symbol_trades = [
-                t for t in journal.trades
-                if t.symbol == symbol.upper() and t.exit_time.startswith(date)
-            ]
 
-        # Convert trades to dict format
-        trades_data = [{
-            "trade_id": t.trade_id,
-            "symbol": t.symbol,
-            "side": t.side,
-            "quantity": t.quantity,
-            "entry_price": t.entry_price,
-            "exit_price": t.exit_price,
-            "entry_time": t.entry_time,
-            "exit_time": t.exit_time,
-            "pnl": t.pnl,
-            "pnl_pct": t.pnl_pct,
-            "exit_reason": t.exit_reason,
-            "costs": t.costs,
-            "net_pnl": t.net_pnl,
-            "sl_price": t.sl_price,
-            "tp_price": t.tp_price,
-        } for t in symbol_trades]
+        # Convert trades to dict format (handle both journal Trade objects and DB dicts)
+        def _trade_to_dict(t):
+            if isinstance(t, dict):
+                return {
+                    "trade_id": t.get("trade_id", ""),
+                    "symbol": t.get("symbol", ""),
+                    "side": t.get("side", ""),
+                    "quantity": t.get("quantity", 0),
+                    "entry_price": t.get("entry_price", 0),
+                    "exit_price": t.get("exit_price", 0),
+                    "entry_time": t.get("entry_time", ""),
+                    "exit_time": t.get("exit_time", ""),
+                    "pnl": t.get("pnl", 0),
+                    "pnl_pct": t.get("pnl_pct", 0),
+                    "exit_reason": t.get("exit_reason", ""),
+                    "costs": t.get("costs", 0),
+                    "net_pnl": t.get("net_pnl", 0),
+                    "sl_price": t.get("stop_loss", 0),
+                    "tp_price": t.get("take_profit", 0),
+                }
+            return {
+                "trade_id": t.trade_id,
+                "symbol": t.symbol,
+                "side": t.side,
+                "quantity": t.quantity,
+                "entry_price": t.entry_price,
+                "exit_price": t.exit_price,
+                "entry_time": t.entry_time,
+                "exit_time": t.exit_time,
+                "pnl": t.pnl,
+                "pnl_pct": t.pnl_pct,
+                "exit_reason": t.exit_reason,
+                "costs": t.costs,
+                "net_pnl": t.net_pnl,
+                "sl_price": t.sl_price,
+                "tp_price": t.tp_price,
+            }
+
+        trades_data = [_trade_to_dict(t) for t in symbol_trades]
 
         # Check for current position - prefer bot snapshot (for cross-process sync)
         current_position = None
