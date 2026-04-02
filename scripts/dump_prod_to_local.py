@@ -3,7 +3,10 @@ import sys
 import sqlite3
 import psycopg2
 
-PROD_URL = "postgresql://alphashri:fuoGOIx86IrrJr5RXHKxwlNTnWaJR7OD@dpg-d6qh4e7kijhs73b5rvpg-a.oregon-postgres.render.com/alphashri"
+PROD_URL = os.environ.get("DATABASE_URL", "")
+if not PROD_URL:
+    print("ERROR: DATABASE_URL env var not set")
+    sys.exit(1)
 LOCAL_DB = "stock-screener-ui/db/alphashri.db"
 
 conn = psycopg2.connect(PROD_URL)
