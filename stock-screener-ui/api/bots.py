@@ -81,6 +81,8 @@ class BotResponse(BaseModel):
     updated_at: Optional[str] = None
     status: Optional[str] = None
     process_id: Optional[int] = None
+    running: bool = False
+    pid: Optional[int] = None
     error: Optional[str] = None
 
 
@@ -570,6 +572,8 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
         updated_at=bot.updated_at.isoformat() if bot.updated_at else None,
         status="RUNNING" if running else "STOPPED",
         process_id=pid if pid else None,
+        running=running,
+        pid=pid if pid else None,
     )
 
 
