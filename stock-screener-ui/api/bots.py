@@ -490,6 +490,37 @@ def _sync_get_bot_trades(bot_uuid: str, user_id: int, strategy_id: Optional[str]
 
     trades = [t.to_dict() for t in query.all()]
 
+    if not trades:
+        from trading.journal import get_journal
+        journal = get_journal(user_id)
+        journal.load_all_journals(days=30)
+        for trade in journal.trades:
+            if trade.strategy_id in bot_strategy_ids:
+                if strategy_internal_id is None or trade.strategy_id == strategy_internal_id:
+                    if not include_test and getattr(trade, 'is_test', False):
+                        continue
+                    trades.append({
+                        'trade_id': trade.trade_id,
+                        'symbol': trade.symbol,
+                        'side': trade.side,
+                        'quantity': trade.quantity,
+                        'entry_price': trade.entry_price,
+                        'exit_price': trade.exit_price,
+                        'entry_time': trade.entry_time,
+                        'exit_time': trade.exit_time,
+                        'pnl': trade.pnl,
+                        'pnl_pct': trade.pnl_pct,
+                        'exit_reason': trade.exit_reason,
+                        'costs': trade.costs,
+                        'net_pnl': trade.net_pnl,
+                        'strategy_id': trade.strategy_id,
+                        'strategy_name': trade.strategy_name,
+                        'is_test': getattr(trade, 'is_test', False),
+                        'source': getattr(trade, 'source', 'live'),
+                    })
+        trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
+        trades = trades[:limit]
+
     return {
         "bot_id": bot.uuid,
         "trades": trades,
