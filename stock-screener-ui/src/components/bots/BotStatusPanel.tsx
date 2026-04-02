@@ -121,8 +121,8 @@ function StrategyStatusCard({
               Capital Used
             </Text>
             <Text size="sm">
-              ₹{formatNumberShared(strategy.capital_used)} / ₹{formatNumberShared(strategy.allocated_capital)} (
-              {usedPct.toFixed(0)}%)
+              ₹{formatNumberShared(strategy.capital_used)} / ₹
+              {formatNumberShared(strategy.allocated_capital)} ({usedPct.toFixed(0)}%)
             </Text>
           </Group>
           <Progress value={Math.min(usedPct, 100)} size="sm" color="blue" />
@@ -348,7 +348,11 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
               <Text fw={700} size="lg" data-testid="bot-name">
                 {bot.name}
               </Text>
-              <StatusBadge running={status?.running ?? false} pid={status?.pid} data-testid="bot-running-badge" />
+              <StatusBadge
+                running={status?.running ?? false}
+                pid={status?.pid}
+                data-testid="bot-running-badge"
+              />
             </div>
             <Group gap="xs">
               {status?.running ? (

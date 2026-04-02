@@ -9,7 +9,12 @@ interface LoadingStateProps {
   size?: string;
 }
 
-export function LoadingState({ message = "Loading...", "data-testid": testId, className, size = "sm" }: LoadingStateProps) {
+export function LoadingState({
+  message = "Loading...",
+  "data-testid": testId,
+  className,
+  size = "sm",
+}: LoadingStateProps) {
   return (
     <Group justify="center" py="xl" data-testid={testId} className={className}>
       <Loader size={size} />
@@ -27,12 +32,24 @@ interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({ icon, emoji, title, description, "data-testid": testId, className }: EmptyStateProps) {
+export function EmptyState({
+  icon,
+  emoji,
+  title,
+  description,
+  "data-testid": testId,
+  className,
+}: EmptyStateProps) {
   return (
     <Stack align="center" gap="xs" py="sm" data-testid={testId} className={className}>
-      {icon ?? (emoji ? <Text size="xl">{emoji}</Text> : <IconDatabaseOff size={40} color="gray" />)}
+      {icon ??
+        (emoji ? <Text size="xl">{emoji}</Text> : <IconDatabaseOff size={40} color="gray" />)}
       <Text fw={600}>{title}</Text>
-      {description && <Text size="sm" c="dimmed">{description}</Text>}
+      {description && (
+        <Text size="sm" c="dimmed">
+          {description}
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -47,7 +64,15 @@ interface ErrorAlertProps {
   onRetry?: () => void;
 }
 
-export function ErrorAlert({ title = "Error", message, onClose, "data-testid": testId, className, withRetry, onRetry }: ErrorAlertProps) {
+export function ErrorAlert({
+  title = "Error",
+  message,
+  onClose,
+  "data-testid": testId,
+  className,
+  withRetry,
+  onRetry,
+}: ErrorAlertProps) {
   return (
     <Alert
       icon={<IconAlertCircle size="1rem" />}
@@ -87,7 +112,15 @@ interface EmptyCompactProps {
   id?: string;
 }
 
-export function EmptyCompact({ icon, emoji, title, description, "data-testid": testId, className, id }: EmptyCompactProps) {
+export function EmptyCompact({
+  icon,
+  emoji,
+  title,
+  description,
+  "data-testid": testId,
+  className,
+  id,
+}: EmptyCompactProps) {
   return (
     <CompactPanel data-testid={testId} className={className} id={id}>
       <EmptyState icon={icon} emoji={emoji} title={title} description={description} />

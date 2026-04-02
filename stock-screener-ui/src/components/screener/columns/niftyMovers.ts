@@ -12,7 +12,10 @@ export function getNiftyMoversColumns(): ColumnDef[] {
       type: "number",
       sortable: true,
       format: (value: number) => {
-        return { value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}`, className: getPnLTextColor(value) };
+        return {
+          value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}`,
+          className: getPnLTextColor(value),
+        };
       },
     },
     {
