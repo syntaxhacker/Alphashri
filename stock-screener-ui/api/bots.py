@@ -197,7 +197,52 @@ def is_bot_running(user_id: int, bot_id: int) -> tuple:
             return True, process.pid
         else:
             del _bot_processes[user_id][bot_id]
+
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is None:
+            return False, None
+        val = client.get(f"bot:{user_id}:{bot_id}:status")
+        if val:
+            parts = val.split(":")
+            pid = int(parts[1]) if len(parts) > 1 else None
+            if pid and _is_pid_alive(pid):
+                return True, pid
+            else:
+                client.delete(f"bot:{user_id}:{bot_id}:status")
+    except Exception:
+        pass
+
     return False, None
+
+
+def _is_pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ProcessLookupError):
+        return False
+
+
+def _set_bot_status_redis(user_id: int, bot_id: int, pid: int, ttl: int = 90):
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is not None:
+            client.setex(f"bot:{user_id}:{bot_id}:status", ttl, f"running:{pid}")
+    except Exception:
+        pass
+
+
+def _clear_bot_status_redis(user_id: int, bot_id: int):
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is not None:
+            client.delete(f"bot:{user_id}:{bot_id}:status")
+    except Exception:
+        pass
 
 
 def _sync_list_available_strategies(db: Session) -> list:
@@ -668,6 +713,7 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> sub
         _bot_processes[user_id] = {}
     _bot_processes[user_id][bot_id] = process
     _bot_logs[bot_id] = log_path
+    _set_bot_status_redis(user_id, bot_id, process.pid)
 
     console.print(f"[green]Started bot {bot_id} (PID: {process.pid})[/green]")
     return process
@@ -685,6 +731,7 @@ def stop_bot_process(user_id: int, bot_id: int):
                 process.wait()
 
         del _bot_processes[user_id][bot_id]
+        _clear_bot_status_redis(user_id, bot_id)
         console.print(f"[yellow]Stopped bot {bot_id}[/yellow]")
 
 

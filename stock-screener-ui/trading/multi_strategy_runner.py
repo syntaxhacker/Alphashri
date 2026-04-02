@@ -269,6 +269,28 @@ class MultiStrategyRunner:
         from db.database import SessionLocal
         return SessionLocal()
 
+    def _write_heartbeat(self):
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client is not None:
+                import os
+                pid = os.getpid()
+                bot_id = self.bot_config.id if self.bot_config else 0
+                client.setex(f"bot:{self.user_id}:{bot_id}:status", 90, f"running:{pid}")
+        except Exception:
+            pass
+
+    def _clear_heartbeat(self):
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client is not None:
+                bot_id = self.bot_config.id if self.bot_config else 0
+                client.delete(f"bot:{self.user_id}:{bot_id}:status")
+        except Exception:
+            pass
+
     def _persist_trade_to_db(self, trade_data: dict):
         try:
             db = self._get_db_session()
@@ -1310,6 +1332,8 @@ class MultiStrategyRunner:
         self.start_all_strategies()
         self.running = True
 
+        self._write_heartbeat()
+
         # Initial setup
         self.refresh_watchlist()
         self._load_positions_from_db()
@@ -1351,6 +1375,8 @@ class MultiStrategyRunner:
                 # Save snapshot
                 self.save_snapshot()
 
+                self._write_heartbeat()
+
                 # Wait for next cycle
                 if self.running and not self.is_force_exit_time():
                     console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")
@@ -1365,6 +1391,7 @@ class MultiStrategyRunner:
         console.print("\n[bold]Trading stopped. Final status:[/bold]")
         self.display_status()
         self.journal.save_journal()
+        self._clear_heartbeat()
 
 
 # For importing time module
