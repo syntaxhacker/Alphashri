@@ -13,7 +13,19 @@ import type {
   BotUpdate,
   BotLoadingKey,
 } from "../types/bots";
-import { listBots, getBot, createBot, updateBot, startBot, stopBot, deleteBot, getBotStatus, getBotTrades, getBotTradeCount, listAvailableStrategies } from "../api/bots";
+import {
+  listBots,
+  getBot,
+  createBot,
+  updateBot,
+  startBot,
+  stopBot,
+  deleteBot,
+  getBotStatus,
+  getBotTrades,
+  getBotTradeCount,
+  listAvailableStrategies,
+} from "../api/bots";
 import { createLoadingState, setLoading as setLoadingState } from "../utils/loading";
 
 // Initial state

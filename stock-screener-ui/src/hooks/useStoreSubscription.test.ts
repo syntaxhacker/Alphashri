@@ -51,10 +51,9 @@ describe("useStoreSubscription", () => {
     const sub1 = vi.fn().mockReturnValue(unsub1);
     const sub2 = vi.fn().mockReturnValue(unsub2);
 
-    const { rerender, unmount } = renderHook(
-      ({ sub }) => useStoreSubscription(sub),
-      { initialProps: { sub: sub1 } }
-    );
+    const { rerender, unmount } = renderHook(({ sub }) => useStoreSubscription(sub), {
+      initialProps: { sub: sub1 },
+    });
 
     expect(sub1).toHaveBeenCalledTimes(1);
 

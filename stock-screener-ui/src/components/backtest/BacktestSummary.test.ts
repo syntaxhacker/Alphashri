@@ -1,11 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { BacktestTotals } from "../../types/backtest";
 import { formatPnl as formatPnlShared, getPnLTextColor } from "../../utils/ui-helpers";
-import {
-  resolveTotals,
-  formatCosts,
-  formatWinRate,
-} from "./BacktestSummary";
+import { resolveTotals, formatCosts, formatWinRate } from "./BacktestSummary";
 
 describe("BacktestSummary", () => {
   describe("resolveTotals", () => {
