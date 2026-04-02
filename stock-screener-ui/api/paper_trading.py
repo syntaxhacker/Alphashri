@@ -1176,6 +1176,14 @@ async def get_paper_chart(
                     df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
                     print(f"[chart-debug] HISTORICAL filtered: shape={df_1m.shape if df_1m is not None else None}", flush=True)
 
+                    # Upstox may not have data for the exact requested date.
+                    # Fall back to the closest available date in the returned data.
+                    if (df_1m is None or df_1m.empty) and not df_1m_full.empty:
+                        closest_date = df_1m_full.index.max().date()
+                        ds = pd.Timestamp(closest_date.isoformat() + " 00:00:00", tz=config.IST)
+                        de = pd.Timestamp(closest_date.isoformat() + " 23:59:59", tz=config.IST)
+                        df_1m = df_1m_full[(df_1m_full.index >= ds) & (df_1m_full.index <= de)]
+
                 if df_1m is None or df_1m.empty:
                     print(f"[chart-debug] FALLBACK: trying 30-day range", flush=True)
                     broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
@@ -1192,6 +1200,11 @@ async def get_paper_chart(
                         date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
                         df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
                         print(f"[chart-debug] FALLBACK filtered: shape={df_1m.shape if df_1m is not None else None}", flush=True)
+                        if (df_1m is None or df_1m.empty) and not df_1m_full.empty:
+                            closest_date = df_1m_full.index.max().date()
+                            ds = pd.Timestamp(closest_date.isoformat() + " 00:00:00", tz=config.IST)
+                            de = pd.Timestamp(closest_date.isoformat() + " 23:59:59", tz=config.IST)
+                            df_1m = df_1m_full[(df_1m_full.index >= ds) & (df_1m_full.index <= de)]
 
             return df_1m
 
