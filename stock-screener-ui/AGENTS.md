@@ -49,7 +49,7 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 
 ## Debugging
 - **Railway SSH**: `railway connect --project 298aedcc-23a9-4ce3-9dbe-a87986f910de --environment bc5056b2-6a82-4af3-bec2-2d1ac848fc5c --service b66dd871-18ac-49e7-a9fa-7addfb1be351` — shell + tunnel to services
-- **Production Postgres**: `psql "postgresql://alphashri:fuoGOIx86IrrJr5RXHKxwlNTnWaJR7OD@dpg-d6qh4e7kijhs73b5rvpg-a.oregon-postgres.render.com/alphashri"` — query prod DB directly
+- **Production Postgres**: use `DATABASE_URL` env var to connect — query prod DB directly
 - **Redis**: Upstash console or `redis-cli -u ` after Railway connect
 - **Logs**: `railway logs --project 298aedcc --environment bc5056b2 --service b66dd871` for backend stdout
 
