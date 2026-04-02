@@ -1154,12 +1154,12 @@ async def get_paper_chart(
                     symbol=symbol.upper(),
                     interval='1'
                 )
-                console.print(f"[chart-debug] INTRADAY: symbol={symbol} df={df_1m.shape if df_1m is not None else None}")
+                print(f"[chart-debug] INTRADAY: symbol={symbol} df={df_1m.shape if df_1m is not None else None}", flush=True)
             else:
                 # Fetch historical 1-min data for past dates
                 from datetime import timedelta
                 from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
-                console.print(f"[chart-debug] HISTORICAL: symbol={symbol} date={date} from={from_date}")
+                print(f"[chart-debug] HISTORICAL: symbol={symbol} date={date} from={from_date}", flush=True)
                 df_1m_full = upstox_api.fetch_historical_data_v3(
                     symbol=symbol.upper(),
                     unit='minutes',
@@ -1167,17 +1167,17 @@ async def get_paper_chart(
                     to_date=date,
                     from_date=from_date,
                 )
-                console.print(f"[chart-debug] HISTORICAL raw: shape={df_1m_full.shape if df_1m_full is not None else None}")
+                print(f"[chart-debug] HISTORICAL raw: shape={df_1m_full.shape if df_1m_full is not None else None}", flush=True)
                 if df_1m_full is not None and not df_1m_full.empty:
-                    console.print(f"[chart-debug] HISTORICAL index: min={df_1m_full.index.min()} max={df_1m_full.index.max()} tz={df_1m_full.index.tz}")
+                    print(f"[chart-debug] HISTORICAL index: min={df_1m_full.index.min()} max={df_1m_full.index.max()} tz={df_1m_full.index.tz}", flush=True)
                     date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
                     date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
-                    console.print(f"[chart-debug] HISTORICAL filter: start={date_start} end={date_end} IST={config.IST}")
+                    print(f"[chart-debug] HISTORICAL filter: start={date_start} end={date_end} IST={config.IST}", flush=True)
                     df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
-                    console.print(f"[chart-debug] HISTORICAL filtered: shape={df_1m.shape if df_1m is not None else None}")
+                    print(f"[chart-debug] HISTORICAL filtered: shape={df_1m.shape if df_1m is not None else None}", flush=True)
 
                 if df_1m is None or df_1m.empty:
-                    console.print(f"[chart-debug] FALLBACK: trying 30-day range")
+                    print(f"[chart-debug] FALLBACK: trying 30-day range", flush=True)
                     broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
                     df_1m_full = upstox_api.fetch_historical_data_v3(
                         symbol=symbol.upper(),
@@ -1186,12 +1186,12 @@ async def get_paper_chart(
                         to_date=date,
                         from_date=broad_from_date,
                     )
-                    console.print(f"[chart-debug] FALLBACK raw: shape={df_1m_full.shape if df_1m_full is not None else None}")
+                    print(f"[chart-debug] FALLBACK raw: shape={df_1m_full.shape if df_1m_full is not None else None}", flush=True)
                     if df_1m_full is not None and not df_1m_full.empty:
                         date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
                         date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
                         df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
-                        console.print(f"[chart-debug] FALLBACK filtered: shape={df_1m.shape if df_1m is not None else None}")
+                        print(f"[chart-debug] FALLBACK filtered: shape={df_1m.shape if df_1m is not None else None}", flush=True)
 
             return df_1m
 
