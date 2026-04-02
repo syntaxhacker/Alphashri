@@ -276,7 +276,7 @@ class MultiStrategyRunner:
                 from db.models import Trade
                 trade = Trade(
                     user_id=self.user_id,
-                    bot_id=self.bot_config.id if self.bot_config else None,
+                    bot_id=self.bot_config.id if self.bot_config else 0,
                     strategy_id=trade_data.get('strategy_id', 0),
                     strategy_name=trade_data.get('strategy_name', ''),
                     symbol=trade_data['symbol'],
@@ -363,28 +363,28 @@ class MultiStrategyRunner:
             try:
                 from db.models import Position
                 positions = db.query(Position).filter(
-                    Position.bot_id == (self.bot_config.id if self.bot_config else None),
+                    Position.bot_id == (self.bot_config.id if self.bot_config else 0),
                 ).all()
                 if positions:
-                    from trading.shared_portfolio import SharedPosition, OrderSide
                     restored = 0
                     for p in positions:
                         try:
-                            side = OrderSide.BUY if p.side == "BUY" else OrderSide.SELL
-                            pos = self.portfolio.restore_position(
-                                strategy_id=p.strategy_id,
-                                strategy_name=p.strategy_name,
-                                symbol=p.symbol,
-                                side=side,
-                                quantity=p.quantity,
-                                entry_price=p.entry_price,
-                                stop_loss=p.stop_loss or 0.0,
-                                take_profit=p.take_profit or 0.0,
-                                entry_time=p.entry_time,
-                                current_price=p.current_price or p.entry_price,
-                            )
-                            if pos:
-                                restored += 1
+                            pos_data = {
+                                'strategy_id': p.strategy_id or 0,
+                                'strategy_name': p.strategy_name or '',
+                                'symbol': p.symbol,
+                                'side': p.side,
+                                'quantity': p.quantity,
+                                'entry_price': p.entry_price,
+                                'stop_loss': p.stop_loss or 0.0,
+                                'take_profit': p.take_profit or 0.0,
+                                'entry_time': p.entry_time.isoformat() if p.entry_time else None,
+                                'current_price': p.current_price or p.entry_price,
+                                'peak_price': p.entry_price,
+                                'low_price': p.entry_price,
+                            }
+                            self.portfolio.restore_position(pos_data)
+                            restored += 1
                         except Exception as e:
                             console.print(f"[yellow]Failed to restore position {p.symbol}: {e}[/yellow]")
                     if restored > 0:

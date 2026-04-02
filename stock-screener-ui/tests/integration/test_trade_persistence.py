@@ -198,11 +198,14 @@ class TestTradeDBPersistence:
             bot._load_positions_from_db()
 
         assert mock_restore.call_count == 1
-        call_kwargs = mock_restore.call_args[1]
+        call_kwargs = mock_restore.call_args[0][0]
+        assert isinstance(call_kwargs, dict)
         assert call_kwargs["symbol"] == "RELIANCE"
         assert call_kwargs["strategy_id"] == test_strategy.id
         assert call_kwargs["quantity"] == 50
         assert call_kwargs["entry_price"] == 2000.0
+        assert isinstance(call_kwargs["side"], str)
+        assert call_kwargs["side"] == "BUY"
 
     def test_persist_trade_graceful_db_failure(self, test_user, test_bot, test_strategy):
         bot = _make_bot(test_user.id, test_bot.id)

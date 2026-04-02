@@ -426,6 +426,9 @@ def _sync_get_bot_trades(bot_uuid: str, user_id: int, strategy_id: Optional[str]
     ).fetchall()
     bot_strategy_ids = [row.strategy_id for row in result]
 
+    if not bot_strategy_ids:
+        return {"bot_id": bot.uuid, "trades": [], "count": 0, "strategy_filter": strategy_id}
+
     strategy_internal_id = None
     if strategy_id is not None:
         strat = get_strategy_by_uuid(strategy_id, db)
