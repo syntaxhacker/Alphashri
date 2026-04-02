@@ -1,6 +1,16 @@
 import { useEffect, useCallback, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Tabs, Button, Group, Stack, Text, Badge, ActionIcon, Table } from "@mantine/core";
+import {
+  Box,
+  Tabs,
+  Button,
+  Group,
+  Stack,
+  Text,
+  Badge,
+  ActionIcon,
+  Table,
+} from "@mantine/core";
 import {
   IconRobot,
   IconChartLine,
@@ -91,13 +101,7 @@ export function BotsPage() {
   const renderBotsList = () => {
     if (state.bots.length === 0) {
       return (
-        <EmptyCompact
-          emoji="🤖"
-          title="No bots configured"
-          description='Click "New Bot" to create one'
-          data-testid="bots-empty-state"
-          id="bots-empty-state"
-        />
+        <EmptyCompact emoji="🤖" title="No bots configured" description='Click "New Bot" to create one' data-testid="bots-empty-state" id="bots-empty-state" />
       );
     }
 
@@ -141,11 +145,7 @@ export function BotsPage() {
                   </Group>
                 </Table.Td>
                 <Table.Td>
-                  <StatusBadge
-                    running={bot.running}
-                    pid={bot.pid}
-                    data-testid={`bot-status-${bot.id}`}
-                  />
+                  <StatusBadge running={bot.running} pid={bot.pid} data-testid={`bot-status-${bot.id}`} />
                 </Table.Td>
                 <Table.Td>
                   <Stack gap={4}>

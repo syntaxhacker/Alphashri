@@ -31,6 +31,7 @@ import {
 import { runBacktest, fetchStrategies, fetchCosts, fetchVariations } from "../../api/backtest";
 import { chartTradesToTrades } from "../../api/chartBuilder";
 
+
 export function BacktestPage() {
   useStoreSubscription(subscribe);
   const state = getBacktestState();

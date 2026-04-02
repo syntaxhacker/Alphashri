@@ -22,12 +22,7 @@ import {
   stopAutoRefresh,
 } from "../../state/bots";
 import { isLoading } from "../../utils/loading";
-import {
-  getPnLTextColor,
-  formatSignedPnl,
-  formatNumber,
-  formatExitReason,
-} from "../../utils/ui-helpers";
+import { getPnLTextColor, formatSignedPnl, formatNumber, formatExitReason } from "../../utils/ui-helpers";
 
 export function renderBotStatusPanel(bot: BotConfig, status: BotStatus | null): string {
   const state = getBotsState();

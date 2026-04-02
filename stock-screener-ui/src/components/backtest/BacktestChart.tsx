@@ -18,6 +18,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   const fontSizes = theme.fontSizes;
 
   if (!candles || !trades) {
+
     return {};
   }
 
@@ -254,10 +255,12 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
 
     // Add 52W high levels for 52W Chaser strategy
     if (week52_levels && week52_levels.length > 0) {
+
       const week52HighData = candles.map((c) => {
         const level = week52_levels.find((l) => l.date === c.date);
         return level ? level["52w_high"] : null;
       });
+
 
       series.push({
         id: "52w-high",
@@ -402,6 +405,7 @@ export function zoomToTrade(
 
   const chart = chartInstances.get(symbol);
   if (!chart) {
+
     return;
   }
 
@@ -414,6 +418,7 @@ export function zoomToTrade(
   );
 
   if (!entryMarker) {
+
     return;
   }
 
@@ -435,9 +440,13 @@ export function zoomToTrade(
     const entryTime = normalizeTime(entryMarker.time);
     entryIdx = candleTimeMap.get(entryTime);
 
+
+
     // If not found, try matching by date only (for daily candles)
     if (entryIdx === undefined && entryMarker.date) {
       entryIdx = candleDateMap.get(entryMarker.date);
+
+
     }
   }
 
@@ -450,7 +459,10 @@ export function zoomToTrade(
     }
   }
 
+
+
   if (entryIdx === undefined) {
+
     return;
   }
 
@@ -496,6 +508,8 @@ export function zoomToTrade(
 
   const startPercent = (startIdx / totalCandles) * 100;
   const endPercent = ((endIdx + 1) / totalCandles) * 100;
+
+
 
   // Apply zoom
   chart.dispatchAction({
@@ -714,10 +728,12 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
 
   useEffect(() => {
     if (!chartRef.current) {
+
       return;
     }
 
     if (!chartData) {
+
       return;
     }
 

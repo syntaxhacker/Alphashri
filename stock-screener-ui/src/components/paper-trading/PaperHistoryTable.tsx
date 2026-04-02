@@ -26,12 +26,7 @@ import {
 } from "../../state/paperTrading";
 import { fetchPaperChart, refreshHistoryData } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
-import {
-  formatNumber,
-  formatTimeOnly,
-  formatDateHeader,
-  getPnLTextColor,
-} from "../../utils/ui-helpers";
+import { formatNumber, formatTimeOnly, formatDateHeader, getPnLTextColor } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 

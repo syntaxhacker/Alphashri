@@ -8,12 +8,7 @@ import {
 } from "../../state/paperTrading";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
-import {
-  formatCurrencyIN,
-  formatNumber,
-  formatElapsed,
-  getPnLTextColor,
-} from "../../utils/ui-helpers";
+import { formatCurrencyIN, formatNumber, formatElapsed, getPnLTextColor } from "../../utils/ui-helpers";
 import { SideBadge } from "../common/BadgeComponents";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 
