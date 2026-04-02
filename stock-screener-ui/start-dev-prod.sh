@@ -57,7 +57,7 @@ fi
 echo "UI PID: ${UI_PID}"
 echo ""
 echo "  ➜  Local:    http://localhost:${UI_PORT}/"
-grep -oP 'Network: \Khttp://[^\s]+' "$LOG_FILE" | while read -r url; do
+grep -oE 'Network: http://[^ ]+' "$LOG_FILE" | sed 's/Network: //' | while read -r url; do
   echo "  ➜  Network: ${url}"
 done
 echo ""

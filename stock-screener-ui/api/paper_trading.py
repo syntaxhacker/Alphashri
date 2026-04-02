@@ -1091,10 +1091,9 @@ async def get_paper_chart(
                 )
                 # Filter to only the requested date
                 if df_1m_full is not None and not df_1m_full.empty:
-                    date_start = f"{date}T00:00:00"
-                    date_end = f"{date}T23:59:59"
-                    df_1m = df_1m_full[df_1m_full.index >= date_start]
-                    df_1m = df_1m[df_1m.index <= date_end]
+                    date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
+                    date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
+                    df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
 
                 # Fallback: try broader range if no data
                 if df_1m is None or df_1m.empty:
@@ -1107,10 +1106,9 @@ async def get_paper_chart(
                         from_date=broad_from_date,
                     )
                     if df_1m_full is not None and not df_1m_full.empty:
-                        date_start = f"{date}T00:00:00"
-                        date_end = f"{date}T23:59:59"
-                        df_1m = df_1m_full[df_1m_full.index >= date_start]
-                        df_1m = df_1m[df_1m.index <= date_end]
+                        date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
+                        date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
+                        df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
 
             return df_1m
 
