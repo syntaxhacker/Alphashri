@@ -168,7 +168,7 @@ export function PaperPositionsTable() {
           )}
 
           <ScrollArea flex={1} style={{ minHeight: 0 }}>
-            <div style={{ overflowX: "auto" }}>
+            <div style={{ overflowX: "auto" }} data-testid="positions-table-container">
               <PositionsTableBody positions={filteredPositions} selectedSymbol={selectedSymbol} />
             </div>
           </ScrollArea>
