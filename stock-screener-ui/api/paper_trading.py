@@ -473,7 +473,28 @@ def _get_symbol_trades_from_db(user_id: int, symbol: str, date: str) -> list:
         )
         if date:
             query = query.filter(TradeModel.exit_time >= date_start, TradeModel.exit_time <= date_end)
-        trades = [t.to_dict() for t in query.all()]
+        trades = []
+        for t in query.all():
+            d = t.to_dict()
+            if d.get("entry_time") and d["entry_time"] != "":
+                try:
+                    dt = datetime.fromisoformat(d["entry_time"])
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=config.IST)
+                    ist_time = dt.astimezone(config.IST)
+                    d["entry_time"] = ist_time.strftime("%Y-%m-%dT%H:%M:%S")
+                except (ValueError, TypeError):
+                    pass
+            if d.get("exit_time") and d["exit_time"] != "":
+                try:
+                    dt = datetime.fromisoformat(d["exit_time"])
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=config.IST)
+                    ist_time = dt.astimezone(config.IST)
+                    d["exit_time"] = ist_time.strftime("%Y-%m-%dT%H:%M:%S")
+                except (ValueError, TypeError):
+                    pass
+            trades.append(d)
         return trades
     except Exception:
         return []
@@ -1146,20 +1167,14 @@ async def get_paper_chart(
 
         def _fetch_chart_data():
             df_1m = None
-
-            # Use historical API for past dates, intraday for today
             if date == today:
-                # Fetch today's intraday 1-min data
                 df_1m = upstox_api.fetch_intraday_data_v3(
                     symbol=symbol.upper(),
                     interval='1'
                 )
-                print(f"[chart-debug] INTRADAY: symbol={symbol} df={df_1m.shape if df_1m is not None else None}", flush=True)
             else:
-                # Fetch historical 1-min data for past dates
                 from datetime import timedelta
                 from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
-                print(f"[chart-debug] HISTORICAL: symbol={symbol} date={date} from={from_date}", flush=True)
                 df_1m_full = upstox_api.fetch_historical_data_v3(
                     symbol=symbol.upper(),
                     unit='minutes',
@@ -1167,45 +1182,10 @@ async def get_paper_chart(
                     to_date=date,
                     from_date=from_date,
                 )
-                print(f"[chart-debug] HISTORICAL raw: shape={df_1m_full.shape if df_1m_full is not None else None}", flush=True)
                 if df_1m_full is not None and not df_1m_full.empty:
-                    print(f"[chart-debug] HISTORICAL index: min={df_1m_full.index.min()} max={df_1m_full.index.max()} tz={df_1m_full.index.tz}", flush=True)
                     date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
                     date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
-                    print(f"[chart-debug] HISTORICAL filter: start={date_start} end={date_end} IST={config.IST}", flush=True)
                     df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
-                    print(f"[chart-debug] HISTORICAL filtered: shape={df_1m.shape if df_1m is not None else None}", flush=True)
-
-                    # Upstox may not have data for the exact requested date.
-                    # Fall back to the closest available date in the returned data.
-                    if (df_1m is None or df_1m.empty) and not df_1m_full.empty:
-                        closest_date = df_1m_full.index.max().date()
-                        ds = pd.Timestamp(closest_date.isoformat() + " 00:00:00", tz=config.IST)
-                        de = pd.Timestamp(closest_date.isoformat() + " 23:59:59", tz=config.IST)
-                        df_1m = df_1m_full[(df_1m_full.index >= ds) & (df_1m_full.index <= de)]
-
-                if df_1m is None or df_1m.empty:
-                    print(f"[chart-debug] FALLBACK: trying 30-day range", flush=True)
-                    broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
-                    df_1m_full = upstox_api.fetch_historical_data_v3(
-                        symbol=symbol.upper(),
-                        unit='minutes',
-                        interval=1,
-                        to_date=date,
-                        from_date=broad_from_date,
-                    )
-                    print(f"[chart-debug] FALLBACK raw: shape={df_1m_full.shape if df_1m_full is not None else None}", flush=True)
-                    if df_1m_full is not None and not df_1m_full.empty:
-                        date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
-                        date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
-                        df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
-                        print(f"[chart-debug] FALLBACK filtered: shape={df_1m.shape if df_1m is not None else None}", flush=True)
-                        if (df_1m is None or df_1m.empty) and not df_1m_full.empty:
-                            closest_date = df_1m_full.index.max().date()
-                            ds = pd.Timestamp(closest_date.isoformat() + " 00:00:00", tz=config.IST)
-                            de = pd.Timestamp(closest_date.isoformat() + " 23:59:59", tz=config.IST)
-                            df_1m = df_1m_full[(df_1m_full.index >= ds) & (df_1m_full.index <= de)]
-
             return df_1m
 
         df_1m = await asyncio.to_thread(_fetch_chart_data)
@@ -1277,7 +1257,6 @@ async def get_paper_chart(
             console.print(f"[yellow]Could not fetch 52W levels for {symbol}: {e}[/yellow]")
 
         # Get trades from journal for this symbol and date
-        # First try DB, then fall back to journal files
         from trading.journal import TradeJournal
         uid = _get_user_id(user)
 
@@ -1307,6 +1286,20 @@ async def get_paper_chart(
 
         # Convert trades to dict format (handle both journal Trade objects and DB dicts)
         def _trade_to_dict(t):
+            def _calc_hold(entry, exit_):
+                if not entry or not exit_:
+                    return None
+                try:
+                    et = datetime.fromisoformat(entry)
+                    xt = datetime.fromisoformat(exit_)
+                    if et.tzinfo is None:
+                        et = et.replace(tzinfo=config.IST)
+                    if xt.tzinfo is None:
+                        xt = xt.replace(tzinfo=config.IST)
+                    return int((xt - et).total_seconds() / 60)
+                except (ValueError, TypeError):
+                    return None
+
             if isinstance(t, dict):
                 return {
                     "trade_id": t.get("trade_id", ""),
@@ -1324,6 +1317,7 @@ async def get_paper_chart(
                     "net_pnl": t.get("net_pnl", 0),
                     "sl_price": t.get("stop_loss", 0),
                     "tp_price": t.get("take_profit", 0),
+                    "hold_duration_minutes": _calc_hold(t.get("entry_time"), t.get("exit_time")),
                 }
             return {
                 "trade_id": t.trade_id,
@@ -1341,6 +1335,7 @@ async def get_paper_chart(
                 "net_pnl": t.net_pnl,
                 "sl_price": t.sl_price,
                 "tp_price": t.tp_price,
+                "hold_duration_minutes": _calc_hold(t.entry_time, t.exit_time),
             }
 
         trades_data = [_trade_to_dict(t) for t in symbol_trades]

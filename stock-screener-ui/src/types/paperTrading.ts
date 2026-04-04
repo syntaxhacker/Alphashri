@@ -43,6 +43,7 @@ export interface PaperTrade {
   tp_price: number;
   peak_price: number; // Highest price during trade
   low_price: number; // Lowest price during trade
+  hold_duration_minutes: number | null; // Entry to exit duration
   notes: string;
   strategy_id: number;
   strategy_name: string;
@@ -194,6 +195,8 @@ export interface PaperTradingState {
   // Chart state
   selectedSymbol: string | null;
   selectedStrategyTab: string | null; // For multi-strategy position tabs
+  selectedTradeId: string | null; // Trade ID to highlight on chart
+  showAllTrades: boolean; // Show all trades or just selectedTradeId
   chartData: PaperChartData | null;
   chartLoading: boolean;
   chartTimeframe: string;

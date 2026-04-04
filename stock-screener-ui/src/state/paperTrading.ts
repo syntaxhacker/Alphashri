@@ -39,7 +39,9 @@ export const initialPaperTradingState: PaperTradingState = {
   filterBot: null,
 
   selectedSymbol: null,
-  selectedStrategyTab: null, // For multi-strategy position tabs
+  selectedStrategyTab: null,
+  selectedTradeId: null,
+  showAllTrades: false,
   chartData: null,
   chartLoading: false,
   chartTimeframe: "5min",
@@ -146,7 +148,17 @@ export function setFilterStrategy(strategy: string | null) {
 
 // Chart management
 export function setSelectedSymbol(symbol: string | null) {
-  state = { ...state, selectedSymbol: symbol };
+  state = { ...state, selectedSymbol: symbol, selectedTradeId: null };
+  notify();
+}
+
+export function setSelectedTradeId(tradeId: string | null) {
+  state = { ...state, selectedTradeId: tradeId, showAllTrades: false };
+  notify();
+}
+
+export function setShowAllTrades(show: boolean) {
+  state = { ...state, showAllTrades: show };
   notify();
 }
 

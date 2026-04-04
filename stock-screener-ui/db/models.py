@@ -625,6 +625,12 @@ class Trade(Base):
     bot = relationship("BotConfig", backref="trades")
 
     def to_dict(self):
+        hold = None
+        if self.entry_time and self.exit_time:
+            try:
+                hold = int((self.exit_time - self.entry_time).total_seconds() / 60)
+            except Exception:
+                pass
         return {
             "id": self.uuid,
             "trade_id": f"TRADE-{self.id:06d}",
@@ -646,6 +652,7 @@ class Trade(Base):
             "source": self.source,
             "stop_loss": self.stop_loss,
             "take_profit": self.take_profit,
+            "hold_duration_minutes": hold,
         }
 
 

@@ -1279,7 +1279,8 @@ kbd {
 .trade-history-table tbody tr:hover {
   background: var(--mantine-color-gray-light) !important;
 }
-.trade-history-table tr.trade-row-highlighted {
+.trade-history-table tr.trade-row-highlighted,
+.paper-day-group tr.trade-row-highlighted {
   background: rgba(255, 215, 0, 0.15) !important;
   box-shadow: inset 0 0 0 2px #ffd700;
   transition: all 0.3s ease;

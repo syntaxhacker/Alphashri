@@ -13,34 +13,50 @@ export const TIMEFRAME_OPTIONS = [
   { value: "1hour", label: "1H" },
 ];
 
-function parseTimeToMinutes(str: string): number {
+function parseTimeToSeconds(str: string): number {
   const timePart = str.split("T")[1] || str;
   const parts = timePart.split(":");
   if (parts.length >= 2) {
-    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    const secs = parts.length >= 3 ? parseInt(parts[2], 10) || 0 : 0;
+    return parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + secs;
   }
   return -1;
 }
 
+function getCandleIntervalSeconds(candles: CandleData[]): number {
+  if (candles.length < 2) return 300;
+  const t0 = parseTimeToSeconds(candles[0].time);
+  const t1 = parseTimeToSeconds(candles[1].time);
+  const diff = t1 - t0;
+  return diff > 0 ? diff : 300;
+}
+
 function findCandleIndex(candles: CandleData[], timeStr: string): number {
   if (!timeStr || candles.length === 0) return -1;
-  const targetMinutes = parseTimeToMinutes(timeStr);
-  if (targetMinutes < 0) return -1;
+  const targetSec = parseTimeToSeconds(timeStr);
+  if (targetSec < 0) return -1;
+
+  const interval = getCandleIntervalSeconds(candles);
 
   for (let i = 0; i < candles.length; i++) {
-    if (parseTimeToMinutes(candles[i].time) === targetMinutes) return i;
+    const candleSec = parseTimeToSeconds(candles[i].time);
+    if (candleSec === targetSec) return i;
   }
 
-  let closestIdx = 0;
+  let closestIdx = -1;
   let minDiff = Infinity;
   for (let i = 0; i < candles.length; i++) {
-    const diff = Math.abs(parseTimeToMinutes(candles[i].time) - targetMinutes);
+    const candleSec = parseTimeToSeconds(candles[i].time);
+    const diff = Math.abs(candleSec - targetSec);
     if (diff < minDiff) {
       minDiff = diff;
       closestIdx = i;
     }
   }
-  return minDiff <= 10 ? closestIdx : -1;
+
+  if (closestIdx >= 0 && minDiff <= interval) return closestIdx;
+
+  return -1;
 }
 
 function formatVolume(vol: number): string {
@@ -49,58 +65,77 @@ function formatVolume(vol: number): string {
   return vol.toString();
 }
 
+function pushTradeMarkers(
+  trade: PaperTrade,
+  candles: CandleData[],
+  entryMarkers: any[],
+  tpMarkers: any[],
+  slMarkers: any[],
+  eodMarkers: any[],
+) {
+  const entryIdx = findCandleIndex(candles, trade.entry_time);
+  const exitIdx = findCandleIndex(candles, trade.exit_time);
+  const isSameCandle = exitIdx === entryIdx && entryIdx >= 0;
+
+  if (entryIdx >= 0) {
+    entryMarkers.push({
+      value: [entryIdx, trade.entry_price],
+      itemStyle: { color: "#00FFFF", borderColor: "#FFFFFF", borderWidth: 2 },
+      symbol: trade.side === "BUY" ? "triangle" : "triangleRotated",
+      symbolSize: 18,
+      symbolOffset: isSameCandle ? [0, -20] : [0, 0],
+      trade,
+    });
+  }
+
+  if (exitIdx >= 0) {
+    const markerBase = {
+      value: [exitIdx, trade.exit_price],
+      symbol: "circle" as const,
+      symbolSize: 16,
+      symbolOffset: isSameCandle ? [0, 20] : [0, 0],
+      trade,
+    };
+
+    if (trade.exit_reason === "TP") {
+      tpMarkers.push({
+        ...markerBase,
+        itemStyle: { color: "#FFFF00", borderColor: "#FFFFFF", borderWidth: 2 },
+      });
+    } else if (trade.exit_reason === "SL") {
+      slMarkers.push({
+        ...markerBase,
+        itemStyle: { color: "#FF00FF", borderColor: "#FFFFFF", borderWidth: 2 },
+      });
+    } else {
+      eodMarkers.push({
+        ...markerBase,
+        symbol: "diamond" as const,
+        itemStyle: { color: "#FFA500", borderColor: "#FFFFFF", borderWidth: 2 },
+      });
+    }
+  }
+}
+
 function buildMarkers(
   candles: CandleData[],
   trades: PaperTrade[],
   current_position: PaperPosition | null,
+  selectedTradeId: string | null,
+  showAllTrades: boolean,
 ) {
   const entryMarkers: any[] = [];
   const tpMarkers: any[] = [];
   const slMarkers: any[] = [];
   const eodMarkers: any[] = [];
 
-  trades.forEach((trade: PaperTrade) => {
-    const entryIdx = findCandleIndex(candles, trade.entry_time);
-    const exitIdx = findCandleIndex(candles, trade.exit_time);
+  const filteredTrades = showAllTrades
+    ? trades
+    : trades.filter((t: PaperTrade) => t.trade_id === selectedTradeId);
 
-    if (entryIdx >= 0) {
-      entryMarkers.push({
-        value: [entryIdx, trade.entry_price],
-        itemStyle: { color: "#00FFFF", borderColor: "#FFFFFF", borderWidth: 2 },
-        symbol: trade.side === "BUY" ? "triangle" : "triangleRotated",
-        symbolSize: 18,
-        trade,
-      });
-    }
-
-    if (exitIdx >= 0) {
-      if (trade.exit_reason === "TP") {
-        tpMarkers.push({
-          value: [exitIdx, trade.exit_price],
-          itemStyle: { color: "#FFFF00", borderColor: "#FFFFFF", borderWidth: 2 },
-          symbol: "circle",
-          symbolSize: 16,
-          trade,
-        });
-      } else if (trade.exit_reason === "SL") {
-        slMarkers.push({
-          value: [exitIdx, trade.exit_price],
-          itemStyle: { color: "#FF00FF", borderColor: "#FFFFFF", borderWidth: 2 },
-          symbol: "circle",
-          symbolSize: 16,
-          trade,
-        });
-      } else {
-        eodMarkers.push({
-          value: [exitIdx, trade.exit_price],
-          itemStyle: { color: "#FFA500", borderColor: "#FFFFFF", borderWidth: 2 },
-          symbol: "diamond",
-          symbolSize: 16,
-          trade,
-        });
-      }
-    }
-  });
+  for (const trade of filteredTrades) {
+    pushTradeMarkers(trade, candles, entryMarkers, tpMarkers, slMarkers, eodMarkers);
+  }
 
   if (current_position) {
     const idx = findCandleIndex(candles, current_position.entry_time);
@@ -205,7 +240,12 @@ function buildTooltipFormatter(
   };
 }
 
-export function buildChartOption(data: PaperChartData, isDark: boolean): any {
+export function buildChartOption(
+  data: PaperChartData,
+  isDark: boolean,
+  selectedTradeId: string | null = null,
+  showAllTrades: boolean = false,
+): any {
   const { candles, trades, orb_levels, week52_levels, current_position } = data;
   const fontSizes = theme.fontSizes;
 
@@ -231,6 +271,8 @@ export function buildChartOption(data: PaperChartData, isDark: boolean): any {
     candles,
     trades,
     current_position,
+    selectedTradeId,
+    showAllTrades,
   );
   const markLines = buildMarkLines(current_position, orb_levels, week52_levels);
 

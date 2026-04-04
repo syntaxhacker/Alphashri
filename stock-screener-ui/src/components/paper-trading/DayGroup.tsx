@@ -1,9 +1,11 @@
+import { useRef, useEffect } from "react";
 import { Collapse, Table, Badge, Text, Group, Flex, ActionIcon } from "@mantine/core";
 import type { PaperTrade } from "../../types/paperTrading";
 import {
   formatNumber,
   formatTimeOnly,
   formatDateHeader,
+  formatDuration,
   getPnLTextColor,
   sortByField,
 } from "../../utils/ui-helpers";
@@ -14,7 +16,8 @@ interface DayGroupProps {
   date: string;
   trades: PaperTrade[];
   selectedSymbol: string | null;
-  onSelectSymbol: (symbol: string, exitTime?: string) => void;
+  selectedTradeId: string | null;
+  onSelectSymbol: (symbol: string, exitTime?: string, tradeId?: string) => void;
   onDeleteTrade: (tradeId: string) => void;
   expanded: boolean;
   onToggle: () => void;
@@ -72,17 +75,30 @@ function TradeRow({
   trade,
   onSelectSymbol,
   onDeleteTrade,
+  selectedTradeId,
 }: {
   trade: PaperTrade;
-  onSelectSymbol: (s: string, t?: string) => void;
+  onSelectSymbol: (s: string, t?: string, tradeId?: string) => void;
   onDeleteTrade: (id: string) => void;
+  selectedTradeId: string | null;
 }) {
+  const rowRef = useRef<HTMLTableRowElement>(null);
+  const isSelected = trade.trade_id === selectedTradeId;
+
+  useEffect(() => {
+    if (isSelected && rowRef.current) {
+      rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [isSelected]);
+
   const pnlColor = getPnLTextColor(trade.net_pnl);
 
   return (
     <Table.Tr
+      ref={rowRef}
       key={trade.trade_id}
-      onClick={() => onSelectSymbol(trade.symbol, trade.exit_time)}
+      onClick={() => onSelectSymbol(trade.symbol, trade.exit_time, trade.trade_id)}
+      className={isSelected ? "trade-row-highlighted" : undefined}
       style={{ cursor: "pointer" }}
       data-testid={`trade-row-${trade.trade_id}`}
     >
@@ -99,6 +115,11 @@ function TradeRow({
       <Table.Td>{formatTimeOnly(trade.entry_time)}</Table.Td>
       <Table.Td>₹{trade.exit_price.toFixed(2)}</Table.Td>
       <Table.Td>{formatTimeOnly(trade.exit_time)}</Table.Td>
+      <Table.Td>
+        <Text size="sm" c="dimmed">
+          {trade.hold_duration_minutes != null ? formatDuration(trade.hold_duration_minutes) : "-"}
+        </Text>
+      </Table.Td>
       <Table.Td>
         <Text c={pnlColor} fw={600} size="sm">
           ₹{formatNumber(trade.net_pnl)}
@@ -131,6 +152,7 @@ export function DayGroup({
   date,
   trades,
   selectedSymbol: _selectedSymbol,
+  selectedTradeId,
   onSelectSymbol,
   onDeleteTrade,
   expanded,
@@ -207,6 +229,13 @@ export function DayGroup({
                   onSort={onSort}
                 />
                 <SortableHeader
+                  label="Hold"
+                  columnKey="hold_duration_minutes"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onSort={onSort}
+                />
+                <SortableHeader
                   label="P&L"
                   columnKey="net_pnl"
                   sortColumn={sortColumn}
@@ -244,6 +273,7 @@ export function DayGroup({
                   trade={trade}
                   onSelectSymbol={onSelectSymbol}
                   onDeleteTrade={onDeleteTrade}
+                  selectedTradeId={selectedTradeId}
                 />
               ))}
             </Table.Tbody>

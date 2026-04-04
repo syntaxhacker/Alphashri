@@ -51,13 +51,61 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - **Env vars**: see `.env.example` — `DATABASE_URL`, `UPSTOX_API_KEY/SECRET`, `REDIS_URL`, `BACKEND_JWT_SECRET`, `VITE_API_BASE_URL`
 
 ## Debugging
-- **Railway SSH**: `railway connect --project 298aedcc-23a9-4ce3-9dbe-a87986f910de --environment bc5056b2-6a82-4af3-bec2-2d1ac848fc5c --service b66dd871-18ac-49e7-a9fa-7addfb1be351` — shell + tunnel to services
-- **Railway run**: `railway run --project=... --environment=... --service=... python3 -c "..."` — execute commands in the container (non-interactive)
-- **Production Postgres**: use `DATABASE_URL` env var to connect — query prod DB directly
-- **Local DB dump**: `python scripts/dump_prod_to_local.py` — copies trades+positions from prod Postgres to local SQLite. Remember to update `user_id` after dump.
-- **Redis**: Upstash console or `redis-cli -u ` after Railway connect
-- **Logs**: `railway logs` for backend stdout (no `--project` flag needed when configured)
-- **Docker WORKDIR**: production container uses `/app/stock-screener-ui` (from Dockerfile.prod). `Path(__file__).parent.parent.parent` resolves to `/app`.
+
+### Railway CLI
+Railway CLI must be linked to the project first. After linking, project/env/service flags are optional.
+- **Link**: `railway link` (interactive, saves config to `.railway/config.json`)
+- **Check linked project**: `railway status`
+
+### Running commands on production
+- **Single command** (non-interactive, best for quick checks):
+  ```
+  railway run --project=298aedcc-23a9-4ce3-9dbe-a87986f910de \
+    --environment=bc5056b2-6a82-4af3-bec2-2d1ac848fc5c \
+    --service=b66dd871-18ac-49e7-a9fa-7addfb1be351 \
+    python3 -c "print('hello')"
+  ```
+- **Bash scripts**: use `railway run ... bash -c "command1 && command2"`
+- **Working directory in container**: `/app/stock-screener-ui` (Docker WORKDIR). `Path(__file__).parent.parent.parent` = `/app`.
+- **Limitation**: cannot use `railway ssh` through this terminal (requires interactive TTY). Use `railway run` instead.
+
+### Common Railway run patterns
+```bash
+# Test Upstox API on prod
+railway run --project=298aedcc ... --service=b66dd871 python3 -c "
+from config import UPSTOX_API_KEY
+from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+api = UpstoxAPI(api_key=UPSTOX_API_KEY, api_secret=UPSTOX_API_SECRET, quiet=True)
+df = api.fetch_historical_data_v3(symbol='TCS', unit='minutes', interval=1, to_date='2026-04-02', from_date='2026-03-31')
+print(df.shape if df is not None else None)
+"
+
+# Check env vars
+railway run --project=298aedcc ... --service=b66dd871 python3 -c "import config; print(config.IST, bool(config.UPSTOX_API_KEY))"
+
+# Check deployed code version
+railway run --project=298aedcc ... --service=b66dd871 python3 -c "
+import inspect, os; os.chdir('stock-screener-ui')
+from api.paper_trading import get_paper_chart
+print('pd.Timestamp' in inspect.getsource(get_paper_chart))
+"
+```
+
+### Production Postgres
+- Connect via `DATABASE_URL` env var (never hardcode credentials — GitGuardian scans commits)
+- Dump prod to local: `python scripts/dump_prod_to_local.py` — copies trades+positions. **Important**: prod uses `user_id=1`, local user may differ — update after dump:
+  ```bash
+  sqlite3 stock-screener-ui/db/alphashri.db "UPDATE trades SET user_id=<local_id>; UPDATE positions SET user_id=<local_id>;"
+  ```
+
+### Logs
+- `railway logs` — streams recent logs (works without flags when linked)
+- `railway logs 2>&1 | grep "keyword"` — filter for specific errors
+- Logs stream in real-time; hit the endpoint in another terminal, then check logs for output
+
+### Redis
+- Upstash console for GUI access
+- `redis-cli -u <UPSTOX_REDIS_URL>` after Railway connect for CLI
 
 ## Testing
 - Frontend: vitest, files co-located as `*.test.ts` / `*.test.tsx`
@@ -67,3 +115,37 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 ## Committing
 - Never commit unless asked
 - Lint + build must pass: `bun run lint && bun run build`
+
+## Post-Push Verification
+After every push, verify the deployment pipeline end-to-end:
+
+### Step 1: Check GitHub Actions (60s)
+```bash
+# Wait for CI to start and check results
+sleep 60 && gh pr checks <PR_NUMBER>
+```
+- If any check fails, view logs: `gh run view --log-failed`
+- Common failures: E2E smoke tests (missing `data-testid`), GitGuardian (hardcoded secrets), lint errors
+- Fix issues, commit, and push again — repeat until all checks pass
+
+### Step 2: Wait for Railway Deployment (60s)
+```bash
+# Poll until Railway check appears
+while ! gh pr checks <PR_NUMBER> 2>&1 | grep -q "intuitive-tenderness"; do sleep 10; done
+# Wait for deploy to complete
+while gh pr checks <PR_NUMBER> 2>&1 | grep "intuitive-tenderness" | grep -q "pending\|deploying"; do sleep 10; done
+```
+Or just wait ~90s total after push.
+
+### Step 3: Verify
+- **If backend changed** (Python files, API routes, DB models): curl the affected endpoint to confirm it works on production
+- **If only frontend changed** (TSX, CSS, state): no curl needed — Cloudflare Pages deploys separately
+- **If both changed**: verify both
+
+```bash
+# Example: backend change verification
+curl -s 'https://earner-production.up.railway.app/api/paper/trades?limit=5' \
+  -H 'Authorization: Bearer <token>' | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'trades: {len(d.get(\"trades\",[]))}')"
+```
+
+✅ **Deployment done** when Railway check shows "pass" and (if backend changed) curl returns expected data.

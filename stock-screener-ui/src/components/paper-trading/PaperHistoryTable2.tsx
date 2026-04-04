@@ -1,15 +1,6 @@
 import { useState, useMemo } from "react";
 import dayjs from "dayjs";
-import {
-  Select,
-  Badge,
-  Text,
-  Group,
-  Loader,
-  SegmentedControl,
-  Flex,
-  ScrollArea,
-} from "@mantine/core";
+import { Select, Text, Group, Loader, SegmentedControl, Flex, ScrollArea } from "@mantine/core";
 import {
   getPaperTradingState,
   subscribe as subscribeToPaperTrading,
@@ -21,8 +12,8 @@ import {
   deleteTradeAction,
 } from "../../state/paperTrading";
 import { fetchPaperChart, refreshHistoryData } from "../../api/paperTrading";
+import { setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
-import { formatNumber, getPnLTextColor, getNextSortDirection } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { DayGroup } from "./DayGroup";
 
@@ -85,6 +76,24 @@ export function groupTradesByDate(
   return groups;
 }
 
+function getPeriodFromDateRange(fromDate: string | null, toDate: string | null): string {
+  if (!fromDate && !toDate) return "all";
+  const todayStr = dayjs().format("YYYY-MM-DD");
+  if (fromDate === todayStr && toDate === todayStr) return "today";
+  const weekAgoStr = dayjs().subtract(7, "day").format("YYYY-MM-DD");
+  if (fromDate === weekAgoStr && !toDate) return "week";
+  const monthAgoStr = dayjs().subtract(1, "month").format("YYYY-MM-DD");
+  if (fromDate === monthAgoStr && !toDate) return "month";
+  const yearAgoStr = dayjs().subtract(1, "year").format("YYYY-MM-DD");
+  if (fromDate === yearAgoStr && !toDate) return "year";
+  if (fromDate) {
+    if (dayjs(fromDate).isAfter(dayjs().subtract(7, "day").subtract(1, "second"))) return "week";
+    if (dayjs(fromDate).isAfter(dayjs().subtract(1, "month").subtract(1, "second"))) return "month";
+    if (dayjs(fromDate).isAfter(dayjs().subtract(1, "year").subtract(1, "second"))) return "year";
+  }
+  return "all";
+}
+
 function useQuickFilter() {
   const handleQuickFilter = (period: string) => {
     let fromDate: string | null = null;
@@ -104,8 +113,6 @@ function useQuickFilter() {
         fromDate = dayjs().subtract(1, "year").format("YYYY-MM-DD");
         break;
       default:
-        fromDate = null;
-        toDate = null;
         break;
     }
     setFilterFromDate(fromDate);
@@ -115,27 +122,9 @@ function useQuickFilter() {
     refreshHistoryData(botId, fromDate, toDate);
   };
 
-  const getCurrentPeriod = (): string => {
+  const getCurrentPeriod = () => {
     const state = getPaperTradingState();
-    const { filterFromDate, filterToDate } = state;
-    if (!filterFromDate && !filterToDate) return "all";
-    const todayStr = dayjs().format("YYYY-MM-DD");
-    if (filterFromDate === todayStr && filterToDate === todayStr) return "today";
-    const weekAgoStr = dayjs().subtract(7, "day").format("YYYY-MM-DD");
-    if (filterFromDate === weekAgoStr && !filterToDate) return "week";
-    const monthAgoStr = dayjs().subtract(1, "month").format("YYYY-MM-DD");
-    if (filterFromDate === monthAgoStr && !filterToDate) return "month";
-    const yearAgoStr = dayjs().subtract(1, "year").format("YYYY-MM-DD");
-    if (filterFromDate === yearAgoStr && !filterToDate) return "year";
-    if (filterFromDate) {
-      if (dayjs(filterFromDate).isAfter(dayjs().subtract(7, "day").subtract(1, "second")))
-        return "week";
-      if (dayjs(filterFromDate).isAfter(dayjs().subtract(1, "month").subtract(1, "second")))
-        return "month";
-      if (dayjs(filterFromDate).isAfter(dayjs().subtract(1, "year").subtract(1, "second")))
-        return "year";
-    }
-    return "all";
+    return getPeriodFromDateRange(state.filterFromDate, state.filterToDate);
   };
 
   return { handleQuickFilter, getCurrentPeriod };
@@ -164,86 +153,19 @@ const TABLE_STYLES = {
   },
 };
 
-export function PaperHistoryTable() {
-  useStoreSubscription(subscribeToPaperTrading);
-  const state = getPaperTradingState();
-  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
-  const [sortColumn, setSortColumn] = useState<string | null>("exit_time");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+function HistoryFilters({
+  bots,
+  strategies,
+  state,
+}: {
+  bots: Array<{ id: string; name: string }>;
+  strategies: string[];
+  state: ReturnType<typeof getPaperTradingState>;
+}) {
   const { handleQuickFilter, getCurrentPeriod } = useQuickFilter();
 
-  const handleSort = (column: string) => {
-    const newDir = getNextSortDirection(sortColumn || "", column, sortDirection);
-    setSortColumn(column);
-    setSortDirection(newDir);
-  };
-
-  const filteredTrades = useMemo(() => {
-    let trades = [...state.trades];
-    if (state.filterSymbol) trades = trades.filter((t) => t.symbol === state.filterSymbol);
-    if (state.filterFromDate || state.filterToDate)
-      trades = filterByRange(trades, state.filterFromDate, state.filterToDate);
-    if (state.filterStrategy)
-      trades = trades.filter((t) => t.strategy_name === state.filterStrategy);
-    if (state.filterBot) trades = trades.filter((t) => t.bot_id === state.filterBot);
-    return trades;
-  }, [
-    state.trades,
-    state.filterSymbol,
-    state.filterFromDate,
-    state.filterToDate,
-    state.filterStrategy,
-    state.filterBot,
-  ]);
-
-  const tradesByDate = useMemo(
-    () => groupTradesByDate(filteredTrades, sortColumn, sortDirection),
-    [filteredTrades, sortColumn, sortDirection],
-  );
-  const strategies = useMemo(() => getUniqueStrategies(state.trades), [state.trades]);
-  const bots = useMemo(() => getUniqueBots(state.trades), [state.trades]);
-  const totalPnl = filteredTrades.reduce((sum, t) => sum + t.net_pnl, 0);
-  const totalWins = filteredTrades.filter((t) => t.net_pnl > 0).length;
-  const totalLosses = filteredTrades.filter((t) => t.net_pnl < 0).length;
-
-  const handleSelectSymbol = async (symbol: string, exitTime?: string) => {
-    setSelectedSymbol(symbol);
-    const currentState = getPaperTradingState();
-    const date = exitTime ? exitTime.split("T")[0] : dayjs().format("YYYY-MM-DD");
-    await fetchPaperChart(symbol, date, currentState.chartTimeframe);
-  };
-
-  const toggleDay = (date: string) => setExpandedDays((prev) => ({ ...prev, [date]: !prev[date] }));
-
-  if (state.isLoading && state.trades.length === 0) {
-    return (
-      <Flex
-        justify="center"
-        py="lg"
-        data-testid="history-panel"
-        className="paper-history-panel"
-        id="history-panel"
-      >
-        <Group gap="xs">
-          <Loader size="sm" />
-          <Text size="xs" c="dimmed">
-            Loading trade history...
-          </Text>
-        </Group>
-      </Flex>
-    );
-  }
-
-  const sortedDates = Object.keys(tradesByDate).sort((a, b) => b.localeCompare(a));
-
   return (
-    <Flex
-      direction="column"
-      h="100%"
-      className="paper-history-container"
-      id="history-container"
-      data-testid="history-panel"
-    >
+    <>
       <Flex flex="none" py={2} className="paper-history-filters" id="history-filters">
         <Group gap="xs" justify="space-between" w="100%">
           <Group gap="xs">
@@ -300,51 +222,143 @@ export function PaperHistoryTable() {
       >
         <Group justify="space-between" px="xs" py={2}>
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-            Trade History ({filteredTrades.length})
+            Trade History
           </Text>
-          <Group gap="xs">
-            <Text size="xs" c="dimmed">
-              Total:{" "}
-              <Text component="span" fw={700} c={getPnLTextColor(totalPnl)} size="xs">
-                ₹{formatNumber(totalPnl)}
-              </Text>
-            </Text>
-            <Badge color="green" variant="light" size="xs">
-              ▲{totalWins}
-            </Badge>
-            <Badge color="red" variant="light" size="xs">
-              ▼{totalLosses}
-            </Badge>
-          </Group>
         </Group>
       </Flex>
+    </>
+  );
+}
 
-      <ScrollArea flex={1} className="paper-history-list" id="history-list" type="scroll">
-        {filteredTrades.length === 0 ? (
-          <Flex py="lg" justify="center" align="center" direction="column" gap={4}>
-            <Text size="xs" fw={500} c="dimmed">
-              No trades found
-            </Text>
-          </Flex>
-        ) : (
-          sortedDates.map((date) => (
-            <DayGroup
-              key={date}
-              date={date}
-              trades={tradesByDate[date]}
-              selectedSymbol={state.selectedSymbol}
-              onSelectSymbol={handleSelectSymbol}
-              onDeleteTrade={deleteTradeAction}
-              expanded={expandedDays[date] !== false}
-              onToggle={() => toggleDay(date)}
-              tableStyles={TABLE_STYLES}
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
-          ))
-        )}
-      </ScrollArea>
+function HistoryList({
+  filteredTrades,
+  tradesByDate,
+  sortedDates,
+  expandedDays,
+  toggleDay,
+  state,
+  handleSelectSymbol,
+}: {
+  filteredTrades: PaperTrade[];
+  tradesByDate: Record<string, PaperTrade[]>;
+  sortedDates: string[];
+  expandedDays: Record<string, boolean>;
+  toggleDay: (date: string) => void;
+  state: ReturnType<typeof getPaperTradingState>;
+  handleSelectSymbol: (symbol: string, exitTime?: string, tradeId?: string) => Promise<void>;
+}) {
+  return (
+    <ScrollArea flex={1} className="paper-history-list" id="history-list" type="scroll">
+      {filteredTrades.length === 0 ? (
+        <Flex py="lg" justify="center" align="center" direction="column" gap={4}>
+          <Text size="xs" fw={500} c="dimmed">
+            No trades found
+          </Text>
+        </Flex>
+      ) : (
+        sortedDates.map((date) => (
+          <DayGroup
+            key={date}
+            date={date}
+            trades={tradesByDate[date]}
+            selectedSymbol={state.selectedSymbol}
+            selectedTradeId={state.selectedTradeId}
+            onSelectSymbol={handleSelectSymbol}
+            onDeleteTrade={deleteTradeAction}
+            expanded={expandedDays[date] !== false}
+            onToggle={() => toggleDay(date)}
+            tableStyles={TABLE_STYLES}
+            sortColumn={null}
+            sortDirection="desc"
+            onSort={() => {}}
+          />
+        ))
+      )}
+    </ScrollArea>
+  );
+}
+
+function useFilteredTrades() {
+  const state = getPaperTradingState();
+  const filteredTrades = useMemo(() => {
+    let trades = [...state.trades];
+    if (state.filterSymbol) trades = trades.filter((t) => t.symbol === state.filterSymbol);
+    if (state.filterFromDate || state.filterToDate)
+      trades = filterByRange(trades, state.filterFromDate, state.filterToDate);
+    if (state.filterStrategy)
+      trades = trades.filter((t) => t.strategy_name === state.filterStrategy);
+    if (state.filterBot) trades = trades.filter((t) => t.bot_id === state.filterBot);
+    return trades;
+  }, [
+    state.trades,
+    state.filterSymbol,
+    state.filterFromDate,
+    state.filterToDate,
+    state.filterStrategy,
+    state.filterBot,
+  ]);
+
+  const tradesByDate = useMemo(() => groupTradesByDate(filteredTrades), [filteredTrades]);
+  const strategies = useMemo(() => getUniqueStrategies(state.trades), [state.trades]);
+  const bots = useMemo(() => getUniqueBots(state.trades), [state.trades]);
+  const sortedDates = Object.keys(tradesByDate).sort((a, b) => b.localeCompare(a));
+
+  return { state, filteredTrades, tradesByDate, strategies, bots, sortedDates };
+}
+
+export function PaperHistoryTable() {
+  useStoreSubscription(subscribeToPaperTrading);
+  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+  const { state, filteredTrades, tradesByDate, strategies, bots, sortedDates } =
+    useFilteredTrades();
+
+  const handleSelectSymbol = async (symbol: string, exitTime?: string, tradeId?: string) => {
+    setSelectedSymbol(symbol);
+    if (tradeId) setSelectedTradeId(tradeId);
+    const currentState = getPaperTradingState();
+    const date = exitTime ? exitTime.split("T")[0] : dayjs().format("YYYY-MM-DD");
+    await fetchPaperChart(symbol, date, currentState.chartTimeframe);
+  };
+
+  const toggleDay = (date: string) => setExpandedDays((prev) => ({ ...prev, [date]: !prev[date] }));
+
+  if (state.isLoading && state.trades.length === 0) {
+    return (
+      <Flex
+        justify="center"
+        py="lg"
+        data-testid="history-panel"
+        className="paper-history-panel"
+        id="history-panel"
+      >
+        <Group gap="xs">
+          <Loader size="sm" />
+          <Text size="xs" c="dimmed">
+            Loading trade history...
+          </Text>
+        </Group>
+      </Flex>
+    );
+  }
+
+  return (
+    <Flex
+      direction="column"
+      h="100%"
+      className="paper-history-container"
+      id="history-container"
+      data-testid="history-panel"
+    >
+      <HistoryFilters bots={bots} strategies={strategies} state={state} />
+      <HistoryList
+        filteredTrades={filteredTrades}
+        tradesByDate={tradesByDate}
+        sortedDates={sortedDates}
+        expandedDays={expandedDays}
+        toggleDay={toggleDay}
+        state={state}
+        handleSelectSymbol={handleSelectSymbol}
+      />
     </Flex>
   );
 }

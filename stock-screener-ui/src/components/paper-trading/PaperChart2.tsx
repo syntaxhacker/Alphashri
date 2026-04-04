@@ -1,9 +1,19 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Text, Group, Badge, Select, Flex, useMantineColorScheme } from "@mantine/core";
+import {
+  Box,
+  Text,
+  Group,
+  Badge,
+  Select,
+  Flex,
+  useMantineColorScheme,
+  Switch,
+} from "@mantine/core";
 import {
   getPaperTradingState,
   setChartTimeframe,
+  setShowAllTrades,
   subscribe,
   setError,
 } from "../../state/paperTrading";
@@ -122,7 +132,9 @@ function useEChart(
     }
     if (chartInstance.current) chartInstance.current.dispose();
     chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
-    chartInstance.current.setOption(buildChartOption(state.chartData, isDark));
+    chartInstance.current.setOption(
+      buildChartOption(state.chartData, isDark, state.selectedTradeId, state.showAllTrades),
+    );
     const handleResize = () => chartInstance.current?.resize();
     window.addEventListener("resize", handleResize);
     return () => {
@@ -130,7 +142,14 @@ function useEChart(
       chartInstance.current?.dispose();
       chartInstance.current = null;
     };
-  }, [state.chartData, state.selectedSymbol, isDark, chartRef]);
+  }, [
+    state.chartData,
+    state.selectedSymbol,
+    state.selectedTradeId,
+    state.showAllTrades,
+    isDark,
+    chartRef,
+  ]);
 }
 
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
@@ -170,9 +189,18 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           styles={{ input: { width: 70, height: 28 } }}
         />
       </Group>
-      {state.chartData?.current_position && (
-        <PositionInfo position={state.chartData.current_position} />
-      )}
+      <Group gap="sm">
+        <Switch
+          size="xs"
+          label="All trades"
+          checked={state.showAllTrades}
+          onChange={(e) => setShowAllTrades(e.currentTarget.checked)}
+          data-testid="show-all-trades-switch"
+        />
+        {state.chartData?.current_position && (
+          <PositionInfo position={state.chartData.current_position} />
+        )}
+      </Group>
     </Flex>
   );
 }
