@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import ChartView from "./components/chart/ChartView";
-import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
-import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
+import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
+import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
 import { NotificationContainer } from "./components/NotificationContainer";
 import { AppLayout } from "./components/layout/AppLayout";
-import { SectorPage } from "./components/sector/SectorPage";
+import { SectorPage } from "./components/sector/SectorPage2";
 import { ScreenerContainer } from "./containers/ScreenerContainer";
 import { StrategiesContainer } from "./containers/StrategiesContainer";
 import { BacktestPage } from "./components/backtest/mantine";

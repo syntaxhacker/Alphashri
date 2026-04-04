@@ -11,6 +11,7 @@ export const TIMEFRAME_OPTIONS = [
   { value: "5min", label: "5m" },
   { value: "15min", label: "15m" },
   { value: "1hour", label: "1H" },
+  { value: "1day", label: "1D" },
 ];
 
 function parseTimeToSeconds(str: string): number {
@@ -158,44 +159,31 @@ function buildMarkLines(
   current_position: PaperPosition | null,
   orb_levels: PaperChartData["orb_levels"],
   week52_levels: PaperChartData["week52_levels"],
+  pivot_levels: PaperChartData["pivot_levels"],
+  showOrb: boolean,
+  showPivot: boolean,
+  show52w: boolean,
 ): any[] {
   const lines: any[] = [];
   if (current_position) {
-    lines.push({
-      name: "SL",
-      yAxis: current_position.stop_loss,
-      lineStyle: { color: "#FF00FF", type: "dashed", width: 2 },
-    });
-    lines.push({
-      name: "TP",
-      yAxis: current_position.take_profit,
-      lineStyle: { color: "#FFFF00", type: "dashed", width: 2 },
-    });
+    lines.push({ name: `SL ${current_position.stop_loss}`, yAxis: current_position.stop_loss, lineStyle: { color: "#FF00FF", type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `TP ${current_position.take_profit}`, yAxis: current_position.take_profit, lineStyle: { color: "#FFFF00", type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
   }
-  if (orb_levels) {
-    lines.push({
-      name: "OR High",
-      yAxis: orb_levels.or_high,
-      lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
-    });
-    lines.push({
-      name: "OR Low",
-      yAxis: orb_levels.or_low,
-      lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
-    });
+  if (orb_levels && showOrb) {
+    lines.push({ name: `OR-H ${orb_levels.or_high}`, yAxis: orb_levels.or_high, lineStyle: { color: "#2196F3", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `OR-L ${orb_levels.or_low}`, yAxis: orb_levels.or_low, lineStyle: { color: "#2196F3", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
   }
-  if (week52_levels) {
-    lines.push({
-      name: "52W High",
-      yAxis: week52_levels.high_52w,
-      lineStyle: { color: "#E91E63", type: "dashed", width: 2 },
-    });
+  if (pivot_levels && showPivot) {
+    lines.push({ name: `R2 ${pivot_levels.r2}`, yAxis: pivot_levels.r2, lineStyle: { color: "#EF5350", type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `R1 ${pivot_levels.r1}`, yAxis: pivot_levels.r1, lineStyle: { color: "#EF5350", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `PP ${pivot_levels.pp}`, yAxis: pivot_levels.pp, lineStyle: { color: "#AB47BC", type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `S1 ${pivot_levels.s1}`, yAxis: pivot_levels.s1, lineStyle: { color: "#26A69A", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `S2 ${pivot_levels.s2}`, yAxis: pivot_levels.s2, lineStyle: { color: "#26A69A", type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
+  }
+  if (week52_levels && show52w) {
+    lines.push({ name: `52W-H ${week52_levels.high_52w}`, yAxis: week52_levels.high_52w, lineStyle: { color: "#E91E63", type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
     if (week52_levels.low_52w > 0) {
-      lines.push({
-        name: "52W Low",
-        yAxis: week52_levels.low_52w,
-        lineStyle: { color: "#9C27B0", type: "dashed", width: 1 },
-      });
+      lines.push({ name: `52W-L ${week52_levels.low_52w}`, yAxis: week52_levels.low_52w, lineStyle: { color: "#9C27B0", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
     }
   }
   return lines;
@@ -245,8 +233,11 @@ export function buildChartOption(
   isDark: boolean,
   selectedTradeId: string | null = null,
   showAllTrades: boolean = false,
+  showOrbLines: boolean = false,
+  showPivotLines: boolean = false,
+  show52wLines: boolean = false,
 ): any {
-  const { candles, trades, orb_levels, week52_levels, current_position } = data;
+  const { candles, trades, orb_levels, week52_levels, pivot_levels, current_position } = data;
   const fontSizes = theme.fontSizes;
 
   if (!candles || candles.length === 0) return {};
@@ -274,7 +265,7 @@ export function buildChartOption(
     selectedTradeId,
     showAllTrades,
   );
-  const markLines = buildMarkLines(current_position, orb_levels, week52_levels);
+  const markLines = buildMarkLines(current_position, orb_levels, week52_levels, pivot_levels, showOrbLines, showPivotLines, show52wLines);
 
   return {
     backgroundColor: bgColor,
@@ -353,10 +344,10 @@ export function buildChartOption(
             ? {
                 symbol: ["none", "none"],
                 data: markLines,
-                label: { color: textColor, fontSize: fontSizes.sm },
+                label: { color: "inherit", fontSize: 11, formatter: "{b}" },
               }
             : undefined,
-        markArea: orb_levels
+        markArea: orb_levels && showOrbLines
           ? {
               data: [
                 [

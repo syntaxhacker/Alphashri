@@ -14,6 +14,9 @@ import {
   getPaperTradingState,
   setChartTimeframe,
   setShowAllTrades,
+  setShowOrbLines,
+  setShowPivotLines,
+  setShow52wLines,
   subscribe,
   setError,
 } from "../../state/paperTrading";
@@ -133,7 +136,7 @@ function useEChart(
     if (chartInstance.current) chartInstance.current.dispose();
     chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
     chartInstance.current.setOption(
-      buildChartOption(state.chartData, isDark, state.selectedTradeId, state.showAllTrades),
+      buildChartOption(state.chartData, isDark, state.selectedTradeId, state.showAllTrades, state.showOrbLines, state.showPivotLines, state.show52wLines),
     );
     const handleResize = () => chartInstance.current?.resize();
     window.addEventListener("resize", handleResize);
@@ -147,6 +150,9 @@ function useEChart(
     state.selectedSymbol,
     state.selectedTradeId,
     state.showAllTrades,
+    state.showOrbLines,
+    state.showPivotLines,
+    state.show52wLines,
     isDark,
     chartRef,
   ]);
@@ -196,6 +202,30 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           checked={state.showAllTrades}
           onChange={(e) => setShowAllTrades(e.currentTarget.checked)}
           data-testid="show-all-trades-switch"
+        />
+        <Switch
+          size="xs"
+          label="ORB"
+          checked={state.showOrbLines}
+          onChange={(e) => setShowOrbLines(e.currentTarget.checked)}
+          styles={{ label: { color: "#2196F3" } }}
+          data-testid="show-orb-lines"
+        />
+        <Switch
+          size="xs"
+          label="Pivot"
+          checked={state.showPivotLines}
+          onChange={(e) => setShowPivotLines(e.currentTarget.checked)}
+          styles={{ label: { color: "#AB47BC" } }}
+          data-testid="show-pivot-lines"
+        />
+        <Switch
+          size="xs"
+          label="52W"
+          checked={state.show52wLines}
+          onChange={(e) => setShow52wLines(e.currentTarget.checked)}
+          styles={{ label: { color: "#E91E63" } }}
+          data-testid="show-52w-lines"
         />
         {state.chartData?.current_position && (
           <PositionInfo position={state.chartData.current_position} />

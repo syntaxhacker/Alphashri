@@ -525,6 +525,7 @@ class ORBStrategy(BaseStrategy):
         results = []
         chart_data = {}
         all_candles = {}
+        skipped_stocks = []
 
         from multiprocessing import Pool, cpu_count
         from db.models import get_shared_broker_token
@@ -557,6 +558,8 @@ class ORBStrategy(BaseStrategy):
                                 'trades': result['trade_list'],
                                 'visuals': self.get_visuals(result['trade_list'], params)
                             }
+                    else:
+                        skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
         else:
             for args in worker_args:
                 completed += 1
@@ -574,6 +577,8 @@ class ORBStrategy(BaseStrategy):
                             'trades': result['trade_list'],
                             'visuals': self.get_visuals(result['trade_list'], params)
                         }
+                else:
+                    skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
 
         total_gross = sum(r['gross_pnl'] for r in results)
         total_costs = sum(r['total_costs'] for r in results)
@@ -596,10 +601,11 @@ class ORBStrategy(BaseStrategy):
                 'net_pnl': round(total_net, 2),
                 'trades': total_trades,
                 'win_rate': round(total_win_rate, 1),
-                'stocks_tested': len(results),
+                'stocks_tested': len(results) + len(skipped_stocks),
             },
             'chart_data': chart_data,
             'candles': all_candles,
+            'skipped_stocks': skipped_stocks,
             'run_time': datetime.now().isoformat(),
         }
 

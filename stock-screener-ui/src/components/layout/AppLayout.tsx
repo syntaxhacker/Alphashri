@@ -4,7 +4,7 @@ import { useState } from "react";
 import { NavbarNested } from "./NavbarNested";
 import { MarketTicker } from "./MarketTicker";
 import { useThemeColors } from "../../hooks/useThemeColors";
-import NewsPanel from "../news/NewsPanel";
+import NewsPanel2 from "../news/NewsPanel2";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -39,7 +39,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Box flex={1}>
             <MarketTicker />
           </Box>
-          <NewsPanel />
+          <NewsPanel2 />
         </Group>
       </AppShell.Header>
 

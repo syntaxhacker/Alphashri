@@ -10,10 +10,12 @@ import {
   setFilterFromDate,
   setFilterToDate,
   deleteTradeAction,
+  setSelectedTradeId,
+  setShowAllTrades,
 } from "../../state/paperTrading";
 import { fetchPaperChart, refreshHistoryData } from "../../api/paperTrading";
-import { setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";
+import { getNextSortDirection } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { DayGroup } from "./DayGroup";
 
@@ -238,6 +240,9 @@ function HistoryList({
   toggleDay,
   state,
   handleSelectSymbol,
+  sortColumn,
+  sortDirection,
+  onSort,
 }: {
   filteredTrades: PaperTrade[];
   tradesByDate: Record<string, PaperTrade[]>;
@@ -246,6 +251,9 @@ function HistoryList({
   toggleDay: (date: string) => void;
   state: ReturnType<typeof getPaperTradingState>;
   handleSelectSymbol: (symbol: string, exitTime?: string, tradeId?: string) => Promise<void>;
+  sortColumn: string | null;
+  sortDirection: "asc" | "desc";
+  onSort: (column: string) => void;
 }) {
   return (
     <ScrollArea flex={1} className="paper-history-list" id="history-list" type="scroll">
@@ -257,21 +265,21 @@ function HistoryList({
         </Flex>
       ) : (
         sortedDates.map((date) => (
-          <DayGroup
-            key={date}
-            date={date}
-            trades={tradesByDate[date]}
-            selectedSymbol={state.selectedSymbol}
-            selectedTradeId={state.selectedTradeId}
-            onSelectSymbol={handleSelectSymbol}
-            onDeleteTrade={deleteTradeAction}
-            expanded={expandedDays[date] !== false}
-            onToggle={() => toggleDay(date)}
-            tableStyles={TABLE_STYLES}
-            sortColumn={null}
-            sortDirection="desc"
-            onSort={() => {}}
-          />
+            <DayGroup
+              key={date}
+              date={date}
+              trades={tradesByDate[date]}
+              selectedSymbol={state.selectedSymbol}
+              selectedTradeId={state.selectedTradeId}
+              onSelectSymbol={handleSelectSymbol}
+              onDeleteTrade={deleteTradeAction}
+              expanded={expandedDays[date] !== false}
+              onToggle={() => toggleDay(date)}
+              tableStyles={TABLE_STYLES}
+              sortColumn={sortColumn}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
         ))
       )}
     </ScrollArea>
@@ -309,12 +317,22 @@ function useFilteredTrades() {
 export function PaperHistoryTable() {
   useStoreSubscription(subscribeToPaperTrading);
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+  const [sortColumn, setSortColumn] = useState<string | null>("exit_time");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const { state, filteredTrades, tradesByDate, strategies, bots, sortedDates } =
     useFilteredTrades();
 
-  const handleSelectSymbol = async (symbol: string, exitTime?: string, tradeId?: string) => {
+  const handleSort = (column: string) => {
+    const nextDir = getNextSortDirection(sortColumn || "", column, sortDirection);
+    setSortColumn(column);
+    setSortDirection(nextDir);
+  };
+
+  const handleSelectSymbol = async (symbol: string, exitTime?: string, tradeId?: string, strategyName?: string) => {
     setSelectedSymbol(symbol);
-    if (tradeId) setSelectedTradeId(tradeId);
+    if (tradeId) setSelectedTradeId(tradeId, strategyName);
+    const sameSymbolCount = filteredTrades.filter((t) => t.symbol === symbol).length;
+    if (sameSymbolCount > 1) setShowAllTrades(true);
     const currentState = getPaperTradingState();
     const date = exitTime ? exitTime.split("T")[0] : dayjs().format("YYYY-MM-DD");
     await fetchPaperChart(symbol, date, currentState.chartTimeframe);
@@ -358,6 +376,9 @@ export function PaperHistoryTable() {
         toggleDay={toggleDay}
         state={state}
         handleSelectSymbol={handleSelectSymbol}
+        sortColumn={sortColumn}
+        sortDirection={sortDirection}
+        onSort={handleSort}
       />
     </Flex>
   );

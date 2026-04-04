@@ -518,9 +518,16 @@ def run_single_stock_backtest(args):
         engine.dispose()
 
         if not trades:
-            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None}
+            candle_data = {
+                'index': [idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10] for idx in df_for_backtest.index],
+                'open': df_for_backtest['open'].tolist(),
+                'high': df_for_backtest['high'].tolist(),
+                'low': df_for_backtest['low'].tolist(),
+                'close': df_for_backtest['close'].tolist(),
+                'volume': df_for_backtest['volume'].tolist() if 'volume' in df_for_backtest.columns else [0] * len(df_for_backtest),
+            }
+            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None, 'candles': candle_data}
 
-        # Filter trades to only those within the requested date range
         filtered_trades = []
         for t in trades:
             if t.get('entry_time'):
@@ -530,7 +537,15 @@ def run_single_stock_backtest(args):
         trades = filtered_trades
 
         if not trades:
-            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None}
+            candle_data = {
+                'index': [idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10] for idx in df_for_backtest.index],
+                'open': df_for_backtest['open'].tolist(),
+                'high': df_for_backtest['high'].tolist(),
+                'low': df_for_backtest['low'].tolist(),
+                'close': df_for_backtest['close'].tolist(),
+                'volume': df_for_backtest['volume'].tolist() if 'volume' in df_for_backtest.columns else [0] * len(df_for_backtest),
+            }
+            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None, 'candles': candle_data}
 
         gross_pnl = sum(t['gross_pnl'] for t in trades)
         total_costs = sum(t['trading_costs'] for t in trades) if include_costs else 0
@@ -712,6 +727,7 @@ class Week52ChaserStrategy(BaseStrategy):
         results = []
         chart_data = {}
         all_candles = {}
+        skipped_stocks = []
 
         from multiprocessing import Pool, cpu_count
         from db.models import get_shared_broker_token
@@ -733,30 +749,36 @@ class Week52ChaserStrategy(BaseStrategy):
                     completed += 1
                     if progress_callback:
                         progress_callback(completed, total, f"Completed {result['symbol']}...")
-                    if result['success'] and result.get('result'):
+                    if not result['success']:
+                        skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
+                        continue
+                    if result.get('candles'):
+                        all_candles[result['symbol']] = result['candles']
+                    if result.get('result'):
                         results.append(result['result'])
-                        if result.get('candles'):
-                            all_candles[result['symbol']] = result['candles']
-                        if result.get('trade_list'):
-                            chart_data[result['symbol']] = {
-                                'trades': result['trade_list'],
-                                'visuals': self.get_visuals(result['trade_list'], params)
-                            }
+                    if result.get('trade_list'):
+                        chart_data[result['symbol']] = {
+                            'trades': result['trade_list'],
+                            'visuals': self.get_visuals(result['trade_list'], params)
+                        }
         else:
             for args in worker_args:
                 completed += 1
                 result = run_single_stock_backtest(args)
                 if progress_callback:
                     progress_callback(completed, total, f"Completed {result['symbol']}...")
-                if result['success'] and result.get('result'):
+                if not result['success']:
+                    skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
+                    continue
+                if result.get('candles'):
+                    all_candles[result['symbol']] = result['candles']
+                if result.get('result'):
                     results.append(result['result'])
-                    if result.get('candles'):
-                        all_candles[result['symbol']] = result['candles']
-                    if result.get('trade_list'):
-                        chart_data[result['symbol']] = {
-                            'trades': result['trade_list'],
-                            'visuals': self.get_visuals(result['trade_list'], params)
-                        }
+                if result.get('trade_list'):
+                    chart_data[result['symbol']] = {
+                        'trades': result['trade_list'],
+                        'visuals': self.get_visuals(result['trade_list'], params)
+                    }
 
         total_gross = sum(r['gross_pnl'] for r in results)
         total_costs = sum(r['total_costs'] for r in results)
@@ -779,10 +801,11 @@ class Week52ChaserStrategy(BaseStrategy):
                 'net_pnl': round(total_net, 2),
                 'trades': total_trades,
                 'win_rate': round(total_win_rate, 1),
-                'stocks_tested': len(results),
+                'stocks_tested': len(results) + len(skipped_stocks),
             },
             'chart_data': chart_data,
             'candles': all_candles,
+            'skipped_stocks': skipped_stocks,
             'run_time': datetime.now().isoformat(),
         }
 

@@ -1167,6 +1167,22 @@ async def get_paper_chart(
 
         def _fetch_chart_data():
             df_1m = None
+            if timeframe == '1day':
+                from datetime import timedelta as td
+                from_date = (datetime.strptime(date, '%Y-%m-%d') - td(days=10)).strftime('%Y-%m-%d')
+                df_1m = upstox_api.fetch_historical_data_v3(
+                    symbol=symbol.upper(),
+                    unit='days',
+                    interval=1,
+                    to_date=date,
+                    from_date=from_date,
+                )
+                if df_1m is not None and not df_1m.empty:
+                    date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
+                    date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
+                    df_1m = df_1m[(df_1m.index >= date_start) & (df_1m.index <= date_end)]
+                return df_1m
+
             if date == today:
                 df_1m = upstox_api.fetch_intraday_data_v3(
                     symbol=symbol.upper(),
@@ -1190,8 +1206,8 @@ async def get_paper_chart(
 
         df_1m = await asyncio.to_thread(_fetch_chart_data)
 
-        # Resample to requested timeframe
-        df = _resample_to_timeframe(df_1m, timeframe)
+        # Resample to requested timeframe (1day data is already at the right level)
+        df = _resample_to_timeframe(df_1m, timeframe) if timeframe != '1day' else df_1m
 
         if df is None or df.empty:
             return {"error": f"No data for {symbol} on {date}", "symbol": symbol, "date": date}
@@ -1226,6 +1242,7 @@ async def get_paper_chart(
 
         # Get 52-week levels from historical data
         week52_levels = None
+        pivot_levels = None
         try:
             from datetime import timedelta as td
             to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
@@ -1252,6 +1269,22 @@ async def get_paper_chart(
                         "distance_to_high_pct": ((high_52w - current_price) / high_52w * 100) if high_52w > 0 and current_price > 0 else 0,
                         "distance_to_low_pct": ((current_price - low_52w) / low_52w * 100) if low_52w > 0 and current_price > 0 else 0,
                         "near_high": ((high_52w - current_price) / high_52w * 100) <= 3.0 if high_52w > 0 and current_price > 0 else False,
+                    }
+
+                # Calculate pivot points from previous trading day's HLC
+                date_ts = pd.Timestamp(date + " 00:00:00", tz=config.IST)
+                prev_days = df_52w[df_52w.index < date_ts]
+                if not prev_days.empty:
+                    last = prev_days.iloc[-1]
+                    prev_h, prev_l, prev_c = float(last['high']), float(last['low']), float(last['close'])
+                    pp = (prev_h + prev_l + prev_c) / 3
+                    hl = prev_h - prev_l
+                    pivot_levels = {
+                        "pp": round(pp, 2),
+                        "r1": round(2 * pp - prev_l, 2),
+                        "r2": round(pp + hl, 2),
+                        "s1": round(2 * pp - prev_h, 2),
+                        "s2": round(pp - hl, 2),
                     }
         except Exception as e:
             console.print(f"[yellow]Could not fetch 52W levels for {symbol}: {e}[/yellow]")
@@ -1378,6 +1411,7 @@ async def get_paper_chart(
             "trades": trades_data,
             "orb_levels": orb_levels,
             "week52_levels": week52_levels,
+            "pivot_levels": pivot_levels,
             "current_position": current_position,
         }
 

@@ -107,6 +107,22 @@ export interface SymbolPerformance {
   total_costs: number;
 }
 
+export interface Week52Levels {
+  high_52w: number;
+  low_52w: number;
+  distance_to_high_pct: number;
+  distance_to_low_pct: number;
+  near_high: boolean;
+}
+
+export interface PivotLevels {
+  pp: number;
+  r1: number;
+  r2: number;
+  s1: number;
+  s2: number;
+}
+
 // Chart data for paper trading
 export interface PaperChartData {
   symbol: string;
@@ -114,7 +130,8 @@ export interface PaperChartData {
   candles: CandleData[];
   trades: PaperTrade[];
   orb_levels: ORBLevels | null;
-  week52_levels: Week52Levels | null; // 52W levels for swing strategies
+  week52_levels: Week52Levels | null;
+  pivot_levels: PivotLevels | null;
   current_position: PaperPosition | null;
 }
 
@@ -197,6 +214,9 @@ export interface PaperTradingState {
   selectedStrategyTab: string | null; // For multi-strategy position tabs
   selectedTradeId: string | null; // Trade ID to highlight on chart
   showAllTrades: boolean; // Show all trades or just selectedTradeId
+  showOrbLines: boolean;
+  showPivotLines: boolean;
+  show52wLines: boolean;
   chartData: PaperChartData | null;
   chartLoading: boolean;
   chartTimeframe: string;
