@@ -5,7 +5,15 @@ import { gotoBacktest, selectSymbolAndRun, waitForBacktestResult } from "./helpe
 const mockBacktestResults = {
   results: [
     { symbol: "NETWEB", net_pnl: 5000, trades: 5, win_rate: 60, pf: 1.8, tp_exits: 3, sl_exits: 2 },
-    { symbol: "SBILIFE", net_pnl: 8200, trades: 7, win_rate: 71, pf: 2.2, tp_exits: 5, sl_exits: 2 },
+    {
+      symbol: "SBILIFE",
+      net_pnl: 8200,
+      trades: 7,
+      win_rate: 71,
+      pf: 2.2,
+      tp_exits: 5,
+      sl_exits: 2,
+    },
     {
       symbol: "RELIANCE",
       net_pnl: 15000,
@@ -438,7 +446,9 @@ test.describe("Backtest - Mantine Features", () => {
       const firstRow = page.locator('[data-testid^="result-row-"]').first();
       await expect(firstRow).toBeVisible({ timeout: 5000 });
       await firstRow.click();
-      await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({
+        timeout: 15000,
+      });
       await expect(page.locator("text=Entry").first()).toBeVisible({ timeout: 5000 });
     });
   });

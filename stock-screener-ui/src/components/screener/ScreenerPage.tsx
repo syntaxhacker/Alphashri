@@ -57,19 +57,29 @@ export function ScreenerPage({
   onSymbolHover,
   error,
 }: ScreenerPageProps) {
-  const { sortColumn, sortDirection, handleSort: handleSortChange, getSortedData } = useTableSort<Stock>({
+  const {
+    sortColumn,
+    sortDirection,
+    handleSort: handleSortChange,
+    getSortedData,
+  } = useTableSort<Stock>({
     initialColumn: "score",
     initialDirection: "desc",
   });
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
 
   const sortedApproaching = useMemo(
-    () => getSortedData(approachingStocks ?? [], (s) => s[sortColumn as keyof Stock] as string | number),
+    () =>
+      getSortedData(
+        approachingStocks ?? [],
+        (s) => s[sortColumn as keyof Stock] as string | number,
+      ),
     [approachingStocks, getSortedData, sortColumn],
   );
 
   const sortedTouched = useMemo(
-    () => getSortedData(touchedStocks ?? [], (s) => s[sortColumn as keyof Stock] as string | number),
+    () =>
+      getSortedData(touchedStocks ?? [], (s) => s[sortColumn as keyof Stock] as string | number),
     [touchedStocks, getSortedData, sortColumn],
   );
 

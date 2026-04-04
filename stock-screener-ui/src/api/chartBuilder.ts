@@ -242,25 +242,19 @@ function extractWeek52Levels(trades: RawTrade[]): Week52Levels[] {
 function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTrade[] {
   const markers: ChartTrade[] = [];
 
-  // Build lookup map for candle times
   const candleTimeMap = new Map<string, number>();
   candles.forEach((c, i) => candleTimeMap.set(c.time, i));
+
   trades.forEach((trade, idx) => {
-    // Trade time format: "2025-10-27T11:25:00" or "2025-10-27T11:25:00+00:00"
-    // Normalize to "YYYY-MM-DDTHH:MM"
     const entryNormalized = normalizeTradeTime(trade.entry_time);
     const exitNormalized = normalizeTradeTime(trade.exit_time);
-    // Use date-only format for matching with daily candles
     const entryDateOnly = normalizeTradeTimeToDate(trade.entry_time);
     const exitDateOnly = normalizeTradeTimeToDate(trade.exit_time);
 
-    // Find candle index using date-only matching for daily candles
-    const entryCandleIdx = candleTimeMap.get(entryDateOnly);
-    const exitCandleIdx = candleTimeMap.get(exitDateOnly);
-    if (entryCandleIdx === undefined) {
-    }
-    if (exitCandleIdx === undefined) {
-    }
+    let entryCandleIdx = candleTimeMap.get(entryNormalized);
+    let exitCandleIdx = candleTimeMap.get(exitNormalized);
+    if (entryCandleIdx === undefined) entryCandleIdx = candleTimeMap.get(entryDateOnly);
+    if (exitCandleIdx === undefined) exitCandleIdx = candleTimeMap.get(exitDateOnly);
 
     // Shared trade data for both entry and exit markers
     const tradeData = {
@@ -331,10 +325,11 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
  */
 function normalizeTradeTime(time: string): string {
   if (!time) return "";
-  // Remove timezone suffix and seconds if present
+  // Remove timezone suffix, fractional seconds, and truncate to HH:MM
   return time
     .replace(/\+00:00$/, "")
     .replace(/\+05:30$/, "")
+    .replace(/\.\d+Z$/, "Z") // fractional seconds before Z
     .replace(/Z$/, "")
     .substring(0, 16); // "YYYY-MM-DDTHH:MM"
 }
@@ -346,7 +341,12 @@ function normalizeTradeTime(time: string): string {
  */
 function normalizeTradeTimeToDate(time: string): string {
   if (!time) return "";
-  // Extract just the date part and append 00:00 for daily candle matching
+  // Handle timezone-aware times: parse and convert to date-only string
+  // Input: "2026-04-02T09:14:52.867891+00" or "2025-10-27T11:25:00"
+  if (time.includes("+")) {
+    const date = time.split("T")[0];
+    return `${date}T00:00`;
+  }
   const datePart = time.split("T")[0];
   return `${datePart}T00:00`;
 }

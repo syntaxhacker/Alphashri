@@ -23,6 +23,7 @@ scrapling>=0.4.0
 curl_cffi>=0.5.0
 playwright>=1.40.0
 browserforge>=1.0.0
+rookiepy>=0.2.0
 
 # LLM/AI
 openai>=1.0.0

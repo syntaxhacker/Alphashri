@@ -1,10 +1,12 @@
 import "@mantine/core/styles.css";
+import "@mantine/notifications/styles.css";
 import "./style.css";
 import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { MantineProvider, ColorSchemeScript } from "@mantine/core";
+import { Notifications } from "@mantine/notifications";
 import App from "./App";
 import { store } from "./store";
 import { theme } from "./theme";
@@ -29,6 +31,7 @@ createRoot(root).render(
   <Provider store={store}>
     <ColorSchemeScript defaultColorScheme="dark" />
     <MantineProvider theme={theme} defaultColorScheme="dark">
+      <Notifications position="top-right" />
       <BrowserRouter>
         <App />
       </BrowserRouter>

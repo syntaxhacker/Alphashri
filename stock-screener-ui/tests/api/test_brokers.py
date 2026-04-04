@@ -156,6 +156,8 @@ class TestUpstoxAuth:
         monkeypatch.delenv("UPSTOX_API_SECRET", raising=False)
         monkeypatch.delenv("UPSTOX_CLIENT_ID", raising=False)
         monkeypatch.delenv("UPSTOX_CLIENT_SECRET", raising=False)
+        monkeypatch.setattr("config.UPSTOX_API_KEY", None)
+        monkeypatch.setattr("config.UPSTOX_API_SECRET", None)
 
         response = client.get("/api/brokers/upstox/auth")
 
@@ -183,6 +185,8 @@ class TestUpstoxCallback:
         monkeypatch.delenv("UPSTOX_API_SECRET", raising=False)
         monkeypatch.delenv("UPSTOX_CLIENT_ID", raising=False)
         monkeypatch.delenv("UPSTOX_CLIENT_SECRET", raising=False)
+        monkeypatch.setattr("config.UPSTOX_API_KEY", None)
+        monkeypatch.setattr("config.UPSTOX_API_SECRET", None)
 
         response = client.get("/api/brokers/upstox/callback?code=test_code")
 

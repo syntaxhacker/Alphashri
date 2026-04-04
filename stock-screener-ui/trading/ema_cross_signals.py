@@ -9,6 +9,8 @@ Uses intraday (5-min) candle data. Exits via SL/TP or EOD force exit.
 from datetime import datetime
 from typing import Optional
 
+import config
+
 from trading.orb_signals import ORBSignal, SignalType
 from trading.base_signals import BaseSignalGenerator
 
@@ -91,11 +93,11 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
         current_price: float,
         **kwargs,
     ) -> Optional[ORBSignal]:
-        now = kwargs.get("timestamp", datetime.now())
+        now = kwargs.get("timestamp", datetime.now(config.IST))
         if isinstance(now, datetime):
             hour, minute = now.hour, now.minute
         else:
-            hour, minute = datetime.now().hour, datetime.now().minute
+            hour, minute = datetime.now(config.IST).hour, datetime.now(config.IST).minute
 
         if hour > self.FORCE_EXIT[0] or (hour == self.FORCE_EXIT[0] and minute >= self.FORCE_EXIT[1]):
             exit_type = SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT

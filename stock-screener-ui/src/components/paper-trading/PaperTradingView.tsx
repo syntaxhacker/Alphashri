@@ -13,11 +13,7 @@ import {
   setError,
   setAvailableBots,
 } from "../../state/paperTrading";
-import type {
-  PaperTradingView,
-  PaperTrade,
-  BotInfo,
-} from "../../types/paperTrading";
+import type { PaperTradingView, PaperTrade, BotInfo } from "../../types/paperTrading";
 
 import { PaperPositionsTable } from "./PaperPositionsTable";
 import { PaperPortfolioCard } from "./PaperPortfolioCard";

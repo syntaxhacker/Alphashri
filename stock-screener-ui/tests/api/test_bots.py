@@ -722,7 +722,187 @@ class TestBotControl:
             fake_uuid = str(uuid_module.uuid4())
             response = client_with_db.get(f"/api/bots/{fake_uuid}/status")
 
-            assert response.status_code == 404
+        assert response.status_code == 404
+
+
+class TestBotTradesFromDB:
+    """Test that trades endpoint reads from database."""
+
+    def test_get_bot_trades_from_db(self, db, single_strategy_bot, auth_headers, client):
+        from db.models import Trade, User, StrategyConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        user = db.query(User).order_by(User.id.desc()).first()
+        bot = single_strategy_bot
+        bot.user_id = user.id
+        db.commit()
+
+        strategy = db.query(StrategyConfig).filter(StrategyConfig.bot_configs.any(id=bot.id)).first()
+
+        trade = Trade(
+            user_id=user.id,
+            bot_id=bot.id,
+            strategy_id=strategy.id,
+            strategy_name="ORB Conservative",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=50,
+            entry_price=2000.0,
+            exit_price=2100.0,
+            entry_time=datetime(2026, 3, 30, 10, 15, 0, tzinfo=IST),
+            exit_time=datetime(2026, 3, 30, 11, 30, 0, tzinfo=IST),
+            pnl=5000.0,
+            pnl_pct=2.5,
+            costs=50.0,
+            net_pnl=4950.0,
+            exit_reason="TP",
+            is_test=False,
+            source="live",
+        )
+        db.add(trade)
+        db.commit()
+
+        response = client.get(
+            f"/api/bots/{bot.uuid}/trades",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "RELIANCE"
+        assert data["trades"][0]["pnl"] == 5000.0
+
+    def test_get_bot_trades_filter_by_strategy_db(self, db, multi_strategy_bot, auth_headers, client):
+        from db.models import Trade, User, StrategyConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        user = db.query(User).order_by(User.id.desc()).first()
+        bot = multi_strategy_bot
+        bot.user_id = user.id
+        db.commit()
+
+        strategies = db.query(StrategyConfig).filter(StrategyConfig.bot_configs.any(id=bot.id)).all()
+
+        for i, strat in enumerate(strategies):
+            trade = Trade(
+                user_id=user.id,
+                bot_id=bot.id,
+                strategy_id=strat.id,
+                strategy_name=strat.name,
+                symbol=f"SYM{i}",
+                side="BUY",
+                quantity=10,
+                entry_price=1000.0,
+                exit_price=1100.0,
+                entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+                exit_time=datetime(2026, 3, 30, 11, 0, 0, tzinfo=IST),
+                pnl=1000.0,
+                pnl_pct=10.0,
+                is_test=False,
+                source="live",
+            )
+            db.add(trade)
+        db.commit()
+
+        response = client.get(
+            f"/api/bots/{bot.uuid}/trades?strategy_id={strategies[0].uuid}",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "SYM0"
+
+    def test_get_bot_trades_exclude_test_data_db(self, db, single_strategy_bot, auth_headers, client):
+        from db.models import Trade, User, StrategyConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        user = db.query(User).order_by(User.id.desc()).first()
+        bot = single_strategy_bot
+        bot.user_id = user.id
+        db.commit()
+
+        strategy = db.query(StrategyConfig).filter(StrategyConfig.bot_configs.any(id=bot.id)).first()
+
+        for is_test in [True, False]:
+            trade = Trade(
+                user_id=user.id,
+                bot_id=bot.id,
+                strategy_id=strategy.id,
+                strategy_name="Test",
+                symbol="TEST" if is_test else "REAL",
+                side="BUY",
+                quantity=10,
+                entry_price=100.0,
+                exit_price=110.0,
+                entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+                exit_time=datetime(2026, 3, 30, 11, 0, 0, tzinfo=IST),
+                pnl=100.0,
+                pnl_pct=10.0,
+                is_test=is_test,
+                source="test" if is_test else "live",
+            )
+            db.add(trade)
+        db.commit()
+
+        response = client.get(
+            f"/api/bots/{bot.uuid}/trades",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "REAL"
+
+
+class TestBotPositionsFromDB:
+    """Test positions endpoint DB fallback when snapshot unavailable."""
+
+    def test_get_bot_positions_db_fallback(self, db, single_strategy_bot, auth_headers, client):
+        from db.models import Position, User, StrategyConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        user = db.query(User).order_by(User.id.desc()).first()
+        bot = single_strategy_bot
+        bot.user_id = user.id
+        db.commit()
+
+        strategy = db.query(StrategyConfig).filter(StrategyConfig.bot_configs.any(id=bot.id)).first()
+
+        pos = Position(
+            user_id=user.id,
+            bot_id=bot.id,
+            strategy_id=strategy.id,
+            strategy_name="ORB",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=50,
+            entry_price=2000.0,
+            stop_loss=1900.0,
+            take_profit=2200.0,
+            entry_time=datetime(2026, 3, 30, 10, 15, 0, tzinfo=IST),
+            current_price=2050.0,
+            unrealized_pnl=2500.0,
+            unrealized_pnl_pct=1.25,
+        )
+        db.add(pos)
+        db.commit()
+
+        with patch('api.bots.load_bot_snapshot', return_value=None):
+            response = client.get(
+                f"/api/bots/{bot.uuid}/positions",
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["positions"][0]["symbol"] == "RELIANCE"
+        assert data["positions"][0]["current_price"] == 2050.0
+
 
     @pytest.mark.integration
     def test_get_bot_logs(self, client_with_db, test_bot):
@@ -1365,3 +1545,210 @@ class TestErrorHandlingUnit:
         response = client_with_db.post("/api/bots", json=bot_data)
 
         assert response.status_code == 404
+
+
+class TestBotTradesFromDB:
+    """Test that trades endpoint reads from database."""
+
+    @pytest.mark.integration
+    def test_get_bot_trades_from_db(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import Trade
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        bot_data = {
+            "name": f"Trades DB Bot {uuid_module.uuid4()}",
+            "is_active": True,
+            "strategies": [{
+                "strategy_id": test_strategy.uuid,
+                "max_positions": 5,
+                "capital_allocation_pct": 0.50,
+            }],
+        }
+        create_resp = client_with_db.post("/api/bots", json=bot_data)
+        assert create_resp.status_code == 200
+        bot_uuid = create_resp.json()["uuid"]
+
+        trade = Trade(
+            user_id=test_user.id,
+            strategy_id=test_strategy.id,
+            strategy_name="ORB Conservative",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=50,
+            entry_price=2000.0,
+            exit_price=2100.0,
+            entry_time=datetime(2026, 3, 30, 10, 15, 0, tzinfo=IST),
+            exit_time=datetime(2026, 3, 30, 11, 30, 0, tzinfo=IST),
+            pnl=5000.0,
+            pnl_pct=2.5,
+            costs=50.0,
+            net_pnl=4950.0,
+            exit_reason="TP",
+            is_test=False,
+            source="live",
+        )
+        test_db.add(trade)
+        test_db.commit()
+
+        response = client_with_db.get(f"/api/bots/{bot_uuid}/trades")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "RELIANCE"
+        assert data["trades"][0]["pnl"] == 5000.0
+
+    @pytest.mark.integration
+    def test_get_bot_trades_filter_by_strategy_db(self, client_with_db, test_db, test_user):
+        from db.models import Trade, StrategyConfig, BotConfig, bot_strategies
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        strat1 = StrategyConfig(name=f"Strat A {uuid_module.uuid4()}", strategy_type="ORB", is_template=True, is_active=True, max_positions=5)
+        strat2 = StrategyConfig(name=f"Strat B {uuid_module.uuid4()}", strategy_type="ORB", is_template=True, is_active=True, max_positions=5)
+        test_db.add(strat1)
+        test_db.add(strat2)
+        test_db.flush()
+
+        bot = BotConfig(
+            name=f"Multi Strat DB Test {uuid_module.uuid4()}",
+            user_id=test_user.id,
+            is_active=True,
+            max_total_positions=10,
+            max_total_capital_pct=0.80,
+        )
+        test_db.add(bot)
+        test_db.flush()
+
+        test_db.execute(bot_strategies.insert().values(bot_id=bot.id, strategy_id=strat1.id, max_positions=5, capital_allocation_pct=0.40))
+        test_db.execute(bot_strategies.insert().values(bot_id=bot.id, strategy_id=strat2.id, max_positions=5, capital_allocation_pct=0.40))
+        test_db.commit()
+        test_db.refresh(bot)
+        test_db.refresh(strat1)
+        test_db.refresh(strat2)
+
+        strategies = [strat1, strat2]
+        for i, strat in enumerate(strategies):
+            trade = Trade(
+                user_id=test_user.id,
+                strategy_id=strat.id,
+                strategy_name=strat.name,
+                symbol=f"SYM{i}",
+                side="BUY",
+                quantity=10,
+                entry_price=1000.0,
+                exit_price=1100.0,
+                entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+                exit_time=datetime(2026, 3, 30, 11, 0, 0, tzinfo=IST),
+                pnl=1000.0,
+                pnl_pct=10.0,
+                is_test=False,
+                source="live",
+            )
+            test_db.add(trade)
+        test_db.commit()
+
+        response = client_with_db.get(
+            f"/api/bots/{bot.uuid}/trades?strategy_id={strategies[0].uuid}",
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "SYM0"
+
+    @pytest.mark.integration
+    def test_get_bot_trades_exclude_test_data_db(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import Trade
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        bot_data = {
+            "name": f"Exclude Test Bot {uuid_module.uuid4()}",
+            "is_active": True,
+            "strategies": [{
+                "strategy_id": test_strategy.uuid,
+                "max_positions": 5,
+                "capital_allocation_pct": 0.50,
+            }],
+        }
+        create_resp = client_with_db.post("/api/bots", json=bot_data)
+        assert create_resp.status_code == 200
+        bot_uuid = create_resp.json()["uuid"]
+
+        for is_test in [True, False]:
+            trade = Trade(
+                user_id=test_user.id,
+                strategy_id=test_strategy.id,
+                strategy_name="Test",
+                symbol="TEST" if is_test else "REAL",
+                side="BUY",
+                quantity=10,
+                entry_price=100.0,
+                exit_price=110.0,
+                entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+                exit_time=datetime(2026, 3, 30, 11, 0, 0, tzinfo=IST),
+                pnl=100.0,
+                pnl_pct=10.0,
+                is_test=is_test,
+                source="test" if is_test else "live",
+            )
+            test_db.add(trade)
+        test_db.commit()
+
+        response = client_with_db.get(f"/api/bots/{bot_uuid}/trades?include_test=false")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "REAL"
+
+
+class TestBotPositionsFromDB:
+    """Test positions endpoint DB fallback when snapshot unavailable."""
+
+    @pytest.mark.integration
+    def test_get_bot_positions_db_fallback(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import Position, BotConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        bot_data = {
+            "name": f"Pos DB Bot {uuid_module.uuid4()}",
+            "is_active": True,
+            "strategies": [{
+                "strategy_id": test_strategy.uuid,
+                "max_positions": 5,
+                "capital_allocation_pct": 0.50,
+            }],
+        }
+        create_resp = client_with_db.post("/api/bots", json=bot_data)
+        assert create_resp.status_code == 200
+        bot_uuid = create_resp.json()["uuid"]
+
+        bot = test_db.query(BotConfig).filter(BotConfig.uuid == bot_uuid).first()
+
+        pos = Position(
+            user_id=test_user.id,
+            bot_id=bot.id,
+            strategy_id=test_strategy.id,
+            strategy_name="ORB",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=50,
+            entry_price=2000.0,
+            stop_loss=1900.0,
+            take_profit=2200.0,
+            entry_time=datetime(2026, 3, 30, 10, 15, 0, tzinfo=IST),
+            current_price=2050.0,
+            unrealized_pnl=2500.0,
+            unrealized_pnl_pct=1.25,
+        )
+        test_db.add(pos)
+        test_db.commit()
+
+        with patch('api.bots.load_bot_snapshot', return_value=None):
+            response = client_with_db.get(f"/api/bots/{bot_uuid}/positions")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["positions"][0]["symbol"] == "RELIANCE"
+        assert data["positions"][0]["current_price"] == 2050.0

@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from db.models import get_shared_broker_token
+import config
 
 router = APIRouter(prefix="/api/options", tags=["options"])
 
@@ -205,7 +206,7 @@ async def get_underlyings():
 @router.get("/expiries/{underlying}")
 async def get_expiries(underlying: str):
     """Get available expiry dates for an underlying instrument."""
-    today = datetime.now()
+    today = datetime.now(config.IST)
     expiries = []
     
     try:

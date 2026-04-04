@@ -18,6 +18,7 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import config
 from trading.shared_portfolio import (
     SharedPortfolioManager,
     StrategyAllocation,
@@ -1017,17 +1018,17 @@ class TestEdgeCases:
         assert "1_RELIANCE" in portfolio.positions
 
     def test_position_entry_time_set(self, portfolio):
-        before = datetime.now()
+        before = datetime.now(config.IST)
         portfolio.open_position(1, "Test", "TEST", OrderSide.BUY, 10, 100.0, 95.0, 110.0)
-        after = datetime.now()
+        after = datetime.now(config.IST)
         pos = portfolio.positions["1_TEST"]
         assert before <= pos.entry_time <= after
 
     def test_trade_exit_time_set(self, portfolio):
         portfolio.open_position(1, "Test", "TEST", OrderSide.BUY, 10, 100.0, 95.0, 110.0)
-        before = datetime.now()
+        before = datetime.now(config.IST)
         trade = portfolio.close_position(1, "TEST", 110.0, "TP")
-        after = datetime.now()
+        after = datetime.now(config.IST)
         assert before <= trade.exit_time <= after
 
     def test_allocation_exceeds_100_percent(self, portfolio):

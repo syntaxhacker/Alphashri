@@ -1,5 +1,4 @@
 import { Group, Text, Badge } from "@mantine/core";
-import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { formatCurrencyIN, getPnLTextColor } from "../../utils/ui-helpers";
 
 export interface Portfolio {
@@ -22,6 +21,19 @@ interface PaperPortfolioCardProps {
   strategySummaries: StrategySummary[];
 }
 
+function StatItem({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <Group gap={4}>
+      <Text size="xs" c="dimmed" tt="uppercase">
+        {label}
+      </Text>
+      <Text size="xs" fw={700} c={tone}>
+        {value}
+      </Text>
+    </Group>
+  );
+}
+
 export function PaperPortfolioCard({
   portfolio,
   isMultiStrategy,
@@ -29,15 +41,9 @@ export function PaperPortfolioCard({
 }: PaperPortfolioCardProps) {
   if (!portfolio) {
     return (
-      <CompactPanel
-        data-testid="portfolio-card"
-        className="paper-portfolio-card"
-        id="portfolio-card"
-      >
-        <Text c="dimmed" ta="center" size="sm">
-          Loading portfolio...
-        </Text>
-      </CompactPanel>
+      <Text c="dimmed" size="xs" data-testid="portfolio-card">
+        Loading...
+      </Text>
     );
   }
 
@@ -45,40 +51,30 @@ export function PaperPortfolioCard({
   const pnlSign = portfolio.day_pnl >= 0 ? "+" : "";
 
   return (
-    <CompactPanel data-testid="portfolio-card" className="paper-portfolio-card" id="portfolio-card">
-      <CompactStatGrid>
-        <CompactStat label="Total Value" value={`₹${formatCurrencyIN(portfolio.total_value)}`} />
-        <CompactStat label="Cash" value={`₹${formatCurrencyIN(portfolio.cash)}`} />
-        <CompactStat label="Margin Used" value={`₹${formatCurrencyIN(portfolio.margin_used)}`} />
-        <CompactStat
-          label="Day P&L"
-          value={`${pnlSign}₹${formatCurrencyIN(portfolio.day_pnl)}`}
-          tone={pnlColor}
-        />
-      </CompactStatGrid>
-
-      <Group
-        gap={6}
-        mt="sm"
-        align="center"
-        data-testid="portfolio-row-2"
-        className="portfolio-row"
-        id="portfolio-row-2"
-      >
-        <Group gap={6} align="center">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
-            Positions
-          </Text>
-          <Badge variant="light" color="blue" size="sm">
-            {portfolio.positions_count}
-          </Badge>
-        </Group>
-      </Group>
+    <Group
+      gap="sm"
+      wrap="wrap"
+      px={2}
+      py={4}
+      data-testid="portfolio-card"
+      className="paper-portfolio-card"
+      id="portfolio-card"
+    >
+      <StatItem label="Value" value={`₹${formatCurrencyIN(portfolio.total_value)}`} />
+      <StatItem label="Cash" value={`₹${formatCurrencyIN(portfolio.cash)}`} />
+      <StatItem label="Margin" value={`₹${formatCurrencyIN(portfolio.margin_used)}`} />
+      <StatItem
+        label="P&L"
+        value={`${pnlSign}₹${formatCurrencyIN(portfolio.day_pnl)}`}
+        tone={pnlColor}
+      />
+      <Badge variant="light" color="blue" size="xs" ml="auto">
+        {portfolio.positions_count} pos
+      </Badge>
 
       {isMultiStrategy && strategySummaries.length > 0 && (
         <Group
-          gap="xs"
-          mt="sm"
+          gap={4}
           data-testid="strategy-summaries"
           className="portfolio-strategies"
           id="strategy-summaries"
@@ -88,6 +84,7 @@ export function PaperPortfolioCard({
               key={summary.strategy_name}
               variant="light"
               color={getPnLTextColor(summary.pnl)}
+              size="xs"
               data-testid={`strategy-badge-${summary.strategy_name}`}
             >
               {summary.strategy_name}: {summary.pnl >= 0 ? "+" : ""}₹{formatCurrencyIN(summary.pnl)}
@@ -95,6 +92,6 @@ export function PaperPortfolioCard({
           ))}
         </Group>
       )}
-    </CompactPanel>
+    </Group>
   );
 }
