@@ -62,7 +62,7 @@
   "dependencies": {
     "@mantine/core": "^8.3.16",
     "@mantine/hooks": "^8.3.16",
-    "@mantine/notifications": "^9.0.0",
+    "@mantine/notifications": "^8.3.16",
     "@reduxjs/toolkit": "^2.11.2",
     "@sentry/react": "^10.43.0",
     "@storybook/react": "^10.2.16",
