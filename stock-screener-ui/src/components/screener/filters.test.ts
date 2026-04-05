@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Stock } from "../types";
-import * as state from "../state";
+import type { Stock } from "../../types";
+import * as state from "../../state";
 import { sortStocks, handleSort, renderSortIndicator, renderSortableHeader } from "./filters";
 
 const makeStock = (overrides: Partial<Stock> = {}): Stock => ({

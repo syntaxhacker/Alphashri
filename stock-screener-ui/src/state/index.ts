@@ -11,7 +11,7 @@ import type {
   NotifFilter,
   SortDirection,
 } from "../types";
-import { DEFAULT_AUTO_REFRESH_SECONDS } from "../constants";
+import { DEFAULT_AUTO_REFRESH_SECONDS } from "../config/constants";
 
 export const DEFAULT_SCREENER_DATA: ScreenerData = {
   approaching: [],

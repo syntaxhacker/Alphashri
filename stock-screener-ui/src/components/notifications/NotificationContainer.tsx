@@ -1,5 +1,5 @@
-import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { removeNotification } from "../store/notificationsSlice";
+import { useAppDispatch, useAppSelector } from "../../state/store/hooks";
+import { removeNotification } from "../../state/store/notificationsSlice";
 import { NotificationItem } from "./Notification";
 
 export function NotificationContainer() {

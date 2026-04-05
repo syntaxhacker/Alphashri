@@ -2,7 +2,7 @@
  * Filter and sort components
  */
 
-import * as state from "../state";
+import * as state from "../../state";
 
 export function sortStocks(stocks: Stock[]): Stock[] {
   if (!state.sortColumn) return stocks;

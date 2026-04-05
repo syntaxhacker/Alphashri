@@ -1,5 +1,5 @@
 import type { useMantineTheme } from "@mantine/core";
-import { fontWeights } from "../../../theme";
+import { fontWeights } from "../../../config/theme";
 import { hexToRgba } from "./cellPalette";
 
 export type ThemeType = ReturnType<typeof useMantineTheme>;

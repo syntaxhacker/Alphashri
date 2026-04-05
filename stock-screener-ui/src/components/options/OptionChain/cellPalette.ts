@@ -1,7 +1,7 @@
 import type { useMantineTheme } from "@mantine/core";
 import { clamp } from "../../../utils/ui-helpers";
 
-function hexToRgba(hex: string, alpha: number): string {
+function parseHex(hex: string) {
   const normalized = hex.replace("#", "");
   const value =
     normalized.length === 3
@@ -11,32 +11,22 @@ function hexToRgba(hex: string, alpha: number): string {
           .join("")
       : normalized;
   const int = Number.parseInt(value, 16);
-  const r = (int >> 16) & 255;
-  const g = (int >> 8) & 255;
-  const b = int & 255;
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const { r, g, b } = parseHex(hex);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function mixColors(colorA: string, colorB: string, ratio: number): string {
   const normalizedRatio = clamp(ratio, 0, 1);
-  const parse = (hex: string) => {
-    const normalized = hex.replace("#", "");
-    const value =
-      normalized.length === 3
-        ? normalized
-            .split("")
-            .map((ch) => ch + ch)
-            .join("")
-        : normalized;
-    const int = Number.parseInt(value, 16);
-    return {
-      r: (int >> 16) & 255,
-      g: (int >> 8) & 255,
-      b: int & 255,
-    };
-  };
-  const ca = parse(colorA);
-  const cb = parse(colorB);
+  const ca = parseHex(colorA);
+  const cb = parseHex(colorB);
   const r = Math.round(ca.r + (cb.r - ca.r) * normalizedRatio);
   const g = Math.round(ca.g + (cb.g - ca.g) * normalizedRatio);
   const blue = Math.round(ca.b + (cb.b - ca.b) * normalizedRatio);

@@ -7,7 +7,7 @@
 
 import type { PreviewCandle, PivotLevel } from "../../api/chartPreview";
 import type { ORBZone } from "../../types/backtest";
-import { theme } from "../../theme";
+import { theme } from "../../config/theme";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import { formatTimeLabel } from "../../utils/chartTimeUtils";
 export { buildPivotSeries, formatTimeLabel };

@@ -6,7 +6,7 @@ export { BacktestChartTabs } from "./BacktestChartTabs";
 export type { BacktestChartTabsProps } from "./BacktestChartTabs";
 export { BacktestChart } from "./BacktestChart";
 export { TradeHistoryTable } from "./TradeHistoryTable";
-export { BacktestPage } from "./BacktestPage";
+export { BacktestPage } from "../../pages/backtest/BacktestPage";
 export { BacktestLeftPanel } from "./BacktestLeftPanel";
 export { BacktestRightPanel } from "./BacktestRightPanel";
 export { BacktestHistory } from "./BacktestHistory";

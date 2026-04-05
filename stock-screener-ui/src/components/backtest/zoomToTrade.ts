@@ -1,5 +1,5 @@
 import type { SymbolChartData } from "../../types/backtest";
-import { theme } from "../../theme";
+import { theme } from "../../config/theme";
 import { normalizeTime } from "../../utils/ui-helpers";
 
 export const chartInstances = new Map<string, any>();

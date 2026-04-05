@@ -225,22 +225,21 @@ export function getFilteredChain(): OptionContract[] {
 
   optionChain.sort((a, b) => {
     const multiplier = filters.sortOrder === "asc" ? 1 : -1;
-    const aVal = (a as any)[filters.sortBy];
-    const bVal = (b as any)[filters.sortBy];
-    return (aVal - bVal) * multiplier;
+    return ((a as any)[filters.sortBy] - (b as any)[filters.sortBy]) * multiplier;
   });
 
   return optionChain;
 }
 
-export function getStrikeMatrix(): Array<{
+export function getStrikeMatrix(chain?: OptionContract[]): Array<{
   strike: number;
   ce: OptionContract | null;
   pe: OptionContract | null;
 }> {
+  const source = chain ?? state.optionChain;
   const strikes = new Map<number, { ce: OptionContract | null; pe: OptionContract | null }>();
 
-  for (const contract of state.optionChain) {
+  for (const contract of source) {
     const existing = strikes.get(contract.strike_price) || { ce: null, pe: null };
     if (contract.instrument_type === "CE") {
       existing.ce = contract;

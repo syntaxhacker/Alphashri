@@ -4,6 +4,8 @@
  * Migrate from legacy string-based rendering to React components.
  */
 
+export { StrategiesContainer } from "../../pages/strategies/StrategiesContainer";
+
 // React components (new)
 export { StrategiesPage } from "./StrategiesPage";
 export { StrategiesNav } from "./StrategiesNav";

@@ -2,10 +2,8 @@ import { Box, Flex, Alert } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { BacktestConfig } from "./mantine";
-import { BacktestLeftPanel } from "./BacktestLeftPanel";
-import { BacktestRightPanel } from "./BacktestRightPanel";
-import { zoomToTrade } from "./BacktestChart";
+import { BacktestConfig, BacktestLeftPanel, BacktestRightPanel } from "../../components/backtest/mantine";
+import { zoomToTrade } from "../../components/backtest/BacktestChart";
 import type { BacktestResult } from "../../types/backtest";
 import {
   getBacktestState,

@@ -1,5 +1,5 @@
-import { ScreenerPage } from "../components/screener";
-import { useScreenerState } from "../hooks/useScreenerState";
+import { ScreenerPage } from "../../components/screener/ScreenerPage";
+import { useScreenerState } from "../../hooks/useScreenerState";
 
 export function ScreenerContainer() {
   const {

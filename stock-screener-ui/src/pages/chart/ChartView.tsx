@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMantineColorScheme } from "@mantine/core";
 import { fetchChartPreview, ChartPreviewData } from "../../api/chartPreview";
-import { buildChartOption } from "./chartRenderer";
+import { buildChartOption } from "../../components/chart/chartRenderer";
 
 const TIMEFRAMES = [
   { value: 1, label: "1m" },

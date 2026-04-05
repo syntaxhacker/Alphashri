@@ -12,7 +12,7 @@ import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { OptionAlerts } from "./OptionAlerts";
 import { IVSkewChart } from "./IVSkewChart";
-import { fontWeights } from "../../../theme";
+import { fontWeights } from "../../../config/theme";
 import { CompactPanel } from "../../common/compact";
 
 interface OIAnalysisProps {

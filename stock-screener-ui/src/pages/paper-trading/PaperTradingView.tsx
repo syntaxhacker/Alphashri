@@ -20,13 +20,13 @@ import {
   PaperChart,
   PaperHistoryTable,
   PaperSettings,
-} from "./mantine";
+} from "../../components/paper-trading/mantine";
 import {
   usePaperViewActions,
   useHistoryFilters,
   FiltersBar,
   PaperTradingTabs,
-} from "./PaperTradingHelpers";
+} from "../../components/paper-trading/PaperTradingHelpers";
 
 export function PaperTradingView() {
   const [activeBotId, setActiveBotId] = useState<string | null>(null);

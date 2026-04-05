@@ -3,7 +3,7 @@
  */
 
 import type { ChangeNotification } from "../types";
-import { NEW_ROW_HIGHLIGHT_MS } from "../constants";
+import { NEW_ROW_HIGHLIGHT_MS } from "../config/constants";
 import * as state from "../state";
 
 // Forward declaration - will be set by main.ts

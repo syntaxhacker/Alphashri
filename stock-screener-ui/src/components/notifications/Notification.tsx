@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { Notification } from "../store/notificationsSlice";
+import type { Notification } from "../../state/store/notificationsSlice";
 
 type NotificationItemProps = {
   notification: Notification;

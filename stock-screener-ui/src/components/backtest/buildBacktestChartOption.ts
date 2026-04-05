@@ -1,5 +1,5 @@
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
-import { theme } from "../../theme";
+import { theme } from "../../config/theme";
 import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
 import { getChartThemeColors, CANDLESTICK_ITEM_STYLE } from "../../utils/chartUtils";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";

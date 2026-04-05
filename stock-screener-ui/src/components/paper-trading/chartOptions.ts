@@ -4,7 +4,7 @@ import type {
   PaperTrade,
   PaperPosition,
 } from "../../types/paperTrading";
-import { theme } from "../../theme";
+import { theme } from "../../config/theme";
 import { formatVolume } from "../../utils/chartUtils";
 import { formatTimeLabel } from "../../utils/chartTimeUtils";
 

@@ -11,10 +11,10 @@ import {
 } from "@mantine/core";
 import { IconChartBar, IconBuildingFactory, IconRefresh } from "@tabler/icons-react";
 import type { SectorResponse } from "../../types/sector";
-import { CompactPanel } from "../common/compact";
-import { useSectorData } from "./useSectorData";
-import { DashboardContent } from "./SectorDashboardContent";
-import type { SectorAlert, InternalStockMover } from "./sectorUtils";
+import { CompactPanel } from "../../components/common/compact";
+import { useSectorData } from "../../components/sector/useSectorData";
+import { DashboardContent } from "../../components/sector/SectorDashboardContent";
+import type { SectorAlert, InternalStockMover } from "../../components/sector/sectorUtils";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 

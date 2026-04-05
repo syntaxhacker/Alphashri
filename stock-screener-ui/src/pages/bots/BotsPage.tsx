@@ -33,11 +33,11 @@ import {
 import type { BotConfig } from "../../types/bots";
 
 type BotsView = "list" | "status";
-import { BotConfigModal } from "./BotConfigModal2";
-import { BotStatusPanel } from "./BotStatusPanel2";
-import { CompactPage, CompactPanel } from "../common/compact";
-import { LoadingState, ErrorAlert, EmptyCompact } from "../common/states";
-import { StatusBadge } from "../common/BadgeComponents";
+import { BotConfigModal } from "../../components/bots/BotConfigModal2";
+import { BotStatusPanel } from "../../components/bots/BotStatusPanel2";
+import { CompactPage, CompactPanel } from "../../components/common/compact";
+import { LoadingState, ErrorAlert, EmptyCompact } from "../../components/common/states";
+import { StatusBadge } from "../../components/common/BadgeComponents";
 
 function useBotsPageState() {
   const [currentView, setCurrentViewState] = useState<BotsView>("list");

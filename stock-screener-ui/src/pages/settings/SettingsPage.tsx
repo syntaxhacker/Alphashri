@@ -1,16 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { Box, Stack } from "@mantine/core";
 import { useSearchParams } from "react-router-dom";
-import { BrokerConnectionCard } from "./BrokerConnectionCard";
+import { BrokerConnectionCard } from "../../components/settings/BrokerConnectionCard";
 import {
   getBrokerStatus,
   connectUpstox,
   disconnectUpstox,
   type BrokerStatus,
 } from "../../api/brokers";
-import { useAppDispatch } from "../../store/hooks";
-import { addNotification } from "../../store/notificationsSlice";
-import { CompactPage } from "../common/compact";
+import { useAppDispatch } from "../../state/store/hooks";
+import { addNotification } from "../../state/store/notificationsSlice";
+import { CompactPage } from "../../components/common/compact";
 
 export function SettingsPage() {
   const [status, setStatus] = useState<BrokerStatus | null>(null);

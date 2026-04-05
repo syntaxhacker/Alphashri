@@ -264,9 +264,11 @@ export default function NewsPanel2() {
   }, [isOpen, ws.clearNewArticlesFlag]);
   useEffect(() => {
     if (isOpen && newsItems[0]?.id !== lastSeenId) {
-      const id = newsItems[0].id;
-      setLastSeenId(id);
-      saveLastSeenId(id);
+      const id = newsItems[0]?.id;
+      if (id) {
+        setLastSeenId(id);
+        saveLastSeenId(id);
+      }
     }
   }, [isOpen, newsItems, lastSeenId]);
   const handleClose = () => {
