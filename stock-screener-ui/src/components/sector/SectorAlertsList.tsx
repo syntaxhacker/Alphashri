@@ -18,20 +18,13 @@ export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
           key={i}
           p="xs"
           withBorder
-          bg={
-            alert.direction === "SURGING"
-              ? "rgba(64, 192, 87, 0.05)"
-              : "rgba(250, 82, 82, 0.05)"
-          }
+          bg={alert.direction === "SURGING" ? "rgba(64, 192, 87, 0.05)" : "rgba(250, 82, 82, 0.05)"}
         >
           <Group justify="space-between">
             <Text size="sm" fw={700}>
               [{alert.timestamp}] {alert.sector}
             </Text>
-            <Badge
-              color={alert.direction === "SURGING" ? "green" : "red"}
-              size="sm"
-            >
+            <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="sm">
               {alert.direction} ({formatPercentage(alert.delta, 2, false)})
             </Badge>
           </Group>

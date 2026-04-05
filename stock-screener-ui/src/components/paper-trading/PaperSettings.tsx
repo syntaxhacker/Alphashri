@@ -26,7 +26,6 @@ import { RiskManagementSection } from "./RiskManagementSection";
 import { RunnerSettingsSection } from "./RunnerSettingsSection";
 import { TradingCostsSection } from "./TradingCostsSection";
 import { SettingsActions } from "./SettingsActions";
-
 function handleConfigValue(
   key: keyof StrategyConfig,
   value: number | string | boolean | undefined,
@@ -35,14 +34,11 @@ function handleConfigValue(
     updateConfigValue(key, value as any);
   }
 }
-
 function usePaperSettingsData() {
   const [strategies, setStrategies] = useState<StrategyConfig[]>([]);
   const [strategiesLoading, setStrategiesLoading] = useState(true);
-
   const state = getPaperTradingState();
   const { strategyConfig, configLoading, configError, configDirty } = state;
-
   useEffect(() => {
     const loadStrategies = async () => {
       try {
@@ -61,27 +57,22 @@ function usePaperSettingsData() {
     };
     loadStrategies();
   }, []);
-
   useStoreSubscription(subscribe);
-
   const handleStrategyChange = useCallback(async (value: string | null) => {
     if (value) {
       await fetchStrategyConfig(Number(value));
     }
   }, []);
-
   const handleSave = useCallback(async () => {
     if (strategyConfig) {
       await updateStrategyConfig(strategyConfig);
     }
   }, [strategyConfig]);
-
   const handleReset = useCallback(async () => {
     if (window.confirm("Reset all settings to default values?")) {
       await resetStrategyConfig();
     }
   }, []);
-
   return {
     strategies,
     strategiesLoading,
@@ -94,10 +85,16 @@ function usePaperSettingsData() {
     handleReset,
   };
 }
-
 function SettingsLoadingState() {
   return (
-    <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings" id="paper-settings">
+    <Card
+      padding="md"
+      radius="md"
+      withBorder
+      data-testid="settings-panel"
+      className="paper-settings"
+      id="paper-settings"
+    >
       <Group justify="center" gap="sm">
         <Loader size="sm" />
         <Text c="dimmed">Loading configuration...</Text>
@@ -105,20 +102,37 @@ function SettingsLoadingState() {
     </Card>
   );
 }
-
 function SettingsErrorState({ error }: { error: string }) {
   return (
-    <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings paper-settings-error" id="paper-settings">
-      <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red" variant="light" data-testid="settings-error">
+    <Card
+      padding="md"
+      radius="md"
+      withBorder
+      data-testid="settings-panel"
+      className="paper-settings paper-settings-error"
+      id="paper-settings"
+    >
+      <Alert
+        icon={<IconAlertCircle size={16} />}
+        title="Error"
+        color="red"
+        variant="light"
+        data-testid="settings-error"
+      >
         {error}
       </Alert>
-      <Button variant="light" size="sm" mt="md" onClick={() => fetchStrategyConfig()} data-testid="retry-button">
+      <Button
+        variant="light"
+        size="sm"
+        mt="md"
+        onClick={() => fetchStrategyConfig()}
+        data-testid="retry-button"
+      >
         Retry
       </Button>
     </Card>
   );
 }
-
 function SettingsContent({
   strategyConfig,
   strategies,
@@ -140,19 +154,15 @@ function SettingsContent({
   handleSave: () => void;
   handleReset: () => void;
 }) {
-  console.log("PaperSettings - strategyConfig:", {
-    id: strategyConfig.id,
-    internal_id: (strategyConfig as any).internal_id,
-    name: strategyConfig.name,
-  });
-  console.log("PaperSettings - dropdown data:", strategies.map((s) => ({
-    value: String(s.internal_id ?? s.id),
-    name: s.name,
-    is_default: s.is_default,
-  })));
-
   return (
-    <Card padding="md" radius="md" withBorder data-testid="settings-panel" className="paper-settings" id="paper-settings">
+    <Card
+      padding="md"
+      radius="md"
+      withBorder
+      data-testid="settings-panel"
+      className="paper-settings"
+      id="paper-settings"
+    >
       {configError && (
         <Alert
           icon={<IconAlertCircle size={16} />}
@@ -168,29 +178,52 @@ function SettingsContent({
 
       <Group justify="space-between" mb="md" className="paper-settings-header" id="settings-header">
         <div>
-          <Text fw={600} size="lg">Strategy Configuration</Text>
-          <Text size="sm" c="dimmed">{strategyConfig.name} ({strategyConfig.strategy_type})</Text>
+          <Text fw={600} size="lg">
+            Strategy Configuration
+          </Text>
+          <Text size="sm" c="dimmed">
+            {strategyConfig.name} ({strategyConfig.strategy_type})
+          </Text>
         </div>
         {configDirty && (
-          <Badge color="yellow" variant="light">Unsaved Changes</Badge>
+          <Badge color="yellow" variant="light">
+            Unsaved Changes
+          </Badge>
         )}
       </Group>
 
       <Stack gap="sm" className="paper-settings-content" id="settings-content">
-        <Card padding="sm" radius="sm" withBorder variant="default" className="paper-settings-section" id="strategy-section">
-          <Text fw={500} size="sm" mb="xs">Active Strategy</Text>
+        <Card
+          padding="sm"
+          radius="sm"
+          withBorder
+          variant="default"
+          className="paper-settings-section"
+          id="strategy-section"
+        >
+          <Text fw={500} size="sm" mb="xs">
+            Active Strategy
+          </Text>
           <Group gap="sm" align="flex-end">
             <Select
               data-testid="strategy-selector"
               placeholder="Select strategy"
-              value={strategyConfig.internal_id != null ? String(strategyConfig.internal_id) : strategyConfig.id != null ? String(strategyConfig.id) : null}
+              value={
+                strategyConfig.internal_id != null
+                  ? String(strategyConfig.internal_id)
+                  : strategyConfig.id != null
+                    ? String(strategyConfig.id)
+                    : null
+              }
               onChange={handleStrategyChange}
               data={strategies.map((s) => ({
                 value: String(s.internal_id ?? s.id),
                 label: s.is_default ? `${s.name} (Default)` : s.name,
               }))}
               disabled={strategiesLoading || configLoading}
-              style={{ flex: 1 }}
+              style={{
+                flex: 1,
+              }}
               size="sm"
             />
             <Button
@@ -203,7 +236,9 @@ function SettingsContent({
             </Button>
           </Group>
           {strategyConfig.description && (
-            <Text size="sm" c="dimmed" mt="xs">{strategyConfig.description}</Text>
+            <Text size="sm" c="dimmed" mt="xs">
+              {strategyConfig.description}
+            </Text>
           )}
         </Card>
 
@@ -229,7 +264,6 @@ function SettingsContent({
     </Card>
   );
 }
-
 export function PaperSettings() {
   const {
     strategies,
@@ -242,19 +276,15 @@ export function PaperSettings() {
     handleSave,
     handleReset,
   } = usePaperSettingsData();
-
   if (configLoading && !strategyConfig) {
     return <SettingsLoadingState />;
   }
-
   if (configError && !strategyConfig) {
     return <SettingsErrorState error={configError} />;
   }
-
   if (!strategyConfig) {
     return <SettingsLoadingState />;
   }
-
   return (
     <SettingsContent
       strategyConfig={strategyConfig}

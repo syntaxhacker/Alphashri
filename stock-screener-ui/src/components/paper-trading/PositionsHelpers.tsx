@@ -2,11 +2,7 @@ import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from
 import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
-import {
-  formatCurrencyIN,
-  formatNumber,
-  formatElapsed,
-} from "../../utils/ui-helpers";
+import { formatCurrencyIN, formatNumber, formatElapsed } from "../../utils/ui-helpers";
 import { SideBadge } from "../common/BadgeComponents";
 import { PnlText } from "../common/PnlText";
 import { TABLE_STYLES } from "./tableStyles";
@@ -56,8 +52,6 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
   }
   return { totalPnl, marginUsed, count: positions.length };
 }
-
-
 
 function PositionRow({
   pos,

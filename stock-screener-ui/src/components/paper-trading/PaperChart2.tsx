@@ -136,7 +136,15 @@ function useEChart(
     if (chartInstance.current) chartInstance.current.dispose();
     chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
     chartInstance.current.setOption(
-      buildChartOption(state.chartData, isDark, state.selectedTradeId, state.showAllTrades, state.showOrbLines, state.showPivotLines, state.show52wLines),
+      buildChartOption(
+        state.chartData,
+        isDark,
+        state.selectedTradeId,
+        state.showAllTrades,
+        state.showOrbLines,
+        state.showPivotLines,
+        state.show52wLines,
+      ),
     );
     const handleResize = () => chartInstance.current?.resize();
     window.addEventListener("resize", handleResize);

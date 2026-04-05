@@ -63,8 +63,6 @@ function useQuickFilter() {
   return { handleQuickFilter, getCurrentPeriod };
 }
 
-
-
 function HistoryFilters({
   bots,
   strategies,
@@ -175,21 +173,21 @@ function HistoryList({
         </Flex>
       ) : (
         sortedDates.map((date) => (
-            <DayGroup
-              key={date}
-              date={date}
-              trades={tradesByDate[date]}
-              selectedSymbol={state.selectedSymbol}
-              selectedTradeId={state.selectedTradeId}
-              onSelectSymbol={handleSelectSymbol}
-              onDeleteTrade={deleteTradeAction}
-              expanded={expandedDays[date] !== false}
-              onToggle={() => toggleDay(date)}
-              tableStyles={TABLE_STYLES}
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSort={onSort}
-            />
+          <DayGroup
+            key={date}
+            date={date}
+            trades={tradesByDate[date]}
+            selectedSymbol={state.selectedSymbol}
+            selectedTradeId={state.selectedTradeId}
+            onSelectSymbol={handleSelectSymbol}
+            onDeleteTrade={deleteTradeAction}
+            expanded={expandedDays[date] !== false}
+            onToggle={() => toggleDay(date)}
+            tableStyles={TABLE_STYLES}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSort={onSort}
+          />
         ))
       )}
     </ScrollArea>
@@ -238,7 +236,12 @@ export function PaperHistoryTable() {
     setSortDirection(nextDir);
   };
 
-  const handleSelectSymbol = async (symbol: string, exitTime?: string, tradeId?: string, strategyName?: string) => {
+  const handleSelectSymbol = async (
+    symbol: string,
+    exitTime?: string,
+    tradeId?: string,
+    strategyName?: string,
+  ) => {
     setSelectedSymbol(symbol);
     if (tradeId) setSelectedTradeId(tradeId, strategyName);
     const sameSymbolCount = filteredTrades.filter((t) => t.symbol === symbol).length;

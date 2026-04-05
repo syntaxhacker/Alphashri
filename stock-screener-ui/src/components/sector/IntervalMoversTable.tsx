@@ -25,12 +25,8 @@ export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }
         {movers.map((mover) => (
           <Table.Tr key={mover.symbol}>
             <Table.Td fw={600}>{mover.symbol}</Table.Td>
-            <Table.Td align="right">
-              {mover.prev_change.toFixed(2)}%
-            </Table.Td>
-            <Table.Td align="right">
-              {mover.change.toFixed(2)}%
-            </Table.Td>
+            <Table.Td align="right">{mover.prev_change.toFixed(2)}%</Table.Td>
+            <Table.Td align="right">{mover.change.toFixed(2)}%</Table.Td>
             <Table.Td align="right">
               <Text c={getPnLTextColor(mover.delta)} fw={700}>
                 {mover.delta > 0 ? "+" : ""}

@@ -1,13 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  Text,
-  Group,
-  Stack,
-  Loader,
-  Box,
-  ActionIcon,
-  ScrollArea,
-} from "@mantine/core";
+import { Text, Group, Stack, Loader, Box, ActionIcon, ScrollArea } from "@mantine/core";
 import { IconRefresh } from "@tabler/icons-react";
 import { useAuth } from "../components/auth/AuthProvider2";
 import {

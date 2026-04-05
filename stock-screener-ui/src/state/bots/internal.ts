@@ -1,8 +1,5 @@
 import { createSubscriber } from "../createSubscriber";
-import type {
-  BotsState,
-  BotLoadingKey,
-} from "../../types/bots";
+import type { BotsState, BotLoadingKey } from "../../types/bots";
 import { createLoadingState, setLoading as setLoadingState } from "../../utils/loading";
 
 const initialState: BotsState = {

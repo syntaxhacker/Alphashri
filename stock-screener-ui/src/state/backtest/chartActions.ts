@@ -10,10 +10,7 @@ export type BacktestStateGetter = () => {
 
 export type BacktestStateSetter = (patch: Record<string, any>) => void;
 
-export function createChartActions(
-  getState: BacktestStateGetter,
-  setState: BacktestStateSetter,
-) {
+export function createChartActions(getState: BacktestStateGetter, setState: BacktestStateSetter) {
   function setShowCharts(show: boolean) {
     setState({ showCharts: show });
   }

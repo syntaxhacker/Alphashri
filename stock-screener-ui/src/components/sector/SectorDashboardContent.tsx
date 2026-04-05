@@ -1,18 +1,5 @@
-import {
-  Box,
-  Group,
-  Text,
-  Stack,
-  SimpleGrid,
-  Title,
-  Badge,
-  ScrollArea,
-} from "@mantine/core";
-import {
-  IconBellRinging,
-  IconTrendingUp,
-  IconClock,
-} from "@tabler/icons-react";
+import { Box, Group, Text, Stack, SimpleGrid, Title, Badge, ScrollArea } from "@mantine/core";
+import { IconBellRinging, IconTrendingUp, IconClock } from "@tabler/icons-react";
 import { SectorTable } from "./SectorTable";
 import type { SectorResponse } from "../../types/sector";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";

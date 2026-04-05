@@ -6,16 +6,9 @@ interface RiskManagementPanelProps {
   isIntraday: boolean;
 }
 
-export function RiskManagementPanel({
-  initialValues,
-  isIntraday,
-}: RiskManagementPanelProps) {
+export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagementPanelProps) {
   return (
-    <Tabs.Panel
-      value="risk"
-      className="strategy-form-tab-panel"
-      data-testid="strategy-panel-risk"
-    >
+    <Tabs.Panel value="risk" className="strategy-form-tab-panel" data-testid="strategy-panel-risk">
       <Stack gap="sm" mt="sm">
         <Group grow>
           <NumberInput

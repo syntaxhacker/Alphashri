@@ -1,8 +1,5 @@
 import type { StrategyConfig } from "../../types/strategies";
-import {
-  state,
-  notify,
-} from "../strategies";
+import { state, notify } from "../strategies";
 
 export function openCreateModal(template: StrategyConfig | null = null): void {
   state.showCreateModal = true;

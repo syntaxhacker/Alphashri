@@ -26,10 +26,7 @@ import {
   openEditModal,
   closeEditModal,
 } from "./bots/modalActions";
-import {
-  startAutoRefresh,
-  stopAutoRefresh,
-} from "./bots/autoRefresh";
+import { startAutoRefresh, stopAutoRefresh } from "./bots/autoRefresh";
 
 export {
   subscribe,

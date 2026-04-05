@@ -56,9 +56,7 @@ export function RecentRunsTable({ runs }: { runs: LLMRun[] }) {
               <Text size="sm">{run.model}</Text>
             </Table.Td>
             <Table.Td>
-              <Text size="sm">
-                {(run.input_tokens + run.output_tokens).toLocaleString()}
-              </Text>
+              <Text size="sm">{(run.input_tokens + run.output_tokens).toLocaleString()}</Text>
             </Table.Td>
             <Table.Td>
               <Text size="sm">{formatCost(run.cost_usd)}</Text>

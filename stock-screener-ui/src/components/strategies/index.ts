@@ -83,11 +83,7 @@ export function renderStrategiesView(): string {
       </div>
 
       <!-- Create/Edit Modal -->
-      ${
-        currentState.showCreateModal || currentState.showEditModal
-          ? ""
-          : ""
-      }
+      ${currentState.showCreateModal || currentState.showEditModal ? "" : ""}
 
       ${
         currentState.error

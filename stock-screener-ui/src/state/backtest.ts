@@ -11,10 +11,7 @@ import type {
   CostBreakdown,
 } from "../types/backtest";
 import { createSubscriber } from "./createSubscriber";
-import {
-  getStrategyDefaults,
-  strategyParamKeys,
-} from "../config/backtestDefaults";
+import { getStrategyDefaults, strategyParamKeys } from "../config/backtestDefaults";
 import { createChartActions } from "./backtest/chartActions";
 
 export { getStrategyDefaults, strategyParamKeys };
@@ -120,10 +117,7 @@ function patchState(partial: Record<string, any>) {
   notify();
 }
 
-const chart = createChartActions(
-  () => state,
-  patchState,
-);
+const chart = createChartActions(() => state, patchState);
 
 export const {
   setShowCharts,

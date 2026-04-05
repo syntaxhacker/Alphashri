@@ -1,12 +1,6 @@
 import type { StrategyPerformance } from "../../types/strategies";
 import * as api from "../../api/strategies";
-import {
-  state,
-  notify,
-  setLoading,
-  setError,
-  loadStrategies,
-} from "../strategies";
+import { state, notify, setLoading, setError, loadStrategies } from "../strategies";
 
 export async function loadPerformance(strategyId: number): Promise<void> {
   try {

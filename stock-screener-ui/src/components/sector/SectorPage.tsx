@@ -9,11 +9,7 @@ import {
   SegmentedControl,
   Title,
 } from "@mantine/core";
-import {
-  IconChartBar,
-  IconBuildingFactory,
-  IconRefresh,
-} from "@tabler/icons-react";
+import { IconChartBar, IconBuildingFactory, IconRefresh } from "@tabler/icons-react";
 import type { SectorResponse } from "../../types/sector";
 import { CompactPanel } from "../common/compact";
 import { useSectorData } from "./useSectorData";
@@ -35,18 +31,14 @@ function LoadingPanel() {
       }
       style={{ minHeight: 400 }}
     >
-      <Text size="sm" c="dimmed">Loading live sector breadth and movers.</Text>
+      <Text size="sm" c="dimmed">
+        Loading live sector breadth and movers.
+      </Text>
     </CompactPanel>
   );
 }
 
-function ErrorPanel({
-  error,
-  onRetry,
-}: {
-  error: string;
-  onRetry: () => void;
-}) {
+function ErrorPanel({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
     <CompactPanel
       title="Error"
@@ -56,7 +48,9 @@ function ErrorPanel({
         </Button>
       }
     >
-      <Text size="sm" c="dimmed">{error}</Text>
+      <Text size="sm" c="dimmed">
+        {error}
+      </Text>
     </CompactPanel>
   );
 }
@@ -64,7 +58,9 @@ function ErrorPanel({
 function EmptyPanel() {
   return (
     <CompactPanel title="No sector data">
-      <Text size="sm" c="dimmed">No sector data available for this market.</Text>
+      <Text size="sm" c="dimmed">
+        No sector data available for this market.
+      </Text>
     </CompactPanel>
   );
 }
@@ -117,7 +113,14 @@ function SectorPageHeader({
 }
 
 function SectorTabContent({
-  activeTab, data, loading, error, market, alerts, intervalMovers, loadData,
+  activeTab,
+  data,
+  loading,
+  error,
+  market,
+  alerts,
+  intervalMovers,
+  loadData,
 }: {
   activeTab: string | null;
   data: SectorResponse | null;
@@ -130,8 +133,16 @@ function SectorTabContent({
 }) {
   if (activeTab !== "dashboard") {
     return (
-      <Box h="100%" className="sector-analysis-frame-wrap" data-testid="sector-analysis-frame"
-        style={{ borderRadius: "var(--mantine-radius-default)", overflow: "auto", border: "1px solid var(--mantine-color-dark-4)" }}>
+      <Box
+        h="100%"
+        className="sector-analysis-frame-wrap"
+        data-testid="sector-analysis-frame"
+        style={{
+          borderRadius: "var(--mantine-radius-default)",
+          overflow: "auto",
+          border: "1px solid var(--mantine-color-dark-4)",
+        }}
+      >
         <iframe
           src={`${API_BASE}/sector/dashboard-modular.html`}
           title="Sector Rotation Dashboard"
@@ -151,20 +162,50 @@ function SectorTabContent({
 export function SectorPage() {
   const state = useSectorData();
   return (
-    <Stack gap="sm" style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }} data-testid="sector-analysis-view">
-      <SectorPageHeader market={state.market} setMarket={state.setMarket} loading={state.loading} onRefresh={() => state.loadData(state.market)} />
-      <Box id="sector-page" className="sector-page" flex={1} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <Stack
+      gap="sm"
+      style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      data-testid="sector-analysis-view"
+    >
+      <SectorPageHeader
+        market={state.market}
+        setMarket={state.setMarket}
+        loading={state.loading}
+        onRefresh={() => state.loadData(state.market)}
+      />
+      <Box
+        id="sector-page"
+        className="sector-page"
+        flex={1}
+        style={{ display: "flex", flexDirection: "column", minHeight: 0 }}
+      >
         <Tabs value={state.activeTab} onChange={state.setActiveTab}>
           <Tabs.List>
-            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>Live Dashboard</Tabs.Tab>
-            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>Historical Cycles</Tabs.Tab>
+            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
+              Live Dashboard
+            </Tabs.Tab>
+            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
+              Historical Cycles
+            </Tabs.Tab>
           </Tabs.List>
         </Tabs>
-        <Box flex={1} style={{ minHeight: 0, padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)", overflow: "auto" }}>
+        <Box
+          flex={1}
+          style={{
+            minHeight: 0,
+            padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)",
+            overflow: "auto",
+          }}
+        >
           <SectorTabContent
-            activeTab={state.activeTab} data={state.data} loading={state.loading}
-            error={state.error} market={state.market} alerts={state.alerts}
-            intervalMovers={state.intervalMovers} loadData={state.loadData}
+            activeTab={state.activeTab}
+            data={state.data}
+            loading={state.loading}
+            error={state.error}
+            market={state.market}
+            alerts={state.alerts}
+            intervalMovers={state.intervalMovers}
+            loadData={state.loadData}
           />
         </Box>
       </Box>

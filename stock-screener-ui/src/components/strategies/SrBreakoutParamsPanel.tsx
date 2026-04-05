@@ -7,16 +7,9 @@ interface SrBreakoutParamsPanelProps {
   isSwing: boolean;
 }
 
-export function SrBreakoutParamsPanel({
-  initialValues,
-  isSwing,
-}: SrBreakoutParamsPanelProps) {
+export function SrBreakoutParamsPanel({ initialValues, isSwing }: SrBreakoutParamsPanelProps) {
   return (
-    <Tabs.Panel
-      value="sr"
-      className="strategy-form-tab-panel"
-      data-testid="strategy-panel-sr"
-    >
+    <Tabs.Panel value="sr" className="strategy-form-tab-panel" data-testid="strategy-panel-sr">
       <Stack gap="sm" mt="sm">
         <SlTpRow
           slDefault={initialValues.sl_pct}

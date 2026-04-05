@@ -77,7 +77,7 @@ export function getInitialValues(props: {
     return {
       ...DEFAULT_VALUES,
       strategy_type: template.strategy_type,
-        parent_id: template.internal_id ?? Number(template.id),
+      parent_id: template.internal_id ?? Number(template.id),
       name: `${template.name} - Custom`,
       or_minutes: template.or_minutes,
       sl_pct: template.sl_pct,

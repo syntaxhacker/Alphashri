@@ -46,7 +46,13 @@ export function useSectorData() {
     setError(null);
     try {
       const res = await fetchSectorPerformance(mkt);
-      processSectorResponse(res, prevSectorDataRef.current, prevStockDataRef.current, setAlerts, setIntervalMovers);
+      processSectorResponse(
+        res,
+        prevSectorDataRef.current,
+        prevStockDataRef.current,
+        setAlerts,
+        setIntervalMovers,
+      );
       setData(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sector data");
@@ -79,5 +85,16 @@ export function useSectorData() {
     };
   }, [market, loadData]);
 
-  return { data, loading, error, market, setMarket, activeTab, setActiveTab, alerts, intervalMovers, loadData };
+  return {
+    data,
+    loading,
+    error,
+    market,
+    setMarket,
+    activeTab,
+    setActiveTab,
+    alerts,
+    intervalMovers,
+    loadData,
+  };
 }

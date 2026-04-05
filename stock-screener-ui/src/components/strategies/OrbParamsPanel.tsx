@@ -9,11 +9,7 @@ interface OrbParamsPanelProps {
 
 export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) {
   return (
-    <Tabs.Panel
-      value="orb"
-      className="strategy-form-tab-panel"
-      data-testid="strategy-panel-orb"
-    >
+    <Tabs.Panel value="orb" className="strategy-form-tab-panel" data-testid="strategy-panel-orb">
       <Stack gap="sm" mt="sm">
         <Group grow>
           <NumberInput

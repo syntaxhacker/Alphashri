@@ -8,17 +8,9 @@ interface SwingParamsPanelProps {
   is52wChaser: boolean;
 }
 
-export function SwingParamsPanel({
-  initialValues,
-  isSwing,
-  is52wChaser,
-}: SwingParamsPanelProps) {
+export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingParamsPanelProps) {
   return (
-    <Tabs.Panel
-      value="52w"
-      className="strategy-form-tab-panel"
-      data-testid="strategy-panel-52w"
-    >
+    <Tabs.Panel value="52w" className="strategy-form-tab-panel" data-testid="strategy-panel-52w">
       <Stack gap="sm" mt="sm">
         <Group grow>
           <NumberInput

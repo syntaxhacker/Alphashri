@@ -165,7 +165,14 @@ export function setSelectedTradeId(tradeId: string | null, strategyName?: string
     if (s.includes("S/R") || s.includes("BREAKOUT") || s.includes("PIVOT")) showPivot = true;
     if (s.includes("52W")) show52w = true;
   }
-  state = { ...state, selectedTradeId: tradeId, showAllTrades: false, showOrbLines: showOrb, showPivotLines: showPivot, show52wLines: show52w };
+  state = {
+    ...state,
+    selectedTradeId: tradeId,
+    showAllTrades: false,
+    showOrbLines: showOrb,
+    showPivotLines: showPivot,
+    show52wLines: show52w,
+  };
   notify();
 }
 

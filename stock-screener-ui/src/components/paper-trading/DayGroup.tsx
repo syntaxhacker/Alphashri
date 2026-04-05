@@ -17,7 +17,12 @@ interface DayGroupProps {
   trades: PaperTrade[];
   selectedSymbol: string | null;
   selectedTradeId: string | null;
-  onSelectSymbol: (symbol: string, exitTime?: string, tradeId?: string, strategyName?: string) => void;
+  onSelectSymbol: (
+    symbol: string,
+    exitTime?: string,
+    tradeId?: string,
+    strategyName?: string,
+  ) => void;
   onDeleteTrade: (tradeId: string) => void;
   expanded: boolean;
   onToggle: () => void;
@@ -94,7 +99,9 @@ function TradeRow({
     <Table.Tr
       ref={rowRef}
       key={trade.trade_id}
-      onClick={() => onSelectSymbol(trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_name)}
+      onClick={() =>
+        onSelectSymbol(trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_name)
+      }
       className={isSelected ? "trade-row-highlighted" : undefined}
       style={{ cursor: "pointer" }}
       data-testid={`trade-row-${trade.trade_id}`}

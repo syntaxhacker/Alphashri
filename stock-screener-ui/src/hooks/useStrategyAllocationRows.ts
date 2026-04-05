@@ -8,7 +8,10 @@ export interface StrategyAllocationRow {
   max_positions: number;
 }
 
-export function useStrategyAllocationRows(bot: { strategies: StrategyWithAllocation[] } | null, opened: boolean) {
+export function useStrategyAllocationRows(
+  bot: { strategies: StrategyWithAllocation[] } | null,
+  opened: boolean,
+) {
   const [strategies, setStrategies] = useState<StrategyAllocationRow[]>([]);
   const [nextId, setNextId] = useState(1);
 

@@ -9,11 +9,7 @@ interface EmaParamsPanelProps {
 
 export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) {
   return (
-    <Tabs.Panel
-      value="ema"
-      className="strategy-form-tab-panel"
-      data-testid="strategy-panel-ema"
-    >
+    <Tabs.Panel value="ema" className="strategy-form-tab-panel" data-testid="strategy-panel-ema">
       <Stack gap="sm" mt="sm">
         <Group grow>
           <NumberInput

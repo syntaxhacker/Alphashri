@@ -1,15 +1,5 @@
 import { useState } from "react";
-import {
-  Modal,
-  Stack,
-  TextInput,
-  Select,
-  Tabs,
-  Alert,
-  Group,
-  Title,
-  Text,
-} from "@mantine/core";
+import { Modal, Stack, TextInput, Select, Tabs, Alert, Group, Title, Text } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
 import type { StrategyFormProps, StrategyFormData } from "./types";
 import { DEFAULT_VALUES, getInitialValues } from "./strategyDefaults";
@@ -255,7 +245,9 @@ export function StrategyForm({
             </Tabs.List>
 
             {isOrb && <OrbParamsPanel initialValues={initialValues} isSwing={isSwing} />}
-            {isSrBreakout && <SrBreakoutParamsPanel initialValues={initialValues} isSwing={isSwing} />}
+            {isSrBreakout && (
+              <SrBreakoutParamsPanel initialValues={initialValues} isSwing={isSwing} />
+            )}
             {isEmaCross && <EmaParamsPanel initialValues={initialValues} isSwing={isSwing} />}
             {isSwing && (
               <SwingParamsPanel
