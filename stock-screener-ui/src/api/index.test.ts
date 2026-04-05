@@ -28,7 +28,7 @@ vi.mock("../hooks/useFetch", () => ({
   isAbortError: vi.fn((e: unknown) => e instanceof DOMException && e.name === "AbortError"),
 }));
 
-vi.mock("../runtime_utils", () => ({
+vi.mock("../utils/runtime_utils", () => ({
   detectAddedSymbols: vi.fn(() => ({ addedPrimary: [], addedSecondary: [] })),
 }));
 
@@ -45,7 +45,7 @@ import { fetchWithAuth } from "../state/auth";
 import { fetchData, resetLoadingState, detectAutoRefreshChanges, setRenderCallback } from "./index";
 import * as state from "../state";
 import { isAbortError } from "../hooks/useFetch";
-import { detectAddedSymbols } from "../runtime_utils";
+import { detectAddedSymbols } from "../utils/runtime_utils";
 import { pushNotification, markNewSymbols } from "../utils/notifications";
 
 const mockedFetch = vi.mocked(fetchWithAuth);

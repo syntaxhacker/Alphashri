@@ -5,7 +5,7 @@ import {
   formatDateTime,
   truncateUrl,
   getStatusColor,
-} from "./AdminPage";
+} from "./admin/RecentRunsTable";
 
 describe("formatCost", () => {
   it("formats a positive cost with 4 decimal places", () => {

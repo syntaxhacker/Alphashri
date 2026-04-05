@@ -8,8 +8,8 @@ import { Provider } from "react-redux";
 import { MantineProvider, ColorSchemeScript } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import App from "./App";
-import { store } from "./store";
-import { theme } from "./theme";
+import { store } from "./state/store";
+import { theme } from "./config/theme";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({

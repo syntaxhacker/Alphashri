@@ -22,7 +22,6 @@ interface PaperPortfolioCardProps {
   strategySummaries: StrategySummary[];
 }
 
-
 export function PaperPortfolioCard({
   portfolio,
   isMultiStrategy,

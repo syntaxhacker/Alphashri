@@ -1,9 +1,10 @@
+import type { ReactNode } from "react";
 import { Text, Badge } from "@mantine/core";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 
 interface PnlTextProps {
   value: number;
-  children?: string;
+  children?: ReactNode;
   size?: string;
   fw?: number | string;
   span?: boolean;

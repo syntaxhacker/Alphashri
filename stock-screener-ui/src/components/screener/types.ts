@@ -10,7 +10,7 @@ export type {
   SortDirection,
 } from "../../types";
 
-import type { Stock, SummaryItem, SortDirection } from "../../types";
+import type { Stock, SummaryItem, ScreenerOption, SortDirection } from "../../types";
 
 export interface ProfileFilterDef {
   key: string;
@@ -24,11 +24,7 @@ export interface ProfileFilterDef {
 
 export type { ColumnDef, FormattedCell } from "./columns";
 
-export interface ScreenerPageProps {
-  screenerOptions: ScreenerOption[];
-  activeScreener: string;
-  onScreenerChange: (id: string) => void;
-
+export interface ScreenerHeaderProps {
   title: string;
   status: string;
   isLoading: boolean;
@@ -39,6 +35,12 @@ export interface ScreenerPageProps {
   onAutoRefreshChange: (value: number) => void;
   onProviderChange: (value: string) => void;
   onModeChange: (value: string) => void;
+}
+
+export interface ScreenerPageProps extends ScreenerHeaderProps {
+  screenerOptions: ScreenerOption[];
+  activeScreener: string;
+  onScreenerChange: (id: string) => void;
 
   stocks: Stock[];
   touchedSymbols: Set<string>;
@@ -54,19 +56,6 @@ export interface ScreenerNavProps {
   options: ScreenerOption[];
   activeScreener: string;
   onChange: (id: string) => void;
-}
-
-export interface ScreenerHeaderProps {
-  title: string;
-  status: string;
-  isLoading: boolean;
-  autoRefreshSeconds: number;
-  provider: string;
-  mode: string;
-  onRefresh: () => void;
-  onAutoRefreshChange: (value: number) => void;
-  onProviderChange: (value: string) => void;
-  onModeChange: (value: string) => void;
 }
 
 export interface ScreenerSummaryProps {

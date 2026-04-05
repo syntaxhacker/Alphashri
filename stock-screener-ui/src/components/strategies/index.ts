@@ -4,6 +4,8 @@
  * Migrate from legacy string-based rendering to React components.
  */
 
+export { StrategiesContainer } from "../../pages/strategies/StrategiesContainer";
+
 // React components (new)
 export { StrategiesPage } from "./StrategiesPage";
 export { StrategiesNav } from "./StrategiesNav";
@@ -18,7 +20,6 @@ export * from "./types";
 // Legacy components (keep for backward compatibility during migration)
 import { renderTemplateCard, initTemplateHandlers } from "./templates";
 import { initVariationsHandlers } from "./variations";
-import { renderStrategyForm, initFormHandlers } from "./form";
 import {
   renderPerformanceView,
   initPerformanceHandlers,
@@ -84,11 +85,7 @@ export function renderStrategiesView(): string {
       </div>
 
       <!-- Create/Edit Modal -->
-      ${
-        currentState.showCreateModal || currentState.showEditModal
-          ? renderStrategyForm(currentState.editingStrategy, currentState.parentTemplate)
-          : ""
-      }
+      ${currentState.showCreateModal || currentState.showEditModal ? "" : ""}
 
       ${
         currentState.error
@@ -217,7 +214,6 @@ function getParentName(parentId: number, state: StrategiesState): string {
 export function initStrategiesHandlers() {
   initTemplateHandlers();
   initVariationsHandlers();
-  initFormHandlers();
   initPerformanceHandlers();
 
   // View switching

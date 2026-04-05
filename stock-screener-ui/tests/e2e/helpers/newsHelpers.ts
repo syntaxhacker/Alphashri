@@ -198,9 +198,7 @@ export async function setupNewsTest(page: Page) {
 
 export async function clickNewsToggle(page: Page) {
   const toggleBtn = page.locator('[data-testid="news-toggle-btn"]');
-  await toggleBtn.evaluate((el) => {
-    (el as HTMLElement).click();
-  });
+  await toggleBtn.click();
 }
 
 export async function openNewsPanel(page: Page) {

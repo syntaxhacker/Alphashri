@@ -10,7 +10,7 @@ import {
 import { IconRefresh } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
 
-export type ScreenerViewMode = "table" | "heatmap";
+type ScreenerViewMode = "table" | "heatmap";
 
 interface ScreenerHeaderProps {
   title: string;

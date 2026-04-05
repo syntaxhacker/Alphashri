@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { detectSectorAlerts, detectIntervalMovers, buildTreemapData } from "./SectorPage";
+import { detectSectorAlerts, detectIntervalMovers, buildTreemapData } from "./sectorUtils";
 import type { SectorItem, StockMover } from "../../types/sector";
 
 function makeSector(overrides: Partial<SectorItem> = {}): SectorItem {

@@ -35,7 +35,7 @@ import {
 } from "./api";
 
 // Components
-import { handleSort } from "./components/filters";
+import { handleSort } from "./components/screener/filters";
 
 let lastRenderedView: AppView | null = null;
 

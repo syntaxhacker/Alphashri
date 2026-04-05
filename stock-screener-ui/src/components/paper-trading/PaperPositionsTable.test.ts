@@ -4,7 +4,7 @@ import {
   formatNear,
   groupPositionsByStrategy,
   calcStrategySummary,
-} from "./PaperPositionsTable";
+} from "./PositionsHelpers";
 import { formatCurrencyIN, formatNumber, formatElapsed } from "../../utils/ui-helpers";
 import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
 
