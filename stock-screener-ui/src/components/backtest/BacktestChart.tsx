@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Box, Text, useMantineColorScheme } from "@mantine/core";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
-import { theme } from "../../theme";
+import { theme } from "../../config/theme";
 import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
 
 const chartInstances = new Map<string, any>();

@@ -7,7 +7,7 @@
 import type { StrategiesState, StrategyPerformance } from "../../types/strategies";
 import { triggerRerender } from "../../state/strategies";
 import { getStrategyTrades } from "../../api/strategies";
-import { getPnLTextColor, formatNumber } from "../../utils/ui-helpers";
+import { getPnLTextColor, formatNumber, formatTimeOnly } from "../../utils/ui-helpers";
 
 // Cache for strategy trades
 let strategyTradesCache: Map<number, any[]> = new Map();
@@ -150,7 +150,7 @@ function renderTradeRow(trade: any): string {
   const pnlClass = getPnLTextColor(trade.net_pnl);
   const sideClass = trade.side === "BUY" ? "side-long" : "side-short";
   const sideIcon = trade.side === "BUY" ? "▲" : "▼";
-  const time = formatTradeTime(trade.exit_time);
+  const time = formatTimeOnly(trade.exit_time);
 
   return `
     <tr class="trade-row ${trade.net_pnl >= 0 ? "trade-win" : "trade-loss"}">
@@ -161,21 +161,12 @@ function renderTradeRow(trade: any): string {
       <td>₹${trade.exit_price.toFixed(2)}</td>
       <td class="${pnlClass}"><strong>₹${formatNumber(trade.net_pnl)}</strong></td>
       <td class="exit-${trade.exit_reason.toLowerCase()}">${trade.exit_reason}</td>
-      <td class="time-cell">${time}</td>
+      <td class="time-cell">${formatTimeOnly(trade.entry_time)}</td>
     </tr>
   `;
 }
 
-function formatTradeTime(isoStr: string): string {
-  if (!isoStr) return "-";
-  const date = new Date(isoStr);
-  if (Number.isNaN(date.getTime())) return isoStr;
-  return date.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
+
 
 function renderSummaryCard(
   label: string,
@@ -293,25 +284,26 @@ function formatCurrency(value: number): string {
   return `${prefix}₹${value.toLocaleString("en-IN")}`;
 }
 
+async function loadAndSelectStrategy(strategyId: number) {
+  selectedStrategyId = strategyId;
+
+  if (!strategyTradesCache.has(strategyId)) {
+    try {
+      const result = await getStrategyTrades(strategyId, 100);
+      strategyTradesCache.set(strategyId, result.trades);
+    } catch (error) {
+      console.error("Failed to load strategy trades:", error);
+      strategyTradesCache.set(strategyId, []);
+    }
+  }
+
+  triggerRerender();
+}
+
 // Initialize handlers for performance view
 export function initPerformanceHandlers() {
-  (window as any).selectStrategyForDetail = async (strategyId: number) => {
-    selectedStrategyId = strategyId;
-
-    // Load trades if not cached
-    if (!strategyTradesCache.has(strategyId)) {
-      try {
-        const result = await getStrategyTrades(strategyId, 100);
-        strategyTradesCache.set(strategyId, result.trades);
-      } catch (error) {
-        console.error("Failed to load strategy trades:", error);
-        strategyTradesCache.set(strategyId, []);
-      }
-    }
-
-    // Trigger re-render
-    triggerRerender();
-  };
+  (window as any).selectStrategyForDetail = (strategyId: number) =>
+    void loadAndSelectStrategy(strategyId);
 
   (window as any).clearSelectedStrategy = () => {
     selectedStrategyId = null;
@@ -319,18 +311,15 @@ export function initPerformanceHandlers() {
   };
 
   (window as any).viewAllStrategyTrades = (strategyName: string) => {
-    // Navigate to paper trading history with strategy filter
     localStorage.setItem("filterStrategy", strategyName);
     if ((window as any).navigateToRoute) {
       (window as any).navigateToRoute("paper");
     }
   };
 
-  // Check if we need to select a strategy by name (from navigation)
   const strategyNameToSelect = localStorage.getItem("selectStrategyByName");
   if (strategyNameToSelect) {
     localStorage.removeItem("selectStrategyByName");
-    // We'll handle this after performance data is loaded
     (window as any).__pendingStrategySelection = strategyNameToSelect;
   }
 }
@@ -340,25 +329,9 @@ export async function selectStrategyByName(strategyName: string, strategies: any
   const strategy = strategies.find(
     (s) => s.name === strategyName || s.strategy_name === strategyName,
   );
-  if (strategy) {
-    const strategyId = strategy.id || strategy.strategy_id;
-    if (strategyId) {
-      selectedStrategyId = strategyId;
-
-      // Load trades for this strategy
-      if (!strategyTradesCache.has(strategyId)) {
-        try {
-          const result = await getStrategyTrades(strategyId, 100);
-          strategyTradesCache.set(strategyId, result.trades);
-        } catch (error) {
-          console.error("Failed to load strategy trades:", error);
-          strategyTradesCache.set(strategyId, []);
-        }
-      }
-
-      // Trigger re-render
-      triggerRerender();
-    }
+  const strategyId = strategy?.id || strategy?.strategy_id;
+  if (strategyId) {
+    await loadAndSelectStrategy(strategyId);
   }
 }
 

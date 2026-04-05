@@ -50,6 +50,20 @@ export function formatPercentage(
 // Date/Time Formatting
 // ============================================
 
+function extractDateTimeParts(isoStr: string) {
+  const parts = isoStr.split("T");
+  const datePart = parts[0];
+  const timePart = parts[1]
+    ?.replace("Z", "")
+    .replace(/\+00:00/g, "")
+    .replace(/\+05:30/g, "")
+    .substring(0, 5);
+  return { datePart, timePart };
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 /**
  * Format date to human readable: "12th Thu Jan 2025 10:30"
  */
@@ -57,43 +71,18 @@ export function formatDateTimeHuman(isoStr: string): string {
   if (!isoStr) return "-";
 
   try {
-    const parts = isoStr.split("T");
-    const datePart = parts[0];
-    const timePart = parts[1]
-      ?.replace("Z", "")
-      .replace(/\+00:00/g, "")
-      .replace(/\+05:30/g, "")
-      .substring(0, 5);
-
+    const { datePart, timePart } = extractDateTimeParts(isoStr);
     if (!datePart) return "-";
 
     const [_year, month, day] = datePart.split("-");
     const d = parseInt(day);
     const m = parseInt(month) - 1;
 
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-
     const date = new Date(parseInt(_year), m, d);
-    const dayName = days[date.getDay()];
-    const monthName = months[m];
+    const dayName = DAYS[date.getDay()];
+    const monthName = MONTHS[m];
 
-    const suffix = getOrdinalSuffix(d);
-
-    return `${d}${suffix} ${dayName} ${monthName} ${timePart || ""}`;
+    return `${d}${getOrdinalSuffix(d)} ${dayName} ${monthName} ${timePart || ""}`;
   } catch {
     return "-";
   }
@@ -106,37 +95,14 @@ export function formatDateTimeCompact(isoStr: string): string {
   if (!isoStr) return "-";
 
   try {
-    const parts = isoStr.split("T");
-    const datePart = parts[0];
-    const timePart = parts[1]
-      ?.replace("Z", "")
-      .replace(/\+00:00/g, "")
-      .replace(/\+05:30/g, "")
-      .substring(0, 5);
-
+    const { datePart, timePart } = extractDateTimeParts(isoStr);
     if (!datePart) return "-";
 
     const [_year, month, day] = datePart.split("-");
     const d = parseInt(day);
     const m = parseInt(month) - 1;
 
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    const suffix = getOrdinalSuffix(d);
-
-    return `${d}${suffix} ${months[m]} ${timePart || ""}`;
+    return `${d}${getOrdinalSuffix(d)} ${MONTHS[m]} ${timePart || ""}`;
   } catch {
     return "-";
   }

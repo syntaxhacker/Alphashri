@@ -49,6 +49,7 @@ test.describe("Sector Dashboard - Navigation and Display", () => {
 
   test("should display Refresh button", async ({ page }) => {
     await gotoSector(page);
+    await page.waitForSelector('[data-testid="sector-table-container"] table', { timeout: 10000 });
     const refreshBtn = page.locator('[data-testid="sector-refresh-btn"]');
     await expect(refreshBtn).toBeVisible();
     await expect(refreshBtn).toBeEnabled();

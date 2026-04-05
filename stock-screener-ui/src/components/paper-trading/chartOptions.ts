@@ -4,7 +4,7 @@ import type {
   PaperTrade,
   PaperPosition,
 } from "../../types/paperTrading";
-import { theme } from "../../theme";
+import { theme } from "../../config/theme";
 
 export const TIMEFRAME_OPTIONS = [
   { value: "1min", label: "1m" },

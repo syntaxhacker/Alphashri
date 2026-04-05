@@ -56,16 +56,20 @@ export const touched52wCol: ColumnDef = {
   format: (value: boolean) => (value ? "Yes" : "No"),
 };
 
+function pctFormat(value: number) {
+  const cls = value > 0 ? "green" : "red";
+  return { value: `${value > 0 ? "+" : ""}${value.toFixed(1)}%`, className: cls };
+}
+
 export const recentReturn5dCol: ColumnDef = {
   key: "recent_return_5d",
   label: "Return 5D",
   type: "number",
   sortable: true,
-  format: (value: number) => {
-    const icon = value > 5 ? "🚀" : value > 0 ? "🟢" : "🔴";
-    const cls = value > 0 ? "green" : "red";
-    return { value: `${icon} ${value > 0 ? "+" : ""}${value.toFixed(1)}%`, className: cls };
-  },
+  format: (value: number) => ({
+    ...pctFormat(value),
+    value: `${value > 5 ? "🚀" : value > 0 ? "🟢" : "🔴"} ${pctFormat(value).value}`,
+  }),
 };
 
 export const perfWCol: ColumnDef = {
@@ -73,8 +77,5 @@ export const perfWCol: ColumnDef = {
   label: "Perf W",
   type: "number",
   sortable: true,
-  format: (value: number) => {
-    const cls = value > 0 ? "green" : "red";
-    return { value: `${value > 0 ? "+" : ""}${value.toFixed(1)}%`, className: cls };
-  },
+  format: pctFormat,
 };
