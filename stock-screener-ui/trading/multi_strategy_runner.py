@@ -721,6 +721,12 @@ class MultiStrategyRunner:
                     del self.cooldown_stocks[symbol]
 
             if runner.strategy_type == "SR_BREAKOUT":
+                now_ist = self._ist_now()
+                min_entry_minutes = runner.config.get('min_entry_minutes', 630)
+                current_minutes = now_ist.hour * 60 + now_ist.minute
+                if current_minutes < min_entry_minutes:
+                    continue
+
                 prev_data = self.fetch_previous_day_data(symbol)
                 if not prev_data:
                     continue

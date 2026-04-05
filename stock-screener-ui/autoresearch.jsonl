@@ -1,1 +1,6 @@
 {"type":"config","name":"sr-breakout-wr-pf","metricName":"profit_factor","metricUnit":"","bestDirection":"higher"}
+{"run":1,"commit":"2ab66ba","metric":1.25,"metrics":{"win_rate":18.8,"total_pnl":92,"total_trades":16,"wins":3,"losses":11},"status":"keep","description":"baseline SL=1.0 TP=3.0 buffer=0.1 pivot=classic","timestamp":1775398683,"segment":0}
+{"run":2,"commit":"2ab66ba","metric":6.05,"metrics":{"win_rate":40.0,"total_pnl":188,"total_trades":15,"wins":6,"losses":7},"status":"keep","description":"time filter min=10:30 SL=1.0 TP=3.0","timestamp":1775398769,"segment":0}
+{"run":3,"commit":"2ab66ba","metric":11.81,"metrics":{"win_rate":46.7,"total_pnl":179,"total_trades":15,"wins":7,"losses":7},"status":"keep","description":"SL=0.75 TP=2.0 min=10:30 classic","timestamp":1775398769,"segment":0}
+{"run":4,"commit":"2ab66ba","metric":13.93,"metrics":{"win_rate":53.3,"total_pnl":181,"total_trades":15,"wins":8,"losses":6},"status":"keep","description":"camarilla pivot buf=0.1 SL=0.75 TP=2.0 min=10:30","timestamp":1775398769,"segment":0}
+{"run":5,"commit":"2ab66ba","metric":17.42,"metrics":{"win_rate":53.3,"total_pnl":184,"total_trades":15,"wins":8,"losses":6},"status":"keep","description":"camarilla SL=0.6 TP=2.0 buf=0.1 min=10:30","timestamp":1775398769,"segment":0}
