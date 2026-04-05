@@ -8,15 +8,6 @@
   height: 100%;
 }
 
-.header {
-  padding: var(--mantine-spacing-xs);
-  padding-top: 0;
-  margin-left: calc(var(--mantine-spacing-xs) * -1);
-  margin-right: calc(var(--mantine-spacing-xs) * -1);
-  color: light-dark(var(--mantine-color-black), var(--mantine-color-white));
-  border-bottom: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
-}
-
 .links {
   flex: 1;
   margin-left: calc(var(--mantine-spacing-xs) * -1);
@@ -34,4 +25,5 @@
   margin-right: calc(var(--mantine-spacing-xs) * -1);
   margin-top: auto;
   border-top: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  padding-top: var(--mantine-spacing-xs);
 }

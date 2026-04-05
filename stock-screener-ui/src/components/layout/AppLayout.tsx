@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { AppShell, Group, Box } from "@mantine/core";
+import { AppShell, Group, Box, Text } from "@mantine/core";
 import { useState } from "react";
 import { NavbarNested } from "./NavbarNested";
 import { MarketTicker } from "./MarketTicker";
@@ -19,7 +19,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <AppShell
-      header={{ height: 40 }}
+      header={{ height: 50 }}
       navbar={{
         width: collapsed ? 80 : 200,
         breakpoint: "sm",
@@ -35,7 +35,16 @@ export function AppLayout({ children }: AppLayoutProps) {
         id="app-header"
         data-testid="app-header"
       >
-        <Group justify="space-between" align="center" h="100%" px="xs">
+        <Group justify="space-between" align="center" h="100%" px="sm" gap="sm">
+          <Text
+            fw={700}
+            size="lg"
+            id="app-logo"
+            data-testid="app-logo"
+            style={{ flex: "none" }}
+          >
+            🚀 Alphashri
+          </Text>
           <Box flex={1}>
             <MarketTicker />
           </Box>
