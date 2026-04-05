@@ -25,12 +25,8 @@ interface RegisterFormProps {
 function AuthHeader({ subtitle }: { subtitle: string }) {
   return (
     <Stack gap={4} data-testid="auth-header">
-      <Text size="xl" fw={700}>
-        Alphashri
-      </Text>
-      <Text size="sm" c="dimmed">
-        {subtitle}
-      </Text>
+      <Text size="xl" fw={700}>Alphashri</Text>
+      <Text size="sm" c="dimmed">{subtitle}</Text>
     </Stack>
   );
 }
@@ -43,13 +39,7 @@ function AuthError({ message, id }: { message: string; id?: string }) {
   );
 }
 
-function AuthFooter({
-  prompt,
-  actionLabel,
-  onAction,
-  footerTestId,
-  linkTestId,
-}: {
+function AuthFooter({ prompt, actionLabel, onAction, footerTestId, linkTestId }: {
   prompt: string;
   actionLabel: string;
   onAction: () => void;
@@ -58,9 +48,7 @@ function AuthFooter({
 }) {
   return (
     <Group justify="center" mt="sm" data-testid={footerTestId}>
-      <Text size="sm" c="dimmed">
-        {prompt}
-      </Text>
+      <Text size="sm" c="dimmed">{prompt}</Text>
       <Button variant="subtle" size="xs" onClick={onAction} data-testid={linkTestId}>
         {actionLabel}
       </Button>
@@ -80,13 +68,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
   };
 
   return (
-    <Flex
-      justify="center"
-      align="center"
-      h="100vh"
-      id="login-container"
-      data-testid="login-container"
-    >
+    <Flex justify="center" align="center" h="100vh" id="login-container" data-testid="login-container">
       <Paper shadow="sm" p="lg" radius="md" w={400} data-testid="login-form" id="login-card">
         <form onSubmit={handleSubmit} id="login-form-element">
           <Stack gap="md">
@@ -115,13 +97,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
               autoComplete="current-password"
               size="sm"
             />
-            <Button
-              type="submit"
-              data-testid="login-submit-btn"
-              loading={loading}
-              fullWidth
-              size="sm"
-            >
+            <Button type="submit" data-testid="login-submit-btn" loading={loading} fullWidth size="sm">
               Sign In
             </Button>
           </Stack>
@@ -130,10 +106,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
           <AuthFooter
             prompt="Don't have an account?"
             actionLabel="Create Account"
-            onAction={() => {
-              clearError();
-              onSwitchToRegister();
-            }}
+            onAction={() => { clearError(); onSwitchToRegister(); }}
             footerTestId="login-footer"
             linkTestId="register-link"
           />
@@ -161,29 +134,18 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
     e.preventDefault();
     setFormError(null);
     const ve = validateRegistration(password, confirmPassword);
-    if (ve) {
-      setFormError(ve);
-      return;
-    }
+    if (ve) { setFormError(ve); return; }
     const result = await register(email, password, displayName || undefined);
     if (result.success) onSuccess?.();
   };
 
   return (
-    <Flex
-      justify="center"
-      align="center"
-      h="100vh"
-      id="register-container"
-      data-testid="register-container"
-    >
+    <Flex justify="center" align="center" h="100vh" id="register-container" data-testid="register-container">
       <Paper shadow="sm" p="lg" radius="md" w={400} data-testid="register-form" id="register-card">
         <form onSubmit={handleSubmit} id="register-form-element">
           <Stack gap="md">
             <AuthHeader subtitle="Create your account" />
-            {(formError || error) && (
-              <AuthError message={formError || error!} id="register-error" />
-            )}
+            {(formError || error) && <AuthError message={formError || error!} id="register-error" />}
             <TextInput
               label="Email"
               id="reg-email"
@@ -228,13 +190,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               autoComplete="new-password"
               size="sm"
             />
-            <Button
-              type="submit"
-              data-testid="register-button"
-              loading={loading}
-              fullWidth
-              size="sm"
-            >
+            <Button type="submit" data-testid="register-button" loading={loading} fullWidth size="sm">
               Create Account
             </Button>
           </Stack>
@@ -243,11 +199,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
           <AuthFooter
             prompt="Already have an account?"
             actionLabel="Sign In"
-            onAction={() => {
-              clearError();
-              setFormError(null);
-              onSwitchToLogin();
-            }}
+            onAction={() => { clearError(); setFormError(null); onSwitchToLogin(); }}
             footerTestId="register-footer"
             linkTestId="login-link"
           />

@@ -1,4 +1,4 @@
-export { BotsPage } from "../../pages/bots/BotsPage";
+export { BotsPage } from "./BotsPage";
 export { BotConfigModal } from "./BotConfigModal2";
 export { BotStatusPanel } from "./BotStatusPanel2";
 export {

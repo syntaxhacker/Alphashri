@@ -1,4 +1,11 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from "react";
 import { Box } from "@mantine/core";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
@@ -6,7 +13,7 @@ const TOKEN_KEY = "alphashri_token";
 const REFRESH_TOKEN_KEY = "alphashri_refresh_token";
 const USER_KEY = "alphashri_user";
 
-interface User {
+export interface User {
   id: number;
   email: string;
   display_name: string | null;
@@ -40,12 +47,8 @@ export function useAuth(): AuthContextType {
   return context;
 }
 
-function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-function getStoredRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
-}
+function getStoredToken(): string | null { return localStorage.getItem(TOKEN_KEY); }
+function getStoredRefreshToken(): string | null { return localStorage.getItem(REFRESH_TOKEN_KEY); }
 
 function setStoredTokens(access: string, refresh: string): void {
   localStorage.setItem(TOKEN_KEY, access);
@@ -55,11 +58,7 @@ function setStoredTokens(access: string, refresh: string): void {
 function getStoredUser(): User | null {
   const raw = localStorage.getItem(USER_KEY);
   if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
 function setStoredUser(user: User): void {
@@ -93,18 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getAccessToken = useCallback(() => getStoredToken(), []);
 
-  const fetchWithAuth = useCallback(
-    async (url: string, options: RequestInit = {}): Promise<Response> => {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...(options.headers as Record<string, string>),
-      };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      return fetch(url, { ...options, headers });
-    },
-    [],
-  );
+  const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const token = getStoredToken();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(options.headers as Record<string, string>),
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(url, { ...options, headers });
+  }, []);
 
   const refreshTokens = useCallback(async (): Promise<boolean> => {
     const rt = getStoredRefreshToken();
@@ -127,11 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = useCallback(async () => {
     const token = getStoredToken();
     const storedUser = getStoredUser();
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
+    if (!token) { setUser(null); setLoading(false); return; }
     if (storedUser) setUser(storedUser);
     try {
       let userData = await fetchMe(fetchWithAuth);
@@ -140,10 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userData = refreshed ? await fetchMe(fetchWithAuth) : null;
       }
       if (userData) setUser(userData);
-      else {
-        clearStoredAuth();
-        setUser(null);
-      }
+      else { clearStoredAuth(); setUser(null); }
     } catch {
       if (!storedUser) setUser(null);
     } finally {
@@ -151,46 +140,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchWithAuth, refreshTokens]);
 
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+  useEffect(() => { checkAuth(); }, [checkAuth]);
 
-  const authenticate = useCallback(
-    async (
-      endpoint: string,
-      body: Record<string, unknown>,
-      fallback: string,
-    ): Promise<{ success: boolean; error?: string }> => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE}${endpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          const msg = data.detail || fallback;
-          setError(msg);
-          return { success: false, error: msg };
-        }
-        setStoredTokens(data.access_token, data.refresh_token);
-        const userData = await fetchMe(async (url) =>
-          fetch(url, { headers: { Authorization: `Bearer ${data.access_token}` } }),
-        );
-        if (userData) setUser(userData);
-        return { success: true };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Network error";
+  const authenticate = useCallback(async (
+    endpoint: string,
+    body: Record<string, unknown>,
+    fallback: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.detail || fallback;
         setError(msg);
         return { success: false, error: msg };
-      } finally {
-        setLoading(false);
       }
-    },
-    [],
-  );
+      setStoredTokens(data.access_token, data.refresh_token);
+      const userData = await fetchMe(async (url) =>
+        fetch(url, { headers: { Authorization: `Bearer ${data.access_token}` } }),
+      );
+      if (userData) setUser(userData);
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      setError(msg);
+      return { success: false, error: msg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const login = useCallback(
     (email: string, password: string) =>
@@ -200,23 +184,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     (email: string, password: string, displayName?: string) =>
-      authenticate(
-        "/api/auth/register",
-        { email, password, display_name: displayName },
-        "Registration failed",
-      ),
+      authenticate("/api/auth/register", { email, password, display_name: displayName }, "Registration failed"),
     [authenticate],
   );
 
   const logout = useCallback(async () => {
     try {
       const rt = getStoredRefreshToken();
-      if (rt)
-        await fetchWithAuth(`${API_BASE}/api/auth/logout`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: rt }),
-        });
+      if (rt) await fetchWithAuth(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: rt }),
+      });
     } catch {
       void 0;
     }
@@ -227,16 +206,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearError = useCallback(() => setError(null), []);
 
   const value: AuthContextType = {
-    user,
-    isAuthenticated,
-    loading,
-    error,
-    login,
-    register,
-    logout,
-    getAccessToken,
-    fetchWithAuth,
-    clearError,
+    user, isAuthenticated, loading, error,
+    login, register, logout, getAccessToken, fetchWithAuth, clearError,
   };
 
   return (

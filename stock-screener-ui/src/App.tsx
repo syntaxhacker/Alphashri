@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import ChartView from "./pages/chart/ChartView";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
 import { NotificationContainer } from "./components/notifications/NotificationContainer";
 import { AppLayout } from "./components/layout/AppLayout";
-import { SectorPage } from "./pages/sector/SectorPage";
+import { SectorPage } from "./components/sector/SectorPage2";
 import { ScreenerContainer } from "./pages/screener/ScreenerContainer";
 import { StrategiesContainer } from "./pages/strategies/StrategiesContainer";
-import { BacktestPage } from "./pages/backtest/BacktestPage";
-import { PaperTradingView } from "./pages/paper-trading/PaperTradingView";
-import { BotsPage } from "./pages/bots/BotsPage";
+import { BacktestPage } from "./components/backtest/mantine";
+import { PaperTradingView } from "./components/paper-trading/mantine";
+import { BotsPage } from "./components/bots/mantine";
 import { OptionsContainer } from "./pages/options/OptionsContainer";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { NewsWebSocketProvider } from "./state/newsWebSocket";
+import ChartView from "./pages/chart/ChartView";
 import NewsPage from "./pages/NewsPage";
 import AdminPage from "./pages/AdminPage";
 

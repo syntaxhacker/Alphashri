@@ -1,26 +1,38 @@
 import {
+  Box,
   Card,
   Text,
   Badge,
+  Button,
   Group,
   Stack,
   Grid,
   Progress,
   Table,
   ActionIcon,
-  Box,
 } from "@mantine/core";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type {
+  BotConfig,
+  BotStatus,
   BotTrade,
   BotPosition,
   PortfolioSummary,
   StrategyStatus,
 } from "../../types/bots";
+import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
 import { formatNumber as formatNumberShared, getPnLTextColor } from "../../utils/ui-helpers";
-import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
+import { SideBadge, StatusBadge, ExitReasonBadge } from "../common/BadgeComponents";
 
-export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
+interface BotStatusPanelProps {
+  bot: BotConfig;
+  status: BotStatus | null;
+  trades: BotTrade[];
+  onStart: (botId: string) => Promise<void>;
+  onStop: (botId: string) => Promise<void>;
+}
+
+function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
   const pnlColor = getPnLTextColor(portfolio.total_pnl);
 
   return (
@@ -31,29 +43,29 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
       <Grid>
         <Grid.Col span={6}>
           <Stack gap="xs">
-            <Stack gap={0}>
+            <div>
               <Text size="sm" c="dimmed">
                 Capital
               </Text>
               <Text fw={600}>₹{formatNumberShared(portfolio.initial_capital)}</Text>
-            </Stack>
-            <Stack gap={0}>
+            </div>
+            <div>
               <Text size="sm" c="dimmed">
                 Cash
               </Text>
               <Text fw={600}>₹{formatNumberShared(portfolio.cash)}</Text>
-            </Stack>
+            </div>
           </Stack>
         </Grid.Col>
         <Grid.Col span={6}>
           <Stack gap="xs">
-            <Stack gap={0}>
+            <div>
               <Text size="sm" c="dimmed">
                 Positions
               </Text>
               <Text fw={600}>{portfolio.total_positions}</Text>
-            </Stack>
-            <Stack gap={0}>
+            </div>
+            <div>
               <Text size="sm" c="dimmed">
                 Total P&L
               </Text>
@@ -64,7 +76,7 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
                   {portfolio.total_pnl_pct.toFixed(2)}%)
                 </Text>
               </Text>
-            </Stack>
+            </div>
           </Stack>
         </Grid.Col>
       </Grid>
@@ -72,7 +84,7 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
   );
 }
 
-export function StrategyStatusCard({
+function StrategyStatusCard({
   strategy,
   isRunning: _isRunning,
 }: {
@@ -103,7 +115,7 @@ export function StrategyStatusCard({
           </Text>
         </Group>
 
-        <Stack gap={0}>
+        <div>
           <Group justify="space-between" mb={4}>
             <Text size="sm" c="dimmed">
               Capital Used
@@ -114,7 +126,7 @@ export function StrategyStatusCard({
             </Text>
           </Group>
           <Progress value={Math.min(usedPct, 100)} size="sm" color="blue" />
-        </Stack>
+        </div>
 
         <Group justify="space-between">
           <Text size="sm" c="dimmed">
@@ -136,7 +148,7 @@ export function StrategyStatusCard({
   );
 }
 
-export function PositionsTable({ positions }: { positions: BotPosition[] }) {
+function PositionsTable({ positions }: { positions: BotPosition[] }) {
   if (positions.length === 0) return null;
 
   return (
@@ -197,7 +209,7 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
   );
 }
 
-export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () => void }) {
+function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () => void }) {
   if (trades.length === 0) {
     return (
       <Card shadow="sm" padding="md" radius="md" withBorder data-testid="bot-trades">
@@ -289,5 +301,142 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
         </Table>
       </Box>
     </Card>
+  );
+}
+
+export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStatusPanelProps) {
+  const handleRefresh = async () => {
+    await Promise.all([loadBotStatus(bot.id), loadBotTrades(bot.id)]);
+  };
+
+  const handleStart = async () => {
+    await onStart(bot.id);
+    await loadBotStatus(bot.id);
+    await loadBotTrades(bot.id);
+    startAutoRefresh(bot.id, 5000);
+  };
+
+  const handleStop = async () => {
+    await onStop(bot.id);
+    stopAutoRefresh();
+    await loadBotStatus(bot.id);
+  };
+
+  const handleRefreshTrades = async () => {
+    await loadBotTrades(bot.id);
+  };
+
+  return (
+    <Box
+      data-testid="bot-status-panel"
+      data-bot-id={bot.id}
+      id="bot-status-panel"
+      className="bot-status-panel"
+    >
+      <Stack gap="sm">
+        {/* Bot Header */}
+        <Card
+          shadow="sm"
+          padding="sm"
+          radius="md"
+          withBorder
+          id="bot-header-card"
+          data-testid="bot-header-card"
+        >
+          <Group justify="space-between">
+            <div>
+              <Text fw={700} size="lg" data-testid="bot-name">
+                {bot.name}
+              </Text>
+              <StatusBadge
+                running={status?.running ?? false}
+                pid={status?.pid}
+                data-testid="bot-running-badge"
+              />
+            </div>
+            <Group gap="xs">
+              {status?.running ? (
+                <Button
+                  leftSection={<IconPlayerStop size={16} />}
+                  variant="light"
+                  color="orange"
+                  onClick={handleStop}
+                  data-testid="stop-bot-btn"
+                >
+                  Stop Bot
+                </Button>
+              ) : (
+                <Button
+                  leftSection={<IconPlayerPlay size={16} />}
+                  variant="light"
+                  color="green"
+                  onClick={handleStart}
+                  data-testid="start-bot-btn"
+                >
+                  Start Bot
+                </Button>
+              )}
+              <Button
+                leftSection={<IconRefresh size={16} />}
+                variant="subtle"
+                onClick={handleRefresh}
+                data-testid="refresh-bot-status-btn"
+              >
+                Refresh
+              </Button>
+            </Group>
+          </Group>
+        </Card>
+
+        {/* Portfolio Summary */}
+        {status?.portfolio ? (
+          <PortfolioSummaryCard portfolio={status.portfolio} />
+        ) : (
+          <Card
+            shadow="sm"
+            padding="sm"
+            radius="md"
+            withBorder
+            id="portfolio-placeholder"
+            data-testid="portfolio-placeholder"
+          >
+            <Text c="dimmed" ta="center">
+              Start the bot to see live portfolio data
+            </Text>
+          </Card>
+        )}
+
+        {/* Strategies Status */}
+        {status?.strategies && (
+          <div data-testid="strategies-status">
+            <Text fw={600} mb="sm">
+              Strategy Status
+            </Text>
+            <Grid>
+              {Object.values(status.strategies).map((s) => (
+                <Grid.Col key={s.strategy_id} span={{ base: 12, sm: 6, md: 4 }}>
+                  <StrategyStatusCard strategy={s} isRunning={status?.running ?? false} />
+                </Grid.Col>
+              ))}
+            </Grid>
+          </div>
+        )}
+
+        {/* Positions */}
+        {status?.positions && status.positions.length > 0 && (
+          <PositionsTable positions={status.positions} />
+        )}
+
+        {/* Trade History */}
+        <TradesTable trades={trades} onRefresh={handleRefreshTrades} />
+
+        {/* Last Update */}
+        {status?.last_update && (
+          <Text size="sm" c="dimmed" ta="center" data-testid="bot-last-update">
+            Last update: {new Date(status.last_update).toLocaleTimeString()}
+          </Text>
+        )}
+      </Stack>
+    </Box>
   );
 }

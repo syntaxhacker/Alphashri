@@ -6,23 +6,18 @@ import {
   formatTimeOnly,
   formatDateHeader,
   formatDuration,
+  getPnLTextColor,
   sortByField,
 } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
 import { SortableHeader } from "../common/SortableHeader";
-import { PnlText } from "../common/PnlText";
 
 interface DayGroupProps {
   date: string;
   trades: PaperTrade[];
   selectedSymbol: string | null;
   selectedTradeId: string | null;
-  onSelectSymbol: (
-    symbol: string,
-    exitTime?: string,
-    tradeId?: string,
-    strategyName?: string,
-  ) => void;
+  onSelectSymbol: (symbol: string, exitTime?: string, tradeId?: string, strategyName?: string) => void;
   onDeleteTrade: (tradeId: string) => void;
   expanded: boolean;
   onToggle: () => void;
@@ -44,6 +39,7 @@ function DaySummary({
   const dayPnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
   const wins = trades.filter((t) => t.net_pnl > 0).length;
   const losses = trades.filter((t) => t.net_pnl < 0).length;
+  const pnlColor = getPnLTextColor(dayPnl);
   const pnlSign = dayPnl >= 0 ? "+" : "";
 
   return (
@@ -61,9 +57,9 @@ function DaySummary({
         </Text>
       </Group>
       <Group gap="xs">
-        <PnlText value={dayPnl} size="xs">
+        <Text size="xs" c={pnlColor} fw={600}>
           {pnlSign}₹{formatNumber(Math.abs(dayPnl))}
-        </PnlText>
+        </Text>
         <Badge color={wins > 0 ? "green" : "gray"} variant="light" size="xs">
           ▲{wins}
         </Badge>
@@ -95,13 +91,13 @@ function TradeRow({
     }
   }, [isSelected]);
 
+  const pnlColor = getPnLTextColor(trade.net_pnl);
+
   return (
     <Table.Tr
       ref={rowRef}
       key={trade.trade_id}
-      onClick={() =>
-        onSelectSymbol(trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_name)
-      }
+      onClick={() => onSelectSymbol(trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_name)}
       className={isSelected ? "trade-row-highlighted" : undefined}
       style={{ cursor: "pointer" }}
       data-testid={`trade-row-${trade.trade_id}`}
@@ -125,9 +121,9 @@ function TradeRow({
         </Text>
       </Table.Td>
       <Table.Td>
-        <PnlText value={trade.net_pnl} size="sm">
+        <Text c={pnlColor} fw={600} size="sm">
           ₹{formatNumber(trade.net_pnl)}
-        </PnlText>
+        </Text>
       </Table.Td>
       <Table.Td>{trade.bot_name || "-"}</Table.Td>
       <Table.Td>{trade.strategy_name || "default"}</Table.Td>

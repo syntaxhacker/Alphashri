@@ -4,12 +4,17 @@ import {
   TextInput,
   NumberInput,
   Checkbox,
+  Select,
   Button,
   Stack,
   Group,
   Text,
+  Card,
+  ActionIcon,
   Divider,
+  Alert,
 } from "@mantine/core";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import type { BotConfig, AvailableStrategy, StrategyAllocation } from "../../types/bots";
 import {
   createBotAction,
@@ -17,8 +22,6 @@ import {
   closeCreateModal,
   closeEditModal,
 } from "../../state/bots";
-import { useStrategyAllocationRows } from "../../hooks/useStrategyAllocationRows";
-import { StrategyAllocationsSection } from "./StrategyAllocationsSection";
 
 interface BotConfigModalProps {
   opened: boolean;
@@ -27,14 +30,20 @@ interface BotConfigModalProps {
   onClose: () => void;
 }
 
+interface StrategyAllocationRow {
+  id: string;
+  strategy_id: string;
+  capital_allocation_pct: number;
+  max_positions: number;
+}
+
 export function BotConfigModal({ opened, bot, availableStrategies, onClose }: BotConfigModalProps) {
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [maxPositions, setMaxPositions] = useState(10);
   const [maxCapital, setMaxCapital] = useState(80);
-
-  const { strategies, handleAddStrategy, handleRemoveStrategy, handleUpdateStrategy } =
-    useStrategyAllocationRows(bot, opened);
+  const [strategies, setStrategies] = useState<StrategyAllocationRow[]>([]);
+  const [nextId, setNextId] = useState(1);
 
   const isEdit = bot !== null;
   const selectableStrategies = availableStrategies.filter((s) => !s.is_template);
@@ -45,13 +54,48 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       setIsActive(bot.is_active);
       setMaxPositions(bot.max_total_positions);
       setMaxCapital(bot.max_total_capital_pct * 100);
+      setStrategies(
+        bot.strategies.map((s, i) => ({
+          id: `existing-${i}`,
+          strategy_id: s.id,
+          capital_allocation_pct: s.capital_allocation_pct * 100,
+          max_positions: s.max_positions,
+        })),
+      );
     } else if (opened) {
       setName("");
       setIsActive(true);
       setMaxPositions(10);
       setMaxCapital(80);
+      setStrategies([]);
     }
+    setNextId(100);
   }, [opened, bot]);
+
+  const handleAddStrategy = () => {
+    setStrategies([
+      ...strategies,
+      {
+        id: `new-${nextId}`,
+        strategy_id: "",
+        capital_allocation_pct: 20,
+        max_positions: 3,
+      },
+    ]);
+    setNextId(nextId + 1);
+  };
+
+  const handleRemoveStrategy = (id: string) => {
+    setStrategies(strategies.filter((s) => s.id !== id));
+  };
+
+  const handleUpdateStrategy = (
+    id: string,
+    field: keyof StrategyAllocationRow,
+    value: string | number,
+  ) => {
+    setStrategies(strategies.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+  };
 
   const totalAllocation = strategies.reduce((sum, s) => sum + s.capital_allocation_pct, 0);
   const isOverAllocated = totalAllocation > 100;
@@ -105,7 +149,9 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       <form onSubmit={handleSubmit} data-testid="bot-config-form">
         <Stack gap="sm">
           <Stack gap="xs" data-testid="bot-config-basic-info">
-            <Text fw={600}>Basic Information</Text>
+            <Text fw={600}>
+              Basic Information
+            </Text>
             <Group grow>
               <TextInput
                 label="Bot Name"
@@ -128,7 +174,9 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
           <Divider />
 
           <Stack gap="xs" data-testid="bot-config-global-limits">
-            <Text fw={600}>Global Limits</Text>
+            <Text fw={600}>
+              Global Limits
+            </Text>
             <Group grow>
               <NumberInput
                 label="Max Total Positions"
@@ -152,15 +200,97 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
 
           <Divider />
 
-          <StrategyAllocationsSection
-            strategies={strategies}
-            selectableStrategies={selectableStrategies}
-            totalAllocation={totalAllocation}
-            isOverAllocated={isOverAllocated}
-            onAdd={handleAddStrategy}
-            onRemove={handleRemoveStrategy}
-            onUpdate={handleUpdateStrategy}
-          />
+          <Stack gap="xs" data-testid="bot-config-strategies">
+            <Text fw={600}>
+              Strategy Allocations
+            </Text>
+            <Text size="sm" c="dimmed">
+              Configure which strategies to run and their capital allocations. Total allocation
+              should not exceed 100%.
+            </Text>
+
+            <Stack gap="sm" data-testid="strategy-allocations">
+              {strategies.map((strategy) => (
+                <Card
+                  key={strategy.id}
+                  padding="sm"
+                  withBorder
+                  data-testid="strategy-allocation-row"
+                >
+                  <Group align="flex-end" grow>
+                    <Select
+                      label="Strategy"
+                      placeholder="Select a strategy..."
+                      data={selectableStrategies.map((s) => ({
+                        value: s.id,
+                        label: `${s.name} (${s.strategy_type})`,
+                      }))}
+                      value={strategy.strategy_id}
+                      onChange={(val) =>
+                        handleUpdateStrategy(strategy.id, "strategy_id", val || "")
+                      }
+                    />
+                    <NumberInput
+                      label="Allocation %"
+                      min={5}
+                      max={100}
+                      step={5}
+                      value={strategy.capital_allocation_pct}
+                      onChange={(val) =>
+                        handleUpdateStrategy(
+                          strategy.id,
+                          "capital_allocation_pct",
+                          Number(val) || 20,
+                        )
+                      }
+                    />
+                    <NumberInput
+                      label="Max Positions"
+                      min={1}
+                      max={10}
+                      value={strategy.max_positions}
+                      onChange={(val) =>
+                        handleUpdateStrategy(strategy.id, "max_positions", Number(val) || 3)
+                      }
+                    />
+                    <ActionIcon
+                      color="red"
+                      variant="subtle"
+                      onClick={() => handleRemoveStrategy(strategy.id)}
+                      title="Remove"
+                      data-testid={`remove-strategy-btn-${strategy.id}`}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Group>
+                </Card>
+              ))}
+            </Stack>
+
+            <Button
+              leftSection={<IconPlus size={16} />}
+              variant="light"
+              size="sm"
+              onClick={handleAddStrategy}
+              data-testid="add-strategy-btn"
+            >
+              Add Strategy
+            </Button>
+
+            <Group justify="space-between" mt="md">
+              <Text size="sm">
+                Total Allocation:{" "}
+                <Text span fw={700} c={isOverAllocated ? "red" : undefined}>
+                  {totalAllocation.toFixed(0)}%
+                </Text>
+              </Text>
+              {isOverAllocated && (
+                <Alert color="red" variant="light" p="xs">
+                  Over 100%
+                </Alert>
+              )}
+            </Group>
+          </Stack>
 
           <Divider />
 
