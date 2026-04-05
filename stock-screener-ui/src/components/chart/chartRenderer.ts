@@ -7,7 +7,10 @@
 
 import type { PreviewCandle, PivotLevel } from "../../api/chartPreview";
 import type { ORBZone } from "../../types/backtest";
-import { theme } from "../../theme";
+import { theme } from "../../config/theme";
+import { buildPivotSeries } from "../../utils/chartLineBuilders";
+import { formatTimeLabel } from "../../utils/chartTimeUtils";
+export { buildPivotSeries, formatTimeLabel };
 
 export type ChartSize = "preview" | "expanded" | "full";
 
@@ -243,100 +246,6 @@ export function buildORBLine(
     const level = levelMap.get(c.date);
     return level !== undefined ? level : null;
   });
-}
-
-/**
- * Build pivot level series for chart.
- */
-export function buildPivotSeries(candles: PreviewCandle[], pivot_levels: PivotLevel[]): any[] {
-  if (!pivot_levels || pivot_levels.length === 0) {
-    return [];
-  }
-
-  // Create date -> level maps
-  const r1Map = new Map<string, number>();
-  const s1Map = new Map<string, number>();
-  const ppMap = new Map<string, number>();
-
-  for (const level of pivot_levels) {
-    const key = level.date_raw || level.date;
-    r1Map.set(key, level.r1);
-    s1Map.set(key, level.s1);
-    ppMap.set(key, level.pp);
-  }
-
-  // Build sparse arrays
-  const r1Data = candles.map((c) => r1Map.get(c.date) ?? null);
-  const s1Data = candles.map((c) => s1Map.get(c.date) ?? null);
-  const ppData = candles.map((c) => ppMap.get(c.date) ?? null);
-
-  return [
-    {
-      id: "pivot-r1",
-      name: "R1",
-      type: "line",
-      data: r1Data,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 4,
-      lineStyle: { color: "#EF5350", width: 1, type: "dashed" },
-      tooltip: {
-        show: true,
-        formatter: (params: any) =>
-          params.value !== null
-            ? `<span style="color:#EF5350">R1: ₹${params.value.toFixed(2)}</span>`
-            : "",
-      },
-    },
-    {
-      id: "pivot-pp",
-      name: "PP",
-      type: "line",
-      data: ppData,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 4,
-      lineStyle: { color: "#AB47BC", width: 1, type: "dotted" },
-      tooltip: {
-        show: true,
-        formatter: (params: any) =>
-          params.value !== null
-            ? `<span style="color:#AB47BC">PP: ₹${params.value.toFixed(2)}</span>`
-            : "",
-      },
-    },
-    {
-      id: "pivot-s1",
-      name: "S1",
-      type: "line",
-      data: s1Data,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 4,
-      lineStyle: { color: "#26A69A", width: 1, type: "dashed" },
-      tooltip: {
-        show: true,
-        formatter: (params: any) =>
-          params.value !== null
-            ? `<span style="color:#26A69A">S1: ₹${params.value.toFixed(2)}</span>`
-            : "",
-      },
-    },
-  ];
-}
-
-/**
- * Format time label for x-axis.
- */
-export function formatTimeLabel(value: string): string {
-  if (!value || !value.includes("T")) return value;
-  const parts = value.split("T");
-  const timePart = parts[1] || "";
-  // Just show time for preview
-  return timePart.substring(0, 5);
 }
 
 /**

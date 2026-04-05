@@ -1,13 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { PreviewCandle, PivotLevel } from "../../api/chartPreview";
 import type { ORBZone } from "../../types/backtest";
-import {
-  buildChartOption,
-  buildORBLine,
-  buildPivotSeries,
-  formatTimeLabel,
-  formatTooltip,
-} from "./chartRenderer";
+import { buildChartOption, buildORBLine, formatTooltip } from "./chartRenderer";
+import { buildPivotSeries } from "../../utils/chartLineBuilders";
+import { formatTimeLabel } from "../../utils/chartTimeUtils";
 
 const makeCandle = (overrides: Partial<PreviewCandle> = {}): PreviewCandle => ({
   time: "2025-10-24T09:15",

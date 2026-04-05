@@ -1,21 +1,20 @@
-/**
- * Strategy Management State
- *
- * Uses simple pub/sub pattern matching the existing backtest state.
- */
-
 import { createSubscriber } from "./createSubscriber";
 import type {
   StrategyConfig,
   StrategiesState,
   StrategiesView,
-  StrategyPerformance,
   StrategyCreate,
   StrategyUpdate,
 } from "../types/strategies";
 import * as api from "../api/strategies";
+import { loadPerformance, loadAllPerformance } from "./strategies/performanceActions";
+import {
+  openCreateModal,
+  closeCreateModal,
+  openEditModal,
+  closeEditModal,
+} from "./strategies/modalActions";
 
-// Initial state
 const initialState: StrategiesState = {
   strategies: [],
   templates: [],
@@ -32,48 +31,41 @@ const initialState: StrategiesState = {
   parentTemplate: null,
 };
 
-// Current state (mutable)
 let state: StrategiesState = { ...initialState };
+export { state };
 
-// Current view
 let currentViewValue: StrategiesView = "templates";
 
 const { subscribe, notify } = createSubscriber();
-export { subscribe };
+export { subscribe, notify };
 
 export function triggerRerender() {
   notify();
 }
 
-// Get current state
 export function getStrategiesState(): StrategiesState {
   return state;
 }
 
-// Get current view
 export function getCurrentView(): StrategiesView {
   return currentViewValue;
 }
 
-// Set current view
 export function setCurrentView(view: StrategiesView) {
   currentViewValue = view;
   notify();
 }
 
-// Set loading state
-function setLoading(loading: boolean) {
+export function setLoading(loading: boolean) {
   state = { ...state, isLoading: loading };
   notify();
 }
 
-// Set error
-function setError(error: string | null) {
+export function setError(error: string | null) {
   state = { ...state, error };
   notify();
 }
 
-// Load all strategies
 export async function loadStrategies(includeTemplates = false): Promise<void> {
   setLoading(true);
   setError(null);
@@ -91,7 +83,6 @@ export async function loadStrategies(includeTemplates = false): Promise<void> {
   }
 }
 
-// Load templates
 export async function loadTemplates(): Promise<void> {
   setLoading(true);
   setError(null);
@@ -109,13 +100,11 @@ export async function loadTemplates(): Promise<void> {
   }
 }
 
-// Load both templates and strategies (for initial load)
 export async function loadInitialData(): Promise<void> {
   setLoading(true);
   setError(null);
 
   try {
-    // Load both in parallel
     const [templatesResult, strategiesResult] = await Promise.all([
       api.listTemplates(),
       api.listStrategies(true),
@@ -123,7 +112,6 @@ export async function loadInitialData(): Promise<void> {
 
     let strategies = strategiesResult.strategies;
 
-    // Auto-activate default strategy if no active strategy exists
     const nonTemplates = strategies.filter((s) => !s.is_template);
     const hasActive = nonTemplates.some((s) => s.is_active);
     if (!hasActive && nonTemplates.length > 0) {
@@ -132,7 +120,6 @@ export async function loadInitialData(): Promise<void> {
         const strategyId = defaultStrategy.internal_id ?? Number(defaultStrategy.id);
         try {
           await api.updateStrategy(strategyId, { is_active: true });
-          // Update local state
           strategies = strategies.map((s) => ({
             ...s,
             is_active: s.id === defaultStrategy.id,
@@ -160,7 +147,6 @@ export async function loadInitialData(): Promise<void> {
   }
 }
 
-// Load a single strategy with variations
 export async function loadStrategy(strategyId: number): Promise<void> {
   setLoading(true);
   setError(null);
@@ -183,13 +169,11 @@ export async function loadStrategy(strategyId: number): Promise<void> {
   }
 }
 
-// Create a new strategy
 export async function createStrategy(data: StrategyCreate): Promise<StrategyConfig | null> {
   setLoading(true);
   setError(null);
   try {
     const result = await api.createStrategy(data);
-    // Reload strategies
     await loadStrategies(true);
     state = {
       ...state,
@@ -209,7 +193,6 @@ export async function createStrategy(data: StrategyCreate): Promise<StrategyConf
   }
 }
 
-// Update a strategy
 export async function updateStrategy(
   strategyId: number,
   data: StrategyUpdate,
@@ -218,7 +201,6 @@ export async function updateStrategy(
   setError(null);
   try {
     const result = await api.updateStrategy(strategyId, data);
-    // Reload strategies
     await loadStrategies(true);
     state = {
       ...state,
@@ -238,13 +220,11 @@ export async function updateStrategy(
   }
 }
 
-// Delete a strategy
 export async function deleteStrategyAction(strategyId: number): Promise<boolean> {
   setLoading(true);
   setError(null);
   try {
     await api.deleteStrategy(strategyId);
-    // Reload strategies
     await loadStrategies(true);
     state = { ...state, selectedStrategy: null };
     notify();
@@ -260,70 +240,6 @@ export async function deleteStrategyAction(strategyId: number): Promise<boolean>
   }
 }
 
-// Load performance for a strategy
-export async function loadPerformance(strategyId: number): Promise<void> {
-  try {
-    const perf = await api.getStrategyPerformance(strategyId);
-    state = { ...state, performance: perf };
-    notify();
-  } catch (error) {
-    console.error("Failed to load performance:", error);
-  }
-}
-
-// Load performance for all strategies
-export async function loadAllPerformance(): Promise<void> {
-  setLoading(true);
-  setError(null);
-
-  // Make sure we have strategies loaded
-  if (state.strategies.length === 0) {
-    await loadStrategies(true);
-  }
-
-  const performanceResults: StrategyPerformance[] = [];
-
-  // Load performance for each non-template strategy
-  for (const strategy of state.strategies) {
-    if (!strategy.is_template) {
-      // Use internal_id (integer) instead of id (uuid) for API calls
-      const strategyId = strategy.internal_id ?? Number(strategy.id);
-      try {
-        const perf = await api.getStrategyPerformance(strategyId);
-        performanceResults.push(perf);
-      } catch {
-        // Add placeholder for strategies with no trades
-        performanceResults.push({
-          strategy_id: strategyId,
-          strategy_name: strategy.name,
-          total_trades: 0,
-          winners: 0,
-          losers: 0,
-          win_rate: 0,
-          total_pnl: 0,
-          net_pnl: 0,
-        });
-      }
-    }
-  }
-
-  state = { ...state, allPerformance: performanceResults, isLoading: false };
-  notify();
-
-  // Check if we need to select a strategy by name (from navigation)
-  const pendingSelection = (window as any).__pendingStrategySelection;
-  if (pendingSelection && performanceResults.length > 0) {
-    delete (window as any).__pendingStrategySelection;
-    const strategy = performanceResults.find((s) => s.strategy_name === pendingSelection);
-    if (strategy) {
-      // Import and call the selection function
-      const { selectStrategyByName } = require("../components/strategies/performance");
-      selectStrategyByName(pendingSelection, performanceResults);
-    }
-  }
-}
-
-// Load bots
 export async function loadBots(): Promise<void> {
   setLoading(true);
   setError(null);
@@ -341,48 +257,10 @@ export async function loadBots(): Promise<void> {
   }
 }
 
-// Open create modal
-export function openCreateModal(template: StrategyConfig | null = null): void {
-  state = {
-    ...state,
-    showCreateModal: true,
-    parentTemplate: template,
-    showEditModal: false,
-    editingStrategy: null,
-  };
-  notify();
-}
-
-// Close create modal
-export function closeCreateModal(): void {
-  state = { ...state, showCreateModal: false, parentTemplate: null };
-  notify();
-}
-
-// Open edit modal
-export function openEditModal(strategy: StrategyConfig): void {
-  state = {
-    ...state,
-    showEditModal: true,
-    editingStrategy: strategy,
-    showCreateModal: false,
-    parentTemplate: null,
-  };
-  notify();
-}
-
-// Close edit modal
-export function closeEditModal(): void {
-  state = { ...state, showEditModal: false, editingStrategy: null };
-  notify();
-}
-
-// Clear error
 export function clearError(): void {
   setError(null);
 }
 
-// Select a strategy
 export function selectStrategy(strategy: StrategyConfig | null): void {
   state = { ...state, selectedStrategy: strategy, performance: null };
   notify();
@@ -392,10 +270,18 @@ export function selectStrategy(strategy: StrategyConfig | null): void {
   }
 }
 
-// Initialize state - call this once on app load
 let initialized = false;
 export function initStrategiesState(): void {
   if (initialized) return;
   initialized = true;
   loadInitialData();
 }
+
+export {
+  loadPerformance,
+  loadAllPerformance,
+  openCreateModal,
+  closeCreateModal,
+  openEditModal,
+  closeEditModal,
+};

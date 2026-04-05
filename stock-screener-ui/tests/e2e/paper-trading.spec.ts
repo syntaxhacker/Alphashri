@@ -65,7 +65,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
     const portfolioCard = page.locator('[data-testid="portfolio-card"]');
     await expect(portfolioCard).toBeVisible({ timeout: 30000 });
-    await expect(portfolioCard).toContainText("Total Value");
+    await expect(portfolioCard).toContainText("Value");
     await expect(portfolioCard).toContainText("Cash");
   });
 

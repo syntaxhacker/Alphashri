@@ -18,7 +18,7 @@ import {
   IconHelpCircle,
   IconClock,
 } from "@tabler/icons-react";
-import { fontWeights } from "../../../theme";
+import { fontWeights } from "../../../config/theme";
 import { useDisclosure } from "@mantine/hooks";
 import dayjs from "dayjs";
 import { OptionChainHeader } from "./OptionChainHeader";

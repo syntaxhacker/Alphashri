@@ -41,8 +41,8 @@ import {
   closeEditModal,
 } from "../../state/bots";
 import type { BotConfig, BotsView } from "../../types/bots";
-import { BotConfigModal } from "./BotConfigModal";
-import { BotStatusPanel } from "./BotStatusPanel";
+import { BotConfigModal } from "./BotConfigModal2";
+import { BotStatusPanel } from "./BotStatusPanel2";
 import { CompactPage, CompactPanel } from "../common/compact";
 import { LoadingState, ErrorAlert, EmptyCompact } from "../common/states";
 import { StatusBadge } from "../common/BadgeComponents";

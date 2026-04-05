@@ -5,7 +5,7 @@ import {
   getUniqueBots,
   filterByRange,
   groupTradesByDate,
-} from "./PaperHistoryTable";
+} from "./tradeHistoryUtils";
 import type { PaperTrade } from "../../types/paperTrading";
 
 const mockTrade = (overrides: Partial<PaperTrade> = {}): PaperTrade => ({
