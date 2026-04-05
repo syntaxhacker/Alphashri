@@ -258,7 +258,6 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
         const level = week52_levels.find((l) => l.date === c.date);
         return level ? level["52w_high"] : null;
       });
-
       series.push({
         id: "52w-high",
         name: "52W High",
@@ -435,9 +434,11 @@ export function zoomToTrade(
     const entryTime = normalizeTime(entryMarker.time);
     entryIdx = candleTimeMap.get(entryTime);
 
+
     // If not found, try matching by date only (for daily candles)
     if (entryIdx === undefined && entryMarker.date) {
       entryIdx = candleDateMap.get(entryMarker.date);
+
     }
   }
 
@@ -496,6 +497,7 @@ export function zoomToTrade(
 
   const startPercent = (startIdx / totalCandles) * 100;
   const endPercent = ((endIdx + 1) / totalCandles) * 100;
+
 
   // Apply zoom
   chart.dispatchAction({

@@ -244,7 +244,6 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
 
   const candleTimeMap = new Map<string, number>();
   candles.forEach((c, i) => candleTimeMap.set(c.time, i));
-
   trades.forEach((trade, idx) => {
     const entryNormalized = normalizeTradeTime(trade.entry_time);
     const exitNormalized = normalizeTradeTime(trade.exit_time);

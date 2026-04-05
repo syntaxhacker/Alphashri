@@ -1,6 +1,16 @@
 import { useEffect, useCallback, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Tabs, Button, Group, Stack, Text, Badge, ActionIcon, Table } from "@mantine/core";
+import {
+  Box,
+  Tabs,
+  Button,
+  Group,
+  Stack,
+  Text,
+  Badge,
+  ActionIcon,
+  Table,
+} from "@mantine/core";
 import {
   IconRobot,
   IconChartLine,

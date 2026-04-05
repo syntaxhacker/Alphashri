@@ -20,7 +20,7 @@ import {
 } from "../components/common/compact";
 import { getStatusColor } from "../utils/ui-helpers";
 import { DataTable } from "../components/common/DataTable";
-export { getStatusColor } from "../utils/ui-helpers";
+export { getStatusColor } from "../utils/ui-helpers"; // backward compat for tests
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
