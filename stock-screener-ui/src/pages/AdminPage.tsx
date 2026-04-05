@@ -106,7 +106,6 @@ function AdminContent({
     </Box>
   );
 }
-
 export default function AdminPage() {
   const { fetchWithAuth } = useAuth();
   const [stats, setStats] = useState<LLMStats | null>(null);
