@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { Box, Text, Group, Badge, Select, Flex, useMantineColorScheme } from "@mantine/core";
 import { getPaperTradingState, setChartTimeframe, subscribe } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
@@ -10,8 +11,7 @@ import type {
 } from "../../types/paperTrading";
 import { theme } from "../../theme";
 import { CompactPanel } from "../common/compact";
-
-declare const echarts: any;
+import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
 
 const TIMEFRAME_OPTIONS = [
   { value: "1min", label: "1m" },
@@ -23,7 +23,6 @@ const TIMEFRAME_OPTIONS = [
 function buildChartOption(data: PaperChartData, isDark: boolean): any {
   const { candles, trades, orb_levels, week52_levels, current_position } = data;
   const fontSizes = theme.fontSizes;
-  const fontFamily = theme.fontFamily;
 
   if (!candles || candles.length === 0) {
     return {};
@@ -98,7 +97,7 @@ function buildChartOption(data: PaperChartData, isDark: boolean): any {
     return -1;
   };
 
-  trades.forEach((trade: PaperTrade, idx: number) => {
+  trades.forEach((trade: PaperTrade, _idx: number) => {
     const entryIdx = findCandleIndex(trade.entry_time);
     const exitIdx = findCandleIndex(trade.exit_time);
 
@@ -476,9 +475,8 @@ function PositionInfo({ position }: { position: PaperPosition }) {
       <Text size="sm" fw={500}>
         {position.quantity} @ ₹{position.entry_price.toFixed(2)}
       </Text>
-      <Text size="sm" fw={600} c={position.pnl >= 0 ? "green" : "red"}>
-        P&L: ₹{position.pnl.toFixed(0)} ({position.pnl_pct >= 0 ? "+" : ""}
-        {position.pnl_pct.toFixed(2)}%)
+      <Text size="sm" fw={600} c={getPnLTextColor(position.pnl)}>
+        P&L: ₹{position.pnl.toFixed(0)} ({formatPercentage(position.pnl_pct, 2, true)})
       </Text>
     </Group>
   );
@@ -610,21 +608,12 @@ function ChartEmptyState({
 export function PaperChart() {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<any>(null);
-  const [, forceUpdate] = useState({});
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
 
   const state = getPaperTradingState();
 
-  useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      forceUpdate({});
-    });
-    return () => {
-      unsubscribe(); // eslint-disable-line react-hooks/exhaustive-deps
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useStoreSubscription(subscribe);
 
   useEffect(() => {
     if (!chartRef.current || !state.chartData || !state.selectedSymbol) {

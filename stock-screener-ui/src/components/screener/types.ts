@@ -22,14 +22,7 @@ export interface ProfileFilterDef {
   step?: number;
 }
 
-export interface ColumnDef {
-  key: string;
-  label: string;
-  width?: number;
-  align?: "left" | "center" | "right";
-  sortable?: boolean;
-  format?: (value: any, stock: Stock) => React.ReactNode;
-}
+export type { ColumnDef, FormattedCell } from "./columns";
 
 export interface ScreenerPageProps {
   screenerOptions: ScreenerOption[];
@@ -78,25 +71,6 @@ export interface ScreenerHeaderProps {
 
 export interface ScreenerSummaryProps {
   summary: SummaryItem[];
-}
-
-export interface ScreenerTableProps {
-  stocks: Stock[];
-  columns: ColumnDef[];
-  touchedSymbols: Set<string>;
-  sortColumn: string | null;
-  sortDirection: SortDirection;
-  onSortChange: (column: string) => void;
-  onSymbolClick: (symbol: string) => void;
-  onSymbolHover: (symbol: string | null) => void;
-}
-
-export interface StockRowProps {
-  stock: Stock;
-  columns: ColumnDef[];
-  isTouched: boolean;
-  onSymbolClick: (symbol: string) => void;
-  onSymbolHover: (symbol: string | null) => void;
 }
 
 export interface ScreenerEmptyProps {

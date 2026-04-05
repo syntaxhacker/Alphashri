@@ -81,6 +81,8 @@ class BotResponse(BaseModel):
     updated_at: Optional[str] = None
     status: Optional[str] = None
     process_id: Optional[int] = None
+    running: bool = False
+    pid: Optional[int] = None
     error: Optional[str] = None
 
 
@@ -197,7 +199,52 @@ def is_bot_running(user_id: int, bot_id: int) -> tuple:
             return True, process.pid
         else:
             del _bot_processes[user_id][bot_id]
+
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is None:
+            return False, None
+        val = client.get(f"bot:{user_id}:{bot_id}:status")
+        if val:
+            parts = val.split(":")
+            pid = int(parts[1]) if len(parts) > 1 else None
+            if pid and _is_pid_alive(pid):
+                return True, pid
+            else:
+                client.delete(f"bot:{user_id}:{bot_id}:status")
+    except Exception:
+        pass
+
     return False, None
+
+
+def _is_pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ProcessLookupError):
+        return False
+
+
+def _set_bot_status_redis(user_id: int, bot_id: int, pid: int, ttl: int = 90):
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is not None:
+            client.setex(f"bot:{user_id}:{bot_id}:status", ttl, f"running:{pid}")
+    except Exception:
+        pass
+
+
+def _clear_bot_status_redis(user_id: int, bot_id: int):
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is not None:
+            client.delete(f"bot:{user_id}:{bot_id}:status")
+    except Exception:
+        pass
 
 
 def _sync_list_available_strategies(db: Session) -> list:
@@ -419,44 +466,63 @@ def _sync_get_bot_portfolio(bot_uuid: str, user_id: int, db: Session) -> dict:
 def _sync_get_bot_trades(bot_uuid: str, user_id: int, strategy_id: Optional[str],
                          limit: int, include_test: bool, db: Session) -> dict:
     bot = get_bot_by_uuid(bot_uuid, user_id, db)
-    from trading.journal import get_journal
-    journal = get_journal(user_id)
-    journal.load_all_journals(days=30)
+    from db.models import Trade as TradeModel
+
     result = db.execute(
         bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
     ).fetchall()
-    strategy_ids = [row.strategy_id for row in result]
+    bot_strategy_ids = [row.strategy_id for row in result]
+
+    if not bot_strategy_ids:
+        return {"bot_id": bot.uuid, "trades": [], "count": 0, "strategy_filter": strategy_id}
+
     strategy_internal_id = None
     if strategy_id is not None:
         strat = get_strategy_by_uuid(strategy_id, db)
         strategy_internal_id = strat.id
-    trades = []
-    for trade in journal.trades:
-        if trade.strategy_id in strategy_ids:
-            if strategy_internal_id is None or trade.strategy_id == strategy_internal_id:
-                if not include_test and getattr(trade, 'is_test', False):
-                    continue
-                trades.append({
-                    'trade_id': trade.trade_id,
-                    'symbol': trade.symbol,
-                    'side': trade.side,
-                    'quantity': trade.quantity,
-                    'entry_price': trade.entry_price,
-                    'exit_price': trade.exit_price,
-                    'entry_time': trade.entry_time,
-                    'exit_time': trade.exit_time,
-                    'pnl': trade.pnl,
-                    'pnl_pct': trade.pnl_pct,
-                    'exit_reason': trade.exit_reason,
-                    'costs': trade.costs,
-                    'net_pnl': trade.net_pnl,
-                    'strategy_id': trade.strategy_id,
-                    'strategy_name': trade.strategy_name,
-                    'is_test': getattr(trade, 'is_test', False),
-                    'source': getattr(trade, 'source', 'live'),
-                })
-    trades.sort(key=lambda x: x['exit_time'], reverse=True)
-    trades = trades[:limit]
+
+    query = db.query(TradeModel).filter(TradeModel.user_id == user_id)
+    if bot_strategy_ids:
+        query = query.filter(TradeModel.strategy_id.in_(bot_strategy_ids))
+    if strategy_internal_id is not None:
+        query = query.filter(TradeModel.strategy_id == strategy_internal_id)
+    if not include_test:
+        query = query.filter(TradeModel.is_test == False)
+    query = query.order_by(TradeModel.exit_time.desc()).limit(limit)
+
+    trades = [t.to_dict() for t in query.all()]
+
+    if not trades:
+        from trading.journal import get_journal
+        journal = get_journal(user_id)
+        journal.load_all_journals(days=30)
+        for trade in journal.trades:
+            if trade.strategy_id in bot_strategy_ids:
+                if strategy_internal_id is None or trade.strategy_id == strategy_internal_id:
+                    if not include_test and getattr(trade, 'is_test', False):
+                        continue
+                    trades.append({
+                        'trade_id': trade.trade_id,
+                        'symbol': trade.symbol,
+                        'side': trade.side,
+                        'quantity': trade.quantity,
+                        'entry_price': trade.entry_price,
+                        'exit_price': trade.exit_price,
+                        'entry_time': trade.entry_time,
+                        'exit_time': trade.exit_time,
+                        'pnl': trade.pnl,
+                        'pnl_pct': trade.pnl_pct,
+                        'exit_reason': trade.exit_reason,
+                        'costs': trade.costs,
+                        'net_pnl': trade.net_pnl,
+                        'strategy_id': trade.strategy_id,
+                        'strategy_name': trade.strategy_name,
+                        'is_test': getattr(trade, 'is_test', False),
+                        'source': getattr(trade, 'source', 'live'),
+                    })
+        trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
+        trades = trades[:limit]
+
     return {
         "bot_id": bot.uuid,
         "trades": trades,
@@ -506,6 +572,8 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
         updated_at=bot.updated_at.isoformat() if bot.updated_at else None,
         status="RUNNING" if running else "STOPPED",
         process_id=pid if pid else None,
+        running=running,
+        pid=pid if pid else None,
     )
 
 
@@ -639,7 +707,6 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> sub
         stop_bot_process(user_id, bot_id)
 
     log_path = Path(f"/tmp/bot-{user_id}-{bot_id}.log")
-    log_file = open(log_path, 'w')
 
     cmd = [
         sys.executable,
@@ -652,15 +719,36 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False) -> sub
 
     process = subprocess.Popen(
         cmd,
-        stdout=log_file,
+        stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
+
+    _stream_output = os.getenv("STREAM_BOT_OUTPUT", "false").lower() == "true"
+
+    def _stream_bot_output(p: subprocess.Popen, lp: Path):
+        import threading
+        def _reader():
+            with open(lp, 'w') as f:
+                if p.stdout:
+                    for line in iter(p.stdout.readline, b''):
+                        text = line.decode('utf-8', errors='replace')
+                        f.write(text)
+                        f.flush()
+                        if _stream_output:
+                            sys.__stdout__.write(text)
+                            sys.__stdout__.flush()
+                    p.stdout.close()
+        t = threading.Thread(target=_reader, daemon=True)
+        t.start()
+
+    _stream_bot_output(process, log_path)
 
     if user_id not in _bot_processes:
         _bot_processes[user_id] = {}
     _bot_processes[user_id][bot_id] = process
     _bot_logs[bot_id] = log_path
+    _set_bot_status_redis(user_id, bot_id, process.pid)
 
     console.print(f"[green]Started bot {bot_id} (PID: {process.pid})[/green]")
     return process
@@ -678,6 +766,7 @@ def stop_bot_process(user_id: int, bot_id: int):
                 process.wait()
 
         del _bot_processes[user_id][bot_id]
+        _clear_bot_status_redis(user_id, bot_id)
         console.print(f"[yellow]Stopped bot {bot_id}[/yellow]")
 
 
@@ -868,19 +957,16 @@ async def get_bot_positions(
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         snapshot = load_bot_snapshot(bot.id, user_id)
+        positions = snapshot.get('positions', []) if snapshot else []
 
-        if not snapshot:
-            return {
-                "bot_id": bot.uuid,
-                "positions": [],
-                "count": 0,
-            }
+        if not positions:
+            from db.models import Position as PositionModel
+            db_positions = db.query(PositionModel).filter(
+                PositionModel.bot_id == bot.id,
+            ).all()
+            positions = [p.to_dict() for p in db_positions]
 
-        positions = snapshot.get('positions', [])
-
-        # Filter by strategy UUID if provided
         if strategy_id is not None:
-            # Need to convert strategy UUID to internal ID for comparison
             strat = get_strategy_by_uuid(strategy_id, db)
             positions = [p for p in positions if p.get('strategy_id') == strat.id]
 

@@ -110,10 +110,10 @@ describe("marketOpenGap columns", () => {
     });
   });
 
-  test("score format returns string representation", () => {
-    expect(fmt(columns, "score", 85)).toBe("85");
-    expect(fmt(columns, "score", 0)).toBe("0");
-    expect(fmt(columns, "score", -10)).toBe("-10");
+  test("score column has badge type and no format function", () => {
+    const scoreCol = columns.find((c) => c.key === "score");
+    expect(scoreCol?.type).toBe("badge");
+    expect(scoreCol?.format).toBeUndefined();
   });
 
   test("gap_pct formats positive values with green class", () => {
@@ -429,7 +429,7 @@ describe("common column structure", () => {
   test("every column set has a score column as second", () => {
     allColumnSets.forEach((cols) => {
       expect(cols[1].key).toBe("score");
-      expect(cols[1].type).toBe("number");
+      expect(cols[1].type).toBe("badge");
     });
   });
 

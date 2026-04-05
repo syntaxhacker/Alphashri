@@ -18,7 +18,7 @@ import { Group, ScrollArea, Text, UnstyledButton, AppShell, Flex } from "@mantin
 import { useMantineColorScheme } from "@mantine/core";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "../auth/AuthProvider2";
 import classes from "./NavbarNested.module.css";
 
 interface NavbarNestedProps {

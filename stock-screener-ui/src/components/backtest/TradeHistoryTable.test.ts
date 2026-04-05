@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { formatDateHuman, formatDuration, sortTrades } from "./TradeHistoryTable";
+import { formatDateTimeHuman, formatDuration } from "../../utils/ui-helpers";
+import { sortTrades } from "./TradeHistoryTable";
 import type { Trade } from "../../types/backtest";
 
 function makeTrade(overrides: Partial<Trade> = {}): Trade {
@@ -21,43 +22,43 @@ function makeTrade(overrides: Partial<Trade> = {}): Trade {
   };
 }
 
-describe("formatDateHuman", () => {
+describe("formatDateTimeHuman", () => {
   test("formats ISO string with time", () => {
-    const result = formatDateHuman("2025-06-15T09:30:00Z");
+    const result = formatDateTimeHuman("2025-06-15T09:30:00Z");
     expect(result).toContain("15");
     expect(result).toContain("Jun");
     expect(result).toContain("09:30");
   });
 
   test("handles +05:30 timezone", () => {
-    const result = formatDateHuman("2025-06-15T15:00:00+05:30");
+    const result = formatDateTimeHuman("2025-06-15T15:00:00+05:30");
     expect(result).toContain("15");
     expect(result).toContain("15:00");
   });
 
   test("handles +00:00 timezone", () => {
-    const result = formatDateHuman("2025-06-15T09:30:00+00:00");
+    const result = formatDateTimeHuman("2025-06-15T09:30:00+00:00");
     expect(result).toContain("15");
     expect(result).toContain("09:30");
   });
 
   test("returns dash for empty string", () => {
-    expect(formatDateHuman("")).toBe("-");
+    expect(formatDateTimeHuman("")).toBe("-");
   });
 
   test("formats ordinal suffixes correctly", () => {
-    expect(formatDateHuman("2025-01-01T09:00:00Z")).toContain("1st");
-    expect(formatDateHuman("2025-01-02T09:00:00Z")).toContain("2nd");
-    expect(formatDateHuman("2025-01-03T09:00:00Z")).toContain("3rd");
-    expect(formatDateHuman("2025-01-04T09:00:00Z")).toContain("4th");
-    expect(formatDateHuman("2025-01-21T09:00:00Z")).toContain("21st");
-    expect(formatDateHuman("2025-01-22T09:00:00Z")).toContain("22nd");
-    expect(formatDateHuman("2025-01-23T09:00:00Z")).toContain("23rd");
-    expect(formatDateHuman("2025-01-31T09:00:00Z")).toContain("31st");
+    expect(formatDateTimeHuman("2025-01-01T09:00:00Z")).toContain("1st");
+    expect(formatDateTimeHuman("2025-01-02T09:00:00Z")).toContain("2nd");
+    expect(formatDateTimeHuman("2025-01-03T09:00:00Z")).toContain("3rd");
+    expect(formatDateTimeHuman("2025-01-04T09:00:00Z")).toContain("4th");
+    expect(formatDateTimeHuman("2025-01-21T09:00:00Z")).toContain("21st");
+    expect(formatDateTimeHuman("2025-01-22T09:00:00Z")).toContain("22nd");
+    expect(formatDateTimeHuman("2025-01-23T09:00:00Z")).toContain("23rd");
+    expect(formatDateTimeHuman("2025-01-31T09:00:00Z")).toContain("31st");
   });
 
   test("handles string without time part", () => {
-    const result = formatDateHuman("2025-06-15");
+    const result = formatDateTimeHuman("2025-06-15");
     expect(result).toContain("15");
     expect(result).toContain("Jun");
   });
@@ -73,8 +74,8 @@ describe("formatDuration", () => {
   test("formats hours and minutes", () => {
     expect(formatDuration(90)).toBe("1h 30m");
     expect(formatDuration(125)).toBe("2h 5m");
-    expect(formatDuration(60)).toBe("1h 0m");
-    expect(formatDuration(120)).toBe("2h 0m");
+    expect(formatDuration(60)).toBe("1h");
+    expect(formatDuration(120)).toBe("2h");
   });
 
   test("handles zero minutes", () => {

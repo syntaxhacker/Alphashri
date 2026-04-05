@@ -97,17 +97,8 @@ export async function fetchTrades(
     if (toDate) params.append("to_date", toDate);
     params.append("days_back", daysBack.toString());
 
-    console.log("[fetchTrades] Calling API with params:", params.toString());
     const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?${params.toString()}`);
     const data = await response.json();
-    console.log("[fetchTrades] Raw Response data:", JSON.stringify(data));
-    console.log(
-      "[fetchTrades] Response stats:",
-      data.total_trades,
-      "total_trades,",
-      data.trades?.length,
-      "trades array length",
-    );
     const trades = data.trades || [];
     setTrades(trades);
     return trades;
@@ -193,14 +184,8 @@ export async function fetchPaperChart(
     const url = queryString
       ? `${API_BASE}/api/paper/chart/${symbol}?${queryString}`
       : `${API_BASE}/api/paper/chart/${symbol}`;
-    console.log("[API] Fetching chart:", { symbol, date, timeframe, url });
     const response = await fetchWithAuth(url);
     const data = await response.json();
-    console.log("[API] Chart response:", {
-      candleCount: data.candles?.length,
-      symbol: data.symbol,
-      date: data.date,
-    });
 
     if (data.error) {
       console.error("Chart data error:", data.error);

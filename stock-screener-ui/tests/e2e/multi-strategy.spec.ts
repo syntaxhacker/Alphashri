@@ -317,10 +317,6 @@ async function getScanTableHeaders(page: Page): Promise<string[]> {
   return await scanCard.locator("th").allTextContents();
 }
 
-async function getStrategyTabCount(page: Page): Promise<number> {
-  return await page.locator('[data-testid^="strategy-tab-"]').count();
-}
-
 test.describe.configure({ mode: "serial" });
 test.describe("Multi-Strategy System - Signal Generators", () => {
   const botId = BOT_IDS.signalGenerators;
@@ -628,13 +624,21 @@ test.describe("Multi-Strategy System - Trade History", () => {
         }),
       });
     });
+
+    await page.route("**/api/paper/journal/summary", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ total_pnl: 900, total_trades: 2, win_rate: 100 }),
+      });
+    });
   });
 
   test("should show strategy in trade history", async ({ page }) => {
     await navigateToBot(page, botId);
     await page.getByTestId("trade-history-tab").click();
-
-    await expect(page.getByTestId("trades-table-container")).toBeVisible();
+    await expect(page.getByTestId("history-panel")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("trades-table-container")).toBeVisible({ timeout: 10000 });
   });
 });
 

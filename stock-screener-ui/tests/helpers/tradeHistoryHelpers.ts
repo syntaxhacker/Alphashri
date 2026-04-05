@@ -186,7 +186,7 @@ export async function clickButtonIfExists(page: Page, pattern: RegExp): Promise<
 export async function selectWeekFilter(page: Page): Promise<void> {
   const quickFilter = page.locator('[data-testid="quick-filter"]');
   await expect(quickFilter).toBeVisible();
-  await quickFilter.locator('label', { hasText: "Week" }).click();
+  await quickFilter.locator("label", { hasText: "Week" }).click();
   await page.waitForTimeout(500);
 }
 

@@ -1,13 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { BacktestTotals } from "../../types/backtest";
-import {
-  resolveTotals,
-  getPnlColor,
-  getPnlSign,
-  formatPnl,
-  formatCosts,
-  formatWinRate,
-} from "./BacktestSummary";
+import { formatPnl as formatPnlShared, getPnLTextColor } from "../../utils/ui-helpers";
+import { resolveTotals, formatCosts, formatWinRate } from "./BacktestSummary";
 
 describe("BacktestSummary", () => {
   describe("resolveTotals", () => {
@@ -50,60 +44,46 @@ describe("BacktestSummary", () => {
     });
   });
 
-  describe("getPnlColor", () => {
+  describe("getPnLTextColor", () => {
     test("returns green for positive PnL", () => {
-      expect(getPnlColor(1000)).toBe("green");
+      expect(getPnLTextColor(1000)).toBe("green");
     });
 
     test("returns green for zero PnL", () => {
-      expect(getPnlColor(0)).toBe("green");
+      expect(getPnLTextColor(0)).toBe("green");
     });
 
     test("returns red for negative PnL", () => {
-      expect(getPnlColor(-500)).toBe("red");
+      expect(getPnLTextColor(-500)).toBe("red");
     });
   });
 
-  describe("getPnlSign", () => {
-    test("returns + for positive PnL", () => {
-      expect(getPnlSign(1000)).toBe("+");
-    });
-
-    test("returns + for zero PnL", () => {
-      expect(getPnlSign(0)).toBe("+");
-    });
-
-    test("returns empty string for negative PnL", () => {
-      expect(getPnlSign(-500)).toBe("");
-    });
-  });
-
-  describe("formatPnl", () => {
+  describe("formatPnl (shared)", () => {
     test("formats positive PnL with sign and K suffix", () => {
-      expect(formatPnl(50000)).toBe("+₹50.0K");
+      expect(formatPnlShared(50000)).toBe("+₹50.0K");
     });
 
     test("formats zero PnL with sign", () => {
-      expect(formatPnl(0)).toBe("+₹0.0K");
+      expect(formatPnlShared(0)).toBe("+₹0.0K");
     });
 
     test("formats negative PnL without sign prefix", () => {
-      expect(formatPnl(-15000)).toBe("₹-15.0K");
+      expect(formatPnlShared(-15000)).toBe("₹-15.0K");
     });
 
     test("handles fractional thousands", () => {
-      expect(formatPnl(1500)).toBe("+₹1.5K");
-      expect(formatPnl(-2500)).toBe("₹-2.5K");
+      expect(formatPnlShared(1500)).toBe("+₹1.5K");
+      expect(formatPnlShared(-2500)).toBe("₹-2.5K");
     });
 
     test("handles sub-thousand values", () => {
-      expect(formatPnl(500)).toBe("+₹0.5K");
-      expect(formatPnl(-100)).toBe("₹-0.1K");
+      expect(formatPnlShared(500)).toBe("+₹0.5K");
+      expect(formatPnlShared(-100)).toBe("₹-0.1K");
     });
 
     test("handles large values", () => {
-      expect(formatPnl(500000)).toBe("+₹500.0K");
-      expect(formatPnl(1234567)).toBe("+₹1234.6K");
+      expect(formatPnlShared(500000)).toBe("+₹500.0K");
+      expect(formatPnlShared(1234567)).toBe("+₹1234.6K");
     });
   });
 

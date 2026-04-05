@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import {
   Box,
   Card,
@@ -11,7 +10,6 @@ import {
   Progress,
   Table,
   ActionIcon,
-  Loader,
 } from "@mantine/core";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type {
@@ -22,14 +20,9 @@ import type {
   PortfolioSummary,
   StrategyStatus,
 } from "../../types/bots";
-import {
-  loadBotStatus,
-  loadBotTrades,
-  startBotAction,
-  stopBotAction,
-  startAutoRefresh,
-  stopAutoRefresh,
-} from "../../state/bots";
+import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
+import { formatNumber as formatNumberShared, getPnLTextColor } from "../../utils/ui-helpers";
+import { SideBadge, StatusBadge, ExitReasonBadge } from "../common/BadgeComponents";
 
 interface BotStatusPanelProps {
   bot: BotConfig;
@@ -39,29 +32,8 @@ interface BotStatusPanelProps {
   onStop: (botId: string) => Promise<void>;
 }
 
-function formatNumber(num: number): string {
-  if (Math.abs(num) >= 100000) {
-    return (num / 100000).toFixed(1) + "L";
-  } else if (Math.abs(num) >= 1000) {
-    return (num / 1000).toFixed(1) + "K";
-  }
-  return num.toFixed(0);
-}
-
-function formatExitReason(reason: string): string {
-  const reasons: Record<string, string> = {
-    target: "Target",
-    stop_loss: "Stop Loss",
-    signal: "Signal",
-    manual: "Manual",
-    timeout: "Timeout",
-  };
-  return reasons[reason] || reason;
-}
-
 function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
-  const pnlColor = portfolio.total_pnl >= 0 ? "green" : "red";
-  const dailyPnlColor = portfolio.daily_pnl >= 0 ? "green" : "red";
+  const pnlColor = getPnLTextColor(portfolio.total_pnl);
 
   return (
     <Card shadow="sm" padding="md" radius="md" withBorder data-testid="portfolio-summary">
@@ -75,13 +47,13 @@ function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
               <Text size="sm" c="dimmed">
                 Capital
               </Text>
-              <Text fw={600}>₹{formatNumber(portfolio.initial_capital)}</Text>
+              <Text fw={600}>₹{formatNumberShared(portfolio.initial_capital)}</Text>
             </div>
             <div>
               <Text size="sm" c="dimmed">
                 Cash
               </Text>
-              <Text fw={600}>₹{formatNumber(portfolio.cash)}</Text>
+              <Text fw={600}>₹{formatNumberShared(portfolio.cash)}</Text>
             </div>
           </Stack>
         </Grid.Col>
@@ -98,7 +70,7 @@ function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
                 Total P&L
               </Text>
               <Text fw={600} c={pnlColor}>
-                {portfolio.total_pnl >= 0 ? "+" : ""}₹{formatNumber(portfolio.total_pnl)}
+                {portfolio.total_pnl >= 0 ? "+" : ""}₹{formatNumberShared(portfolio.total_pnl)}
                 <Text span size="sm" ml={4}>
                   ({portfolio.total_pnl_pct >= 0 ? "+" : ""}
                   {portfolio.total_pnl_pct.toFixed(2)}%)
@@ -114,13 +86,13 @@ function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
 
 function StrategyStatusCard({
   strategy,
-  isRunning,
+  isRunning: _isRunning,
 }: {
   strategy: StrategyStatus;
   isRunning: boolean;
 }) {
   const usedPct = (strategy.capital_used / strategy.allocated_capital) * 100;
-  const pnlColor = strategy.total_pnl >= 0 ? "green" : "red";
+  const pnlColor = getPnLTextColor(strategy.total_pnl);
 
   return (
     <Card shadow="xs" padding="sm" radius="md" withBorder data-testid="strategy-card">
@@ -149,8 +121,8 @@ function StrategyStatusCard({
               Capital Used
             </Text>
             <Text size="sm">
-              ₹{formatNumber(strategy.capital_used)} / ₹{formatNumber(strategy.allocated_capital)} (
-              {usedPct.toFixed(0)}%)
+              ₹{formatNumberShared(strategy.capital_used)} / ₹
+              {formatNumberShared(strategy.allocated_capital)} ({usedPct.toFixed(0)}%)
             </Text>
           </Group>
           <Progress value={Math.min(usedPct, 100)} size="sm" color="blue" />
@@ -161,7 +133,7 @@ function StrategyStatusCard({
             P&L
           </Text>
           <Text size="sm" fw={600} c={pnlColor}>
-            {strategy.total_pnl >= 0 ? "+" : ""}₹{formatNumber(strategy.total_pnl)}
+            {strategy.total_pnl >= 0 ? "+" : ""}₹{formatNumberShared(strategy.total_pnl)}
           </Text>
         </Group>
 
@@ -199,7 +171,7 @@ function PositionsTable({ positions }: { positions: BotPosition[] }) {
         </Table.Thead>
         <Table.Tbody>
           {positions.map((p, idx) => {
-            const pnlColor = p.unrealized_pnl >= 0 ? "green" : "red";
+            const pnlColor = getPnLTextColor(p.unrealized_pnl);
             return (
               <Table.Tr key={idx}>
                 <Table.Td>{p.strategy_name}</Table.Td>
@@ -207,16 +179,14 @@ function PositionsTable({ positions }: { positions: BotPosition[] }) {
                   <Text fw={600}>{p.symbol}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={p.side === "BUY" ? "green" : "red"} variant="light" size="sm">
-                    {p.side}
-                  </Badge>
+                  <SideBadge side={p.side} />
                 </Table.Td>
                 <Table.Td>{p.quantity}</Table.Td>
                 <Table.Td>₹{p.entry_price.toFixed(2)}</Table.Td>
                 <Table.Td>₹{p.current_price.toFixed(2)}</Table.Td>
                 <Table.Td>
                   <Text c={pnlColor} fw={600}>
-                    {p.unrealized_pnl >= 0 ? "+" : ""}₹{formatNumber(p.unrealized_pnl)}
+                    {p.unrealized_pnl >= 0 ? "+" : ""}₹{formatNumberShared(p.unrealized_pnl)}
                     <Text span size="sm" ml={4}>
                       ({p.unrealized_pnl_pct >= 0 ? "+" : ""}
                       {p.unrealized_pnl_pct.toFixed(2)}%)
@@ -283,8 +253,8 @@ function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () 
           </Table.Thead>
           <Table.Tbody>
             {trades.map((t, idx) => {
-              const pnlColor = t.pnl >= 0 ? "green" : "red";
-              const netPnlColor = t.net_pnl >= 0 ? "green" : "red";
+              const pnlColor = getPnLTextColor(t.pnl);
+              const netPnlColor = getPnLTextColor(t.net_pnl);
 
               return (
                 <Table.Tr key={idx} bg={t.is_test ? "rgba(255, 193, 7, 0.1)" : undefined}>
@@ -302,16 +272,14 @@ function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () 
                     <Text fw={600}>{t.symbol}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge color={t.side === "BUY" ? "green" : "red"} variant="light" size="sm">
-                      {t.side}
-                    </Badge>
+                    <SideBadge side={t.side} />
                   </Table.Td>
                   <Table.Td>{t.quantity}</Table.Td>
                   <Table.Td>₹{t.entry_price.toFixed(2)}</Table.Td>
                   <Table.Td>₹{t.exit_price?.toFixed(2) || "-"}</Table.Td>
                   <Table.Td>
                     <Text c={pnlColor} fw={600}>
-                      {t.pnl >= 0 ? "+" : ""}₹{formatNumber(t.pnl)}
+                      {t.pnl >= 0 ? "+" : ""}₹{formatNumberShared(t.pnl)}
                       <Text span size="sm" ml={4}>
                         ({t.pnl_pct >= 0 ? "+" : ""}
                         {t.pnl_pct.toFixed(2)}%)
@@ -320,23 +288,11 @@ function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () 
                   </Table.Td>
                   <Table.Td>
                     <Text c={netPnlColor} fw={600}>
-                      {t.net_pnl >= 0 ? "+" : ""}₹{formatNumber(t.net_pnl)}
+                      {t.net_pnl >= 0 ? "+" : ""}₹{formatNumberShared(t.net_pnl)}
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge
-                      color={
-                        t.exit_reason === "target"
-                          ? "green"
-                          : t.exit_reason === "stop_loss"
-                            ? "red"
-                            : "gray"
-                      }
-                      variant="light"
-                      size="sm"
-                    >
-                      {formatExitReason(t.exit_reason)}
-                    </Badge>
+                    <ExitReasonBadge reason={t.exit_reason} />
                   </Table.Td>
                 </Table.Tr>
               );
@@ -392,14 +348,11 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
               <Text fw={700} size="lg" data-testid="bot-name">
                 {bot.name}
               </Text>
-              <Badge
-                color={status?.running ? "green" : "gray"}
-                variant="light"
-                mt={4}
+              <StatusBadge
+                running={status?.running ?? false}
+                pid={status?.pid}
                 data-testid="bot-running-badge"
-              >
-                {status?.running ? `● Running (PID ${status.pid})` : "○ Stopped"}
-              </Badge>
+              />
             </div>
             <Group gap="xs">
               {status?.running ? (

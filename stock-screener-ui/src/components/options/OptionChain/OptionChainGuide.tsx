@@ -1,22 +1,5 @@
-import {
-  Modal,
-  Text,
-  Stack,
-  Group,
-  Badge,
-  List,
-  ThemeIcon,
-  Title,
-  Divider,
-  Paper,
-} from "@mantine/core";
-import {
-  IconInfoCircle,
-  IconTrendingUp,
-  IconTrendingDown,
-  IconTarget,
-  IconActivity,
-} from "@tabler/icons-react";
+import { Modal, Text, Stack, Group, Badge, List, ThemeIcon, Divider, Paper } from "@mantine/core";
+import { IconInfoCircle, IconTarget } from "@tabler/icons-react";
 
 interface OptionChainGuideProps {
   opened: boolean;

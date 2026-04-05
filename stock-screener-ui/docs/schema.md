@@ -78,6 +78,11 @@ erDiagram
         Float match_confidence
         String match_method
     }
+    positions {
+        Integer id PK
+        Integer user_id FK
+        Integer bot_id FK
+    }
     sessions {
         String id PK
         Integer user_id FK
@@ -88,6 +93,11 @@ erDiagram
     strategyconfigs {
         Integer id PK
         Integer parent_id FK
+    }
+    trades {
+        Integer id PK
+        Integer user_id FK
+        Integer bot_id FK
     }
     users {
         Integer id PK
@@ -108,8 +118,12 @@ erDiagram
     botstrategies ||--o{ strategyconfigs : "strategy_id"
     brokerconnections ||--o{ users : "user_id"
     newssymbolmentions ||--o{ newsarticles : "article_id"
+    positions ||--o{ users : "user_id"
+    positions ||--o{ botconfigs : "bot_id"
     sessions ||--o{ users : "user_id"
     strategyconfigs ||--o| strategyconfigs : "parent"
+    trades ||--o{ users : "user_id"
+    trades ||--o{ botconfigs : "bot_id"
 ```
 
 ## Table Reference
@@ -256,6 +270,35 @@ erDiagram
 | *(Index: `ix_news_symbol_mentions_instrument_key` on instrument_key)* | | | |
 | *(Index: `ix_news_symbol_mentions_trading_symbol` on trading_symbol)* | | | |
 
+### positions
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| uuid | String | No | UNIQUE |
+| user_id | Integer | No | FK -> users.id |
+| bot_id | Integer | No | FK -> bot_configs.id |
+| strategy_id | Integer | Yes | - |
+| strategy_name | String | No | - |
+| symbol | String | No | - |
+| side | String | No | - |
+| quantity | Integer | No | - |
+| entry_price | Float | No | - |
+| stop_loss | Float | Yes | - |
+| take_profit | Float | Yes | - |
+| entry_time | DateTime | No | - |
+| current_price | Float | Yes | - |
+| unrealized_pnl | Float | Yes | - |
+| unrealized_pnl_pct | Float | Yes | - |
+| is_test | Boolean | No | - |
+| created_at | DateTime | No | - |
+| updated_at | DateTime | No | - |
+| *(Index: `ix_positions_bot_id` on bot_id)* | | | |
+| *(Index: `ix_positions_strategy_id` on strategy_id)* | | | |
+| *(Index: `ix_positions_symbol` on symbol)* | | | |
+| *(Index: `ix_positions_user_id` on user_id)* | | | |
+| *(Unique: `uq_bot_strategy_symbol` on bot_id, strategy_id, symbol)* | | | |
+
 ### sessions
 
 | Column | Type | Nullable | Key |
@@ -314,6 +357,38 @@ erDiagram
 | gst_pct | Float | Yes | - |
 | created_at | DateTime | Yes | - |
 | updated_at | DateTime | Yes | - |
+
+### trades
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| uuid | String | No | UNIQUE |
+| user_id | Integer | No | FK -> users.id |
+| bot_id | Integer | Yes | FK -> bot_configs.id |
+| strategy_id | Integer | Yes | - |
+| strategy_name | String | No | - |
+| symbol | String | No | - |
+| side | String | No | - |
+| quantity | Integer | No | - |
+| entry_price | Float | No | - |
+| exit_price | Float | Yes | - |
+| entry_time | DateTime | No | - |
+| exit_time | DateTime | Yes | - |
+| stop_loss | Float | Yes | - |
+| take_profit | Float | Yes | - |
+| pnl | Float | Yes | - |
+| pnl_pct | Float | Yes | - |
+| costs | Float | Yes | - |
+| net_pnl | Float | Yes | - |
+| exit_reason | String | Yes | - |
+| is_test | Boolean | No | - |
+| source | String | No | - |
+| created_at | DateTime | No | - |
+| *(Index: `ix_trades_bot_id` on bot_id)* | | | |
+| *(Index: `ix_trades_strategy_id` on strategy_id)* | | | |
+| *(Index: `ix_trades_symbol` on symbol)* | | | |
+| *(Index: `ix_trades_user_id` on user_id)* | | | |
 
 ### users
 

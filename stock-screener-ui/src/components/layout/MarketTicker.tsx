@@ -3,7 +3,7 @@ import { Box, Group, Text, Badge, Skeleton } from "@mantine/core";
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
 import { useThemeColors } from "../../hooks/useThemeColors";
 
-interface MarketTickerItem {
+export interface MarketTickerItem {
   symbol: string;
   name: string;
   price: number;
@@ -12,7 +12,7 @@ interface MarketTickerItem {
   is_positive: boolean;
 }
 
-interface MarketTickerData {
+export interface MarketTickerData {
   tickers: Record<string, MarketTickerItem>;
   last_updated: string | null;
   loading: boolean;

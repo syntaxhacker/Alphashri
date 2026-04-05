@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { setupNewsTest, clickNewsToggle, openNewsPanel, gotoNewsPage } from "./helpers/newsHelpers";
+import { setupNewsTest, openNewsPanel, gotoNewsPage } from "./helpers/newsHelpers";
 
 test.describe("News Panel - Basic Functionality", () => {
   test.beforeEach(async ({ page }) => {

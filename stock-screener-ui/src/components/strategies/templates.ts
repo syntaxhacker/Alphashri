@@ -3,7 +3,7 @@
  */
 
 import type { StrategyConfig } from "../../types/strategies";
-import { openCreateModal, selectStrategy, loadStrategy } from "../../state/strategies";
+import { openCreateModal } from "../../state/strategies";
 
 export function renderTemplateCard(
   template: StrategyConfig,

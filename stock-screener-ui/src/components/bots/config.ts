@@ -47,7 +47,6 @@ export function renderBotConfigForm(
   availableStrategies: AvailableStrategy[],
 ): string {
   const isEdit = bot !== null;
-  const state = getBotsState();
 
   // Filter out templates for selection
   const selectableStrategies = availableStrategies.filter((s) => !s.is_template);

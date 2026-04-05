@@ -15,6 +15,9 @@ import asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
+
+import config
+IST = config.IST
 from dataclasses import dataclass, field
 from enum import Enum
 import traceback
@@ -259,23 +262,174 @@ class MultiStrategyRunner:
                 console.print("[red]Could not import TVScreenerUsage[/red]")
         return self._data_fetcher
 
+    def _ist_now(self) -> datetime:
+        return datetime.now(IST)
+
+    def _get_db_session(self):
+        from db.database import SessionLocal
+        return SessionLocal()
+
+    def _write_heartbeat(self):
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client is not None:
+                import os
+                pid = os.getpid()
+                bot_id = self.bot_config.id if self.bot_config else 0
+                client.setex(f"bot:{self.user_id}:{bot_id}:status", 90, f"running:{pid}")
+        except Exception:
+            pass
+
+    def _clear_heartbeat(self):
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client is not None:
+                bot_id = self.bot_config.id if self.bot_config else 0
+                client.delete(f"bot:{self.user_id}:{bot_id}:status")
+        except Exception:
+            pass
+
+    def _persist_trade_to_db(self, trade_data: dict):
+        try:
+            db = self._get_db_session()
+            try:
+                from db.models import Trade
+                trade = Trade(
+                    user_id=self.user_id,
+                    bot_id=self.bot_config.id if self.bot_config else 0,
+                    strategy_id=trade_data.get('strategy_id', 0),
+                    strategy_name=trade_data.get('strategy_name', ''),
+                    symbol=trade_data['symbol'],
+                    side=trade_data['side'],
+                    quantity=trade_data['quantity'],
+                    entry_price=trade_data['entry_price'],
+                    exit_price=trade_data.get('exit_price'),
+                    entry_time=trade_data['entry_time'] if isinstance(trade_data['entry_time'], datetime) else datetime.fromisoformat(trade_data['entry_time']),
+                    exit_time=trade_data.get('exit_time'),
+                    stop_loss=trade_data.get('stop_loss', 0.0),
+                    take_profit=trade_data.get('take_profit', 0.0),
+                    pnl=trade_data.get('pnl', 0.0),
+                    pnl_pct=trade_data.get('pnl_pct', 0.0),
+                    costs=trade_data.get('costs', 0.0),
+                    net_pnl=trade_data.get('net_pnl', 0.0),
+                    exit_reason=trade_data.get('exit_reason', ''),
+                    is_test=self.test_mode,
+                    source='live' if not self.test_mode else 'test',
+                )
+                db.add(trade)
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                console.print(f"[yellow]DB trade persist failed: {e}[/yellow]")
+            finally:
+                db.close()
+        except Exception:
+            pass
+
+    def _persist_position_to_db(self, pos_data: dict, action: str = "upsert"):
+        try:
+            db = self._get_db_session()
+            try:
+                from db.models import Position
+                from sqlalchemy import text
+                if action == "delete":
+                    db.execute(
+                        text("DELETE FROM positions WHERE bot_id = :bot_id AND strategy_id = :strategy_id AND symbol = :symbol"),
+                        {"bot_id": self.bot_config.id if self.bot_config else 0, "strategy_id": pos_data.get('strategy_id', 0), "symbol": pos_data['symbol']}
+                    )
+                    db.commit()
+                else:
+                    existing = db.query(Position).filter(
+                        Position.bot_id == (self.bot_config.id if self.bot_config else 0),
+                        Position.strategy_id == pos_data.get('strategy_id', 0),
+                        Position.symbol == pos_data['symbol'],
+                    ).first()
+                    if existing:
+                        existing.quantity = pos_data['quantity']
+                        existing.current_price = pos_data.get('current_price', 0.0)
+                        existing.stop_loss = pos_data.get('stop_loss', 0.0)
+                        existing.take_profit = pos_data.get('take_profit', 0.0)
+                        existing.unrealized_pnl = pos_data.get('unrealized_pnl', 0.0)
+                        existing.unrealized_pnl_pct = pos_data.get('unrealized_pnl_pct', 0.0)
+                    else:
+                        position = Position(
+                            user_id=self.user_id,
+                            bot_id=self.bot_config.id if self.bot_config else None,
+                            strategy_id=pos_data.get('strategy_id', 0),
+                            strategy_name=pos_data.get('strategy_name', ''),
+                            symbol=pos_data['symbol'],
+                            side=pos_data['side'],
+                            quantity=pos_data['quantity'],
+                            entry_price=pos_data['entry_price'],
+                            stop_loss=pos_data.get('stop_loss', 0.0),
+                            take_profit=pos_data.get('take_profit', 0.0),
+                            entry_time=pos_data['entry_time'] if isinstance(pos_data['entry_time'], datetime) else datetime.fromisoformat(pos_data['entry_time']),
+                            current_price=pos_data.get('current_price', 0.0),
+                            is_test=self.test_mode,
+                        )
+                        db.add(position)
+                    db.commit()
+            except Exception as e:
+                db.rollback()
+                console.print(f"[yellow]DB position persist failed: {e}[/yellow]")
+            finally:
+                db.close()
+        except Exception:
+            pass
+
+    def _load_positions_from_db(self):
+        try:
+            db = self._get_db_session()
+            try:
+                from db.models import Position
+                positions = db.query(Position).filter(
+                    Position.bot_id == (self.bot_config.id if self.bot_config else 0),
+                ).all()
+                if positions:
+                    restored = 0
+                    for p in positions:
+                        try:
+                            pos_data = {
+                                'strategy_id': p.strategy_id or 0,
+                                'strategy_name': p.strategy_name or '',
+                                'symbol': p.symbol,
+                                'side': p.side,
+                                'quantity': p.quantity,
+                                'entry_price': p.entry_price,
+                                'stop_loss': p.stop_loss or 0.0,
+                                'take_profit': p.take_profit or 0.0,
+                                'entry_time': p.entry_time.isoformat() if p.entry_time else None,
+                                'current_price': p.current_price or p.entry_price,
+                                'peak_price': p.entry_price,
+                                'low_price': p.entry_price,
+                            }
+                            self.portfolio.restore_position(pos_data)
+                            restored += 1
+                        except Exception as e:
+                            console.print(f"[yellow]Failed to restore position {p.symbol}: {e}[/yellow]")
+                    if restored > 0:
+                        console.print(f"[green]Restored {restored} positions from database[/green]")
+            finally:
+                db.close()
+        except Exception:
+            pass
+
     def is_market_open(self) -> bool:
-        """Check if market is currently open."""
-        now = datetime.now()
-        open_time = datetime(now.year, now.month, now.day, *self.MARKET_OPEN)
-        close_time = datetime(now.year, now.month, now.day, *self.MARKET_CLOSE)
+        now = self._ist_now()
+        open_time = datetime(now.year, now.month, now.day, *self.MARKET_OPEN, tzinfo=IST)
+        close_time = datetime(now.year, now.month, now.day, *self.MARKET_CLOSE, tzinfo=IST)
         return open_time <= now <= close_time
 
     def is_trading_hours(self) -> bool:
-        """Check if within trading hours (after OR, before force exit)."""
-        now = datetime.now()
-        or_end = datetime(now.year, now.month, now.day, *self.OR_END)
-        force_exit = datetime(now.year, now.month, now.day, *self.FORCE_EXIT)
+        now = self._ist_now()
+        or_end = datetime(now.year, now.month, now.day, *self.OR_END, tzinfo=IST)
+        force_exit = datetime(now.year, now.month, now.day, *self.FORCE_EXIT, tzinfo=IST)
         return or_end <= now <= force_exit
 
     def is_force_exit_time(self) -> bool:
-        """Check if it's force exit time."""
-        now = datetime.now()
+        now = self._ist_now()
         return now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]
 
     # Default fallback watchlist (F&O stocks commonly traded)
@@ -382,8 +536,8 @@ class MultiStrategyRunner:
                 return None
 
             from datetime import timedelta as td
-            to_date = datetime.now().strftime('%Y-%m-%d')
-            from_date = (datetime.now() - td(days=400)).strftime('%Y-%m-%d')
+            to_date = datetime.now(IST).strftime('%Y-%m-%d')
+            from_date = (datetime.now(IST) - td(days=400)).strftime('%Y-%m-%d')
 
             df = fetcher.upstox_api.fetch_historical_data_v3(
                 symbol=symbol,
@@ -441,8 +595,8 @@ class MultiStrategyRunner:
                 return None
 
             from datetime import timedelta as td
-            to_date = datetime.now().strftime('%Y-%m-%d')
-            from_date = (datetime.now() - td(days=10)).strftime('%Y-%m-%d')
+            to_date = datetime.now(IST).strftime('%Y-%m-%d')
+            from_date = (datetime.now(IST) - td(days=10)).strftime('%Y-%m-%d')
 
             df = fetcher.upstox_api.fetch_historical_data_v3(
                 symbol=symbol,
@@ -550,7 +704,7 @@ class MultiStrategyRunner:
             if symbol in self.cooldown_stocks:
                 exit_time = self.cooldown_stocks[symbol]
                 cooldown_end = exit_time + timedelta(minutes=runner.config.get('cooldown_minutes', 30))
-                if datetime.now() < cooldown_end:
+                if datetime.now(IST) < cooldown_end:
                     continue
                 else:
                     del self.cooldown_stocks[symbol]
@@ -675,7 +829,7 @@ class MultiStrategyRunner:
             scan_items.append(scan_item)
 
         runner.last_scan_items = scan_items
-        runner.last_scan_time = datetime.now()
+        runner.last_scan_time = datetime.now(IST)
         return new_signals
 
     def _scan_swing_strategy(self, strategy_id: int) -> list:
@@ -699,7 +853,7 @@ class MultiStrategyRunner:
                 exit_time = self.cooldown_stocks[symbol]
                 cooldown_days = runner.config.get('cooldown_days', 30)
                 cooldown_end = exit_time + timedelta(days=cooldown_days)
-                if datetime.now() < cooldown_end:
+                if datetime.now(IST) < cooldown_end:
                     continue
                 else:
                     del self.cooldown_stocks[symbol]
@@ -745,7 +899,7 @@ class MultiStrategyRunner:
             scan_items.append(scan_item)
 
         runner.last_scan_items = scan_items
-        runner.last_scan_time = datetime.now()
+        runner.last_scan_time = datetime.now(IST)
         return new_signals
 
     def execute_signal(self, strategy_id: int, signal: ORBSignal) -> bool:
@@ -815,6 +969,18 @@ class MultiStrategyRunner:
 
         if position:
             runner.trades_executed += 1
+            self._persist_position_to_db({
+                'strategy_id': strategy_id,
+                'strategy_name': runner.strategy_name,
+                'symbol': signal.symbol,
+                'side': "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+                'quantity': validation['shares'],
+                'entry_price': signal.price,
+                'stop_loss': signal.stop_loss or 0.0,
+                'take_profit': signal.take_profit or 0.0,
+                'entry_time': datetime.now(IST),
+                'current_price': signal.price,
+            }, action="upsert")
             if runner.strategy_type in SWING_STRATEGY_TYPES:
                 if not hasattr(position, 'metadata'):
                     position.metadata = {}
@@ -855,6 +1021,9 @@ class MultiStrategyRunner:
         # Update portfolio prices
         close_prices = {s: d['close'] for s, d in prices.items()}
         self.portfolio.update_prices(close_prices)
+
+        for pos in self.portfolio.get_all_positions():
+            self._persist_position_to_db(pos, action="upsert")
 
         # Check exit conditions for each position
         positions_to_close = []
@@ -906,7 +1075,7 @@ class MultiStrategyRunner:
                         highest_price_since_entry=pos.peak_price,
                         entry_52w_high=metadata.get('entry_52w_high'),
                         current_52w_high=metadata.get('current_52w_high'),
-                        days_in_position=(datetime.now() - pos.entry_time).days,
+                        days_in_position=(datetime.now(IST) - pos.entry_time).days,
                     )
                     if exit_signal:
                         exit_triggered = True
@@ -951,9 +1120,34 @@ class MultiStrategyRunner:
                     'strategy_name': trade.strategy_name,
                 }, strategy_id=trade.strategy_id, strategy_name=trade.strategy_name, bot_id=self.bot_config.id, bot_name=self.bot_config.name)
 
+                self._persist_position_to_db({
+                    'strategy_id': strategy_id,
+                    'strategy_name': runner.strategy_name,
+                    'symbol': symbol,
+                }, action="delete")
+
+                self._persist_trade_to_db({
+                    'strategy_id': strategy_id,
+                    'strategy_name': runner.strategy_name,
+                    'symbol': trade.symbol,
+                    'side': trade.side.value,
+                    'quantity': trade.quantity,
+                    'entry_price': trade.entry_price,
+                    'exit_price': trade.exit_price,
+                    'entry_time': trade.entry_time,
+                    'exit_time': trade.exit_time,
+                    'pnl': trade.pnl,
+                    'pnl_pct': trade.pnl_pct,
+                    'costs': trade.costs,
+                    'net_pnl': trade.net_pnl,
+                    'exit_reason': trade.exit_reason,
+                    'stop_loss': trade.sl_price if hasattr(trade, 'sl_price') else 0.0,
+                    'take_profit': trade.tp_price if hasattr(trade, 'tp_price') else 0.0,
+                })
+
                 trade_logged = True
                 # Add to cooldown
-                self.cooldown_stocks[symbol] = datetime.now()
+                self.cooldown_stocks[symbol] = datetime.now(IST)
         if trade_logged:
             self.journal.save_journal()
 
@@ -976,7 +1170,7 @@ class MultiStrategyRunner:
         """Save current state to snapshot file for UI."""
         try:
             snapshot = {
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': datetime.now(IST).isoformat(),
                 'bot_id': self.bot_config.id,
                 'bot_name': self.bot_config.name,
                 'running': self.running,
@@ -1052,7 +1246,7 @@ class MultiStrategyRunner:
             f"[bold cyan]Multi-Strategy Bot: {self.bot_config.name}[/bold cyan]\n"
             f"Mode: {'TEST' if self.test_mode else 'LIVE'} | "
             f"Strategies: {len(self.strategies)} | "
-            f"Time: {datetime.now().strftime('%H:%M:%S')}",
+            f"Time: {datetime.now(IST).strftime('%H:%M:%S')}",
             border_style="green"
         ))
 
@@ -1138,8 +1332,11 @@ class MultiStrategyRunner:
         self.start_all_strategies()
         self.running = True
 
+        self._write_heartbeat()
+
         # Initial setup
         self.refresh_watchlist()
+        self._load_positions_from_db()
 
         # Main loop
         cycle = 0
@@ -1147,7 +1344,7 @@ class MultiStrategyRunner:
             cycle += 1
 
             try:
-                console.print(f"\n[dim]--- Cycle {cycle} @ {datetime.now().strftime('%H:%M:%S')} ---[/dim]")
+                console.print(f"\n[dim]--- Cycle {cycle} @ {datetime.now(IST).strftime('%H:%M:%S')} ---[/dim]")
 
                 # Check market status
                 if not self.is_market_open():
@@ -1178,6 +1375,8 @@ class MultiStrategyRunner:
                 # Save snapshot
                 self.save_snapshot()
 
+                self._write_heartbeat()
+
                 # Wait for next cycle
                 if self.running and not self.is_force_exit_time():
                     console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")
@@ -1192,6 +1391,7 @@ class MultiStrategyRunner:
         console.print("\n[bold]Trading stopped. Final status:[/bold]")
         self.display_status()
         self.journal.save_journal()
+        self._clear_heartbeat()
 
 
 # For importing time module

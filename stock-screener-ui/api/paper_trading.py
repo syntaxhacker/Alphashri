@@ -35,6 +35,7 @@ from trading.journal import TradeJournal, get_journal
 
 from api.auth import get_current_user
 from db.models import User
+import config
 
 console = Console()
 
@@ -174,8 +175,8 @@ async def get_portfolio(user: "User" = Depends(get_current_user)):
     status = trader.get_portfolio_status()
 
     # Get today's date for filtering closed trades
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    today_str_compact = datetime.now().strftime('%Y%m%d')
+    today_str = datetime.now(config.IST).strftime('%Y-%m-%d')
+    today_str_compact = datetime.now(config.IST).strftime('%Y%m%d')
 
     # Calculate realized P&L from today's closed trades
     realized_pnl_today = 0.0
@@ -291,11 +292,89 @@ async def get_trades(
     bot_id: Optional[str] = None,
     user: "User" = Depends(get_current_user),
 ):
-    """Get trade history from journal with filters."""
+    """Get trade history from DB first, then journal fallback."""
+    from db.database import SessionLocal
+    from db.models import Trade as TradeModel
+
+    user_id = _get_user_id(user)
+    all_trades = _get_trades_from_db(user_id, bot_id, symbol, strategy, from_date, to_date, days_back, limit)
+
+    if not all_trades:
+        all_trades = _get_trades_from_journals(user_id, date, from_date, to_date, days_back, bot_id, symbol, strategy, limit)
+
+    return {
+        "total_trades": len(all_trades),
+        "filtered_trades": len(all_trades),
+        "trades": all_trades
+    }
+
+
+def _get_trades_from_db(
+    user_id: int,
+    bot_id: Optional[str],
+    symbol: Optional[str],
+    strategy: Optional[str],
+    from_date: Optional[str],
+    to_date: Optional[str],
+    days_back: int,
+    limit: int,
+) -> list:
+    from datetime import timedelta
+    from db.database import SessionLocal
+    from db.models import Trade as TradeModel
+
+    try:
+        db = SessionLocal()
+        query = db.query(TradeModel).filter(TradeModel.user_id == user_id, TradeModel.is_test == False)
+
+        if bot_id and bot_id != "default":
+            try:
+                numeric_bot_id = int(bot_id)
+                query = query.filter(TradeModel.bot_id == numeric_bot_id)
+            except ValueError:
+                pass
+
+        if symbol:
+            query = query.filter(TradeModel.symbol == symbol.upper())
+
+        if strategy:
+            query = query.filter(TradeModel.strategy_name == strategy)
+
+        if from_date:
+            query = query.filter(TradeModel.exit_time >= datetime.strptime(from_date, '%Y-%m-%d').replace(tzinfo=config.IST))
+
+        if to_date:
+            query = query.filter(TradeModel.exit_time <= datetime.strptime(to_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=config.IST))
+
+        if not from_date and not to_date:
+            cutoff = datetime.now(config.IST) - timedelta(days=days_back)
+            query = query.filter(TradeModel.exit_time >= cutoff)
+
+        query = query.order_by(TradeModel.exit_time.desc()).limit(limit)
+        return [t.to_dict() for t in query.all()]
+    except Exception:
+        return []
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def _get_trades_from_journals(
+    user_id: int,
+    date: Optional[str],
+    from_date: Optional[str],
+    to_date: Optional[str],
+    days_back: int,
+    bot_id: Optional[str],
+    symbol: Optional[str],
+    strategy: Optional[str],
+    limit: int,
+) -> list:
     from trading.journal import TradeJournal
     from datetime import timedelta
 
-    user_id = _get_user_id(user)
     if user_id:
         journal_dir = Path(__file__).parent.parent / "journals" / str(user_id)
     else:
@@ -304,7 +383,6 @@ async def get_trades(
     all_trades = []
 
     if date:
-        # Load specific date's journal
         date_str = date.replace('-', '')
         journal_file = journal_dir / f"journal_{date_str}.json"
         if journal_file.exists():
@@ -319,8 +397,8 @@ async def get_trades(
         if to_date:
             end_dt = datetime.strptime(to_date, '%Y-%m-%d')
         else:
-            end_dt = min(datetime.now(), start_dt + timedelta(days=90))
-        
+            end_dt = min(datetime.now(config.IST), start_dt + timedelta(days=90))
+
         current_dt = start_dt
         while current_dt <= end_dt:
             date_str = current_dt.strftime('%Y%m%d')
@@ -334,8 +412,7 @@ async def get_trades(
                     pass
             current_dt += timedelta(days=1)
     else:
-        # No specific date or from_date - use days_back
-        today = datetime.now().strftime('%Y%m%d')
+        today = datetime.now(config.IST).strftime('%Y%m%d')
         journal = TradeJournal(user_id=user_id)
         journal_file = journal_dir / f"journal_{today}.json"
         if journal_file.exists():
@@ -345,9 +422,8 @@ async def get_trades(
                 console.print(f"[yellow]Could not reload journal: {e}[/yellow]")
         all_trades = [asdict(t) for t in journal.trades]
 
-        # Load recent journal files
         for i in range(0, days_back + 1):
-            day_str = (datetime.now() - timedelta(days=i)).strftime('%Y%m%d')
+            day_str = (datetime.now(config.IST) - timedelta(days=i)).strftime('%Y%m%d')
             journal_file = journal_dir / f"journal_{day_str}.json"
             if not journal_file.exists():
                 continue
@@ -358,53 +434,75 @@ async def get_trades(
             except Exception:
                 pass
 
-    # Deduplicate trades
     deduped = {}
     for t in all_trades:
-        key = (
-            t.get('symbol'),
-            t.get('side'),
-            t.get('quantity'),
-            t.get('entry_time'),
-            t.get('exit_time'),
-        )
+        key = (t.get('symbol'), t.get('side'), t.get('quantity'), t.get('entry_time'), t.get('exit_time'))
         deduped[key] = t
     all_trades = list(deduped.values())
 
-    # Apply filters
-    filtered_trades = all_trades
-
     if symbol:
-        filtered_trades = [t for t in filtered_trades if t.get('symbol', '').upper() == symbol.upper()]
-
+        all_trades = [t for t in all_trades if t.get('symbol', '').upper() == symbol.upper()]
     if strategy:
-        # Filter by strategy if stored in notes
-        filtered_trades = [t for t in filtered_trades if strategy.lower() in (t.get('notes') or '').lower()]
-
+        all_trades = [t for t in all_trades if strategy.lower() in (t.get('notes') or '').lower()]
     if bot_id:
-        # Filter by bot_id - handle 'default' string and convert bot_id from query to same type as trade data
         if bot_id == "default":
-            # For default bot, we might want trades where bot_id is 0 or None
-            filtered_trades = [t for t in filtered_trades if t.get('bot_id') in (0, None, "0")]
+            all_trades = [t for t in all_trades if t.get('bot_id') in (0, None, "0")]
         else:
-            # Try numeric comparison first, then string
             try:
                 numeric_bot_id = int(bot_id)
-                filtered_trades = [t for t in filtered_trades if t.get('bot_id') == numeric_bot_id]
+                all_trades = [t for t in all_trades if t.get('bot_id') == numeric_bot_id]
             except ValueError:
-                filtered_trades = [t for t in filtered_trades if str(t.get('bot_id')) == str(bot_id)]
+                all_trades = [t for t in all_trades if str(t.get('bot_id')) == str(bot_id)]
 
-    # Sort by exit time descending
-    filtered_trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
+    all_trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
+    return all_trades[:limit]
 
-    # Apply limit
-    filtered_trades = filtered_trades[:limit]
 
-    return {
-        "total_trades": len(all_trades),
-        "filtered_trades": len(filtered_trades),
-        "trades": filtered_trades
-    }
+def _get_symbol_trades_from_db(user_id: int, symbol: str, date: str) -> list:
+    from db.database import SessionLocal
+    from db.models import Trade as TradeModel
+
+    try:
+        db = SessionLocal()
+        date_start = datetime.strptime(date, '%Y-%m-%d').replace(tzinfo=config.IST)
+        date_end = date_start.replace(hour=23, minute=59, second=59)
+        query = db.query(TradeModel).filter(
+            TradeModel.user_id == user_id,
+            TradeModel.symbol == symbol.upper(),
+            TradeModel.is_test == False,
+        )
+        if date:
+            query = query.filter(TradeModel.exit_time >= date_start, TradeModel.exit_time <= date_end)
+        trades = []
+        for t in query.all():
+            d = t.to_dict()
+            if d.get("entry_time") and d["entry_time"] != "":
+                try:
+                    dt = datetime.fromisoformat(d["entry_time"])
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=config.IST)
+                    ist_time = dt.astimezone(config.IST)
+                    d["entry_time"] = ist_time.strftime("%Y-%m-%dT%H:%M:%S")
+                except (ValueError, TypeError):
+                    pass
+            if d.get("exit_time") and d["exit_time"] != "":
+                try:
+                    dt = datetime.fromisoformat(d["exit_time"])
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=config.IST)
+                    ist_time = dt.astimezone(config.IST)
+                    d["exit_time"] = ist_time.strftime("%Y-%m-%dT%H:%M:%S")
+                except (ValueError, TypeError):
+                    pass
+            trades.append(d)
+        return trades
+    except Exception:
+        return []
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
 
 
 @router.delete("/trades/{trade_id}")
@@ -977,7 +1075,12 @@ async def get_paper_chart(
         import sys
         import pandas as pd
         sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-        from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
+        from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+        upstox_api = UpstoxAPI(
+            api_key=config.UPSTOX_API_KEY or "",
+            api_secret=config.UPSTOX_API_SECRET or "",
+            quiet=True,
+        )
 
         def _resample_to_5m(df_1m):
             """Resample 1-minute OHLCV to 5-minute OHLCV."""
@@ -1055,64 +1158,56 @@ async def get_paper_chart(
             return resampled if not resampled.empty else None
 
         # Get date to fetch
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = datetime.now(config.IST).strftime('%Y-%m-%d')
         if date is None:
             date = today
 
         # Always fetch 1-min data and resample to requested timeframe
         # This ensures all timeframes work consistently
-        screener = TVScreenerUsage(enable_paper_trading=False)
 
         def _fetch_chart_data():
             df_1m = None
+            if timeframe == '1day':
+                from datetime import timedelta as td
+                from_date = (datetime.strptime(date, '%Y-%m-%d') - td(days=10)).strftime('%Y-%m-%d')
+                df_1m = upstox_api.fetch_historical_data_v3(
+                    symbol=symbol.upper(),
+                    unit='days',
+                    interval=1,
+                    to_date=date,
+                    from_date=from_date,
+                )
+                if df_1m is not None and not df_1m.empty:
+                    date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
+                    date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
+                    df_1m = df_1m[(df_1m.index >= date_start) & (df_1m.index <= date_end)]
+                return df_1m
 
-            # Use historical API for past dates, intraday for today
             if date == today:
-                # Fetch today's intraday 1-min data
-                df_1m = screener.upstox_api.fetch_intraday_data_v3(
+                df_1m = upstox_api.fetch_intraday_data_v3(
                     symbol=symbol.upper(),
                     interval='1'
                 )
             else:
-                # Fetch historical 1-min data for past dates
                 from datetime import timedelta
                 from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
-                df_1m_full = screener.upstox_api.fetch_historical_data_v3(
+                df_1m_full = upstox_api.fetch_historical_data_v3(
                     symbol=symbol.upper(),
                     unit='minutes',
                     interval=1,
                     to_date=date,
                     from_date=from_date,
                 )
-                # Filter to only the requested date
                 if df_1m_full is not None and not df_1m_full.empty:
-                    date_start = f"{date}T00:00:00"
-                    date_end = f"{date}T23:59:59"
-                    df_1m = df_1m_full[df_1m_full.index >= date_start]
-                    df_1m = df_1m[df_1m.index <= date_end]
-
-                # Fallback: try broader range if no data
-                if df_1m is None or df_1m.empty:
-                    broad_from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
-                    df_1m_full = screener.upstox_api.fetch_historical_data_v3(
-                        symbol=symbol.upper(),
-                        unit='minutes',
-                        interval=1,
-                        to_date=date,
-                        from_date=broad_from_date,
-                    )
-                    if df_1m_full is not None and not df_1m_full.empty:
-                        date_start = f"{date}T00:00:00"
-                        date_end = f"{date}T23:59:59"
-                        df_1m = df_1m_full[df_1m_full.index >= date_start]
-                        df_1m = df_1m[df_1m.index <= date_end]
-
+                    date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
+                    date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
+                    df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
             return df_1m
 
         df_1m = await asyncio.to_thread(_fetch_chart_data)
 
-        # Resample to requested timeframe
-        df = _resample_to_timeframe(df_1m, timeframe)
+        # Resample to requested timeframe (1day data is already at the right level)
+        df = _resample_to_timeframe(df_1m, timeframe) if timeframe != '1day' else df_1m
 
         if df is None or df.empty:
             return {"error": f"No data for {symbol} on {date}", "symbol": symbol, "date": date}
@@ -1145,17 +1240,27 @@ async def get_paper_chart(
                 "or_range_pct": ((or_high - or_low) / or_open * 100) if or_open > 0 else 0,
             }
 
-        # Get 52-week levels from screener data
+        # Get 52-week levels from historical data
         week52_levels = None
+        pivot_levels = None
         try:
-            from upstox_trader.screeners.tv_screen_usage import TVScreenerUsage
-            tv_screener = TVScreenerUsage(enable_paper_trading=False)
-            # Try to get 52W data from TV screener
-            df_52w = tv_screener.fetch_52w_data(symbol.upper())
+            from datetime import timedelta as td
+            to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
+            from_date = (datetime.now(config.IST) - td(days=400)).strftime('%Y-%m-%d')
+            df_52w = upstox_api.fetch_historical_data_v3(
+                symbol=symbol.upper(),
+                unit='days',
+                interval=1,
+                to_date=to_date,
+                from_date=from_date,
+            )
             if df_52w is not None and not df_52w.empty:
-                row = df_52w.iloc[0]
-                high_52w = row.get('high_52w', 0)
-                low_52w = row.get('low_52w', 0)
+                highs = df_52w['high'].tolist()
+                lows = df_52w['low'].tolist()
+                window = highs[-252:] if len(highs) >= 252 else highs
+                high_52w = max(window) if window else 0
+                low_window = lows[-252:] if len(lows) >= 252 else lows
+                low_52w = min(low_window) if low_window else 0
                 if high_52w > 0:
                     current_price = candles[-1]['close'] if candles else 0
                     week52_levels = {
@@ -1165,54 +1270,108 @@ async def get_paper_chart(
                         "distance_to_low_pct": ((current_price - low_52w) / low_52w * 100) if low_52w > 0 and current_price > 0 else 0,
                         "near_high": ((high_52w - current_price) / high_52w * 100) <= 3.0 if high_52w > 0 and current_price > 0 else False,
                     }
+
+                # Calculate pivot points from previous trading day's HLC
+                date_ts = pd.Timestamp(date + " 00:00:00", tz=config.IST)
+                prev_days = df_52w[df_52w.index < date_ts]
+                if not prev_days.empty:
+                    last = prev_days.iloc[-1]
+                    prev_h, prev_l, prev_c = float(last['high']), float(last['low']), float(last['close'])
+                    pp = (prev_h + prev_l + prev_c) / 3
+                    hl = prev_h - prev_l
+                    pivot_levels = {
+                        "pp": round(pp, 2),
+                        "r1": round(2 * pp - prev_l, 2),
+                        "r2": round(pp + hl, 2),
+                        "s1": round(2 * pp - prev_h, 2),
+                        "s2": round(pp - hl, 2),
+                    }
         except Exception as e:
             console.print(f"[yellow]Could not fetch 52W levels for {symbol}: {e}[/yellow]")
 
         # Get trades from journal for this symbol and date
-        # Load the journal file for the specific date
         from trading.journal import TradeJournal
         uid = _get_user_id(user)
-        journal_dir = Path(__file__).parent.parent / "journals" / str(uid)
-        date_str = date.replace('-', '')  # 2026-02-23 -> 20260223
-        journal_file = journal_dir / f"journal_{date_str}.json"
 
-        symbol_trades = []
-        if journal_file.exists():
-            temp_journal = TradeJournal(user_id=uid)
-            try:
-                temp_journal.load_journal(str(journal_file))
+        symbol_trades = _get_symbol_trades_from_db(uid, symbol, date)
+
+        if not symbol_trades:
+            journal_dir = Path(__file__).parent.parent / "journals" / str(uid)
+            date_str = date.replace('-', '')  # 2026-02-23 -> 20260223
+            journal_file = journal_dir / f"journal_{date_str}.json"
+
+            if journal_file.exists():
+                temp_journal = TradeJournal(user_id=uid)
+                try:
+                    temp_journal.load_journal(str(journal_file))
+                    symbol_trades = [
+                        t for t in temp_journal.trades
+                        if t.symbol == symbol.upper()
+                    ]
+                except Exception as e:
+                    console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
+            else:
+                journal = get_journal(uid)
                 symbol_trades = [
-                    t for t in temp_journal.trades
-                    if t.symbol == symbol.upper()
+                    t for t in journal.trades
+                    if t.symbol == symbol.upper() and t.exit_time.startswith(date)
                 ]
-            except Exception as e:
-                console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
-        else:
-            # Fallback to global journal for today
-            journal = get_journal(uid)
-            symbol_trades = [
-                t for t in journal.trades
-                if t.symbol == symbol.upper() and t.exit_time.startswith(date)
-            ]
 
-        # Convert trades to dict format
-        trades_data = [{
-            "trade_id": t.trade_id,
-            "symbol": t.symbol,
-            "side": t.side,
-            "quantity": t.quantity,
-            "entry_price": t.entry_price,
-            "exit_price": t.exit_price,
-            "entry_time": t.entry_time,
-            "exit_time": t.exit_time,
-            "pnl": t.pnl,
-            "pnl_pct": t.pnl_pct,
-            "exit_reason": t.exit_reason,
-            "costs": t.costs,
-            "net_pnl": t.net_pnl,
-            "sl_price": t.sl_price,
-            "tp_price": t.tp_price,
-        } for t in symbol_trades]
+        # Convert trades to dict format (handle both journal Trade objects and DB dicts)
+        def _trade_to_dict(t):
+            def _calc_hold(entry, exit_):
+                if not entry or not exit_:
+                    return None
+                try:
+                    et = datetime.fromisoformat(entry)
+                    xt = datetime.fromisoformat(exit_)
+                    if et.tzinfo is None:
+                        et = et.replace(tzinfo=config.IST)
+                    if xt.tzinfo is None:
+                        xt = xt.replace(tzinfo=config.IST)
+                    return int((xt - et).total_seconds() / 60)
+                except (ValueError, TypeError):
+                    return None
+
+            if isinstance(t, dict):
+                return {
+                    "trade_id": t.get("trade_id", ""),
+                    "symbol": t.get("symbol", ""),
+                    "side": t.get("side", ""),
+                    "quantity": t.get("quantity", 0),
+                    "entry_price": t.get("entry_price", 0),
+                    "exit_price": t.get("exit_price", 0),
+                    "entry_time": t.get("entry_time", ""),
+                    "exit_time": t.get("exit_time", ""),
+                    "pnl": t.get("pnl", 0),
+                    "pnl_pct": t.get("pnl_pct", 0),
+                    "exit_reason": t.get("exit_reason", ""),
+                    "costs": t.get("costs", 0),
+                    "net_pnl": t.get("net_pnl", 0),
+                    "sl_price": t.get("stop_loss", 0),
+                    "tp_price": t.get("take_profit", 0),
+                    "hold_duration_minutes": _calc_hold(t.get("entry_time"), t.get("exit_time")),
+                }
+            return {
+                "trade_id": t.trade_id,
+                "symbol": t.symbol,
+                "side": t.side,
+                "quantity": t.quantity,
+                "entry_price": t.entry_price,
+                "exit_price": t.exit_price,
+                "entry_time": t.entry_time,
+                "exit_time": t.exit_time,
+                "pnl": t.pnl,
+                "pnl_pct": t.pnl_pct,
+                "exit_reason": t.exit_reason,
+                "costs": t.costs,
+                "net_pnl": t.net_pnl,
+                "sl_price": t.sl_price,
+                "tp_price": t.tp_price,
+                "hold_duration_minutes": _calc_hold(t.entry_time, t.exit_time),
+            }
+
+        trades_data = [_trade_to_dict(t) for t in symbol_trades]
 
         # Check for current position - prefer bot snapshot (for cross-process sync)
         current_position = None
@@ -1252,6 +1411,7 @@ async def get_paper_chart(
             "trades": trades_data,
             "orb_levels": orb_levels,
             "week52_levels": week52_levels,
+            "pivot_levels": pivot_levels,
             "current_position": current_position,
         }
 

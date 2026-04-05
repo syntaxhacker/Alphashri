@@ -11,12 +11,14 @@ export interface FormattedCell {
   className?: string;
 }
 
-export interface ColumnDef {
+export interface ColumnDef<T = Stock> {
   key: string;
   label: string;
-  type: "string" | "number" | "badge";
+  type?: "string" | "number" | "badge";
+  width?: number;
+  align?: "left" | "center" | "right";
   sortable?: boolean;
-  format?: (value: any, stock: Stock) => React.ReactNode | FormattedCell;
+  format?: (value: any, row: T) => React.ReactNode | FormattedCell;
 }
 
 export function getColumnsForScreener(screenerId: string): ColumnDef[] {

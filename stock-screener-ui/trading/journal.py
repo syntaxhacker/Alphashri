@@ -19,6 +19,8 @@ import csv
 # Add project paths
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+import config
+
 from rich.console import Console
 from rich.table import Table
 
@@ -175,7 +177,7 @@ class TradeJournal:
             Daily summary dict
         """
         if date is None:
-            date = datetime.now().strftime('%Y-%m-%d')
+            date = datetime.now(config.IST).strftime('%Y-%m-%d')
 
         return self.daily_summaries.get(date, {
             'date': date,
@@ -449,7 +451,7 @@ class TradeJournal:
 
         loaded_trades = 0
         for i in range(days):
-            date = (datetime.now() - timedelta(days=i)).strftime('%Y%m%d')
+            date = (datetime.now(config.IST) - timedelta(days=i)).strftime('%Y%m%d')
             journal_file = self.journal_dir / f"journal_{date}.json"
             if journal_file.exists():
                 try:
@@ -529,7 +531,7 @@ class TradeJournal:
     def export_to_csv(self, filepath: Optional[str] = None) -> str:
         """Export trades to CSV."""
         if filepath is None:
-            filepath = self.journal_dir / f"trades_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            filepath = self.journal_dir / f"trades_{datetime.now(config.IST).strftime('%Y%m%d_%H%M%S')}.csv"
         else:
             filepath = Path(filepath)
 
@@ -550,7 +552,7 @@ class TradeJournal:
 
     def save_journal(self):
         """Save journal to JSON file."""
-        filepath = self.journal_dir / f"journal_{datetime.now().strftime('%Y%m%d')}.json"
+        filepath = self.journal_dir / f"journal_{datetime.now(config.IST).strftime('%Y%m%d')}.json"
 
         data = {
             'trades': [asdict(t) for t in self.trades],
@@ -558,7 +560,7 @@ class TradeJournal:
                 k: {**v, 'symbols': list(v['symbols'])}
                 for k, v in self.daily_summaries.items()
             },
-            'last_updated': datetime.now().isoformat(),
+            'last_updated': datetime.now(config.IST).isoformat(),
         }
 
         with open(filepath, 'w') as f:
@@ -645,7 +647,7 @@ def get_journal(user_id: Optional[int] = None) -> TradeJournal:
         if _default_journal is None:
             _default_journal = TradeJournal()
             # Try to load today's journal file
-            today = datetime.now().strftime('%Y%m%d')
+            today = datetime.now(config.IST).strftime('%Y%m%d')
             journal_file = _default_journal.journal_dir / f"journal_{today}.json"
             if journal_file.exists():
                 try:
@@ -657,7 +659,7 @@ def get_journal(user_id: Optional[int] = None) -> TradeJournal:
     if user_id not in _journals:
         _journals[user_id] = TradeJournal(user_id=user_id)
         # Try to load today's journal file
-        today = datetime.now().strftime('%Y%m%d')
+        today = datetime.now(config.IST).strftime('%Y%m%d')
         journal_file = _journals[user_id].journal_dir / f"journal_{today}.json"
         if journal_file.exists():
             try:

@@ -29,8 +29,17 @@ import {
 } from "../state/backtest";
 import { buildChartData } from "./chartBuilder";
 import { fetchWithAuth } from "../state/auth";
+import { notifications } from "@mantine/notifications";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+
+function showBacktestError(message: string) {
+  notifications.show({
+    title: "Backtest Error",
+    message,
+    color: "red",
+  });
+}
 
 // Calculate totals from results
 export function calculateTotals(results: BacktestResult[]): BacktestTotals {
@@ -134,6 +143,7 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
         msg = errBody.detail || errBody.error || msg;
       } catch {}
       setError(msg);
+      showBacktestError(msg);
       return null;
     }
 
@@ -142,6 +152,7 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
 
     if (data.error) {
       setError(data.error);
+      showBacktestError(data.error);
       return null;
     }
 
@@ -152,7 +163,6 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
 
       // Process chart data from response
       if (data.chart_data) {
-        console.log("Processing chart data for symbols:", Object.keys(data.chart_data));
         for (const symbol of Object.keys(data.chart_data)) {
           const symbolChartData = data.chart_data[symbol];
 
@@ -163,37 +173,14 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
             symbolChartData.week52_levels
           ) {
             // API already built the chart data, use it directly
-            console.log(
-              `Using pre-built chart data for ${symbol}:`,
-              symbolChartData.candles?.length || 0,
-              "candles,",
-              symbolChartData.trades?.length || 0,
-              "trades,",
-              "week52_levels:",
-              symbolChartData.week52_levels?.length || 0,
-            );
             setChartData(symbol, symbolChartData);
           } else if (data.candles && symbolChartData.trades) {
             // Legacy: API returned raw trades, build chart data on frontend
-            console.log(
-              `Building chart data for ${symbol}:`,
-              symbolChartData.trades.length,
-              "trades",
-            );
             const chartData = buildChartData(
               symbol,
               data.candles[symbol],
               symbolChartData.trades,
               state.params.or_minutes || 45,
-            );
-            console.log(
-              `Built chart data for ${symbol}:`,
-              chartData.candles.length,
-              "candles,",
-              chartData.orb_zones.length,
-              "zones,",
-              chartData.trades.length,
-              "trade markers",
             );
             setChartData(symbol, chartData);
           }

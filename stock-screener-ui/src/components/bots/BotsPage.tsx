@@ -1,17 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
-import {
-  Box,
-  Tabs,
-  Button,
-  Group,
-  Alert,
-  Stack,
-  Text,
-  Badge,
-  ActionIcon,
-  Table,
-  Loader,
-} from "@mantine/core";
+import { useEffect, useCallback, useState } from "react";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { Box, Tabs, Button, Group, Stack, Text, Badge, ActionIcon, Table } from "@mantine/core";
 import {
   IconRobot,
   IconChartLine,
@@ -45,20 +34,19 @@ import type { BotConfig, BotsView } from "../../types/bots";
 import { BotConfigModal } from "./BotConfigModal";
 import { BotStatusPanel } from "./BotStatusPanel";
 import { CompactPage, CompactPanel } from "../common/compact";
+import { LoadingState, ErrorAlert, EmptyCompact } from "../common/states";
+import { StatusBadge } from "../common/BadgeComponents";
 
 export function BotsPage() {
-  const [state, setState] = useState(getBotsState());
   const [currentView, setCurrentViewState] = useState<BotsView>("list");
 
-  useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      setState(getBotsState());
-    });
+  useStoreSubscription(subscribe);
+  const state = getBotsState();
 
+  useEffect(() => {
     initBotsState();
 
     return () => {
-      unsubscribe();
       stopAutoRefresh();
     };
   }, []);
@@ -103,15 +91,13 @@ export function BotsPage() {
   const renderBotsList = () => {
     if (state.bots.length === 0) {
       return (
-        <CompactPanel id="bots-empty-state" data-testid="bots-empty-state">
-          <Stack align="center" gap="xs">
-            <Text size="xl">🤖</Text>
-            <Text fw={600}>No bots configured</Text>
-            <Text size="sm" c="dimmed">
-              Click "New Bot" to create one
-            </Text>
-          </Stack>
-        </CompactPanel>
+        <EmptyCompact
+          emoji="🤖"
+          title="No bots configured"
+          description='Click "New Bot" to create one'
+          data-testid="bots-empty-state"
+          id="bots-empty-state"
+        />
       );
     }
 
@@ -155,14 +141,11 @@ export function BotsPage() {
                   </Group>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={bot.running ? "green" : "gray"}
-                    variant="light"
-                    size="sm"
+                  <StatusBadge
+                    running={bot.running}
+                    pid={bot.pid}
                     data-testid={`bot-status-${bot.id}`}
-                  >
-                    {bot.running ? `Running (PID ${bot.pid})` : "Stopped"}
-                  </Badge>
+                  />
                 </Table.Td>
                 <Table.Td>
                   <Stack gap={4}>
@@ -275,17 +258,7 @@ export function BotsPage() {
         data-testid="bots-view"
       >
         {state.error && (
-          <Alert
-            title="Error"
-            color="red"
-            variant="filled"
-            mb="md"
-            withCloseButton
-            onClose={handleClearError}
-            data-testid="bots-error"
-          >
-            {state.error}
-          </Alert>
+          <ErrorAlert message={state.error} onClose={handleClearError} data-testid="bots-error" />
         )}
 
         <Box flex="0 0 auto" mb="md" className="bots-header">
@@ -318,8 +291,7 @@ export function BotsPage() {
         <Box flex={1} style={{ minHeight: 0, overflowY: "auto" }}>
           {isLoading ? (
             <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
-              <Loader size="lg" />
-              <Text c="dimmed">Loading...</Text>
+              <LoadingState message="Loading..." size="lg" />
             </Stack>
           ) : currentView === "status" && state.selectedBot ? (
             <BotStatusPanel

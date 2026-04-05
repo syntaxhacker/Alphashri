@@ -1,17 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import dayjs from "dayjs";
-import {
-  Box,
-  Grid,
-  Tabs,
-  SegmentedControl,
-  Card,
-  Text,
-  Group,
-  Stack,
-  Loader,
-  Alert,
-} from "@mantine/core";
+import { Box, Grid, Tabs, SegmentedControl, Text, Group, Stack, Alert } from "@mantine/core";
 import { IconActivity, IconHistory, IconSettings } from "@tabler/icons-react";
 import {
   getPaperTradingState,
@@ -20,21 +10,10 @@ import {
   setFilterFromDate,
   setFilterToDate,
   setFilterSymbol,
-  setFilterStrategy,
   setError,
   setAvailableBots,
 } from "../../state/paperTrading";
-import type {
-  PaperTradingState,
-  PaperTradingView,
-  PaperPosition,
-  PaperTrade,
-  PaperChartData,
-  PortfolioStatus,
-  PaperBotSnapshot,
-  StrategyConfig,
-  BotInfo,
-} from "../../types/paperTrading";
+import type { PaperTradingView, PaperTrade, BotInfo } from "../../types/paperTrading";
 
 import { PaperPositionsTable } from "./PaperPositionsTable";
 import { PaperPortfolioCard } from "./PaperPortfolioCard";
@@ -49,31 +28,23 @@ import {
   stopLiveAutoRefresh,
   startPaperBot,
   stopPaperBot,
-  fetchPaperBotStatus,
   fetchStrategyConfig,
   refreshBotLiveData,
   listBots,
   startBot,
   stopBot,
-  fetchBotPortfolio,
-  fetchBotPositions,
-  fetchBotScanItems,
 } from "../../api/paperTrading";
 
 let activeBotId: string | null = null;
 
 export function PaperTradingView() {
-  const [state, setState] = useState<PaperTradingState>(getPaperTradingState);
+  useStoreSubscription(subscribe);
+  const state = getPaperTradingState();
 
   useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      setState(getPaperTradingState());
-    });
-
     loadInitialData();
 
     return () => {
-      unsubscribe();
       stopLiveAutoRefresh();
     };
   }, []);

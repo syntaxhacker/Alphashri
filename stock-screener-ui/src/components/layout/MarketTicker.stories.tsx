@@ -1,22 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { Box } from "@mantine/core";
 import { MarketTicker } from "./MarketTicker";
-
-interface MarketTickerItem {
-  symbol: string;
-  name: string;
-  price: number;
-  change: number;
-  change_percent: number;
-  is_positive: boolean;
-}
-
-interface MarketTickerData {
-  tickers: Record<string, MarketTickerItem>;
-  last_updated: string | null;
-  loading: boolean;
-  error: string | null;
-}
+import type { MarketTickerData } from "./MarketTicker";
 
 const mockMarketData: MarketTickerData = {
   tickers: {
@@ -101,7 +86,6 @@ const meta: Meta<typeof MarketTicker> = {
         json: () => Promise.resolve(data),
       }) as unknown as ReturnType<typeof fetch>;
 
-      const originalFetch = window.fetch;
       window.fetch = () => mockFetch;
 
       return (

@@ -63,8 +63,8 @@ export function computePcrColor(pcr: number): string {
 
 export function ChainSummary({
   strikeMatrix,
-  spotPrice,
-  selectedExpiry,
+  spotPrice: _spotPrice,
+  selectedExpiry: _selectedExpiry,
   summary,
 }: ChainSummaryProps) {
   const stats = useMemo(() => computeStats(strikeMatrix, summary), [strikeMatrix, summary]);

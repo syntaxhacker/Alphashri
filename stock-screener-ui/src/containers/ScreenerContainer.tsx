@@ -1,4 +1,3 @@
-import { useEffect, useMemo } from "react";
 import { ScreenerPage } from "../components/screener";
 import { useScreenerState } from "../hooks/useScreenerState";
 

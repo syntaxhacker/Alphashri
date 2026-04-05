@@ -1,5 +1,6 @@
-import { Group, Text } from "@mantine/core";
 import type { BacktestTotals } from "../../types/backtest";
+import { formatPnl as formatPnlShared, getPnLTextColor } from "../../utils/ui-helpers";
+import { CompactStat, CompactStatGrid } from "../common/compact";
 
 interface BacktestSummaryProps {
   totals: BacktestTotals | null;
@@ -20,19 +21,6 @@ export function resolveTotals(totals: BacktestTotals | null): {
   };
 }
 
-export function getPnlColor(netPnl: number): string {
-  return netPnl >= 0 ? "green" : "red";
-}
-
-export function getPnlSign(netPnl: number): string {
-  return netPnl >= 0 ? "+" : "";
-}
-
-export function formatPnl(netPnl: number): string {
-  const pnlSign = getPnlSign(netPnl);
-  return `${pnlSign}₹${(netPnl / 1000).toFixed(1)}K`;
-}
-
 export function formatCosts(totalCosts: number): string {
   return `₹${(totalCosts / 1000).toFixed(1)}K`;
 }
@@ -48,48 +36,40 @@ export function BacktestSummary({ totals }: BacktestSummaryProps) {
   const totalCosts = totals.total_costs ?? 0;
   const winRate = totals.win_rate ?? 0;
 
-  const pnlColor = netPnl >= 0 ? "green" : "red";
-  const pnlSign = netPnl >= 0 ? "+" : "";
+  const pnlColor = getPnLTextColor(netPnl);
 
   return (
-    <Group
+    <CompactStatGrid
       id="backtest-summary"
       className="backtest-summary"
-      gap="sm"
       data-testid="results-summary"
     >
-      <Group gap={4} className="summary-item summary-net-pnl" data-testid="summary-net-pnl">
-        <Text size="sm" c="dimmed">
-          Net PnL
-        </Text>
-        <Text size="sm" fw={600} c={pnlColor}>
-          {pnlSign}₹{(netPnl / 1000).toFixed(1)}K
-        </Text>
-      </Group>
-      <Group gap={4} className="summary-item summary-costs" data-testid="summary-costs">
-        <Text size="sm" c="dimmed">
-          Costs
-        </Text>
-        <Text size="sm" fw={600} c="red">
-          ₹{(totalCosts / 1000).toFixed(1)}K
-        </Text>
-      </Group>
-      <Group gap={4} className="summary-item summary-wr" data-testid="summary-wr">
-        <Text size="sm" c="dimmed">
-          WR
-        </Text>
-        <Text size="sm" fw={600}>
-          {winRate.toFixed(0)}%
-        </Text>
-      </Group>
-      <Group gap={4} className="summary-item summary-trades" data-testid="summary-trades">
-        <Text size="sm" c="dimmed">
-          Trades
-        </Text>
-        <Text size="sm" fw={600}>
-          {totals.trades ?? 0}
-        </Text>
-      </Group>
-    </Group>
+      <CompactStat
+        label="Net PnL"
+        value={formatPnlShared(netPnl)}
+        tone={pnlColor}
+        className="summary-item summary-net-pnl"
+        data-testid="summary-net-pnl"
+      />
+      <CompactStat
+        label="Costs"
+        value={`₹${(totalCosts / 1000).toFixed(1)}K`}
+        tone="red"
+        className="summary-item summary-costs"
+        data-testid="summary-costs"
+      />
+      <CompactStat
+        label="WR"
+        value={`${winRate.toFixed(0)}%`}
+        className="summary-item summary-wr"
+        data-testid="summary-wr"
+      />
+      <CompactStat
+        label="Trades"
+        value={totals.trades ?? 0}
+        className="summary-item summary-trades"
+        data-testid="summary-trades"
+      />
+    </CompactStatGrid>
   );
 }

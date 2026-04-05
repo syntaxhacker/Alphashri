@@ -9,6 +9,7 @@ import { ScreenerEmpty } from "./ScreenerEmpty";
 import { ScreenerLoading } from "./ScreenerLoading";
 import { getColumnsForScreener } from "./columns";
 import type { Stock } from "../../types";
+import { useTableSort } from "../../hooks/useTableSort";
 import { CompactPage, CompactPanel } from "../common/compact";
 
 interface ScreenerPageProps {
@@ -36,23 +37,6 @@ interface ScreenerPageProps {
   error?: string | null;
 }
 
-function sortStocks(
-  stocks: Stock[],
-  sortColumn: string | null,
-  sortDirection: "asc" | "desc",
-): Stock[] {
-  if (!sortColumn) return stocks;
-  return [...stocks].sort((a, b) => {
-    const aVal = a[sortColumn];
-    const bVal = b[sortColumn];
-    if (aVal === bVal) return 0;
-    if (aVal === null || aVal === undefined) return 1;
-    if (bVal === null || bVal === undefined) return -1;
-    const comparison = aVal < bVal ? -1 : 1;
-    return sortDirection === "asc" ? comparison : -comparison;
-  });
-}
-
 export function ScreenerPage({
   screenerOptions,
   activeScreener,
@@ -73,28 +57,31 @@ export function ScreenerPage({
   onSymbolHover,
   error,
 }: ScreenerPageProps) {
-  const [sortColumn, setSortColumn] = useState<string | null>("score");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const {
+    sortColumn,
+    sortDirection,
+    handleSort: handleSortChange,
+    getSortedData,
+  } = useTableSort<Stock>({
+    initialColumn: "score",
+    initialDirection: "desc",
+  });
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
 
   const sortedApproaching = useMemo(
-    () => sortStocks(approachingStocks ?? [], sortColumn, sortDirection),
-    [approachingStocks, sortColumn, sortDirection],
+    () =>
+      getSortedData(
+        approachingStocks ?? [],
+        (s) => s[sortColumn as keyof Stock] as string | number,
+      ),
+    [approachingStocks, getSortedData, sortColumn],
   );
 
   const sortedTouched = useMemo(
-    () => sortStocks(touchedStocks ?? [], sortColumn, sortDirection),
-    [touchedStocks, sortColumn, sortDirection],
+    () =>
+      getSortedData(touchedStocks ?? [], (s) => s[sortColumn as keyof Stock] as string | number),
+    [touchedStocks, getSortedData, sortColumn],
   );
-
-  const handleSortChange = (column: string) => {
-    if (sortColumn === column) {
-      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(column);
-      setSortDirection("desc");
-    }
-  };
 
   const columns = getColumnsForScreener(activeScreener);
   const emptySet = new Set<string>();

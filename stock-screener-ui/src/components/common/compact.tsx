@@ -66,6 +66,7 @@ interface CompactPanelProps extends PaperProps {
   action?: ReactNode;
   padded?: boolean;
   testId?: string;
+  id?: string;
 }
 
 export function CompactPanel({

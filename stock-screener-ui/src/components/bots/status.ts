@@ -22,6 +22,12 @@ import {
   stopAutoRefresh,
 } from "../../state/bots";
 import { isLoading } from "../../utils/loading";
+import {
+  getPnLTextColor,
+  formatSignedPnl,
+  formatNumber,
+  formatExitReason,
+} from "../../utils/ui-helpers";
 
 export function renderBotStatusPanel(bot: BotConfig, status: BotStatus | null): string {
   const state = getBotsState();
@@ -103,8 +109,8 @@ export function renderBotStatusPanel(bot: BotConfig, status: BotStatus | null): 
 }
 
 function renderPortfolioSummary(portfolio: PortfolioSummary): string {
-  const pnlColor = portfolio.total_pnl >= 0 ? "positive" : "negative";
-  const dailyPnlColor = portfolio.daily_pnl >= 0 ? "positive" : "negative";
+  const pnlColorClass = getPnLTextColor(portfolio.total_pnl);
+  const dailyPnlColorClass = getPnLTextColor(portfolio.daily_pnl);
 
   return `
     <div class="portfolio-summary" data-testid="portfolio-summary">
@@ -124,15 +130,15 @@ function renderPortfolioSummary(portfolio: PortfolioSummary): string {
         </div>
         <div class="metric">
           <span class="metric-label">Total P&L</span>
-          <span class="metric-value ${pnlColor}">
-            ${portfolio.total_pnl >= 0 ? "+" : ""}₹${formatNumber(portfolio.total_pnl)}
+          <span class="metric-value ${pnlColorClass}">
+            ${formatSignedPnl(portfolio.total_pnl)}
             <span class="pnl-pct">(${portfolio.total_pnl_pct >= 0 ? "+" : ""}${portfolio.total_pnl_pct.toFixed(2)}%)</span>
           </span>
         </div>
         <div class="metric">
           <span class="metric-label">Daily P&L</span>
-          <span class="metric-value ${dailyPnlColor}">
-            ${portfolio.daily_pnl >= 0 ? "+" : ""}₹${formatNumber(portfolio.daily_pnl)}
+          <span class="metric-value ${dailyPnlColorClass}">
+            ${formatSignedPnl(portfolio.daily_pnl)}
           </span>
         </div>
       </div>
@@ -156,8 +162,8 @@ function renderStrategiesStatus(
   `;
 }
 
-function renderStrategyCard(strategy: StrategyStatus, isRunning: boolean): string {
-  const pnlColor = strategy.total_pnl >= 0 ? "positive" : "negative";
+function renderStrategyCard(strategy: StrategyStatus, _isRunning: boolean): string {
+  const pnlColorClass = getPnLTextColor(strategy.total_pnl);
   const usedPct = strategy.capital_used_pct;
 
   return `
@@ -180,8 +186,8 @@ function renderStrategyCard(strategy: StrategyStatus, isRunning: boolean): strin
         </div>
         <div class="strategy-metric">
           <span>P&L</span>
-          <span class="${pnlColor}">
-            ${strategy.total_pnl >= 0 ? "+" : ""}₹${formatNumber(strategy.total_pnl)}
+          <span class="${pnlColorClass}">
+            ${formatSignedPnl(strategy.total_pnl)}
           </span>
         </div>
         <div class="strategy-metric">
@@ -222,7 +228,7 @@ function renderPositions(positions: BotPosition[]): string {
 }
 
 function renderPositionRow(position: BotPosition): string {
-  const pnlColor = position.unrealized_pnl >= 0 ? "positive" : "negative";
+  const pnlColorClass = getPnLTextColor(position.unrealized_pnl);
 
   return `
     <tr class="position-row">
@@ -232,8 +238,8 @@ function renderPositionRow(position: BotPosition): string {
       <td class="quantity">${position.quantity}</td>
       <td class="entry">₹${position.entry_price.toFixed(2)}</td>
       <td class="current">₹${position.current_price.toFixed(2)}</td>
-      <td class="pnl ${pnlColor}">
-        ${position.unrealized_pnl >= 0 ? "+" : ""}₹${formatNumber(position.unrealized_pnl)}
+      <td class="pnl ${pnlColorClass}">
+        ${formatSignedPnl(position.unrealized_pnl)}
         <span class="pnl-pct">(${position.unrealized_pnl_pct >= 0 ? "+" : ""}${position.unrealized_pnl_pct.toFixed(2)}%)</span>
       </td>
       <td class="sl-tp">
@@ -299,8 +305,8 @@ function renderTradesHistory(trades: BotTrade[], loading: boolean, botId: string
 }
 
 function renderTradeRow(trade: BotTrade): string {
-  const pnlColor = trade.pnl >= 0 ? "positive" : "negative";
-  const netPnlColor = trade.net_pnl >= 0 ? "positive" : "negative";
+  const pnlColorClass = getPnLTextColor(trade.pnl);
+  const netPnlColorClass = getPnLTextColor(trade.net_pnl);
 
   return `
     <tr class="trade-row ${trade.is_test ? "test-trade" : ""}">
@@ -313,36 +319,16 @@ function renderTradeRow(trade: BotTrade): string {
       <td class="quantity">${trade.quantity}</td>
       <td class="entry">₹${trade.entry_price.toFixed(2)}</td>
       <td class="exit">₹${(trade.exit_price ?? 0).toFixed(2)}</td>
-      <td class="pnl ${pnlColor}">
-        ${trade.pnl >= 0 ? "+" : ""}₹${formatNumber(trade.pnl)}
+      <td class="pnl ${pnlColorClass}">
+        ${formatSignedPnl(trade.pnl)}
         <span class="pnl-pct">(${trade.pnl_pct >= 0 ? "+" : ""}${trade.pnl_pct.toFixed(2)}%)</span>
       </td>
-      <td class="net-pnl ${netPnlColor}">
-        ${trade.net_pnl >= 0 ? "+" : ""}₹${formatNumber(trade.net_pnl)}
+      <td class="net-pnl ${netPnlColorClass}">
+        ${formatSignedPnl(trade.net_pnl)}
       </td>
       <td class="exit-reason ${trade.exit_reason}">${formatExitReason(trade.exit_reason)}</td>
     </tr>
   `;
-}
-
-export function formatExitReason(reason: string): string {
-  const reasons: Record<string, string> = {
-    target: "Target",
-    stop_loss: "Stop Loss",
-    signal: "Signal",
-    manual: "Manual",
-    timeout: "Timeout",
-  };
-  return reasons[reason] || reason;
-}
-
-export function formatNumber(num: number): string {
-  if (Math.abs(num) >= 100000) {
-    return (num / 100000).toFixed(1) + "L";
-  } else if (Math.abs(num) >= 1000) {
-    return (num / 1000).toFixed(1) + "K";
-  }
-  return num.toFixed(0);
 }
 
 // Initialize status panel handlers

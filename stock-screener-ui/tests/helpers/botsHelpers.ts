@@ -52,7 +52,7 @@ export async function mockAvailableStrategiesRoute(page: Page, strategies: any[]
 
 export async function gotoBotsViewAndWait(page: Page) {
   await gotoBotsView(page);
-  await page.waitForLoadState("networkidle");
+  await page.waitForSelector('[data-testid="bot-row-"]', { timeout: 10000 }).catch(() => {});
 }
 
 export async function mockCreateBotRoute(
