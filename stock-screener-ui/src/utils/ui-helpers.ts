@@ -271,6 +271,33 @@ export function getNextSortDirection(
   return currentDirection === "asc" ? "desc" : "asc";
 }
 
+export function sortByField<T>(
+  items: T[],
+  field: keyof T | ((item: T) => string | number | null | undefined),
+  direction: "asc" | "desc",
+): T[] {
+  const sorted = [...items];
+  const accessor = typeof field === "function" ? field : (item: T) => item[field];
+  const dir = direction === "asc" ? 1 : -1;
+
+  sorted.sort((a, b) => {
+    const aVal = accessor(a);
+    const bVal = accessor(b);
+
+    if (aVal == null && bVal == null) return 0;
+    if (aVal == null) return 1;
+    if (bVal == null) return -1;
+
+    if (typeof aVal === "string" && typeof bVal === "string") {
+      return dir * aVal.localeCompare(bVal);
+    }
+
+    return dir * ((aVal as number) - (bVal as number));
+  });
+
+  return sorted;
+}
+
 // ============================================
 // Time Normalization (for chart candle matching)
 // ============================================

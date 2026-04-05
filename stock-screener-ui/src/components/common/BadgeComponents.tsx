@@ -22,14 +22,29 @@ interface ExitReasonBadgeProps {
   "data-testid"?: string;
 }
 
-export function ExitReasonBadge({ reason, size = "sm", "data-testid": testId }: ExitReasonBadgeProps) {
+export function ExitReasonBadge({
+  reason,
+  size = "sm",
+  "data-testid": testId,
+}: ExitReasonBadgeProps) {
   let color: string = "gray";
   const r = (reason || "").toLowerCase();
   if (r === "tp" || r === "target") color = "green";
   else if (r === "sl" || r === "stop_loss") color = "red";
   else if (r === "trailing_stop" || r === "eod") color = "orange";
 
-  const label = r === "tp" ? "TP" : r === "sl" ? "SL" : r === "stop_loss" ? "SL" : r === "target" ? "Target" : r === "trailing_stop" ? "Trail" : reason;
+  const label =
+    r === "tp"
+      ? "TP"
+      : r === "sl"
+        ? "SL"
+        : r === "stop_loss"
+          ? "SL"
+          : r === "target"
+            ? "Target"
+            : r === "trailing_stop"
+              ? "Trail"
+              : reason;
 
   return (
     <Badge color={color} variant="light" size={size} data-testid={testId}>
@@ -45,7 +60,12 @@ interface StatusBadgeProps {
   "data-testid"?: string;
 }
 
-export function StatusBadge({ running, pid, size = "sm", "data-testid": testId }: StatusBadgeProps) {
+export function StatusBadge({
+  running,
+  pid,
+  size = "sm",
+  "data-testid": testId,
+}: StatusBadgeProps) {
   return (
     <Badge color={running ? "green" : "gray"} variant="light" size={size} data-testid={testId}>
       {running ? (pid ? `Running (PID ${pid})` : "Running") : "Stopped"}

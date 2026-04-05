@@ -39,7 +39,12 @@ export const initialPaperTradingState: PaperTradingState = {
   filterBot: null,
 
   selectedSymbol: null,
-  selectedStrategyTab: null, // For multi-strategy position tabs
+  selectedStrategyTab: null,
+  selectedTradeId: null,
+  showAllTrades: false,
+  showOrbLines: false,
+  showPivotLines: false,
+  show52wLines: false,
   chartData: null,
   chartLoading: false,
   chartTimeframe: "5min",
@@ -146,7 +151,41 @@ export function setFilterStrategy(strategy: string | null) {
 
 // Chart management
 export function setSelectedSymbol(symbol: string | null) {
-  state = { ...state, selectedSymbol: symbol };
+  state = { ...state, selectedSymbol: symbol, selectedTradeId: null };
+  notify();
+}
+
+export function setSelectedTradeId(tradeId: string | null, strategyName?: string | null) {
+  let showOrb = false;
+  let showPivot = false;
+  let show52w = false;
+  if (strategyName) {
+    const s = strategyName.toUpperCase();
+    if (s.includes("ORB")) showOrb = true;
+    if (s.includes("S/R") || s.includes("BREAKOUT") || s.includes("PIVOT")) showPivot = true;
+    if (s.includes("52W")) show52w = true;
+  }
+  state = { ...state, selectedTradeId: tradeId, showAllTrades: false, showOrbLines: showOrb, showPivotLines: showPivot, show52wLines: show52w };
+  notify();
+}
+
+export function setShowAllTrades(show: boolean) {
+  state = { ...state, showAllTrades: show };
+  notify();
+}
+
+export function setShowOrbLines(show: boolean) {
+  state = { ...state, showOrbLines: show };
+  notify();
+}
+
+export function setShowPivotLines(show: boolean) {
+  state = { ...state, showPivotLines: show };
+  notify();
+}
+
+export function setShow52wLines(show: boolean) {
+  state = { ...state, show52wLines: show };
   notify();
 }
 

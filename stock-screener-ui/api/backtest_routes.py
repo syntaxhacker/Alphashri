@@ -58,14 +58,20 @@ async def run_backtest(
     api_secret = getattr(app_config, 'UPSTOX_API_SECRET', None)
 
     if not api_key or not api_secret:
-        from db.models import get_shared_broker_token
-        token_data = get_shared_broker_token('upstox')
-        if not token_data or not token_data.get('access_token'):
-            raise HTTPException(
-                status_code=503,
-                detail="Upstox API credentials not configured and no active broker token found. "
-                       "Please set UPSTOX_API_KEY/UPSTOX_API_SECRET in your environment or connect your broker in Settings."
-            )
+        raise HTTPException(
+            status_code=503,
+            detail="Upstox API credentials not configured. "
+                   "Please set UPSTOX_API_KEY and UPSTOX_API_SECRET in your environment."
+        )
+
+    from db.models import get_shared_broker_token
+    token_data = get_shared_broker_token('upstox')
+    if not token_data or not token_data.get('access_token'):
+        raise HTTPException(
+            status_code=503,
+            detail="No active Upstox broker connection found. "
+                   "Please connect your broker in Settings > Broker Connection."
+        )
 
     from cache.redis_client import cache_get, cache_set, is_cache_available
     from backtest.api import build_backtest_cache_key

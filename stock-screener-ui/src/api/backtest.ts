@@ -29,8 +29,17 @@ import {
 } from "../state/backtest";
 import { buildChartData } from "./chartBuilder";
 import { fetchWithAuth } from "../state/auth";
+import { notifications } from "@mantine/notifications";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+
+function showBacktestError(message: string) {
+  notifications.show({
+    title: "Backtest Error",
+    message,
+    color: "red",
+  });
+}
 
 // Calculate totals from results
 export function calculateTotals(results: BacktestResult[]): BacktestTotals {
@@ -134,6 +143,7 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
         msg = errBody.detail || errBody.error || msg;
       } catch {}
       setError(msg);
+      showBacktestError(msg);
       return null;
     }
 
@@ -142,6 +152,7 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
 
     if (data.error) {
       setError(data.error);
+      showBacktestError(data.error);
       return null;
     }
 

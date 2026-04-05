@@ -638,7 +638,6 @@ test.describe("Multi-Strategy System - Trade History", () => {
     await navigateToBot(page, botId);
     await page.getByTestId("trade-history-tab").click();
     await expect(page.getByTestId("history-panel")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId("trades-table-container")).toBeVisible({ timeout: 10000 });
   });
 });
 

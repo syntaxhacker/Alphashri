@@ -149,7 +149,12 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (loading) {
     return (
-      <LoadingState message="Loading history..." data-testid="backtest-history-loading" className="backtest-history-loading" size="md" />
+      <LoadingState
+        message="Loading history..."
+        data-testid="backtest-history-loading"
+        className="backtest-history-loading"
+        size="md"
+      />
     );
   }
 
@@ -169,8 +174,18 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (history.length === 0) {
     return (
-      <Card withBorder padding="xl" radius="md" className="backtest-history-empty" data-testid="backtest-history-empty">
-        <EmptyState icon={<IconDatabase size={40} color="gray" />} title="No backtest history" description="Run a backtest and save it to see it here." />
+      <Card
+        withBorder
+        padding="xl"
+        radius="md"
+        className="backtest-history-empty"
+        data-testid="backtest-history-empty"
+      >
+        <EmptyState
+          icon={<IconDatabase size={40} color="gray" />}
+          title="No backtest history"
+          description="Run a backtest and save it to see it here."
+        />
       </Card>
     );
   }
@@ -210,11 +225,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
           </Button>
         </Group>
       </Group>
-      <DataTable
-        verticalSpacing="sm"
-        className="history-table"
-        dataTestId="history-table"
-      >
+      <DataTable verticalSpacing="sm" className="history-table" dataTestId="history-table">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Date</Table.Th>

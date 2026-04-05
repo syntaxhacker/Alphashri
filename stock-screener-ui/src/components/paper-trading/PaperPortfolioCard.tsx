@@ -22,6 +22,7 @@ interface PaperPortfolioCardProps {
   strategySummaries: StrategySummary[];
 }
 
+
 export function PaperPortfolioCard({
   portfolio,
   isMultiStrategy,
@@ -29,15 +30,9 @@ export function PaperPortfolioCard({
 }: PaperPortfolioCardProps) {
   if (!portfolio) {
     return (
-      <CompactPanel
-        data-testid="portfolio-card"
-        className="paper-portfolio-card"
-        id="portfolio-card"
-      >
-        <Text c="dimmed" ta="center" size="sm">
-          Loading portfolio...
-        </Text>
-      </CompactPanel>
+      <Text c="dimmed" size="xs" data-testid="portfolio-card">
+        Loading...
+      </Text>
     );
   }
 
@@ -77,8 +72,7 @@ export function PaperPortfolioCard({
 
       {isMultiStrategy && strategySummaries.length > 0 && (
         <Group
-          gap="xs"
-          mt="sm"
+          gap={4}
           data-testid="strategy-summaries"
           className="portfolio-strategies"
           id="strategy-summaries"
@@ -88,6 +82,7 @@ export function PaperPortfolioCard({
               key={summary.strategy_name}
               variant="light"
               color={getPnLTextColor(summary.pnl)}
+              size="xs"
               data-testid={`strategy-badge-${summary.strategy_name}`}
             >
               {summary.strategy_name}: {summary.pnl >= 0 ? "+" : ""}₹{formatCurrencyIN(summary.pnl)}
