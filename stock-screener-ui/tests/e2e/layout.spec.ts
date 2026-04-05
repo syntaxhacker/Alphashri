@@ -139,11 +139,11 @@ test.describe("Layout - Sidebar", () => {
     await expect(sidemenu.locator('[data-testid="nav-settings"]')).toBeVisible();
   });
 
-  test("navbar-header contains logo", async ({ page }) => {
+  test("app-header contains logo", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
-    await expect(page.locator('[data-testid="navbar-header"]')).toBeVisible();
-    await expect(page.locator('[data-testid="navbar-header"]')).toContainText("Alphashri");
+    await expect(page.locator('[data-testid="app-logo"]')).toBeVisible();
+    await expect(page.locator('[data-testid="app-logo"]')).toContainText("Alphashri");
   });
 
   test("navbar-footer contains user button", async ({ page }) => {

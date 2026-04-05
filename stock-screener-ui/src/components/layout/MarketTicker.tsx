@@ -46,7 +46,7 @@ function getTickerLabel(symbol: string): string {
 
 export function MarketTicker() {
   const [data, setData] = useState<MarketTickerData | null>(null);
-  const { background, border, theme } = useThemeColors();
+  const { background, theme } = useThemeColors();
 
   useEffect(() => {
     const fetchTicker = async () => {
@@ -81,7 +81,6 @@ export function MarketTicker() {
         id="market-ticker"
         className="market-ticker market-ticker-loading"
         style={{
-          borderBottom: `1px solid ${border}`,
           padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
         }}
       >
@@ -102,7 +101,6 @@ export function MarketTicker() {
         id="market-ticker"
         className="market-ticker market-ticker-error"
         style={{
-          borderBottom: `1px solid ${border}`,
           padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
         }}
       >
@@ -129,7 +127,6 @@ export function MarketTicker() {
       id="market-ticker"
       className="market-ticker"
       style={{
-        borderBottom: `1px solid ${border}`,
         padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
         overflowX: "auto",
       }}
