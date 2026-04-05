@@ -171,10 +171,3 @@ export function CompactStatGrid({
     </SimpleGrid>
   );
 }
-
-export {
-  CompactPage as CompactPageLayout,
-  CompactPanel as CompactSurfacePanel,
-  CompactStat as CompactSurfaceStat,
-};
-export { CompactPanel as CompactCard, CompactPanel as CompactPaper, CompactStat as CompactMetric };

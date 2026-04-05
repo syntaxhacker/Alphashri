@@ -5,7 +5,7 @@ import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
 import { NotificationContainer } from "./components/NotificationContainer";
 import { AppLayout } from "./components/layout/AppLayout";
-import { SectorPage } from "./components/sector/SectorPage2";
+import { SectorPage } from "./components/sector/SectorPage";
 import { ScreenerContainer } from "./containers/ScreenerContainer";
 import { StrategiesContainer } from "./containers/StrategiesContainer";
 import { BacktestPage } from "./components/backtest/mantine";

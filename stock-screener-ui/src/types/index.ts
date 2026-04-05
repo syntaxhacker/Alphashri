@@ -83,3 +83,5 @@ export interface ChangeNotification {
 export type NotifFilter = "all" | "primary" | "secondary";
 
 export type SortDirection = "asc" | "desc";
+
+export type { LLMRun, ModelUsage, Aggregate, LLMStats } from "./admin";

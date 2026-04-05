@@ -6,11 +6,11 @@ import {
   formatTimeOnly,
   formatDateHeader,
   formatDuration,
-  getPnLTextColor,
   sortByField,
 } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
 import { SortableHeader } from "../common/SortableHeader";
+import { PnlText } from "../common/PnlText";
 
 interface DayGroupProps {
   date: string;
@@ -39,7 +39,6 @@ function DaySummary({
   const dayPnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
   const wins = trades.filter((t) => t.net_pnl > 0).length;
   const losses = trades.filter((t) => t.net_pnl < 0).length;
-  const pnlColor = getPnLTextColor(dayPnl);
   const pnlSign = dayPnl >= 0 ? "+" : "";
 
   return (
@@ -57,9 +56,9 @@ function DaySummary({
         </Text>
       </Group>
       <Group gap="xs">
-        <Text size="xs" c={pnlColor} fw={600}>
+        <PnlText value={dayPnl} size="xs">
           {pnlSign}₹{formatNumber(Math.abs(dayPnl))}
-        </Text>
+        </PnlText>
         <Badge color={wins > 0 ? "green" : "gray"} variant="light" size="xs">
           ▲{wins}
         </Badge>
@@ -91,8 +90,6 @@ function TradeRow({
     }
   }, [isSelected]);
 
-  const pnlColor = getPnLTextColor(trade.net_pnl);
-
   return (
     <Table.Tr
       ref={rowRef}
@@ -121,9 +118,9 @@ function TradeRow({
         </Text>
       </Table.Td>
       <Table.Td>
-        <Text c={pnlColor} fw={600} size="sm">
+        <PnlText value={trade.net_pnl} size="sm">
           ₹{formatNumber(trade.net_pnl)}
-        </Text>
+        </PnlText>
       </Table.Td>
       <Table.Td>{trade.bot_name || "-"}</Table.Td>
       <Table.Td>{trade.strategy_name || "default"}</Table.Td>

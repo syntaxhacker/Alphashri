@@ -6,9 +6,10 @@ import {
   formatCurrencyIN,
   formatNumber,
   formatElapsed,
-  getPnLTextColor,
 } from "../../utils/ui-helpers";
 import { SideBadge } from "../common/BadgeComponents";
+import { PnlText } from "../common/PnlText";
+import { TABLE_STYLES } from "./tableStyles";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
@@ -56,30 +57,7 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
   return { totalPnl, marginUsed, count: positions.length };
 }
 
-const TABLE_STYLES = {
-  thead: {
-    position: "sticky" as const,
-    top: 0,
-    zIndex: 1,
-    background: "var(--mantine-color-body)",
-  },
-  th: {
-    padding: "4px 6px",
-    fontSize: "11px",
-    fontWeight: 600,
-    textTransform: "uppercase" as const,
-    borderBottom: "1px solid var(--mantine-color-default-border)",
-    whiteSpace: "nowrap" as const,
-  },
-  td: {
-    padding: "3px 6px",
-    fontSize: "12px",
-    borderBottom: "1px solid var(--mantine-color-default-border)",
-    whiteSpace: "nowrap" as const,
-  },
-};
 
-export { TABLE_STYLES as tableStyles };
 
 function PositionRow({
   pos,
@@ -90,7 +68,6 @@ function PositionRow({
   onSelect: (symbol: string) => void;
   onClose: (symbol: string, price: number) => void;
 }) {
-  const pnlClass = getPnLTextColor(pos.pnl ?? 0);
   const pnlSign = (pos.pnl ?? 0) >= 0 ? "+" : "";
 
   return (
@@ -110,14 +87,14 @@ function PositionRow({
       <Table.Td>₹{(pos.entry_price ?? 0).toFixed(2)}</Table.Td>
       <Table.Td>₹{(pos.current_price ?? 1).toFixed(2)}</Table.Td>
       <Table.Td>
-        <Text c={pnlClass} fw={600}>
+        <PnlText value={pos.pnl ?? 0}>
           {pnlSign}₹{formatNumber(pos.pnl)}
           <Text span c="dimmed" fs="italic" size="sm">
             {" "}
             ({pnlSign}
             {(pos.pnl_pct ?? 0).toFixed(2)}%)
           </Text>
-        </Text>
+        </PnlText>
       </Table.Td>
       <Table.Td>₹{(pos.stop_loss ?? 0).toFixed(2)}</Table.Td>
       <Table.Td>₹{(pos.take_profit ?? 0).toFixed(2)}</Table.Td>
@@ -329,9 +306,9 @@ export function StrategySummaryFooter({
               <Table.Td>{s.count}</Table.Td>
               <Table.Td>₹{formatCurrencyIN(s.marginUsed)}</Table.Td>
               <Table.Td>
-                <Text c={getPnLTextColor(s.totalPnl)} fw={600} size="sm">
+                <PnlText value={s.totalPnl} size="sm">
                   {s.totalPnl >= 0 ? "+" : ""}₹{formatNumber(s.totalPnl)}
-                </Text>
+                </PnlText>
               </Table.Td>
             </Table.Tr>
           ))}

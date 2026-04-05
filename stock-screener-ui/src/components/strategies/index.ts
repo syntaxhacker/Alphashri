@@ -18,7 +18,6 @@ export * from "./types";
 // Legacy components (keep for backward compatibility during migration)
 import { renderTemplateCard, initTemplateHandlers } from "./templates";
 import { initVariationsHandlers } from "./variations";
-import { renderStrategyForm, initFormHandlers } from "./form";
 import {
   renderPerformanceView,
   initPerformanceHandlers,
@@ -86,7 +85,7 @@ export function renderStrategiesView(): string {
       <!-- Create/Edit Modal -->
       ${
         currentState.showCreateModal || currentState.showEditModal
-          ? renderStrategyForm(currentState.editingStrategy, currentState.parentTemplate)
+          ? ""
           : ""
       }
 
@@ -217,7 +216,6 @@ function getParentName(parentId: number, state: StrategiesState): string {
 export function initStrategiesHandlers() {
   initTemplateHandlers();
   initVariationsHandlers();
-  initFormHandlers();
   initPerformanceHandlers();
 
   // View switching

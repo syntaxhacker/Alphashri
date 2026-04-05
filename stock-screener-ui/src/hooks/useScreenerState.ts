@@ -6,7 +6,7 @@ import { initPreviewChartHandlers } from "../components/common/previewChart";
 import { useStoreSubscription } from "./useStoreSubscription";
 import type { ScreenerData } from "../types";
 
-export interface ScreenerDefaults {
+interface ScreenerDefaults {
   provider: string;
   mode: string;
 }

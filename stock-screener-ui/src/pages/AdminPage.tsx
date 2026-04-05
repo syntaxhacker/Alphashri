@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Text,
-  Table,
-  Badge,
   Group,
   Stack,
   Loader,
@@ -18,63 +16,15 @@ import {
   CompactStat,
   CompactStatGrid,
 } from "../components/common/compact";
-import { getStatusColor } from "../utils/ui-helpers";
-import { DataTable } from "../components/common/DataTable";
-export { getStatusColor } from "../utils/ui-helpers";
+import type { LLMStats } from "../types/admin";
+import {
+  RecentRunsTable,
+  ModelBreakdown,
+  formatCost,
+  formatResponseTime,
+} from "./admin/RecentRunsTable";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
-
-interface LLMRun {
-  id: number;
-  url: string;
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  cost_usd: number;
-  response_time_ms: number;
-  status: string;
-  created_at: string;
-}
-
-interface ModelUsage {
-  model: string;
-  count: number;
-}
-
-interface Aggregate {
-  total_runs: number;
-  total_tokens: number;
-  total_cost_usd: number;
-  avg_response_time_ms: number;
-  models_used: ModelUsage[];
-}
-
-interface LLMStats {
-  recent_runs: LLMRun[];
-  aggregate: Aggregate;
-}
-
-export function formatCost(cost: number): string {
-  return `$${cost.toFixed(4)}`;
-}
-
-export function formatResponseTime(ms: number): string {
-  return `${ms.toFixed(0)}ms`;
-}
-
-export function formatDateTime(isoString: string): string {
-  try {
-    const date = new Date(isoString);
-    return date.toLocaleString();
-  } catch {
-    return isoString;
-  }
-}
-
-export function truncateUrl(url: string, maxLength: number = 50): string {
-  if (url.length <= maxLength) return url;
-  return url.substring(0, maxLength) + "...";
-}
 
 function LoadingState() {
   return (
@@ -104,79 +54,6 @@ function ErrorState({ error }: { error: string }) {
         style={{ color: "var(--mantine-color-red-6)" }}
       />
     </Box>
-  );
-}
-
-function ModelBreakdown({ models }: { models: ModelUsage[] }) {
-  if (!models || models.length === 0) return null;
-  return (
-    <CompactPanel title="Model Breakdown">
-      <Group gap="sm">
-        {models.map((m, idx) => (
-          <Badge key={idx} variant="light" size="lg">
-            {m.model}: {m.count} runs
-          </Badge>
-        ))}
-      </Group>
-    </CompactPanel>
-  );
-}
-
-function RecentRunsTable({ runs }: { runs: LLMRun[] }) {
-  if (runs.length === 0) {
-    return (
-      <Text c="dimmed" ta="center" py="sm">
-        No recent runs
-      </Text>
-    );
-  }
-  return (
-    <DataTable dataTestId="runs-table">
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>URL</Table.Th>
-          <Table.Th>Model</Table.Th>
-          <Table.Th>Tokens</Table.Th>
-          <Table.Th>Cost</Table.Th>
-          <Table.Th>Response Time</Table.Th>
-          <Table.Th>Status</Table.Th>
-          <Table.Th>Created At</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {runs.map((run) => (
-          <Table.Tr key={run.id}>
-            <Table.Td>
-              <Text size="sm" title={run.url}>
-                {truncateUrl(run.url)}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{run.model}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">
-                {(run.input_tokens + run.output_tokens).toLocaleString()}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{formatCost(run.cost_usd)}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{formatResponseTime(run.response_time_ms)}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Badge color={getStatusColor(run.status)} variant="light" size="sm">
-                {run.status}
-              </Badge>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{formatDateTime(run.created_at)}</Text>
-            </Table.Td>
-          </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </DataTable>
   );
 }
 

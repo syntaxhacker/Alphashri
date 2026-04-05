@@ -5,6 +5,8 @@ import type {
   PaperPosition,
 } from "../../types/paperTrading";
 import { theme } from "../../theme";
+import { formatVolume } from "../../utils/chartUtils";
+import { formatTimeLabel } from "../../utils/chartTimeUtils";
 
 export const TIMEFRAME_OPTIONS = [
   { value: "1min", label: "1m" },
@@ -58,12 +60,6 @@ function findCandleIndex(candles: CandleData[], timeStr: string): number {
   if (closestIdx >= 0 && minDiff <= interval) return closestIdx;
 
   return -1;
-}
-
-function formatVolume(vol: number): string {
-  if (vol >= 1000000) return (vol / 1000000).toFixed(1) + "M";
-  if (vol >= 1000) return (vol / 1000).toFixed(1) + "K";
-  return vol.toString();
 }
 
 function pushTradeMarkers(
@@ -256,7 +252,7 @@ export function buildChartOption(
     c.volume,
     c.close >= c.open ? 1 : -1,
   ]);
-  const times = candles.map((c: CandleData) => c.time.split("T")[1]?.substring(0, 5) || c.time);
+  const times = candles.map((c: CandleData) => formatTimeLabel(c.time));
 
   const { entryMarkers, tpMarkers, slMarkers, eodMarkers } = buildMarkers(
     candles,
