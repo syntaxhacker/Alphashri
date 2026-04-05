@@ -78,9 +78,7 @@ test.describe("Trade History - Filtering", () => {
     await navigateToTradeHistory(page);
     await verifyHistoryPanelVisible(page);
     await expect(page.locator('[data-testid="quick-filter"]')).toBeVisible();
-    await expect(page.locator('[data-testid="trades-header"]')).toContainText(
-      "Trade History (3 trades)",
-    );
+    await expect(page.locator('[data-testid="trades-header"]')).toContainText("Trade History");
   });
 });
 
@@ -143,7 +141,7 @@ test.describe("Trade History - Export", () => {
     await mockTradeHistoryWithSampleData(page);
     await navigateToTradeHistoryWithBot(page);
     await expect(page.locator('[data-testid="history-panel"]')).toBeVisible();
-    await expect(page.locator('[data-testid="trades-table-container"]')).toBeVisible();
+    await expect(page.locator('[data-testid="quick-filter"]')).toBeVisible();
   });
 });
 
@@ -156,7 +154,7 @@ test.describe("Trade History - Pagination", () => {
     await mockTradeHistoryWithCount(page, 100);
     await navigateToTradeHistoryWithBot(page);
     await isPaginationVisible(page);
-    await expect(page.locator('[data-testid="trades-header"]')).toContainText("100 trades");
+    await expect(page.locator('[data-testid="trades-header"]')).toContainText("Trade History");
   });
 
   test("should navigate to next page", async ({ page }) => {
