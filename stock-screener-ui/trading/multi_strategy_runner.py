@@ -45,6 +45,14 @@ from trading.week52_chaser_signals import Week52ChaserSignalGenerator
 from trading.week52_target_signals import Week52TargetSignalGenerator
 from trading.ema_cross_signals import EMACrossSignalGenerator
 from trading.journal import TradeJournal, get_journal
+from trading.telegram_notifier import (
+    send_trade_entry,
+    send_trade_exit,
+    send_bot_status,
+    send_daily_summary,
+    send_risk_alert,
+    send_signal_rejected,
+)
 
 # Database imports
 try:
@@ -179,6 +187,9 @@ class MultiStrategyRunner:
         # Data fetcher (lazy loaded)
         self._screener = None
         self._data_fetcher = None
+
+        # Telegram daily summary tracking
+        self._daily_summary_sent = False
 
         # Setup signal handler
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -953,6 +964,13 @@ class MultiStrategyRunner:
 
         if not validation['valid']:
             console.print(f"[red]{runner.strategy_name}: Signal rejected - {validation['reason']}[/red]")
+            send_signal_rejected(
+                bot_name=self.bot_config.name,
+                strategy_name=runner.strategy_name,
+                symbol=signal.symbol,
+                signal_type=signal.signal_type.value,
+                reason=validation['reason'],
+            )
             return False
 
         # Open position in shared portfolio
@@ -969,6 +987,16 @@ class MultiStrategyRunner:
 
         if position:
             runner.trades_executed += 1
+            send_trade_entry(
+                bot_name=self.bot_config.name,
+                strategy_name=runner.strategy_name,
+                symbol=signal.symbol,
+                side="BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+                price=signal.price,
+                quantity=validation['shares'],
+                sl=signal.stop_loss or 0.0,
+                tp=signal.take_profit or 0.0,
+            )
             self._persist_position_to_db({
                 'strategy_id': strategy_id,
                 'strategy_name': runner.strategy_name,
@@ -1145,6 +1173,20 @@ class MultiStrategyRunner:
                     'take_profit': trade.tp_price if hasattr(trade, 'tp_price') else 0.0,
                 })
 
+                send_trade_exit(
+                    bot_name=self.bot_config.name,
+                    strategy_name=runner.strategy_name,
+                    symbol=trade.symbol,
+                    side=trade.side.value,
+                    entry_price=trade.entry_price,
+                    exit_price=trade.exit_price,
+                    quantity=trade.quantity,
+                    pnl=trade.pnl,
+                    pnl_pct=trade.pnl_pct,
+                    exit_reason=trade.exit_reason,
+                    entry_time=trade.entry_time,
+                )
+
                 trade_logged = True
                 # Add to cooldown
                 self.cooldown_stocks[symbol] = datetime.now(IST)
@@ -1165,6 +1207,22 @@ class MultiStrategyRunner:
                         exit_reason="EOD",
                         costs=close_prices[pos.symbol] * pos.quantity * 0.0006,
                     )
+
+        # Risk alert: daily loss approaching
+        portfolio_status = self.portfolio.get_portfolio_status()
+        daily_pnl = portfolio_status.get('daily_pnl', 0)
+        max_daily_loss_pct = 0.03
+        for runner in self.strategies.values():
+            max_daily_loss_pct = max(max_daily_loss_pct, runner.config.get('max_daily_loss_pct', 0.03))
+        daily_loss_threshold = portfolio_status.get('initial_capital', 0) * max_daily_loss_pct
+        if daily_pnl < 0 and abs(daily_pnl) >= daily_loss_threshold * 0.8:
+            send_risk_alert(
+                bot_name=self.bot_config.name,
+                alert_type="daily_loss_approaching",
+                current_value=daily_pnl,
+                threshold=-daily_loss_threshold,
+                message=f"Daily loss ₹{daily_pnl:,.0f} is approaching limit of ₹{-daily_loss_threshold:,.0f} ({max_daily_loss_pct:.0%})",
+            )
 
     def save_snapshot(self):
         """Save current state to snapshot file for UI."""
@@ -1331,8 +1389,15 @@ class MultiStrategyRunner:
         # Start all strategies
         self.start_all_strategies()
         self.running = True
+        self._daily_summary_sent = False
 
         self._write_heartbeat()
+
+        send_bot_status(
+            bot_name=self.bot_config.name,
+            status="started",
+            details=f"Strategies: {len(self.strategies)} | Mode: {'TEST' if self.test_mode else 'LIVE'}",
+        )
 
         # Initial setup
         self.refresh_watchlist()
@@ -1369,6 +1434,28 @@ class MultiStrategyRunner:
                 # Monitor positions
                 self.monitor_positions()
 
+                # Daily summary at EOD (15:30 IST)
+                now_ist = self._ist_now()
+                if now_ist.hour >= 15 and now_ist.minute >= 30 and not self._daily_summary_sent:
+                    self._daily_summary_sent = True
+                    ps = self.portfolio.get_portfolio_status()
+                    trades = self.portfolio.trades
+                    today_trades = [t for t in trades if t.exit_time and t.exit_time.date() == now_ist.date()]
+                    wins = [t for t in today_trades if t.net_pnl > 0]
+                    losses = [t for t in today_trades if t.net_pnl <= 0]
+                    best = max(today_trades, key=lambda t: t.net_pnl) if today_trades else None
+                    worst = min(today_trades, key=lambda t: t.net_pnl) if today_trades else None
+                    open_pos = self.portfolio.get_all_positions()
+                    send_daily_summary(
+                        bot_name=self.bot_config.name,
+                        total_pnl=ps.get('daily_pnl', 0),
+                        win_count=len(wins),
+                        loss_count=len(losses),
+                        best_trade={'symbol': best.symbol, 'pnl': best.pnl_pct} if best else None,
+                        worst_trade={'symbol': worst.symbol, 'pnl': worst.pnl_pct} if worst else None,
+                        open_positions=open_pos,
+                    )
+
                 # Display status
                 self.display_status()
 
@@ -1392,6 +1479,13 @@ class MultiStrategyRunner:
         self.display_status()
         self.journal.save_journal()
         self._clear_heartbeat()
+
+        ps = self.portfolio.get_portfolio_status()
+        send_bot_status(
+            bot_name=self.bot_config.name,
+            status="stopped",
+            details=f"Total P&L: ₹{ps.get('total_pnl', 0):+,.0f} | Trades today: {ps.get('daily_trades', 0)}",
+        )
 
 
 # For importing time module
