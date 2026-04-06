@@ -8,6 +8,7 @@ interface NavbarLinksGroupProps {
   link: string;
   active: boolean;
   collapsed?: boolean;
+  onNavigate?: () => void;
 }
 
 export function NavbarLinksGroup({
@@ -16,12 +17,13 @@ export function NavbarLinksGroup({
   link,
   active,
   collapsed,
+  onNavigate,
 }: NavbarLinksGroupProps) {
   const navigate = useNavigate();
 
   const content = (
     <UnstyledButton
-      onClick={() => navigate(link)}
+      onClick={() => { navigate(link); onNavigate?.(); }}
       className={classes.control}
       data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-").replace("paper-trading", "paper").replace("sector-analysis", "sector")}`}
       data-active={active || undefined}

@@ -68,8 +68,8 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
   };
 
   return (
-    <Flex justify="center" align="center" h="100vh" id="login-container" data-testid="login-container">
-      <Paper shadow="sm" p="lg" radius="md" w={400} data-testid="login-form" id="login-card">
+    <Flex justify="center" align="center" h="100vh" p="md" id="login-container" data-testid="login-container">
+      <Paper shadow="sm" p={{ base: "md", xs: "lg" }} radius="md" w={{ base: "100%", xs: 400 }} data-testid="login-form" id="login-card">
         <form onSubmit={handleSubmit} id="login-form-element">
           <Stack gap="md">
             <AuthHeader subtitle="Sign in to your account" />
@@ -140,8 +140,8 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
   };
 
   return (
-    <Flex justify="center" align="center" h="100vh" id="register-container" data-testid="register-container">
-      <Paper shadow="sm" p="lg" radius="md" w={400} data-testid="register-form" id="register-card">
+    <Flex justify="center" align="center" h="100vh" p="md" id="register-container" data-testid="register-container">
+      <Paper shadow="sm" p={{ base: "md", xs: "lg" }} radius="md" w={{ base: "100%", xs: 400 }} data-testid="register-form" id="register-card">
         <form onSubmit={handleSubmit} id="register-form-element">
           <Stack gap="md">
             <AuthHeader subtitle="Create your account" />

@@ -24,6 +24,7 @@ interface NavbarNestedProps {
   activePath: string;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  onMobileNavigate?: () => void;
 }
 
 const navItems = [
@@ -39,7 +40,7 @@ const navItems = [
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];
 
-export function NavbarNested({ activePath, collapsed, onToggleCollapse }: NavbarNestedProps) {
+export function NavbarNested({ activePath, collapsed, onToggleCollapse, onMobileNavigate }: NavbarNestedProps) {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const { user } = useAuth();
 
@@ -53,6 +54,7 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
       link={item.link}
       active={activePath === item.link}
       collapsed={collapsed}
+      onNavigate={onMobileNavigate}
       data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
     />
   ));

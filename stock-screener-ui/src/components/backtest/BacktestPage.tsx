@@ -398,6 +398,7 @@ export function BacktestPage() {
       <Flex
         id="backtest-panels"
         className="backtest-panels"
+        direction={{ base: "column", lg: "row" }}
         flex={1}
         gap="md"
         style={{ minHeight: 0 }}
@@ -405,14 +406,14 @@ export function BacktestPage() {
         <Box
           id="backtest-left-panel"
           className="backtest-left-panel"
-          style={{ flex: "0 0 33.333%", minHeight: 0 }}
+          style={{ flex: "0 0 auto", minHeight: 0 }}
         >
           {renderLeftPanel()}
         </Box>
         <Box
           id="backtest-right-panel"
           className="backtest-right-panel"
-          style={{ flex: "1 1 66.666%", minHeight: 0 }}
+          style={{ flex: "1 1 100%", minHeight: 0 }}
         >
           {renderRightPanel()}
         </Box>

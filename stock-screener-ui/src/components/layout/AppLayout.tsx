@@ -1,6 +1,7 @@
 import { useLocation } from "react-router-dom";
-import { AppShell, Group, Box, Text } from "@mantine/core";
+import { AppShell, Group, Box, Text, Burger } from "@mantine/core";
 import { useState } from "react";
+import { useDisclosure } from "@mantine/hooks";
 import { NavbarNested } from "./NavbarNested";
 import { MarketTicker } from "./MarketTicker";
 import { useThemeColors } from "../../hooks/useThemeColors";
@@ -14,6 +15,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const colors = useThemeColors();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpened, { toggle: toggleMobile }] = useDisclosure();
 
   const toggleCollapsed = () => setCollapsed((prev) => !prev);
 
@@ -22,7 +24,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       header={{ height: 50 }}
       navbar={{
         width: collapsed ? 80 : 200,
-        breakpoint: "sm",
+        breakpoint: "md",
+        collapsed: { mobile: !mobileOpened, desktop: collapsed },
       }}
       padding="md"
       h="100vh"
@@ -36,15 +39,25 @@ export function AppLayout({ children }: AppLayoutProps) {
         data-testid="app-header"
       >
         <Group justify="space-between" align="center" h="100%" px="sm" gap="sm">
-          <Text
-            fw={700}
-            size="lg"
-            id="app-logo"
-            data-testid="app-logo"
-            style={{ flex: "none" }}
-          >
-            🚀 Alphashri
-          </Text>
+          <Group gap="sm" align="center">
+            <Burger
+              opened={mobileOpened}
+              onClick={toggleMobile}
+              hiddenFrom="md"
+              size="sm"
+              aria-label="Toggle navigation"
+              data-testid="mobile-nav-burger"
+            />
+            <Text
+              fw={700}
+              size="lg"
+              id="app-logo"
+              data-testid="app-logo"
+              style={{ flex: "none" }}
+            >
+              🚀 Alphashri
+            </Text>
+          </Group>
           <Box flex={1}>
             <MarketTicker />
           </Box>
@@ -57,6 +70,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           activePath={location.pathname}
           collapsed={collapsed}
           onToggleCollapse={toggleCollapsed}
+          onMobileNavigate={() => mobileOpened && toggleMobile()}
         />
       </AppShell.Navbar>
 
