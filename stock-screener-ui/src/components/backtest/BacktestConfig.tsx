@@ -9,6 +9,7 @@ import {
   Text,
   Paper,
   Menu,
+  Box,
   Tooltip,
   Divider,
 } from "@mantine/core";
@@ -115,7 +116,7 @@ export function BacktestConfig({
           <Text size="sm" fw={500} w={70} pt={4}>
             Strategy
           </Text>
-          <div style={{ flex: 1 }}>
+          <Box flex={1}>
             <Select
               id="variation-select"
               className="config-variation-select"
@@ -133,7 +134,7 @@ export function BacktestConfig({
                 {selectedVariationData.description}
               </Text>
             )}
-          </div>
+          </Box>
         </Group>
 
         <Divider />
@@ -142,20 +143,20 @@ export function BacktestConfig({
           <Text size="sm" fw={500} w={70} pt={4}>
             Symbols
           </Text>
-          <div style={{ flex: 1 }}>
+          <Box flex={1}>
             <SymbolChips selectedSymbols={selectedSymbols} onSymbolsChange={onSymbolsChange} />
-          </div>
+          </Box>
         </Group>
 
         <Divider />
 
-        <div>
+        <Box>
           {strategy && strategy.params.length > 0 ? (
             <Group gap="sm" align="flex-start">
               <Text size="sm" fw={500} w={70} pt={4}>
                 Params
               </Text>
-              <div className="config-params-row" style={{ flex: 1 }}>
+              <Box className="config-params-row" flex={1}>
                 {strategy.params.map((param) => (
                   <Tooltip key={param.key} label={param.label} withArrow>
                     <Group gap={4} align="center">
@@ -170,7 +171,7 @@ export function BacktestConfig({
                     </Group>
                   </Tooltip>
                 ))}
-              </div>
+              </Box>
             </Group>
           ) : (
             <Group gap="sm" align="center">
@@ -182,7 +183,7 @@ export function BacktestConfig({
               </Text>
             </Group>
           )}
-        </div>
+        </Box>
 
         <Divider />
 

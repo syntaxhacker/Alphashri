@@ -30,7 +30,7 @@ export function CompactPage({
   return (
     <Stack
       gap="sm"
-      style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      style={{ height: "100%", overflow: "hidden" }}
       {...stackProps}
     >
       {(title || description || actions) && (
@@ -153,7 +153,7 @@ export function CompactStat({
             {hint}
           </Text>
         ) : (
-          <div style={{ marginTop: 4 }}>{hint}</div>
+          <Box mt={4}>{hint}</Box>
         )
       ) : null}
     </Paper>

@@ -51,10 +51,10 @@ export function BacktestLeftPanel({
       style={{ display: "flex", flexDirection: "column" }}
     >
       <Tabs.List flex="0 0 auto">
-        <Tabs.Tab value="results" leftSection={<IconTable size={14} />}>
+        <Tabs.Tab value="results" leftSection={<IconTable size={14} />} data-testid="backtest-tab-results">
           Results
         </Tabs.Tab>
-        <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>
+        <Tabs.Tab value="history" leftSection={<IconHistory size={14} />} data-testid="backtest-tab-history">
           History
         </Tabs.Tab>
       </Tabs.List>

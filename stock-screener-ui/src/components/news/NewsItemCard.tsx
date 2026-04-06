@@ -16,7 +16,6 @@ export function NewsItemCard({
       padding="xs"
       className={`news-item-card ${isUnread ? "unread" : ""}`}
       style={{
-        cursor: "pointer",
         borderLeft: isUnread ? "3px solid var(--mantine-color-blue-6)" : undefined,
       }}
       onClick={(e) => {
@@ -32,7 +31,7 @@ export function NewsItemCard({
           fw={isUnread ? 500 : 400}
           lineClamp={1}
           className="news-item-headline"
-          style={{ flex: 1 }}
+          flex={1}
         >
           {item.headline}
         </Text>

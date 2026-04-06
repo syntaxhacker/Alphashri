@@ -28,7 +28,6 @@ export function ArticleSymbols({
             <Badge
               variant="light"
               color={symbol.instrument_key ? "blue" : "gray"}
-              style={{ cursor: "pointer" }}
               onClick={() => onSymbolClick(symbol)}
               data-testid={`news-symbol-${symbol.code}`}
             >

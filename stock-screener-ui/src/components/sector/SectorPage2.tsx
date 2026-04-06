@@ -135,7 +135,7 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-alerts-card"
         data-testid="sector-alerts-card"
-        style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
+        style={{ flex: "1 1 50%" }}
         title={
           <Group justify="space-between" mb="xs">
             <Title order={4}>Real-time Alerts</Title>
@@ -151,7 +151,7 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-interval-movers-card"
         data-testid="sector-interval-movers-card"
-        style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
+        style={{ flex: "1 1 50%" }}
         title={
           <Group justify="space-between" mb="xs">
             <Title order={4}>Interval Movers</Title>
@@ -196,7 +196,7 @@ function ErrorPanel({
       title="Error"
       description={error}
       action={
-        <Button variant="light" color="red" size="sm" onClick={onRetry}>
+        <Button variant="light" color="red" size="sm" onClick={onRetry} data-testid="sector-retry-btn">
           Retry
         </Button>
       }
@@ -289,8 +289,6 @@ function DashboardContent({
         <CompactPanel
           style={{
             overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
             minHeight: 0,
           }}
           id="sector-table-container"
@@ -469,13 +467,13 @@ function SectorTabContent({
 export function SectorPage() {
   const state = useSectorData();
   return (
-    <Stack gap="sm" style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }} data-testid="sector-analysis-view">
+    <Stack gap="sm" style={{ height: "100%", overflow: "hidden" }} data-testid="sector-analysis-view">
       <SectorPageHeader market={state.market} setMarket={state.setMarket} loading={state.loading} onRefresh={() => state.loadData(state.market)} />
-      <Box id="sector-page" className="sector-page" flex={1} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <Stack id="sector-page" className="sector-page" flex={1} style={{ minHeight: 0 }}>
         <Tabs value={state.activeTab} onChange={state.setActiveTab}>
           <Tabs.List>
-            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>Live Dashboard</Tabs.Tab>
-            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>Historical Cycles</Tabs.Tab>
+            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />} data-testid="sector-tab-dashboard">Live Dashboard</Tabs.Tab>
+            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />} data-testid="sector-tab-historical">Historical Cycles</Tabs.Tab>
           </Tabs.List>
         </Tabs>
         <Box flex={1} style={{ minHeight: 0, padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)", overflow: "auto" }}>
@@ -485,7 +483,7 @@ export function SectorPage() {
             intervalMovers={state.intervalMovers} loadData={state.loadData}
           />
         </Box>
-      </Box>
+      </Stack>
     </Stack>
   );
 }

@@ -167,8 +167,6 @@ export function ScreenerPage({
           height: "100%",
           width: "100%",
           minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
           flex: 1,
           minHeight: 0,
           overflow: "hidden",
@@ -180,7 +178,7 @@ export function ScreenerPage({
             title={`Approaching (${sortedApproaching.length})`}
             description="Stocks nearing but have not yet touched the 52W high"
             testId="screener-approaching-section"
-            style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+            style={{ flex: 1, minHeight: 0 }}
           >
             <Box style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               {renderStocksView(sortedApproaching, emptySet)}
@@ -194,7 +192,7 @@ export function ScreenerPage({
             title={`Touched (${sortedTouched.length})`}
             description="Stocks that have touched or broken out of the 52W high"
             testId="screener-touched-section"
-            style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+            style={{ flex: 1, minHeight: 0 }}
           >
             <Box style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               {renderStocksView(sortedTouched, new Set(sortedTouched.map((s) => s.symbol)))}
@@ -207,11 +205,11 @@ export function ScreenerPage({
 
   return (
     <CompactPage>
-      <Box
+      <Stack
         h="100%"
         id="screener-main"
         className="screener-page"
-        style={{ display: "flex", flexDirection: "column", gap: "var(--mantine-spacing-sm)" }}
+        gap="sm"
         data-testid="screener-page"
       >
         <Box flex="0 0 auto" className="screener-controls" data-testid="screener-controls">
@@ -243,12 +241,12 @@ export function ScreenerPage({
           flex={1}
           id="screener-content"
           className="screener-content"
-          style={{ minHeight: 0, display: "flex" }}
+          style={{ minHeight: 0 }}
           data-testid="screener-content"
         >
           {renderContent()}
         </Box>
-      </Box>
+      </Stack>
     </CompactPage>
   );
 }

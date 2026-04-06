@@ -249,7 +249,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
               </Table.Td>
               <Table.Td>
                 <Tooltip label={item.symbols.join(", ")}>
-                  <Text size="sm" truncate style={{ maxWidth: 150 }}>
+                  <Text size="sm" truncate maw={150}>
                     {item.symbols.length} stocks: {item.symbols.slice(0, 3).join(", ")}
                     {item.symbols.length > 3 ? "..." : ""}
                   </Text>

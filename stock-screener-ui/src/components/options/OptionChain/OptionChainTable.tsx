@@ -257,7 +257,7 @@ function OptionColumn({
                     size="sm"
                     fw={cell.fw}
                     c={cell.c as any}
-                    style={{ textAlign: "center", lineHeight: 1.05 }}
+                    ta="center" lh={1.05}
                   >
                     {cell.value}
                   </Text>
@@ -367,7 +367,7 @@ function OptionChainTableInner({
         viewportRef={viewportRef}
         data-testid="options-chain-table-scrollarea"
       >
-        <Box className="chain-table-body" style={{ minWidth: 800, paddingBottom: 150 }}>
+        <Box className="chain-table-body" miw={800} pb={150}>
           {strikeMatrix.map(({ strike, ce, pe }) => {
             const isATM = spotPrice && Math.abs(strike - spotPrice) < 25;
             const isHovered = hoveredStrike === strike;

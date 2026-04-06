@@ -59,7 +59,6 @@ export function PerformanceView({
     return (
       <Table.Tr
         key={perf.strategy_id}
-        style={{ cursor: "pointer" }}
         onClick={() => onSelectStrategy(perf.strategy_id)}
         data-testid={`performance-row-${perf.strategy_id}`}
       >

@@ -80,16 +80,10 @@ describe("SortableHeader", () => {
     expect(onSort).not.toHaveBeenCalled();
   });
 
-  it("shows cursor:pointer when sortable", () => {
+  it("does not set inline cursor style", () => {
     render(<SortableHeader {...defaultProps} />);
     const th = screen.getByTestId("sort-header-name");
-    expect(th.style.cursor).toBe("pointer");
-  });
-
-  it("shows cursor:default when not sortable", () => {
-    render(<SortableHeader {...defaultProps} sortable={false} />);
-    const th = screen.getByTestId("sort-header-name");
-    expect(th.style.cursor).toBe("default");
+    expect(th.style.cursor).toBe("");
   });
 
   it("renders children prop", () => {

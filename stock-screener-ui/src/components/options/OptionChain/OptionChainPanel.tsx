@@ -72,7 +72,7 @@ export function OptionChainPanel({
       id="chain-panel"
       className="option-chain-panel"
       gap="sm"
-      style={{ height: "100%" }}
+      h="100%"
       data-testid="options-chain-panel"
     >
       <OptionChainGuide opened={guideOpened} onClose={close} />
@@ -128,7 +128,7 @@ export function OptionChainPanel({
           </Text>
           <IconRefresh
             size={18}
-            style={{ cursor: "pointer", opacity: loading ? 0.5 : 1 }}
+            style={{ opacity: loading ? 0.5 : 1 }}
             onClick={() => !loading && refreshChain()}
             className="chain-refresh-icon"
             data-testid="refresh-chain-btn"

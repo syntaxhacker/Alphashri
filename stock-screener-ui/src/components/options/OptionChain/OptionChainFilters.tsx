@@ -17,7 +17,7 @@ export function OptionChainFilters({
     >
       <Select
         label="Type"
-        style={{ flex: 1 }}
+        flex={1}
         value={filters.optionType}
         onChange={(val) => val && setFilters({ optionType: val as "CE" | "PE" | "BOTH" })}
         data={[
@@ -30,7 +30,7 @@ export function OptionChainFilters({
       />
       <Select
         label="Moneyness"
-        style={{ flex: 1 }}
+        flex={1}
         value={filters.moneyness}
         onChange={(val) => val && setFilters({ moneyness: val as "ITM" | "OTM" | "ALL" })}
         data={[
@@ -43,13 +43,13 @@ export function OptionChainFilters({
       />
       <Group
         className="filter-strike-range"
-        style={{ flex: 2 }}
+        flex={2}
         align="flex-end"
         data-testid="options-strike-range-group"
       >
         <NumberInput
           label="Strike Min"
-          style={{ flex: 1 }}
+          flex={1}
           value={filters.strikeRange?.[0] ?? 0}
           onChange={(val) =>
             setFilters({ strikeRange: [val as number, filters.strikeRange?.[1] ?? 100000] })
@@ -59,7 +59,7 @@ export function OptionChainFilters({
         />
         <NumberInput
           label="Max"
-          style={{ flex: 1 }}
+          flex={1}
           value={filters.strikeRange?.[1] ?? 100000}
           onChange={(val) =>
             setFilters({ strikeRange: [filters.strikeRange?.[0] ?? 0, val as number] })

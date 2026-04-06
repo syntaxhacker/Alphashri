@@ -21,7 +21,7 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-alerts-card"
         data-testid="sector-alerts-card"
-        style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
+        style={{ flex: "1 1 50%" }}
         title={
           <Group justify="space-between" mb="xs">
             <Title order={4}>Real-time Alerts</Title>
@@ -37,7 +37,7 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-interval-movers-card"
         data-testid="sector-interval-movers-card"
-        style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
+        style={{ flex: "1 1 50%" }}
         title={
           <Group justify="space-between" mb="xs">
             <Title order={4}>Interval Movers</Title>
@@ -100,8 +100,6 @@ export function DashboardContent({
         <CompactPanel
           style={{
             overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
             minHeight: 0,
           }}
           id="sector-treemap-container"
@@ -129,8 +127,6 @@ export function DashboardContent({
         <CompactPanel
           style={{
             overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
             minHeight: 0,
           }}
           id="sector-table-container"

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { validateRegistration } from "./LoginForm";
+import { validateRegistration } from "./LoginForm2";
 
 describe("validateRegistration", () => {
   test("returns null for valid matching passwords", () => {

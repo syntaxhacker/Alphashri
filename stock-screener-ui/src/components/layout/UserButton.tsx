@@ -1,5 +1,5 @@
 import { IconLogout } from "@tabler/icons-react";
-import { Avatar, Group, Text, UnstyledButton, Menu, rem } from "@mantine/core";
+import { Avatar, Box, Group, Text, UnstyledButton, Menu, rem } from "@mantine/core";
 import classes from "./UserButton.module.css";
 
 declare global {
@@ -34,7 +34,7 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
             <Avatar radius="xl" alt={user.displayName} data-testid="user-avatar" />
 
             {!collapsed && (
-              <div style={{ flex: 1 }} className="user-info">
+              <Box flex={1} className="user-info">
                 <Text size="sm" fw={500} data-testid="user-display-name">
                   {user.displayName}
                 </Text>
@@ -42,7 +42,7 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
                 <Text c="dimmed" size="sm" data-testid="user-email">
                   {user.email}
                 </Text>
-              </div>
+              </Box>
             )}
           </Group>
         </UnstyledButton>

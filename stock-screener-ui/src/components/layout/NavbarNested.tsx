@@ -13,7 +13,7 @@ import {
   IconNews,
   IconShield,
 } from "@tabler/icons-react";
-import { Group, ScrollArea, UnstyledButton, AppShell } from "@mantine/core";
+import { Box, Group, ScrollArea, UnstyledButton, AppShell } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
@@ -66,7 +66,7 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
         id="navbar-links"
         data-testid="navbar-links"
       >
-        <div className={classes.linksInner}>{links}</div>
+        <Box className={classes.linksInner}>{links}</Box>
       </AppShell.Section>
 
       <AppShell.Section className={classes.footer} id="navbar-footer" data-testid="navbar-footer">

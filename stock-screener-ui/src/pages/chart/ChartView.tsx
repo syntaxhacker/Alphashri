@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useMantineColorScheme, Loader } from "@mantine/core";
+import { useMantineColorScheme, Loader, Box } from "@mantine/core";
 import { fetchChartPreview, ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption } from "../../components/chart/chartRenderer";
 
@@ -111,16 +111,16 @@ const ChartView: React.FC = () => {
 
   if (!symbol) {
     return (
-      <div className="chart-view-error" data-testid="chart-view-error">
+      <Box className="chart-view-error" data-testid="chart-view-error">
         <p>No symbol specified</p>
         <button onClick={() => navigate("/")}>Back to Screener</button>
-      </div>
+      </Box>
     );
   }
 
   return (
-    <div className="chart-view" data-testid="chart-view" id="chart-view">
-      <div className="chart-view-header" id="chart-header" data-testid="chart-header">
+    <Box className="chart-view" data-testid="chart-view" id="chart-view">
+      <Box className="chart-view-header" id="chart-header" data-testid="chart-header">
         <button className="back-btn" onClick={() => navigate(-1)} data-testid="chart-back-btn">
           ← Back
         </button>
@@ -128,8 +128,8 @@ const ChartView: React.FC = () => {
           {symbol}
         </h2>
 
-        <div className="chart-controls" id="chart-controls" data-testid="chart-controls">
-          <div className="control-group">
+        <Box className="chart-controls" id="chart-controls" data-testid="chart-controls">
+          <Box className="control-group">
             <label>Timeframe:</label>
             <select
               value={timeframe}
@@ -142,9 +142,9 @@ const ChartView: React.FC = () => {
                 </option>
               ))}
             </select>
-          </div>
+          </Box>
 
-          <div className="control-group">
+          <Box className="control-group">
             <label>OR:</label>
             <select
               value={orMinutes}
@@ -157,9 +157,9 @@ const ChartView: React.FC = () => {
                 </option>
               ))}
             </select>
-          </div>
+          </Box>
 
-          <div className="control-group">
+          <Box className="control-group">
             <label>
               <input
                 type="checkbox"
@@ -169,47 +169,48 @@ const ChartView: React.FC = () => {
               />
               Pivots
             </label>
-          </div>
-        </div>
-      </div>
+          </Box>
+        </Box>
+      </Box>
 
-      <div className="chart-view-body" id="chart-body" data-testid="chart-body">
+      <Box className="chart-view-body" id="chart-body" data-testid="chart-body">
         {loading && (
-          <div className="chart-loading" data-testid="chart-loading">
+          <Box className="chart-loading" data-testid="chart-loading">
             <Loader size="sm" />
-          </div>
+          </Box>
         )}
 
         {error && (
-          <div className="chart-error" data-testid="chart-error">
+          <Box className="chart-error" data-testid="chart-error">
             <p>{error}</p>
             <button onClick={() => window.location.reload()} data-testid="chart-retry-btn">
               Retry
             </button>
-          </div>
+          </Box>
         )}
 
         {!loading && !error && data && (
-          <div
+          <Box
             ref={chartRef}
             className="chart-container-full"
             data-testid="candlestick-chart"
             id="candlestick-chart"
-            style={{ width: "100%", height: "100%" }}
+            w="100%"
+            h="100%"
           />
         )}
-      </div>
+      </Box>
 
       {data && (
-        <div className="chart-view-footer" id="chart-footer" data-testid="chart-footer">
+        <Box className="chart-view-footer" id="chart-footer" data-testid="chart-footer">
           <span>{data.candles.length} candles</span>
           <span>•</span>
           <span>TF: {timeframe}m</span>
           <span>•</span>
           <span>OR: {orMinutes}m</span>
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 };
 
