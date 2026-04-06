@@ -1,4 +1,4 @@
-import { Stack, Group, Text, Button, SimpleGrid } from "@mantine/core";
+import { Stack, Group, Text, Button, SimpleGrid, Loader } from "@mantine/core";
 import { IconAlertCircle, IconPlus, IconSettings } from "@tabler/icons-react";
 import type { TemplatesViewProps, TemplateCardProps } from "./types";
 import { CompactPanel } from "../common/compact";
@@ -16,7 +16,7 @@ export function TemplatesView({
         testId="templates-loading-state"
         title={
           <Group gap="xs" wrap="nowrap">
-            <div className="spinner" data-testid="strategies-loading" />
+            <Loader size="sm" data-testid="strategies-loading" />
             <Text fw={600} size="sm">
               Loading templates
             </Text>

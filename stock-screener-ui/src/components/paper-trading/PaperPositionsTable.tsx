@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Table, Tabs, Badge, ActionIcon, Text, Group, Card, Tooltip } from "@mantine/core";
+import { Table, Tabs, Badge, ActionIcon, Text, Group, Card, Tooltip, Loader } from "@mantine/core";
 import {
   getPaperTradingState,
   setSelectedSymbol,
@@ -396,9 +396,9 @@ export function PaperPositionsTable() {
         className="paper-positions-panel"
         id="positions-panel"
       >
-        <Text c="dimmed" ta="center">
-          Loading positions...
-        </Text>
+        <Group justify="center" py="md">
+          <Loader size="sm" />
+        </Group>
       </Card>
     );
   }

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Box, Text, useMantineColorScheme } from "@mantine/core";
+import { Box, Text, useMantineColorScheme, Loader } from "@mantine/core";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
@@ -807,7 +807,7 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
           borderRadius: "var(--mantine-radius-md)",
         }}
       >
-        <Text c="dimmed">Loading {symbol}...</Text>
+        <Loader size="sm" />
       </Box>
     );
   }

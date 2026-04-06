@@ -1,4 +1,4 @@
-import { Group, Text, Badge } from "@mantine/core";
+import { Group, Text, Badge, Loader } from "@mantine/core";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { formatCurrencyIN, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -30,9 +30,9 @@ export function PaperPortfolioCard({
 }: PaperPortfolioCardProps) {
   if (!portfolio) {
     return (
-      <Text c="dimmed" size="xs" data-testid="portfolio-card">
-        Loading...
-      </Text>
+      <Group justify="center" py="xs" data-testid="portfolio-card">
+        <Loader size="xs" />
+      </Group>
     );
   }
 

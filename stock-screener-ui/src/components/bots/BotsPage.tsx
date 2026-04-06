@@ -44,7 +44,7 @@ import type { BotConfig, BotsView } from "../../types/bots";
 import { BotConfigModal } from "./BotConfigModal2";
 import { BotStatusPanel } from "./BotStatusPanel2";
 import { CompactPage, CompactPanel } from "../common/compact";
-import { LoadingState, ErrorAlert, EmptyCompact } from "../common/states";
+import { InlineLoader, ErrorAlert, EmptyCompact } from "../common/states";
 import { StatusBadge } from "../common/BadgeComponents";
 import { BOT_RUNNING, BOT_STOPPED, BOT_SELECTED_BG } from "../../config/colors";
 
@@ -302,7 +302,7 @@ export function BotsPage() {
         <Box flex={1} style={{ minHeight: 0, overflowY: "auto" }}>
           {isLoading ? (
             <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
-              <LoadingState message="Loading..." size="lg" />
+              <InlineLoader size="lg" />
             </Stack>
           ) : currentView === "status" && state.selectedBot ? (
             <BotStatusPanel

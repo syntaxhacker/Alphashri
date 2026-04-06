@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useMantineColorScheme } from "@mantine/core";
+import { useMantineColorScheme, Loader } from "@mantine/core";
 import { fetchChartPreview, ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption } from "../../components/chart/chartRenderer";
 
@@ -176,7 +176,7 @@ const ChartView: React.FC = () => {
       <div className="chart-view-body" id="chart-body" data-testid="chart-body">
         {loading && (
           <div className="chart-loading" data-testid="chart-loading">
-            <p>Loading chart...</p>
+            <Loader size="sm" />
           </div>
         )}
 
