@@ -56,4 +56,5 @@ UPSTOX_CONFIG = {
 TELEGRAM_CONFIG = {
     "bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
     "chat_id": os.getenv("TELEGRAM_CHAT_ID", ""),
+    "enabled": os.getenv("TELEGRAM_ENABLED", "true").lower() in ("true", "1", "yes"),
 }
