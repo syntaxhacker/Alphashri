@@ -2,23 +2,20 @@ import { Stack, Group, Text, Loader, Button, Alert } from "@mantine/core";
 import { IconAlertCircle, IconDatabaseOff } from "@tabler/icons-react";
 import { CompactPanel } from "./compact";
 
-interface LoadingStateProps {
-  message?: string;
+export interface InlineLoaderProps {
   "data-testid"?: string;
   className?: string;
   size?: string;
 }
 
-export function LoadingState({
-  message = "Loading...",
+export function InlineLoader({
   "data-testid": testId,
   className,
   size = "sm",
-}: LoadingStateProps) {
+}: InlineLoaderProps) {
   return (
     <Group justify="center" py="xl" data-testid={testId} className={className}>
       <Loader size={size} />
-      <Text c="dimmed">{message}</Text>
     </Group>
   );
 }

@@ -1,4 +1,4 @@
-import { Table, Group, Text, ActionIcon, Badge, Tooltip } from "@mantine/core";
+import { Table, Group, Text, ActionIcon, Badge, Tooltip, Loader } from "@mantine/core";
 import { IconEdit, IconTrash, IconCheck, IconAlertCircle } from "@tabler/icons-react";
 import type { StrategiesListProps } from "./types";
 import { CompactPanel } from "../common/compact";
@@ -32,7 +32,7 @@ export function StrategiesList({
         testId="strategies-loading-state"
         title={
           <Group gap="xs" wrap="nowrap">
-            <div className="spinner" data-testid="strategies-loading" />
+            <Loader size="sm" data-testid="strategies-loading" />
             <Text fw={600} size="sm">
               Loading strategies
             </Text>

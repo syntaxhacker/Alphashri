@@ -1,6 +1,7 @@
 import { Stack, Paper, Group, Text, Badge } from "@mantine/core";
 import type { SectorAlert } from "./sectorUtils";
 import { formatPercentage } from "../../utils/ui-helpers";
+import { TINT_POSITIVE, TINT_NEGATIVE } from "../../config/colors";
 
 export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
   if (alerts.length === 0) {
@@ -18,7 +19,7 @@ export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
           key={i}
           p="xs"
           withBorder
-          bg={alert.direction === "SURGING" ? "rgba(64, 192, 87, 0.05)" : "rgba(250, 82, 82, 0.05)"}
+          bg={alert.direction === "SURGING" ? TINT_POSITIVE : TINT_NEGATIVE}
         >
           <Group justify="space-between">
             <Text size="sm" fw={700}>

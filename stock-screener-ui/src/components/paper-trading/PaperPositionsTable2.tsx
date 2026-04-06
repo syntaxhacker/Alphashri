@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Tabs, Badge, Text, Group, Flex, ScrollArea } from "@mantine/core";
+import { Tabs, Badge, Text, Group, Flex, ScrollArea, Loader } from "@mantine/core";
 import { getPaperTradingState, setSelectedStrategyTab, subscribe } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
@@ -104,14 +104,13 @@ export function PaperPositionsTable() {
     return (
       <Flex
         justify="center"
+        align="center"
         py="lg"
         data-testid="positions-panel"
         className="paper-positions-panel"
         id="positions-panel"
       >
-        <Text size="xs" c="dimmed">
-          Loading positions...
-        </Text>
+        <Loader size="sm" />
       </Flex>
     );
   }

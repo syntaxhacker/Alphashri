@@ -3,6 +3,7 @@ import { IconRefresh } from "@tabler/icons-react";
 import type { BotTrade } from "../../../types/bots";
 import { formatNumber as formatNumberShared, getPnLTextColor } from "../../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge } from "../../common/BadgeComponents";
+import { TINT_TEST_TRADE } from "../../../config/colors";
 
 export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () => void }) {
   if (trades.length === 0) {
@@ -52,7 +53,7 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
               const netPnlColor = getPnLTextColor(t.net_pnl);
 
               return (
-                <Table.Tr key={idx} bg={t.is_test ? "rgba(255, 193, 7, 0.1)" : undefined}>
+                <Table.Tr key={idx} bg={t.is_test ? TINT_TEST_TRADE : undefined}>
                   <Table.Td>
                     <Group gap="xs">
                       <Text size="sm">{t.strategy_name}</Text>

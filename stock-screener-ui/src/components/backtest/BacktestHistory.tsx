@@ -32,7 +32,7 @@ import {
   getBacktestState,
 } from "../../state/backtest";
 import { DataTable } from "../common/DataTable";
-import { LoadingState, EmptyState } from "../common/states";
+import { InlineLoader, EmptyState } from "../common/states";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 
 interface BacktestHistoryProps {
@@ -149,8 +149,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
 
   if (loading) {
     return (
-      <LoadingState
-        message="Loading history..."
+      <InlineLoader
         data-testid="backtest-history-loading"
         className="backtest-history-loading"
         size="md"

@@ -1,6 +1,12 @@
 import type { SymbolChartData } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { normalizeTime } from "../../utils/ui-helpers";
+import {
+  MARKER_TP, MARKER_SL, MARKER_EOD,
+  MARKER_BORDER,
+  CHART_AVG_ENTRY, CHART_TRADE_EXIT, CHART_DARK_DROPDOWN,
+  INDICATOR_BLUE_A, INDICATOR_BLUE_B,
+} from "../../config/colors";
 
 export const chartInstances = new Map<string, any>();
 
@@ -87,21 +93,21 @@ function buildHighlightEntryMarker(
     symbol: "triangle",
     symbolSize: 32,
     itemStyle: {
-      color: "#FFD700",
-      borderColor: "#FF6B00",
+      color: CHART_AVG_ENTRY,
+      borderColor: CHART_TRADE_EXIT,
       borderWidth: 4,
       shadowBlur: 10,
-      shadowColor: "#FFD700",
+      shadowColor: CHART_AVG_ENTRY,
     },
     label: {
       show: true,
       position: "top",
       distance: 8,
       formatter: `▼ Entry #${tradeIndex + 1}`,
-      color: "#FFD700",
+      color: CHART_AVG_ENTRY,
       fontSize: fontSizes.md,
       fontWeight: "bold",
-      backgroundColor: "rgba(0,0,0,0.7)",
+      backgroundColor: CHART_DARK_DROPDOWN,
       padding: [4, 8],
       borderRadius: 4,
     },
@@ -112,7 +118,7 @@ function buildHighlightExitMarker(exitMarker: any, exitIdx: number, fontSizes: a
   if (!exitMarker || exitIdx === undefined) return null;
 
   const exitReason = (exitMarker.trade as any).exit_reason;
-  const color = exitReason === "TP" ? "#00E676" : exitReason === "SL" ? "#FF1744" : "#FFEA00";
+  const color = exitReason === "TP" ? MARKER_TP : exitReason === "SL" ? MARKER_SL : MARKER_EOD;
 
   return {
     value: [exitIdx, exitMarker.price],
@@ -120,7 +126,7 @@ function buildHighlightExitMarker(exitMarker: any, exitIdx: number, fontSizes: a
     symbolSize: 28,
     itemStyle: {
       color,
-      borderColor: "#FFFFFF",
+      borderColor: MARKER_BORDER,
       borderWidth: 4,
       shadowBlur: 10,
       shadowColor: color,
@@ -130,10 +136,10 @@ function buildHighlightExitMarker(exitMarker: any, exitIdx: number, fontSizes: a
       position: "bottom",
       distance: 8,
       formatter: `● ${exitReason || "Exit"}`,
-      color: "#FFFFFF",
+      color: MARKER_BORDER,
       fontSize: fontSizes.md,
       fontWeight: "bold",
-      backgroundColor: "rgba(0,0,0,0.7)",
+      backgroundColor: CHART_DARK_DROPDOWN,
       padding: [4, 8],
       borderRadius: 4,
     },
@@ -156,14 +162,14 @@ function build52wHighSeries(level52wHighData: any[], level52wHigh: any, fontSize
         show: true,
         position: "end",
         formatter: `52W High: ₹${level52wHigh}`,
-        color: "#FFD700",
+        color: CHART_AVG_ENTRY,
         fontSize: fontSizes.sm,
         fontWeight: "bold",
-        backgroundColor: "rgba(0,0,0,0.7)",
+        backgroundColor: CHART_DARK_DROPDOWN,
         padding: [2, 6],
         borderRadius: 3,
       },
-      lineStyle: { color: "#FFD700", width: 2, type: "dashed" },
+      lineStyle: { color: CHART_AVG_ENTRY, width: 2, type: "dashed" },
       data: [{ yAxis: level52wHigh }],
       animation: false,
     },
@@ -192,19 +198,19 @@ function buildLevelSeries(
       connectNulls: false,
       silent: true,
       z: 6,
-      lineStyle: { color: "#42A5F5", width: 2, type: "dashed" },
-      tooltip: { show: false },
-    },
-    {
-      id: "selected-or-low",
-      name: "Selected Level Low",
-      type: "line",
-      data: levelLowData,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 6,
-      lineStyle: { color: "#1E88E5", width: 2, type: "dashed" },
+      lineStyle: { color: INDICATOR_BLUE_A, width: 2, type: "dashed" },
+        tooltip: { show: false },
+      },
+      {
+        id: "selected-or-low",
+        name: "Selected Level Low",
+        type: "line",
+        data: levelLowData,
+        showSymbol: false,
+        connectNulls: false,
+        silent: true,
+        z: 6,
+        lineStyle: { color: INDICATOR_BLUE_B, width: 2, type: "dashed" },
       tooltip: { show: false },
     },
   ];

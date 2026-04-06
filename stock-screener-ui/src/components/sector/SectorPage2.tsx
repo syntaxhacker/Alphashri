@@ -38,6 +38,7 @@ import {
   SectorTreemap,
 } from "./SectorHelpers";
 import type { SectorAlert, InternalStockMover } from "./SectorHelpers";
+import { TINT_POSITIVE, TINT_NEGATIVE } from "../../config/colors";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -59,8 +60,8 @@ function AlertsList({ alerts }: { alerts: SectorAlert[] }) {
           withBorder
           bg={
             alert.direction === "SURGING"
-              ? "rgba(64, 192, 87, 0.05)"
-              : "rgba(250, 82, 82, 0.05)"
+              ? TINT_POSITIVE
+              : TINT_NEGATIVE
           }
         >
           <Group justify="space-between">

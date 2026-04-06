@@ -8,6 +8,7 @@ import type { StrategiesState, StrategyPerformance } from "../../types/strategie
 import { triggerRerender } from "../../state/strategies";
 import { getStrategyTrades } from "../../api/strategies";
 import { getPnLTextColor, formatNumber, formatTimeOnly } from "../../utils/ui-helpers";
+import { PERF_POSITIVE, PERF_NEGATIVE } from "../../config/colors";
 
 // Cache for strategy trades
 let strategyTradesCache: Map<number, any[]> = new Map();
@@ -209,7 +210,7 @@ function renderPerformanceRow(perf: StrategyPerformance): string {
 
 function renderMiniBar(value: number): string {
   const isPositive = value >= 0;
-  const color = isPositive ? "#00ff9d" : "#ff6b6b";
+  const color = isPositive ? PERF_POSITIVE : PERF_NEGATIVE;
   const absValue = Math.abs(value);
   const maxWidth = 100;
   const width = Math.min(maxWidth, absValue / 1000); // Scale
@@ -223,7 +224,7 @@ function renderMiniBar(value: number): string {
 
 function renderPerformanceBar(perf: StrategyPerformance, maxAbsPnl: number): string {
   const isPositive = perf.net_pnl >= 0;
-  const color = isPositive ? "#00ff9d" : "#ff6b6b";
+  const color = isPositive ? PERF_POSITIVE : PERF_NEGATIVE;
   const absValue = Math.abs(perf.net_pnl);
   const percentage = maxAbsPnl > 0 ? (absValue / maxAbsPnl) * 100 : 0;
 

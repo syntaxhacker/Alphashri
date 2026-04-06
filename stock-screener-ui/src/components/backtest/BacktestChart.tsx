@@ -1,8 +1,26 @@
 import { useEffect, useRef } from "react";
-import { Box, Text, useMantineColorScheme } from "@mantine/core";
+import { Box, Text, useMantineColorScheme, Loader } from "@mantine/core";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
+import {
+  CHART_DARK_BG, CHART_LIGHT_BG,
+  CHART_DARK_TEXT, CHART_LIGHT_TEXT,
+  CHART_DARK_MUTED, CHART_LIGHT_MUTED,
+  CHART_DARK_BORDER, CHART_LIGHT_BORDER,
+  CHART_DARK_SPLIT, CHART_LIGHT_SPLIT,
+  CHART_DARK_OVERLAY, CHART_LIGHT_OVERLAY,
+  CHART_CROSSHAIR,
+  BULLISH, BEARISH,
+  MARKER_BUY, MARKER_SELL, MARKER_STOP_LOSS, MARKER_CUSTOM, MARKER_MAX_HOLDING,
+  MARKER_BORDER,
+  PIVOT_R1, PIVOT_PP, PIVOT_S1, PIVOT_S2,
+  POSITIVE, NEGATIVE,
+  MARKER_ENTRY,
+  MARKER_TP, MARKER_SL, MARKER_EOD,
+  CHART_AVG_ENTRY, CHART_TRADE_EXIT, CHART_DARK_DROPDOWN,
+  INDICATOR_BLUE_A, INDICATOR_BLUE_B,
+} from "../../config/colors";
 
 const chartInstances = new Map<string, any>();
 
@@ -21,12 +39,12 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     return {};
   }
 
-  const bgColor = isDark ? "#0a0a0a" : "#ffffff";
-  const textColor = isDark ? "#e0e0e0" : "#333333";
-  const mutedColor = isDark ? "#888" : "#666666";
-  const borderColor = isDark ? "#333" : "#e0e0e0";
-  const splitLineColor = isDark ? "#222" : "#eeeeee";
-  const tooltipBg = isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
+  const bgColor = isDark ? CHART_DARK_BG : CHART_LIGHT_BG;
+  const textColor = isDark ? CHART_DARK_TEXT : CHART_LIGHT_TEXT;
+  const mutedColor = isDark ? CHART_DARK_MUTED : CHART_LIGHT_MUTED;
+  const borderColor = isDark ? CHART_DARK_BORDER : CHART_LIGHT_BORDER;
+  const splitLineColor = isDark ? CHART_DARK_SPLIT : CHART_LIGHT_SPLIT;
+  const tooltipBg = isDark ? CHART_DARK_OVERLAY : CHART_LIGHT_OVERLAY;
 
   const candleData = candles.map((c) => [c.open, c.close, c.low, c.high]);
   const timeData = candles.map((c) => c.time);
@@ -59,7 +77,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       .filter((t) => t.computedIdx !== undefined)
       .map((t) => ({
         value: [t.computedIdx!, t.price],
-        itemStyle: { color: config.color, borderColor: "#FFFFFF", borderWidth: 2 },
+        itemStyle: { color: config.color, borderColor: MARKER_BORDER, borderWidth: 2 },
         symbol: config.symbol,
         ...(config.symbolRotate !== undefined ? { symbolRotate: config.symbolRotate } : {}),
         symbolSize: config.symbolSize,
@@ -72,26 +90,26 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   const markerConfigs: MarkerConfig[] = [
     {
       filter: (t) => t.type === "entry",
-      color: "#00FFFF",
+      color: MARKER_BUY,
       symbol: "triangle",
       symbolSize: 18,
       symbolRotate: 180,
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "TP",
-      color: "#FFFF00",
+      color: MARKER_SELL,
       symbol: "circle",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "SL",
-      color: "#FF00FF",
+      color: MARKER_STOP_LOSS,
       symbol: "circle",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "EOD",
-      color: "#FFA500",
+      color: MARKER_CUSTOM,
       symbol: "diamond",
       symbolSize: 16,
     },
@@ -103,13 +121,13 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "MAX_HOLDING",
-      color: "#FF9800",
+      color: MARKER_MAX_HOLDING,
       symbol: "diamond",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "NEW_52W_HIGH",
-      color: "#00BCD4",
+      color: PIVOT_S2,
       symbol: "circle",
       symbolSize: 16,
     },
@@ -131,10 +149,10 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       type: "candlestick",
       data: candleData,
       itemStyle: {
-        color: "#00E676",
-        color0: "#FF1744",
-        borderColor: "#00E676",
-        borderColor0: "#FF1744",
+        color: BULLISH,
+        color0: BEARISH,
+        borderColor: BULLISH,
+        borderColor0: BEARISH,
       },
     },
     { name: "Entry", type: "scatter", data: entryMarkers, symbolSize: 16, z: 10 },
@@ -226,7 +244,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
           showSymbol: false,
           silent: true,
           z: 5,
-          lineStyle: { color: "#EF5350", width: 1, type: "dashed" },
+          lineStyle: { color: PIVOT_R1, width: 1, type: "dashed" },
         },
         {
           id: "pivot-pp",
@@ -236,7 +254,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
           showSymbol: false,
           silent: true,
           z: 5,
-          lineStyle: { color: "#AB47BC", width: 1, type: "dotted" },
+          lineStyle: { color: PIVOT_PP, width: 1, type: "dotted" },
         },
         {
           id: "pivot-s1",
@@ -246,7 +264,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
           showSymbol: false,
           silent: true,
           z: 5,
-          lineStyle: { color: "#26A69A", width: 1, type: "dashed" },
+          lineStyle: { color: PIVOT_S1, width: 1, type: "dashed" },
         },
       );
       legendData.push("R1", "PP", "S1");
@@ -266,7 +284,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
         showSymbol: false,
         silent: true,
         z: 5,
-        lineStyle: { color: "#FFD700", width: 2, type: "dashed" },
+        lineStyle: { color: CHART_AVG_ENTRY, width: 2, type: "dashed" },
       });
       legendData.push("52W High");
     }
@@ -281,7 +299,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     },
     tooltip: {
       trigger: "axis",
-      axisPointer: { type: "cross", lineStyle: { color: "#666" } },
+      axisPointer: { type: "cross", lineStyle: { color: CHART_CROSSHAIR } },
       backgroundColor: tooltipBg,
       borderColor: borderColor,
       borderWidth: 1,
@@ -291,11 +309,11 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
         for (const p of params) {
           if (p.data && p.data.trade) {
             const t = p.data.trade;
-            const pnlColor = t.net_pnl >= 0 ? "#00E676" : "#FF1744";
+            const pnlColor = t.net_pnl >= 0 ? POSITIVE : NEGATIVE;
 
             return `
               <div style="padding: 6px 8px; fontFamily: fontFamily; font-size: fontSizes.sm; line-height: 1.4;">
-                <div style="color: #00BFFF; font-weight: bold; margin-bottom: 4px;">
+                <div style="color: ${MARKER_ENTRY}; font-weight: bold; margin-bottom: 4px;">
                   Trade #${p.data.trade_id} | ${t.exit_reason}
                 </div>
                 <div style="display: flex; gap: 12px; margin-bottom: 2px;">
@@ -321,7 +339,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
           const idx = candle.dataIndex;
           const c = candles[idx];
           const change = (((c.close - c.open) / c.open) * 100).toFixed(2);
-          const changeColor = c.close >= c.open ? "#00E676" : "#FF1744";
+          const changeColor = c.close >= c.open ? POSITIVE : NEGATIVE;
 
           return `
             <div style="padding: 6px 8px; fontFamily: fontFamily; font-size: fontSizes.sm; line-height: 1.4;">
@@ -332,7 +350,7 @@ function buildChartOption(data: SymbolChartData, isDark: boolean): any {
                 <span>L: ₹${c.low.toFixed(0)}</span>
                 <span>C: ₹${c.close.toFixed(0)}</span>
               </div>
-              <div style="display: flex; gap: 12px; color: #888;">
+              <div style="display: flex; gap: 12px; color: ${CHART_DARK_MUTED};">
                 <span style="color: ${changeColor}; font-weight: bold;">${c.close >= c.open ? "+" : ""}${change}%</span>
                 <span>Vol: ${(c.volume / 1000).toFixed(0)}K</span>
               </div>
@@ -544,21 +562,21 @@ export function zoomToTrade(
       symbol: "triangle",
       symbolSize: 32,
       itemStyle: {
-        color: "#FFD700",
-        borderColor: "#FF6B00",
+        color: CHART_AVG_ENTRY,
+        borderColor: CHART_TRADE_EXIT,
         borderWidth: 4,
         shadowBlur: 10,
-        shadowColor: "#FFD700",
+        shadowColor: CHART_AVG_ENTRY,
       },
       label: {
         show: true,
         position: "top",
         distance: 8,
         formatter: `▼ Entry #${tradeIndex + 1}`,
-        color: "#FFD700",
+        color: CHART_AVG_ENTRY,
         fontSize: fontSizes.md,
         fontWeight: "bold",
-        backgroundColor: "rgba(0,0,0,0.7)",
+        backgroundColor: CHART_DARK_DROPDOWN,
         padding: [4, 8],
         borderRadius: 4,
       },
@@ -573,29 +591,29 @@ export function zoomToTrade(
             itemStyle: {
               color:
                 (exitMarker.trade as any).exit_reason === "TP"
-                  ? "#00E676"
+                  ? MARKER_TP
                   : (exitMarker.trade as any).exit_reason === "SL"
-                    ? "#FF1744"
-                    : "#FFEA00",
-              borderColor: "#FFFFFF",
+                    ? MARKER_SL
+                    : MARKER_EOD,
+              borderColor: MARKER_BORDER,
               borderWidth: 4,
               shadowBlur: 10,
               shadowColor:
                 (exitMarker.trade as any).exit_reason === "TP"
-                  ? "#00E676"
+                  ? MARKER_TP
                   : (exitMarker.trade as any).exit_reason === "SL"
-                    ? "#FF1744"
-                    : "#FFEA00",
+                    ? MARKER_SL
+                    : MARKER_EOD,
             },
             label: {
               show: true,
               position: "bottom",
               distance: 8,
               formatter: `● ${(exitMarker.trade as any).exit_reason || "Exit"}`,
-              color: "#FFFFFF",
+              color: MARKER_BORDER,
               fontSize: fontSizes.md,
               fontWeight: "bold",
-              backgroundColor: "rgba(0,0,0,0.7)",
+              backgroundColor: CHART_DARK_DROPDOWN,
               padding: [4, 8],
               borderRadius: 4,
             },
@@ -621,15 +639,15 @@ export function zoomToTrade(
                     show: true,
                     position: "end",
                     formatter: `52W High: ₹${level52wHigh}`,
-                    color: "#FFD700",
+                    color: CHART_AVG_ENTRY,
                     fontSize: fontSizes.sm,
                     fontWeight: "bold",
-                    backgroundColor: "rgba(0,0,0,0.7)",
+                    backgroundColor: CHART_DARK_DROPDOWN,
                     padding: [2, 6],
                     borderRadius: 3,
                   },
                   lineStyle: {
-                    color: "#FFD700",
+                    color: CHART_AVG_ENTRY,
                     width: 2,
                     type: "dashed",
                   },
@@ -651,7 +669,7 @@ export function zoomToTrade(
                 connectNulls: false,
                 silent: true,
                 z: 6,
-                lineStyle: { color: "#42A5F5", width: 2, type: "dashed" },
+                lineStyle: { color: INDICATOR_BLUE_A, width: 2, type: "dashed" },
                 tooltip: { show: false },
               },
               {
@@ -663,7 +681,7 @@ export function zoomToTrade(
                 connectNulls: false,
                 silent: true,
                 z: 6,
-                lineStyle: { color: "#1E88E5", width: 2, type: "dashed" },
+                lineStyle: { color: INDICATOR_BLUE_B, width: 2, type: "dashed" },
                 tooltip: { show: false },
               },
             ]
@@ -789,7 +807,7 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
           borderRadius: "var(--mantine-radius-md)",
         }}
       >
-        <Text c="dimmed">Loading {symbol}...</Text>
+        <Loader size="sm" />
       </Box>
     );
   }

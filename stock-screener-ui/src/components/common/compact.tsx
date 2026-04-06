@@ -11,6 +11,8 @@ import {
   type StackProps,
 } from "@mantine/core";
 
+export const COMPACT_STAT_BG = "light-dark(rgba(248, 250, 252, 0.85), rgba(15, 23, 42, 0.55))";
+
 interface CompactPageProps extends StackProps {
   title?: ReactNode;
   description?: ReactNode;
@@ -136,7 +138,7 @@ export function CompactStat({
     <Paper
       radius="xs"
       p="sm"
-      bg="light-dark(rgba(248, 250, 252, 0.85), rgba(15, 23, 42, 0.55))"
+      bg={COMPACT_STAT_BG}
       {...paperProps}
     >
       <Text size="xs" tt="uppercase" fw={700} c="dimmed" lh={1.1}>

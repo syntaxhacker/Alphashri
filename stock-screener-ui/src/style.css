@@ -2665,21 +2665,6 @@ kbd {
   color: #888;
 }
 
-.auth-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #333;
-  border-top-color: #00ff9d;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .auth-user-info {
   display: flex;
   align-items: center;
@@ -3266,21 +3251,6 @@ textarea.form-input {
 
 .strategies-error p {
   color: #ff6b6b;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #333;
-  border-top-color: #00ff9d;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* ===========================================
