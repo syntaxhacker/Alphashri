@@ -146,7 +146,6 @@ export function ArticleDetail({
                           color={symbol.instrument_key ? "blue" : "gray"}
                           size="sm"
                           radius="sm"
-                          style={{ cursor: "pointer" }}
                           onClick={() => onSymbolClick(symbol)}
                           rightSection={
                             symbol.instrument_key ? (
@@ -191,6 +190,7 @@ export function ArticleDetail({
                         size="sm"
                         onClick={onToggleFullContent}
                         style={{ alignSelf: "flex-start" }}
+                        data-testid="article-toggle-full-content-btn"
                       >
                         {showFullContent ? (
                           <IconChevronDown size={16} />
@@ -201,7 +201,7 @@ export function ArticleDetail({
                       <Text
                         size="xs"
                         c="dimmed"
-                        style={{ cursor: "pointer", marginTop: -28, marginLeft: 28 }}
+                        style={{ marginTop: -28, marginLeft: 28 }}
                         onClick={onToggleFullContent}
                       >
                         {showFullContent ? "Hide full article" : "View full article"}

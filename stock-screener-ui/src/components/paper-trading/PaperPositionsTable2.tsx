@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Tabs, Badge, Text, Group, Flex, ScrollArea, Loader } from "@mantine/core";
+import { Tabs, Badge, Text, Group, Flex, ScrollArea, Loader, Box } from "@mantine/core";
 import { getPaperTradingState, setSelectedStrategyTab, subscribe } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
@@ -167,9 +167,9 @@ export function PaperPositionsTable() {
           )}
 
           <ScrollArea flex={1} style={{ minHeight: 0 }}>
-            <div style={{ overflowX: "auto" }} data-testid="positions-table-container">
+            <Box style={{ overflowX: "auto" }} data-testid="positions-table-container">
               <PositionsTableBody positions={filteredPositions} selectedSymbol={selectedSymbol} />
-            </div>
+            </Box>
           </ScrollArea>
 
           {isMultiStrategy && activeTab === "all" && (

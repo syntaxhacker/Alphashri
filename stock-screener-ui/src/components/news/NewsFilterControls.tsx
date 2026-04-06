@@ -32,7 +32,7 @@ export function NewsFilterControls({
         value={selectedSource}
         onChange={(v) => v && onSourceChange(v)}
         data={sourceData}
-        style={{ flex: 1 }}
+        flex={1}
         className="news-source-select"
         data-testid="news-source-select"
       />
@@ -64,7 +64,6 @@ export function NewsFilterControls({
         <Badge
           variant="light"
           color="blue"
-          style={{ cursor: "pointer" }}
           onClick={onMarkAllRead}
           data-testid="news-unread-badge"
         >

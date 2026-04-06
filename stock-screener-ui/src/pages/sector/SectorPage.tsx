@@ -43,7 +43,7 @@ function ErrorPanel({ error, onRetry }: { error: string; onRetry: () => void }) 
     <CompactPanel
       title="Error"
       action={
-        <Button variant="light" color="red" size="sm" onClick={onRetry}>
+        <Button variant="light" color="red" size="sm" onClick={onRetry} data-testid="sector-retry-btn">
           Retry
         </Button>
       }
@@ -164,7 +164,7 @@ export function SectorPage() {
   return (
     <Stack
       gap="sm"
-      style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      style={{ height: "100%", overflow: "hidden" }}
       data-testid="sector-analysis-view"
     >
       <SectorPageHeader
@@ -181,10 +181,10 @@ export function SectorPage() {
       >
         <Tabs value={state.activeTab} onChange={state.setActiveTab}>
           <Tabs.List>
-            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
+            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />} data-testid="sector-tab-dashboard">
               Live Dashboard
             </Tabs.Tab>
-            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
+            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />} data-testid="sector-tab-historical">
               Historical Cycles
             </Tabs.Tab>
           </Tabs.List>

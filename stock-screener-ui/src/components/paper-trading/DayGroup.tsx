@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import { Collapse, Table, Badge, Text, Group, Flex, ActionIcon } from "@mantine/core";
+import { Box, Collapse, Table, Badge, Text, Group, Flex, ActionIcon } from "@mantine/core";
 import type { PaperTrade } from "../../types/paperTrading";
 import {
   formatNumber,
@@ -48,7 +48,6 @@ function DaySummary({
       px="xs"
       py={2}
       onClick={onToggle}
-      style={{ cursor: "pointer" }}
       data-testid={`day-header-${date}`}
     >
       <Group gap="xs">
@@ -99,7 +98,6 @@ function TradeRow({
       key={trade.trade_id}
       onClick={() => onSelectSymbol(trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_name)}
       className={isSelected ? "trade-row-highlighted" : undefined}
-      style={{ cursor: "pointer" }}
       data-testid={`trade-row-${trade.trade_id}`}
     >
       <Table.Td>
@@ -175,7 +173,7 @@ export function DayGroup({
     >
       <DaySummary date={date} trades={trades} onToggle={onToggle} />
       <Collapse in={expanded}>
-        <div style={{ overflowX: "auto" }}>
+        <Box style={{ overflowX: "auto" }}>
           <Table striped highlightOnHover styles={tableStyles}>
             <Table.Thead>
               <Table.Tr>
@@ -278,7 +276,7 @@ export function DayGroup({
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </Box>
       </Collapse>
     </Flex>
   );

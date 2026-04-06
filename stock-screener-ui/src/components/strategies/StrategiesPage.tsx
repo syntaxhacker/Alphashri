@@ -113,11 +113,11 @@ export function StrategiesPage({
 
   return (
     <CompactPage>
-      <Box
+      <Stack
         h="100%"
         className="strategies-page"
         id="strategies-main"
-        style={{ display: "flex", flexDirection: "column", gap: "var(--mantine-spacing-sm)" }}
+        gap="sm"
         data-testid="strategies-view"
       >
         <Box
@@ -159,7 +159,7 @@ export function StrategiesPage({
           }}
           data-testid="strategies-edit-modal"
         />
-      </Box>
+      </Stack>
     </CompactPage>
   );
 }

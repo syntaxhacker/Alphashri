@@ -1,4 +1,4 @@
-import { Table, Text, Group } from "@mantine/core";
+import { Box, Table, Text, Group } from "@mantine/core";
 import type { BacktestResult } from "../../types/backtest";
 import { getPnLTextColor, getWinRateColor, formatPnl } from "../../utils/ui-helpers";
 import { SortableHeader } from "../common/SortableHeader";
@@ -45,7 +45,6 @@ export function BacktestResultsTable({
       <Table.Tr
         key={result.symbol}
         style={{
-          cursor: "pointer",
           backgroundColor: isSelected ? "var(--mantine-color-blue-light)" : undefined,
         }}
         onClick={() => onRowClick(result.symbol)}
@@ -85,16 +84,16 @@ export function BacktestResultsTable({
 
   if (!results || results.length === 0) {
     return (
-      <div className="results-empty" data-testid="results-empty">
+      <Box className="results-empty" data-testid="results-empty">
         <Text c="dimmed" ta="center" py="md">
           No results yet. Run a backtest.
         </Text>
-      </div>
+      </Box>
     );
   }
 
   return (
-    <div id="results-table" className="backtest-results-table" data-testid="results-table-wrapper">
+    <Box id="results-table" className="backtest-results-table" data-testid="results-table-wrapper">
       <DataTable withTableBorder stickyHeader className="results-table">
         <Table.Thead>
           <Table.Tr>
@@ -114,6 +113,6 @@ export function BacktestResultsTable({
         </Table.Thead>
         <Table.Tbody data-testid="results-tbody">{results.map(renderRow)}</Table.Tbody>
       </DataTable>
-    </div>
+    </Box>
   );
 }

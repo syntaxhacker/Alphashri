@@ -77,7 +77,7 @@ function AdminContent({
           </ActionIcon>
         }
       >
-        <Stack gap="sm" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
           <CompactStatGrid>
             <CompactStat label="Total Runs" value={aggregate.total_runs} />
             <CompactStat label="Total Tokens" value={aggregate.total_tokens.toLocaleString()} />
@@ -95,7 +95,7 @@ function AdminContent({
           <ModelBreakdown models={aggregate.models_used} />
           <CompactPanel
             title="Recent Runs"
-            style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+            style={{ flex: 1, minHeight: 0 }}
           >
             <ScrollArea flex={1}>
               <RecentRunsTable runs={recent_runs} />

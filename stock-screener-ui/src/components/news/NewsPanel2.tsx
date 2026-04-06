@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Box,
   Button,
   Indicator,
   Overlay,
@@ -224,7 +223,7 @@ export default function NewsPanel2() {
         />
       )}
 
-      <Box
+      <Stack
         pos="fixed"
         top={0}
         right={isOpen ? 0 : -400}
@@ -237,8 +236,6 @@ export default function NewsPanel2() {
           zIndex: 200,
           transition: "right 0.3s ease",
           borderLeft: "1px solid var(--mantine-color-default-border)",
-          display: "flex",
-          flexDirection: "column",
         }}
         data-testid="news-panel"
       >
@@ -291,7 +288,7 @@ export default function NewsPanel2() {
             </Paper>
           </Stack>
         )}
-      </Box>
+      </Stack>
     </>
   );
 }

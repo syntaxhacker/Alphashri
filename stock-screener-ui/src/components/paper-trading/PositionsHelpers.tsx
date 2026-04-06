@@ -1,4 +1,4 @@
-import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
+import { Box, Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
 import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
@@ -97,7 +97,6 @@ function PositionRow({
     <Table.Tr
       key={pos.symbol}
       onClick={() => onSelect(pos.symbol)}
-      style={{ cursor: "pointer" }}
       data-testid={`position-row-${pos.symbol}`}
     >
       <Table.Td>
@@ -238,7 +237,7 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
         </Text>
       </Group>
       <ScrollArea flex={1} style={{ minHeight: 0 }}>
-        <div style={{ overflowX: "auto" }}>
+        <Box style={{ overflowX: "auto" }}>
           <Table striped highlightOnHover styles={TABLE_STYLES}>
             <Table.Thead>
               <Table.Tr>
@@ -255,7 +254,6 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
                 <Table.Tr
                   key={item.symbol}
                   onClick={() => handleSelectSymbol(item.symbol)}
-                  style={{ cursor: "pointer" }}
                   data-testid={`scan-row-${item.symbol}`}
                 >
                   <Table.Td>
@@ -280,7 +278,7 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </Box>
       </ScrollArea>
     </Flex>
   );

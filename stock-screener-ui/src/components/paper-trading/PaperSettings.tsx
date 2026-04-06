@@ -8,6 +8,7 @@ import {
   Group,
   Stack,
   Badge,
+  Box,
   Loader,
   Alert,
   Divider,
@@ -177,14 +178,14 @@ function SettingsContent({
       )}
 
       <Group justify="space-between" mb="md" className="paper-settings-header" id="settings-header">
-        <div>
+        <Box>
           <Text fw={600} size="lg">
             Strategy Configuration
           </Text>
           <Text size="sm" c="dimmed">
             {strategyConfig.name} ({strategyConfig.strategy_type})
           </Text>
-        </div>
+        </Box>
         {configDirty && (
           <Badge color="yellow" variant="light">
             Unsaved Changes
@@ -221,9 +222,7 @@ function SettingsContent({
                 label: s.is_default ? `${s.name} (Default)` : s.name,
               }))}
               disabled={strategiesLoading || configLoading}
-              style={{
-                flex: 1,
-              }}
+              flex={1}
               size="sm"
             />
             <Button

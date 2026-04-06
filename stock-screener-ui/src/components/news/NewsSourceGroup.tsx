@@ -24,7 +24,6 @@ export function NewsSourceGroup({
         gap="xs"
         p="xs"
         style={{
-          cursor: "pointer",
           borderRadius: "var(--mantine-radius-sm)",
           backgroundColor: "var(--mantine-color-default-hover)",
         }}
