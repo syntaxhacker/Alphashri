@@ -22,7 +22,7 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
   };
 
   return (
-    <Menu position="right-start" offset={8}>
+    <Menu position="right-start" offset={8} shadow="md">
       <Menu.Target>
         <UnstyledButton
           className={classes.user}
@@ -30,16 +30,16 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
           id="user-button"
           style={{ padding: collapsed ? "var(--mantine-spacing-xs)" : undefined }}
         >
-          <Group justify={collapsed ? "center" : "flex-start"}>
+          <Group justify={collapsed ? "center" : "flex-start"} wrap="nowrap" gap="sm">
             <Avatar radius="xl" alt={user.displayName} data-testid="user-avatar" />
 
             {!collapsed && (
-              <Box flex={1} className="user-info">
-                <Text size="sm" fw={500} data-testid="user-display-name">
+              <Box flex={1} className="user-info" style={{ minWidth: 0 }}>
+                <Text size="xs" fw={500} truncate data-testid="user-display-name">
                   {user.displayName}
                 </Text>
 
-                <Text c="dimmed" size="sm" data-testid="user-email">
+                <Text c="dimmed" size="xs" truncate data-testid="user-email">
                   {user.email}
                 </Text>
               </Box>

@@ -23,7 +23,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     <AppShell
       header={{ height: 50 }}
       navbar={{
-        width: collapsed ? 80 : 200,
+        width: 260,
         breakpoint: "md",
         collapsed: { mobile: !mobileOpened, desktop: collapsed },
       }}
@@ -39,7 +39,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         data-testid="app-header"
       >
         <Group justify="space-between" align="center" h="100%" px="sm" gap="sm">
-          <Group gap="sm" align="center">
+          <Group gap="sm" align="center" style={{ flex: "none" }}>
             <Burger
               opened={mobileOpened}
               onClick={toggleMobile}
@@ -58,7 +58,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               🚀 Alphashri
             </Text>
           </Group>
-          <Box flex={1}>
+          <Box flex={1} visibleFrom="sm">
             <MarketTicker />
           </Box>
           <NewsPanel2 />
