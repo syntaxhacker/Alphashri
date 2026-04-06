@@ -40,10 +40,18 @@ from api.screener import (
 from api.symbols import _load_instruments, _instruments_cache, _instruments_loaded
 from api.news_routes import (
     news_poller_task, news_startup_prefetch,
-    _news_available, _llm_available,
-    fetch_news, fetch_article_content, NEWS_SOURCES, article_analyzer,
     news_ws_manager, sector_ws_manager,
 )
+from api.news.news_poller import _init_news_modules
+
+_news_available = False
+_llm_available = False
+fetch_news = None
+fetch_article_content = None
+NEWS_SOURCES = []
+article_analyzer = None
+
+_news_available, _llm_available, article_analyzer, fetch_news, fetch_article_content, NEWS_SOURCES = _init_news_modules()
 
 
 PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers"]

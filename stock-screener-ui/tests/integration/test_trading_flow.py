@@ -598,12 +598,9 @@ class TestPnLCalculationFlow:
         bot = bot_response.json()
         
         # Load real TradeJournal class via importlib to avoid conftest mock
-        ROOT = Path(__file__).resolve().parents[2]
-        journal_path = ROOT / "trading" / "journal.py"
-        spec = importlib.util.spec_from_file_location("real_journal", str(journal_path))
-        journal_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(journal_mod)
-        TradeJournal = journal_mod.TradeJournal
+        import importlib
+        journal_pkg = importlib.import_module("trading.journal")
+        TradeJournal = journal_pkg.TradeJournal
         
         temp_dir = tempfile.mkdtemp()
         journal = TradeJournal(journal_dir=temp_dir, user_id=test_user.id)
