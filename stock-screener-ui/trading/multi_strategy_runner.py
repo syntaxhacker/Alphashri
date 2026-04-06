@@ -721,8 +721,27 @@ class MultiStrategyRunner:
                     del self.cooldown_stocks[symbol]
 
             if runner.strategy_type == "SR_BREAKOUT":
+                now_ist = self._ist_now()
+                min_entry_minutes = runner.config.get('min_entry_minutes', 600)
+                current_minutes = now_ist.hour * 60 + now_ist.minute
+                if current_minutes < min_entry_minutes:
+                    continue
+
                 prev_data = self.fetch_previous_day_data(symbol)
                 if not prev_data:
+                    continue
+
+                live_price = None
+                try:
+                    fetcher = self._get_data_fetcher()
+                    if fetcher:
+                        df_1m = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+                        if df_1m is not None and not df_1m.empty:
+                            live_price = float(df_1m.iloc[-1]['close'])
+                except Exception:
+                    pass
+
+                if live_price is None:
                     continue
 
                 gen = runner.signal_generator
@@ -731,7 +750,7 @@ class MultiStrategyRunner:
                 )
 
                 market_data = {
-                    'current_price': prev_data['current_price'],
+                    'current_price': live_price,
                     'pivot_points': pivot_points,
                 }
 
@@ -739,7 +758,7 @@ class MultiStrategyRunner:
 
                 scan_item = {
                     'symbol': symbol,
-                    'price': prev_data['current_price'],
+                    'price': live_price,
                     'status': 'watching',
                     'side': None,
                     'reason': None,
