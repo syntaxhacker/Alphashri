@@ -5,6 +5,19 @@ import type {
   PaperPosition,
 } from "../../types/paperTrading";
 import { theme } from "../../config/theme";
+import {
+  MARKER_BUY, MARKER_SELL, MARKER_STOP_LOSS, MARKER_CUSTOM,
+  MARKER_BORDER,
+  PIVOT_R1, PIVOT_PP, PIVOT_S1,
+  PIVOT_OR_HIGH, PIVOT_OR_LOW,
+  PIVOT_52W_HIGH, PIVOT_52W_LOW,
+  POSITIVE, NEGATIVE,
+  MARKER_ENTRY,
+  CHART_DARK_MUTED,
+  BULLISH, BEARISH,
+  ORB_AREA,
+  VOLUME_BULLISH, VOLUME_BEARISH,
+} from "../../config/colors";
 
 export const TIMEFRAME_OPTIONS = [
   { value: "1min", label: "1m" },
@@ -81,7 +94,7 @@ function pushTradeMarkers(
   if (entryIdx >= 0) {
     entryMarkers.push({
       value: [entryIdx, trade.entry_price],
-      itemStyle: { color: "#00FFFF", borderColor: "#FFFFFF", borderWidth: 2 },
+      itemStyle: { color: MARKER_BUY, borderColor: MARKER_BORDER, borderWidth: 2 },
       symbol: trade.side === "BUY" ? "triangle" : "triangleRotated",
       symbolSize: 18,
       symbolOffset: isSameCandle ? [0, -20] : [0, 0],
@@ -101,18 +114,18 @@ function pushTradeMarkers(
     if (trade.exit_reason === "TP") {
       tpMarkers.push({
         ...markerBase,
-        itemStyle: { color: "#FFFF00", borderColor: "#FFFFFF", borderWidth: 2 },
+        itemStyle: { color: MARKER_SELL, borderColor: MARKER_BORDER, borderWidth: 2 },
       });
     } else if (trade.exit_reason === "SL") {
       slMarkers.push({
         ...markerBase,
-        itemStyle: { color: "#FF00FF", borderColor: "#FFFFFF", borderWidth: 2 },
+        itemStyle: { color: MARKER_STOP_LOSS, borderColor: MARKER_BORDER, borderWidth: 2 },
       });
     } else {
       eodMarkers.push({
         ...markerBase,
         symbol: "diamond" as const,
-        itemStyle: { color: "#FFA500", borderColor: "#FFFFFF", borderWidth: 2 },
+        itemStyle: { color: MARKER_CUSTOM, borderColor: MARKER_BORDER, borderWidth: 2 },
       });
     }
   }
@@ -143,7 +156,7 @@ function buildMarkers(
     if (idx >= 0) {
       entryMarkers.push({
         value: [idx, current_position.entry_price],
-        itemStyle: { color: "#00FFFF", borderColor: "#FFFFFF", borderWidth: 3 },
+        itemStyle: { color: MARKER_BUY, borderColor: MARKER_BORDER, borderWidth: 3 },
         symbol: current_position.side === "BUY" ? "triangle" : "triangleRotated",
         symbolSize: 22,
         trade: current_position,
@@ -166,24 +179,24 @@ function buildMarkLines(
 ): any[] {
   const lines: any[] = [];
   if (current_position) {
-    lines.push({ name: `SL ${current_position.stop_loss}`, yAxis: current_position.stop_loss, lineStyle: { color: "#FF00FF", type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `TP ${current_position.take_profit}`, yAxis: current_position.take_profit, lineStyle: { color: "#FFFF00", type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `SL ${current_position.stop_loss}`, yAxis: current_position.stop_loss, lineStyle: { color: MARKER_STOP_LOSS, type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `TP ${current_position.take_profit}`, yAxis: current_position.take_profit, lineStyle: { color: MARKER_SELL, type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
   }
   if (orb_levels && showOrb) {
-    lines.push({ name: `OR-H ${orb_levels.or_high}`, yAxis: orb_levels.or_high, lineStyle: { color: "#2196F3", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `OR-L ${orb_levels.or_low}`, yAxis: orb_levels.or_low, lineStyle: { color: "#2196F3", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `OR-H ${orb_levels.or_high}`, yAxis: orb_levels.or_high, lineStyle: { color: PIVOT_OR_HIGH, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `OR-L ${orb_levels.or_low}`, yAxis: orb_levels.or_low, lineStyle: { color: PIVOT_OR_LOW, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
   }
   if (pivot_levels && showPivot) {
-    lines.push({ name: `R2 ${pivot_levels.r2}`, yAxis: pivot_levels.r2, lineStyle: { color: "#EF5350", type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `R1 ${pivot_levels.r1}`, yAxis: pivot_levels.r1, lineStyle: { color: "#EF5350", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `PP ${pivot_levels.pp}`, yAxis: pivot_levels.pp, lineStyle: { color: "#AB47BC", type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `S1 ${pivot_levels.s1}`, yAxis: pivot_levels.s1, lineStyle: { color: "#26A69A", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `S2 ${pivot_levels.s2}`, yAxis: pivot_levels.s2, lineStyle: { color: "#26A69A", type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `R2 ${pivot_levels.r2}`, yAxis: pivot_levels.r2, lineStyle: { color: PIVOT_R1, type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `R1 ${pivot_levels.r1}`, yAxis: pivot_levels.r1, lineStyle: { color: PIVOT_R1, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `PP ${pivot_levels.pp}`, yAxis: pivot_levels.pp, lineStyle: { color: PIVOT_PP, type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `S1 ${pivot_levels.s1}`, yAxis: pivot_levels.s1, lineStyle: { color: PIVOT_S1, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `S2 ${pivot_levels.s2}`, yAxis: pivot_levels.s2, lineStyle: { color: PIVOT_S1, type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
   }
   if (week52_levels && show52w) {
-    lines.push({ name: `52W-H ${week52_levels.high_52w}`, yAxis: week52_levels.high_52w, lineStyle: { color: "#E91E63", type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
+    lines.push({ name: `52W-H ${week52_levels.high_52w}`, yAxis: week52_levels.high_52w, lineStyle: { color: PIVOT_52W_HIGH, type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
     if (week52_levels.low_52w > 0) {
-      lines.push({ name: `52W-L ${week52_levels.low_52w}`, yAxis: week52_levels.low_52w, lineStyle: { color: "#9C27B0", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+      lines.push({ name: `52W-L ${week52_levels.low_52w}`, yAxis: week52_levels.low_52w, lineStyle: { color: PIVOT_52W_LOW, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
     }
   }
   return lines;
@@ -203,13 +216,13 @@ function buildTooltipFormatter(
 
         if (isPosition) {
           const pos = t as PaperPosition;
-          const pnlColor = pos.pnl >= 0 ? "#00E676" : "#FF1744";
-          return `<div style="padding:6px 8px;font-family:monospace;font-size:${fontSizes.sm};line-height:1.4"><div style="color:#00BFFF;font-weight:bold;margin-bottom:4px">LIVE POSITION | ${pos.side}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${pos.entry_price.toFixed(2)}</b></span><span>Current: <b>₹${pos.current_price.toFixed(2)}</b></span><span>Qty: ${pos.quantity}</span></div><div style="display:flex;gap:12px"><span style="color:#FF00FF;">SL: ₹${pos.stop_loss.toFixed(2)}</span><span style="color:#FFFF00;">TP: ₹${pos.take_profit.toFixed(2)}</span></div><div style="margin-top:4px"><span style="color:${pnlColor};font-weight:bold">P&L: ₹${pos.pnl.toFixed(0)} (${pos.pnl_pct >= 0 ? "+" : ""}${pos.pnl_pct.toFixed(2)}%)</span></div></div>`;
+          const pnlColor = pos.pnl >= 0 ? POSITIVE : NEGATIVE;
+          return `<div style="padding:6px 8px;font-family:monospace;font-size:${fontSizes.sm};line-height:1.4"><div style="color:${MARKER_ENTRY};font-weight:bold;margin-bottom:4px">LIVE POSITION | ${pos.side}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${pos.entry_price.toFixed(2)}</b></span><span>Current: <b>₹${pos.current_price.toFixed(2)}</b></span><span>Qty: ${pos.quantity}</span></div><div style="display:flex;gap:12px"><span style="color:${MARKER_STOP_LOSS};">SL: ₹${pos.stop_loss.toFixed(2)}</span><span style="color:${MARKER_SELL};">TP: ₹${pos.take_profit.toFixed(2)}</span></div><div style="margin-top:4px"><span style="color:${pnlColor};font-weight:bold">P&L: ₹${pos.pnl.toFixed(0)} (${pos.pnl_pct >= 0 ? "+" : ""}${pos.pnl_pct.toFixed(2)}%)</span></div></div>`;
         } else {
           const trade = t as PaperTrade;
-          const pnlColor = trade.net_pnl >= 0 ? "#00E676" : "#FF1744";
+          const pnlColor = trade.net_pnl >= 0 ? POSITIVE : NEGATIVE;
           const ft = (iso: string) => iso.split("T")[1]?.substring(0, 5) || iso;
-          return `<div style="padding:6px 8px;font-family:monospace;font-size:${fontSizes.sm};line-height:1.4"><div style="color:#00BFFF;font-weight:bold;margin-bottom:4px">Trade | ${trade.side} | ${trade.exit_reason}</div><div style="color:#888;margin-bottom:4px;font-size:${fontSizes.sm}">${ft(trade.entry_time)} → ${ft(trade.exit_time)}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${trade.entry_price.toFixed(2)}</b></span><span>Exit: <b>₹${trade.exit_price.toFixed(2)}</b></span><span>Qty: ${trade.quantity}</span></div><div style="display:flex;gap:12px"><span style="color:${pnlColor};font-weight:bold">Net: ₹${trade.net_pnl.toFixed(0)} (${trade.pnl_pct >= 0 ? "+" : ""}${trade.pnl_pct.toFixed(2)}%)</span><span style="color:#888;">Cost: ₹${trade.costs.toFixed(0)}</span></div></div>`;
+          return `<div style="padding:6px 8px;font-family:monospace;font-size:${fontSizes.sm};line-height:1.4"><div style="color:${MARKER_ENTRY};font-weight:bold;margin-bottom:4px">Trade | ${trade.side} | ${trade.exit_reason}</div><div style="color:${CHART_DARK_MUTED};margin-bottom:4px;font-size:${fontSizes.sm}">${ft(trade.entry_time)} → ${ft(trade.exit_time)}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${trade.entry_price.toFixed(2)}</b></span><span>Exit: <b>₹${trade.exit_price.toFixed(2)}</b></span><span>Qty: ${trade.quantity}</span></div><div style="display:flex;gap:12px"><span style="color:${pnlColor};font-weight:bold">Net: ₹${trade.net_pnl.toFixed(0)} (${trade.pnl_pct >= 0 ? "+" : ""}${trade.pnl_pct.toFixed(2)}%)</span><span style="color:${CHART_DARK_MUTED};">Cost: ₹${trade.costs.toFixed(0)}</span></div></div>`;
         }
       }
     }
@@ -220,9 +233,9 @@ function buildTooltipFormatter(
       const c = candles[idx];
       if (!c) return "";
       const change = (((c.close - c.open) / c.open) * 100).toFixed(2);
-      const changeColor = c.close >= c.open ? "#00E676" : "#FF1744";
+      const changeColor = c.close >= c.open ? POSITIVE : NEGATIVE;
       const timeStr = c.time.split("T")[1]?.substring(0, 5) || c.time;
-      return `<div style="padding:6px 8px;font-family:monospace;font-size:${fontSizes.sm};line-height:1.4"><div style="font-weight:bold;margin-bottom:4px">${timeStr}</div><div style="display:flex;gap:12px"><span>O: ₹${c.open.toFixed(2)}</span><span>H: ₹${c.high.toFixed(2)}</span><span>L: ₹${c.low.toFixed(2)}</span><span>C: ₹${c.close.toFixed(2)}</span></div><div style="display:flex;gap:12px;color:#888;"><span style="color:${changeColor};font-weight:bold">${c.close >= c.open ? "+" : ""}${change}%</span><span>Vol: ${formatVolume(c.volume)}</span></div></div>`;
+      return `<div style="padding:6px 8px;font-family:monospace;font-size:${fontSizes.sm};line-height:1.4"><div style="font-weight:bold;margin-bottom:4px">${timeStr}</div><div style="display:flex;gap:12px"><span>O: ₹${c.open.toFixed(2)}</span><span>H: ₹${c.high.toFixed(2)}</span><span>L: ₹${c.low.toFixed(2)}</span><span>C: ₹${c.close.toFixed(2)}</span></div><div style="display:flex;gap:12px;color:${CHART_DARK_MUTED};"><span style="color:${changeColor};font-weight:bold">${c.close >= c.open ? "+" : ""}${change}%</span><span>Vol: ${formatVolume(c.volume)}</span></div></div>`;
     }
     return "";
   };
@@ -334,10 +347,10 @@ export function buildChartOption(
         type: "candlestick",
         data: ohlcData,
         itemStyle: {
-          color: "#00E676",
-          color0: "#FF1744",
-          borderColor: "#00E676",
-          borderColor0: "#FF1744",
+          color: BULLISH,
+          color0: BEARISH,
+          borderColor: BULLISH,
+          borderColor0: BEARISH,
         },
         markLine:
           markLines.length > 0
@@ -354,7 +367,7 @@ export function buildChartOption(
                   {
                     xAxis: times[0],
                     yAxis: orb_levels.or_low,
-                    itemStyle: { color: "rgba(33,150,243,0.15)" },
+                    itemStyle: { color: ORB_AREA },
                   },
                   { xAxis: times[Math.min(8, times.length - 1)], yAxis: orb_levels.or_high },
                 ],
@@ -374,7 +387,7 @@ export function buildChartOption(
         data: volumeData,
         itemStyle: {
           color: (params: any) =>
-            params.data[2] === 1 ? "rgba(0,230,118,0.5)" : "rgba(255,23,68,0.5)",
+            params.data[2] === 1 ? VOLUME_BULLISH : VOLUME_BEARISH,
         },
       },
     ],

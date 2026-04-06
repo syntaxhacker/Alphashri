@@ -25,6 +25,11 @@ import { CompactPanel } from "../common/compact";
 import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
 import { buildChartOption, TIMEFRAME_OPTIONS } from "./chartOptions";
 import type { PaperPosition } from "../../types/paperTrading";
+import {
+  MARKER_BUY, MARKER_SELL, MARKER_STOP_LOSS,
+  PIVOT_OR_HIGH, PIVOT_52W_HIGH,
+  PIVOT_PP,
+} from "../../config/colors";
 
 function PositionInfo({ position }: { position: PaperPosition }) {
   const pnlClass = position.pnl >= 0 ? "positive" : "negative";
@@ -52,12 +57,12 @@ function PositionInfo({ position }: { position: PaperPosition }) {
 
 function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolean }) {
   const items = [
-    { color: "#00FFFF", label: "Entry", shape: "square" as const },
-    { color: "#FFFF00", label: "TP", shape: "circle" as const },
-    { color: "#FF00FF", label: "SL", shape: "circle" as const },
+    { color: MARKER_BUY, label: "Entry", shape: "square" as const },
+    { color: MARKER_SELL, label: "TP", shape: "circle" as const },
+    { color: MARKER_STOP_LOSS, label: "SL", shape: "circle" as const },
   ];
-  if (hasOrb) items.push({ color: "#2196F3", label: "OR", shape: "square" as const });
-  if (hasWeek52) items.push({ color: "#E91E63", label: "52W High", shape: "square" as const });
+  if (hasOrb) items.push({ color: PIVOT_OR_HIGH, label: "OR", shape: "square" as const });
+  if (hasWeek52) items.push({ color: PIVOT_52W_HIGH, label: "52W High", shape: "square" as const });
 
   return (
     <Flex
@@ -208,7 +213,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           label="ORB"
           checked={state.showOrbLines}
           onChange={(e) => setShowOrbLines(e.currentTarget.checked)}
-          styles={{ label: { color: "#2196F3" } }}
+          styles={{ label: { color: PIVOT_OR_HIGH } }}
           data-testid="show-orb-lines"
         />
         <Switch
@@ -216,7 +221,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           label="Pivot"
           checked={state.showPivotLines}
           onChange={(e) => setShowPivotLines(e.currentTarget.checked)}
-          styles={{ label: { color: "#AB47BC" } }}
+          styles={{ label: { color: PIVOT_PP } }}
           data-testid="show-pivot-lines"
         />
         <Switch
@@ -224,7 +229,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           label="52W"
           checked={state.show52wLines}
           onChange={(e) => setShow52wLines(e.currentTarget.checked)}
-          styles={{ label: { color: "#E91E63" } }}
+          styles={{ label: { color: PIVOT_52W_HIGH } }}
           data-testid="show-52w-lines"
         />
         {state.chartData?.current_position && (

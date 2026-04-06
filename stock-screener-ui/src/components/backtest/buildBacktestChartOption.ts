@@ -3,6 +3,17 @@ import { theme } from "../../config/theme";
 import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
 import { getChartThemeColors, CANDLESTICK_ITEM_STYLE } from "../../utils/chartUtils";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
+import {
+  CHART_DARK_OVERLAY, CHART_LIGHT_OVERLAY,
+  CHART_CROSSHAIR,
+  MARKER_BUY, MARKER_SELL, MARKER_STOP_LOSS, MARKER_CUSTOM, MARKER_MAX_HOLDING,
+  MARKER_BORDER,
+  PIVOT_S2,
+  POSITIVE, NEGATIVE,
+  MARKER_ENTRY,
+  CHART_AVG_ENTRY,
+  CHART_DARK_MUTED,
+} from "../../config/colors";
 
 interface MarkerConfig {
   filter: (t: ChartTrade) => boolean;
@@ -24,7 +35,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     isDark,
     theme,
   );
-  const tooltipBg = isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
+  const tooltipBg = isDark ? CHART_DARK_OVERLAY : CHART_LIGHT_OVERLAY;
 
   const candleData = candles.map((c) => [c.open, c.close, c.low, c.high]);
   const timeData = candles.map((c) => c.time);
@@ -49,7 +60,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       .filter((t) => t.computedIdx !== undefined)
       .map((t) => ({
         value: [t.computedIdx!, t.price],
-        itemStyle: { color: config.color, borderColor: "#FFFFFF", borderWidth: 2 },
+        itemStyle: { color: config.color, borderColor: MARKER_BORDER, borderWidth: 2 },
         symbol: config.symbol,
         ...(config.symbolRotate !== undefined ? { symbolRotate: config.symbolRotate } : {}),
         symbolSize: config.symbolSize,
@@ -62,26 +73,26 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   const markerConfigs: MarkerConfig[] = [
     {
       filter: (t) => t.type === "entry",
-      color: "#00FFFF",
+      color: MARKER_BUY,
       symbol: "triangle",
       symbolSize: 18,
       symbolRotate: 180,
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "TP",
-      color: "#FFFF00",
+      color: MARKER_SELL,
       symbol: "circle",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "SL",
-      color: "#FF00FF",
+      color: MARKER_STOP_LOSS,
       symbol: "circle",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "EOD",
-      color: "#FFA500",
+      color: MARKER_CUSTOM,
       symbol: "diamond",
       symbolSize: 16,
     },
@@ -93,13 +104,13 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "MAX_HOLDING",
-      color: "#FF9800",
+      color: MARKER_MAX_HOLDING,
       symbol: "diamond",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "NEW_52W_HIGH",
-      color: "#00BCD4",
+      color: PIVOT_S2,
       symbol: "circle",
       symbolSize: 16,
     },
@@ -205,7 +216,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
         showSymbol: false,
         silent: true,
         z: 5,
-        lineStyle: { color: "#FFD700", width: 2, type: "dashed" },
+        lineStyle: { color: CHART_AVG_ENTRY, width: 2, type: "dashed" },
       });
       legendData.push("52W High");
     }
@@ -220,7 +231,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     },
     tooltip: {
       trigger: "axis",
-      axisPointer: { type: "cross", lineStyle: { color: "#666" } },
+      axisPointer: { type: "cross", lineStyle: { color: CHART_CROSSHAIR } },
       backgroundColor: tooltipBg,
       borderColor: borderColor,
       borderWidth: 1,
@@ -229,11 +240,11 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
         for (const p of params) {
           if (p.data && p.data.trade) {
             const t = p.data.trade;
-            const pnlColor = t.net_pnl >= 0 ? "#00E676" : "#FF1744";
+            const pnlColor = t.net_pnl >= 0 ? POSITIVE : NEGATIVE;
 
             return `
               <div style="padding: 6px 8px; fontFamily: fontFamily; font-size: fontSizes.sm; line-height: 1.4;">
-                <div style="color: #00BFFF; font-weight: bold; margin-bottom: 4px;">
+                <div style="color: ${MARKER_ENTRY}; font-weight: bold; margin-bottom: 4px;">
                   Trade #${p.data.trade_id} | ${t.exit_reason}
                 </div>
                 <div style="display: flex; gap: 12px; margin-bottom: 2px;">
@@ -258,7 +269,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
           const idx = candle.dataIndex;
           const c = candles[idx];
           const change = (((c.close - c.open) / c.open) * 100).toFixed(2);
-          const changeColor = c.close >= c.open ? "#00E676" : "#FF1744";
+          const changeColor = c.close >= c.open ? POSITIVE : NEGATIVE;
 
           return `
             <div style="padding: 6px 8px; fontFamily: fontFamily; font-size: fontSizes.sm; line-height: 1.4;">
@@ -269,7 +280,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
                 <span>L: ₹${c.low.toFixed(0)}</span>
                 <span>C: ₹${c.close.toFixed(0)}</span>
               </div>
-              <div style="display: flex; gap: 12px; color: #888;">
+              <div style="display: flex; gap: 12px; color: ${CHART_DARK_MUTED};">
                 <span style="color: ${changeColor}; font-weight: bold;">${c.close >= c.open ? "+" : ""}${change}%</span>
                 <span>Vol: ${(c.volume / 1000).toFixed(0)}K</span>
               </div>

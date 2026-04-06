@@ -117,3 +117,25 @@ export const EXIT_DEFAULT = MARKER_EOD;
 
 // ----- Loss/Error Color -----
 export const ERROR_COLOR = "#FF1744";
+
+// ----- Marker Border (white) -----
+export const MARKER_BORDER = "#FFFFFF";
+
+// ----- Extra Exit Markers -----
+export const MARKER_MAX_HOLDING = "#FF9800";
+
+// ----- Chart Misc -----
+export const CHART_DARK_DATAZOOM_BG = "#111";
+export const CHART_LIGHT_DATAZOOM_BG = "#f5f5f5";
+export const DATAZOOM_FILLER = "rgba(0, 230, 118, 0.1)";
+
+// ----- Volume Bars -----
+export const VOLUME_BULLISH = "rgba(0,230,118,0.5)";
+export const VOLUME_BEARISH = "rgba(255,23,68,0.5)";
+
+// ----- ORB Mark Area -----
+export const ORB_AREA = "rgba(33,150,243,0.15)";
+
+// ----- IV Skew Area -----
+export const IV_AREA_START = "rgba(34, 139, 230, 0.3)";
+export const IV_AREA_END = "rgba(34, 139, 230, 0)";

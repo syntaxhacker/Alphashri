@@ -14,6 +14,8 @@ import {
   AXIS_DARK_SPLIT,
   AXIS_LIGHT_SPLIT,
   INDICATOR_LINE,
+  IV_AREA_START,
+  IV_AREA_END,
 } from "../../../config/colors";
 
 interface IVSkewChartProps {
@@ -78,8 +80,8 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: "rgba(34, 139, 230, 0.3)" },
-              { offset: 1, color: "rgba(34, 139, 230, 0)" },
+              { offset: 0, color: IV_AREA_START },
+              { offset: 1, color: IV_AREA_END },
             ],
           },
         },
