@@ -4,6 +4,7 @@ import {
   Text,
   Button,
   Stack,
+  Flex,
   Tabs,
   Loader,
   SegmentedControl,
@@ -164,7 +165,7 @@ export function SectorPage() {
   return (
     <Stack
       gap="sm"
-      style={{ height: "100%", overflow: "hidden" }}
+      h="100%" style={{ overflow: "hidden" }}
       data-testid="sector-analysis-view"
     >
       <SectorPageHeader
@@ -173,11 +174,12 @@ export function SectorPage() {
         loading={state.loading}
         onRefresh={() => state.loadData(state.market)}
       />
-      <Box
+      <Flex
+        direction="column"
         id="sector-page"
         className="sector-page"
         flex={1}
-        style={{ display: "flex", flexDirection: "column", minHeight: 0 }}
+        style={{ minHeight: 0 }}
       >
         <Tabs value={state.activeTab} onChange={state.setActiveTab}>
           <Tabs.List>
@@ -191,9 +193,9 @@ export function SectorPage() {
         </Tabs>
         <Box
           flex={1}
+          py={0} px="md" pb="md"
           style={{
             minHeight: 0,
-            padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)",
             overflow: "auto",
           }}
         >
@@ -208,7 +210,7 @@ export function SectorPage() {
             loadData={state.loadData}
           />
         </Box>
-      </Box>
+      </Flex>
     </Stack>
   );
 }

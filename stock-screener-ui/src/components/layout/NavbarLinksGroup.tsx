@@ -1,4 +1,4 @@
-import { Box, Group, ThemeIcon, UnstyledButton, Text, Tooltip } from "@mantine/core";
+import { Box, Flex, Group, ThemeIcon, UnstyledButton, Text, Tooltip } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import classes from "./NavbarLinksGroup.module.css";
 
@@ -38,7 +38,7 @@ export function NavbarLinksGroup({
       }}
     >
       <Group justify={collapsed ? "center" : "space-between"} gap={4}>
-        <Box style={{ display: "flex", alignItems: "center" }}>
+        <Flex align="center">
           <ThemeIcon variant="light" size={26}>
             <Icon size={16} />
           </ThemeIcon>
@@ -47,7 +47,7 @@ export function NavbarLinksGroup({
               <Text fw={active ? 600 : 500}>{label}</Text>
             </Box>
           )}
-        </Box>
+        </Flex>
       </Group>
     </UnstyledButton>
   );

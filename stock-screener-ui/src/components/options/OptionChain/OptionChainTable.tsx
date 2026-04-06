@@ -250,7 +250,7 @@ function OptionColumn({
               <Stack
                 gap={0}
                 align="center"
-                style={{ zIndex: 1, width: "100%", position: "relative" }}
+                w="100%" pos="relative" style={{ zIndex: 1 }}
               >
                 <Group gap={4} wrap="nowrap" align="center" justify="center">
                   <Text
@@ -361,7 +361,7 @@ function OptionChainTableInner({
 
       <ScrollArea
         className="chain-table-scrollarea"
-        style={{ flex: 1 }}
+        flex={1}
         type="hover"
         scrollbars="y"
         viewportRef={viewportRef}
