@@ -48,9 +48,10 @@ cache/
 !stock-screener-ui/cache/
 
 
-visualizations/html/
+ visualizations/html/
 backtest_results/
 models/
+!stock-screener-ui/db/models/
 wandb/
 
 data_cache/

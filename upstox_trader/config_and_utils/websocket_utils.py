@@ -77,7 +77,7 @@ class WebSocketConnectionManager:
 
     def __init__(self, quiet: bool = False):
         self.quiet = quiet
-        self._ws_connections: Dict[str, websocket.WebSocketApp] = {}
+        self._ws_connections: Dict = {}
         self._ws_threads: Dict[str, threading.Thread] = {}
         self._subscriptions: Dict[str, set] = {}
 
@@ -89,7 +89,7 @@ class WebSocketConnectionManager:
         on_error: Callable = None,
         on_close: Callable = None,
         headers: Dict[str, str] = None
-    ) -> Optional[websocket.WebSocketApp]:
+    ):
         """
         Create a market data WebSocket connection.
 
@@ -102,6 +102,7 @@ class WebSocketConnectionManager:
             headers: Optional headers for WebSocket
 
         Returns:
+            Optional WebSocketApp instance or None if websocket unavailable.
             WebSocketApp instance or None
         """
         if not WEBSOCKET_CLIENT_AVAILABLE:
@@ -156,7 +157,7 @@ class WebSocketConnectionManager:
     def start_connection(
         self,
         name: str,
-        ws: websocket.WebSocketApp,
+        ws,
         subscription_symbols: List[str] = None
     ):
         """Start WebSocket connection in background thread."""
