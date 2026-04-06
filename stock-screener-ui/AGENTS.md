@@ -19,14 +19,31 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - Default sizes: `size="sm"` for inputs/buttons, `size="xs"` for dense tables/badges
 
 ## State Management
-- Stores in `src/state/` — use `createSubscriber` pattern + `useStoreSubscription` hook
+- All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
+- Redux slices in `src/state/store/` (appSlice, notificationsSlice) — legacy, minimal usage
 - Never call `useState` for data that lives in a store
 
 ## Component Patterns
 - Barrel files (`mantine.ts`) point to current components — edit `*2.tsx` files, update barrel, never edit old files
-- Shared components: `SortableHeader`, `BadgeComponents`, `PnlText`, `compact.tsx`, `states.tsx` in `src/components/common/`
+- Page-level routing components in `src/pages/<feature>/` (e.g., `pages/chart/ChartView.tsx`, `pages/sector/SectorPage.tsx`)
+- Shared components: `SortableHeader`, `BadgeComponents`, `PnlText`, `DataTable`, `compact.tsx`, `states.tsx` in `src/components/common/`
 - Shared utilities: `formatCurrencyIN`, `formatNumber`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
+- Config/constants/theme consolidated in `src/config/` (constants.ts, theme.ts, backtestDefaults.ts)
 - ECharts: never wrap chart container in `ScrollArea` — ECharts needs explicit dimensions via `flex: 1` on a flex parent
+
+## Folder Structure
+```
+src/
+  api/          # API layer (fetchWithAuth, endpoint functions)
+  assets/       # static assets (svg, images)
+  components/   # UI components organized by feature
+  config/       # constants.ts, theme.ts, backtestDefaults.ts
+  hooks/        # generic shared hooks (useAsyncData, useECharts, useStoreSubscription, useTableSort)
+  pages/        # page-level routing targets (chart, sector, settings, options, screener, strategies)
+  state/        # all state management (subscriber stores + redux in state/store/)
+  types/        # TypeScript type definitions
+  utils/        # shared utilities (ui-helpers, chartUtils, notifications, runtime_utils)
+```
 
 ## CSS
 - Legacy hardcoded CSS in `style.css` is being migrated to Mantine — prefer `var(--mantine-color-*)` vars
@@ -43,12 +60,26 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug on production — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works locally because `railway run` may use different config. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the Docker container.
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 
+## Telegram Notifications
+- Module: `trading/telegram_notifier.py` — all Telegram alert functions
+- Config: `TELEGRAM_CONFIG` in root `config.py` (`bot_token`, `chat_id`, `enabled`)
+- Env vars: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED` (default `true`)
+- All calls are **non-blocking** via `ThreadPoolExecutor` — never slows the scan loop
+- Rate limited: max 25 msgs/min, 60s cooldown per dedup key (same symbol/action)
+- Failures are logged via `rich.Console` but never crash the bot
+- Hooked into `MultiStrategyRunner` at 6 points:
+  - `execute_signal()` → `send_trade_entry()` (position opened), `send_signal_rejected()` (risk validation failed)
+  - `monitor_positions()` → `send_trade_exit()` (position closed), `send_risk_alert()` (daily loss approaching limit)
+  - `run()` → `send_bot_status()` (start/stop), `send_daily_summary()` (15:30 IST EOD)
+- `send_positions_snapshot()` available for on-demand use (not auto-triggered)
+- The separate `upstox_trader/screeners/tv_alerts.py` Telegram system is **unrelated** — that's for TradingView screener webhooks, not the paper trading engine
+
 ## Infrastructure
 - **Railway**: project `298aedcc-23a9-4ce3-9dbe-a87986f910de`, env `bc5056b2-6a82-4af3-bec2-2d1ac848fc5c`, service `b66dd871-18ac-49e7-a9fa-7addfb1be351`. Deploy via `git push` to `fix/*` or `develop` branch.
 - **PostgreSQL**: on Render at `dpg-d6qh4e7kijhs73b5rvpg-a.oregon-postgres.render.com/alphashri` — migrations via Alembic in `db/migrations/`
 - **Redis**: on Upstash — used for bot heartbeat (90s TTL key `bot:{bot_id}:heartbeat`). NOT on Railway.
 - **Deploy**: frontend builds to Cloudflare Pages via Wrangler, backend runs on Railway as FastAPI
-- **Env vars**: see `.env.example` — `DATABASE_URL`, `UPSTOX_API_KEY/SECRET`, `REDIS_URL`, `BACKEND_JWT_SECRET`, `VITE_API_BASE_URL`
+- **Env vars**: see `.env.example` — `DATABASE_URL`, `UPSTOX_API_KEY/SECRET`, `REDIS_URL`, `BACKEND_JWT_SECRET`, `VITE_API_BASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED`
 
 ## Debugging
 
