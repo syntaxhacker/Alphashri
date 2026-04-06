@@ -8,6 +8,7 @@
 
 import { fetchChartPreview, ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption, ChartSize } from "../chart/chartRenderer";
+import { ERROR_COLOR } from "../../config/colors";
 
 // Preview state
 interface PreviewState {
@@ -329,7 +330,7 @@ function showError(size: ChartSize, message: string): void {
   const bodyEl = container.querySelector(".chart-body-loading");
   if (bodyEl) {
     bodyEl.textContent = message;
-    bodyEl.style.color = "#FF1744";
+    bodyEl.style.color = ERROR_COLOR;
   }
 }
 

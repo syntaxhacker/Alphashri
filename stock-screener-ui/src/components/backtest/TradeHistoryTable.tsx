@@ -4,6 +4,7 @@ import type { Trade } from "../../types/backtest";
 import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";
 import { SortableHeader } from "../common/SortableHeader";
 import { DataTable } from "../common/DataTable";
+import { TINT_LOSS_ROW } from "../../config/colors";
 
 export function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
   return [...trades].sort((a, b) => {
@@ -275,7 +276,7 @@ export function TradeHistoryTable({
                   style={{ cursor: "pointer" }}
                   data-trade-number={tradeNumber}
                   title="Click to zoom to this trade"
-                  bg={t.net_pnl >= 0 ? undefined : "rgba(255, 0, 0, 0.05)"}
+                  bg={t.net_pnl >= 0 ? undefined : TINT_LOSS_ROW}
                 >
                   <Table.Td>
                     <Text size="sm">{tradeNumber}</Text>

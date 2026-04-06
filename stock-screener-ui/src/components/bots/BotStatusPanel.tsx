@@ -23,6 +23,7 @@ import type {
 import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
 import { formatNumber as formatNumberShared, getPnLTextColor } from "../../utils/ui-helpers";
 import { SideBadge, StatusBadge, ExitReasonBadge } from "../common/BadgeComponents";
+import { TINT_TEST_TRADE } from "../../config/colors";
 
 interface BotStatusPanelProps {
   bot: BotConfig;
@@ -257,7 +258,7 @@ function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () 
               const netPnlColor = getPnLTextColor(t.net_pnl);
 
               return (
-                <Table.Tr key={idx} bg={t.is_test ? "rgba(255, 193, 7, 0.1)" : undefined}>
+                <Table.Tr key={idx} bg={t.is_test ? TINT_TEST_TRADE : undefined}>
                   <Table.Td>
                     <Group gap="xs">
                       <Text size="sm">{t.strategy_name}</Text>
