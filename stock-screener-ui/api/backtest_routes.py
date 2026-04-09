@@ -172,7 +172,8 @@ async def run_backtest(
             if symbol in candles and trades_data.get('trades'):
                 full_chart_data[symbol] = build_chart_data_for_symbol(
                     symbol, candles[symbol], trades_data['trades'], or_minutes,
-                    include_52w_line=include_52w_line
+                    include_52w_line=include_52w_line,
+                    visuals=chart_data_raw[symbol].get('visuals')
                 )
 
         response['candles'] = candles
@@ -194,6 +195,7 @@ async def get_chart_data(symbol: str):
     try:
         candles_df = _backtest_handler.backtest_cache['candles'][symbol]
         trades = _backtest_handler.backtest_cache['chart_data'][symbol]['trades']
+        cached_visuals = _backtest_handler.backtest_cache['chart_data'][symbol].get('visuals')
         config = _backtest_handler.backtest_cache.get('config', {})
         or_minutes = config.get('params', {}).get('or_minutes', 45)
         strategy = config.get('strategy', '')
@@ -202,7 +204,8 @@ async def get_chart_data(symbol: str):
 
         chart_data = build_chart_data_for_symbol(
             symbol, candles_df, trades, or_minutes,
-            include_52w_line=include_52w_line
+            include_52w_line=include_52w_line,
+            visuals=cached_visuals
         )
         return _sanitize_for_json(chart_data)
     except Exception as e:

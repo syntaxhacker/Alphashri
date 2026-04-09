@@ -83,6 +83,7 @@ class ORBSignalGenerator:
         tp_pct: float = None,
         min_or_range_pct: float = None,
         max_or_range_pct: float = None,
+        breakout_buffer_pct: float = None,
         config_name: str = None,
     ):
         """
@@ -104,6 +105,7 @@ class ORBSignalGenerator:
             self.tp_pct = tp_pct if tp_pct is not None else config.tp_pct
             self.min_or_range_pct = min_or_range_pct if min_or_range_pct is not None else config.min_or_range_pct
             self.max_or_range_pct = max_or_range_pct if max_or_range_pct is not None else config.max_or_range_pct
+            self.breakout_buffer_pct = breakout_buffer_pct if breakout_buffer_pct is not None else config.breakout_buffer_pct
         else:
             # Fall back to hardcoded defaults
             self.or_minutes = or_minutes if or_minutes is not None else 45
@@ -111,6 +113,7 @@ class ORBSignalGenerator:
             self.tp_pct = tp_pct if tp_pct is not None else 1.2
             self.min_or_range_pct = min_or_range_pct if min_or_range_pct is not None else 0.5
             self.max_or_range_pct = max_or_range_pct if max_or_range_pct is not None else 3.0
+            self.breakout_buffer_pct = breakout_buffer_pct if breakout_buffer_pct is not None else 0.3
 
         # OR levels cache
         self.or_levels: Dict[str, dict] = {}
@@ -204,12 +207,14 @@ class ORBSignalGenerator:
         or_range = or_levels['or_range']
         or_range_pct = or_levels['or_range_pct']
 
+        buffer = self.breakout_buffer_pct / 100
+
         # Validate OR range
         if or_range_pct < self.min_or_range_pct or or_range_pct > self.max_or_range_pct:
             return None
 
         # Check for long breakout (above OR high)
-        if current_price > or_high:
+        if current_price > or_high * (1 + buffer):
             # Calculate SL and TP
             sl = current_price * (1 - self.sl_pct / 100)
             tp = current_price * (1 + self.tp_pct / 100)
@@ -233,7 +238,7 @@ class ORBSignalGenerator:
             )
 
         # Check for short breakout (below OR low)
-        if current_price < or_low:
+        if current_price < or_low * (1 - buffer):
             # Calculate SL and TP for short
             sl = current_price * (1 + self.sl_pct / 100)
             tp = current_price * (1 - self.tp_pct / 100)

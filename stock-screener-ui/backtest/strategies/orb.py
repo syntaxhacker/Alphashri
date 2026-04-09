@@ -67,6 +67,7 @@ def run_single_stock_backtest(args):
         include_costs = bool(params.get('include_costs', True))
         enable_shorts = bool(params.get('enable_shorts', False))
         cooldown_bars = int(params.get('cooldown_bars', 3))
+        breakout_buffer_pct = float(params.get('breakout_buffer_pct', 0.3))
 
         venue = Venue("SIMULATED")
         instrument_id = InstrumentId.from_str(f"{symbol}.{venue}")
@@ -133,6 +134,7 @@ def run_single_stock_backtest(args):
             trade_size=trade_size,
             enable_shorts=enable_shorts,
             cooldown_bars=cooldown_bars,
+            breakout_buffer_pct=breakout_buffer_pct,
         )
 
         engine = BacktestEngine(config=BacktestEngineConfig(trader_id=TraderId("BACKTESTER-001")))
@@ -230,6 +232,7 @@ class ORBNautilusStrategy(Strategy):
         self._trade_size = config.trade_size
         self._enable_shorts = config.enable_shorts
         self._cooldown_bars = config.cooldown_bars
+        self._breakout_buffer_pct = config.breakout_buffer_pct
 
         self._current_date = None
         self._or_high = None
@@ -311,8 +314,9 @@ class ORBNautilusStrategy(Strategy):
             if (self._bar_number - self._last_exit_bar) < self._cooldown_bars:
                 return
 
-        long_entry = close_f > self._or_high
-        short_entry = close_f < self._or_low
+        buffer = self._breakout_buffer_pct / 100
+        long_entry = close_f > self._or_high * (1 + buffer)
+        short_entry = close_f < self._or_low * (1 - buffer)
 
         if short_entry and self._enable_shorts:
             order = self.order_factory.market(
@@ -430,6 +434,7 @@ class ORBConfig(StrategyConfig, kw_only=True):
     trade_size: int = 100
     enable_shorts: bool = False
     cooldown_bars: int = 3
+    breakout_buffer_pct: float = 0.3
 
 
 class ORBStrategy(BaseStrategy):
@@ -506,6 +511,15 @@ class ORBStrategy(BaseStrategy):
                 label='Enable Shorts',
                 type='boolean',
                 default=False,
+            ),
+            StrategyParam(
+                key='breakout_buffer_pct',
+                label='Breakout Buffer %',
+                type='number',
+                default=0.3,
+                min=0.0,
+                max=1.0,
+                step=0.05,
             ),
         ]
 

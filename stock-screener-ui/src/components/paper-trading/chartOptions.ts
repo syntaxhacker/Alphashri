@@ -166,24 +166,79 @@ function buildMarkLines(
 ): any[] {
   const lines: any[] = [];
   if (current_position) {
-    lines.push({ name: `SL ${current_position.stop_loss}`, yAxis: current_position.stop_loss, lineStyle: { color: "#FF00FF", type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `TP ${current_position.take_profit}`, yAxis: current_position.take_profit, lineStyle: { color: "#FFFF00", type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
+    lines.push({
+      name: `SL ${current_position.stop_loss}`,
+      yAxis: current_position.stop_loss,
+      lineStyle: { color: "#FF00FF", type: "dashed", width: 2 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `TP ${current_position.take_profit}`,
+      yAxis: current_position.take_profit,
+      lineStyle: { color: "#FFFF00", type: "dashed", width: 2 },
+      label: { position: "insideEndTop" },
+    });
   }
   if (orb_levels && showOrb) {
-    lines.push({ name: `OR-H ${orb_levels.or_high}`, yAxis: orb_levels.or_high, lineStyle: { color: "#2196F3", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `OR-L ${orb_levels.or_low}`, yAxis: orb_levels.or_low, lineStyle: { color: "#2196F3", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({
+      name: `OR-H ${orb_levels.or_high}`,
+      yAxis: orb_levels.or_high,
+      lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `OR-L ${orb_levels.or_low}`,
+      yAxis: orb_levels.or_low,
+      lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+      label: { position: "insideEndTop" },
+    });
   }
   if (pivot_levels && showPivot) {
-    lines.push({ name: `R2 ${pivot_levels.r2}`, yAxis: pivot_levels.r2, lineStyle: { color: "#EF5350", type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `R1 ${pivot_levels.r1}`, yAxis: pivot_levels.r1, lineStyle: { color: "#EF5350", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `PP ${pivot_levels.pp}`, yAxis: pivot_levels.pp, lineStyle: { color: "#AB47BC", type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `S1 ${pivot_levels.s1}`, yAxis: pivot_levels.s1, lineStyle: { color: "#26A69A", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `S2 ${pivot_levels.s2}`, yAxis: pivot_levels.s2, lineStyle: { color: "#26A69A", type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({
+      name: `R2 ${pivot_levels.r2}`,
+      yAxis: pivot_levels.r2,
+      lineStyle: { color: "#EF5350", type: "dotted", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `R1 ${pivot_levels.r1}`,
+      yAxis: pivot_levels.r1,
+      lineStyle: { color: "#EF5350", type: "dashed", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `PP ${pivot_levels.pp}`,
+      yAxis: pivot_levels.pp,
+      lineStyle: { color: "#AB47BC", type: "dotted", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `S1 ${pivot_levels.s1}`,
+      yAxis: pivot_levels.s1,
+      lineStyle: { color: "#26A69A", type: "dashed", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `S2 ${pivot_levels.s2}`,
+      yAxis: pivot_levels.s2,
+      lineStyle: { color: "#26A69A", type: "dotted", width: 1 },
+      label: { position: "insideEndTop" },
+    });
   }
   if (week52_levels && show52w) {
-    lines.push({ name: `52W-H ${week52_levels.high_52w}`, yAxis: week52_levels.high_52w, lineStyle: { color: "#E91E63", type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
+    lines.push({
+      name: `52W-H ${week52_levels.high_52w}`,
+      yAxis: week52_levels.high_52w,
+      lineStyle: { color: "#E91E63", type: "dashed", width: 2 },
+      label: { position: "insideEndTop" },
+    });
     if (week52_levels.low_52w > 0) {
-      lines.push({ name: `52W-L ${week52_levels.low_52w}`, yAxis: week52_levels.low_52w, lineStyle: { color: "#9C27B0", type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+      lines.push({
+        name: `52W-L ${week52_levels.low_52w}`,
+        yAxis: week52_levels.low_52w,
+        lineStyle: { color: "#9C27B0", type: "dashed", width: 1 },
+        label: { position: "insideEndTop" },
+      });
     }
   }
   return lines;
@@ -236,8 +291,10 @@ export function buildChartOption(
   showOrbLines: boolean = false,
   showPivotLines: boolean = false,
   show52wLines: boolean = false,
+  showEmaLines: boolean = false,
 ): any {
-  const { candles, trades, orb_levels, week52_levels, pivot_levels, current_position } = data;
+  const { candles, trades, orb_levels, week52_levels, pivot_levels, current_position, ema_series } =
+    data;
   const fontSizes = theme.fontSizes;
 
   if (!candles || candles.length === 0) return {};
@@ -265,7 +322,15 @@ export function buildChartOption(
     selectedTradeId,
     showAllTrades,
   );
-  const markLines = buildMarkLines(current_position, orb_levels, week52_levels, pivot_levels, showOrbLines, showPivotLines, show52wLines);
+  const markLines = buildMarkLines(
+    current_position,
+    orb_levels,
+    week52_levels,
+    pivot_levels,
+    showOrbLines,
+    showPivotLines,
+    show52wLines,
+  );
 
   return {
     backgroundColor: bgColor,
@@ -347,21 +412,44 @@ export function buildChartOption(
                 label: { color: "inherit", fontSize: 11, formatter: "{b}" },
               }
             : undefined,
-        markArea: orb_levels && showOrbLines
-          ? {
-              data: [
-                [
-                  {
-                    xAxis: times[0],
-                    yAxis: orb_levels.or_low,
-                    itemStyle: { color: "rgba(33,150,243,0.15)" },
-                  },
-                  { xAxis: times[Math.min(8, times.length - 1)], yAxis: orb_levels.or_high },
+        markArea:
+          orb_levels && showOrbLines
+            ? {
+                data: [
+                  [
+                    {
+                      xAxis: times[0],
+                      yAxis: orb_levels.or_low,
+                      itemStyle: { color: "rgba(33,150,243,0.15)" },
+                    },
+                    { xAxis: times[Math.min(8, times.length - 1)], yAxis: orb_levels.or_high },
+                  ],
                 ],
-              ],
-            }
-          : undefined,
+              }
+            : undefined,
       },
+      ...(showEmaLines && ema_series
+        ? [
+            {
+              name: ema_series.ema_fast.label,
+              type: "line",
+              data: ema_series.ema_fast.data,
+              showSymbol: false,
+              z: 5,
+              smooth: true,
+              lineStyle: { color: ema_series.ema_fast.color, width: 1.5 },
+            },
+            {
+              name: ema_series.ema_slow.label,
+              type: "line",
+              data: ema_series.ema_slow.data,
+              showSymbol: false,
+              z: 5,
+              smooth: true,
+              lineStyle: { color: ema_series.ema_slow.color, width: 1.5 },
+            },
+          ]
+        : []),
       { name: "Entry", type: "scatter", data: entryMarkers, symbolSize: 18, z: 10 },
       { name: "TP Exit", type: "scatter", data: tpMarkers, symbolSize: 16, z: 10 },
       { name: "SL Exit", type: "scatter", data: slMarkers, symbolSize: 16, z: 10 },

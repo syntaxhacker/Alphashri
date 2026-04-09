@@ -573,7 +573,7 @@ class EMACrossStrategy(BaseStrategy):
                     if result.get('trade_list'):
                         chart_data[result['symbol']] = {
                             'trades': result['trade_list'],
-                            'visuals': self.get_visuals(result['trade_list'], params)
+                            'visuals': self.get_visuals(result['trade_list'], params, all_candles.get(result['symbol']))
                         }
         else:
             for args in worker_args:
@@ -591,7 +591,7 @@ class EMACrossStrategy(BaseStrategy):
                 if result.get('trade_list'):
                     chart_data[result['symbol']] = {
                         'trades': result['trade_list'],
-                        'visuals': self.get_visuals(result['trade_list'], params)
+                        'visuals': self.get_visuals(result['trade_list'], params, all_candles.get(result['symbol']))
                     }
 
         total_gross = sum(r['gross_pnl'] for r in results)
@@ -623,37 +623,20 @@ class EMACrossStrategy(BaseStrategy):
             'run_time': datetime.now().isoformat(),
         }
 
-    def get_visuals(self, trades: List[Dict], params: Dict) -> List[Dict]:
-        """Return EMA line overlays on chart."""
-        if not trades:
-            return []
+    def get_visuals(self, trades: List[Dict], params: Dict, candles_df=None) -> List[Dict]:
+        if candles_df is None:
+            return {}
 
-        visuals = []
-        dates_seen = set()
-        for trade in trades:
-            trade_date = trade.get('date')
-            if trade_date and trade_date not in dates_seen:
-                dates_seen.add(trade_date)
-                ema_fast = trade.get('ema_fast')
-                ema_slow = trade.get('ema_slow')
+        import pandas as pd
+        ema_fast_period = int(params.get('ema_fast_period', 9))
+        ema_slow_period = int(params.get('ema_slow_period', 21))
+        closes = candles_df['close'].tolist()
+        ema_fast = pd.Series(closes).ewm(span=ema_fast_period, adjust=False).mean().round(2).tolist()
+        ema_slow = pd.Series(closes).ewm(span=ema_slow_period, adjust=False).mean().round(2).tolist()
 
-                if ema_fast is not None:
-                    visuals.append({
-                        'id': f"ema_fast_{trade_date}",
-                        'type': 'line',
-                        'label': 'EMA Fast',
-                        'color': '#10ac84',
-                        'value': ema_fast,
-                        'date': trade_date,
-                    })
-                if ema_slow is not None:
-                    visuals.append({
-                        'id': f"ema_slow_{trade_date}",
-                        'type': 'line',
-                        'label': 'EMA Slow',
-                        'color': '#ee5253',
-                        'value': ema_slow,
-                        'date': trade_date,
-                    })
-
-        return visuals
+        return {
+            'ema_series': [
+                {'label': f'EMA {ema_fast_period}', 'color': '#10ac84', 'data': ema_fast},
+                {'label': f'EMA {ema_slow_period}', 'color': '#ee5253', 'data': ema_slow},
+            ]
+        }

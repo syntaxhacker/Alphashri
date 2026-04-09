@@ -184,6 +184,26 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     });
   }
 
+  if (visuals?.ema_series?.length) {
+    for (const ema of visuals.ema_series) {
+      series.push({
+        name: ema.label,
+        type: "line",
+        data: ema.data,
+        showSymbol: false,
+        connectNulls: true,
+        silent: true,
+        z: 5,
+        lineStyle: { color: ema.color, width: 1.5 },
+        tooltip: { show: true },
+      });
+
+      if (!legendData.includes(ema.label)) {
+        legendData.push(ema.label);
+      }
+    }
+  }
+
   if (!visuals?.overlays) {
     const pivotSeries = buildPivotSeries(candles, pivot_levels || []);
     if (pivotSeries.length > 0) {

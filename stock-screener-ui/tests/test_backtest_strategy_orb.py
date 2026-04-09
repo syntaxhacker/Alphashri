@@ -137,6 +137,7 @@ class TestORBStrategyMetadata:
             'trade_size',
             'cooldown_bars',
             'enable_shorts',
+            'breakout_buffer_pct',
         }
         assert required_keys.issubset(param_keys)
 
@@ -377,6 +378,7 @@ class TestORBConfig:
         assert config.trade_size == 100
         assert config.enable_shorts is False
         assert config.cooldown_bars == 3
+        assert config.breakout_buffer_pct == 0.3
 
     def test_config_custom_values(self):
         """Test: Config accepts custom values."""
@@ -469,6 +471,7 @@ class TestORBNautilusStrategyInit:
         assert strategy._trade_size == 200
         assert strategy._enable_shorts is True
         assert strategy._cooldown_bars == 5
+        assert strategy._breakout_buffer_pct == 0.3
 
     def test_init_initializes_trades_list(self):
         """Test: Strategy initializes empty trades list."""

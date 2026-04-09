@@ -132,7 +132,7 @@ class RunnerSignalsMixin:
                 }
 
             else:
-                or_levels = self.fetch_or_data(symbol)
+                or_levels = self.fetch_or_data(symbol, runner=runner)
                 if not or_levels:
                     continue
 
@@ -170,9 +170,6 @@ class RunnerSignalsMixin:
                 )
 
             if signal:
-                max_distance = runner.config.get('max_distance_from_or_pct', 1.5)
-                del max_distance
-
                 if signal.signal_type == SignalType.LONG_ENTRY:
                     if runner.strategy_type == "ORB":
                         day_open = or_levels.get('or_open', current_price)

@@ -196,6 +196,7 @@ class TestORBSignalGeneratorInit:
         assert generator.tp_pct == 1.2
         assert generator.min_or_range_pct == 0.5
         assert generator.max_or_range_pct == 3.0
+        assert generator.breakout_buffer_pct == 0.3
 
     def test_init_custom_or_minutes(self):
         """Test initialization with custom or_minutes."""
@@ -228,6 +229,7 @@ class TestORBSignalGeneratorInit:
             tp_pct=1.8,
             min_or_range_pct=0.4,
             max_or_range_pct=2.0,
+            breakout_buffer_pct=0.5,
         )
 
         assert generator.or_minutes == 60
@@ -235,6 +237,7 @@ class TestORBSignalGeneratorInit:
         assert generator.tp_pct == 1.8
         assert generator.min_or_range_pct == 0.4
         assert generator.max_or_range_pct == 2.0
+        assert generator.breakout_buffer_pct == 0.5
 
     def test_init_empty_caches(self):
         """Test that caches are initialized empty."""
@@ -1235,7 +1238,7 @@ class TestORBSignalGeneratorIntegration:
 
         signal = generator.check_breakout(
             symbol="TEST",
-            current_price=102.8,
+            current_price=103.0,
             or_levels=or_levels,
         )
 
@@ -1265,7 +1268,7 @@ class TestORBSignalGeneratorIntegration:
 
         signal = generator.check_breakout(
             symbol="TEST",
-            current_price=99.5,
+            current_price=99.4,
             or_levels=or_levels,
         )
 
@@ -1365,7 +1368,7 @@ class TestEdgeCases:
 
         signal = generator.check_breakout(
             symbol="TEST",
-            current_price=100.02,
+            current_price=100.5,
             or_levels=or_levels,
         )
 
@@ -1413,7 +1416,7 @@ class TestEdgeCases:
 
         signal_above_high = generator.check_breakout(
             symbol="TEST",
-            current_price=100.01,
+            current_price=100.4,
             or_levels=or_levels,
         )
         assert signal_above_high is not None
@@ -1421,7 +1424,7 @@ class TestEdgeCases:
 
         signal_below_low = generator.check_breakout(
             symbol="TEST",
-            current_price=97.99,
+            current_price=97.5,
             or_levels=or_levels,
         )
         assert signal_below_low is not None

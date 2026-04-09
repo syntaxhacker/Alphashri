@@ -17,6 +17,7 @@ import {
   setShowOrbLines,
   setShowPivotLines,
   setShow52wLines,
+  setShowEmaLines,
   subscribe,
   setError,
 } from "../../state/paperTrading";
@@ -136,7 +137,16 @@ function useEChart(
     if (chartInstance.current) chartInstance.current.dispose();
     chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
     chartInstance.current.setOption(
-      buildChartOption(state.chartData, isDark, state.selectedTradeId, state.showAllTrades, state.showOrbLines, state.showPivotLines, state.show52wLines),
+      buildChartOption(
+        state.chartData,
+        isDark,
+        state.selectedTradeId,
+        state.showAllTrades,
+        state.showOrbLines,
+        state.showPivotLines,
+        state.show52wLines,
+        state.showEmaLines,
+      ),
     );
     const handleResize = () => chartInstance.current?.resize();
     window.addEventListener("resize", handleResize);
@@ -153,6 +163,7 @@ function useEChart(
     state.showOrbLines,
     state.showPivotLines,
     state.show52wLines,
+    state.showEmaLines,
     isDark,
     chartRef,
   ]);
@@ -226,6 +237,14 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           onChange={(e) => setShow52wLines(e.currentTarget.checked)}
           styles={{ label: { color: "#E91E63" } }}
           data-testid="show-52w-lines"
+        />
+        <Switch
+          size="xs"
+          label="EMA"
+          checked={state.showEmaLines}
+          onChange={(e) => setShowEmaLines(e.currentTarget.checked)}
+          styles={{ label: { color: "#10ac84" } }}
+          data-testid="show-ema-lines"
         />
         {state.chartData?.current_position && (
           <PositionInfo position={state.chartData.current_position} />

@@ -295,6 +295,25 @@ async def get_paper_chart(
                 "or_range_pct": ((or_high - or_low) / or_open * 100) if or_open > 0 else 0,
             }
 
+        ema_series = None
+        try:
+            with SessionLocal() as db:
+                strategy_config = db.query(StrategyConfig).filter(
+                    StrategyConfig.is_active == True,
+                    StrategyConfig.strategy_type == "EMA_CROSS"
+                ).first()
+            ema_fast_period = strategy_config.ema_fast_period if strategy_config else 9
+            ema_slow_period = strategy_config.ema_slow_period if strategy_config else 21
+            closes = df['close'].tolist()
+            ema_fast = pd.Series(closes).ewm(span=ema_fast_period, adjust=False).mean().round(2).tolist()
+            ema_slow = pd.Series(closes).ewm(span=ema_slow_period, adjust=False).mean().round(2).tolist()
+            ema_series = {
+                'ema_fast': {'label': f'EMA {ema_fast_period}', 'color': '#10ac84', 'data': ema_fast},
+                'ema_slow': {'label': f'EMA {ema_slow_period}', 'color': '#ee5253', 'data': ema_slow},
+            }
+        except Exception as e:
+            console.print(f"[yellow]EMA series computation failed: {e}[/yellow]")
+
         week52_levels = None
         pivot_levels = None
         try:
@@ -459,6 +478,7 @@ async def get_paper_chart(
             "orb_levels": orb_levels,
             "week52_levels": week52_levels,
             "pivot_levels": pivot_levels,
+            "ema_series": ema_series,
             "current_position": current_position,
         }
 

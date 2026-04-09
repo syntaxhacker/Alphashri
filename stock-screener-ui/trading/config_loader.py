@@ -60,7 +60,7 @@ class StrategyConfigData:
 
     # S/R Breakout Parameters
     pivot_type: str = "classic"
-    breakout_buffer_pct: float = 0.1
+    breakout_buffer_pct: float = 0.3
 
     # Cost Parameters
     brokerage_pct: float = 0.0003

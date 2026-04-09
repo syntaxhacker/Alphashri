@@ -67,7 +67,7 @@ class StrategyConfig(Base):
     ema_slow_period = Column(Integer, default=21)
 
     pivot_type = Column(String, default='classic')
-    breakout_buffer_pct = Column(Float, default=0.1)
+    breakout_buffer_pct = Column(Float, default=0.3)
 
     brokerage_pct = Column(Float, default=0.0003)
     min_brokerage = Column(Float, default=20)

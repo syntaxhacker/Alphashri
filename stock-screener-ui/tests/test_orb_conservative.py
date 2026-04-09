@@ -167,18 +167,18 @@ class TestORBConservativeRiskManagement:
         strategy._or_defined = True
 
         b1_ts = _get_ts_ns(2024, 1, 15, 10, 5)
-        bar1 = _create_mock_bar(b1_ts, 999.0, 1003.0, 999.0, 1002.0)
+        bar1 = _create_mock_bar(b1_ts, 999.0, 1005.0, 999.0, 1004.0)
 
         strategy.on_bar(bar1)
 
         assert strategy._position_side == "LONG"
-        assert strategy._entry_price == 1002.0
+        assert strategy._entry_price == 1004.0
         assert hasattr(strategy, "_mock_submit_order")
 
         strategy.cache.positions_open.return_value = [mock_pos]
 
         b2_ts = _get_ts_ns(2024, 1, 15, 10, 10)
-        bar2 = _create_mock_bar(b2_ts, 1002.0, 1015.0, 1002.0, 1014.5)
+        bar2 = _create_mock_bar(b2_ts, 1004.0, 1017.0, 1004.0, 1016.5)
 
         strategy.on_bar(bar2)
 
@@ -189,8 +189,8 @@ class TestORBConservativeRiskManagement:
         assert len(strategy.trades) == 1
         trade = strategy.trades[0]
         assert trade['exit_reason'] == "TP"
-        assert trade['entry_price'] == 1002.0
-        assert trade['exit_price'] == 1014.5
+        assert trade['entry_price'] == 1004.0
+        assert trade['exit_price'] == 1016.5
         assert trade['gross_pnl_pct'] > 1.2
 
 
@@ -207,19 +207,19 @@ class TestORBConservativeRiskManagement:
         strategy._or_defined = True
 
         b1_ts = _get_ts_ns(2024, 1, 15, 10, 5)
-        bar1 = _create_mock_bar(b1_ts, 999.0, 1003.0, 999.0, 1002.0)
+        bar1 = _create_mock_bar(b1_ts, 999.0, 1005.0, 999.0, 1004.0)
         strategy.on_bar(bar1)
 
         strategy.cache.positions_open.return_value = [mock_pos]
 
         b2_ts = _get_ts_ns(2024, 1, 15, 10, 10)
-        bar2 = _create_mock_bar(b2_ts, 1002.0, 1002.0, 995.0, 997.0)
+        bar2 = _create_mock_bar(b2_ts, 1004.0, 1004.0, 995.0, 997.0)
 
         strategy.on_bar(bar2)
 
         assert len(strategy.trades) == 1
         trade = strategy.trades[0]
         assert trade['exit_reason'] == "SL"
-        assert trade['entry_price'] == 1002.0
+        assert trade['entry_price'] == 1004.0
         assert trade['exit_price'] == 997.0
         assert trade['gross_pnl_pct'] <= -0.4

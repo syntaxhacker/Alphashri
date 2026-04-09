@@ -368,7 +368,8 @@ def build_chart_data_for_symbol(
     candles_df: pd.DataFrame,
     trades: List[Dict],
     or_minutes: int = 45,
-    include_52w_line: bool = False
+    include_52w_line: bool = False,
+    visuals=None
 ) -> Dict:
     """
     Build complete chart data for a single symbol.
@@ -416,6 +417,7 @@ def build_chart_data_for_symbol(
         },
         'total_candles': len(candles),
         'total_trades': len(trades),
+        'visuals': visuals,
     }
 
 

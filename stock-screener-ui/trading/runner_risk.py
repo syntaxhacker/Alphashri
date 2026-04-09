@@ -21,10 +21,8 @@ except ImportError:
 class RunnerRiskMixin:
     """Mixin class providing risk management and data fetching methods for MultiStrategyRunner."""
 
-    def fetch_or_data(self, symbol: str) -> Optional[dict]:
-        """Fetch opening range data for a symbol."""
-        from trading.orb_signals import ORBSignalGenerator
-
+    def fetch_or_data(self, symbol: str, runner=None) -> Optional[dict]:
+        """Fetch opening range data for a symbol using the given runner's or_minutes."""
         try:
             fetcher = self._get_data_fetcher()
             if not fetcher:
@@ -48,14 +46,21 @@ class RunnerRiskMixin:
                     'close': row['close'],
                 })
 
-            orb_runner = next(
-                (r for r in self.strategies.values() if r.strategy_type == "ORB"),
-                None,
-            )
-            if orb_runner and orb_runner.signal_generator:
-                or_levels = orb_runner.signal_generator.calculate_or_levels(candles)
+            signal_gen = (runner.signal_generator if runner and runner.signal_generator
+                          else next((r.signal_generator for r in self.strategies.values()
+                                     if r.strategy_type == "ORB" and r.signal_generator), None))
+            if signal_gen:
+                or_levels = signal_gen.calculate_or_levels(candles)
                 if or_levels and candles:
-                    or_levels['latest_price'] = candles[-1]['close']
+                    n = len(candles)
+                    if n % 3 == 2:
+                        confirmed_15min_close = candles[-1]['close']
+                    elif n >= 3:
+                        prev_boundary_idx = n - (n % 3) - 1
+                        confirmed_15min_close = candles[prev_boundary_idx]['close']
+                    else:
+                        confirmed_15min_close = candles[-1]['close']
+                    or_levels['latest_price'] = confirmed_15min_close
                     or_levels['latest_high'] = candles[-1]['high']
                     or_levels['latest_low'] = candles[-1]['low']
                 return or_levels

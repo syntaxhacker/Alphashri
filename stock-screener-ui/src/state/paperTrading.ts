@@ -45,6 +45,7 @@ export const initialPaperTradingState: PaperTradingState = {
   showOrbLines: false,
   showPivotLines: false,
   show52wLines: false,
+  showEmaLines: false,
   chartData: null,
   chartLoading: false,
   chartTimeframe: "5min",
@@ -165,7 +166,14 @@ export function setSelectedTradeId(tradeId: string | null, strategyName?: string
     if (s.includes("S/R") || s.includes("BREAKOUT") || s.includes("PIVOT")) showPivot = true;
     if (s.includes("52W")) show52w = true;
   }
-  state = { ...state, selectedTradeId: tradeId, showAllTrades: false, showOrbLines: showOrb, showPivotLines: showPivot, show52wLines: show52w };
+  state = {
+    ...state,
+    selectedTradeId: tradeId,
+    showAllTrades: false,
+    showOrbLines: showOrb,
+    showPivotLines: showPivot,
+    show52wLines: show52w,
+  };
   notify();
 }
 
@@ -186,6 +194,11 @@ export function setShowPivotLines(show: boolean) {
 
 export function setShow52wLines(show: boolean) {
   state = { ...state, show52wLines: show };
+  notify();
+}
+
+export function setShowEmaLines(show: boolean) {
+  state = { ...state, showEmaLines: show };
   notify();
 }
 

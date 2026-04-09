@@ -133,6 +133,10 @@ export interface PaperChartData {
   week52_levels: Week52Levels | null;
   pivot_levels: PivotLevels | null;
   current_position: PaperPosition | null;
+  ema_series?: {
+    ema_fast: { label: string; color: string; data: number[] };
+    ema_slow: { label: string; color: string; data: number[] };
+  } | null;
 }
 
 export interface CandleData {
@@ -217,6 +221,7 @@ export interface PaperTradingState {
   showOrbLines: boolean;
   showPivotLines: boolean;
   show52wLines: boolean;
+  showEmaLines: boolean;
   chartData: PaperChartData | null;
   chartLoading: boolean;
   chartTimeframe: string;
