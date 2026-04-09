@@ -46,6 +46,7 @@ class BotStatusResponse(BaseModel):
     bot_name: str
     running: bool
     pid: Optional[int] = None
+    status_unknown: bool = False
     portfolio: Optional[dict] = None
     strategies: Optional[Dict[str, dict]] = None
     positions: Optional[List[dict]] = None

@@ -434,11 +434,9 @@ export function zoomToTrade(
     const entryTime = normalizeTime(entryMarker.time);
     entryIdx = candleTimeMap.get(entryTime);
 
-
     // If not found, try matching by date only (for daily candles)
     if (entryIdx === undefined && entryMarker.date) {
       entryIdx = candleDateMap.get(entryMarker.date);
-
     }
   }
 
@@ -497,7 +495,6 @@ export function zoomToTrade(
 
   const startPercent = (startIdx / totalCandles) * 100;
   const endPercent = ((endIdx + 1) / totalCandles) * 100;
-
 
   // Apply zoom
   chart.dispatchAction({

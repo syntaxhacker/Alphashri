@@ -59,7 +59,11 @@ export async function stopBot(botId: string): Promise<{ message: string }> {
 
 // Get bot status
 export async function getBotStatus(botId: string): Promise<BotStatus> {
-  return apiGet<BotStatus>(`${BOT_BASE}/${botId}/status`);
+  const raw = await apiGet<BotStatus & { status_unknown?: boolean }>(`${BOT_BASE}/${botId}/status`);
+  return {
+    ...raw,
+    status: raw.status_unknown ? "unknown" : raw.running ? "running" : "stopped",
+  };
 }
 
 // Get bot logs

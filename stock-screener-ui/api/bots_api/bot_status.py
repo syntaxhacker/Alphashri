@@ -56,6 +56,8 @@ def _sync_list_bots(user_id: int, db: Session) -> list:
 def _sync_get_bot_status(bot_uuid: str, user_id: int, db: Session) -> BotStatusResponse:
     bot = get_bot_by_uuid(bot_uuid, user_id, db)
     running, pid = is_bot_running(user_id, bot.id)
+    status_unknown = running is None
+    running = bool(running)
     snapshot = load_bot_snapshot(bot.id, user_id)
     if not snapshot:
         return BotStatusResponse(
@@ -63,6 +65,7 @@ def _sync_get_bot_status(bot_uuid: str, user_id: int, db: Session) -> BotStatusR
             bot_name=bot.name,
             running=running,
             pid=pid,
+            status_unknown=status_unknown,
             portfolio={
                 "initial_capital": 1000000,
                 "cash": 1000000,
@@ -79,6 +82,7 @@ def _sync_get_bot_status(bot_uuid: str, user_id: int, db: Session) -> BotStatusR
         bot_name=bot.name,
         running=running,
         pid=pid,
+        status_unknown=status_unknown,
         portfolio=snapshot.get('portfolio') if snapshot else None,
         strategies=snapshot.get('strategies') if snapshot else None,
         positions=snapshot.get('positions') if snapshot else None,

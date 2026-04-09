@@ -166,8 +166,6 @@ function renderTradeRow(trade: any): string {
   `;
 }
 
-
-
 function renderSummaryCard(
   label: string,
   value: string,

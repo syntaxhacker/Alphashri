@@ -12,7 +12,7 @@ from rich.console import Console
 
 console = Console()
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 try:
@@ -122,7 +122,7 @@ def is_bot_running(user_id: int, bot_id: int) -> tuple:
         from cache.redis_client import get_redis_client
         client = get_redis_client()
         if client is None:
-            return False, None
+            return None, None
         val = client.get(f"bot:{user_id}:{bot_id}:status")
         if val:
             parts = val.split(":")
@@ -131,6 +131,7 @@ def is_bot_running(user_id: int, bot_id: int) -> tuple:
                 return True, pid
             else:
                 client.delete(f"bot:{user_id}:{bot_id}:status")
+        return False, None
     except Exception:
         pass
 
@@ -166,9 +167,11 @@ def _clear_bot_status_redis(user_id: int, bot_id: int):
 
 
 def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = None) -> "BotResponse":
-    from bots_api.requests import BotResponse
-    
+    from api.bots_api.requests import BotResponse
+
     running, pid = is_bot_running(user_id, bot.id)
+    status_unknown = running is None
+    running = bool(running)
 
     strategies = []
     should_close = False
@@ -206,10 +209,11 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
         strategies=strategies,
         created_at=bot.created_at.isoformat() if bot.created_at else None,
         updated_at=bot.updated_at.isoformat() if bot.updated_at else None,
-        status="RUNNING" if running else "STOPPED",
+        status="UNKNOWN" if status_unknown else ("RUNNING" if running else "STOPPED"),
         process_id=pid if pid else None,
         running=running,
         pid=pid if pid else None,
+        error="Redis unavailable — status may be inaccurate" if status_unknown else None,
     )
 
 
@@ -221,21 +225,34 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False):
         stop_bot_process(user_id, bot_id)
 
     log_path = Path(f"/tmp/bot-{user_id}-{bot_id}.log")
+    runner_script = PROJECT_ROOT / "trading" / "runner_cli.py"
+
+    if not runner_script.exists():
+        console.print(f"[red]Bot runner script not found: {runner_script}[/red]")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Bot runner script not found at {runner_script}. "
+                   f"PROJECT_ROOT={PROJECT_ROOT} — check file structure.",
+        )
 
     cmd = [
         sys.executable,
-        str(Path(__file__).parent.parent / "trading" / "multi_strategy_runner.py"),
+        str(runner_script),
         f"--bot-id={bot_id}",
         f"--user-id={user_id}",
     ]
     if test_mode:
         cmd.append("--test")
 
+    env = {**os.environ, "PYTHONPATH": str(PROJECT_ROOT)}
+
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        cwd=str(PROJECT_ROOT),
         start_new_session=True,
+        env=env,
     )
 
     _stream_output = os.getenv("STREAM_BOT_OUTPUT", "false").lower() == "true"

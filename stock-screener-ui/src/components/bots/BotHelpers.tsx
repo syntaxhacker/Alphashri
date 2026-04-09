@@ -11,12 +11,7 @@ import {
   Box,
 } from "@mantine/core";
 import { IconRefresh } from "@tabler/icons-react";
-import type {
-  BotTrade,
-  BotPosition,
-  PortfolioSummary,
-  StrategyStatus,
-} from "../../types/bots";
+import type { BotTrade, BotPosition, PortfolioSummary, StrategyStatus } from "../../types/bots";
 import { formatNumber as formatNumberShared, getPnLTextColor } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
 

@@ -26,17 +26,9 @@ import {
 import { SectorTable } from "./SectorTable";
 import { fetchSectorPerformance } from "../../api/sector";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
-import {
-  CompactPanel,
-  CompactStat,
-  CompactStatGrid,
-} from "../common/compact";
+import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
-import {
-  detectSectorAlerts,
-  detectIntervalMovers,
-  SectorTreemap,
-} from "./SectorHelpers";
+import { detectSectorAlerts, detectIntervalMovers, SectorTreemap } from "./SectorHelpers";
 import type { SectorAlert, InternalStockMover } from "./SectorHelpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
@@ -57,20 +49,13 @@ function AlertsList({ alerts }: { alerts: SectorAlert[] }) {
           key={i}
           p="xs"
           withBorder
-          bg={
-            alert.direction === "SURGING"
-              ? "rgba(64, 192, 87, 0.05)"
-              : "rgba(250, 82, 82, 0.05)"
-          }
+          bg={alert.direction === "SURGING" ? "rgba(64, 192, 87, 0.05)" : "rgba(250, 82, 82, 0.05)"}
         >
           <Group justify="space-between">
             <Text size="sm" fw={700}>
               [{alert.timestamp}] {alert.sector}
             </Text>
-            <Badge
-              color={alert.direction === "SURGING" ? "green" : "red"}
-              size="sm"
-            >
+            <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="sm">
               {alert.direction} ({formatPercentage(alert.delta, 2, false)})
             </Badge>
           </Group>
@@ -103,12 +88,8 @@ function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }) {
         {movers.map((mover) => (
           <Table.Tr key={mover.symbol}>
             <Table.Td fw={600}>{mover.symbol}</Table.Td>
-            <Table.Td align="right">
-              {mover.prev_change.toFixed(2)}%
-            </Table.Td>
-            <Table.Td align="right">
-              {mover.change.toFixed(2)}%
-            </Table.Td>
+            <Table.Td align="right">{mover.prev_change.toFixed(2)}%</Table.Td>
+            <Table.Td align="right">{mover.change.toFixed(2)}%</Table.Td>
             <Table.Td align="right">
               <Text c={getPnLTextColor(mover.delta)} fw={700}>
                 {mover.delta > 0 ? "+" : ""}
@@ -183,13 +164,7 @@ function LoadingPanel() {
   );
 }
 
-function ErrorPanel({
-  error,
-  onRetry,
-}: {
-  error: string;
-  onRetry: () => void;
-}) {
+function ErrorPanel({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
     <CompactPanel
       title="Error"
@@ -205,10 +180,7 @@ function ErrorPanel({
 
 function EmptyPanel() {
   return (
-    <CompactPanel
-      title="No sector data"
-      description="No sector data available for this market."
-    />
+    <CompactPanel title="No sector data" description="No sector data available for this market." />
   );
 }
 
@@ -350,7 +322,13 @@ function useSectorData() {
     setError(null);
     try {
       const res = await fetchSectorPerformance(mkt);
-      processSectorResponse(res, prevSectorDataRef.current, prevStockDataRef.current, setAlerts, setIntervalMovers);
+      processSectorResponse(
+        res,
+        prevSectorDataRef.current,
+        prevStockDataRef.current,
+        setAlerts,
+        setIntervalMovers,
+      );
       setData(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sector data");
@@ -383,7 +361,18 @@ function useSectorData() {
     };
   }, [market, loadData]);
 
-  return { data, loading, error, market, setMarket, activeTab, setActiveTab, alerts, intervalMovers, loadData };
+  return {
+    data,
+    loading,
+    error,
+    market,
+    setMarket,
+    activeTab,
+    setActiveTab,
+    alerts,
+    intervalMovers,
+    loadData,
+  };
 }
 
 function SectorPageHeader({
@@ -434,7 +423,14 @@ function SectorPageHeader({
 }
 
 function SectorTabContent({
-  activeTab, data, loading, error, market, alerts, intervalMovers, loadData,
+  activeTab,
+  data,
+  loading,
+  error,
+  market,
+  alerts,
+  intervalMovers,
+  loadData,
 }: {
   activeTab: string | null;
   data: SectorResponse | null;
@@ -447,8 +443,16 @@ function SectorTabContent({
 }) {
   if (activeTab !== "dashboard") {
     return (
-      <Box h="100%" className="sector-analysis-frame-wrap" data-testid="sector-analysis-frame"
-        style={{ borderRadius: "var(--mantine-radius-default)", overflow: "auto", border: "1px solid var(--mantine-color-dark-4)" }}>
+      <Box
+        h="100%"
+        className="sector-analysis-frame-wrap"
+        data-testid="sector-analysis-frame"
+        style={{
+          borderRadius: "var(--mantine-radius-default)",
+          overflow: "auto",
+          border: "1px solid var(--mantine-color-dark-4)",
+        }}
+      >
         <iframe
           src={`${API_BASE}/sector/dashboard-modular.html`}
           title="Sector Rotation Dashboard"
@@ -468,20 +472,50 @@ function SectorTabContent({
 export function SectorPage() {
   const state = useSectorData();
   return (
-    <Stack gap="sm" style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }} data-testid="sector-analysis-view">
-      <SectorPageHeader market={state.market} setMarket={state.setMarket} loading={state.loading} onRefresh={() => state.loadData(state.market)} />
-      <Box id="sector-page" className="sector-page" flex={1} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <Stack
+      gap="sm"
+      style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      data-testid="sector-analysis-view"
+    >
+      <SectorPageHeader
+        market={state.market}
+        setMarket={state.setMarket}
+        loading={state.loading}
+        onRefresh={() => state.loadData(state.market)}
+      />
+      <Box
+        id="sector-page"
+        className="sector-page"
+        flex={1}
+        style={{ display: "flex", flexDirection: "column", minHeight: 0 }}
+      >
         <Tabs value={state.activeTab} onChange={state.setActiveTab}>
           <Tabs.List>
-            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>Live Dashboard</Tabs.Tab>
-            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>Historical Cycles</Tabs.Tab>
+            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
+              Live Dashboard
+            </Tabs.Tab>
+            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
+              Historical Cycles
+            </Tabs.Tab>
           </Tabs.List>
         </Tabs>
-        <Box flex={1} style={{ minHeight: 0, padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)", overflow: "auto" }}>
+        <Box
+          flex={1}
+          style={{
+            minHeight: 0,
+            padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)",
+            overflow: "auto",
+          }}
+        >
           <SectorTabContent
-            activeTab={state.activeTab} data={state.data} loading={state.loading}
-            error={state.error} market={state.market} alerts={state.alerts}
-            intervalMovers={state.intervalMovers} loadData={state.loadData}
+            activeTab={state.activeTab}
+            data={state.data}
+            loading={state.loading}
+            error={state.error}
+            market={state.market}
+            alerts={state.alerts}
+            intervalMovers={state.intervalMovers}
+            loadData={state.loadData}
           />
         </Box>
       </Box>

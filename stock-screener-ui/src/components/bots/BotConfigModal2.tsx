@@ -149,9 +149,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       <form onSubmit={handleSubmit} data-testid="bot-config-form">
         <Stack gap="sm">
           <Stack gap="xs" data-testid="bot-config-basic-info">
-            <Text fw={600}>
-              Basic Information
-            </Text>
+            <Text fw={600}>Basic Information</Text>
             <Group grow>
               <TextInput
                 label="Bot Name"
@@ -174,9 +172,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
           <Divider />
 
           <Stack gap="xs" data-testid="bot-config-global-limits">
-            <Text fw={600}>
-              Global Limits
-            </Text>
+            <Text fw={600}>Global Limits</Text>
             <Group grow>
               <NumberInput
                 label="Max Total Positions"
@@ -201,9 +197,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
           <Divider />
 
           <Stack gap="xs" data-testid="bot-config-strategies">
-            <Text fw={600}>
-              Strategy Allocations
-            </Text>
+            <Text fw={600}>Strategy Allocations</Text>
             <Text size="sm" c="dimmed">
               Configure which strategies to run and their capital allocations. Total allocation
               should not exceed 100%.

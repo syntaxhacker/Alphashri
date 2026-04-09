@@ -3,7 +3,7 @@ History endpoints for Paper Trading API.
 """
 
 from dataclasses import asdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 

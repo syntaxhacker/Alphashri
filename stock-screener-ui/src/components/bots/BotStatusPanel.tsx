@@ -350,7 +350,8 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
               </Text>
               <StatusBadge
                 running={status?.running ?? false}
-                pid={status?.pid}
+                pid={status?.pid ?? undefined}
+                statusUnknown={status?.status === "unknown"}
                 data-testid="bot-running-badge"
               />
             </div>

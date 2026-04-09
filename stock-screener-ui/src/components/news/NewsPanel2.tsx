@@ -1,14 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Box,
-  Button,
-  Indicator,
-  Overlay,
-  Paper,
-  ScrollArea,
-  Stack,
-} from "@mantine/core";
+import { Box, Button, Indicator, Overlay, Paper, ScrollArea, Stack } from "@mantine/core";
 import { IconNews } from "@tabler/icons-react";
 import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-types";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
@@ -22,35 +14,38 @@ import {
   getStoredAutoRefresh,
   saveAutoRefresh,
 } from "./NewsLocalStorage";
-import {
-  ArticleView,
-  NewsFilterControls,
-  NewsListContent,
-  NewsListHeader,
-} from "./NewsHelpers";
+import { ArticleView, NewsFilterControls, NewsListContent, NewsListHeader } from "./NewsHelpers";
 
-function useLocalNews(wsNewsItems: NewsItem[], addNewsItems: (items: NewsItem[]) => void, selectedSource: string, isOpen: boolean) {
+function useLocalNews(
+  wsNewsItems: NewsItem[],
+  addNewsItems: (items: NewsItem[]) => void,
+  selectedSource: string,
+  isOpen: boolean,
+) {
   const [localNewsItems, setLocalNewsItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const newsItems = wsNewsItems.length > 0 ? wsNewsItems : localNewsItems;
 
-  const loadNews = useCallback(async (isAutoRefresh = false) => {
-    if (isAutoRefresh) setLoading(true);
-    else setLoading(true);
-    setError(null);
-    try {
-      const sourceParam = selectedSource === "all" ? undefined : selectedSource;
-      const items = await fetchNews(sourceParam, 50);
-      if (wsNewsItems.length > 0) addNewsItems(items);
-      else setLocalNewsItems(items);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load news");
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedSource, wsNewsItems.length, addNewsItems]);
+  const loadNews = useCallback(
+    async (isAutoRefresh = false) => {
+      if (isAutoRefresh) setLoading(true);
+      else setLoading(true);
+      setError(null);
+      try {
+        const sourceParam = selectedSource === "all" ? undefined : selectedSource;
+        const items = await fetchNews(sourceParam, 50);
+        if (wsNewsItems.length > 0) addNewsItems(items);
+        else setLocalNewsItems(items);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load news");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedSource, wsNewsItems.length, addNewsItems],
+  );
 
   useEffect(() => {
     if (isOpen) loadNews();
@@ -66,25 +61,28 @@ function useArticleReader(readIds: Set<string>) {
   const [articleError, setArticleError] = useState<string | null>(null);
   const fetchIdRef = useRef(0);
 
-  const handleArticleClick = useCallback(async (item: NewsItem) => {
-    const fetchId = ++fetchIdRef.current;
-    const newReadIds = new Set(readIds);
-    newReadIds.add(item.id);
-    setSelectedArticle(item);
-    setArticleLoading(true);
-    setArticleContent(null);
-    setArticleError(null);
-    try {
-      const content = await fetchArticle(item.sourceUrl);
-      if (fetchId === fetchIdRef.current) setArticleContent(content);
-    } catch (err) {
-      if (fetchId === fetchIdRef.current) {
-        setArticleError(err instanceof Error ? err.message : "Failed to load article");
+  const handleArticleClick = useCallback(
+    async (item: NewsItem) => {
+      const fetchId = ++fetchIdRef.current;
+      const newReadIds = new Set(readIds);
+      newReadIds.add(item.id);
+      setSelectedArticle(item);
+      setArticleLoading(true);
+      setArticleContent(null);
+      setArticleError(null);
+      try {
+        const content = await fetchArticle(item.sourceUrl);
+        if (fetchId === fetchIdRef.current) setArticleContent(content);
+      } catch (err) {
+        if (fetchId === fetchIdRef.current) {
+          setArticleError(err instanceof Error ? err.message : "Failed to load article");
+        }
+      } finally {
+        if (fetchId === fetchIdRef.current) setArticleLoading(false);
       }
-    } finally {
-      if (fetchId === fetchIdRef.current) setArticleLoading(false);
-    }
-  }, [readIds]);
+    },
+    [readIds],
+  );
 
   const handleBack = useCallback(() => {
     setSelectedArticle(null);
@@ -92,7 +90,14 @@ function useArticleReader(readIds: Set<string>) {
     setArticleError(null);
   }, []);
 
-  return { selectedArticle, articleContent, articleLoading, articleError, handleArticleClick, handleBack };
+  return {
+    selectedArticle,
+    articleContent,
+    articleLoading,
+    articleError,
+    handleArticleClick,
+    handleBack,
+  };
 }
 
 function useAutoRefresh(loadNews: (isAutoRefresh: boolean) => void, autoRefreshMs: string) {
@@ -141,8 +146,20 @@ export default function NewsPanel2() {
   const [lastSeenId, setLastSeenId] = useState<string | null>(getStoredLastSeenId);
   const [autoRefreshMs, setAutoRefreshMs] = useState<string>(getStoredAutoRefresh);
 
-  const { newsItems, loading, error, loadNews } = useLocalNews(wsNewsItems, addNewsItems, selectedSource, isOpen);
-  const { selectedArticle, articleContent, articleLoading, articleError, handleArticleClick, handleBack } = useArticleReader(readIds);
+  const { newsItems, loading, error, loadNews } = useLocalNews(
+    wsNewsItems,
+    addNewsItems,
+    selectedSource,
+    isOpen,
+  );
+  const {
+    selectedArticle,
+    articleContent,
+    articleLoading,
+    articleError,
+    handleArticleClick,
+    handleBack,
+  } = useArticleReader(readIds);
   const isRefreshing = useAutoRefresh(loadNews, autoRefreshMs);
 
   const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } =
@@ -151,9 +168,11 @@ export default function NewsPanel2() {
   const unreadCount = newsItems.filter((item) => !readIds.has(item.id)).length;
 
   useEffect(() => {
-    fetchNewsSources().then(setSources).catch((err) => {
-      console.error("Failed to load news sources:", err);
-    });
+    fetchNewsSources()
+      .then(setSources)
+      .catch((err) => {
+        console.error("Failed to load news sources:", err);
+      });
   }, []);
 
   useEffect(() => {

@@ -31,6 +31,8 @@ export interface BotConfig {
   updated_at: string | null;
   running: boolean;
   pid: number | null;
+  status?: string;
+  error?: string | null;
 }
 // Bot creation request
 export interface BotCreate {
@@ -53,7 +55,7 @@ export interface BotStatus {
   bot_id: string;
   running: boolean;
   pid: number | null;
-  status: "running" | "stopped";
+  status: "running" | "stopped" | "unknown";
   portfolio: PortfolioSummary | null;
   strategies: Record<string, StrategyStatus>;
   positions?: BotPosition[];

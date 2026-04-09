@@ -1,5 +1,10 @@
 import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
-import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
+import {
+  getPaperTradingState,
+  setSelectedSymbol,
+  setSelectedTradeId,
+  setShowAllTrades,
+} from "../../state/paperTrading";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import {
@@ -87,7 +92,7 @@ function PositionRow({
   onClose,
 }: {
   pos: PaperPosition;
-  onSelect: (symbol: string) => void;
+  onSelect: (symbol: string, tradeId?: string, strategyName?: string) => void;
   onClose: (symbol: string, price: number) => void;
 }) {
   const pnlClass = getPnLTextColor(pos.pnl ?? 0);
@@ -96,7 +101,7 @@ function PositionRow({
   return (
     <Table.Tr
       key={pos.symbol}
-      onClick={() => onSelect(pos.symbol)}
+      onClick={() => onSelect(pos.symbol, pos.order_id, pos.strategy_name)}
       style={{ cursor: "pointer" }}
       data-testid={`position-row-${pos.symbol}`}
     >
@@ -165,8 +170,10 @@ export function PositionsTableBody({
     }
   };
 
-  const handleSelect = async (symbol: string) => {
+  const handleSelect = async (symbol: string, tradeId?: string, strategyName?: string) => {
     setSelectedSymbol(symbol);
+    if (tradeId) setSelectedTradeId(tradeId, strategyName);
+    setShowAllTrades(true);
     const state = getPaperTradingState();
     await fetchPaperChart(symbol, undefined, state.chartTimeframe);
   };
