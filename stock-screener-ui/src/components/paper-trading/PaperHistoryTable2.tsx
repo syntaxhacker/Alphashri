@@ -180,7 +180,7 @@ function HistoryFilters({
                 ]}
                 value={state.filterBot || ""}
                 onChange={(v) => setFilterBot(v)}
-                style={{ width: 160 }}
+                w={160}
                 size="xs"
                 data-testid="bot-filter-select"
               />
@@ -194,7 +194,7 @@ function HistoryFilters({
                 ]}
                 value={state.filterStrategy || ""}
                 onChange={(v) => setFilterStrategy(v)}
-                style={{ width: 160 }}
+                w={160}
                 size="xs"
                 data-testid="strategy-filter-select"
               />

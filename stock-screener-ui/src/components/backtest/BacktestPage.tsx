@@ -1,4 +1,4 @@
-import { Box, Flex, Alert, Tabs } from "@mantine/core";
+import { Box, Flex, Stack, Alert, Tabs, Center } from "@mantine/core";
 import { IconAlertCircle, IconTable, IconHistory } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -237,18 +237,9 @@ export function BacktestPage() {
               }}
             />
           ) : !state.results || state.results.length === 0 ? (
-            <Box
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                color: "var(--mantine-color-dimmed)",
-              }}
-              data-testid="results-empty"
-            >
+            <Center h="100%" c="dimmed" data-testid="results-empty">
               No results yet. Run a backtest.
-            </Box>
+            </Center>
           ) : (
             <Flex
               direction="column"
@@ -343,14 +334,12 @@ export function BacktestPage() {
   };
 
   return (
-    <Box
+    <Stack
       id="backtest-main"
       className="backtest-page"
       h="100%"
+      p="md"
       style={{
-        display: "flex",
-        flexDirection: "column",
-        padding: "var(--mantine-spacing-md)",
         minHeight: 0,
         overflow: "hidden",
       }}
@@ -398,6 +387,7 @@ export function BacktestPage() {
       <Flex
         id="backtest-panels"
         className="backtest-panels"
+        direction={{ base: "column", lg: "row" }}
         flex={1}
         gap="md"
         style={{ minHeight: 0 }}
@@ -405,18 +395,18 @@ export function BacktestPage() {
         <Box
           id="backtest-left-panel"
           className="backtest-left-panel"
-          style={{ flex: "0 0 33.333%", minHeight: 0 }}
+          style={{ flex: "0 0 auto", minHeight: 0 }}
         >
           {renderLeftPanel()}
         </Box>
         <Box
           id="backtest-right-panel"
           className="backtest-right-panel"
-          style={{ flex: "1 1 66.666%", minHeight: 0 }}
+          style={{ flex: "1 1 100%", minHeight: 0 }}
         >
           {renderRightPanel()}
         </Box>
       </Flex>
-    </Box>
+    </Stack>
   );
 }

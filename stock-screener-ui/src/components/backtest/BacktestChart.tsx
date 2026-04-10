@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Box, Text, useMantineColorScheme, Loader } from "@mantine/core";
+import { Box, Text, useMantineColorScheme, Loader, Center } from "@mantine/core";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
@@ -795,39 +795,29 @@ export function BacktestChart({ symbol, chartData, isLoading, onTradeClick }: Ba
 
   if (isLoading) {
     return (
-      <Box
+      <Center
         className="backtest-chart-loading"
         data-testid="backtest-chart-loading"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          backgroundColor: "var(--mantine-color-body)",
-          borderRadius: "var(--mantine-radius-md)",
-        }}
+        h="100%"
+        bg="var(--mantine-color-body)"
+        styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
       >
         <Loader size="sm" />
-      </Box>
+      </Center>
     );
   }
 
   if (!chartData) {
     return (
-      <Box
+      <Center
         className="backtest-chart-empty"
         data-testid="backtest-chart-empty"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          backgroundColor: "var(--mantine-color-body)",
-          borderRadius: "var(--mantine-radius-md)",
-        }}
+        h="100%"
+        bg="var(--mantine-color-body)"
+        styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
       >
         <Text c="dimmed">No chart data for {symbol}</Text>
-      </Box>
+      </Center>
     );
   }
 

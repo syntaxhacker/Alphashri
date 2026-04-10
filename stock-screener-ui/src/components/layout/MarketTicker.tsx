@@ -46,7 +46,7 @@ function getTickerLabel(symbol: string): string {
 
 export function MarketTicker() {
   const [data, setData] = useState<MarketTickerData | null>(null);
-  const { background, theme } = useThemeColors();
+  const { background } = useThemeColors();
 
   useEffect(() => {
     const fetchTicker = async () => {
@@ -80,9 +80,7 @@ export function MarketTicker() {
         data-testid="market-ticker"
         id="market-ticker"
         className="market-ticker market-ticker-loading"
-        style={{
-          padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-        }}
+        px="sm" py="xs"
       >
         <Group gap="sm">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -100,9 +98,7 @@ export function MarketTicker() {
         data-testid="market-ticker"
         id="market-ticker"
         className="market-ticker market-ticker-error"
-        style={{
-          padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-        }}
+        px="sm" py="xs"
       >
         <Text size="sm" c="dimmed">
           Market data unavailable
@@ -126,8 +122,8 @@ export function MarketTicker() {
       data-testid="market-ticker"
       id="market-ticker"
       className="market-ticker"
+      px="sm" py="xs"
       style={{
-        padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
         overflowX: "auto",
       }}
     >

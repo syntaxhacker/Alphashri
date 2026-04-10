@@ -9,6 +9,7 @@ import {
   Flex,
   useMantineColorScheme,
   Switch,
+  Center,
 } from "@mantine/core";
 import {
   getPaperTradingState,
@@ -107,19 +108,21 @@ function ChartEmptyState({
       data-testid="paper-chart-container"
       className={`paper-chart-container ${className}`}
       id="paper-chart"
-      style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+      style={{ height: "100%" }}
     >
-      <Box
-        data-testid={icon ? undefined : "chart-placeholder-content"}
-        style={{ textAlign: "center" }}
-      >
-        {icon && (
-          <Text size="lg" c="dimmed" mb="sm">
-            {icon}
-          </Text>
-        )}
-        {children}
-      </Box>
+      <Center>
+        <Box
+          data-testid={icon ? undefined : "chart-placeholder-content"}
+          ta="center"
+        >
+          {icon && (
+            <Text size="lg" c="dimmed" mb="sm">
+              {icon}
+            </Text>
+          )}
+          {children}
+        </Box>
+      </Center>
     </CompactPanel>
   );
 }
@@ -293,11 +296,9 @@ export function PaperChart() {
       className="paper-chart-container"
       id="paper-chart"
       h="100%"
+      padded={false}
       style={{
-        padding: 0,
         overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
         minHeight: 0,
       }}
     >
@@ -307,7 +308,7 @@ export function PaperChart() {
         data-testid="paper-echarts"
         className="paper-chart-canvas"
         id="echarts-container"
-        style={{ flex: 1, width: "100%", minHeight: 0 }}
+        flex={1} w="100%" style={{ minHeight: 0 }}
       />
       <Flex
         px="sm"

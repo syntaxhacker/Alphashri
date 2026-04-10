@@ -128,7 +128,7 @@ export function PaperTradingView() {
         id="paper-content"
       >
         {state.currentView === "live" && (
-          <Flex h="100%" gap="md" className="paper-live-view" id="live-view-grid">
+          <Flex h="100%" gap="md" direction={{ base: "column", md: "row" }} className="paper-live-view" id="live-view-grid">
             <Flex
               direction="column"
               w={{ base: "100%", md: "30%" }}
@@ -164,6 +164,7 @@ export function PaperTradingView() {
             id="history-view"
             gap="md"
             h="100%"
+            direction={{ base: "column", md: "row" }}
             data-testid="paper-history-panel"
           >
             <Flex flex="1 1 50%" direction="column" style={{ minWidth: 0, overflow: "hidden" }}>

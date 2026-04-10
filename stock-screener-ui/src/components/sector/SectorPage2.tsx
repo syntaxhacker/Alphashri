@@ -281,7 +281,7 @@ function DashboardContent({
             </Group>
           }
         >
-          <Box px="sm" pb="sm" style={{ minHeight: 0, flex: 1 }}>
+          <Box px="sm" pb="sm" flex={1} style={{ minHeight: 0 }}>
             <SectorTreemap sectors={data.sectors} />
           </Box>
         </CompactPanel>
@@ -467,7 +467,7 @@ function SectorTabContent({
 export function SectorPage() {
   const state = useSectorData();
   return (
-    <Stack gap="sm" style={{ height: "100%", overflow: "hidden" }} data-testid="sector-analysis-view">
+    <Stack gap="sm" h="100%" style={{ overflow: "hidden" }} data-testid="sector-analysis-view">
       <SectorPageHeader market={state.market} setMarket={state.setMarket} loading={state.loading} onRefresh={() => state.loadData(state.market)} />
       <Stack id="sector-page" className="sector-page" flex={1} style={{ minHeight: 0 }}>
         <Tabs value={state.activeTab} onChange={state.setActiveTab}>
@@ -476,7 +476,7 @@ export function SectorPage() {
             <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />} data-testid="sector-tab-historical">Historical Cycles</Tabs.Tab>
           </Tabs.List>
         </Tabs>
-        <Box flex={1} style={{ minHeight: 0, padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)", overflow: "auto" }}>
+        <Box flex={1} py={0} px="md" pb="md" style={{ minHeight: 0, overflow: "auto" }}>
           <SectorTabContent
             activeTab={state.activeTab} data={state.data} loading={state.loading}
             error={state.error} market={state.market} alerts={state.alerts}

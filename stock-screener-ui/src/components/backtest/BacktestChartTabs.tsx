@@ -1,4 +1,4 @@
-import { Tabs, Select, Group, Text, Box } from "@mantine/core";
+import { Tabs, Select, Group, Text, Box, Center } from "@mantine/core";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
 
@@ -32,21 +32,16 @@ export function BacktestChartTabs({
 }: BacktestChartTabsProps) {
   if (symbols.length === 0) {
     return (
-      <Box
+      <Center
         id="chart-container"
         className="backtest-chart-tabs backtest-chart-empty"
         data-testid="chart-container"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: 400,
-          backgroundColor: "var(--mantine-color-body)",
-          borderRadius: "var(--mantine-radius-md)",
-        }}
+        h={400}
+        bg="var(--mantine-color-body)"
+        styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
-      </Box>
+      </Center>
     );
   }
 
@@ -102,19 +97,14 @@ export function BacktestChartTabs({
             onTradeClick={onTradeClick}
           />
         ) : (
-          <Box
+          <Center
             data-testid="chart-placeholder"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              backgroundColor: "var(--mantine-color-body)",
-              borderRadius: "var(--mantine-radius-md)",
-            }}
+            h="100%"
+            bg="var(--mantine-color-body)"
+            styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
           >
             <Text c="dimmed">Select a symbol</Text>
-          </Box>
+          </Center>
         )}
       </Box>
     </Box>

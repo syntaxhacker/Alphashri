@@ -97,12 +97,11 @@ function NewsPageDesktop({
     <Flex
       data-testid="news-page"
       className="news-page"
-      style={{ height: "100%", overflow: "hidden" }}
+      h="100%" style={{ overflow: "hidden" }}
     >
       <Stack
+        w="35%" miw={300}
         style={{
-          width: "35%",
-          minWidth: 300,
           borderRight: "1px solid var(--mantine-color-default-border)",
           overflow: "hidden",
         }}
@@ -111,7 +110,7 @@ function NewsPageDesktop({
           <NewsList {...newsListProps} />
         </ScrollArea>
       </Stack>
-      <Stack style={{ flex: 1, overflow: "hidden" }}>
+      <Stack flex={1} style={{ overflow: "hidden" }}>
         <ScrollArea h="100%" offsetScrollbars p="sm">
           <ArticleDetail {...articleDetailProps} />
         </ScrollArea>

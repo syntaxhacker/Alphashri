@@ -9,11 +9,10 @@ import {
   IconSun,
   IconMoon,
   IconChevronLeft,
-  IconChevronRight,
   IconNews,
   IconShield,
 } from "@tabler/icons-react";
-import { Box, Group, ScrollArea, UnstyledButton, AppShell } from "@mantine/core";
+import { Box, Group, ScrollArea, AppShell, Stack, ActionIcon } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
@@ -24,6 +23,7 @@ interface NavbarNestedProps {
   activePath: string;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  onMobileNavigate?: () => void;
 }
 
 const navItems = [
@@ -39,7 +39,7 @@ const navItems = [
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];
 
-export function NavbarNested({ activePath, collapsed, onToggleCollapse }: NavbarNestedProps) {
+export function NavbarNested({ activePath, collapsed, onToggleCollapse, onMobileNavigate }: NavbarNestedProps) {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const { user } = useAuth();
 
@@ -53,6 +53,7 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
       link={item.link}
       active={activePath === item.link}
       collapsed={collapsed}
+      onNavigate={onMobileNavigate}
       data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
     />
   ));
@@ -70,15 +71,33 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
       </AppShell.Section>
 
       <AppShell.Section className={classes.footer} id="navbar-footer" data-testid="navbar-footer">
-        <Group justify="center" gap="xs">
-          <UnstyledButton onClick={toggleColorScheme} data-testid="theme-toggle-btn">
-            {colorScheme === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
-          </UnstyledButton>
-          <UnstyledButton onClick={onToggleCollapse} data-testid="sidebar-collapse-toggle">
-            {collapsed ? <IconChevronRight size={18} /> : <IconChevronLeft size={18} />}
-          </UnstyledButton>
-        </Group>
-        <UserButton collapsed={collapsed} />
+        <Stack gap="xs">
+          <Group justify="space-between" px="xs">
+            <UserButton collapsed={collapsed} />
+            <Group gap={4}>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={toggleColorScheme}
+                aria-label="Toggle color scheme"
+                data-testid="theme-toggle-btn"
+              >
+                {colorScheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
+              </ActionIcon>
+              {!collapsed && (
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  onClick={onToggleCollapse}
+                  aria-label="Toggle sidebar"
+                  data-testid="sidebar-collapse-toggle"
+                >
+                  <IconChevronLeft size={16} />
+                </ActionIcon>
+              )}
+            </Group>
+          </Group>
+        </Stack>
       </AppShell.Section>
     </nav>
   );

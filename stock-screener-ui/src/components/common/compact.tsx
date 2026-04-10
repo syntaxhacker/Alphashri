@@ -30,7 +30,7 @@ export function CompactPage({
   return (
     <Stack
       gap="sm"
-      style={{ height: "100%", overflow: "hidden" }}
+      h="100%" style={{ overflow: "hidden" }}
       {...stackProps}
     >
       {(title || description || actions) && (

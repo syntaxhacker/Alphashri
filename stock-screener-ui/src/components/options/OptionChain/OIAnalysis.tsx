@@ -208,7 +208,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
           <CompactPanel
             className="oi-sentiment-panel"
             data-testid="options-oi-sentiment-panel"
-            style={{ borderLeft: "4px solid var(--mantine-color-blue-6)", flex: 1 }}
+            flex={1} style={{ borderLeft: "4px solid var(--mantine-color-blue-6)" }}
           >
             <Group align="flex-start" wrap="nowrap">
               <Box>
