@@ -62,6 +62,11 @@ class StrategyConfigData:
     pivot_type: str = "classic"
     breakout_buffer_pct: float = 0.3
 
+    enable_shorts: bool = False
+    eod_exit_hour: int = 14
+    eod_exit_minute: int = 45
+    min_rr_ratio: float = 2.0
+
     # Cost Parameters
     brokerage_pct: float = 0.0003
     min_brokerage: float = 20
@@ -106,6 +111,10 @@ class StrategyConfigData:
             enable_filters=model.enable_filters,
             pivot_type=model.pivot_type,
             breakout_buffer_pct=model.breakout_buffer_pct,
+            enable_shorts=model.enable_shorts,
+            eod_exit_hour=model.eod_exit_hour,
+            eod_exit_minute=model.eod_exit_minute,
+            min_rr_ratio=model.min_rr_ratio,
             ema_fast_period=model.ema_fast_period,
             ema_slow_period=model.ema_slow_period,
             brokerage_pct=model.brokerage_pct,
@@ -151,6 +160,10 @@ class StrategyConfigData:
             "enable_filters": self.enable_filters,
             "pivot_type": self.pivot_type,
             "breakout_buffer_pct": self.breakout_buffer_pct,
+            "enable_shorts": self.enable_shorts,
+            "eod_exit_hour": self.eod_exit_hour,
+            "eod_exit_minute": self.eod_exit_minute,
+            "min_rr_ratio": self.min_rr_ratio,
             "ema_fast_period": self.ema_fast_period,
             "ema_slow_period": self.ema_slow_period,
             "brokerage_pct": self.brokerage_pct,

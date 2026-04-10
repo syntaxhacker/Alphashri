@@ -69,6 +69,11 @@ class StrategyConfig(Base):
     pivot_type = Column(String, default='classic')
     breakout_buffer_pct = Column(Float, default=0.3)
 
+    enable_shorts = Column(Boolean, default=False)
+    eod_exit_hour = Column(Integer, default=14)
+    eod_exit_minute = Column(Integer, default=45)
+    min_rr_ratio = Column(Float, default=2.0)
+
     brokerage_pct = Column(Float, default=0.0003)
     min_brokerage = Column(Float, default=20)
     stt_pct = Column(Float, default=0.00025)
@@ -122,6 +127,10 @@ class StrategyConfig(Base):
             "ema_slow_period": self.ema_slow_period,
             "pivot_type": self.pivot_type,
             "breakout_buffer_pct": self.breakout_buffer_pct,
+            "enable_shorts": self.enable_shorts,
+            "eod_exit_hour": self.eod_exit_hour,
+            "eod_exit_minute": self.eod_exit_minute,
+            "min_rr_ratio": self.min_rr_ratio,
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
             "stt_pct": self.stt_pct,

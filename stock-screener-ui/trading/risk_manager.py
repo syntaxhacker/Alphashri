@@ -190,6 +190,7 @@ class RiskManager:
         stop_loss: float,
         take_profit: float,
         side: str = "BUY",
+        min_rr_ratio: float = 2.0,
     ) -> dict:
         """
         Validate a trade request.
@@ -225,9 +226,9 @@ class RiskManager:
         result['reward_pct'] = round(reward_pct, 2)
         result['rr_ratio'] = round(rr_ratio, 2)
 
-        # Check risk/reward ratio (minimum 1:2)
-        if rr_ratio < 2:
-            result['reason'] = f"Risk/reward ratio ({rr_ratio:.1f}) too low. Minimum 1:2 required."
+        # Check risk/reward ratio
+        if rr_ratio < min_rr_ratio:
+            result['reason'] = f"Risk/reward ratio ({rr_ratio:.1f}) too low. Minimum 1:{min_rr_ratio:.1f} required."
             return result
 
         # Calculate position size

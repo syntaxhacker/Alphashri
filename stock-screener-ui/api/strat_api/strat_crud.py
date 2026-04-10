@@ -61,6 +61,10 @@ def _sync_create_strategy(db, request):
             "max_trade_value": parent.max_trade_value,
             "cooldown_minutes": parent.cooldown_minutes,
             "max_distance_from_or_pct": parent.max_distance_from_or_pct,
+            "enable_shorts": parent.enable_shorts,
+            "eod_exit_hour": parent.eod_exit_hour,
+            "eod_exit_minute": parent.eod_exit_minute,
+            "min_rr_ratio": parent.min_rr_ratio,
             "brokerage_pct": parent.brokerage_pct,
             "min_brokerage": parent.min_brokerage,
             "stt_pct": parent.stt_pct,
@@ -84,6 +88,7 @@ def _sync_create_strategy(db, request):
         "max_positions", "max_capital_per_trade_pct", "max_daily_loss_pct",
         "max_total_exposure_pct", "risk_per_trade_pct", "min_trade_value",
         "max_trade_value", "cooldown_minutes", "max_distance_from_or_pct",
+        "enable_shorts", "eod_exit_hour", "eod_exit_minute", "min_rr_ratio",
     ]:
         request_val = getattr(request, field, None)
         strategy_data[field] = request_val if request_val is not None else defaults.get(field)

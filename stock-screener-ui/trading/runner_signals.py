@@ -11,6 +11,7 @@ from rich.console import Console
 from trading.orb_signals import SignalType
 from trading.shared_portfolio import OrderSide
 from trading.strategy_runner import INTRADAY_STRATEGY_TYPES, SWING_STRATEGY_TYPES
+from backtest.costs import calculate_trading_costs
 
 console = Console()
 
@@ -325,6 +326,7 @@ class RunnerSignalsMixin:
             max_capital_per_trade_pct=runner.config.get('max_capital_per_trade_pct', 0.10),
             min_trade_value=runner.config.get('min_trade_value', 5000),
             max_trade_value=runner.config.get('max_trade_value', 100000),
+            min_rr_ratio=runner.config.get('min_rr_ratio', 2.0),
         )
 
         if not validation['valid']:
@@ -477,8 +479,9 @@ class RunnerSignalsMixin:
 
         trade_logged = False
         for strategy_id, symbol, exit_price, exit_reason in positions_to_close:
-            trade_value = exit_price * self.portfolio.positions[f"{strategy_id}_{symbol}"].quantity
-            costs = trade_value * 0.0006
+            pos = self.portfolio.positions[f"{strategy_id}_{symbol}"]
+            side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
+            costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
 
             trade = self.portfolio.close_position(
                 strategy_id=strategy_id,
@@ -560,12 +563,14 @@ class RunnerSignalsMixin:
                 pos = self.portfolio.positions[key]
                 runner = self.strategies.get(pos.strategy_id)
                 if runner and runner.strategy_type not in SWING_STRATEGY_TYPES and pos.symbol in close_prices:
+                    side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
+                    costs = calculate_trading_costs(pos.entry_price, close_prices[pos.symbol], pos.quantity, side)['total_costs']
                     self.portfolio.close_position(
                         strategy_id=pos.strategy_id,
                         symbol=pos.symbol,
                         exit_price=close_prices[pos.symbol],
                         exit_reason="EOD",
-                        costs=close_prices[pos.symbol] * pos.quantity * 0.0006,
+                        costs=costs,
                     )
 
         portfolio_status = self.portfolio.get_portfolio_status()

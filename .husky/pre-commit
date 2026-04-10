@@ -22,7 +22,7 @@ else
   echo "No Python files staged, skipping Python tests."
 fi
 
-STAGED_PY_MODELS=$(git diff --cached --name-only --diff-filter=ACM | grep -E 'stock-screener-ui/db/models\.py$')
+STAGED_PY_MODELS=$(git diff --cached --name-only --diff-filter=ACM | grep -E 'stock-screener-ui/db/models/.*\.py$')
 if [ ! -z "$STAGED_PY_MODELS" ]; then
   echo "Regenerating schema docs..."
   cd stock-screener-ui

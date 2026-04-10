@@ -20,14 +20,16 @@ from trading.base_signals import BaseSignalGenerator
 class SRBreakoutSignalGenerator(BaseSignalGenerator):
 
     strategy_type = "SR_BREAKOUT"
-    FORCE_EXIT = (15, 15)
 
     def __init__(self, config: dict):
         self.sl_pct = config.get("sl_pct", 0.5)
         self.tp_pct = config.get("tp_pct", 1.5)
         self.pivot_type = config.get("pivot_type", "classic")
         self.breakout_buffer_pct = config.get("breakout_buffer_pct", 0.1)
-        super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
+        eod_hour = int(config.get("eod_exit_hour", 15))
+        eod_minute = int(config.get("eod_exit_minute", 15))
+        super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct,
+                         eod_exit_hour=eod_hour, eod_exit_minute=eod_minute)
 
     def calculate_pivot_points(
         self, prev_high: float, prev_low: float, prev_close: float
@@ -140,7 +142,7 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
         else:
             hour, minute = datetime.now(config.IST).hour, datetime.now(config.IST).minute
 
-        if hour > self.FORCE_EXIT[0] or (hour == self.FORCE_EXIT[0] and minute >= self.FORCE_EXIT[1]):
+        if self.is_eod_exit_time(hour, minute):
             exit_type = SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT
             return self.create_signal(
                 symbol=symbol,
@@ -148,7 +150,7 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
                 price=current_price,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                notes="EOD force exit (15:15)",
+                notes=f"EOD force exit ({self.eod_exit_hour}:{self.eod_exit_minute:02d})",
             )
 
         if position_side == "BUY":

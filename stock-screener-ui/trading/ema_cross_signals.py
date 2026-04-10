@@ -18,14 +18,16 @@ from trading.base_signals import BaseSignalGenerator
 class EMACrossSignalGenerator(BaseSignalGenerator):
 
     strategy_type = "EMA_CROSS"
-    FORCE_EXIT = (14, 45)
 
     def __init__(self, config: dict):
         self.ema_fast_period = int(config.get("ema_fast_period", 9))
         self.ema_slow_period = int(config.get("ema_slow_period", 21))
         self.sl_pct = float(config.get("sl_pct", 0.5))
         self.tp_pct = float(config.get("tp_pct", 1.5))
-        super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
+        eod_hour = int(config.get("eod_exit_hour", 14))
+        eod_minute = int(config.get("eod_exit_minute", 45))
+        super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct,
+                         eod_exit_hour=eod_hour, eod_exit_minute=eod_minute)
 
     @staticmethod
     def calculate_ema(closes: list, period: int) -> list:
@@ -99,7 +101,7 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
         else:
             hour, minute = datetime.now(config.IST).hour, datetime.now(config.IST).minute
 
-        if hour > self.FORCE_EXIT[0] or (hour == self.FORCE_EXIT[0] and minute >= self.FORCE_EXIT[1]):
+        if self.is_eod_exit_time(hour, minute):
             exit_type = SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT
             return self.create_signal(
                 symbol=symbol,
@@ -107,7 +109,7 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
                 price=current_price,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                notes="EOD force exit (14:45)",
+                notes=f"EOD force exit ({self.eod_exit_hour}:{self.eod_exit_minute:02d})",
             )
 
         if position_side == "BUY":

@@ -144,7 +144,9 @@ def send_trade_exit(
 ) -> None:
     emoji = "💚" if pnl >= 0 else "❌"
     direction = "LONG" if side.upper() == "BUY" else "SHORT"
-    hold = (datetime.now(config.IST) - entry_time.replace(tzinfo=None) if entry_time.tzinfo else entry_time).total_seconds() / 60
+    now_ist = datetime.now(config.IST).replace(tzinfo=None)
+    entry_naive = entry_time.astimezone(config.IST).replace(tzinfo=None) if entry_time.tzinfo else entry_time
+    hold = (now_ist - entry_naive).total_seconds() / 60
 
     msg = (
         f"{emoji} *TRADE EXIT* — {bot_name}\n\n"

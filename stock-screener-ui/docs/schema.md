@@ -348,6 +348,10 @@ erDiagram
 | ema_slow_period | Integer | Yes | - |
 | pivot_type | String | Yes | - |
 | breakout_buffer_pct | Float | Yes | - |
+| enable_shorts | Boolean | Yes | - |
+| eod_exit_hour | Integer | Yes | - |
+| eod_exit_minute | Integer | Yes | - |
+| min_rr_ratio | Float | Yes | - |
 | brokerage_pct | Float | Yes | - |
 | min_brokerage | Float | Yes | - |
 | stt_pct | Float | Yes | - |

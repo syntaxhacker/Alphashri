@@ -106,6 +106,8 @@ class ORBSignalGenerator:
             self.min_or_range_pct = min_or_range_pct if min_or_range_pct is not None else config.min_or_range_pct
             self.max_or_range_pct = max_or_range_pct if max_or_range_pct is not None else config.max_or_range_pct
             self.breakout_buffer_pct = breakout_buffer_pct if breakout_buffer_pct is not None else config.breakout_buffer_pct
+            self.enable_shorts = config.enable_shorts
+            self.FORCE_EXIT = (config.eod_exit_hour, config.eod_exit_minute)
         else:
             # Fall back to hardcoded defaults
             self.or_minutes = or_minutes if or_minutes is not None else 45
@@ -114,6 +116,7 @@ class ORBSignalGenerator:
             self.min_or_range_pct = min_or_range_pct if min_or_range_pct is not None else 0.5
             self.max_or_range_pct = max_or_range_pct if max_or_range_pct is not None else 3.0
             self.breakout_buffer_pct = breakout_buffer_pct if breakout_buffer_pct is not None else 0.3
+            self.enable_shorts = False
 
         # OR levels cache
         self.or_levels: Dict[str, dict] = {}

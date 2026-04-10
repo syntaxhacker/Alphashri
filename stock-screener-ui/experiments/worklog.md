@@ -1,53 +1,84 @@
-# SR Breakout Optimization Worklog
+# ORB Profit Factor Optimization Worklog
 
-## Session: sr-breakout-wr-pf-20260405
-**Start**: 2026-04-05
-**Data**: 18 symbols, Apr 2 2026, 1-min intraday + daily cached
+## Session: orb-profit-factor-20260410
+**Start**: 2026-04-10
+**Data**: 23 volatile NSE symbols (25 listed, 2 dupes), ~90 days of 5-min candles, ~101K total candles
 
-### Run 1: Baseline — PF=1.25 (KEEP)
-- What: SL=1.0%, TP=3.0%, classic pivot, buffer=0.1%, no time filter
-- Result: PF=1.25, WR=18.8%, 16 trades, 3W/11L/2EOD
-- Already has live price fix from earlier session
+### Run 1: Baseline — PF=0.91 (KEEP)
+- What: OR_MIN=45, SL=0.4%, TP=1.2%, buffer=0.3%, cooldown=3, no shorts
+- Result: PF=0.91, WR=33.7%, 1485 trades, 500W/985L, net=-56,432
+- Note: 953 EOD exits (64%) — most positions never hit TP or SL
 
-### Run 2: Time filter — PF=6.05 (KEEP, +384%)
-- What: Skip entries before 10:30 (min_entry_minutes=630)
-- Result: PF=6.05, WR=40.0%, 15 trades, 6W/7L
-- Insight: 5 of 11 original SLs were 9:15-9:16 opening gap entries that reversed. Time filter is the biggest lever.
+### Run 2: SL sweep (SL=1.0) — PF=1.00 (DISCARD)
+- What: Wider SL=1.0% reduces SL exits from 420→129, but PF only reaches 1.0
+- Result: PF=1.00, WR=37.4%, 1315 trades, net=+2,716
+- Insight: Wider SL alone is not enough; too many EOD exits still bleed
 
-### Run 3: Tighter SL/TP — PF=11.81 (KEEP, +845%)
-- What: SL=0.75%, TP=2.0%, classic pivot, min=10:30
-- Result: PF=11.81, WR=46.7%, 15 trades, 7W/7L
-- Insight: Wider TP (3.0%) was too ambitious. 2.0% hits more often.
+### Run 3: Cooldown=6 — PF=1.15 (KEEP, +26%)
+- What: Increase cooldown from 3→6 bars (15→30 min between trades)
+- Result: PF=1.15, WR=34.2%, 1132 trades, net=+74,287
+- Insight: **Biggest single lever.** Prevents re-entry after SL into the same failed breakout. Reduces overtrading.
 
-### Run 4: Camarilla pivot — PF=13.93 (KEEP, +1014%)
-- What: Switch to camarilla pivot, SL=0.75%, TP=2.0%, buf=0.1%, min=10:30
-- Result: PF=13.93, WR=53.3%, 15 trades, 8W/6L
-- Insight: Camarilla pivot levels are tighter and better suited for NSE intraday. Buffer 0.1-0.3 all work equally well.
+### Run 4: Grid search (CD=6 + SL=0.8 + TP=2.0 + BUF=0.3) — PF=1.27 (KEEP, +40%)
+- What: Full grid of SL×TP×Buffer with CD=6. Best: SL=0.8%, TP=2.0%, BUF=0.3%
+- Result: PF=1.27, WR=37.9%, 931 trades, net=+115,971
+- Insight: Buffer=0.3 is consistently best. Ties at SL=1.0/TP=1.5 and SL=1.0/TP=2.0 (all PF=1.27)
 
-### Run 5: Optimize SL with camarilla — PF=17.42 (KEEP, +1294%)
-- What: SL=0.6%, TP=2.0%, camarilla, buf=0.1%, min=10:30
-- Result: PF=17.42, WR=53.3%, 15 trades, 8W/6L
-- Insight: SL=0.6% is the sweet spot — tight enough to cut losses fast, but time filter prevents false outs.
+### Run 5: Cooldown=15 (75 min) — PF=1.29 (KEEP, +42%)
+- What: Push cooldown higher. CD=15 bars = 75 min between trades
+- Result: PF=1.29, WR=41.5%, 615 trades, net=+101,690
+- Insight: 75-min cooldown = ~1.5 trading hours between entries. Structural change that reduces overtrading. Win rate jumps to 41.5%.
 
-### Run 6: Applied to code — PF=17.42 (KEEP)
-- What: Updated strategy config DB + added min_entry_minutes time filter in scan loop
-- Changes: `multi_strategy_runner.py` (time filter), `strategy_configs` DB (SL=0.6, TP=2.0, pivot=camarilla)
+### Run 6: Cooldown=30 (150 min) — PF=1.28 (DISCARD)
+- What: Push cooldown even further
+- Result: PF=1.28, 567 trades, net=+85,761
+- Insight: Diminishing returns past CD=15. Fewer trades offsets the PF gain.
+
+### Run 7: Time filter (min_entry=10:30) — PF=1.08 (DISCARD)
+- What: Skip entries before 10:30 AM (from SR research insight)
+- Result: PF=1.08, 603 trades, net=+27,868
+- Insight: With CD=15 already active, time filter provides no benefit. Cooldown already prevents early re-entries.
+
+### Run 8: Max 1 trade/day — PF=1.14 (DISCARD)
+- What: Limit to 1 trade per stock per day
+- Result: PF=1.14, 615→537 trades, net=+43,561
+- Insight: Post-filter analysis showed PF=1.32 but proper simulation gives 1.14. Some second trades per day are profitable — removing them hurts.
+
+### Run 9: EOD exit at 15:00 — PF=1.61 (KEEP, +77%)
+- What: Move EOD force-close from 14:45 to 15:00 (market close)
+- Result: PF=1.61, WR=49.6%, 615 trades, net=+199,519
+- Insight: **Biggest single improvement.** Extra 15 min lets positions recover or hit TP. WR jumps from 41.5%→49.6%. 50 more trades become winners. The last 15 min of trading matters enormously.
+- Verified across full SL×TP grid (20 combos) and CD×EOD grid (15 combos). EOD=900 dominates in all cases.
 
 ## Key Insights
-1. **Time filter > everything else**. Opening gap breakouts (9:15-9:16) account for most SLs
-2. **Camarilla > Classic** for NSE intraday. Tighter pivot levels = fewer false breakouts
-3. **SL=0.6% works because of the time filter**. Without it, 0.6% gets stopped out immediately
-4. **TP=2.0% is the sweet spot**. 3.0% is too ambitious, 1.5% leaves too much on table
-5. **Buffer doesn't matter much for camarilla** (0.1-0.3 all same result)
-6. **Overfitting risk**: This is 1 day of data. The time filter and pivot change are structural (not curve-fit). The exact SL/TP values may need adjustment on more data.
+1. **EOD exit time is the #1 parameter** — moving from 14:45 to 15:00 improves PF by 25% (1.29→1.61)
+2. **Cooldown=15 (75 min) is #2** — reduces overtrading, prevents re-entry after SL
+3. **Buffer=0.3% is consistently optimal** across all parameter combinations
+4. **SL=1.0% + TP=1.5%** is the sweet spot (1.5:1 reward-risk ratio)
+5. **No shorts** — shorts consistently hurt PF
+6. **Time filter doesn't help when cooldown is high**
+7. **OR_MIN=45 is best** — shorter OR = more noise, longer = fewer trades
+8. **EOD exits still dominate** (413/615 = 67%) even at 15:00 close
+9. **Post-filter analysis is misleading** — always simulate properly
 
-## Overfitting Check
-- Structural changes (time filter, pivot type) should generalize well
-- SL=0.6% and TP=2.0% are somewhat curve-fit to this day — recommend validating on 5-10 more trading days before trusting
-- The strategy only trades 15 symbols/day with time filter — sample size is small
+## Best Config
+```
+OR_MIN=45, SL=1.0%, TP=1.5%, buffer=0.3%, cooldown=15 bars (75 min), shorts=OFF, EOD exit=15:00
+PF=1.61, WR=49.6%, 615 trades over 90 days, net_pnl=+199,519 INR
+```
+
+## Overfitting Risk
+- Cooldown=15 is structural — should generalize
+- EOD=15:00 is structural (just holding to market close) — should generalize
+- SL=1.0% and TP=1.5% are moderate — not extreme
+- Buffer=0.3% matches the live trading default
+- 615 trades over 90 days on 23 stocks = ~0.3 trades/stock/day — reasonable
+- **Risk**: 67% EOD exits means edge still comes from avoiding bad trades (via cooldown/buffer)
+- **Risk**: This is one 90-day window. Need validation on other periods.
 
 ## Next Ideas
-- Validate on multiple days (need more cached data)
-- Consider dynamic SL based on ATR instead of fixed %
-- Consider partial TP (exit 50% at 1.5%, trail rest)
-- Consider volume filter at entry
+- Try partial TP (exit 50% at TP, trail rest)
+- Try trailing stop instead of fixed SL
+- Validate on different time periods / different symbol sets
+- Try ATR-based dynamic SL instead of fixed %
+- Implement these params in the live trading ORB strategy

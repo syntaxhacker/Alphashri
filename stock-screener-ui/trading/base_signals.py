@@ -20,9 +20,15 @@ class BaseSignalGenerator(ABC):
 
     strategy_type: str
 
-    def __init__(self, sl_pct: float = 0.4, tp_pct: float = 1.2):
+    def __init__(self, sl_pct: float = 0.4, tp_pct: float = 1.2,
+                 eod_exit_hour: int = 14, eod_exit_minute: int = 45):
         self.sl_pct = sl_pct
         self.tp_pct = tp_pct
+        self.eod_exit_hour = eod_exit_hour
+        self.eod_exit_minute = eod_exit_minute
+
+    def is_eod_exit_time(self, hour: int, minute: int) -> bool:
+        return hour > self.eod_exit_hour or (hour == self.eod_exit_hour and minute >= self.eod_exit_minute)
 
     @abstractmethod
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
