@@ -24,6 +24,11 @@ _ENABLED = os.getenv("TELEGRAM_ENABLED", "true").lower() in ("true", "1", "yes")
 _BOT_TOKEN = config.TELEGRAM_CONFIG.get("bot_token", "")
 _CHAT_ID = config.TELEGRAM_CONFIG.get("chat_id", "")
 
+if config.ENVIRONMENT == "production" and config.RAILWAY_URL:
+    _ORIGIN_TAG = f"🖥️ [{config.RAILWAY_URL}]"
+else:
+    _ORIGIN_TAG = "🖥️ [LOCAL]"
+
 _API_URL = f"https://api.telegram.org/bot{_BOT_TOKEN}/sendMessage"
 _MAX_MSGS_PER_MINUTE = 25
 _COOLDOWN_SECONDS = 60
@@ -79,9 +84,10 @@ def _send_message(text: str, cooldown_key: Optional[str] = None) -> None:
 
     def _do_send():
         try:
+            text_with_origin = f"{text}\n\n{_ORIGIN_TAG}"
             resp = requests.post(
                 _API_URL,
-                json={"chat_id": _CHAT_ID, "text": text, "parse_mode": "Markdown"},
+                json={"chat_id": _CHAT_ID, "text": text_with_origin, "parse_mode": "Markdown"},
                 timeout=10,
             )
             if resp.status_code == 200:
@@ -138,7 +144,7 @@ def send_trade_exit(
 ) -> None:
     emoji = "💚" if pnl >= 0 else "❌"
     direction = "LONG" if side.upper() == "BUY" else "SHORT"
-    hold = (datetime.now(config.IST) - entry_time).total_seconds() / 60
+    hold = (datetime.now(config.IST) - entry_time.replace(tzinfo=None) if entry_time.tzinfo else entry_time).total_seconds() / 60
 
     msg = (
         f"{emoji} *TRADE EXIT* — {bot_name}\n\n"

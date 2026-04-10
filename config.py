@@ -53,6 +53,9 @@ UPSTOX_CONFIG = {
     "access_token": UPSTOX_ACCESS_TOKEN or "",
 }
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", "local")
+RAILWAY_URL = os.getenv("RAILWAY_URL", "")
+
 TELEGRAM_CONFIG = {
     "bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
     "chat_id": os.getenv("TELEGRAM_CHAT_ID", ""),
