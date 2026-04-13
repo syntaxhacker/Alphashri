@@ -46,6 +46,8 @@ ENV/
 
 cache/
 !stock-screener-ui/cache/
+experiments/data/
+stock-screener-ui/experiments/data/
 
 
  visualizations/html/
