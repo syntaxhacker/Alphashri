@@ -104,6 +104,9 @@ export function StrategiesList({
         <Text size="sm">{strategy.tp_pct}%</Text>
       </Table.Td>
       <Table.Td>
+        <Text size="sm">{strategy.min_rr_ratio}x</Text>
+      </Table.Td>
+      <Table.Td>
         <Text size="sm">{strategy.max_positions}</Text>
       </Table.Td>
       <Table.Td>
@@ -181,6 +184,7 @@ export function StrategiesList({
             <Table.Th>Parent</Table.Th>
             <Table.Th>SL%</Table.Th>
             <Table.Th>TP%</Table.Th>
+            <Table.Th>Min RR</Table.Th>
             <Table.Th>Max Positions</Table.Th>
             <Table.Th>Status</Table.Th>
             <Table.Th>Actions</Table.Th>

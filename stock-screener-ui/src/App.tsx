@@ -9,6 +9,7 @@ import { ScreenerContainer } from "./pages/screener/ScreenerContainer";
 import { StrategiesContainer } from "./pages/strategies/StrategiesContainer";
 import { BacktestPage } from "./components/backtest/mantine";
 import { PaperTradingView } from "./components/paper-trading/mantine";
+import { ReplayPage } from "./components/replay/mantine";
 import { BotsPage } from "./components/bots/mantine";
 import { OptionsContainer } from "./pages/options/OptionsContainer";
 import { SettingsPage } from "./pages/settings/SettingsPage";
@@ -61,6 +62,7 @@ function AppContent() {
         <Route path="/" element={<ScreenerContainer />} />
         <Route path="/backtest" element={<BacktestPage />} />
         <Route path="/paper" element={<PaperTradingView />} />
+        <Route path="/replay" element={<ReplayPage />} />
         <Route path="/sector" element={<SectorPage />} />
         <Route path="/strategies" element={<StrategiesContainer />} />
         <Route path="/bots" element={<BotsPage />} />

@@ -30,6 +30,7 @@ export const DEFAULT_VALUES: StrategyFormData = {
   ema_slow_period: 21,
   pivot_type: "classic",
   breakout_buffer_pct: 0.1,
+  min_rr_ratio: 2.0,
 };
 
 export function getInitialValues(props: {
@@ -70,6 +71,7 @@ export function getInitialValues(props: {
       ema_slow_period: strategy.ema_slow_period,
       pivot_type: strategy.pivot_type,
       breakout_buffer_pct: strategy.breakout_buffer_pct,
+      min_rr_ratio: strategy.min_rr_ratio,
     };
   }
 
@@ -104,6 +106,7 @@ export function getInitialValues(props: {
       ema_slow_period: template.ema_slow_period,
       pivot_type: template.pivot_type,
       breakout_buffer_pct: template.breakout_buffer_pct,
+      min_rr_ratio: template.min_rr_ratio,
     };
   }
 

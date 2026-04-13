@@ -12,6 +12,7 @@ import {
   IconChevronRight,
   IconNews,
   IconShield,
+  IconPlayerPlay,
 } from "@tabler/icons-react";
 import { Group, ScrollArea, UnstyledButton, AppShell } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
@@ -31,6 +32,7 @@ const navItems = [
   { label: "News", icon: IconNews, link: "/news" },
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },
   { label: "Paper Trading", icon: IconChartDots, link: "/paper" },
+  { label: "Replay", icon: IconPlayerPlay, link: "/replay" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },
   { label: "Bots", icon: IconRobot, link: "/bots" },

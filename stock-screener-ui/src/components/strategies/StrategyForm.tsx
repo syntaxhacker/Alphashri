@@ -112,6 +112,7 @@ export function StrategyForm({
         DEFAULT_VALUES.breakout_buffer_pct,
       ),
       pivot_type: (formData.get("pivot_type") as string) || DEFAULT_VALUES.pivot_type,
+      min_rr_ratio: getNumVal(formData, "min_rr_ratio", DEFAULT_VALUES.min_rr_ratio),
     };
 
     const enableTrailingEl = form.querySelector(

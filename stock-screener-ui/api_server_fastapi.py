@@ -347,6 +347,13 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load admin API: {e}")
 
+try:
+    from api.replay_api import router as replay_router
+    app.include_router(replay_router)
+    print("✅ Replay API loaded at /api/replay")
+except Exception as e:
+    print(f"⚠️ Could not load replay API: {e}")
+
 
 if __name__ == '__main__':
     port = config.PORT

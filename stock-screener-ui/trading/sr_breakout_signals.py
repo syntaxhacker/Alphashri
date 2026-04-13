@@ -102,26 +102,28 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
 
         if current_price > r1 * (1 + buf):
             sl = current_price * (1 - self.sl_pct / 100)
-            tp = current_price * (1 + self.tp_pct / 100)
+            r2 = pivot_points.get("R2")
+            tp = r2 if r2 and r2 > current_price else current_price * (1 + self.tp_pct / 100)
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.LONG_ENTRY,
                 price=current_price,
                 stop_loss=round(sl, 2),
                 take_profit=round(tp, 2),
-                notes=f"Breakout above R1 ({r1:.2f}) with {self.breakout_buffer_pct}% buffer",
+                notes=f"Breakout above R1 ({r1:.2f}) -> TP=R2 ({tp:.2f})" if r2 and r2 > current_price else f"Breakout above R1 ({r1:.2f}) with {self.breakout_buffer_pct}% buffer",
             )
 
         if current_price < s1 * (1 - buf):
             sl = current_price * (1 + self.sl_pct / 100)
-            tp = current_price * (1 - self.tp_pct / 100)
+            s2 = pivot_points.get("S2")
+            tp = s2 if s2 and s2 < current_price else current_price * (1 - self.tp_pct / 100)
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.SHORT_ENTRY,
                 price=current_price,
                 stop_loss=round(sl, 2),
                 take_profit=round(tp, 2),
-                notes=f"Breakdown below S1 ({s1:.2f}) with {self.breakout_buffer_pct}% buffer",
+                notes=f"Breakdown below S1 ({s1:.2f}) -> TP=S2 ({tp:.2f})" if s2 and s2 < current_price else f"Breakdown below S1 ({s1:.2f}) with {self.breakout_buffer_pct}% buffer",
             )
 
         return None
