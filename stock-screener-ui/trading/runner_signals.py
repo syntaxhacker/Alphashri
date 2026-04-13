@@ -15,17 +15,23 @@ from backtest.costs import calculate_trading_costs
 
 console = Console()
 
-IST = None
-try:
-    import config
-    IST = config.IST
-except ImportError:
-    from datetime import timezone
-    IST = timezone(timedelta(hours=5, minutes=30))
+from trading.timezone import IST
+from trading.replay_utils import build_trade_close_event
 
 
 class RunnerSignalsMixin:
     """Mixin class providing signal handling and execution methods for MultiStrategyRunner."""
+
+    def _emit_once_per_symbol(self, attr: str, symbol: str, event: dict) -> bool:
+        if not self.replay_mode or not self._replay_on_event:
+            return False
+        if symbol in getattr(self, attr, set()):
+            return False
+        self._replay_on_event(event)
+        if not hasattr(self, attr):
+            setattr(self, attr, set())
+        getattr(self, attr).add(symbol)
+        return True
 
     def scan_for_signals(self, strategy_id: int) -> list:
         """
@@ -64,7 +70,7 @@ class RunnerSignalsMixin:
             if symbol in self.cooldown_stocks:
                 exit_time = self.cooldown_stocks[symbol]
                 cooldown_end = exit_time + timedelta(minutes=runner.config.get('cooldown_minutes', 30))
-                if datetime.now(IST) < cooldown_end:
+                if self._ist_now() < cooldown_end:
                     continue
                 else:
                     del self.cooldown_stocks[symbol]
@@ -97,6 +103,14 @@ class RunnerSignalsMixin:
                 pivot_points = gen.calculate_pivot_points(
                     prev_data['prev_high'], prev_data['prev_low'], prev_data['prev_close']
                 )
+
+                if self._emit_once_per_symbol('_pivot_levels_emitted', symbol, {
+                    "type": "pivot_levels",
+                    "strategy": runner.strategy_name,
+                    "symbol": symbol,
+                    **pivot_points,
+                }):
+                    pass
 
                 market_data = {
                     'current_price': live_price,
@@ -143,6 +157,16 @@ class RunnerSignalsMixin:
                 or_high = or_levels['or_high']
                 or_low = or_levels['or_low']
                 or_range_pct = or_levels.get('or_range_pct', 0)
+
+                if self._emit_once_per_symbol('_or_levels_emitted', symbol, {
+                    "type": "or_levels",
+                    "strategy": runner.strategy_name,
+                    "symbol": symbol,
+                    "or_high": or_high,
+                    "or_low": or_low,
+                    "or_range_pct": round(or_range_pct, 2),
+                }):
+                    pass
 
                 scan_item = {
                     'symbol': symbol,
@@ -206,7 +230,7 @@ class RunnerSignalsMixin:
             scan_items.append(scan_item)
 
         runner.last_scan_items = scan_items
-        runner.last_scan_time = datetime.now(IST)
+        runner.last_scan_time = self._ist_now()
         return new_signals
 
     def _scan_swing_strategy(self, strategy_id: int) -> list:
@@ -230,7 +254,7 @@ class RunnerSignalsMixin:
                 exit_time = self.cooldown_stocks[symbol]
                 cooldown_days = runner.config.get('cooldown_days', 30)
                 cooldown_end = exit_time + timedelta(days=cooldown_days)
-                if datetime.now(IST) < cooldown_end:
+                if self._ist_now() < cooldown_end:
                     continue
                 else:
                     del self.cooldown_stocks[symbol]
@@ -276,7 +300,7 @@ class RunnerSignalsMixin:
             scan_items.append(scan_item)
 
         runner.last_scan_items = scan_items
-        runner.last_scan_time = datetime.now(IST)
+        runner.last_scan_time = self._ist_now()
         return new_signals
 
     def execute_signal(self, strategy_id: int, signal: 'ORBSignal') -> bool:
@@ -288,22 +312,91 @@ class RunnerSignalsMixin:
         from trading.orb_signals import ORBSignal, SignalType
         from trading.telegram_notifier import send_trade_entry, send_signal_rejected
 
+        if self.replay_mode:
+            return self._execute_replay_signal(strategy_id, signal, SignalType)
+
         if self.test_mode:
             console.print(f"[yellow]TEST MODE: Would execute {signal.signal_type.value} {signal.symbol} @ ₹{signal.price:.2f}[/yellow]")
             return False
 
-        runner = self.strategies.get(strategy_id)
+        runner, validation, position = self._execute_signal_core(strategy_id, signal, SignalType)
+
         if not runner:
             return False
 
-        portfolio_status = self.portfolio.get_portfolio_status()
-        strategy_status = self.portfolio.get_strategy_status(strategy_id)
-
-        if not strategy_status:
+        if not validation:
             return False
 
-        symbol_exposure = self.portfolio.get_symbol_exposure(signal.symbol)
+        if not position:
+            return False
 
+        if validation.get('rejected'):
+            console.print(f"[red]{runner.strategy_name}: Signal rejected - {validation['reason']}[/red]")
+            send_signal_rejected(
+                bot_name=self.bot_config.name,
+                strategy_name=runner.strategy_name,
+                symbol=signal.symbol,
+                signal_type=signal.signal_type.value,
+                reason=validation['reason'],
+            )
+            return False
+
+        send_trade_entry(
+            bot_name=self.bot_config.name,
+            strategy_name=runner.strategy_name,
+            symbol=signal.symbol,
+            side="BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+            price=signal.price,
+            quantity=validation['shares'],
+            sl=signal.stop_loss or 0.0,
+            tp=signal.take_profit or 0.0,
+        )
+        self._persist_position_to_db({
+            'strategy_id': strategy_id,
+            'strategy_name': runner.strategy_name,
+            'symbol': signal.symbol,
+            'side': "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+            'quantity': validation['shares'],
+            'entry_price': signal.price,
+            'stop_loss': signal.stop_loss or 0.0,
+            'take_profit': signal.take_profit or 0.0,
+            'entry_time': self._ist_now(),
+            'current_price': signal.price,
+        }, action="upsert")
+        return True
+
+    def _execute_replay_signal(self, strategy_id: int, signal, SignalType) -> bool:
+        runner, validation, position = self._execute_signal_core(strategy_id, signal, SignalType)
+
+        if not runner or not validation or not position:
+            return False
+
+        if validation.get('rejected'):
+            return False
+
+        if self._replay_on_event:
+            self._replay_on_event({
+                "type": "trade_open", "strategy": runner.strategy_name,
+                "symbol": signal.symbol,
+                "side": "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+                "price": signal.price, "sl": signal.stop_loss or 0.0,
+                "tp": signal.take_profit or 0.0, "time": str(self._ist_now()),
+                "quantity": validation['shares'],
+            })
+        return True
+
+    def _execute_signal_core(self, strategy_id, signal, SignalType):
+        runner = self.strategies.get(strategy_id)
+        if not runner:
+            return runner, None, None
+
+        portfolio_status = self.portfolio.get_portfolio_status()
+        strategy_status = self.portfolio.get_strategy_status(strategy_id)
+        if not strategy_status:
+            return runner, None, None
+
+        symbol_exposure = self.portfolio.get_symbol_exposure(signal.symbol)
+        side = "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL"
         validation = self.risk_manager.validate_trade(
             strategy_id=strategy_id,
             strategy_name=runner.strategy_name,
@@ -311,7 +404,7 @@ class RunnerSignalsMixin:
             entry_price=signal.price,
             stop_loss=signal.stop_loss,
             take_profit=signal.take_profit,
-            side="BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+            side=side,
             total_capital=portfolio_status['initial_capital'],
             cash_available=portfolio_status['cash'],
             current_total_positions=portfolio_status['total_positions'],
@@ -330,15 +423,8 @@ class RunnerSignalsMixin:
         )
 
         if not validation['valid']:
-            console.print(f"[red]{runner.strategy_name}: Signal rejected - {validation['reason']}[/red]")
-            send_signal_rejected(
-                bot_name=self.bot_config.name,
-                strategy_name=runner.strategy_name,
-                symbol=signal.symbol,
-                signal_type=signal.signal_type.value,
-                reason=validation['reason'],
-            )
-            return False
+            validation['rejected'] = True
+            return runner, validation, None
 
         position = self.portfolio.open_position(
             strategy_id=strategy_id,
@@ -349,32 +435,11 @@ class RunnerSignalsMixin:
             entry_price=signal.price,
             stop_loss=signal.stop_loss,
             take_profit=signal.take_profit,
+            entry_time=self._ist_now() if self.replay_mode else None,
         )
 
         if position:
             runner.trades_executed += 1
-            send_trade_entry(
-                bot_name=self.bot_config.name,
-                strategy_name=runner.strategy_name,
-                symbol=signal.symbol,
-                side="BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
-                price=signal.price,
-                quantity=validation['shares'],
-                sl=signal.stop_loss or 0.0,
-                tp=signal.take_profit or 0.0,
-            )
-            self._persist_position_to_db({
-                'strategy_id': strategy_id,
-                'strategy_name': runner.strategy_name,
-                'symbol': signal.symbol,
-                'side': "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
-                'quantity': validation['shares'],
-                'entry_price': signal.price,
-                'stop_loss': signal.stop_loss or 0.0,
-                'take_profit': signal.take_profit or 0.0,
-                'entry_time': datetime.now(IST),
-                'current_price': signal.price,
-            }, action="upsert")
             if runner.strategy_type in SWING_STRATEGY_TYPES:
                 if not hasattr(position, 'metadata'):
                     position.metadata = {}
@@ -384,9 +449,8 @@ class RunnerSignalsMixin:
                     position.metadata['max_holding_days'] = runner.config.get('max_holding_days', 30)
                     position.metadata['trailing_stop_pct'] = runner.config.get('trailing_stop_pct', 3.0)
                     position.metadata['enable_trailing_stop'] = runner.config.get('enable_trailing_stop', False)
-            return True
 
-        return False
+        return runner, validation, position
 
     def monitor_positions(self):
         """Monitor all positions across all strategies for exits."""
@@ -417,7 +481,8 @@ class RunnerSignalsMixin:
         self.portfolio.update_prices(close_prices)
 
         for pos in self.portfolio.get_all_positions():
-            self._persist_position_to_db(pos, action="upsert")
+            if not self.replay_mode:
+                self._persist_position_to_db(pos, action="upsert")
 
         positions_to_close = []
 
@@ -467,7 +532,7 @@ class RunnerSignalsMixin:
                         highest_price_since_entry=pos.peak_price,
                         entry_52w_high=metadata.get('entry_52w_high'),
                         current_52w_high=metadata.get('current_52w_high'),
-                        days_in_position=(datetime.now(IST) - pos.entry_time).days,
+                        days_in_position=(self._ist_now() - pos.entry_time).days,
                     )
                     if exit_signal:
                         exit_triggered = True
@@ -489,72 +554,77 @@ class RunnerSignalsMixin:
                 exit_price=exit_price,
                 exit_reason=exit_reason,
                 costs=costs,
+                exit_time=self._ist_now(),
             )
 
             if trade:
                 runner = self.strategies.get(trade.strategy_id)
 
-                self.journal.log_trade({
-                    'trade_id': trade.trade_id,
-                    'symbol': trade.symbol,
-                    'side': trade.side.value,
-                    'quantity': trade.quantity,
-                    'entry_price': trade.entry_price,
-                    'exit_price': trade.exit_price,
-                    'entry_time': trade.entry_time.isoformat(),
-                    'exit_time': trade.exit_time.isoformat(),
-                    'pnl': trade.pnl,
-                    'pnl_pct': trade.pnl_pct,
-                    'exit_reason': trade.exit_reason,
-                    'costs': trade.costs,
-                    'net_pnl': trade.net_pnl,
-                    'strategy_id': trade.strategy_id,
-                    'strategy_name': trade.strategy_name,
-                }, strategy_id=trade.strategy_id, strategy_name=trade.strategy_name, bot_id=self.bot_config.id, bot_name=self.bot_config.name)
+                if self.replay_mode:
+                    if self._replay_on_event:
+                        self._replay_on_event(build_trade_close_event(trade, runner))
+                else:
+                    self.journal.log_trade({
+                        'trade_id': trade.trade_id,
+                        'symbol': trade.symbol,
+                        'side': trade.side.value,
+                        'quantity': trade.quantity,
+                        'entry_price': trade.entry_price,
+                        'exit_price': trade.exit_price,
+                        'entry_time': trade.entry_time.isoformat(),
+                        'exit_time': trade.exit_time.isoformat(),
+                        'pnl': trade.pnl,
+                        'pnl_pct': trade.pnl_pct,
+                        'exit_reason': trade.exit_reason,
+                        'costs': trade.costs,
+                        'net_pnl': trade.net_pnl,
+                        'strategy_id': trade.strategy_id,
+                        'strategy_name': trade.strategy_name,
+                    }, strategy_id=trade.strategy_id, strategy_name=trade.strategy_name, bot_id=self.bot_config.id, bot_name=self.bot_config.name)
 
-                self._persist_position_to_db({
-                    'strategy_id': strategy_id,
-                    'strategy_name': runner.strategy_name if runner else '',
-                    'symbol': symbol,
-                }, action="delete")
+                    self._persist_position_to_db({
+                        'strategy_id': strategy_id,
+                        'strategy_name': runner.strategy_name if runner else '',
+                        'symbol': symbol,
+                    }, action="delete")
 
-                self._persist_trade_to_db({
-                    'strategy_id': strategy_id,
-                    'strategy_name': runner.strategy_name if runner else '',
-                    'symbol': trade.symbol,
-                    'side': trade.side.value,
-                    'quantity': trade.quantity,
-                    'entry_price': trade.entry_price,
-                    'exit_price': trade.exit_price,
-                    'entry_time': trade.entry_time,
-                    'exit_time': trade.exit_time,
-                    'pnl': trade.pnl,
-                    'pnl_pct': trade.pnl_pct,
-                    'costs': trade.costs,
-                    'net_pnl': trade.net_pnl,
-                    'exit_reason': trade.exit_reason,
-                    'stop_loss': trade.sl_price if hasattr(trade, 'sl_price') else 0.0,
-                    'take_profit': trade.tp_price if hasattr(trade, 'tp_price') else 0.0,
-                })
+                    self._persist_trade_to_db({
+                        'strategy_id': strategy_id,
+                        'strategy_name': runner.strategy_name if runner else '',
+                        'symbol': trade.symbol,
+                        'side': trade.side.value,
+                        'quantity': trade.quantity,
+                        'entry_price': trade.entry_price,
+                        'exit_price': trade.exit_price,
+                        'entry_time': trade.entry_time,
+                        'exit_time': trade.exit_time,
+                        'pnl': trade.pnl,
+                        'pnl_pct': trade.pnl_pct,
+                        'costs': trade.costs,
+                        'net_pnl': trade.net_pnl,
+                        'exit_reason': trade.exit_reason,
+                        'stop_loss': trade.sl_price if hasattr(trade, 'sl_price') else 0.0,
+                        'take_profit': trade.tp_price if hasattr(trade, 'tp_price') else 0.0,
+                    })
 
-                send_trade_exit(
-                    bot_name=self.bot_config.name,
-                    strategy_name=runner.strategy_name if runner else '',
-                    symbol=trade.symbol,
-                    side=trade.side.value,
-                    entry_price=trade.entry_price,
-                    exit_price=trade.exit_price,
-                    quantity=trade.quantity,
-                    pnl=trade.pnl,
-                    pnl_pct=trade.pnl_pct,
-                    exit_reason=trade.exit_reason,
-                    entry_time=trade.entry_time,
-                )
+                    send_trade_exit(
+                        bot_name=self.bot_config.name,
+                        strategy_name=runner.strategy_name if runner else '',
+                        symbol=trade.symbol,
+                        side=trade.side.value,
+                        entry_price=trade.entry_price,
+                        exit_price=trade.exit_price,
+                        quantity=trade.quantity,
+                        pnl=trade.pnl,
+                        pnl_pct=trade.pnl_pct,
+                        exit_reason=trade.exit_reason,
+                        entry_time=trade.entry_time,
+                    )
 
                 trade_logged = True
-                self.cooldown_stocks[symbol] = datetime.now(IST)
+                self.cooldown_stocks[symbol] = self._ist_now()
 
-        if trade_logged:
+        if trade_logged and not self.replay_mode:
             self.journal.save_journal()
 
         if self.is_force_exit_time():
@@ -565,13 +635,16 @@ class RunnerSignalsMixin:
                 if runner and runner.strategy_type not in SWING_STRATEGY_TYPES and pos.symbol in close_prices:
                     side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
                     costs = calculate_trading_costs(pos.entry_price, close_prices[pos.symbol], pos.quantity, side)['total_costs']
-                    self.portfolio.close_position(
+                    trade = self.portfolio.close_position(
                         strategy_id=pos.strategy_id,
                         symbol=pos.symbol,
                         exit_price=close_prices[pos.symbol],
                         exit_reason="EOD",
                         costs=costs,
+                        exit_time=self._ist_now(),
                     )
+                    if self.replay_mode and trade and self._replay_on_event:
+                        self._replay_on_event(build_trade_close_event(trade, runner))
 
         portfolio_status = self.portfolio.get_portfolio_status()
         daily_pnl = portfolio_status.get('daily_pnl', 0)
@@ -580,10 +653,11 @@ class RunnerSignalsMixin:
             max_daily_loss_pct = max(max_daily_loss_pct, runner.config.get('max_daily_loss_pct', 0.03))
         daily_loss_threshold = portfolio_status.get('initial_capital', 0) * max_daily_loss_pct
         if daily_pnl < 0 and abs(daily_pnl) >= daily_loss_threshold * 0.8:
-            send_risk_alert(
-                bot_name=self.bot_config.name,
-                alert_type="daily_loss_approaching",
-                current_value=daily_pnl,
-                threshold=-daily_loss_threshold,
-                message=f"Daily loss ₹{daily_pnl:,.0f} is approaching limit of ₹{-daily_loss_threshold:,.0f} ({max_daily_loss_pct:.0%})",
-            )
+            if not self.replay_mode:
+                send_risk_alert(
+                    bot_name=self.bot_config.name,
+                    alert_type="daily_loss_approaching",
+                    current_value=daily_pnl,
+                    threshold=-daily_loss_threshold,
+                    message=f"Daily loss ₹{daily_pnl:,.0f} is approaching limit of ₹{-daily_loss_threshold:,.0f} ({max_daily_loss_pct:.0%})",
+                )

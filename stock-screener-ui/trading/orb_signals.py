@@ -12,6 +12,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+
+import config
 from enum import Enum
 
 # Add project paths
@@ -232,7 +234,7 @@ class ORBSignalGenerator:
                 or_low=or_low,
                 or_range=or_range,
                 or_range_pct=round(or_range_pct, 2),
-                timestamp=datetime.now(),
+                timestamp=datetime.now(config.IST),
                 atr_pct=atr_pct,
                 adx=adx,
                 rsi=rsi,
@@ -256,8 +258,7 @@ class ORBSignalGenerator:
                 or_low=or_low,
                 or_range=or_range,
                 or_range_pct=round(or_range_pct, 2),
-                timestamp=datetime.now(),
-                atr_pct=atr_pct,
+                timestamp=datetime.now(config.IST),
                 adx=adx,
                 rsi=rsi,
                 score=score,
@@ -274,6 +275,7 @@ class ORBSignalGenerator:
         stop_loss: float,
         take_profit: float,
         current_price: float,
+        **kwargs,
     ) -> Optional[ORBSignal]:
         """
         Check if position should be exited.
@@ -285,11 +287,12 @@ class ORBSignalGenerator:
             stop_loss: Stop loss price
             take_profit: Take profit price
             current_price: Current price
+            **kwargs: accepts 'timestamp' for replay mode
 
         Returns:
             ORBSignal for exit if triggered, None otherwise
         """
-        now = datetime.now()
+        now = kwargs.get("timestamp", datetime.now(config.IST))
 
         # Check force exit time (14:45)
         if now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]:
@@ -449,7 +452,7 @@ def create_entry_signal(
         or_low=or_low,
         or_range=or_range,
         or_range_pct=round(or_range_pct, 2),
-        timestamp=datetime.now(),
+        timestamp=datetime.now(config.IST),
     )
 
 

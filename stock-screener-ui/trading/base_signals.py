@@ -55,6 +55,7 @@ class BaseSignalGenerator(ABC):
         stop_loss: float,
         take_profit: float,
         notes: str = "",
+        timestamp: Optional[datetime] = None,
         **extra_fields,
     ) -> ORBSignal:
         return ORBSignal(
@@ -67,7 +68,7 @@ class BaseSignalGenerator(ABC):
             or_low=extra_fields.get("or_low", 0.0),
             or_range=extra_fields.get("or_range", 0.0),
             or_range_pct=extra_fields.get("or_range_pct", 0.0),
-            timestamp=datetime.now(config.IST),
+            timestamp=timestamp or datetime.now(config.IST),
             atr_pct=extra_fields.get("atr_pct", 0.0),
             adx=extra_fields.get("adx", 0.0),
             rsi=extra_fields.get("rsi", 0.0),

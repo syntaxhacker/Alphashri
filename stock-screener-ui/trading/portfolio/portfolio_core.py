@@ -27,6 +27,7 @@ class SharedPortfolioManager:
         max_total_positions: int = 10,
         max_symbol_exposure_pct: float = 0.20,
         user_id: Optional[int] = None,
+        simulated_date: Optional[datetime] = None,
     ):
         self.initial_capital = initial_capital
         self.cash = initial_capital
@@ -44,7 +45,7 @@ class SharedPortfolioManager:
 
         self.daily_pnl = 0.0
         self.daily_trades = 0
-        self.day_start = datetime.now(config.IST).date()
+        self.day_start = simulated_date.date() if simulated_date else datetime.now(config.IST).date()
 
     def _generate_trade_id(self) -> str:
         self._trade_counter += 1
@@ -105,6 +106,7 @@ class SharedPortfolioManager:
         entry_price: float,
         stop_loss: float,
         take_profit: float,
+        entry_time: Optional[datetime] = None,
     ) -> Optional[SharedPosition]:
         trade_value = entry_price * quantity
 
@@ -128,7 +130,7 @@ class SharedPortfolioManager:
             entry_price=entry_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
-            entry_time=datetime.now(config.IST),
+            entry_time=entry_time or datetime.now(config.IST),
             strategy_id=strategy_id,
             strategy_name=strategy_name,
             current_price=entry_price,
@@ -152,6 +154,7 @@ class SharedPortfolioManager:
         exit_price: float,
         exit_reason: str = "MANUAL",
         costs: float = 0.0,
+        exit_time: Optional[datetime] = None,
     ) -> Optional[CompletedTrade]:
         key = f"{strategy_id}_{symbol}"
 
@@ -177,7 +180,7 @@ class SharedPortfolioManager:
             entry_price=position.entry_price,
             exit_price=exit_price,
             entry_time=position.entry_time,
-            exit_time=datetime.now(config.IST),
+            exit_time=exit_time or datetime.now(config.IST),
             pnl=round(pnl, 2),
             pnl_pct=round(pnl_pct, 2),
             exit_reason=exit_reason,

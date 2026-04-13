@@ -12,20 +12,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional
 
+import pandas as pd
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 console = Console()
 
-IST = None
-try:
-    import config
-    IST = config.IST
-except ImportError:
-    from datetime import timezone
-    IST = timezone(timedelta(hours=5, minutes=30))
-
+from backtest.costs import calculate_trading_costs
+from trading.timezone import IST
+from trading.replay_utils import DEFAULT_WATCHLIST, STRATEGY_FILTER_MAP, build_trade_close_event
 from trading.shared_portfolio import SharedPortfolioManager
 from trading.global_risk_manager import GlobalRiskManager
 from trading.journal import get_journal
@@ -130,6 +127,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         else:
             raise ValueError("Either bot_config_id or bot_config must be provided")
 
+        self._init_common_fields(snapshot_file=Path(f"/tmp/multi-strategy-bot-{self.user_id}-{self.bot_config.id}.json"))
+
         self.portfolio = _get_shared_portfolio()(
             initial_capital=initial_capital,
             max_total_capital_pct=self.bot_config.max_total_capital_pct,
@@ -142,11 +141,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             max_total_capital_pct=self.bot_config.max_total_capital_pct,
         )
 
-        self.watchlist = []
-        self.or_levels = {}
-        self.cooldown_stocks: Dict[str, datetime] = {}
-        self.snapshot_file = Path(f"/tmp/multi-strategy-bot-{self.user_id}-{self.bot_config.id}.json")
-
         self.strategies: Dict[int, StrategyRunner] = {}
         self._load_strategies()
 
@@ -154,15 +148,39 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
         self.journal = get_journal(user_id)
 
-        self._screener = None
-        self._data_fetcher = None
-
-        self._daily_summary_sent = False
-
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-    def _load_bot_config(self, bot_id: int) -> 'BotConfig':
+    def _init_common_fields(self, snapshot_file: Path = Path("/dev/null")):
+        self.watchlist = []
+        self.or_levels = {}
+        self.cooldown_stocks: Dict[str, datetime] = {}
+        self.snapshot_file = snapshot_file
+        self._screener = None
+        self._data_fetcher = None
+        self._daily_summary_sent = False
+        self.replay_mode = False
+        self._replay_time = None
+        self._replay_on_event = None
+
+    @classmethod
+    def create_for_replay(cls, bot_config_id: int, user_id: int):
+        """Create a runner for replay mode with minimal init (no portfolio, no journal, no signal handlers)."""
+        bot_config = cls._load_bot_config(bot_config_id)
+        self = cls.__new__(cls)
+        self.user_id = user_id
+        self.test_mode = True
+        self.running = False
+        self.bot_config_id = bot_config_id
+        self.bot_config = bot_config
+        self._init_common_fields()
+        self.portfolio = None
+        self.risk_manager = None
+        self.strategies = {}
+        return self
+
+    @staticmethod
+    def _load_bot_config(bot_id: int) -> 'BotConfig':
         """Load bot configuration from database."""
         SessionLocal = _get_session_local()
         BotConfig = _get_bot_config()
@@ -242,7 +260,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         return self._data_fetcher
 
     def _ist_now(self) -> datetime:
+        if self._replay_time is not None:
+            return self._replay_time
         return datetime.now(IST)
+
+    def _get_to_date(self) -> datetime:
+        return self._ist_now()
 
     def _get_db_session(self):
         from db.database import SessionLocal
@@ -411,13 +434,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         now = self._ist_now()
         return now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]
 
-    DEFAULT_WATCHLIST = [
-        "RELIANCE", "TCS", "HDFC", "INFY", "ICICIBANK", "HDFCBANK", "SBIN",
-        "BHARTIARTL", "ITC", "KOTAKBANK", "LT", "AXISBANK", "BAJFINANCE",
-        "MARUTI", "ASIANPAINT", "HCLTECH", "SUNPHARMA", "TITAN", "WIPRO",
-        "ULTRACEMCO"
-    ]
-
     def refresh_watchlist(self):
         """Refresh watchlist from screener (shared across all strategies)."""
         console.print("\n[cyan]Refreshing shared watchlist from screener...[/cyan]")
@@ -426,7 +442,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         if not screener:
             console.print("[red]Screener not available - using default watchlist[/red]")
             if not self.watchlist:
-                self.watchlist = self.DEFAULT_WATCHLIST.copy()
+                self.watchlist = DEFAULT_WATCHLIST.copy()
             return
 
         try:
@@ -435,7 +451,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             if df.empty:
                 console.print("[yellow]No stocks from screener - using default watchlist[/yellow]")
                 if not self.watchlist:
-                    self.watchlist = self.DEFAULT_WATCHLIST.copy()
+                    self.watchlist = DEFAULT_WATCHLIST.copy()
                 return
 
             self.watchlist = df['name'].tolist()[:20]
@@ -459,7 +475,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             console.print(f"[red]Error refreshing watchlist: {e}[/red]")
             if not self.watchlist:
                 console.print("[yellow]Using default watchlist[/yellow]")
-                self.watchlist = self.DEFAULT_WATCHLIST.copy()
+                self.watchlist = DEFAULT_WATCHLIST.copy()
 
     def save_snapshot(self):
         """Save current state to snapshot file for UI."""
@@ -708,6 +724,294 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             status="stopped",
             details=f"Total P&L: ₹{ps.get('total_pnl', 0):+,.0f} | Trades today: {ps.get('daily_trades', 0)}",
         )
+
+
+    def run_replay(
+        self,
+        date_str: str,
+        symbols: list[str],
+        strategy_filter: str = "ALL",
+        on_event=None,
+    ):
+        from datetime import timedelta as td
+        from trading.replay_data_provider import ReplayDataProvider
+        from market_data.market_data import fetch_candles, resample_candles
+
+        self.replay_mode = True
+        self._replay_on_event = on_event
+        self._replay_time = None
+
+        try:
+            if on_event:
+                on_event({"type": "loaded", "symbols": len(symbols), "candles": 0})
+
+            api_client = None
+            try:
+                from market_data.market_data import get_api_client
+                api_client = get_api_client()
+            except Exception:
+                pass
+
+            provider = ReplayDataProvider(
+                date_str=date_str,
+                symbols=symbols,
+                get_current_time_fn=self._ist_now,
+                api_client=api_client,
+            )
+        except Exception as e:
+            if on_event:
+                on_event({"type": "error", "message": str(e)})
+            self.replay_mode = False
+            self._replay_time = None
+            self._replay_on_event = None
+            return
+
+        try:
+            class DataFetcherProxy:
+                pass
+            DataFetcherProxy.upstox_api = provider
+            self._data_fetcher = DataFetcherProxy()
+
+            self._load_strategies()
+
+            if strategy_filter != "ALL":
+                allowed = STRATEGY_FILTER_MAP.get(strategy_filter, ())
+                remove = [
+                    sid for sid, r in self.strategies.items()
+                    if r.strategy_type not in allowed
+                ]
+                for sid in remove:
+                    del self.strategies[sid]
+
+            if on_event:
+                total_candles = sum(len(df) for df in provider._1m_data.values())
+                on_event({"type": "loaded", "symbols": len(provider._1m_data), "candles": total_candles})
+
+            initial_capital = getattr(self.bot_config, 'initial_capital', 1_000_000)
+            self.portfolio = _get_shared_portfolio()(
+                initial_capital=initial_capital,
+                max_total_capital_pct=self.bot_config.max_total_capital_pct,
+                max_total_positions=self.bot_config.max_total_positions,
+                user_id=None,
+                simulated_date=pd.Timestamp(date_str, tz=IST),
+            )
+
+            self.risk_manager = GlobalRiskManager(
+                max_total_positions=self.bot_config.max_total_positions,
+                max_total_capital_pct=self.bot_config.max_total_capital_pct,
+            )
+
+            for sid, runner in self.strategies.items():
+                self.portfolio.set_strategy_allocation(
+                    strategy_id=sid,
+                    strategy_name=runner.strategy_name,
+                    allocation_pct=runner.capital_allocation_pct,
+                    max_positions=runner.max_positions,
+                )
+
+            self._emit_precomputed_overlays(provider, symbols)
+
+            market_open = pd.Timestamp(date_str + " 09:15:00", tz=IST)
+            market_close = pd.Timestamp(date_str + " 15:30:00", tz=IST)
+            current = market_open
+            candle_count = 0
+            candle_buffer = {}
+            CANDLE_FLUSH_INTERVAL = 100
+
+            while current <= market_close:
+                self._replay_time = current
+                candle_count += 1
+
+                if candle_count % 50 == 0 and on_event:
+                    on_event({"type": "progress", "candle": candle_count, "total": 375,
+                                "time": current.strftime("%H:%M"), "symbol": ""})
+
+                for sym in symbols:
+                    if sym not in provider._1m_data or provider._1m_data[sym].empty:
+                        continue
+                    df_sym = provider._1m_data[sym]
+                    mask = df_sym.index == current
+                    if not mask.any():
+                        continue
+                    row = df_sym[mask].iloc[0]
+                    if sym not in candle_buffer:
+                        candle_buffer[sym] = []
+                    candle_buffer[sym].append({
+                        "time": current.strftime("%H:%M"),
+                        "open": float(row["open"]),
+                        "high": float(row["high"]),
+                        "low": float(row["low"]),
+                        "close": float(row["close"]),
+                        "volume": float(row.get("volume", 0)),
+                    })
+
+                if candle_count % CANDLE_FLUSH_INTERVAL == 0 and on_event:
+                    for buf_sym, buf_candles in candle_buffer.items():
+                        if buf_candles:
+                            on_event({"type": "candles", "symbol": buf_sym, "candles": buf_candles})
+                            candle_buffer[buf_sym] = []
+
+                is_5min = current.minute % 5 == 0 and current.second == 0
+
+                if is_5min:
+                    for sid, runner in self.strategies.items():
+                        try:
+                            signals = self.scan_for_signals(sid)
+                            for signal in signals:
+                                self.execute_signal(sid, signal)
+                        except Exception as e:
+                            console.print(f"[dim red]Replay scan error: {e}[/dim red]")
+
+                self.monitor_positions()
+
+                current += timedelta(minutes=1)
+
+            if on_event:
+                for buf_sym, buf_candles in candle_buffer.items():
+                    if buf_candles:
+                        on_event({"type": "candles", "symbol": buf_sym, "candles": buf_candles})
+
+            for key in list(self.portfolio.positions.keys()):
+                pos = self.portfolio.positions[key]
+                side = "LONG" if pos.side.value == "BUY" else "SHORT"
+                costs = calculate_trading_costs(pos.entry_price, pos.current_price, pos.quantity, side)['total_costs']
+                trade = self.portfolio.close_position(
+                    strategy_id=pos.strategy_id, symbol=pos.symbol,
+                    exit_price=pos.current_price, exit_reason="FORCE_CLOSE",
+                    costs=costs, exit_time=market_close,
+                )
+                if on_event and trade:
+                    runner = self.strategies.get(pos.strategy_id)
+                    on_event(build_trade_close_event(trade, runner))
+
+            if on_event:
+                self._emit_summary(on_event)
+                on_event({"type": "done", "success": True, "duration_ms": 0})
+        finally:
+            self.replay_mode = False
+            self._replay_time = None
+            self._replay_on_event = None
+
+    def _emit_precomputed_overlays(self, provider, symbols):
+        if not self._replay_on_event:
+            return
+
+        from trading.ema_cross_signals import EMACrossSignalGenerator
+        from market_data.market_data import resample_candles
+
+        for sym in symbols:
+            if sym not in provider._daily_data or provider._daily_data[sym].empty:
+                continue
+            df = provider._daily_data[sym]
+            closes = df["close"].tolist()
+            highs = df["high"].tolist()
+            if len(highs) < 2:
+                continue
+
+            high_52w = max(highs[-252:]) if len(highs) >= 252 else max(highs)
+            current_price = float(closes[-1])
+
+            if current_price > 0 and current_price >= high_52w * 0.95:
+                for sid, runner in self.strategies.items():
+                    if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
+                        self._replay_on_event({
+                            "type": "52w_high", "strategy": runner.strategy_name,
+                            "symbol": sym, "high_52w": float(high_52w),
+                        })
+                        break
+
+            for sid, runner in self.strategies.items():
+                if runner.strategy_type != "EMA_CROSS":
+                    continue
+
+                if sym not in provider._1m_data or provider._1m_data[sym].empty:
+                    continue
+
+                ema_fast_period = runner.config.get('ema_fast_period', 9)
+                ema_slow_period = runner.config.get('ema_slow_period', 21)
+                df_1m = provider._1m_data[sym]
+                day_closes = df_1m["close"].tolist()
+
+                if len(day_closes) < ema_slow_period:
+                    continue
+
+                ema_fast_full = EMACrossSignalGenerator.calculate_ema(day_closes, ema_fast_period)
+                ema_slow_full = EMACrossSignalGenerator.calculate_ema(day_closes, ema_slow_period)
+
+                timeframes = {}
+                for tf in [5, 15]:
+                    df_tf = resample_candles(df_1m, tf)
+                    if df_tf is None or df_tf.empty:
+                        continue
+                    tf_closes = df_tf["close"].tolist()
+                    if len(tf_closes) < ema_slow_period:
+                        continue
+                    ema_f = EMACrossSignalGenerator.calculate_ema(tf_closes, ema_fast_period)
+                    ema_s = EMACrossSignalGenerator.calculate_ema(tf_closes, ema_slow_period)
+                    timeframes[str(tf)] = {
+                        "ema_fast": [round(v, 2) for v in ema_f],
+                        "ema_slow": [round(v, 2) for v in ema_s],
+                    }
+
+                if timeframes:
+                    timeframes["1"] = {
+                        "ema_fast": [round(v, 2) for v in ema_fast_full],
+                        "ema_slow": [round(v, 2) for v in ema_slow_full],
+                    }
+                    self._replay_on_event({
+                        "type": "ema_series",
+                        "symbol": sym,
+                        "ema_fast_period": ema_fast_period,
+                        "ema_slow_period": ema_slow_period,
+                        "timeframes": timeframes,
+                    })
+                break
+
+    def _emit_summary(self, on_event):
+        trades = self.portfolio.trades
+        if not trades:
+            on_event({"type": "summary", "total_trades": 0, "winners": 0, "losers": 0,
+                        "win_rate": 0, "profit_factor": 0, "gross_pnl": 0, "total_costs": 0,
+                        "net_pnl": 0, "strategy_breakdown": {}})
+            return
+
+        winners = [t for t in trades if t.net_pnl >= 0]
+        losers = [t for t in trades if t.net_pnl < 0]
+        total_pnl = sum(t.net_pnl for t in trades)
+        total_costs = sum(t.costs for t in trades)
+        gross_pnl = total_pnl + total_costs
+        wr = len(winners) / len(trades) * 100 if trades else 0
+        pf = sum(t.net_pnl for t in winners) / abs(sum(t.net_pnl for t in losers)) if losers else None
+
+        by_strategy = {}
+        for t in trades:
+            by_strategy.setdefault(t.strategy_name, []).append(t)
+        strategy_breakdown = {}
+        for sname, strades in by_strategy.items():
+            sw = [t for t in strades if t.net_pnl >= 0]
+            sl = [t for t in strades if t.net_pnl < 0]
+            runner = None
+            for r in self.strategies.values():
+                if r.strategy_name == sname:
+                    runner = r
+                    break
+            min_rr = runner.config.get("min_rr_ratio", 2.0) if runner else 2.0
+            strategy_breakdown[sname] = {
+                "trades": len(strades),
+                "win_rate": round(len(sw) / len(strades) * 100, 1) if strades else 0,
+                "net_pnl": round(sum(t.net_pnl for t in strades), 2),
+                "profit_factor": round(sum(t.net_pnl for t in sw) / abs(sum(t.net_pnl for t in sl)), 2) if sl else None,
+                "min_rr_ratio": min_rr,
+            }
+
+        on_event({
+            "type": "summary", "total_trades": len(trades), "winners": len(winners),
+            "losers": len(losers), "win_rate": round(wr, 1),
+            "profit_factor": round(pf, 2) if pf is not None else None,
+            "gross_pnl": round(gross_pnl, 2), "total_costs": round(total_costs, 2),
+            "net_pnl": round(total_pnl, 2),
+            "strategy_breakdown": strategy_breakdown,
+        })
 
 
 def create_multi_strategy_runner(

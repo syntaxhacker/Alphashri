@@ -20,6 +20,7 @@ import pytest
 from datetime import datetime, timedelta
 from dataclasses import fields
 
+import config
 from trading.orb_signals import (
     SignalType,
     ORBSignal,
@@ -604,13 +605,13 @@ class TestCheckBreakout:
 
     def test_signal_has_timestamp(self, generator, valid_or_levels):
         """Test that signal has a timestamp."""
-        before = datetime.now()
+        before = datetime.now(config.IST)
         signal = generator.check_breakout(
             symbol="TEST",
             current_price=100.5,
             or_levels=valid_or_levels,
         )
-        after = datetime.now()
+        after = datetime.now(config.IST)
 
         assert before <= signal.timestamp <= after
 

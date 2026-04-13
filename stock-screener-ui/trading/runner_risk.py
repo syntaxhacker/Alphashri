@@ -9,13 +9,7 @@ from typing import Optional
 
 from trading.strategy_runner import INTRADAY_STRATEGY_TYPES
 
-IST = None
-try:
-    import config
-    IST = config.IST
-except ImportError:
-    from datetime import timezone
-    IST = timezone(timedelta(hours=5, minutes=30))
+from trading.timezone import IST
 
 
 class RunnerRiskMixin:
@@ -81,8 +75,8 @@ class RunnerRiskMixin:
                 return None
 
             from datetime import timedelta as td
-            to_date = datetime.now(IST).strftime('%Y-%m-%d')
-            from_date = (datetime.now(IST) - td(days=400)).strftime('%Y-%m-%d')
+            to_date = self._get_to_date().strftime('%Y-%m-%d')
+            from_date = (self._get_to_date() - td(days=400)).strftime('%Y-%m-%d')
 
             df = fetcher.upstox_api.fetch_historical_data_v3(
                 symbol=symbol,
@@ -142,8 +136,8 @@ class RunnerRiskMixin:
                 return None
 
             from datetime import timedelta as td
-            to_date = datetime.now(IST).strftime('%Y-%m-%d')
-            from_date = (datetime.now(IST) - td(days=10)).strftime('%Y-%m-%d')
+            to_date = self._get_to_date().strftime('%Y-%m-%d')
+            from_date = (self._get_to_date() - td(days=10)).strftime('%Y-%m-%d')
 
             df = fetcher.upstox_api.fetch_historical_data_v3(
                 symbol=symbol,

@@ -1,13 +1,14 @@
 """Replay Trading Day API — SSE streaming endpoint."""
 import asyncio
 import json
-import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+from trading.replay_utils import DEFAULT_WATCHLIST
 
 router = APIRouter(prefix="/api/replay", tags=["replay"])
 
@@ -19,11 +20,20 @@ class ReplayRequest(BaseModel):
     strategy: str = "ALL"
     symbols: Optional[str] = None
     refresh_cache: bool = False
+    bot_config_id: int = 1
+
+
+def _load_symbols(symbols_arg: Optional[str]) -> list[str]:
+    if symbols_arg == "DEFAULT" or not symbols_arg:
+        return DEFAULT_WATCHLIST
+    if symbols_arg:
+        return [s.strip().upper() for s in symbols_arg.split(",") if s.strip()]
+    return DEFAULT_WATCHLIST
 
 
 @router.post("/run")
 async def run_replay(request: ReplayRequest):
-    """Run replay and stream events via SSE."""
+    """Run replay using MultiStrategyRunner and stream events via SSE."""
     queue: asyncio.Queue = asyncio.Queue()
     loop = asyncio.get_event_loop()
 
@@ -37,19 +47,23 @@ async def run_replay(request: ReplayRequest):
             sys.path.insert(0, str(Path(__file__).parent.parent))
             sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-            from experiments.replay_trading_day import run_replay as _run_replay, _load_symbols
+            from trading.runner_core import MultiStrategyRunner
 
             symbols = _load_symbols(request.symbols)
-            _run_replay(
+            runner = MultiStrategyRunner.create_for_replay(
+                bot_config_id=request.bot_config_id,
+                user_id=request.bot_config_id,
+            )
+            runner.watchlist = symbols
+            runner.run_replay(
                 date_str=request.date,
                 symbols=symbols,
                 strategy_filter=request.strategy,
-                verbose=False,
-                refresh_cache=request.refresh_cache,
                 on_event=on_event,
             )
         except Exception as e:
-            on_event({"type": "error", "message": str(e)})
+            import traceback as tb
+            on_event({"type": "error", "message": f"{e}\n{tb.format_exc()}"})
         finally:
             asyncio.run_coroutine_threadsafe(queue.put(None), loop)
 
@@ -81,8 +95,4 @@ async def run_replay(request: ReplayRequest):
 @router.get("/symbols")
 async def get_available_symbols():
     """Return the default watchlist of symbols available for replay."""
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parent.parent))
-    from experiments.replay_trading_day import DEFAULT_WATCHLIST
     return {"symbols": DEFAULT_WATCHLIST}
