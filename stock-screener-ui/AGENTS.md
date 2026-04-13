@@ -45,6 +45,22 @@ src/
   utils/        # shared utilities (ui-helpers, chartUtils, notifications, runtime_utils)
 ```
 
+## Replay Trading
+- Backend: `experiments/replay_trading_day.py` — SSE-based historical candle simulation
+- API: `api/replay_api.py` — `/api/replay/run` (SSE), `/api/replay/symbols`
+- Frontend: `src/components/replay/` — ReplayPage, ReplayChart, ReplayTradeLog, ReplaySummary, ReplayConfig, ReplayStats
+- State: `src/state/replay.ts` + `src/hooks/useReplayState.ts` — SSE event handler → store
+- Types: `src/types/replay.ts` — ReplayTrade, ReplayEMAData, ReplaySummary, SSE event types
+- Chart builder: `src/components/replay/buildReplayChartOption.ts` — matches paper trading colors from `chartOptions.ts`
+- Data fetch: `market_data/market_data.py` — universal `fetch_candles()`, `resample_candles()`, `get_api_client()`
+- Cache: `experiments/data/replay_cache/{date}/{symbol}.pkl` (gitignored)
+- Strategies use **hardcoded** configs in `STRATEGY_CONFIGS` dict (separate from live DB configs)
+- Late-entry guard: blocks entries within 30 min of earliest EOD exit across all strategies
+- Query params: date, strategy, symbols sync bidirectionally with URL
+- Overlay lines (ORB, pivots R1-R2/S1-S2, 52W high, EMA) only show for strategies with trades on selected symbol
+- EMA computed per-TF on backend from historical seed data (1m no-seed, 5m/15m/1h with 5m history seed)
+- Tests: `tests/test_market_data.py` (31 tests for fetch_candles, resample_candles, EMA)
+
 ## CSS
 - Legacy hardcoded CSS in `style.css` is being migrated to Mantine — prefer `var(--mantine-color-*)` vars
 - Remove dead CSS classes when removing old components (verify with grep before deleting)
@@ -67,7 +83,7 @@ src/
 - `base_signals.py` is the abstract base for all signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, and `is_eod_exit_time()`.
 - Each signal generator reads its own params from `config` dict in `__init__()` — no hardcoded values in signal generators.
 - **Risk params**: `min_rr_ratio`, `risk_per_trade_pct`, `max_capital_per_trade_pct` flow from `runner.config` → `global_risk_manager.validate_trade()`.
-- **ORB Best strategy**: optimized via autoresearch (PF=1.61). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `min_rr_ratio=1.5`, `enable_shorts=False`.
+- **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `min_rr_ratio=1.5`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
 - **Hardcoded values audit** (all strategy-specific values are now configurable):
   - `runner_core.py:FORCE_EXIT=(15,30)` — global market close, NOT strategy-specific. Safe to keep.
   - `runner_signals.py:178` — `day_change_pct > 2.0` ORB skip filter. Generic safety, could be config in future.
