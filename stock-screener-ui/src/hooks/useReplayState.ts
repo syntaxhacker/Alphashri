@@ -9,6 +9,7 @@ function configToParams(config: ReplayConfig): Record<string, string> {
   if (config.date) p.date = config.date;
   if (config.strategy && config.strategy !== "ALL") p.strategy = config.strategy;
   if (config.symbols) p.symbols = config.symbols;
+  if (config.bot_uuid) p.bot = config.bot_uuid;
   return p;
 }
 
@@ -20,6 +21,8 @@ function paramsToConfig(searchParams: URLSearchParams): Partial<ReplayConfig> {
   if (strategy) p.strategy = strategy;
   const symbols = searchParams.get("symbols");
   if (symbols) p.symbols = symbols;
+  const bot = searchParams.get("bot");
+  if (bot) p.bot_uuid = bot;
   return p;
 }
 
@@ -50,7 +53,7 @@ export function useReplayState(): ReplayState & {
     if (window.location.href !== `${window.location.origin}${newUrl}`) {
       window.history.replaceState(null, "", newUrl);
     }
-  }, [state.config.date, state.config.strategy, state.config.symbols]);
+  }, [state.config.date, state.config.strategy, state.config.symbols, state.config.bot_uuid]);
 
   const startReplay = useCallback(() => {
     rs.startRunning();
@@ -72,9 +75,18 @@ export function useReplayState(): ReplayState & {
               rs.setSelectedSymbol(event.symbol);
             }
             break;
-          case "pivot_levels":
-            rs.addPivotLevels(event);
+          case "pivot_levels": {
+            const normalized = {
+              ...event,
+              pp: (event as any).PP ?? (event as any).pp,
+              r1: (event as any).R1 ?? (event as any).r1,
+              r2: (event as any).R2 ?? (event as any).r2,
+              s1: (event as any).S1 ?? (event as any).s1,
+              s2: (event as any).S2 ?? (event as any).s2,
+            };
+            rs.addPivotLevels(normalized);
             break;
+          }
           case "52w_high":
             rs.add52WLevel(event);
             break;
@@ -91,10 +103,20 @@ export function useReplayState(): ReplayState & {
             if (!rs.getReplayState().selectedSymbol) {
               rs.setSelectedSymbol(event.symbol);
             }
+            rs.addOpenPosition({
+              strategy: event.strategy,
+              symbol: event.symbol,
+              side: event.side,
+              entry_price: event.price,
+              sl: event.sl,
+              tp: event.tp,
+              entry_time: event.time,
+              quantity: event.quantity,
+            });
             break;
           case "trade_close":
             tradeId++;
-            // console.log("TRADE CLOSE:", JSON.stringify(event));
+            rs.closeOpenPosition(event.symbol, event.strategy);
             rs.addTrade({ ...event, id: tradeId, exit_reason: event.reason });
             rs.setSelectedSymbol(event.symbol);
             break;

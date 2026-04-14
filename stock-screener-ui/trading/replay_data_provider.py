@@ -33,6 +33,7 @@ class ReplayDataProvider:
 
         self._1m_data: dict[str, pd.DataFrame] = {}
         self._daily_data: dict[str, pd.DataFrame] = {}
+        self._1m_seed_data: dict[str, pd.DataFrame] = {}
 
         self._load_data(api_client)
 
@@ -40,14 +41,24 @@ class ReplayDataProvider:
         if self._verbose:
             print(f"[ReplayDataProvider] Loading data for {self._date_str}...")
 
+        to_date_1m = (pd.Timestamp(self._date_str, tz=IST) + timedelta(days=2)).strftime("%Y-%m-%d")
+        seed_from = (pd.Timestamp(self._date_str, tz=IST) - timedelta(days=10)).strftime("%Y-%m-%d")
+
         for sym in self._symbols:
-            df_1m = fetch_candles(
+            df_1m_full = fetch_candles(
                 symbol=sym, tf=1,
-                from_date=self._date_str, to_date=self._date_str,
+                from_date=seed_from, to_date=to_date_1m,
                 api_client=api_client,
             )
-            if df_1m is not None and not df_1m.empty:
-                self._1m_data[sym] = df_1m
+            if df_1m_full is not None and not df_1m_full.empty:
+                replay_start = pd.Timestamp(self._date_str, tz=IST).tz_convert('UTC')
+                replay_end = replay_start + timedelta(days=1)
+                df_seed = df_1m_full[df_1m_full.index < replay_start]
+                if not df_seed.empty:
+                    self._1m_seed_data[sym] = df_seed
+                df_1m = df_1m_full[(df_1m_full.index >= replay_start) & (df_1m_full.index < replay_end)]
+                if not df_1m.empty:
+                    self._1m_data[sym] = df_1m
 
             from_date = (pd.Timestamp(self._date_str, tz=IST) - timedelta(days=450)).strftime("%Y-%m-%d")
             df_daily = fetch_candles(

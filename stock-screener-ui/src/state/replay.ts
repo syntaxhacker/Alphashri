@@ -3,6 +3,7 @@ import type {
   ReplayConfig,
   ReplayProgress,
   ReplayTrade,
+  ReplayOpenPosition,
   ReplayORLevels,
   ReplayPivotLevels,
   Replay52WLevel,
@@ -15,20 +16,26 @@ import type {
 const { subscribe, notify } = createSubscriber();
 
 const defaultChartOptions: ReplayChartOptions = {
-  show_orb_zones: true,
-  show_pivot_levels: true,
-  show_52w_high: true,
-  show_ema: true,
-  show_entry_markers: true,
-  show_exit_markers: true,
-  show_all_trades: true,
+  show_orb_zones: false,
+  show_pivot_levels: false,
+  show_52w_high: false,
+  show_ema: false,
+  show_markers: false,
+  show_all_trades: false,
 };
 
 const initialState = {
-  config: { date: "", strategy: "ALL", symbols: null, refresh_cache: false } as ReplayConfig,
+  config: {
+    date: "",
+    strategy: "ALL",
+    symbols: null,
+    refresh_cache: false,
+    bot_uuid: "",
+  } as ReplayConfig,
   isRunning: false,
   progress: null as ReplayProgress | null,
   trades: [] as ReplayTrade[],
+  openPositions: [] as ReplayOpenPosition[],
   orLevels: [] as ReplayORLevels[],
   pivotLevels: [] as ReplayPivotLevels[],
   high52wLevels: [] as Replay52WLevel[],
@@ -67,6 +74,7 @@ export function startRunning() {
   update({
     isRunning: true,
     trades: [],
+    openPositions: [],
     orLevels: [],
     pivotLevels: [],
     high52wLevels: [],
@@ -88,6 +96,19 @@ export function addTrade(trade: Omit<ReplayTrade, "id">) {
   update({ trades: [...state.trades, { ...trade, id }] });
 }
 
+export function addOpenPosition(position: Omit<ReplayOpenPosition, "id">) {
+  const id = state.openPositions.length + 1;
+  update({ openPositions: [...state.openPositions, { ...position, id }] });
+}
+
+export function closeOpenPosition(symbol: string, strategy: string) {
+  update({
+    openPositions: state.openPositions.filter(
+      (p) => !(p.symbol === symbol && p.strategy === strategy),
+    ),
+  });
+}
+
 export function setProgress(progress: ReplayProgress | null) {
   update({ progress });
 }
@@ -107,19 +128,35 @@ export function addCandles(symbol: string, candles: ReplayCandle[]) {
 }
 
 export function addORLevels(levels: ReplayORLevels) {
+  const exists = state.orLevels.length > 0;
   update({ orLevels: [...state.orLevels, levels] });
+  if (!exists) {
+    update({ chartOptions: { ...state.chartOptions, show_orb_zones: true } });
+  }
 }
 
 export function addPivotLevels(levels: ReplayPivotLevels) {
+  const exists = state.pivotLevels.length > 0;
   update({ pivotLevels: [...state.pivotLevels, levels] });
+  if (!exists) {
+    update({ chartOptions: { ...state.chartOptions, show_pivot_levels: true } });
+  }
 }
 
 export function add52WLevel(level: Replay52WLevel) {
+  const exists = state.high52wLevels.length > 0;
   update({ high52wLevels: [...state.high52wLevels, level] });
+  if (!exists) {
+    update({ chartOptions: { ...state.chartOptions, show_52w_high: true } });
+  }
 }
 
 export function setEMAData(data: ReplayEMAData) {
+  const exists = Object.keys(state.emaData).length > 0;
   update({ emaData: { ...state.emaData, [data.symbol]: data } });
+  if (!exists) {
+    update({ chartOptions: { ...state.chartOptions, show_ema: true } });
+  }
 }
 
 export function setSelectedSymbol(symbol: string) {
@@ -135,7 +172,25 @@ export function setChartOptions(options: Partial<ReplayChartOptions>) {
 }
 
 export function setHighlightedTrade(tradeId: number | null) {
+  if (tradeId !== null) {
+    const trade = state.trades.find((t) => t.id === tradeId);
+    if (trade) {
+      update({ highlightedTradeId: tradeId });
+      autoToggleOverlays(trade.strategy);
+      return;
+    }
+  }
   update({ highlightedTradeId: tradeId });
+}
+
+export function autoToggleOverlays(strategy: string) {
+  const s = strategy.toUpperCase();
+  update({
+    chartOptions: {
+      ...state.chartOptions,
+      show_all_trades: false,
+    },
+  });
 }
 
 export function setError(error: string | null) {

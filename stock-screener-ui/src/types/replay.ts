@@ -3,6 +3,7 @@ export interface ReplayConfig {
   strategy: string;
   symbols: string | null;
   refresh_cache: boolean;
+  bot_uuid: string;
 }
 
 export interface ReplayCandle {
@@ -20,6 +21,8 @@ export interface ReplayORLevels {
   or_high: number;
   or_low: number;
   or_range_pct: number;
+  from_index: number;
+  to_index: number;
 }
 
 export interface ReplayPivotLevels {
@@ -30,12 +33,17 @@ export interface ReplayPivotLevels {
   s1: number;
   r2: number;
   s2: number;
+  from_index: number;
+  to_index: number;
 }
 
 export interface Replay52WLevel {
   strategy: string;
   symbol: string;
   high_52w: number;
+  low_52w: number;
+  from_index: number;
+  to_index: number;
 }
 
 export interface ReplayEMAData {
@@ -61,6 +69,18 @@ export interface ReplayTrade {
   quantity: number;
 }
 
+export interface ReplayOpenPosition {
+  id: number;
+  strategy: string;
+  symbol: string;
+  side: string;
+  entry_price: number;
+  sl: number;
+  tp: number;
+  entry_time: string;
+  quantity: number;
+}
+
 export interface ReplayProgress {
   candle: number;
   total: number;
@@ -78,6 +98,8 @@ export type ReplayEvent =
       or_high: number;
       or_low: number;
       or_range_pct: number;
+      from_index: number;
+      to_index: number;
     }
   | {
       type: "pivot_levels";
@@ -88,8 +110,18 @@ export type ReplayEvent =
       s1: number;
       r2: number;
       s2: number;
+      from_index: number;
+      to_index: number;
     }
-  | { type: "52w_high"; strategy: string; symbol: string; high_52w: number }
+  | {
+      type: "52w_high";
+      strategy: string;
+      symbol: string;
+      high_52w: number;
+      low_52w: number;
+      from_index: number;
+      to_index: number;
+    }
   | {
       type: "ema_series";
       symbol: string;
@@ -155,6 +187,7 @@ export interface ReplayState {
   isRunning: boolean;
   progress: ReplayProgress | null;
   trades: ReplayTrade[];
+  openPositions: ReplayOpenPosition[];
   orLevels: ReplayORLevels[];
   pivotLevels: ReplayPivotLevels[];
   high52wLevels: Replay52WLevel[];
@@ -175,8 +208,7 @@ export interface ReplayChartOptions {
   show_pivot_levels: boolean;
   show_52w_high: boolean;
   show_ema: boolean;
-  show_entry_markers: boolean;
-  show_exit_markers: boolean;
+  show_markers: boolean;
   show_all_trades: boolean;
 }
 

@@ -13,8 +13,9 @@ import {
   ActionIcon,
   Divider,
   Alert,
+  ThemeIcon,
 } from "@mantine/core";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash, IconInfoCircle } from "@tabler/icons-react";
 import type { BotConfig, AvailableStrategy, StrategyAllocation } from "../../types/bots";
 import {
   createBotAction,
@@ -35,6 +36,72 @@ interface StrategyAllocationRow {
   strategy_id: string;
   capital_allocation_pct: number;
   max_positions: number;
+}
+
+function StrategyParams({ strategy }: { strategy: AvailableStrategy }) {
+  const t = strategy.strategy_type;
+  const fmt = (v: number | null | undefined, suffix = "", decimals = 1) =>
+    v != null ? `${Number(v).toFixed(decimals)}${suffix}` : "—";
+  const time = (h: number, m: number) =>
+    `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const bool = (v: boolean | null | undefined) => (v ? "Yes" : "No");
+
+  const items: string[] = [];
+
+  if (t === "ORB") {
+    items.push(`OR Window: ${strategy.or_minutes}m`);
+    items.push(`SL: ${fmt(strategy.sl_pct, "%")}`);
+    items.push(`TP: ${fmt(strategy.tp_pct, "%")}`);
+    items.push(
+      `OR Range: ${fmt(strategy.min_or_range_pct, "%")}-${fmt(strategy.max_or_range_pct, "%")}`,
+    );
+    if (strategy.max_distance_from_or_pct)
+      items.push(`Max Dist: ${fmt(strategy.max_distance_from_or_pct, "%")}`);
+    items.push(`Cooldown: ${strategy.cooldown_minutes}m`);
+    items.push(`Shorts: ${bool(strategy.enable_shorts)}`);
+    items.push(`EOD: ${time(strategy.eod_exit_hour, strategy.eod_exit_minute)}`);
+    items.push(`Min RR: ${fmt(strategy.min_rr_ratio)}`);
+  } else if (t === "SR_BREAKOUT") {
+    items.push(`Pivot: ${strategy.pivot_type}`);
+    items.push(`Buffer: ${fmt(strategy.breakout_buffer_pct, "%")}`);
+    items.push(`SL: ${fmt(strategy.sl_pct, "%")}`);
+    items.push(`TP: ${fmt(strategy.tp_pct, "%")}`);
+    items.push(`Cooldown: ${strategy.cooldown_minutes}m`);
+    items.push(`Shorts: ${bool(strategy.enable_shorts)}`);
+    items.push(`EOD: ${time(strategy.eod_exit_hour, strategy.eod_exit_minute)}`);
+    items.push(`Min RR: ${fmt(strategy.min_rr_ratio)}`);
+  } else if (t === "52W_CHASER" || t === "52W_TARGET") {
+    items.push(`Entry Threshold: ${fmt(strategy.entry_threshold_pct, "%")}`);
+    items.push(`SL: ${fmt(strategy.sl_pct, "%")}`);
+    items.push(`TP: ${fmt(strategy.tp_pct, "%")}`);
+    items.push(`Trailing: ${bool(strategy.enable_trailing_stop)}`);
+    if (strategy.enable_trailing_stop)
+      items.push(`Trail %: ${fmt(strategy.trailing_stop_pct, "%")}`);
+    items.push(`Max Holding: ${strategy.max_holding_days}d`);
+    items.push(`Cooldown: ${strategy.cooldown_days}d`);
+    items.push(`EOD: ${time(strategy.eod_exit_hour, strategy.eod_exit_minute)}`);
+  } else if (t === "EMA_CROSS") {
+    items.push(`EMA Fast: ${strategy.ema_fast_period}`);
+    items.push(`EMA Slow: ${strategy.ema_slow_period}`);
+    items.push(`SL: ${fmt(strategy.sl_pct, "%")}`);
+    items.push(`TP: ${fmt(strategy.tp_pct, "%")}`);
+    items.push(`EOD: ${time(strategy.eod_exit_hour, strategy.eod_exit_minute)}`);
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <Group gap="xs" mt={4} wrap="wrap">
+      <ThemeIcon size="xs" variant="transparent" color="gray" style={{ flex: "0 0 auto" }}>
+        <IconInfoCircle size={12} />
+      </ThemeIcon>
+      {items.map((item, i) => (
+        <Text key={i} size="xs" c="dimmed" fs="italic">
+          {item}
+        </Text>
+      ))}
+    </Group>
+  );
 }
 
 export function BotConfigModal({ opened, bot, availableStrategies, onClose }: BotConfigModalProps) {
@@ -257,6 +324,38 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                       <IconTrash size={16} />
                     </ActionIcon>
                   </Group>
+                  <StrategyParams
+                    strategy={
+                      selectableStrategies.find((s) => s.id === strategy.strategy_id) || {
+                        id: "",
+                        name: "",
+                        strategy_type: "",
+                        is_template: false,
+                        is_default: false,
+                        sl_pct: 0,
+                        tp_pct: 0,
+                        max_positions: 0,
+                        or_minutes: 0,
+                        min_or_range_pct: 0,
+                        max_or_range_pct: 0,
+                        max_distance_from_or_pct: 0,
+                        cooldown_minutes: 0,
+                        enable_shorts: false,
+                        eod_exit_hour: 14,
+                        eod_exit_minute: 45,
+                        min_rr_ratio: 0,
+                        pivot_type: "",
+                        breakout_buffer_pct: 0,
+                        entry_threshold_pct: 0,
+                        enable_trailing_stop: false,
+                        trailing_stop_pct: 0,
+                        max_holding_days: 0,
+                        cooldown_days: 0,
+                        ema_fast_period: 0,
+                        ema_slow_period: 0,
+                      }
+                    }
+                  />
                 </Card>
               ))}
             </Stack>

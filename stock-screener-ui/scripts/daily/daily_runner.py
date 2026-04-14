@@ -139,20 +139,16 @@ class DailyTradingRunner:
         return self._data_fetcher
 
     def is_market_open(self) -> bool:
-        now = datetime.now()
-        open_time = datetime(now.year, now.month, now.day, *self.MARKET_OPEN)
-        close_time = datetime(now.year, now.month, now.day, *self.MARKET_CLOSE)
-        return open_time <= now <= close_time
+        from trading.utils import is_market_open as _is_market_open
+        return _is_market_open()
 
     def is_trading_hours(self) -> bool:
-        now = datetime.now()
-        or_end = datetime(now.year, now.month, now.day, *self.OR_END)
-        force_exit = datetime(now.year, now.month, now.day, *self.FORCE_EXIT)
-        return or_end <= now <= force_exit
+        from trading.utils import is_trading_hours as _is_trading_hours
+        return _is_trading_hours()
 
     def is_force_exit_time(self) -> bool:
-        now = datetime.now()
-        return now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]
+        from trading.utils import is_force_exit_time as _is_force_exit_time
+        return _is_force_exit_time()
 
     def refresh_watchlist(self):
         _refresh_watchlist(self)

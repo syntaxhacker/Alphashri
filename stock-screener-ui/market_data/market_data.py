@@ -138,6 +138,9 @@ def fetch_candles(
 
 
 def _normalize_tz(df: pd.DataFrame) -> pd.DataFrame:
+    # NOTE: Assumes naive index from Upstox is already in UTC.
+    # If Upstox ever returns naive IST data, this would shift times by +5:30.
+    # Currently Upstox returns tz-aware data so the else branch is the normal path.
     if df.index.tz is None:
         df.index = df.index.tz_localize("UTC")
     else:

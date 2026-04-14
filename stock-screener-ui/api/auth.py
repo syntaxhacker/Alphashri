@@ -8,7 +8,7 @@ Provides:
 - User dependency injection for protected routes
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import asyncio
 import secrets
@@ -98,9 +98,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(user_id: int, expires_delta: Optional[timedelta] = None) -> tuple[str, str]:
     """Create access token and return (token, jti)."""
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+        expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
 
     jti = secrets.token_hex(16)
 
@@ -109,7 +109,7 @@ def create_access_token(user_id: int, expires_delta: Optional[timedelta] = None)
         "jti": jti,
         "type": "access",
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": datetime.now(timezone.utc),
     }
 
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
@@ -118,7 +118,7 @@ def create_access_token(user_id: int, expires_delta: Optional[timedelta] = None)
 
 def create_refresh_token(user_id: int, db: Session) -> str:
     """Create refresh token and store session in database."""
-    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     jti = secrets.token_hex(16)
 
     payload = {
@@ -126,7 +126,7 @@ def create_refresh_token(user_id: int, db: Session) -> str:
         "jti": jti,
         "type": "refresh",
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": datetime.now(timezone.utc),
     }
 
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)

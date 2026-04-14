@@ -214,9 +214,7 @@ class UpstoxAPI(BaseAPIClient):
         encoded_key = urllib.parse.quote(instrument_key, safe='')
         url = f"{BASE_URL}/historical-candle/intraday/{encoded_key}/minutes/{interval.replace('minute', '')}"
 
-        headers = {
-            'Accept': 'application/json'
-        }
+        headers = self._get_headers()
 
         try:
             response = requests.get(url, headers=headers, timeout=30)
@@ -439,9 +437,7 @@ class UpstoxAPI(BaseAPIClient):
         else:
             url = f"{BASE_URL}/historical-candle/{encoded_instrument_key}/{unit}/{interval}/{to_date}"
 
-        headers = {
-            'Accept': 'application/json'
-        }
+        headers = self._get_headers()
 
         try:
             response = requests.get(url, headers=headers)

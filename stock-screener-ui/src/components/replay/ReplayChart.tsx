@@ -1,14 +1,5 @@
 import { useEffect, useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
-import {
-  Box,
-  Group,
-  Text,
-  Badge,
-  Button,
-  useMantineColorScheme,
-  Checkbox,
-  Tooltip,
-} from "@mantine/core";
+import { Box, Group, Text, Badge, Button, Switch, useMantineColorScheme } from "@mantine/core";
 import type {
   ReplayCandle,
   ReplayTrade,
@@ -25,6 +16,7 @@ const TF_PRESETS = [
   { label: "5m", minutes: 5 },
   { label: "15m", minutes: 15 },
   { label: "1h", minutes: 60 },
+  { label: "1D", minutes: 1440 },
 ];
 
 function aggregateCandles(candles: ReplayCandle[], intervalMin: number): ReplayCandle[] {
@@ -115,25 +107,19 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
     [trades, selectedSymbol],
   );
 
-  const tradeStrategies = useMemo(
-    () => new Set(filteredTrades.map((t) => t.strategy)),
-    [filteredTrades],
-  );
-
   const filteredORLevels = useMemo(
-    () => orLevels.filter((o) => o.symbol === selectedSymbol && tradeStrategies.has(o.strategy)),
-    [orLevels, selectedSymbol, tradeStrategies],
+    () => orLevels.filter((o) => o.symbol === selectedSymbol),
+    [orLevels, selectedSymbol],
   );
 
   const filteredPivots = useMemo(
-    () => pivotLevels.filter((p) => p.symbol === selectedSymbol && tradeStrategies.has(p.strategy)),
-    [pivotLevels, selectedSymbol, tradeStrategies],
+    () => pivotLevels.filter((p) => p.symbol === selectedSymbol),
+    [pivotLevels, selectedSymbol],
   );
 
   const filtered52w = useMemo(
-    () =>
-      high52wLevels.filter((h) => h.symbol === selectedSymbol && tradeStrategies.has(h.strategy)),
-    [high52wLevels, selectedSymbol, tradeStrategies],
+    () => high52wLevels.filter((h) => h.symbol === selectedSymbol),
+    [high52wLevels, selectedSymbol],
   );
 
   const rawCandles = candlesBySymbol[selectedSymbol] ?? [];
@@ -144,7 +130,6 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
   );
 
   const displayEMA = useMemo(() => {
-    if (!tradeStrategies.has("EMA Cross")) return null;
     const backendEMA = _emaData[selectedSymbol];
     if (!backendEMA) return null;
     const tfData = backendEMA.timeframes[String(activeTF)];
@@ -155,21 +140,21 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
       ema_fast: tfData.ema_fast,
       ema_slow: tfData.ema_slow,
     };
-  }, [selectedSymbol, _emaData, activeTF, tradeStrategies]);
+  }, [selectedSymbol, _emaData, activeTF]);
 
   useImperativeHandle(ref, () => ({
     zoomToTrade(entryTime: string, exitTime: string) {
       setTimeout(() => {
         if (!chartInstance.current || !allTimesRef.current.length) return;
         const times = allTimesRef.current;
-        const entryKey = (entryTime.includes(" ") ? entryTime.split(" ")[1] : entryTime).substring(
-          0,
-          5,
-        );
-        const exitKey = (exitTime.includes(" ") ? exitTime.split(" ")[1] : exitTime).substring(
-          0,
-          5,
-        );
+        const parse = (s: string) =>
+          s.includes("T")
+            ? s.split("T")[1].substring(0, 5)
+            : s.includes(" ")
+              ? s.split(" ")[1].substring(0, 5)
+              : s.substring(0, 5);
+        const entryKey = parse(entryTime);
+        const exitKey = parse(exitTime);
 
         let entryIdx = times.findIndex((t) => t === entryKey);
         if (entryIdx === -1) {
@@ -242,6 +227,8 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
       isDark,
       chartOptions,
       highlightedTradeId,
+      rawCandles,
+      activeTF,
     );
     chartInstance.current.setOption(option);
     chartInstance.current.resize();
@@ -266,7 +253,15 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
       chartInstance.current?.dispose();
       chartInstance.current = null;
     };
-  }, [displayCandles, filteredTrades, filteredORLevels, isDark, displayEMA]);
+  }, [
+    displayCandles,
+    filteredTrades,
+    filteredORLevels,
+    isDark,
+    displayEMA,
+    chartOptions,
+    highlightedTradeId,
+  ]);
 
   if (symbols.length === 0) {
     return (
@@ -288,7 +283,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
 
   return (
     <Box data-testid="replay-chart" h="100%" style={{ display: "flex", flexDirection: "column" }}>
-      <Group gap="xs" pb={4} style={{ flex: "0 0 auto" }}>
+      <Group gap="xs" pb={4} px="sm" style={{ flex: "0 0 auto" }}>
         {symbols.map((sym) => (
           <Badge
             key={sym}
@@ -303,7 +298,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           </Badge>
         ))}
         <Box ml="auto">
-          <Group gap={4}>
+          <Group gap="sm">
             {TF_PRESETS.map((preset) => (
               <Button
                 key={preset.label}
@@ -311,68 +306,62 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
                 variant={activeTF === preset.minutes ? "filled" : "subtle"}
                 color={activeTF === preset.minutes ? "teal" : "gray"}
                 onClick={() => setActiveTF(preset.minutes)}
+                data-testid={`tf-btn-${preset.label}`}
               >
                 {preset.label}
               </Button>
             ))}
-            <Tooltip label="Show All Trades">
-              <Checkbox
-                size="xs"
-                checked={chartOptions.show_all_trades}
-                onChange={(e) => setChartOptions({ show_all_trades: e.currentTarget.checked })}
-                styles={{ input: { cursor: "pointer" } }}
-              />
-            </Tooltip>
-            <Tooltip label="Entry Markers">
-              <Checkbox
-                size="xs"
-                checked={chartOptions.show_entry_markers}
-                onChange={(e) => setChartOptions({ show_entry_markers: e.currentTarget.checked })}
-                styles={{ input: { cursor: "pointer" } }}
-              />
-            </Tooltip>
-            <Tooltip label="Exit Markers">
-              <Checkbox
-                size="xs"
-                checked={chartOptions.show_exit_markers}
-                onChange={(e) => setChartOptions({ show_exit_markers: e.currentTarget.checked })}
-                styles={{ input: { cursor: "pointer" } }}
-              />
-            </Tooltip>
-            <Tooltip label="ORB Zones">
-              <Checkbox
-                size="xs"
-                checked={chartOptions.show_orb_zones}
-                onChange={(e) => setChartOptions({ show_orb_zones: e.currentTarget.checked })}
-                styles={{ input: { cursor: "pointer" } }}
-              />
-            </Tooltip>
-            <Tooltip label="Pivot Levels">
-              <Checkbox
-                size="xs"
-                checked={chartOptions.show_pivot_levels}
-                onChange={(e) => setChartOptions({ show_pivot_levels: e.currentTarget.checked })}
-                styles={{ input: { cursor: "pointer" } }}
-              />
-            </Tooltip>
-            <Tooltip label="52W High">
-              <Checkbox
-                size="xs"
-                checked={chartOptions.show_52w_high}
-                onChange={(e) => setChartOptions({ show_52w_high: e.currentTarget.checked })}
-                styles={{ input: { cursor: "pointer" } }}
-              />
-            </Tooltip>
-            <Tooltip label="EMA Lines">
-              <Checkbox
-                size="xs"
-                checked={chartOptions.show_ema}
-                onChange={(e) => setChartOptions({ show_ema: e.currentTarget.checked })}
-                styles={{ input: { cursor: "pointer" } }}
-              />
-            </Tooltip>
           </Group>
         </Box>
+      </Group>
+      <Group gap="sm" px="sm" pb={4} style={{ flex: "0 0 auto" }}>
+        <Switch
+          size="xs"
+          label="All trades"
+          checked={chartOptions.show_all_trades}
+          onChange={(e) => setChartOptions({ show_all_trades: e.currentTarget.checked })}
+          data-testid="replay-show-all-trades"
+        />
+        <Switch
+          size="xs"
+          label="Markers"
+          defaultChecked
+          disabled
+          styles={{ label: { color: "#00BFFF" } }}
+          data-testid="replay-show-markers"
+        />
+        <Switch
+          size="xs"
+          label="ORB"
+          checked={chartOptions.show_orb_zones}
+          onChange={(e) => setChartOptions({ show_orb_zones: e.currentTarget.checked })}
+          styles={{ label: { color: "#2196F3" } }}
+          data-testid="replay-show-orb"
+        />
+        <Switch
+          size="xs"
+          label="Pivot"
+          checked={chartOptions.show_pivot_levels}
+          onChange={(e) => setChartOptions({ show_pivot_levels: e.currentTarget.checked })}
+          styles={{ label: { color: "#AB47BC" } }}
+          data-testid="replay-show-pivot"
+        />
+        <Switch
+          size="xs"
+          label="52W"
+          checked={chartOptions.show_52w_high}
+          onChange={(e) => setChartOptions({ show_52w_high: e.currentTarget.checked })}
+          styles={{ label: { color: "#E91E63" } }}
+          data-testid="replay-show-52w"
+        />
+        <Switch
+          size="xs"
+          label="EMA"
+          checked={chartOptions.show_ema}
+          onChange={(e) => setChartOptions({ show_ema: e.currentTarget.checked })}
+          styles={{ label: { color: "#10ac84" } }}
+          data-testid="replay-show-ema"
+        />
       </Group>
       <Box
         ref={chartRef}

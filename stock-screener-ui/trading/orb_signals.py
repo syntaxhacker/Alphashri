@@ -151,8 +151,7 @@ class ORBSignalGenerator:
 
             # Handle timezone-aware datetimes
             if dt.tzinfo is not None:
-                # Convert to naive for comparison
-                dt = dt.replace(tzinfo=None)
+                dt = dt.astimezone(config.IST).replace(tzinfo=None)
 
             # Check if within OR period
             market_open = datetime(dt.year, dt.month, dt.day, *self.MARKET_OPEN)

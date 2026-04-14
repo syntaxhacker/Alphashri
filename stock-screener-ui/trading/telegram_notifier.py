@@ -24,10 +24,12 @@ _ENABLED = os.getenv("TELEGRAM_ENABLED", "true").lower() in ("true", "1", "yes")
 _BOT_TOKEN = config.TELEGRAM_CONFIG.get("bot_token", "")
 _CHAT_ID = config.TELEGRAM_CONFIG.get("chat_id", "")
 
-if config.ENVIRONMENT == "production" and config.RAILWAY_URL:
-    _ORIGIN_TAG = f"🖥️ [{config.RAILWAY_URL}]"
-else:
-    _ORIGIN_TAG = "🖥️ [LOCAL]"
+_ORIGIN_TAG = "🖥️ [LOCAL]"
+try:
+    if config.ENVIRONMENT == "production" and getattr(config, 'RAILWAY_URL', None):
+        _ORIGIN_TAG = f"🖥️ [{config.RAILWAY_URL}]"
+except AttributeError:
+    pass
 
 _API_URL = f"https://api.telegram.org/bot{_BOT_TOKEN}/sendMessage"
 _MAX_MSGS_PER_MINUTE = 25

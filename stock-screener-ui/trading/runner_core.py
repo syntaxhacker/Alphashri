@@ -164,14 +164,13 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self._replay_on_event = None
 
     @classmethod
-    def create_for_replay(cls, bot_config_id: int, user_id: int):
+    def create_for_replay(cls, bot_config):
         """Create a runner for replay mode with minimal init (no portfolio, no journal, no signal handlers)."""
-        bot_config = cls._load_bot_config(bot_config_id)
         self = cls.__new__(cls)
-        self.user_id = user_id
+        self.user_id = 1
         self.test_mode = True
         self.running = False
-        self.bot_config_id = bot_config_id
+        self.bot_config_id = bot_config.id
         self.bot_config = bot_config
         self._init_common_fields()
         self.portfolio = None
@@ -181,13 +180,24 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
     @staticmethod
     def _load_bot_config(bot_id: int) -> 'BotConfig':
-        """Load bot configuration from database."""
+        """Load bot configuration from database by integer PK."""
         SessionLocal = _get_session_local()
         BotConfig = _get_bot_config()
         with SessionLocal() as db:
             bot = db.query(BotConfig).filter(BotConfig.id == bot_id).first()
             if not bot:
                 raise ValueError(f"Bot config {bot_id} not found")
+            return bot
+
+    @staticmethod
+    def _load_bot_config_by_uuid(uuid: str) -> 'BotConfig':
+        """Load bot configuration from database by UUID string."""
+        SessionLocal = _get_session_local()
+        BotConfig = _get_bot_config()
+        with SessionLocal() as db:
+            bot = db.query(BotConfig).filter(BotConfig.uuid == uuid).first()
+            if not bot:
+                raise ValueError(f"Bot config with uuid {uuid} not found")
             return bot
 
     def _load_strategies(self):
@@ -419,16 +429,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             pass
 
     def is_market_open(self) -> bool:
-        now = self._ist_now()
-        open_time = datetime(now.year, now.month, now.day, *self.MARKET_OPEN, tzinfo=IST)
-        close_time = datetime(now.year, now.month, now.day, *self.MARKET_CLOSE, tzinfo=IST)
-        return open_time <= now <= close_time
+        from trading.utils import is_market_open as _is_market_open
+        return _is_market_open(self._ist_now())
 
     def is_trading_hours(self) -> bool:
-        now = self._ist_now()
-        or_end = datetime(now.year, now.month, now.day, *self.OR_END, tzinfo=IST)
-        force_exit = datetime(now.year, now.month, now.day, *self.FORCE_EXIT, tzinfo=IST)
-        return or_end <= now <= force_exit
+        from trading.utils import is_trading_hours as _is_trading_hours
+        return _is_trading_hours(self._ist_now())
 
     def is_force_exit_time(self) -> bool:
         now = self._ist_now()
@@ -772,21 +778,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             DataFetcherProxy.upstox_api = provider
             self._data_fetcher = DataFetcherProxy()
 
-            self._load_strategies()
-
-            if strategy_filter != "ALL":
-                allowed = STRATEGY_FILTER_MAP.get(strategy_filter, ())
-                remove = [
-                    sid for sid, r in self.strategies.items()
-                    if r.strategy_type not in allowed
-                ]
-                for sid in remove:
-                    del self.strategies[sid]
-
-            if on_event:
-                total_candles = sum(len(df) for df in provider._1m_data.values())
-                on_event({"type": "loaded", "symbols": len(provider._1m_data), "candles": total_candles})
-
             initial_capital = getattr(self.bot_config, 'initial_capital', 1_000_000)
             self.portfolio = _get_shared_portfolio()(
                 initial_capital=initial_capital,
@@ -801,14 +792,27 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 max_total_capital_pct=self.bot_config.max_total_capital_pct,
             )
 
-            for sid, runner in self.strategies.items():
-                self.portfolio.set_strategy_allocation(
-                    strategy_id=sid,
-                    strategy_name=runner.strategy_name,
-                    allocation_pct=runner.capital_allocation_pct,
-                    max_positions=runner.max_positions,
-                )
+            self._load_strategies()
+            for r in self.strategies.values():
+                r.status = "running"
 
+            if strategy_filter != "ALL":
+                allowed = STRATEGY_FILTER_MAP.get(strategy_filter, ())
+                remove = [
+                    sid for sid, r in self.strategies.items()
+                    if r.strategy_type not in allowed
+                ]
+                for sid in remove:
+                    del self.strategies[sid]
+
+            if on_event:
+                total_candles = sum(len(df) for df in provider._1m_data.values())
+                on_event({"type": "loaded", "symbols": len(provider._1m_data), "candles": total_candles})
+
+            self._replay_symbol_candle_counts = {
+                sym: len(provider._1m_data[sym])
+                for sym in symbols if sym in provider._1m_data
+            }
             self._emit_precomputed_overlays(provider, symbols)
 
             market_open = pd.Timestamp(date_str + " 09:15:00", tz=IST)
@@ -852,12 +856,19 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             candle_buffer[buf_sym] = []
 
                 is_5min = current.minute % 5 == 0 and current.second == 0
+                is_market_open = current == market_open
 
-                if is_5min:
+                if is_5min or is_market_open:
                     for sid, runner in self.strategies.items():
+                        if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
+                            if not is_market_open:
+                                continue
                         try:
                             signals = self.scan_for_signals(sid)
                             for signal in signals:
+                                sym = signal.symbol.upper()
+                                if sym not in provider._1m_data:
+                                    continue
                                 self.execute_signal(sid, signal)
                         except Exception as e:
                             console.print(f"[dim red]Replay scan error: {e}[/dim red]")
@@ -897,7 +908,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             return
 
         from trading.ema_cross_signals import EMACrossSignalGenerator
-        from market_data.market_data import resample_candles
 
         for sym in symbols:
             if sym not in provider._daily_data or provider._daily_data[sym].empty:
@@ -914,9 +924,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             if current_price > 0 and current_price >= high_52w * 0.95:
                 for sid, runner in self.strategies.items():
                     if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
+                        n_candles = len(provider._1m_data.get(sym, []))
                         self._replay_on_event({
                             "type": "52w_high", "strategy": runner.strategy_name,
                             "symbol": sym, "high_52w": float(high_52w),
+                            "from_index": 0,
+                            "to_index": max(n_candles - 1, 0),
                         })
                         break
 
@@ -931,33 +944,52 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 ema_slow_period = runner.config.get('ema_slow_period', 21)
                 df_1m = provider._1m_data[sym]
                 day_closes = df_1m["close"].tolist()
+                n_today = len(day_closes)
 
-                if len(day_closes) < ema_slow_period:
+                if n_today < ema_slow_period:
                     continue
 
-                ema_fast_full = EMACrossSignalGenerator.calculate_ema(day_closes, ema_fast_period)
-                ema_slow_full = EMACrossSignalGenerator.calculate_ema(day_closes, ema_slow_period)
+                seed_df = provider._1m_seed_data.get(sym)
+                seed_closes = seed_df["close"].tolist() if seed_df is not None and not seed_df.empty else []
+                full_closes = seed_closes + day_closes
+                n_seed = len(seed_closes)
+
+                ema_fast_full = EMACrossSignalGenerator.calculate_ema(full_closes, ema_fast_period)
+                ema_slow_full = EMACrossSignalGenerator.calculate_ema(full_closes, ema_slow_period)
+                ema_fast_today = ema_fast_full[n_seed:]
+                ema_slow_today = ema_slow_full[n_seed:]
 
                 timeframes = {}
-                for tf in [5, 15]:
-                    df_tf = resample_candles(df_1m, tf)
-                    if df_tf is None or df_tf.empty:
+                for tf in [5, 15, 60]:
+                    tf_full = [full_closes[i:i + tf][-1] for i in range(0, len(full_closes), tf) if full_closes[i:i + tf]]
+                    if len(tf_full) < ema_slow_period:
                         continue
-                    tf_closes = df_tf["close"].tolist()
-                    if len(tf_closes) < ema_slow_period:
-                        continue
-                    ema_f = EMACrossSignalGenerator.calculate_ema(tf_closes, ema_fast_period)
-                    ema_s = EMACrossSignalGenerator.calculate_ema(tf_closes, ema_slow_period)
+                    ema_f_full = EMACrossSignalGenerator.calculate_ema(tf_full, ema_fast_period)
+                    ema_s_full = EMACrossSignalGenerator.calculate_ema(tf_full, ema_slow_period)
+                    tf_seed = [seed_closes[i:i + tf][-1] for i in range(0, len(seed_closes), tf) if seed_closes[i:i + tf]]
+                    n_seed_tf = len(tf_seed)
                     timeframes[str(tf)] = {
-                        "ema_fast": [round(v, 2) for v in ema_f],
-                        "ema_slow": [round(v, 2) for v in ema_s],
+                        "ema_fast": [round(v, 2) for v in ema_f_full[n_seed_tf:]],
+                        "ema_slow": [round(v, 2) for v in ema_s_full[n_seed_tf:]],
                     }
 
                 if timeframes:
                     timeframes["1"] = {
-                        "ema_fast": [round(v, 2) for v in ema_fast_full],
-                        "ema_slow": [round(v, 2) for v in ema_slow_full],
+                        "ema_fast": [round(v, 2) for v in ema_fast_today],
+                        "ema_slow": [round(v, 2) for v in ema_slow_today],
                     }
+
+                if sym in provider._daily_data and not provider._daily_data[sym].empty:
+                    daily_closes = provider._daily_data[sym]["close"].tolist()
+                    if len(daily_closes) >= ema_slow_period:
+                        daily_ema_f = EMACrossSignalGenerator.calculate_ema(daily_closes, ema_fast_period)
+                        daily_ema_s = EMACrossSignalGenerator.calculate_ema(daily_closes, ema_slow_period)
+                        if not timeframes:
+                            timeframes = {}
+                        timeframes["1440"] = {
+                            "ema_fast": [round(v, 2) for v in daily_ema_f],
+                            "ema_slow": [round(v, 2) for v in daily_ema_s],
+                        }
                     self._replay_on_event({
                         "type": "ema_series",
                         "symbol": sym,

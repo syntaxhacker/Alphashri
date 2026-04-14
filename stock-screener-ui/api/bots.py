@@ -71,17 +71,17 @@ from api.bots_api.bots_router import (
     SessionLocal as _SessionLocal,
 )
 
+from api.bots_api.bot_status import (
+    list_available_strategies,
+    list_bots,
+    get_bot_status,
+)
+
 from api.bots_api.bot_config import (
     create_bot,
     update_bot,
     delete_bot,
     get_bot,
-)
-
-from api.bots_api.bot_status import (
-    list_available_strategies,
-    list_bots,
-    get_bot_status,
 )
 
 from api.bots_api.bot_strategies import (

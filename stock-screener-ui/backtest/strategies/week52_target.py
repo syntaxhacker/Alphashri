@@ -598,7 +598,7 @@ def run_single_stock_week52_target(args):
         for t in trades:
             if t.get('entry_time'):
                 entry_dt = datetime.fromisoformat(t['entry_time'].replace('Z', '+00:00'))
-                if entry_dt.date() >= cutoff_date:
+                if entry_dt.astimezone(IST).date() >= cutoff_date:
                     filtered_trades.append(t)
         trades = filtered_trades
 

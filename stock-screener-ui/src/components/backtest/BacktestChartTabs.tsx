@@ -1,6 +1,7 @@
 import { Tabs, Select, Group, Text, Box } from "@mantine/core";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
+import type { MarketHoliday } from "../../types/holidays";
 
 export interface BacktestChartTabsProps {
   symbols: string[];
@@ -11,6 +12,7 @@ export interface BacktestChartTabsProps {
   chartDataMap: Map<string, SymbolChartData>;
   chartLoading?: boolean;
   onTradeClick?: (tradeId: number) => void;
+  holidays?: MarketHoliday[];
 }
 
 const ZOOM_OPTIONS = [
@@ -29,6 +31,7 @@ export function BacktestChartTabs({
   chartDataMap,
   chartLoading,
   onTradeClick,
+  holidays,
 }: BacktestChartTabsProps) {
   if (symbols.length === 0) {
     return (
@@ -100,6 +103,7 @@ export function BacktestChartTabs({
             chartData={currentChartData}
             isLoading={chartLoading && !currentChartData}
             onTradeClick={onTradeClick}
+            holidays={holidays}
           />
         ) : (
           <Box

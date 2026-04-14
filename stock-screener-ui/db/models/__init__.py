@@ -4,6 +4,7 @@ from .bot import BotConfig, StrategyConfig, BacktestResult, bot_strategies
 from .trade import Trade, Position
 from .news import NewsArticle, NewsSymbolMention, LLMRun
 from .broker import BrokerConnection, Instrument, get_shared_broker_token, save_broker_token, delete_broker_token
+from .holiday import MarketHoliday, HolidayType
 
 __all__ = [
     "Base",
@@ -23,4 +24,6 @@ __all__ = [
     "get_shared_broker_token",
     "save_broker_token",
     "delete_broker_token",
+    "MarketHoliday",
+    "HolidayType",
 ]

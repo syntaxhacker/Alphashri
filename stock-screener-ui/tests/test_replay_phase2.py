@@ -233,8 +233,7 @@ class TestRunnerReplayMode:
         """create_for_replay creates a runner with correct minimal state."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         assert runner.replay_mode is False
         assert runner._replay_time is None
@@ -250,8 +249,7 @@ class TestRunnerReplayMode:
         """_ist_now returns real time when _replay_time is not set."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         before = datetime.now(IST)
         result = runner._ist_now()
@@ -262,8 +260,7 @@ class TestRunnerReplayMode:
         """_ist_now returns _replay_time when set."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         fake_time = pd.Timestamp("2026-04-09 10:30:00", tz=IST)
         runner._replay_time = fake_time
@@ -273,8 +270,7 @@ class TestRunnerReplayMode:
         """_get_to_date returns _ist_now result."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         fake_time = pd.Timestamp("2026-04-09 11:00:00", tz=IST)
         runner._replay_time = fake_time
@@ -286,14 +282,12 @@ class TestRunnerReplayMode:
         import inspect
         assert isinstance(inspect.getattr_static(MultiStrategyRunner, '_load_bot_config'), staticmethod)
 
-    def test_create_for_replay_raises_on_missing_bot(self):
-        """create_for_replay raises ValueError when bot not found."""
+    def test_load_bot_config_by_uuid_raises_on_missing(self):
+        """_load_bot_config_by_uuid raises ValueError when bot not found."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config',
-                          side_effect=ValueError("Bot config 999 not found")):
-            with pytest.raises(ValueError, match="Bot config 999"):
-                MultiStrategyRunner.create_for_replay(bot_config_id=999, user_id=1)
+        with pytest.raises(ValueError, match="uuid not-found not found"):
+            MultiStrategyRunner._load_bot_config_by_uuid("not-found")
 
 
 # ============================================================================
@@ -317,8 +311,7 @@ class TestExecuteSignalReplay:
         """In replay mode, open_position receives entry_time=_ist_now()."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner.replay_mode = True
         sim_time = pd.Timestamp("2026-04-09 10:30:00", tz=IST)
@@ -361,8 +354,7 @@ class TestExecuteSignalReplay:
         """In replay mode, trade_open event is emitted."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner.replay_mode = True
         runner._replay_time = pd.Timestamp("2026-04-09 10:30:00", tz=IST)
@@ -402,8 +394,7 @@ class TestExecuteSignalReplay:
         """In replay mode, invalid risk validation skips trade."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner.replay_mode = True
         runner._replay_time = pd.Timestamp("2026-04-09 10:30:00", tz=IST)
@@ -441,8 +432,7 @@ class TestExecuteSignalReplay:
         """In replay mode, unknown strategy_id returns False."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner.replay_mode = True
         runner.strategies = {}
@@ -472,8 +462,7 @@ class TestMonitorPositionsReplay:
         from trading.runner_core import MultiStrategyRunner
         from trading.shared_portfolio import SharedPosition, OrderSide
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner.replay_mode = True
         runner._replay_time = pd.Timestamp("2026-04-09 11:00:00", tz=IST)
@@ -653,8 +642,7 @@ class TestRunReplay:
 
         mock_fetch.return_value = _make_1m_candles("2026-04-09", 100)
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_load.return_value = None
 
@@ -684,8 +672,7 @@ class TestRunReplay:
 
         mock_fetch.return_value = _make_1m_candles("2026-04-09", 200)
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_load.return_value = None
 
@@ -716,8 +703,7 @@ class TestRunReplay:
 
         mock_fetch.return_value = _make_1m_candles("2026-04-09", 100)
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_load.return_value = None
 
@@ -749,8 +735,7 @@ class TestRunReplay:
 
         mock_fetch.return_value = _make_1m_candles("2026-04-09", 200)
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_load.return_value = None
 
@@ -778,8 +763,7 @@ class TestRunReplay:
 
         mock_fetch.return_value = _make_1m_candles("2026-04-09", 375)
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         sr = _make_strategy_runner(1, "ORB", "ORB Best")
         runner.strategies = {1: sr}
@@ -821,8 +805,7 @@ class TestRunReplay:
 
         mock_fetch.return_value = _make_1m_candles("2026-04-09", 100)
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_load.return_value = None
 
@@ -849,8 +832,7 @@ class TestRunReplay:
 
         mock_fetch.return_value = _make_1m_candles("2026-04-09", 100)
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         sr_orb = _make_strategy_runner(1, "ORB", "ORB Best")
         sr_sr = _make_strategy_runner(2, "SR_BREAKOUT", "SR Breakout")
@@ -884,8 +866,7 @@ class TestRunReplay:
 
         mock_fetch.return_value = _make_1m_candles("2026-04-09", 100)
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_load.return_value = None
 
@@ -912,8 +893,7 @@ class TestRunReplay:
 
         mock_fetch.side_effect = Exception("API failure")
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_load.return_value = None
 
@@ -950,8 +930,7 @@ class TestOverlayEmissions:
         """ORB strategy scan emits or_levels event once per symbol."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner.replay_mode = True
         runner._replay_time = pd.Timestamp("2026-04-09 10:05:00", tz=IST)
@@ -999,8 +978,7 @@ class TestOverlayEmissions:
         """SR_BREAKOUT scan emits pivot_levels once per symbol."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner.replay_mode = True
         runner._replay_time = pd.Timestamp("2026-04-09 10:05:00", tz=IST)
@@ -1047,8 +1025,7 @@ class TestOverlayEmissions:
         """EMA_CROSS precomputed overlay emits ema_series with timeframes dict."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner.replay_mode = True
         runner._replay_time = pd.Timestamp("2026-04-09 10:05:00", tz=IST)
@@ -1094,8 +1071,7 @@ class TestEmitSummary:
         """Summary with no trades has zero values."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_portfolio = MagicMock()
         mock_portfolio.trades = []
@@ -1114,8 +1090,7 @@ class TestEmitSummary:
         """Summary with trades computes correct stats."""
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         t1 = MagicMock()
         t1.net_pnl = 200.0
@@ -1167,8 +1142,7 @@ class TestReplaySwingAndForceClose:
         from trading.runner_core import MultiStrategyRunner
         from trading.strategy_runner import SWING_STRATEGY_TYPES
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner.replay_mode = True
         runner._replay_time = pd.Timestamp("2026-04-09 10:05:00", tz=IST)
@@ -1218,8 +1192,7 @@ class TestReplaySwingAndForceClose:
 
         mock_fetch.return_value = _make_1m_candles("2026-04-09", 100)
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_load.return_value = None
 
@@ -1243,8 +1216,7 @@ class TestReplaySwingAndForceClose:
 
         mock_fetch.side_effect = Exception("API failure")
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         mock_load.return_value = None
 
@@ -1270,27 +1242,23 @@ class TestReplayAPI:
     """Tests for the replay API endpoint."""
 
     def test_load_symbols_default(self):
-        """_load_symbols returns DEFAULT_WATCHLIST when no arg."""
+        """_load_symbols returns dynamic watchlist when no arg."""
         from api.replay_api import _load_symbols
         result = _load_symbols(None)
         assert isinstance(result, list)
         assert len(result) > 0
-        assert "RELIANCE" in result
-
-    def test_load_symbols_custom(self):
-        """_load_symbols parses comma-separated string."""
-        from api.replay_api import _load_symbols
-        result = _load_symbols("RELIANCE,TCS,INFY")
-        assert result == ["RELIANCE", "TCS", "INFY"]
+        assert all(isinstance(s, str) for s in result)
+        assert all(s == s.upper() for s in result)
 
     def test_load_symbols_default_string(self):
-        """_load_symbols with 'DEFAULT' returns watchlist."""
+        """_load_symbols with 'DEFAULT' returns dynamic watchlist."""
         from api.replay_api import _load_symbols
         result = _load_symbols("DEFAULT")
-        assert "RELIANCE" in result
+        assert isinstance(result, list)
+        assert len(result) > 0
 
     def test_symbols_endpoint(self):
-        """GET /api/replay/symbols returns the default watchlist."""
+        """GET /api/replay/symbols returns the dynamic watchlist."""
         from fastapi.testclient import TestClient
         from fastapi import FastAPI
         from api.replay_api import router
@@ -1303,7 +1271,9 @@ class TestReplayAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert "symbols" in data
-        assert "RELIANCE" in data["symbols"]
+        assert isinstance(data["symbols"], list)
+        assert len(data["symbols"]) > 0
+        assert all(isinstance(s, str) for s in data["symbols"])
 
 
 # ============================================================================
@@ -1324,8 +1294,7 @@ class TestExecuteSignalCore:
     def _make_runner(self):
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
         runner.replay_mode = False
         runner._replay_time = None
         runner.strategies = {}
@@ -1661,8 +1630,7 @@ class TestEmitOncePerSymbol:
     def _make_runner(self):
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
         runner.replay_mode = True
         return runner
 
@@ -1670,21 +1638,21 @@ class TestEmitOncePerSymbol:
         runner = self._make_runner()
         runner.replay_mode = False
         events = []
-        result = runner._emit_once_per_symbol("_test_emitted", "RELIANCE", {"type": "test"})
+        result = runner._emit_once_per_symbol("_test_emitted", 1, "RELIANCE", {"type": "test"})
         assert result is False
         assert len(events) == 0
 
     def test_replay_on_event_none_returns_false(self):
         runner = self._make_runner()
         runner._replay_on_event = None
-        result = runner._emit_once_per_symbol("_test_emitted", "RELIANCE", {"type": "test"})
+        result = runner._emit_once_per_symbol("_test_emitted", 1, "RELIANCE", {"type": "test"})
         assert result is False
 
     def test_first_call_emits(self):
         runner = self._make_runner()
         events = []
         runner._replay_on_event = events.append
-        result = runner._emit_once_per_symbol("_test_emitted", "RELIANCE", {"type": "test"})
+        result = runner._emit_once_per_symbol("_test_emitted", 1, "RELIANCE", {"type": "test"})
         assert result is True
         assert len(events) == 1
         assert events[0]["type"] == "test"
@@ -1693,17 +1661,27 @@ class TestEmitOncePerSymbol:
         runner = self._make_runner()
         events = []
         runner._replay_on_event = events.append
-        runner._emit_once_per_symbol("_test_emitted", "RELIANCE", {"type": "test"})
-        result = runner._emit_once_per_symbol("_test_emitted", "RELIANCE", {"type": "test2"})
+        runner._emit_once_per_symbol("_test_emitted", 1, "RELIANCE", {"type": "test"})
+        result = runner._emit_once_per_symbol("_test_emitted", 1, "RELIANCE", {"type": "test2"})
         assert result is False
         assert len(events) == 1
+
+    def test_different_strategies_both_emit(self):
+        runner = self._make_runner()
+        events = []
+        runner._replay_on_event = events.append
+        r1 = runner._emit_once_per_symbol("_test_emitted", 1, "RELIANCE", {"type": "reliance"})
+        r2 = runner._emit_once_per_symbol("_test_emitted", 2, "RELIANCE", {"type": "reliance2"})
+        assert r1 is True
+        assert r2 is True
+        assert len(events) == 2
 
     def test_different_symbols_both_emit(self):
         runner = self._make_runner()
         events = []
         runner._replay_on_event = events.append
-        r1 = runner._emit_once_per_symbol("_test_emitted", "RELIANCE", {"type": "reliance"})
-        r2 = runner._emit_once_per_symbol("_test_emitted", "TCS", {"type": "tcs"})
+        r1 = runner._emit_once_per_symbol("_test_emitted", 1, "RELIANCE", {"type": "reliance"})
+        r2 = runner._emit_once_per_symbol("_test_emitted", 1, "TCS", {"type": "tcs"})
         assert r1 is True
         assert r2 is True
         assert len(events) == 2
@@ -1713,10 +1691,10 @@ class TestEmitOncePerSymbol:
         events = []
         runner._replay_on_event = events.append
         assert not hasattr(runner, "_test_emitted")
-        runner._emit_once_per_symbol("_test_emitted", "RELIANCE", {"type": "test"})
+        runner._emit_once_per_symbol("_test_emitted", 1, "RELIANCE", {"type": "test"})
         assert hasattr(runner, "_test_emitted")
         assert isinstance(runner._test_emitted, set)
-        assert "RELIANCE" in runner._test_emitted
+        assert (1, "RELIANCE") in runner._test_emitted
 
 
 # ============================================================================
@@ -1737,8 +1715,7 @@ class TestInitCommonFields:
     def test_default_values(self):
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner._init_common_fields()
         assert runner.snapshot_file == Path("/dev/null")
@@ -1754,8 +1731,7 @@ class TestInitCommonFields:
     def test_custom_snapshot_file(self):
         from trading.runner_core import MultiStrategyRunner
 
-        with patch.object(MultiStrategyRunner, '_load_bot_config', return_value=_make_bot_config()):
-            runner = MultiStrategyRunner.create_for_replay(bot_config_id=1, user_id=1)
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner._init_common_fields(snapshot_file=Path("/tmp/test.json"))
         assert runner.snapshot_file == Path("/tmp/test.json")

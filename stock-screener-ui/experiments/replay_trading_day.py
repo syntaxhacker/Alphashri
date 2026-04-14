@@ -289,6 +289,8 @@ def _build_52w_data(df_daily: pd.DataFrame, date_str: str) -> Optional[dict]:
     current_price = float(closes[-1])
     window_252 = highs[-252:] if len(highs) >= 252 else highs
     high_52w = max(window_252)
+    window_252_lows = df_daily["low"].tolist()
+    low_52w = min(window_252_lows[-252:]) if len(window_252_lows) >= 252 else min(window_252_lows)
     daily_highs = highs[-252:] if len(highs) >= 252 else highs
     avg_volume_20d = float(sum(volumes[-20:]) / len(volumes[-20:])) if len(volumes) >= 20 else None
     ma50 = float(sum(closes[-50:]) / 50) if len(closes) >= 50 else None
@@ -296,6 +298,7 @@ def _build_52w_data(df_daily: pd.DataFrame, date_str: str) -> Optional[dict]:
     return {
         "current_price": current_price,
         "high_52w": float(high_52w),
+        "low_52w": float(low_52w),
         "daily_highs": daily_highs,
         "daily_closes": closes,
         "volume": float(volumes[-1]) if volumes else 0,
@@ -687,7 +690,7 @@ def _do_replay(
             d52 = all_daily[sym]
             if d52 and d52.get("high_52w"):
                 on_event({"type": "52w_high", "strategy": "52W Chaser", "symbol": sym,
-                              "high_52w": d52["high_52w"]})
+                          "high_52w": d52["high_52w"], "low_52w": d52.get("low_52w", 0)})
 
     total_candles = len(all_candles)
     candle_count = 0

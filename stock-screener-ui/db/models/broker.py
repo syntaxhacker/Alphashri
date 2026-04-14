@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Float, ForeignKey, UniqueConstraint
@@ -108,12 +108,12 @@ def save_broker_token(broker_name: str, access_token: str, user_id: Optional[int
         ).first()
         if connection:
             connection.access_token = access_token
-            connection.token_timestamp = datetime.utcnow()
+            connection.token_timestamp = datetime.now(timezone.utc)
         else:
             connection = BrokerConnection(
                 broker_name=broker_name,
                 access_token=access_token,
-                token_timestamp=datetime.utcnow(),
+                token_timestamp=datetime.now(timezone.utc),
                 user_id=user_id
             )
             db.add(connection)

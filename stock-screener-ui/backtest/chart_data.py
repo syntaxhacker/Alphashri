@@ -6,7 +6,12 @@ Converts backtest results to ECharts-compatible format for visualization.
 
 from datetime import datetime
 from typing import Dict, List, Optional, Union
+from pathlib import Path
+import sys
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import config
 
 
 def format_candle_data(candle_data: Union[pd.DataFrame, Dict]) -> List[Dict]:
@@ -35,11 +40,10 @@ def format_candle_data(candle_data: Union[pd.DataFrame, Dict]) -> List[Dict]:
 
         for i in range(len(indices)):
             try:
-                # Parse time string (already in IST)
                 time_str = indices[i]
-                # Handle various formats: "2025-10-24T09:15:00" or "2025-10-24T09:15:00+00:00"
-                clean_time = time_str.replace('Z', '').replace('+00:00', '')
-                dt = datetime.fromisoformat(clean_time)
+                dt = datetime.fromisoformat(time_str)
+                if dt.tzinfo is not None:
+                    dt = dt.astimezone(config.IST).replace(tzinfo=None)
 
                 candles.append({
                     'time': dt.isoformat(),
@@ -58,11 +62,9 @@ def format_candle_data(candle_data: Union[pd.DataFrame, Dict]) -> List[Dict]:
 
     # Handle DataFrame format
     for idx, row in candle_data.iterrows():
-        # Time is already in IST, just format it
         dt = idx
-        if hasattr(dt, 'tz_localize') and dt.tz is not None:
-            # Strip timezone if present
-            dt = dt.tz_localize(None)
+        if hasattr(dt, 'tz_convert') and dt.tz is not None:
+            dt = dt.tz_convert(config.IST).replace(tzinfo=None)
 
         candles.append({
             'time': dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
@@ -332,8 +334,9 @@ def calculate_52w_high_series(candles_df: pd.DataFrame, period: int = 252) -> Li
         levels = []
         for i, idx in enumerate(indices):
             try:
-                time_str = str(idx).replace('Z', '').replace('+00:00', '')
-                dt = datetime.fromisoformat(time_str)
+                dt = datetime.fromisoformat(str(idx))
+                if dt.tzinfo is not None:
+                    dt = dt.astimezone(config.IST).replace(tzinfo=None)
                 levels.append({
                     'date': dt.strftime('%Y-%m-%d'),
                     'date_raw': dt.strftime('%Y-%m-%d'),
@@ -350,8 +353,8 @@ def calculate_52w_high_series(candles_df: pd.DataFrame, period: int = 252) -> Li
     levels = []
     for idx, row in candles_df.iterrows():
         dt = idx
-        if hasattr(dt, 'tz_localize') and dt.tz is not None:
-            dt = dt.tz_localize(None)
+        if hasattr(dt, 'tz_convert') and dt.tz is not None:
+            dt = dt.tz_convert(config.IST).replace(tzinfo=None)
 
         date_str = dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt)[:10]
         levels.append({

@@ -55,6 +55,13 @@ erDiagram
     llmruns {
         Integer id PK
     }
+    marketholidays {
+        Integer id PK
+        Date date
+        String description
+        String type
+        DateTime created_at
+    }
     newsarticles {
         Integer id PK
         String url
@@ -234,6 +241,17 @@ erDiagram
 | *(Index: `ix_llm_runs_created_at` on created_at)* | | | |
 | *(Index: `ix_llm_runs_model` on model)* | | | |
 | *(Index: `ix_llm_runs_status` on status)* | | | |
+
+### market_holidays
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| date | Date | No | UNIQUE |
+| description | String | No | - |
+| type | String | No | - |
+| created_at | DateTime | No | - |
+| *(Unique: `uq_market_holiday_date` on date)* | | | |
 
 ### news_articles
 

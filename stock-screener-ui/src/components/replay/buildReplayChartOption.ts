@@ -9,6 +9,12 @@ import type {
   ReplayChartOptions,
 } from "../../types/replay";
 
+function parseTimeToHHMM(isoTime: string): string {
+  if (isoTime.includes("T")) return isoTime.split("T")[1].substring(0, 5);
+  if (isoTime.includes(" ")) return isoTime.split(" ")[1].substring(0, 5);
+  return isoTime.substring(0, 5);
+}
+
 interface EMAData {
   ema_fast_period: number;
   ema_slow_period: number;
@@ -26,6 +32,8 @@ export function buildReplayChartOption(
   isDark: boolean,
   chartOptions?: ReplayChartOptions,
   highlightedTradeId?: number | null,
+  rawCandles?: ReplayCandle[],
+  activeTF?: number,
 ): Record<string, unknown> {
   if (!candles || candles.length === 0) return {};
 
@@ -38,7 +46,7 @@ export function buildReplayChartOption(
   });
 
   const ohlcData = candles.map((c) => [c.open, c.close, c.low, c.high]);
-  const volumeData = candles.map((c) => c.volume);
+  const volumeData = candles.map((c, i) => [i, c.volume, c.close >= c.open ? 1 : -1]);
 
   const timeToIndex = new Map<string, number>();
   const sortedTimes: string[] = [];
@@ -66,9 +74,24 @@ export function buildReplayChartOption(
     return sortedTimes.length > 0 ? 0 : undefined;
   }
 
-  const showEntry = chartOptions?.show_entry_markers !== false;
-  const showExit = chartOptions?.show_exit_markers !== false;
-  const showAll = chartOptions?.show_all_trades !== false;
+  function map1mIndex(index1m: number): number {
+    if (!rawCandles || !rawCandles.length || activeTF === undefined || activeTF <= 1)
+      return index1m;
+    const clamped = Math.max(0, Math.min(index1m, rawCandles.length - 1));
+    const timeStr = rawCandles[clamped].time;
+    const hhmm = timeStr.includes(" ")
+      ? timeStr.split(" ")[1].substring(0, 5)
+      : timeStr.substring(0, 5);
+    let best = -1;
+    for (let i = 0; i < times.length; i++) {
+      if (times[i] <= hhmm) best = i;
+      else break;
+    }
+    return best >= 0 ? best : 0;
+  }
+
+  const showMarkers = true;
+  const showAll = chartOptions?.show_all_trades === true;
 
   // Filter trades based on options
   const displayedTrades = showAll
@@ -82,16 +105,10 @@ export function buildReplayChartOption(
   const forceMarkers: any[] = [];
 
   for (const trade of displayedTrades) {
-    const entryTime = trade.entry_time.includes(" ")
-      ? trade.entry_time.split(" ")[1]
-      : trade.entry_time;
-    const exitTime = trade.exit_time.includes(" ")
-      ? trade.exit_time.split(" ")[1]
-      : trade.exit_time;
-    const entryIdx = findCandleIdx(entryTime.substring(0, 5));
-    const exitIdx = findCandleIdx(exitTime.substring(0, 5));
+    const entryIdx = findCandleIdx(parseTimeToHHMM(trade.entry_time));
+    const exitIdx = findCandleIdx(parseTimeToHHMM(trade.exit_time));
 
-    if (entryIdx !== undefined && showEntry) {
+    if (entryIdx !== undefined && showMarkers) {
       const isHighlighted = highlightedTradeId != null && trade.id === highlightedTradeId;
       entryMarkers.push({
         value: [entryIdx, trade.entry_price],
@@ -120,7 +137,7 @@ export function buildReplayChartOption(
       });
     }
 
-    if (exitIdx !== undefined && showExit) {
+    if (exitIdx !== undefined && showMarkers) {
       const isHighlighted = highlightedTradeId != null && trade.id === highlightedTradeId;
       const exitMarker: any = {
         value: [exitIdx, trade.exit_price],
@@ -221,54 +238,104 @@ export function buildReplayChartOption(
     });
   }
 
-  function getTradeTimeRange(strategy: string): [number, number] | null {
-    const stratTrades = displayedTrades.filter((t) => t.strategy === strategy);
-    if (stratTrades.length === 0) return null;
-    let minEntry = Infinity;
-    let maxExit = -Infinity;
-    for (const t of stratTrades) {
-      const et = t.entry_time.includes(" ") ? t.entry_time.split(" ")[1] : t.entry_time;
-      const xt = t.exit_time.includes(" ") ? t.exit_time.split(" ")[1] : t.exit_time;
-      const ei = findCandleIdx(et.substring(0, 5));
-      const xi = findCandleIdx(xt.substring(0, 5));
-      if (ei !== undefined && ei < minEntry) minEntry = ei;
-      if (xi !== undefined && xi > maxExit) maxExit = xi;
-    }
-    if (minEntry === Infinity) return null;
-    return [minEntry, maxExit === -Infinity ? minEntry : maxExit];
-  }
-
-  if (chartOptions?.show_orb_zones !== false) {
+  if (chartOptions?.show_orb_zones === true) {
     for (const or of orLevels) {
-      const range = getTradeTimeRange(or.strategy);
-      if (!range) continue;
-      buildOverlayLine(`OR High (${or.strategy})`, "#2196F3", or.or_high, 0, range[1]);
-      buildOverlayLine(`OR Low (${or.strategy})`, "#2196F3", or.or_low, 0, range[1]);
+      buildOverlayLine(
+        `OR High (${or.strategy})`,
+        "#2196F3",
+        or.or_high,
+        map1mIndex(or.from_index),
+        map1mIndex(or.to_index),
+      );
+      buildOverlayLine(
+        `OR Low (${or.strategy})`,
+        "#2196F3",
+        or.or_low,
+        map1mIndex(or.from_index),
+        map1mIndex(or.to_index),
+      );
     }
   }
 
-  if (chartOptions?.show_pivot_levels !== false) {
+  if (chartOptions?.show_pivot_levels === true) {
     for (const piv of pivotLevels) {
-      const range = getTradeTimeRange(piv.strategy);
-      if (!range) continue;
-      buildOverlayLine(`R2 (${piv.strategy})`, "#EF5350", piv.r2, 0, range[1], true);
-      buildOverlayLine(`R1 (${piv.strategy})`, "#EF5350", piv.r1, 0, range[1]);
-      buildOverlayLine(`PP (${piv.strategy})`, "#AB47BC", piv.pp, 0, range[1], true);
-      buildOverlayLine(`S1 (${piv.strategy})`, "#26A69A", piv.s1, 0, range[1]);
-      buildOverlayLine(`S2 (${piv.strategy})`, "#26A69A", piv.s2, 0, range[1], true);
+      buildOverlayLine(
+        `R2 (${piv.strategy})`,
+        "#EF5350",
+        piv.r2,
+        map1mIndex(piv.from_index),
+        map1mIndex(piv.to_index),
+        true,
+      );
+      buildOverlayLine(
+        `R1 (${piv.strategy})`,
+        "#EF5350",
+        piv.r1,
+        map1mIndex(piv.from_index),
+        map1mIndex(piv.to_index),
+      );
+      buildOverlayLine(
+        `PP (${piv.strategy})`,
+        "#AB47BC",
+        piv.pp,
+        map1mIndex(piv.from_index),
+        map1mIndex(piv.to_index),
+      );
+      buildOverlayLine(
+        `S1 (${piv.strategy})`,
+        "#26A69A",
+        piv.s1,
+        map1mIndex(piv.from_index),
+        map1mIndex(piv.to_index),
+      );
+      buildOverlayLine(
+        `S2 (${piv.strategy})`,
+        "#26A69A",
+        piv.s2,
+        map1mIndex(piv.from_index),
+        map1mIndex(piv.to_index),
+        true,
+      );
     }
   }
 
-  if (chartOptions?.show_52w_high !== false) {
+  if (chartOptions?.show_52w_high === true) {
     for (const h52 of high52wLevels) {
-      const range = getTradeTimeRange(h52.strategy);
-      if (!range) continue;
-      buildOverlayLine(`52W High (${h52.strategy})`, "#E91E63", h52.high_52w, 0, range[1]);
+      buildOverlayLine(
+        `52W High (${h52.strategy})`,
+        "#E91E63",
+        h52.high_52w,
+        map1mIndex(h52.from_index),
+        map1mIndex(h52.to_index),
+      );
+      if (h52.low_52w > 0) {
+        buildOverlayLine(
+          `52W Low (${h52.strategy})`,
+          "#9C27B0",
+          h52.low_52w,
+          map1mIndex(h52.from_index),
+          map1mIndex(h52.to_index),
+          true,
+        );
+      }
     }
   }
 
-  const showEma = chartOptions?.show_ema !== false;
-  const tradeStrategiesSet = new Set(displayedTrades.map((t) => t.strategy));
+  const showEma = chartOptions?.show_ema === true;
+
+  const orbMarkAreaData: any[] = [];
+  if (chartOptions?.show_orb_zones === true) {
+    for (const or of orLevels) {
+      orbMarkAreaData.push([
+        {
+          xAxis: times[0],
+          yAxis: or.or_low,
+          itemStyle: { color: "rgba(33,150,243,0.15)" },
+        },
+        { xAxis: times[Math.min(8, times.length - 1)], yAxis: or.or_high },
+      ]);
+    }
+  }
 
   const series: any[] = [
     {
@@ -277,6 +344,7 @@ export function buildReplayChartOption(
       data: ohlcData,
       itemStyle: CANDLESTICK_ITEM_STYLE,
       z: 2,
+      ...(orbMarkAreaData.length > 0 ? { markArea: { data: orbMarkAreaData } } : {}),
     },
     {
       name: "Volume",
@@ -284,30 +352,29 @@ export function buildReplayChartOption(
       data: volumeData,
       xAxisIndex: 1,
       yAxisIndex: 1,
-      itemStyle: { color: "rgba(100,100,100,0.3)" },
+      itemStyle: {
+        color: (params: any) =>
+          params.data[2] === 1 ? "rgba(0,230,118,0.5)" : "rgba(255,23,68,0.5)",
+      },
       z: 1,
     },
   ];
 
-  if (
-    showEma &&
-    emaData &&
-    emaData.ema_fast.length > 0 &&
-    emaData.ema_slow.length > 0 &&
-    tradeStrategiesSet.has("EMA Cross")
-  ) {
-    const candleLen = candles.length;
-    const makeData = (arr: number[]) =>
-      arr.length >= candleLen
-        ? arr.slice(0, candleLen)
-        : [...arr, ...Array(candleLen - arr.length).fill(null)];
+  if (showEma && emaData && emaData.ema_fast.length > 0 && emaData.ema_slow.length > 0) {
+    const emaFast =
+      emaData.ema_fast.length > candles.length
+        ? emaData.ema_fast.slice(-candles.length)
+        : emaData.ema_fast;
+    const emaSlow =
+      emaData.ema_slow.length > candles.length
+        ? emaData.ema_slow.slice(-candles.length)
+        : emaData.ema_slow;
     overlaySeries.push(
       {
         name: `EMA ${emaData.ema_fast_period}`,
         type: "line",
-        data: makeData(emaData.ema_fast),
+        data: emaFast,
         showSymbol: false,
-        connectNulls: true,
         smooth: true,
         silent: true,
         z: 5,
@@ -317,9 +384,8 @@ export function buildReplayChartOption(
       {
         name: `EMA ${emaData.ema_slow_period}`,
         type: "line",
-        data: makeData(emaData.ema_slow),
+        data: emaSlow,
         showSymbol: false,
-        connectNulls: true,
         smooth: true,
         silent: true,
         z: 5,
@@ -369,13 +435,9 @@ export function buildReplayChartOption(
     },
     axisPointer: { link: [{ xAxisIndex: "all" }] },
     legend: {
-      data: series.filter((s) => s.data?.length > 0).map((s) => s.name),
-      top: 0,
-      itemWidth: 14,
-      itemHeight: 8,
-      itemGap: 8,
+      data: ["Candlestick", "Entry", "SL", "TP", "EOD"],
+      bottom: 10,
       textStyle: { color: mutedColor, fontSize: theme.fontSizes.xs },
-      type: "scroll",
     },
     grid: [
       { left: "8%", right: "3%", top: "5%", height: "60%" },

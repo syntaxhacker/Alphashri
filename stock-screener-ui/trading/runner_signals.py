@@ -22,15 +22,21 @@ from trading.replay_utils import build_trade_close_event
 class RunnerSignalsMixin:
     """Mixin class providing signal handling and execution methods for MultiStrategyRunner."""
 
-    def _emit_once_per_symbol(self, attr: str, symbol: str, event: dict) -> bool:
+    def _emit_once_per_symbol(self, attr: str, strategy_id: int, symbol: str, event: dict) -> bool:
         if not self.replay_mode or not self._replay_on_event:
             return False
-        if symbol in getattr(self, attr, set()):
+        key = (strategy_id, symbol)
+        if key in getattr(self, attr, set()):
             return False
+        if event.get("type") in ("or_levels", "pivot_levels"):
+            counts = getattr(self, '_replay_symbol_candle_counts', {})
+            n = counts.get(symbol, 0)
+            event["from_index"] = 0
+            event["to_index"] = max(n - 1, 0)
         self._replay_on_event(event)
         if not hasattr(self, attr):
             setattr(self, attr, set())
-        getattr(self, attr).add(symbol)
+        getattr(self, attr).add(key)
         return True
 
     def scan_for_signals(self, strategy_id: int) -> list:
@@ -104,7 +110,7 @@ class RunnerSignalsMixin:
                     prev_data['prev_high'], prev_data['prev_low'], prev_data['prev_close']
                 )
 
-                if self._emit_once_per_symbol('_pivot_levels_emitted', symbol, {
+                if self._emit_once_per_symbol('_pivot_levels_emitted', runner.strategy_id, symbol, {
                     "type": "pivot_levels",
                     "strategy": runner.strategy_name,
                     "symbol": symbol,
@@ -158,7 +164,7 @@ class RunnerSignalsMixin:
                 or_low = or_levels['or_low']
                 or_range_pct = or_levels.get('or_range_pct', 0)
 
-                if self._emit_once_per_symbol('_or_levels_emitted', symbol, {
+                if self._emit_once_per_symbol('_or_levels_emitted', runner.strategy_id, symbol, {
                     "type": "or_levels",
                     "strategy": runner.strategy_name,
                     "symbol": symbol,

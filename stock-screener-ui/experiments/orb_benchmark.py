@@ -3,14 +3,13 @@ import os
 import json
 import pickle
 from pathlib import Path
-from datetime import timezone, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import config
 from backtest.costs import calculate_trading_costs
 
-
-IST = timezone(timedelta(hours=5, minutes=30))
+IST = config.IST
 MKT_OPEN = 9 * 60 + 15
 MKT_CLOSE = 15 * 60 + 30
 
@@ -33,7 +32,7 @@ def simulate_orb(candles_df, params):
     eod_exit_min = params.get('eod_exit_min', 14 * 60 + 45)
 
     if candles_df.index.tz is not None:
-        df_ist = candles_df.index.tz_convert('Asia/Kolkata')
+        df_ist = candles_df.index.tz_convert(IST)
     else:
         df_ist = candles_df.index.tz_localize(IST)
 

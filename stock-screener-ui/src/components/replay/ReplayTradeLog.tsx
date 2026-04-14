@@ -1,6 +1,14 @@
-import { useRef, useEffect, useMemo, useCallback } from "react";
+import { useRef, useEffect, useMemo, useCallback, useState } from "react";
 import { Table, Text, Select, ScrollArea, Group, Badge, Box } from "@mantine/core";
-import { getPnLTextColor, formatTimeOnly } from "../../utils/ui-helpers";
+import {
+  getPnLTextColor,
+  formatTimeOnly,
+  formatDuration,
+  getNextSortDirection,
+  sortByField,
+} from "../../utils/ui-helpers";
+import { SortableHeader } from "../common/SortableHeader";
+import { SideBadge } from "../common/BadgeComponents";
 import type { ReplayTrade } from "../../types/replay";
 
 const EXIT_REASON_COLORS: Record<string, string> = {
@@ -23,6 +31,20 @@ interface ReplayTradeLogProps {
   onTradeClick?: (trade: ReplayTrade) => void;
 }
 
+function formatHoldDuration(entryTime: string, exitTime: string): string {
+  if (!entryTime || !exitTime) return "-";
+  try {
+    const entry = new Date(entryTime);
+    const exit = new Date(exitTime);
+    const diffMs = exit.getTime() - entry.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins <= 0) return "0m";
+    return formatDuration(diffMins);
+  } catch {
+    return "-";
+  }
+}
+
 export function ReplayTradeLog({
   trades,
   strategyFilter,
@@ -32,6 +54,9 @@ export function ReplayTradeLog({
   onTradeClick,
 }: ReplayTradeLogProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [symbolFilter, setSymbolFilter] = useState("ALL");
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const strategyOptions = useMemo(() => {
     const names = new Set(trades.map((t) => t.strategy));
@@ -43,8 +68,29 @@ export function ReplayTradeLog({
     ];
   }, [trades]);
 
-  const filteredTrades =
-    strategyFilter === "ALL" ? trades : trades.filter((t) => t.strategy === strategyFilter);
+  const symbolOptions = useMemo(() => {
+    const symbols = new Set(trades.map((t) => t.symbol));
+    return [
+      { value: "ALL", label: "All Symbols" },
+      ...Array.from(symbols)
+        .sort()
+        .map((s) => ({ value: s, label: s })),
+    ];
+  }, [trades]);
+
+  const filteredTrades = useMemo(() => {
+    let result =
+      strategyFilter === "ALL" ? trades : trades.filter((t) => t.strategy === strategyFilter);
+    if (symbolFilter !== "ALL") {
+      result = result.filter((t) => t.symbol === symbolFilter);
+    }
+    return result;
+  }, [trades, strategyFilter, symbolFilter]);
+
+  const sortedTrades = useMemo(() => {
+    if (!sortField) return filteredTrades;
+    return sortByField(filteredTrades, sortField as keyof ReplayTrade, sortDirection);
+  }, [filteredTrades, sortField, sortDirection]);
 
   useEffect(() => {
     if (isRunning && bottomRef.current) {
@@ -60,6 +106,17 @@ export function ReplayTradeLog({
     },
     [onTradeClick],
   );
+
+  const handleSort = useCallback(
+    (column: string) => {
+      const nextDir = getNextSortDirection(sortField ?? "", column, sortDirection);
+      setSortField(column);
+      setSortDirection(nextDir);
+    },
+    [sortField, sortDirection],
+  );
+
+  const totalColumns = 13;
 
   return (
     <Box
@@ -78,6 +135,14 @@ export function ReplayTradeLog({
           onChange={(v) => setStrategyFilter(v ?? "ALL")}
           allowDeselect={false}
         />
+        <Select
+          size="xs"
+          w={130}
+          data={symbolOptions}
+          value={symbolFilter}
+          onChange={(v) => setSymbolFilter(v ?? "ALL")}
+          allowDeselect={false}
+        />
         <Text size="xs" c="dimmed">
           {filteredTrades.length} trade{filteredTrades.length !== 1 ? "s" : ""}
         </Text>
@@ -94,29 +159,67 @@ export function ReplayTradeLog({
           <Table.Thead>
             <Table.Tr>
               <Table.Th w={30}>#</Table.Th>
-              <Table.Th>Entry</Table.Th>
-              <Table.Th>Exit</Table.Th>
-              <Table.Th>Strategy</Table.Th>
-              <Table.Th>Symbol</Table.Th>
-              <Table.Th>Side</Table.Th>
+              <SortableHeader
+                label="Symbol"
+                columnKey="symbol"
+                sortColumn={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="Side"
+                columnKey="side"
+                sortColumn={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <Table.Th ta="center">Qty</Table.Th>
+              <SortableHeader
+                label="Entry"
+                columnKey="entry_time"
+                sortColumn={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="Exit"
+                columnKey="exit_time"
+                sortColumn={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <Table.Th>Hold</Table.Th>
               <Table.Th ta="right">Entry</Table.Th>
               <Table.Th ta="right">Exit</Table.Th>
-              <Table.Th ta="right">P&L</Table.Th>
-              <Table.Th ta="right">Net</Table.Th>
+              <SortableHeader
+                label="P&L"
+                columnKey="pnl"
+                sortColumn={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="Net"
+                columnKey="net_pnl"
+                sortColumn={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              <Table.Th>Strategy</Table.Th>
               <Table.Th>Reason</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {filteredTrades.length === 0 ? (
+            {sortedTrades.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={10}>
+                <Table.Td colSpan={totalColumns}>
                   <Text c="dimmed" ta="center" py="md">
                     No trades yet
                   </Text>
                 </Table.Td>
               </Table.Tr>
             ) : (
-              filteredTrades.map((trade, idx) => (
+              sortedTrades.map((trade, idx) => (
                 <Table.Tr
                   key={trade.id}
                   onClick={() => handleRowClick(trade)}
@@ -128,22 +231,25 @@ export function ReplayTradeLog({
                     </Text>
                   </Table.Td>
                   <Table.Td>
+                    <Text size="xs" fw={500}>
+                      {trade.symbol}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <SideBadge side={trade.side} size="xs" />
+                  </Table.Td>
+                  <Table.Td ta="center">
+                    <Text size="xs">{trade.quantity}</Text>
+                  </Table.Td>
+                  <Table.Td>
                     <Text size="xs">{formatTimeOnly(trade.entry_time)}</Text>
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs">{trade.exit_time ? formatTimeOnly(trade.exit_time) : "-"}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">{trade.strategy}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" fw={500}>
-                      {trade.symbol}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" c={trade.side === "BUY" ? "green" : "red"} fw={500}>
-                      {trade.side}
+                    <Text size="xs" c="dimmed">
+                      {formatHoldDuration(trade.entry_time, trade.exit_time)}
                     </Text>
                   </Table.Td>
                   <Table.Td ta="right">
@@ -163,6 +269,9 @@ export function ReplayTradeLog({
                       {trade.net_pnl >= 0 ? "+" : ""}
                       {trade.net_pnl.toFixed(2)}
                     </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs">{trade.strategy}</Text>
                   </Table.Td>
                   <Table.Td>
                     <Badge size="xs" color={getExitBadgeColor(trade.exit_reason)} variant="light">

@@ -1,0 +1,2 @@
+{"type":"config","name":"ORB Profit Factor","metricName":"profit_factor","metricUnit":"","bestDirection":"higher"}
+{"run":1,"commit":"9a5354b","metric":1.25,"metrics":{"win_rate":18.8,"net_pnl":92,"total_trades":16,"wins":3,"losses":11,"tp_exits":0,"sl_exits":14,"eod_exits":2,"stocks_with_trades":0},"status":"keep","description":"baseline: or_min=45 sl=0.4 tp=1.2 buffer=0.3 shorts=0 cooldown=3","timestamp":1775765219,"segment":0}

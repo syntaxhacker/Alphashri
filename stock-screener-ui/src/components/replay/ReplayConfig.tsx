@@ -1,7 +1,16 @@
-import { useMemo } from "react";
-import { Group, Box, Text, TextInput, Select, Button, Switch, Loader } from "@mantine/core";
-import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
+import { useEffect, useMemo, useState } from "react";
+import { Group, Box, Text, TextInput, Select, Button, Switch, Loader, Alert } from "@mantine/core";
+import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle } from "@tabler/icons-react";
+import { listBots } from "../../api/bots";
+import type { BotConfig } from "../../types/bots";
 import type { ReplayConfig as ReplayConfigType } from "../../types/replay";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import {
+  getHolidayState,
+  subscribeToHolidays,
+  loadHolidays,
+  isTradingHoliday,
+} from "../../state/holidays";
 
 const STRATEGY_OPTIONS = [
   { value: "ALL", label: "All Strategies" },
@@ -28,7 +37,10 @@ interface ReplayConfigProps {
 function getMaxDate(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
-  return d.toISOString().split("T")[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export function ReplayConfigBar({
@@ -40,90 +52,151 @@ export function ReplayConfigBar({
   reset,
 }: ReplayConfigProps) {
   const maxDate = useMemo(() => getMaxDate(), []);
+  const [bots, setBots] = useState<BotConfig[]>([]);
+  const [holidayWarning, setHolidayWarning] = useState<string | null>(null);
+  const botOptions = useMemo(() => bots.map((b) => ({ value: b.uuid, label: b.name })), [bots]);
+
+  useStoreSubscription(subscribeToHolidays);
+  const holidayState = getHolidayState();
+
+  useEffect(() => {
+    listBots()
+      .then(setBots)
+      .catch(() => {});
+    loadHolidays(2026);
+  }, []);
+
+  useEffect(() => {
+    if (!config.date) {
+      setHolidayWarning(null);
+      return;
+    }
+    if (isTradingHoliday(config.date)) {
+      const h = holidayState.holidays.find((h) => h.date === config.date);
+      setHolidayWarning(h ? `${h.description} — market closed` : "Trading holiday — market closed");
+    } else {
+      setHolidayWarning(null);
+    }
+  }, [config.date, holidayState.holidays]);
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = e.currentTarget.value;
+    if (isTradingHoliday(newDate)) {
+      return;
+    }
+    setConfig({ date: newDate });
+  };
 
   return (
-    <Group gap="sm" wrap="wrap" data-testid="replay-config">
-      <Box>
-        <Text size="xs" fw={500} mb={2}>
-          Date
-        </Text>
-        <TextInput
-          type="date"
-          size="sm"
-          w={160}
-          max={maxDate}
-          value={config.date}
-          onChange={(e) => setConfig({ date: e.currentTarget.value })}
-        />
-      </Box>
+    <Box>
+      <Group gap="sm" wrap="wrap" data-testid="replay-config">
+        <Box>
+          <Text size="xs" fw={500} mb={2}>
+            Bot
+          </Text>
+          <Select
+            size="sm"
+            w={180}
+            data={botOptions}
+            value={config.bot_uuid || null}
+            onChange={(v) => setConfig({ bot_uuid: v ?? "" })}
+            allowDeselect
+            clearable
+            searchable
+            placeholder="Default bot"
+          />
+        </Box>
 
-      <Box>
-        <Text size="xs" fw={500} mb={2}>
-          Strategy
-        </Text>
-        <Select
-          size="sm"
-          w={160}
-          data={STRATEGY_OPTIONS}
-          value={config.strategy}
-          onChange={(v) => setConfig({ strategy: v ?? "ALL" })}
-          allowDeselect={false}
-        />
-      </Box>
+        <Box>
+          <Text size="xs" fw={500} mb={2}>
+            Date
+          </Text>
+          <TextInput
+            type="date"
+            size="sm"
+            w={160}
+            max={maxDate}
+            value={config.date}
+            onChange={handleDateChange}
+          />
+        </Box>
 
-      <Box>
-        <Text size="xs" fw={500} mb={2}>
-          Symbols
-        </Text>
-        <Select
-          size="sm"
-          w={180}
-          data={SYMBOL_OPTIONS}
-          value={config.symbols ?? "DEFAULT"}
-          onChange={(v) => setConfig({ symbols: v })}
-          creatable
-          allowDeselect={false}
-          searchable
-        />
-      </Box>
+        <Box>
+          <Text size="xs" fw={500} mb={2}>
+            Strategy
+          </Text>
+          <Select
+            size="sm"
+            w={160}
+            data={STRATEGY_OPTIONS}
+            value={config.strategy}
+            onChange={(v) => setConfig({ strategy: v ?? "ALL" })}
+            allowDeselect={false}
+          />
+        </Box>
 
-      <Box>
-        <Text size="xs" fw={500} mb={2}>
-          Refresh Cache
-        </Text>
-        <Switch
-          size="sm"
-          checked={config.refresh_cache}
-          onChange={(e) => setConfig({ refresh_cache: e.currentTarget.checked })}
-        />
-      </Box>
+        <Box>
+          <Text size="xs" fw={500} mb={2}>
+            Symbols
+          </Text>
+          <Select
+            size="sm"
+            w={180}
+            data={SYMBOL_OPTIONS}
+            value={config.symbols ?? "DEFAULT"}
+            onChange={(v) => setConfig({ symbols: v })}
+            creatable
+            allowDeselect={false}
+            searchable
+          />
+        </Box>
 
-      {isRunning ? (
-        <Button
-          size="sm"
-          color="red"
-          variant="light"
-          leftSection={<IconPlayerStop size={16} />}
-          onClick={stopReplay}
-        >
-          Stop
-        </Button>
-      ) : (
-        <Button
-          size="sm"
-          leftSection={isRunning ? <Loader size={14} type="dots" /> : <IconPlayerPlay size={16} />}
-          disabled={!config.date}
-          onClick={startReplay}
-        >
-          Run Replay
-        </Button>
+        <Box>
+          <Text size="xs" fw={500} mb={2}>
+            Refresh Cache
+          </Text>
+          <Switch
+            size="sm"
+            checked={config.refresh_cache}
+            onChange={(e) => setConfig({ refresh_cache: e.currentTarget.checked })}
+          />
+        </Box>
+
+        {isRunning ? (
+          <Button
+            size="sm"
+            color="red"
+            variant="light"
+            leftSection={<IconPlayerStop size={16} />}
+            onClick={stopReplay}
+          >
+            Stop
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            leftSection={
+              isRunning ? <Loader size={14} type="dots" /> : <IconPlayerPlay size={16} />
+            }
+            disabled={!config.date}
+            onClick={startReplay}
+          >
+            Run Replay
+          </Button>
+        )}
+
+        {!isRunning && config.date && (
+          <Button size="sm" variant="subtle" color="gray" onClick={reset}>
+            Reset
+          </Button>
+        )}
+      </Group>
+
+      {holidayWarning && (
+        <Alert mt="xs" color="orange" icon={<IconAlertTriangle size={16} />} p="xs">
+          <Text size="xs">{holidayWarning}</Text>
+        </Alert>
       )}
-
-      {!isRunning && config.date && (
-        <Button size="sm" variant="subtle" color="gray" onClick={reset}>
-          Reset
-        </Button>
-      )}
-    </Group>
+    </Box>
   );
 }

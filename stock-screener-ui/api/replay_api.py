@@ -20,14 +20,28 @@ class ReplayRequest(BaseModel):
     strategy: str = "ALL"
     symbols: Optional[str] = None
     refresh_cache: bool = False
-    bot_config_id: int = 1
+    bot_uuid: Optional[str] = None
 
 
 def _load_symbols(symbols_arg: Optional[str]) -> list[str]:
     if symbols_arg == "DEFAULT" or not symbols_arg:
-        return DEFAULT_WATCHLIST
+        return _get_dynamic_watchlist()
     if symbols_arg:
         return [s.strip().upper() for s in symbols_arg.split(",") if s.strip()]
+    return _get_dynamic_watchlist()
+
+
+def _get_dynamic_watchlist() -> list[str]:
+    """Get watchlist from TV screener, fallback to DEFAULT_WATCHLIST."""
+    try:
+        from orb_stock_screener import ORBStockScreener
+        screener = ORBStockScreener(use_relaxed=True)
+        df = screener.screen(limit=50, verify_nse=True)
+        if df is not None and not df.empty:
+            symbols = df['name'].tolist()[:50]
+            return [s.upper() for s in symbols]
+    except Exception:
+        pass
     return DEFAULT_WATCHLIST
 
 
@@ -50,10 +64,11 @@ async def run_replay(request: ReplayRequest):
             from trading.runner_core import MultiStrategyRunner
 
             symbols = _load_symbols(request.symbols)
-            runner = MultiStrategyRunner.create_for_replay(
-                bot_config_id=request.bot_config_id,
-                user_id=request.bot_config_id,
-            )
+            if request.bot_uuid:
+                bot_config = MultiStrategyRunner._load_bot_config_by_uuid(request.bot_uuid)
+            else:
+                bot_config = MultiStrategyRunner._load_bot_config(1)
+            runner = MultiStrategyRunner.create_for_replay(bot_config=bot_config)
             runner.watchlist = symbols
             runner.run_replay(
                 date_str=request.date,
@@ -94,5 +109,5 @@ async def run_replay(request: ReplayRequest):
 
 @router.get("/symbols")
 async def get_available_symbols():
-    """Return the default watchlist of symbols available for replay."""
-    return {"symbols": DEFAULT_WATCHLIST}
+    """Return the watchlist of symbols available for replay."""
+    return {"symbols": _get_dynamic_watchlist()}

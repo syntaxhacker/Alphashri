@@ -308,6 +308,13 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load news charts API: {e}")
 
+try:
+    from api.holidays import router as holidays_router
+    app.include_router(holidays_router)
+    print("✅ Holidays API loaded at /api/holidays")
+except Exception as e:
+    print(f"⚠️ Could not load holidays API: {e}")
+
 # ======
 # Router includes — new modules
 # ======

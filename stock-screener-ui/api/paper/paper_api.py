@@ -67,7 +67,7 @@ def _load_fresh_bot_snapshot(max_age_seconds: int = 300, user_id: Optional[int] 
         ts = data.get("timestamp")
         if ts:
             try:
-                age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+                age = (datetime.now(config.IST) - datetime.fromisoformat(ts)).total_seconds()
                 if age > max_age_seconds:
                     return None
             except Exception:
