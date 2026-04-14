@@ -1,5 +1,5 @@
 import { useRef, useEffect, useMemo, useCallback, useState } from "react";
-import { Table, Text, Select, ScrollArea, Group, Badge, Box } from "@mantine/core";
+import { Table, Text, Select, ScrollArea, Group, Badge, Box, Anchor } from "@mantine/core";
 import {
   getPnLTextColor,
   formatTimeOnly,
@@ -271,7 +271,13 @@ export function ReplayTradeLog({
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">{trade.strategy}</Text>
+                    <Anchor
+                      component="button"
+                      size="xs"
+                      onClick={() => setStrategyFilter(trade.strategy)}
+                    >
+                      {trade.strategy}
+                    </Anchor>
                   </Table.Td>
                   <Table.Td>
                     <Badge size="xs" color={getExitBadgeColor(trade.exit_reason)} variant="light">

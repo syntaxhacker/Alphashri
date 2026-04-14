@@ -1,4 +1,4 @@
-import { Table, Group, Text, ActionIcon, Badge, Tooltip } from "@mantine/core";
+import { Table, Group, Text, ActionIcon, Badge, Tooltip, Anchor } from "@mantine/core";
 import { IconEdit, IconTrash, IconCheck, IconAlertCircle } from "@tabler/icons-react";
 import type { StrategiesListProps } from "./types";
 import { CompactPanel } from "../common/compact";
@@ -84,9 +84,9 @@ export function StrategiesList({
               <IconCheck size={14} color="var(--mantine-color-teal-5)" />
             </Tooltip>
           )}
-          <Text fw={500} size="sm">
+          <Anchor component="button" size="sm" fw={500} onClick={() => onEdit(strategy)}>
             {strategy.name}
-          </Text>
+          </Anchor>
         </Group>
       </Table.Td>
       <Table.Td>

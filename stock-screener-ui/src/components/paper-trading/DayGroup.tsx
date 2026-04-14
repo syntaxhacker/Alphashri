@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import { Collapse, Table, Badge, Text, Group, Flex, ActionIcon } from "@mantine/core";
+import { Collapse, Table, Badge, Text, Group, Flex, ActionIcon, Anchor } from "@mantine/core";
 import type { PaperTrade } from "../../types/paperTrading";
 import {
   formatNumber,
@@ -11,6 +11,7 @@ import {
 } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
 import { SortableHeader } from "../common/SortableHeader";
+import { setFilterStrategy, setFilterBot } from "../../state/paperTrading";
 
 interface DayGroupProps {
   date: string;
@@ -132,8 +133,30 @@ function TradeRow({
           ₹{formatNumber(trade.net_pnl)}
         </Text>
       </Table.Td>
-      <Table.Td>{trade.bot_name || "-"}</Table.Td>
-      <Table.Td>{trade.strategy_name || "default"}</Table.Td>
+      <Table.Td>
+        <Anchor
+          component="button"
+          size="xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            setFilterBot(trade.bot_id || null);
+          }}
+        >
+          {trade.bot_name || "-"}
+        </Anchor>
+      </Table.Td>
+      <Table.Td>
+        <Anchor
+          component="button"
+          size="xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            setFilterStrategy(trade.strategy_name || null);
+          }}
+        >
+          {trade.strategy_name || "default"}
+        </Anchor>
+      </Table.Td>
       <Table.Td>
         <ExitReasonBadge reason={trade.exit_reason} />
       </Table.Td>
