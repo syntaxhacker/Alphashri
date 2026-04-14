@@ -1,19 +1,17 @@
 import { useReplayState } from "../../hooks/useReplayState";
 import { ReplayConfigBar } from "./ReplayConfig";
 import { ReplayStats } from "./ReplayStats";
-import { ReplayChart } from "./ReplayChart";
-import { ReplayTradeLog } from "./ReplayTradeLog";
+import { ReplayMainView } from "./ReplayMainView";
+import { ReplayPositions } from "./ReplayPositions";
 import { ReplaySummaryPanel } from "./ReplaySummary";
-import { Stack, Box, Text, Title, Flex } from "@mantine/core";
-import { useRef } from "react";
+import { Stack, Box, Text, Title } from "@mantine/core";
+import { useEffect, useRef } from "react";
 import type { ReplayTrade } from "../../types/replay";
 
-export function ReplayPage() {
-  const state = useReplayState();
-  const chartRef = useRef<{ zoomToTrade: (entryTime: string, exitTime: string) => void } | null>(
-    null,
-  );
-
+function useAutoSelectTrade(
+  state: ReturnType<typeof useReplayState>,
+  chartRef: React.RefObject<{ zoomToTrade: (entryTime: string, exitTime: string) => void } | null>,
+) {
   const handleTradeClick = (trade: ReplayTrade) => {
     state.setSelectedSymbol(trade.symbol);
     state.setHighlightedTrade(trade.id);
@@ -22,6 +20,20 @@ export function ReplayPage() {
     }, 200);
   };
 
+  useEffect(() => {
+    if (!state.isRunning && state.trades.length > 0 && !state.highlightedTradeId) {
+      handleTradeClick(state.trades[0]);
+    }
+  }, [state.isRunning, state.trades.length]);
+
+  return handleTradeClick;
+}
+
+function ReplayPageContent(
+  state: ReturnType<typeof useReplayState>,
+  chartRef: React.RefObject<{ zoomToTrade: (entryTime: string, exitTime: string) => void } | null>,
+  handleTradeClick: (trade: ReplayTrade) => void,
+) {
   return (
     <Stack
       gap="sm"
@@ -62,45 +74,36 @@ export function ReplayPage() {
           trades={state.trades}
         />
       </Box>
-      <Box flex="0 0 auto" style={{ height: 500, minHeight: 400 }}>
-        <Flex gap="sm" h="100%">
-          <Box style={{ flex: "0 0 60%", minHeight: 0 }}>
-            <ReplayChart
-              ref={chartRef}
-              candlesBySymbol={state.candlesBySymbol}
-              trades={state.trades}
-              orLevels={state.orLevels}
-              pivotLevels={state.pivotLevels}
-              high52wLevels={state.high52wLevels}
-              emaData={state.emaData}
-              selectedSymbol={state.selectedSymbol}
-              setSelectedSymbol={state.setSelectedSymbol}
-              chartOptions={state.chartOptions}
-              setChartOptions={state.setChartOptions}
-              highlightedTradeId={state.highlightedTradeId}
-              onTradeClick={(tradeId) => {
-                const trade = state.trades.find((t) => t.id === tradeId);
-                if (trade) {
-                  state.setHighlightedTrade(tradeId);
-                  setTimeout(() => {
-                    chartRef.current?.zoomToTrade(trade.entry_time, trade.exit_time);
-                  }, 100);
-                }
-              }}
-            />
-          </Box>
-          <Box style={{ flex: "1 1 40%", minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <ReplayTradeLog
-              trades={state.trades}
-              strategyFilter={state.strategyFilter}
-              setStrategyFilter={state.setStrategyFilter}
-              isRunning={state.isRunning}
-              highlightedTradeId={state.highlightedTradeId}
-              onTradeClick={handleTradeClick}
-            />
-          </Box>
-        </Flex>
-      </Box>
+      {state.openPositions.length > 0 && (
+        <Box flex="0 0 auto">
+          <ReplayPositions positions={state.openPositions} />
+        </Box>
+      )}
+      <ReplayMainView
+        candlesBySymbol={state.candlesBySymbol}
+        trades={state.trades}
+        orLevels={state.orLevels}
+        pivotLevels={state.pivotLevels}
+        high52wLevels={state.high52wLevels}
+        emaData={state.emaData}
+        selectedSymbol={state.selectedSymbol}
+        setSelectedSymbol={state.setSelectedSymbol}
+        chartOptions={state.chartOptions}
+        setChartOptions={state.setChartOptions}
+        highlightedTradeId={state.highlightedTradeId}
+        strategyFilter={state.strategyFilter}
+        setStrategyFilter={state.setStrategyFilter}
+        isRunning={state.isRunning}
+        chartRef={chartRef}
+        onTradeClick={(tradeId) => {
+          const trade = state.trades.find((t) => t.id === tradeId);
+          if (trade) {
+            state.setHighlightedTrade(tradeId);
+            setTimeout(() => chartRef.current?.zoomToTrade(trade.entry_time, trade.exit_time), 100);
+          }
+        }}
+        onTradeRowClick={handleTradeClick}
+      />
       {state.summary && (
         <Box flex="0 0 auto">
           <ReplaySummaryPanel summary={state.summary} />
@@ -108,4 +111,13 @@ export function ReplayPage() {
       )}
     </Stack>
   );
+}
+
+export function ReplayPage() {
+  const state = useReplayState();
+  const chartRef = useRef<{ zoomToTrade: (entryTime: string, exitTime: string) => void } | null>(
+    null,
+  );
+  const handleTradeClick = useAutoSelectTrade(state, chartRef);
+  return ReplayPageContent(state, chartRef, handleTradeClick);
 }
