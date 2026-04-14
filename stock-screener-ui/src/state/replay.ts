@@ -128,35 +128,19 @@ export function addCandles(symbol: string, candles: ReplayCandle[]) {
 }
 
 export function addORLevels(levels: ReplayORLevels) {
-  const exists = state.orLevels.length > 0;
   update({ orLevels: [...state.orLevels, levels] });
-  if (!exists) {
-    update({ chartOptions: { ...state.chartOptions, show_orb_zones: true } });
-  }
 }
 
 export function addPivotLevels(levels: ReplayPivotLevels) {
-  const exists = state.pivotLevels.length > 0;
   update({ pivotLevels: [...state.pivotLevels, levels] });
-  if (!exists) {
-    update({ chartOptions: { ...state.chartOptions, show_pivot_levels: true } });
-  }
 }
 
 export function add52WLevel(level: Replay52WLevel) {
-  const exists = state.high52wLevels.length > 0;
   update({ high52wLevels: [...state.high52wLevels, level] });
-  if (!exists) {
-    update({ chartOptions: { ...state.chartOptions, show_52w_high: true } });
-  }
 }
 
 export function setEMAData(data: ReplayEMAData) {
-  const exists = Object.keys(state.emaData).length > 0;
   update({ emaData: { ...state.emaData, [data.symbol]: data } });
-  if (!exists) {
-    update({ chartOptions: { ...state.chartOptions, show_ema: true } });
-  }
 }
 
 export function setSelectedSymbol(symbol: string) {
