@@ -172,7 +172,10 @@ export interface PaperScanItem {
   price?: number;
   or_high?: number;
   or_low?: number;
+  or_range_pct?: number;
+  high_52w?: number;
   reason?: string;
+  strategy_name?: string;
 }
 
 export interface PaperBotSnapshot {

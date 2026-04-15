@@ -47,6 +47,7 @@ export interface StrategiesPageProps {
   onSelectStrategy: (strategyId: number) => void;
 
   // Data actions
+  onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
   onRefresh: () => void;
   onClearError: () => void;
 }
@@ -69,6 +70,7 @@ export interface StrategiesListProps {
   onEdit: (strategy: StrategyConfig) => void;
   onDelete: (strategyId: number) => void;
   onSetActive: (strategyId: number) => void;
+  onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
   isLoading: boolean;
 }
 

@@ -320,3 +320,132 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await expect(conservativeTab.locator(".tab-pnl")).toBeVisible();
   });
 });
+
+test.describe("Paper Trading - Watchlist Scan", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTest(page);
+
+    await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          bot_id: TEST_BOT_UUID,
+          scan_items: [
+            {
+              symbol: "TCS",
+              price: 3750,
+              or_high: 3760,
+              or_low: 3745,
+              status: "signal",
+              side: "LONG",
+              strategy_name: "ORB Conservative",
+              reason: "Breakout above OR high",
+            },
+            {
+              symbol: "SBIN",
+              price: 1071,
+              or_high: 1075,
+              or_low: 1070,
+              status: "signal",
+              side: "SHORT",
+              strategy_name: "ORB Aggressive",
+              reason: "Breakdown below OR low",
+            },
+            {
+              symbol: "HDFCBANK",
+              price: 1346,
+              or_high: 1360,
+              or_low: 1330,
+              status: "watching",
+              strategy_name: "ORB Conservative",
+            },
+            {
+              symbol: "RELIANCE",
+              price: 1341,
+              or_high: 1340,
+              or_low: 1334,
+              status: "skipped",
+              strategy_name: "ORB Conservative",
+              reason: "OR range too small",
+            },
+            {
+              symbol: "RELIANCE",
+              price: 1341,
+              status: "skipped",
+              strategy_name: "ORB Aggressive",
+              reason: "OR range outside limits",
+            },
+          ],
+          count: 5,
+        }),
+      });
+    });
+  });
+
+  test("should display Watchlist Scan card with accordion sections", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard).toContainText("Watchlist Scan");
+  });
+
+  test("should display Signals section with signal items", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+
+    await expect(scanCard).toContainText("Signals");
+    await expect(scanCard.locator('[data-testid="scan-signal-TCS"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="scan-signal-SBIN"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="scan-signal-TCS"]')).toContainText("LONG");
+    await expect(scanCard.locator('[data-testid="scan-signal-SBIN"]')).toContainText("SHORT");
+  });
+
+  test("should display watching items", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+
+    await expect(scanCard.locator('[data-testid="scan-watching-HDFCBANK"]')).toBeVisible();
+  });
+
+  test("should display skipped items in table", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+
+    await expect(scanCard.locator('[data-testid="scan-skipped-RELIANCE"]')).toBeVisible();
+    await expect(scanCard).toContainText("RELIANCE");
+  });
+
+  test("should deduplicate skipped symbols across strategies", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+
+    const relianceCount = await scanCard.locator("text=RELIANCE").count();
+    expect(relianceCount).toBeLessThan(3);
+  });
+
+  test("should show No scan data yet when bot is stopped", async ({ page }) => {
+    await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ bot_id: TEST_BOT_UUID, scan_items: [], count: 0 }),
+      });
+    });
+
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard).toContainText("No scan data yet");
+  });
+});

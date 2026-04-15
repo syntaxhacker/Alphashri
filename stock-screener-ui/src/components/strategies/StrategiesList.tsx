@@ -3,6 +3,7 @@ import { IconEdit, IconTrash, IconCheck, IconAlertCircle } from "@tabler/icons-r
 import type { StrategiesListProps } from "./types";
 import { CompactPanel } from "../common/compact";
 import { DataTable } from "../common/DataTable";
+import { EditableNumberCell } from "./EditableNumberCell";
 
 export function StrategiesList({
   strategies,
@@ -10,6 +11,7 @@ export function StrategiesList({
   onEdit,
   onDelete,
   onSetActive,
+  onUpdate,
   isLoading,
 }: StrategiesListProps) {
   const nonTemplates = strategies.filter((s) => !s.is_template);
@@ -98,16 +100,52 @@ export function StrategiesList({
         <Text size="sm">{getParentName(strategy.parent_id)}</Text>
       </Table.Td>
       <Table.Td>
-        <Text size="sm">{strategy.sl_pct}%</Text>
+        <EditableNumberCell
+          value={strategy.sl_pct}
+          field="sl_pct"
+          strategyId={strategy.internal_id ?? Number(strategy.id)}
+          step={0.1}
+          decimalScale={1}
+          min={0.1}
+          suffix="%"
+          onUpdate={onUpdate}
+        />
       </Table.Td>
       <Table.Td>
-        <Text size="sm">{strategy.tp_pct}%</Text>
+        <EditableNumberCell
+          value={strategy.tp_pct}
+          field="tp_pct"
+          strategyId={strategy.internal_id ?? Number(strategy.id)}
+          step={0.1}
+          decimalScale={1}
+          min={0.1}
+          suffix="%"
+          onUpdate={onUpdate}
+        />
       </Table.Td>
       <Table.Td>
-        <Text size="sm">{strategy.min_rr_ratio}x</Text>
+        <EditableNumberCell
+          value={strategy.min_rr_ratio}
+          field="min_rr_ratio"
+          strategyId={strategy.internal_id ?? Number(strategy.id)}
+          step={0.1}
+          decimalScale={1}
+          min={0.5}
+          suffix="x"
+          onUpdate={onUpdate}
+        />
       </Table.Td>
       <Table.Td>
-        <Text size="sm">{strategy.max_positions}</Text>
+        <EditableNumberCell
+          value={strategy.max_positions}
+          field="max_positions"
+          strategyId={strategy.internal_id ?? Number(strategy.id)}
+          step={1}
+          decimalScale={0}
+          min={1}
+          max={20}
+          onUpdate={onUpdate}
+        />
       </Table.Td>
       <Table.Td>
         {isActive(strategy) ? (

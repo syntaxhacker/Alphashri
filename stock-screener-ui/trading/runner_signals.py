@@ -525,25 +525,27 @@ class RunnerSignalsMixin:
 
             if not exit_triggered:
                 runner = self.strategies.get(pos.strategy_id)
-                if runner and runner.strategy_type in SWING_STRATEGY_TYPES:
+                if runner and runner.signal_generator:
                     gen = runner.signal_generator
                     metadata = pos.metadata if hasattr(pos, 'metadata') and isinstance(pos.metadata, dict) else {}
+                    entry_dt = pos.entry_time
+                    days_in_position = (self._ist_now() - (entry_dt if entry_dt.tzinfo else entry_dt.replace(tzinfo=IST))).days
                     exit_signal = gen.check_exit(
-                        symbol=pos.symbol,
-                        position_side=pos.side.value,
-                        entry_price=pos.entry_price,
-                        stop_loss=pos.stop_loss,
-                        take_profit=pos.take_profit,
-                        current_price=data['close'],
-                        highest_price_since_entry=pos.peak_price,
-                        entry_52w_high=metadata.get('entry_52w_high'),
-                        current_52w_high=metadata.get('current_52w_high'),
-                        days_in_position=(self._ist_now() - pos.entry_time).days,
+                            symbol=pos.symbol,
+                            position_side=pos.side.value,
+                            entry_price=pos.entry_price,
+                            stop_loss=pos.stop_loss,
+                            take_profit=pos.take_profit,
+                            current_price=data['close'],
+                            highest_price_since_entry=pos.peak_price,
+                            entry_52w_high=metadata.get('entry_52w_high'),
+                            current_52w_high=metadata.get('current_52w_high'),
+                            days_in_position=days_in_position,
                     )
                     if exit_signal:
                         exit_triggered = True
                         exit_price = exit_signal.price
-                        exit_reason = exit_signal.notes.split(':')[-1].strip() if ':' in exit_signal.notes else exit_signal.notes
+                        exit_reason = exit_signal.notes
 
             if exit_triggered:
                 positions_to_close.append((pos.strategy_id, pos.symbol, exit_price, exit_reason))
@@ -632,25 +634,6 @@ class RunnerSignalsMixin:
 
         if trade_logged and not self.replay_mode:
             self.journal.save_journal()
-
-        if self.is_force_exit_time():
-            console.print("\n[yellow]Force exit time reached. Closing intraday positions...[/yellow]")
-            for key in list(self.portfolio.positions.keys()):
-                pos = self.portfolio.positions[key]
-                runner = self.strategies.get(pos.strategy_id)
-                if runner and runner.strategy_type not in SWING_STRATEGY_TYPES and pos.symbol in close_prices:
-                    side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
-                    costs = calculate_trading_costs(pos.entry_price, close_prices[pos.symbol], pos.quantity, side)['total_costs']
-                    trade = self.portfolio.close_position(
-                        strategy_id=pos.strategy_id,
-                        symbol=pos.symbol,
-                        exit_price=close_prices[pos.symbol],
-                        exit_reason="EOD",
-                        costs=costs,
-                        exit_time=self._ist_now(),
-                    )
-                    if self.replay_mode and trade and self._replay_on_event:
-                        self._replay_on_event(build_trade_close_event(trade, runner))
 
         portfolio_status = self.portfolio.get_portfolio_status()
         daily_pnl = portfolio_status.get('daily_pnl', 0)
