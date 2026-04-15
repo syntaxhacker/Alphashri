@@ -110,7 +110,7 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
                 price=current_price,
                 stop_loss=round(sl, 2),
                 take_profit=round(tp, 2),
-                notes=f"Breakout above R1 ({r1:.2f}) -> TP=R2 ({tp:.2f})" if r2 and r2 > current_price else f"Breakout above R1 ({r1:.2f}) with {self.breakout_buffer_pct}% buffer",
+                notes=f"Breakout above R1 ₹{r1:.2f} -> TP=R2 ₹{tp:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%" if r2 and r2 > current_price else f"Breakout above R1 ₹{r1:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%",
             )
 
         if current_price < s1 * (1 - buf):
@@ -123,7 +123,7 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
                 price=current_price,
                 stop_loss=round(sl, 2),
                 take_profit=round(tp, 2),
-                notes=f"Breakdown below S1 ({s1:.2f}) -> TP=S2 ({tp:.2f})" if s2 and s2 < current_price else f"Breakdown below S1 ({s1:.2f}) with {self.breakout_buffer_pct}% buffer",
+                notes=f"Breakdown below S1 ₹{s1:.2f} -> TP=S2 ₹{tp:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%" if s2 and s2 < current_price else f"Breakdown below S1 ₹{s1:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%",
             )
 
         return None
@@ -146,16 +146,18 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
 
         if self.is_eod_exit_time(hour, minute):
             exit_type = SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT
+            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
             return self.create_signal(
                 symbol=symbol,
                 signal_type=exit_type,
                 price=current_price,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                notes=f"EOD force exit ({self.eod_exit_hour}:{self.eod_exit_minute:02d})",
+                notes=f"EOD force exit ({self.eod_exit_hour}:{self.eod_exit_minute:02d}) (PnL: {pnl_pct:+.2f}%)",
             )
 
         if position_side == "BUY":
+            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
             if current_price <= stop_loss:
                 return self.create_signal(
                     symbol=symbol,
@@ -163,7 +165,7 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
                     price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    notes="Stop loss hit",
+                    notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)",
                 )
             if current_price >= take_profit:
                 return self.create_signal(
@@ -172,10 +174,11 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
                     price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    notes="Take profit hit",
+                    notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)",
                 )
 
         if position_side == "SELL":
+            pnl_pct = ((entry_price - current_price) / entry_price) * 100 if entry_price else 0
             if current_price >= stop_loss:
                 return self.create_signal(
                     symbol=symbol,
@@ -183,7 +186,7 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
                     price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    notes="Stop loss hit",
+                    notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)",
                 )
             if current_price <= take_profit:
                 return self.create_signal(
@@ -192,7 +195,7 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
                     price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    notes="Take profit hit",
+                    notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)",
                 )
 
         return None

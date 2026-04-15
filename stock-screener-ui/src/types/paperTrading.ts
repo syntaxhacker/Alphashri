@@ -46,6 +46,7 @@ export interface PaperTrade {
   low_price: number; // Lowest price during trade
   hold_duration_minutes: number | null; // Entry to exit duration
   notes: string;
+  reason: string;
   strategy_id: number;
   strategy_name: string;
   strategy_type?: string;

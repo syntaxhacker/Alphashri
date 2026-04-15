@@ -238,7 +238,7 @@ class ORBSignalGenerator:
                 adx=adx,
                 rsi=rsi,
                 score=score,
-                notes=f"Breakout above OR high ₹{or_high:.2f}",
+                notes=f"Breakout above OR high ₹{or_high:.2f} | OR ₹{or_low:.2f}-₹{or_high:.2f} ({or_range_pct:.2f}%) | SL {self.sl_pct}% TP {self.tp_pct}% | ATR {atr_pct:.1f}% ADX {adx:.0f} RSI {rsi:.0f}",
             )
 
         # Check for short breakout (below OR low)
@@ -261,7 +261,7 @@ class ORBSignalGenerator:
                 adx=adx,
                 rsi=rsi,
                 score=score,
-                notes=f"Breakdown below OR low ₹{or_low:.2f}",
+                notes=f"Breakdown below OR low ₹{or_low:.2f} | OR ₹{or_low:.2f}-₹{or_high:.2f} ({or_range_pct:.2f}%) | SL {self.sl_pct}% TP {self.tp_pct}% | ADX {adx:.0f} RSI {rsi:.0f}",
             )
 
         return None
@@ -295,6 +295,7 @@ class ORBSignalGenerator:
 
         # Check force exit time (14:45)
         if now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]:
+            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
             return ORBSignal(
                 symbol=symbol,
                 signal_type=SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT,
@@ -306,11 +307,12 @@ class ORBSignalGenerator:
                 or_range=0,
                 or_range_pct=0,
                 timestamp=now,
-                notes="EOD force exit (14:45)",
+                notes=f"EOD force exit ({self.FORCE_EXIT[0]}:{self.FORCE_EXIT[1]:02d}) (PnL: {pnl_pct:+.2f}%)",
             )
 
         # Check SL/TP for long position
         if position_side == "BUY":
+            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
             if current_price <= stop_loss:
                 return ORBSignal(
                     symbol=symbol,
@@ -323,7 +325,7 @@ class ORBSignalGenerator:
                     or_range=0,
                     or_range_pct=0,
                     timestamp=now,
-                    notes="Stop loss hit",
+                    notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)",
                 )
             if current_price >= take_profit:
                 return ORBSignal(
@@ -337,11 +339,12 @@ class ORBSignalGenerator:
                     or_range=0,
                     or_range_pct=0,
                     timestamp=now,
-                    notes="Take profit hit",
+                    notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)",
                 )
 
         # Check SL/TP for short position
         if position_side == "SELL":
+            pnl_pct = ((entry_price - current_price) / entry_price) * 100 if entry_price else 0
             if current_price >= stop_loss:
                 return ORBSignal(
                     symbol=symbol,
@@ -354,7 +357,7 @@ class ORBSignalGenerator:
                     or_range=0,
                     or_range_pct=0,
                     timestamp=now,
-                    notes="Stop loss hit",
+                    notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)",
                 )
             if current_price <= take_profit:
                 return ORBSignal(
@@ -368,7 +371,7 @@ class ORBSignalGenerator:
                     or_range=0,
                     or_range_pct=0,
                     timestamp=now,
-                    notes="Take profit hit",
+                    notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)",
                 )
 
         return None

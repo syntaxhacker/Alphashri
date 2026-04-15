@@ -447,9 +447,11 @@ class RunnerSignalsMixin:
 
         if position:
             runner.trades_executed += 1
+            if not hasattr(position, 'metadata'):
+                position.metadata = {}
+            if signal.notes:
+                position.metadata['entry_reason'] = signal.notes
             if runner.strategy_type in SWING_STRATEGY_TYPES:
-                if not hasattr(position, 'metadata'):
-                    position.metadata = {}
                 position.metadata['strategy_type'] = runner.strategy_type
                 if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
                     position.metadata['entry_52w_high'] = signal.or_high if signal.or_high > 0 else None
@@ -612,6 +614,7 @@ class RunnerSignalsMixin:
                         'costs': trade.costs,
                         'net_pnl': trade.net_pnl,
                         'exit_reason': trade.exit_reason,
+                        'reason': trade.metadata.get('entry_reason', '') if hasattr(trade, 'metadata') else '',
                         'stop_loss': trade.sl_price if hasattr(trade, 'sl_price') else 0.0,
                         'take_profit': trade.tp_price if hasattr(trade, 'tp_price') else 0.0,
                     })

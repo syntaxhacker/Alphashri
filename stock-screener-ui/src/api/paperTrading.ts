@@ -151,6 +151,17 @@ export async function deleteTrade(tradeId: string): Promise<{ success: boolean; 
   }
 }
 
+export async function updateTradeNotes(tradeId: string, notes: string, reason: string): Promise<PaperTrade> {
+  const response = await fetchWithAuth(`${API_BASE}/api/paper/trades/${tradeId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notes, reason }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail || "Failed to update trade");
+  return data;
+}
+
 // Fetch daily report
 export async function fetchDailyReport(date?: string): Promise<DailySummary | null> {
   try {

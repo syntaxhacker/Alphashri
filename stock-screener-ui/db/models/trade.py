@@ -29,6 +29,8 @@ class Trade(Base):
     costs = Column(Float, nullable=True, default=0.0)
     net_pnl = Column(Float, nullable=True, default=0.0)
     exit_reason = Column(String(50), nullable=True)
+    notes = Column(String(500), nullable=True, default="")
+    reason = Column(String(500), nullable=True, default="")
     is_test = Column(Boolean, nullable=False, default=False)
     source = Column(String(20), nullable=False, default="live")
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -65,6 +67,8 @@ class Trade(Base):
             "stop_loss": self.stop_loss,
             "take_profit": self.take_profit,
             "hold_duration_minutes": hold,
+            "notes": self.notes or "",
+            "reason": self.reason or "",
         }
 
 

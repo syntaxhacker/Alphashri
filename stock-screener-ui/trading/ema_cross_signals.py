@@ -55,27 +55,29 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
         if bullish_cross:
             sl = current_price * (1 - self.sl_pct / 100)
             tp = current_price * (1 + self.tp_pct / 100)
+            gap = ema_fast_current - ema_slow_current
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.LONG_ENTRY,
                 price=current_price,
                 stop_loss=round(sl, 2),
                 take_profit=round(tp, 2),
-                notes=f"Bullish EMA crossover: EMA{self.ema_fast_period} crossed above EMA{self.ema_slow_period}",
-                score=ema_fast_current - ema_slow_current,
+                notes=f"Bullish EMA{self.ema_fast_period}/{self.ema_slow_period} cross at ₹{current_price:.2f} | gap {gap:.2f} | SL {self.sl_pct}% TP {self.tp_pct}%",
+                score=gap,
             )
 
         if bearish_cross:
             sl = current_price * (1 + self.sl_pct / 100)
             tp = current_price * (1 - self.tp_pct / 100)
+            gap = ema_slow_current - ema_fast_current
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.SHORT_ENTRY,
                 price=current_price,
                 stop_loss=round(sl, 2),
                 take_profit=round(tp, 2),
-                notes=f"Bearish EMA crossover: EMA{self.ema_fast_period} crossed below EMA{self.ema_slow_period}",
-                score=ema_slow_current - ema_fast_current,
+                notes=f"Bearish EMA{self.ema_fast_period}/{self.ema_slow_period} cross at ₹{current_price:.2f} | gap {gap:.2f} | SL {self.sl_pct}% TP {self.tp_pct}%",
+                score=gap,
             )
 
         return None
@@ -98,53 +100,28 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
 
         if self.is_eod_exit_time(hour, minute):
             exit_type = SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT
+            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
             return self.create_signal(
                 symbol=symbol,
                 signal_type=exit_type,
                 price=current_price,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                notes=f"EOD force exit ({self.eod_exit_hour}:{self.eod_exit_minute:02d})",
+                notes=f"EOD force exit ({self.eod_exit_hour}:{self.eod_exit_minute:02d}) (PnL: {pnl_pct:+.2f}%)",
             )
 
         if position_side == "BUY":
+            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
             if current_price <= stop_loss:
-                return self.create_signal(
-                    symbol=symbol,
-                    signal_type=SignalType.LONG_EXIT,
-                    price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    notes="Stop loss hit",
-                )
+                return self.create_signal(symbol=symbol, signal_type=SignalType.LONG_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)")
             if current_price >= take_profit:
-                return self.create_signal(
-                    symbol=symbol,
-                    signal_type=SignalType.LONG_EXIT,
-                    price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    notes="Take profit hit",
-                )
+                return self.create_signal(symbol=symbol, signal_type=SignalType.LONG_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)")
 
         if position_side == "SELL":
+            pnl_pct = ((entry_price - current_price) / entry_price) * 100 if entry_price else 0
             if current_price >= stop_loss:
-                return self.create_signal(
-                    symbol=symbol,
-                    signal_type=SignalType.SHORT_EXIT,
-                    price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    notes="Stop loss hit",
-                )
+                return self.create_signal(symbol=symbol, signal_type=SignalType.SHORT_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)")
             if current_price <= take_profit:
-                return self.create_signal(
-                    symbol=symbol,
-                    signal_type=SignalType.SHORT_EXIT,
-                    price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    notes="Take profit hit",
-                )
+                return self.create_signal(symbol=symbol, signal_type=SignalType.SHORT_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)")
 
         return None

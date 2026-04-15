@@ -339,6 +339,7 @@ class PaperTrader:
             low_price=round(position.low_price, 2),
             strategy_id=position.strategy_id,
             strategy_name=position.strategy_name,
+            reason=position.metadata.get('entry_reason', '') if hasattr(position, 'metadata') else '',
         )
 
         exit_value = actual_exit_price * position.quantity

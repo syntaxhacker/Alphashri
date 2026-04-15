@@ -327,6 +327,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     costs=trade_data.get('costs', 0.0),
                     net_pnl=trade_data.get('net_pnl', 0.0),
                     exit_reason=trade_data.get('exit_reason', ''),
+                    reason=trade_data.get('reason', ''),
                     is_test=self.test_mode,
                     source='live' if not self.test_mode else 'test',
                 )

@@ -79,3 +79,4 @@ class PaperTrade:
     low_price: float = 0.0
     strategy_id: int = 0
     strategy_name: str = ""
+    reason: str = ""

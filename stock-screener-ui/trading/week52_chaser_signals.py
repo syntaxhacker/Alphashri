@@ -60,7 +60,7 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
             or_range_pct=round(distance_pct, 2),
             adx=float(market_data.get("adx", 0.0) or 0.0),
             rsi=float(market_data.get("rsi", 0.0) or 0.0),
-            notes=f"Price within {distance_pct:.2f}% of 52W high ₹{high_52w:.2f}",
+            notes=f"Within {distance_pct:.2f}% of 52W high ₹{high_52w:.2f} | SL {self.sl_pct}% TP {self.tp_pct}% | ADX {float(market_data.get('adx', 0.0) or 0.0):.0f} RSI {float(market_data.get('rsi', 0.0) or 0.0):.0f}",
         )
 
     def check_exit(

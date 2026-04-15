@@ -16,7 +16,7 @@ import type {
   BotInfo,
 } from "../types/paperTrading";
 
-import { deleteTrade } from "../api/paperTrading";
+import { deleteTrade, updateTradeNotes } from "../api/paperTrading";
 import { createSubscriber } from "./createSubscriber";
 
 // Initial state
@@ -355,6 +355,21 @@ export async function deleteTradeAction(tradeId: string): Promise<boolean> {
     return true;
   } catch (error) {
     setError(error instanceof Error ? error.message : "Failed to delete trade");
+    return false;
+  }
+}
+
+export async function updateTradeNotesAction(tradeId: string, notes: string, reason: string): Promise<boolean> {
+  try {
+    const updated = await updateTradeNotes(tradeId, notes, reason);
+    state = {
+      ...state,
+      trades: state.trades.map((t) => (t.trade_id === tradeId ? { ...t, notes: updated.notes ?? notes, reason: updated.reason ?? reason } : t)),
+    };
+    notify();
+    return true;
+  } catch (error) {
+    setError(error instanceof Error ? error.message : "Failed to update trade");
     return false;
   }
 }
