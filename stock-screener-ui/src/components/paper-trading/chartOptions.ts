@@ -167,77 +167,66 @@ function buildMarkLines(
   const lines: any[] = [];
   if (current_position) {
     lines.push({
-      name: `SL ${current_position.stop_loss}`,
       yAxis: current_position.stop_loss,
       lineStyle: { color: "#FF00FF", type: "dashed", width: 2 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `SL ${current_position.stop_loss}` },
     });
     lines.push({
-      name: `TP ${current_position.take_profit}`,
       yAxis: current_position.take_profit,
       lineStyle: { color: "#FFFF00", type: "dashed", width: 2 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `TP ${current_position.take_profit}` },
     });
   }
   if (orb_levels && showOrb) {
     lines.push({
-      name: `OR-H ${orb_levels.or_high}`,
       yAxis: orb_levels.or_high,
       lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `OR-H ${orb_levels.or_high}` },
     });
     lines.push({
-      name: `OR-L ${orb_levels.or_low}`,
       yAxis: orb_levels.or_low,
       lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `OR-L ${orb_levels.or_low}` },
     });
   }
   if (pivot_levels && showPivot) {
     lines.push({
-      name: `R2 ${pivot_levels.r2}`,
       yAxis: pivot_levels.r2,
       lineStyle: { color: "#EF5350", type: "dotted", width: 1 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `R2 ${pivot_levels.r2}` },
     });
     lines.push({
-      name: `R1 ${pivot_levels.r1}`,
       yAxis: pivot_levels.r1,
       lineStyle: { color: "#EF5350", type: "dashed", width: 1 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `R1 ${pivot_levels.r1}` },
     });
     lines.push({
-      name: `PP ${pivot_levels.pp}`,
       yAxis: pivot_levels.pp,
       lineStyle: { color: "#AB47BC", type: "dotted", width: 1 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `PP ${pivot_levels.pp}` },
     });
     lines.push({
-      name: `S1 ${pivot_levels.s1}`,
       yAxis: pivot_levels.s1,
       lineStyle: { color: "#26A69A", type: "dashed", width: 1 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `S1 ${pivot_levels.s1}` },
     });
     lines.push({
-      name: `S2 ${pivot_levels.s2}`,
       yAxis: pivot_levels.s2,
       lineStyle: { color: "#26A69A", type: "dotted", width: 1 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `S2 ${pivot_levels.s2}` },
     });
   }
   if (week52_levels && show52w) {
     lines.push({
-      name: `52W-H ${week52_levels.high_52w}`,
       yAxis: week52_levels.high_52w,
       lineStyle: { color: "#E91E63", type: "dashed", width: 2 },
-      label: { position: "insideEndTop" },
+      label: { position: "insideEndTop", formatter: `52W-H ${week52_levels.high_52w}` },
     });
     if (week52_levels.low_52w > 0) {
       lines.push({
-        name: `52W-L ${week52_levels.low_52w}`,
         yAxis: week52_levels.low_52w,
         lineStyle: { color: "#9C27B0", type: "dashed", width: 1 },
-        label: { position: "insideEndTop" },
+        label: { position: "insideEndTop", formatter: `52W-L ${week52_levels.low_52w}` },
       });
     }
   }
@@ -335,11 +324,6 @@ export function buildChartOption(
   return {
     backgroundColor: bgColor,
     animation: false,
-    legend: {
-      data: ["Price", "Entry", "TP Exit", "SL Exit", "Other Exit"],
-      bottom: 10,
-      textStyle: { color: mutedColor },
-    },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "cross" },
@@ -455,7 +439,6 @@ export function buildChartOption(
       { name: "SL Exit", type: "scatter", data: slMarkers, symbolSize: 16, z: 10 },
       { name: "Other Exit", type: "scatter", data: eodMarkers, symbolSize: 16, z: 10 },
       {
-        name: "Volume",
         type: "bar",
         xAxisIndex: 1,
         yAxisIndex: 1,

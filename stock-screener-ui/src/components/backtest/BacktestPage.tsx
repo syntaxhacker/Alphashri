@@ -106,7 +106,7 @@ function highlightTradeRow(tradeIndex: number) {
   setTimeout(() => row.classList.remove("trade-row-highlighted"), 3000);
 }
 
-function useBacktestEffects(state: any) {
+function useBacktestEffects(state: any, setActiveTab: (tab: string | null) => void) {
   useEffect(() => {
     fetchStrategies();
     fetchVariations();
@@ -175,7 +175,7 @@ function useBacktestActions(state: any) {
   };
 }
 
-function BacktestPageConfig(state: any, actions: any) {
+function BacktestPageConfig({ state, actions }: { state: any; actions: any }) {
   return (
     <Box id="backtest-config-section" className="backtest-config-section" flex="0 0 auto" mb="md">
       <BacktestConfig
@@ -203,14 +203,21 @@ function BacktestPageConfig(state: any, actions: any) {
   );
 }
 
-function BacktestPanels(
-  state: any,
-  holidayState: any,
-  actions: any,
-  symbols: string[],
-  activeTab: string | null,
-  setActiveTab: (tab: string | null) => void,
-) {
+function BacktestPanels({
+  state,
+  holidayState,
+  actions,
+  symbols,
+  activeTab,
+  setActiveTab,
+}: {
+  state: any;
+  holidayState: any;
+  actions: any;
+  symbols: string[];
+  activeTab: string | null;
+  setActiveTab: (tab: string | null) => void;
+}) {
   return (
     <Flex
       id="backtest-panels"
@@ -222,7 +229,7 @@ function BacktestPanels(
       <Box
         id="backtest-left-panel"
         className="backtest-left-panel"
-        style={{ flex: "0 0 33.333%", minHeight: 0 }}
+        style={{ flex: "1 1 50%", minHeight: 0 }}
       >
         <BacktestLeftPanel
           activeTab={activeTab}
@@ -242,7 +249,7 @@ function BacktestPanels(
       <Box
         id="backtest-right-panel"
         className="backtest-right-panel"
-        style={{ flex: "1 1 66.666%", minHeight: 0 }}
+        style={{ flex: "1 1 50%", minHeight: 0 }}
       >
         <BacktestRightPanel
           showCharts={state.showCharts}
@@ -276,7 +283,7 @@ export function BacktestPage() {
   const holidayState = getHolidayState();
   const [activeTab, setActiveTab] = useState<string | null>("results");
   const actions = useBacktestActions(state);
-  useBacktestEffects(state);
+  useBacktestEffects(state, setActiveTab);
   const symbols = state.results?.map((r) => r.symbol) ?? [];
 
   return (
