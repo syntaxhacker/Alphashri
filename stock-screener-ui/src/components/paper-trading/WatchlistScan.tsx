@@ -246,7 +246,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 <Table.Tbody>
                   {signals.map((item) => (
                     <SignalRow
-                      key={`${item.strategy_name}-${item.symbol}`}
+                      key={`${item.strategy_id ?? item.strategy_name}-${item.symbol}`}
                       item={item}
                       onSelect={handleSelectSymbol}
                     />
@@ -289,7 +289,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 <Table.Tbody>
                   {watching.map((item) => (
                     <WatchingRow
-                      key={`${item.strategy_name}-${item.symbol}`}
+                      key={`${item.strategy_id ?? item.strategy_name}-${item.symbol}`}
                       item={item}
                       onSelect={handleSelectSymbol}
                     />

@@ -47,7 +47,7 @@ async def get_portfolio(user: "User" = Depends(get_current_user)):
 
     snap = _load_fresh_bot_snapshot(user_id=user_id)
     if snap:
-        snap_positions = snap.get("open_positions_data") or []
+        snap_positions = snap.get("positions") or snap.get("open_positions_data") or []
         if isinstance(snap_positions, list):
             margin_used = sum(float(p.get("entry_price", 0)) * int(p.get("quantity", 0)) for p in snap_positions)
             position_value = sum(float(p.get("current_price", 0)) * int(p.get("quantity", 0)) for p in snap_positions)
@@ -116,7 +116,7 @@ async def get_positions(user: "User" = Depends(get_current_user)):
 
     snap = _load_fresh_bot_snapshot(user_id=user_id)
     if snap:
-        snap_positions = snap.get("open_positions_data") or []
+        snap_positions = snap.get("positions") or snap.get("open_positions_data") or []
         if isinstance(snap_positions, list) and len(snap_positions) > 0:
             positions = snap_positions
 

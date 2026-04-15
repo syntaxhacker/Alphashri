@@ -48,12 +48,9 @@ export async function loadAllPerformance(): Promise<void> {
   notify();
 
   const pendingSelection = (window as any).__pendingStrategySelection;
-  if (pendingSelection && performanceResults.length > 0) {
+  if (pendingSelection && typeof pendingSelection === "number" && performanceResults.length > 0) {
     delete (window as any).__pendingStrategySelection;
-    const strategy = performanceResults.find((s) => s.strategy_name === pendingSelection);
-    if (strategy) {
-      const { selectStrategyByName } = require("../../components/strategies/performance");
-      selectStrategyByName(pendingSelection, performanceResults);
-    }
+    const { selectStrategyById } = require("../../components/strategies/performance");
+    selectStrategyById(pendingSelection);
   }
 }

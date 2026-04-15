@@ -435,6 +435,7 @@ class RunnerSignalsMixin:
         position = self.portfolio.open_position(
             strategy_id=strategy_id,
             strategy_name=runner.strategy_name,
+            strategy_type=runner.strategy_type,
             symbol=signal.symbol,
             side=OrderSide.BUY if signal.signal_type == SignalType.LONG_ENTRY else OrderSide.SELL,
             quantity=validation['shares'],

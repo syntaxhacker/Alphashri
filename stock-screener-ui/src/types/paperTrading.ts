@@ -22,6 +22,7 @@ export interface PaperPosition {
   order_id: string;
   strategy_id: number;
   strategy_name: string;
+  strategy_type?: string;
 }
 
 // Completed trade from journal
@@ -47,6 +48,7 @@ export interface PaperTrade {
   notes: string;
   strategy_id: number;
   strategy_name: string;
+  strategy_type?: string;
   bot_id: string | null;
   bot_name: string | null;
 }
@@ -154,6 +156,7 @@ export interface ORBLevels {
   or_open: number;
   or_range: number;
   or_range_pct: number;
+  or_minutes?: number;
 }
 
 // 52-week high levels for swing strategies
@@ -176,6 +179,7 @@ export interface PaperScanItem {
   high_52w?: number;
   reason?: string;
   strategy_name?: string;
+  strategy_id?: number;
 }
 
 export interface PaperBotSnapshot {
@@ -213,11 +217,12 @@ export interface PaperTradingState {
   filterFromDate: string | null;
   filterToDate: string | null;
   filterSymbol: string | null;
-  filterStrategy: string | null; // Filter by strategy name
+  filterStrategy: number | null; // Filter by strategy ID
   filterBot: string | null; // Filter by bot ID (UUID)
 
   // Chart state
   selectedSymbol: string | null;
+  selectedStrategyId: number | null;
   selectedStrategyTab: string | null; // For multi-strategy position tabs
   selectedTradeId: string | null; // Trade ID to highlight on chart
   showAllTrades: boolean; // Show all trades or just selectedTradeId

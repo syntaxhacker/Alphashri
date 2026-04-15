@@ -178,15 +178,16 @@ function buildMarkLines(
     });
   }
   if (orb_levels && showOrb) {
+    const orbLabel = orb_levels.or_minutes ? ` (${orb_levels.or_minutes}m)` : "";
     lines.push({
       yAxis: orb_levels.or_high,
       lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `OR-H ${orb_levels.or_high}` },
+      label: { position: "insideEndTop", formatter: `OR-H${orbLabel} ${orb_levels.or_high}` },
     });
     lines.push({
       yAxis: orb_levels.or_low,
       lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `OR-L ${orb_levels.or_low}` },
+      label: { position: "insideEndTop", formatter: `OR-L${orbLabel} ${orb_levels.or_low}` },
     });
   }
   if (pivot_levels && showPivot) {

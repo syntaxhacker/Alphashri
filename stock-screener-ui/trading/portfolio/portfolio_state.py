@@ -29,6 +29,7 @@ def restore_position(portfolio, pos_data: dict):
         entry_time=datetime.fromisoformat(pos_data['entry_time']),
         strategy_id=strategy_id,
         strategy_name=pos_data['strategy_name'],
+        strategy_type=pos_data.get('strategy_type', ''),
         current_price=pos_data.get('current_price', pos_data['entry_price']),
         peak_price=pos_data.get('peak_price', pos_data['entry_price']),
         low_price=pos_data.get('low_price', pos_data['entry_price']),

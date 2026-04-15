@@ -12,6 +12,7 @@ import {
   formatNumber,
   formatElapsed,
   getPnLTextColor,
+  getStrategyTypeFromName,
 } from "../../utils/ui-helpers";
 import { SideBadge } from "../common/BadgeComponents";
 
@@ -35,10 +36,10 @@ export function formatNear(item: PaperScanItem): string {
   return `${v.toFixed(2)}%`;
 }
 
-export function groupPositionsByStrategy(positions: PaperPosition[]): Map<string, PaperPosition[]> {
-  const groups = new Map<string, PaperPosition[]>();
+export function groupPositionsByStrategy(positions: PaperPosition[]): Map<number, PaperPosition[]> {
+  const groups = new Map<number, PaperPosition[]>();
   for (const pos of positions) {
-    const key = pos.strategy_name || `Strategy ${pos.strategy_id || 0}`;
+    const key = pos.strategy_id || 0;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(pos);
   }
@@ -92,7 +93,7 @@ function PositionRow({
   onClose,
 }: {
   pos: PaperPosition;
-  onSelect: (symbol: string, tradeId?: string, strategyName?: string) => void;
+  onSelect: (symbol: string, tradeId?: string, strategyName?: string, strategyType?: string, strategyId?: number) => void;
   onClose: (symbol: string, price: number) => void;
 }) {
   const pnlClass = getPnLTextColor(pos.pnl ?? 0);
@@ -101,7 +102,7 @@ function PositionRow({
   return (
     <Table.Tr
       key={pos.symbol}
-      onClick={() => onSelect(pos.symbol, pos.order_id, pos.strategy_name)}
+      onClick={() => onSelect(pos.symbol, pos.order_id, pos.strategy_name, pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined), pos.strategy_id)}
       style={{ cursor: "pointer" }}
       data-testid={`position-row-${pos.symbol}`}
     >
@@ -170,12 +171,12 @@ export function PositionsTableBody({
     }
   };
 
-  const handleSelect = async (symbol: string, tradeId?: string, strategyName?: string) => {
+  const handleSelect = async (symbol: string, tradeId?: string, strategyName?: string, strategyType?: string, strategyId?: number) => {
     setSelectedSymbol(symbol);
-    if (tradeId) setSelectedTradeId(tradeId, strategyName);
+    if (tradeId) setSelectedTradeId(tradeId, strategyType, strategyId);
     setShowAllTrades(true);
     const state = getPaperTradingState();
-    await fetchPaperChart(symbol, undefined, state.chartTimeframe);
+    await fetchPaperChart(symbol, undefined, state.chartTimeframe, state.selectedStrategyId);
   };
 
   return (
@@ -296,10 +297,11 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
 export function StrategySummaryFooter({
   strategyGroups,
 }: {
-  strategyGroups: Map<string, PaperPosition[]>;
+  strategyGroups: Map<number, PaperPosition[]>;
 }) {
-  const summaries = Array.from(strategyGroups.entries()).map(([name, positions]) => ({
-    name,
+  const summaries = Array.from(strategyGroups.entries()).map(([id, positions]) => ({
+    id,
+    name: positions[0]?.strategy_name || `Strategy ${id}`,
     ...calcStrategySummary(positions),
   }));
 

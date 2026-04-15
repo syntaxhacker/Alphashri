@@ -199,6 +199,7 @@ export async function fetchPaperChart(
   symbol: string,
   date?: string,
   timeframe?: string,
+  strategyId?: number | null,
 ): Promise<PaperChartData | null> {
   setChartLoading(true);
 
@@ -206,6 +207,7 @@ export async function fetchPaperChart(
     const params = new URLSearchParams();
     if (date) params.append("date", date);
     if (timeframe) params.append("timeframe", timeframe);
+    if (strategyId) params.append("strategy_id", String(strategyId));
     const queryString = params.toString();
     const url = queryString
       ? `${API_BASE}/api/paper/chart/${symbol}?${queryString}`

@@ -100,31 +100,31 @@ describe("getUniqueStrategies", () => {
   });
 
   test("returns empty array when trades have no strategy_name", () => {
-    const trades = [mockTrade({ strategy_name: "" }), mockTrade({ strategy_name: "" })];
+    const trades = [mockTrade({ strategy_name: "", strategy_id: 0 }), mockTrade({ strategy_name: "", strategy_id: 0 })];
     expect(getUniqueStrategies(trades)).toEqual([]);
   });
 
-  test("returns unique sorted strategy names", () => {
+  test("returns unique sorted strategies by id and name", () => {
     const trades = [
-      mockTrade({ strategy_name: "Breakout" }),
-      mockTrade({ strategy_name: "ORB" }),
-      mockTrade({ strategy_name: "Breakout" }),
+      mockTrade({ strategy_name: "Breakout", strategy_id: 2 }),
+      mockTrade({ strategy_name: "ORB", strategy_id: 1 }),
+      mockTrade({ strategy_name: "Breakout", strategy_id: 2 }),
     ];
     const result = getUniqueStrategies(trades);
-    expect(result).toEqual(["Breakout", "ORB"]);
+    expect(result).toEqual([{ id: 2, name: "Breakout" }, { id: 1, name: "ORB" }]);
   });
 
   test("handles single strategy", () => {
-    const trades = [mockTrade({ strategy_name: "ORB" })];
-    expect(getUniqueStrategies(trades)).toEqual(["ORB"]);
+    const trades = [mockTrade({ strategy_name: "ORB", strategy_id: 1 })];
+    expect(getUniqueStrategies(trades)).toEqual([{ id: 1, name: "ORB" }]);
   });
 
-  test("skips trades with null/undefined strategy_name", () => {
+  test("skips trades with falsy strategy_id", () => {
     const trades = [
-      mockTrade({ strategy_name: "ORB" }),
-      mockTrade({ strategy_name: undefined as any }),
+      mockTrade({ strategy_name: "ORB", strategy_id: 1 }),
+      mockTrade({ strategy_name: "Missing", strategy_id: 0 }),
     ];
-    expect(getUniqueStrategies(trades)).toEqual(["ORB"]);
+    expect(getUniqueStrategies(trades)).toEqual([{ id: 1, name: "ORB" }]);
   });
 });
 

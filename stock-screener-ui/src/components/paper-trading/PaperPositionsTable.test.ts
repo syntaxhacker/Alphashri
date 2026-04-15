@@ -265,29 +265,29 @@ describe("groupPositionsByStrategy", () => {
     expect(result.size).toBe(0);
   });
 
-  test("groups positions by strategy_name", () => {
+  test("groups positions by strategy_id", () => {
     const positions = [
-      mockPosition({ symbol: "A", strategy_name: "Strat1" }),
-      mockPosition({ symbol: "B", strategy_name: "Strat1" }),
-      mockPosition({ symbol: "C", strategy_name: "Strat2" }),
+      mockPosition({ symbol: "A", strategy_name: "Strat1", strategy_id: 10 }),
+      mockPosition({ symbol: "B", strategy_name: "Strat1", strategy_id: 10 }),
+      mockPosition({ symbol: "C", strategy_name: "Strat2", strategy_id: 20 }),
     ];
     const result = groupPositionsByStrategy(positions);
     expect(result.size).toBe(2);
-    expect(result.get("Strat1")!.length).toBe(2);
-    expect(result.get("Strat2")!.length).toBe(1);
+    expect(result.get(10)!.length).toBe(2);
+    expect(result.get(20)!.length).toBe(1);
   });
 
-  test("uses fallback name when strategy_name is empty", () => {
-    const positions = [mockPosition({ symbol: "A", strategy_name: "", strategy_id: 5 })];
+  test("uses id 0 when strategy_id is falsy", () => {
+    const positions = [mockPosition({ symbol: "A", strategy_name: "", strategy_id: 0 })];
     const result = groupPositionsByStrategy(positions);
-    expect(result.has("Strategy 5")).toBe(true);
+    expect(result.has(0)).toBe(true);
   });
 
   test("handles all positions with same strategy", () => {
     const positions = [mockPosition({ symbol: "A" }), mockPosition({ symbol: "B" })];
     const result = groupPositionsByStrategy(positions);
     expect(result.size).toBe(1);
-    expect(result.get("ORB Strategy")!.length).toBe(2);
+    expect(result.get(1)!.length).toBe(2);
   });
 });
 

@@ -131,7 +131,7 @@ export function PaperTradingView() {
           <Flex h="100%" gap="md" className="paper-live-view" id="live-view-grid">
             <Flex
               direction="column"
-              w={{ base: "100%", md: "30%" }}
+              w={{ base: "100%", md: "50%" }}
               style={{ minWidth: 0 }}
               className="paper-left-panel"
               id="left-panel"

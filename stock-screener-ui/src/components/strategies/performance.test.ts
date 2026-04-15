@@ -4,7 +4,7 @@ import type { StrategiesState, StrategyPerformance } from "../../types/strategie
 import {
   renderPerformanceView,
   initPerformanceHandlers,
-  selectStrategyByName,
+  selectStrategyById,
   getSelectedStrategyId,
   clearPerformanceCache,
 } from "./performance";
@@ -407,43 +407,34 @@ describe("initPerformanceHandlers", () => {
     initPerformanceHandlers();
     localStorage.clear();
 
-    (window as any).viewAllStrategyTrades("My Strategy");
+    (window as any).viewAllStrategyTrades(42);
 
-    expect(localStorage.getItem("filterStrategy")).toBe("My Strategy");
+    expect(localStorage.getItem("filterStrategy")).toBe("42");
   });
 });
 
-describe("selectStrategyByName", () => {
-  it("selects strategy by name field", async () => {
+describe("selectStrategyById", () => {
+  it("selects strategy by id", async () => {
     mockGetStrategyTrades.mockResolvedValue({ trades: [] });
-    const strategies = [{ id: 10, name: "Target Strategy" }];
 
-    await selectStrategyByName("Target Strategy", strategies);
+    await selectStrategyById(10);
 
     expect(getSelectedStrategyId()).toBe(10);
   });
 
-  it("selects strategy by strategy_name field", async () => {
+  it("selects strategy by id with different id", async () => {
     mockGetStrategyTrades.mockResolvedValue({ trades: [] });
-    const strategies = [{ strategy_id: 20, strategy_name: "Target Strategy" }];
 
-    await selectStrategyByName("Target Strategy", strategies);
+    await selectStrategyById(20);
 
     expect(getSelectedStrategyId()).toBe(20);
   });
 
-  it("does not change selection when strategy name is not found", async () => {
+  it("handles zero id", async () => {
     mockGetStrategyTrades.mockResolvedValue({ trades: [] });
-    const strategies = [{ id: 10, name: "Other Strategy" }];
 
-    await selectStrategyByName("Nonexistent", strategies);
+    await selectStrategyById(0);
 
-    expect(getSelectedStrategyId()).toBeNull();
-  });
-
-  it("does not change selection when strategies array is empty", async () => {
-    await selectStrategyByName("Any", []);
-
-    expect(getSelectedStrategyId()).toBeNull();
+    expect(getSelectedStrategyId()).toBe(0);
   });
 });

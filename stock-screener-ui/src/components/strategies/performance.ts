@@ -65,7 +65,7 @@ export function renderPerformanceView(state: StrategiesState): string {
             ${renderSummaryCard("Win Rate", `${selectedPerf.win_rate.toFixed(1)}%`, selectedPerf.win_rate >= 50 ? "✅" : "⚠️", selectedPerf.win_rate >= 50 ? "positive" : "negative")}
             ${renderSummaryCard("Net P&L", formatCurrency(selectedPerf.net_pnl), selectedPerf.net_pnl >= 0 ? "💰" : "💸", selectedPerf.net_pnl >= 0 ? "positive" : "negative")}
           </div>
-          ${renderStrategyTrades(selectedTrades, selectedPerf.strategy_name)}
+          ${renderStrategyTrades(selectedTrades, selectedPerf.strategy_name, selectedPerf.strategy_id)}
         </div>
       `
           : `
@@ -104,7 +104,7 @@ export function renderPerformanceView(state: StrategiesState): string {
   `;
 }
 
-function renderStrategyTrades(trades: any[], strategyName: string): string {
+function renderStrategyTrades(trades: any[], strategyName: string, strategyId: number): string {
   if (trades.length === 0) {
     return `
       <div class="strategy-trades-empty">
@@ -117,7 +117,7 @@ function renderStrategyTrades(trades: any[], strategyName: string): string {
     <div class="strategy-trades-section">
       <div class="strategy-trades-header">
         <h4>Recent Trades (${trades.length})</h4>
-        <button class="btn btn-secondary btn-small" onclick="window.viewAllStrategyTrades('${strategyName}')">
+        <button class="btn btn-secondary btn-small" onclick="window.viewAllStrategyTrades(${strategyId})">
           View in Trade History →
         </button>
       </div>
@@ -308,29 +308,22 @@ export function initPerformanceHandlers() {
     triggerRerender();
   };
 
-  (window as any).viewAllStrategyTrades = (strategyName: string) => {
-    localStorage.setItem("filterStrategy", strategyName);
+  (window as any).viewAllStrategyTrades = (strategyId: number) => {
+    localStorage.setItem("filterStrategy", String(strategyId));
     if ((window as any).navigateToRoute) {
       (window as any).navigateToRoute("paper");
     }
   };
 
-  const strategyNameToSelect = localStorage.getItem("selectStrategyByName");
-  if (strategyNameToSelect) {
-    localStorage.removeItem("selectStrategyByName");
-    (window as any).__pendingStrategySelection = strategyNameToSelect;
+  const pendingStrategyId = localStorage.getItem("selectStrategyById");
+  if (pendingStrategyId) {
+    localStorage.removeItem("selectStrategyById");
+    (window as any).__pendingStrategySelection = Number(pendingStrategyId);
   }
 }
 
-// Select a strategy by name (called after data is loaded)
-export async function selectStrategyByName(strategyName: string, strategies: any[]) {
-  const strategy = strategies.find(
-    (s) => s.name === strategyName || s.strategy_name === strategyName,
-  );
-  const strategyId = strategy?.id || strategy?.strategy_id;
-  if (strategyId) {
-    await loadAndSelectStrategy(strategyId);
-  }
+export async function selectStrategyById(strategyId: number) {
+  await loadAndSelectStrategy(strategyId);
 }
 
 // Export function to get selected strategy

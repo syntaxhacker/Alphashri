@@ -12,6 +12,7 @@ from fastapi import HTTPException, Depends
 from trading.journal import TradeJournal, get_journal
 from api.auth import get_current_user
 from db.models import User
+from db.database import SessionLocal
 import config
 
 from .paper_api import router, _get_user_id
@@ -25,16 +26,16 @@ async def get_trades(
     to_date: Optional[str] = None,
     days_back: int = 7,
     symbol: Optional[str] = None,
-    strategy: Optional[str] = None,
+    strategy_id: Optional[int] = None,
     bot_id: Optional[str] = None,
     user: "User" = Depends(get_current_user),
 ):
     """Get trade history from DB first, then journal fallback."""
     user_id = _get_user_id(user)
-    all_trades = _get_trades_from_db(user_id, bot_id, symbol, strategy, from_date, to_date, days_back, limit)
+    all_trades = _get_trades_from_db(user_id, bot_id, symbol, strategy_id, from_date, to_date, days_back, limit)
 
     if not all_trades:
-        all_trades = _get_trades_from_journals(user_id, date, from_date, to_date, days_back, bot_id, symbol, strategy, limit)
+        all_trades = _get_trades_from_journals(user_id, date, from_date, to_date, days_back, bot_id, symbol, strategy_id, limit)
 
     return {
         "total_trades": len(all_trades),
@@ -47,7 +48,7 @@ def _get_trades_from_db(
     user_id: int,
     bot_id: Optional[str],
     symbol: Optional[str],
-    strategy: Optional[str],
+    strategy_id: Optional[int],
     from_date: Optional[str],
     to_date: Optional[str],
     days_back: int,
@@ -70,8 +71,8 @@ def _get_trades_from_db(
         if symbol:
             query = query.filter(TradeModel.symbol == symbol.upper())
 
-        if strategy:
-            query = query.filter(TradeModel.strategy_name == strategy)
+        if strategy_id:
+            query = query.filter(TradeModel.strategy_id == strategy_id)
 
         if from_date:
             query = query.filter(TradeModel.exit_time >= datetime.strptime(from_date, '%Y-%m-%d').replace(tzinfo=config.IST))
@@ -102,7 +103,7 @@ def _get_trades_from_journals(
     days_back: int,
     bot_id: Optional[str],
     symbol: Optional[str],
-    strategy: Optional[str],
+    strategy_id: Optional[int],
     limit: int,
 ) -> list:
     from rich.console import Console
@@ -175,8 +176,15 @@ def _get_trades_from_journals(
 
     if symbol:
         all_trades = [t for t in all_trades if t.get('symbol', '').upper() == symbol.upper()]
-    if strategy:
-        all_trades = [t for t in all_trades if strategy.lower() in (t.get('notes') or '').lower()]
+    if strategy_id:
+        from db.models.bot import StrategyConfig
+        strategy_name = None
+        with SessionLocal() as db:
+            config = db.query(StrategyConfig).filter(StrategyConfig.id == strategy_id).first()
+            if config:
+                strategy_name = config.name
+        if strategy_name:
+            all_trades = [t for t in all_trades if t.get('strategy_name') == strategy_name]
     if bot_id:
         if bot_id == "default":
             all_trades = [t for t in all_trades if t.get('bot_id') in (0, None, "0")]

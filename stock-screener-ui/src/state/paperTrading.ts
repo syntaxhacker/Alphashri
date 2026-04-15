@@ -39,6 +39,7 @@ export const initialPaperTradingState: PaperTradingState = {
   filterBot: null,
 
   selectedSymbol: null,
+  selectedStrategyId: null,
   selectedStrategyTab: null,
   selectedTradeId: null,
   showAllTrades: false,
@@ -145,8 +146,8 @@ export function setFilterSymbol(symbol: string | null) {
   notify();
 }
 
-export function setFilterStrategy(strategy: string | null) {
-  state = { ...state, filterStrategy: strategy };
+export function setFilterStrategy(strategyId: number | null) {
+  state = { ...state, filterStrategy: strategyId };
   notify();
 }
 
@@ -156,19 +157,23 @@ export function setSelectedSymbol(symbol: string | null) {
   notify();
 }
 
-export function setSelectedTradeId(tradeId: string | null, strategyName?: string | null) {
+export function setSelectedTradeId(
+  tradeId: string | null,
+  strategyType?: string | null,
+  strategyId?: number | null,
+) {
   let showOrb = false;
   let showPivot = false;
   let show52w = false;
-  if (strategyName) {
-    const s = strategyName.toUpperCase();
-    if (s.includes("ORB")) showOrb = true;
-    if (s.includes("S/R") || s.includes("BREAKOUT") || s.includes("PIVOT")) showPivot = true;
-    if (s.includes("52W")) show52w = true;
+  if (strategyType) {
+    if (strategyType === "ORB") showOrb = true;
+    if (strategyType === "SR_BREAKOUT") showPivot = true;
+    if (strategyType.startsWith("52W")) show52w = true;
   }
   state = {
     ...state,
     selectedTradeId: tradeId,
+    selectedStrategyId: strategyId ?? null,
     showAllTrades: false,
     showOrbLines: showOrb,
     showPivotLines: showPivot,

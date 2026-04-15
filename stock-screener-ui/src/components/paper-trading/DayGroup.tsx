@@ -8,6 +8,7 @@ import {
   formatDuration,
   getPnLTextColor,
   sortByField,
+  getStrategyTypeFromName,
 } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
 import { SortableHeader } from "../common/SortableHeader";
@@ -22,7 +23,8 @@ interface DayGroupProps {
     symbol: string,
     exitTime?: string,
     tradeId?: string,
-    strategyName?: string,
+    strategyType?: string,
+    strategyId?: number,
   ) => void;
   onDeleteTrade: (tradeId: string) => void;
   expanded: boolean;
@@ -84,7 +86,7 @@ function TradeRow({
   selectedTradeId,
 }: {
   trade: PaperTrade;
-  onSelectSymbol: (s: string, t?: string, tradeId?: string, strategyName?: string) => void;
+  onSelectSymbol: (s: string, t?: string, tradeId?: string, strategyType?: string, strategyId?: number) => void;
   onDeleteTrade: (id: string) => void;
   selectedTradeId: string | null;
 }) {
@@ -104,7 +106,7 @@ function TradeRow({
       ref={rowRef}
       key={trade.trade_id}
       onClick={() =>
-        onSelectSymbol(trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_name)
+        onSelectSymbol(trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_type || (getStrategyTypeFromName(trade.strategy_name) ?? undefined), trade.strategy_id)
       }
       className={isSelected ? "trade-row-highlighted" : undefined}
       style={{ cursor: "pointer" }}
@@ -151,7 +153,7 @@ function TradeRow({
           size="xs"
           onClick={(e) => {
             e.stopPropagation();
-            setFilterStrategy(trade.strategy_name || null);
+            setFilterStrategy(trade.strategy_id || null);
           }}
         >
           {trade.strategy_name || "default"}

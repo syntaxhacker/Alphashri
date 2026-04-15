@@ -410,3 +410,13 @@ export function formatTimeAgo(isoString: string): string {
     return "";
   }
 }
+
+export function getStrategyTypeFromName(name: string | undefined | null): string | null {
+  if (!name) return null;
+  const upper = name.toUpperCase();
+  if (upper.includes("ORB")) return "ORB";
+  if (upper.includes("S/R BREAKOUT") || upper.includes("SR BREAKOUT")) return "SR_BREAKOUT";
+  if (upper.includes("EMA CROSS")) return "EMA_CROSS";
+  if (upper.includes("52W")) return "52W_CHASER";
+  return null;
+}

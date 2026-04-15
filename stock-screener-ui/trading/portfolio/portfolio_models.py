@@ -30,6 +30,7 @@ class SharedPosition:
     entry_time: datetime
     strategy_id: int
     strategy_name: str
+    strategy_type: str = ""
     current_price: float = 0.0
     unrealized_pnl: float = 0.0
     unrealized_pnl_pct: float = 0.0

@@ -51,13 +51,13 @@ function PositionInfo({ position }: { position: PaperPosition }) {
   );
 }
 
-function ChartLegend({ hasOrb, hasWeek52 }: { hasOrb: boolean; hasWeek52: boolean }) {
+function ChartLegend({ orbLabel, hasWeek52 }: { orbLabel?: string; hasWeek52: boolean }) {
   const items = [
     { color: "#00FFFF", label: "Entry", shape: "square" as const },
     { color: "#FFFF00", label: "TP", shape: "circle" as const },
     { color: "#FF00FF", label: "SL", shape: "circle" as const },
   ];
-  if (hasOrb) items.push({ color: "#2196F3", label: "OR", shape: "square" as const });
+  if (orbLabel) items.push({ color: "#2196F3", label: orbLabel, shape: "square" as const });
   if (hasWeek52) items.push({ color: "#E91E63", label: "52W High", shape: "square" as const });
 
   return (
@@ -175,7 +175,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       if (!value) return;
       setChartTimeframe(value);
       if (state.selectedSymbol && state.chartData?.date)
-        await fetchPaperChart(state.selectedSymbol, state.chartData.date, value);
+        await fetchPaperChart(state.selectedSymbol, state.chartData.date, value, state.selectedStrategyId);
     },
     [state.selectedSymbol, state.chartData?.date],
   );
@@ -334,7 +334,11 @@ export function PaperChart() {
         style={{ flex: "0 0 auto" }}
       >
         <ChartLegend
-          hasOrb={!!state.chartData?.orb_levels}
+          orbLabel={
+            state.chartData?.orb_levels?.or_minutes
+              ? `ORB ${state.chartData.orb_levels.or_minutes}m`
+              : undefined
+          }
           hasWeek52={!!state.chartData?.week52_levels}
         />
       </Flex>

@@ -23,6 +23,7 @@ import config
 from rich.console import Console
 
 from .paper_api import router, _get_user_id, _load_fresh_bot_snapshot, _get_symbol_trades_from_db
+from .chart_cache import get_cached_candles, save_cached_candles
 
 console = Console()
 
@@ -167,6 +168,7 @@ async def get_paper_chart(
     symbol: str,
     date: Optional[str] = None,
     timeframe: str = "5min",
+    strategy_id: Optional[int] = None,
     user: "User" = Depends(get_current_user),
 ):
     """
@@ -225,41 +227,45 @@ async def get_paper_chart(
         if date is None:
             date = today
 
+        def _filter_to_date_or_recent(df_full, target_date_str):
+            if df_full is None or df_full.empty:
+                return df_full
+            date_start = pd.Timestamp(target_date_str + " 00:00:00", tz=config.IST)
+            date_end = pd.Timestamp(target_date_str + " 23:59:59", tz=config.IST)
+            filtered = df_full[(df_full.index >= date_start) & (df_full.index <= date_end)]
+            if filtered.empty:
+                return df_full
+            return filtered
+
         def _fetch_chart_data():
-            df_1m = None
+            sym = symbol.upper()
+
             if timeframe == '1day':
+                cached = get_cached_candles(sym, date)
+                if cached is not None:
+                    return cached
                 from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=10)).strftime('%Y-%m-%d')
                 df_1m = upstox_api.fetch_historical_data_v3(
-                    symbol=symbol.upper(),
-                    unit='days',
-                    interval=1,
-                    to_date=date,
-                    from_date=from_date,
+                    sym, unit='days', interval=1,
+                    to_date=date, from_date=from_date,
                 )
-                if df_1m is not None and not df_1m.empty:
-                    date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
-                    date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
-                    df_1m = df_1m[(df_1m.index >= date_start) & (df_1m.index <= date_end)]
+                df_1m = _filter_to_date_or_recent(df_1m, date)
+                save_cached_candles(sym, date, df_1m)
                 return df_1m
 
             if date == today:
-                df_1m = upstox_api.fetch_intraday_data_v3(
-                    symbol=symbol.upper(),
-                    interval='1'
-                )
-            else:
-                from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=2)).strftime('%Y-%m-%d')
-                df_1m_full = upstox_api.fetch_historical_data_v3(
-                    symbol=symbol.upper(),
-                    unit='minutes',
-                    interval=1,
-                    to_date=date,
-                    from_date=from_date,
-                )
-                if df_1m_full is not None and not df_1m_full.empty:
-                    date_start = pd.Timestamp(date + " 00:00:00", tz=config.IST)
-                    date_end = pd.Timestamp(date + " 23:59:59", tz=config.IST)
-                    df_1m = df_1m_full[(df_1m_full.index >= date_start) & (df_1m_full.index <= date_end)]
+                df_1m = upstox_api.fetch_intraday_data_v3(sym, interval='1')
+                if df_1m is not None and not df_1m.empty:
+                    return df_1m
+
+            cached = get_cached_candles(sym, date)
+            if cached is not None:
+                return cached
+            df_1m = upstox_api.fetch_historical_data_v3(
+                sym, unit='minutes', interval=1, to_date=date,
+            )
+            df_1m = _filter_to_date_or_recent(df_1m, date)
+            save_cached_candles(sym, date, df_1m)
             return df_1m
 
         df_1m = await asyncio.to_thread(_fetch_chart_data)
@@ -281,7 +287,20 @@ async def get_paper_chart(
                 "volume": int(row.get('volume', 0)),
             })
 
-        or_candles = candles[:9] if len(candles) >= 9 else candles
+        or_minutes = 45
+        if strategy_id:
+            try:
+                from db.models.bot import StrategyConfig
+                from db.database import SessionLocal
+                with SessionLocal() as db:
+                    cfg = db.query(StrategyConfig).filter(StrategyConfig.id == strategy_id).first()
+                    if cfg:
+                        or_minutes = cfg.or_minutes
+            except Exception:
+                pass
+
+        or_candle_count = max(1, or_minutes // 5)
+        or_candles = candles[:or_candle_count] if len(candles) >= or_candle_count else candles
         orb_levels = None
         if or_candles:
             or_high = max(c['high'] for c in or_candles)
@@ -293,6 +312,7 @@ async def get_paper_chart(
                 "or_open": or_open,
                 "or_range": or_high - or_low,
                 "or_range_pct": ((or_high - or_low) / or_open * 100) if or_open > 0 else 0,
+                "or_minutes": or_minutes,
             }
 
         ema_series = None
@@ -419,6 +439,8 @@ async def get_paper_chart(
                     "sl_price": t.get("stop_loss", 0),
                     "tp_price": t.get("take_profit", 0),
                     "hold_duration_minutes": _calc_hold(t.get("entry_time"), t.get("exit_time")),
+                    "strategy_id": t.get("strategy_id", 0),
+                    "strategy_name": t.get("strategy_name", ""),
                 }
             return {
                 "trade_id": t.trade_id,
@@ -437,6 +459,8 @@ async def get_paper_chart(
                 "sl_price": t.sl_price,
                 "tp_price": t.tp_price,
                 "hold_duration_minutes": _calc_hold(t.entry_time, t.exit_time),
+                "strategy_id": t.strategy_id,
+                "strategy_name": t.strategy_name,
             }
 
         trades_data = [_trade_to_dict(t) for t in symbol_trades]
@@ -444,7 +468,7 @@ async def get_paper_chart(
         current_position = None
         snap = _load_fresh_bot_snapshot()
         if snap:
-            snap_positions = snap.get("open_positions_data") or []
+            snap_positions = snap.get("positions") or snap.get("open_positions_data") or []
             for pos in snap_positions:
                 if pos.get("symbol", "").upper() == symbol.upper():
                     current_position = pos

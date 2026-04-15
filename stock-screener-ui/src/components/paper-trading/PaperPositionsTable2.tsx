@@ -37,7 +37,7 @@ function StrategyTabs({
   positions,
 }: {
   activeTab: string;
-  strategyGroups: Map<string, PaperPosition[]>;
+  strategyGroups: Map<number, PaperPosition[]>;
   positions: PaperPosition[];
 }) {
   const allSummary = calcStrategySummary(positions);
@@ -65,16 +65,19 @@ function StrategyTabs({
             </Text>
           </Group>
         </Tabs.Tab>
-        {strategies.map((strategy) => {
-          const summary = calcStrategySummary(strategyGroups.get(strategy) || []);
+        {strategies.map((strategyId) => {
+          const group = strategyGroups.get(strategyId) || [];
+          const summary = calcStrategySummary(group);
+          const tabValue = String(strategyId);
+          const displayName = group[0]?.strategy_name || `Strategy ${strategyId}`;
           return (
             <Tabs.Tab
-              key={strategy}
-              value={strategy}
-              data-testid={`strategy-tab-${strategy.replace(/\s+/g, "-").toLowerCase()}`}
+              key={strategyId}
+              value={tabValue}
+              data-testid={`strategy-tab-${displayName.replace(/\s+/g, "-").toLowerCase()}`}
             >
               <Group gap="xs">
-                <span>{strategy}</span>
+                <span>{displayName}</span>
                 <Badge size="xs" variant="filled" color="blue">
                   {summary.count}
                 </Badge>
@@ -130,7 +133,7 @@ export function PaperPositionsTable() {
     );
   }
 
-  const filteredPositions = activeTab === "all" ? positions : strategyGroups.get(activeTab) || [];
+  const filteredPositions = activeTab === "all" ? positions : strategyGroups.get(Number(activeTab)) || [];
 
   return (
     <Flex

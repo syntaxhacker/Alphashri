@@ -303,8 +303,8 @@ describe("filter setters", () => {
   });
 
   it("setFilterStrategy updates filterStrategy", () => {
-    setFilterStrategy("ORB");
-    expect(getPaperTradingState().filterStrategy).toBe("ORB");
+    setFilterStrategy(5);
+    expect(getPaperTradingState().filterStrategy).toBe(5);
   });
 
   it("setFilterBot updates filterBot", () => {

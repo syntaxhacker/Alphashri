@@ -107,6 +107,7 @@ class SharedPortfolioManager:
         stop_loss: float,
         take_profit: float,
         entry_time: Optional[datetime] = None,
+        strategy_type: str = "",
     ) -> Optional[SharedPosition]:
         trade_value = entry_price * quantity
 
@@ -133,6 +134,7 @@ class SharedPortfolioManager:
             entry_time=entry_time or datetime.now(config.IST),
             strategy_id=strategy_id,
             strategy_name=strategy_name,
+            strategy_type=strategy_type,
             current_price=entry_price,
             peak_price=entry_price,
             low_price=entry_price,
@@ -332,6 +334,7 @@ class SharedPortfolioManager:
                 'entry_time': pos.entry_time.isoformat(),
                 'strategy_id': pos.strategy_id,
                 'strategy_name': pos.strategy_name,
+                'strategy_type': pos.strategy_type,
                 'peak_price': pos.peak_price,
                 'metadata': pos.metadata,
             }

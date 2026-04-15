@@ -55,6 +55,9 @@ class PaperPosition:
     low_price: float = float('inf')
     strategy_id: int = 0
     strategy_name: str = ""
+    strategy_type: str = ""
+
+
 
 
 @dataclass

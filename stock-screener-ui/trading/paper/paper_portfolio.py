@@ -411,6 +411,7 @@ class PaperTrader:
                 'entry_time': pos.entry_time.isoformat(),
                 'strategy_id': pos.strategy_id,
                 'strategy_name': pos.strategy_name,
+                'strategy_type': pos.strategy_type,
             }
             for pos in self.positions.values()
         ]
