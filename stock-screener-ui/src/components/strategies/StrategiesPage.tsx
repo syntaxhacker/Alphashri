@@ -31,6 +31,7 @@ export function StrategiesPage({
   onCloseEditModal,
   onCreateFromTemplate,
   onSelectStrategy,
+  onUpdate,
   onRefresh,
   onClearError,
 }: StrategiesPageProps) {
@@ -94,6 +95,7 @@ export function StrategiesPage({
             onEdit={onOpenEditModal}
             onDelete={onDeleteStrategy}
             onSetActive={onSetActiveStrategy}
+            onUpdate={onUpdate}
             isLoading={isLoading}
           />
         );

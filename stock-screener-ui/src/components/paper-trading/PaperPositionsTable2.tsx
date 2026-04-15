@@ -6,11 +6,11 @@ import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   PositionsTableBody,
-  WatchlistScan,
   StrategySummaryFooter,
   groupPositionsByStrategy,
   calcStrategySummary,
 } from "./PositionsHelpers";
+import { WatchlistScan } from "./WatchlistScan";
 
 function EmptyPositions() {
   return (
@@ -141,7 +141,7 @@ export function PaperPositionsTable() {
       id="positions-panel"
       data-testid="positions-panel"
     >
-      <WatchlistScan snapshot={botSnapshot} />
+      <WatchlistScan snapshot={botSnapshot} selectedSymbol={selectedSymbol} />
 
       {positions.length > 0 && (
         <Flex direction="column" flex={1} style={{ minHeight: 0 }}>

@@ -3,9 +3,8 @@ import { Accordion, Badge, Flex, Group, ScrollArea, Stack, Table, Text } from "@
 import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
-import { nearBreakoutPct } from "./PaperPositionsTable";
+import { nearBreakoutPct, tableStyles as TABLE_STYLES } from "./PositionsHelpers";
 import { SideBadge } from "../common/BadgeComponents";
-import { tableStyles as TABLE_STYLES } from "./PositionsHelpers";
 
 interface WatchlistScanProps {
   snapshot: PaperBotSnapshot | null;
