@@ -297,8 +297,7 @@ function useFilteredTrades() {
     if (state.filterSymbol) trades = trades.filter((t) => t.symbol === state.filterSymbol);
     if (state.filterFromDate || state.filterToDate)
       trades = filterByRange(trades, state.filterFromDate, state.filterToDate);
-    if (state.filterStrategy)
-      trades = trades.filter((t) => t.strategy_id === state.filterStrategy);
+    if (state.filterStrategy) trades = trades.filter((t) => t.strategy_id === state.filterStrategy);
     if (state.filterBot) trades = trades.filter((t) => t.bot_id === state.filterBot);
     return trades;
   }, [

@@ -175,7 +175,12 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       if (!value) return;
       setChartTimeframe(value);
       if (state.selectedSymbol && state.chartData?.date)
-        await fetchPaperChart(state.selectedSymbol, state.chartData.date, value, state.selectedStrategyId);
+        await fetchPaperChart(
+          state.selectedSymbol,
+          state.chartData.date,
+          value,
+          state.selectedStrategyId,
+        );
     },
     [state.selectedSymbol, state.chartData?.date],
   );
