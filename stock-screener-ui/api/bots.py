@@ -475,6 +475,15 @@ async def get_bot_scan(
     try:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
+        running, _ = is_bot_running(user_id, bot.id)
+        if not running:
+            return {
+                "bot_id": bot.uuid,
+                "scan_items": [],
+                "count": 0,
+                "timestamp": datetime.now().isoformat(),
+            }
+
         snapshot = load_bot_snapshot(bot.id, user_id)
 
         if not snapshot:
@@ -506,6 +515,95 @@ async def get_bot_scan(
             "count": len(scan_items),
             "timestamp": snapshot.get('timestamp'),
         }
+    finally:
+        if close_db:
+            db.close()
+
+
+class CloseAllRequest(BaseModel):
+    prices: Dict[str, float] = {}
+
+
+@router.post("/{bot_id}/close-all")
+async def close_all_bot_positions(
+    bot_id: str,
+    request: CloseAllRequest = CloseAllRequest(),
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db) if get_db else None
+):
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    user_id = get_user_id(user)
+
+    close_db = False
+    if db is None:
+        db = _SessionLocal()
+        close_db = True
+
+    try:
+        bot = get_bot_by_uuid(bot_id, user_id, db)
+        running, _ = is_bot_running(user_id, bot.id)
+
+        cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
+        cmd_path.write_text(json.dumps({"action": "close_all", "prices": request.prices}))
+
+        if not running:
+            from db.models import Position as _Pos, Trade as _Trade
+            from backtest.costs import calculate_trading_costs
+            from config import IST
+            positions = db.query(_Pos).filter(_Pos.bot_id == bot.id).all()
+            if positions:
+                for pos in positions:
+                    exit_price = request.prices.get(pos.symbol, pos.current_price or pos.entry_price)
+                    side = pos.side.upper()
+                    if side == "LONG":
+                        pnl = (exit_price - pos.entry_price) * pos.quantity
+                        pnl_pct = ((exit_price - pos.entry_price) / pos.entry_price) * 100
+                    else:
+                        pnl = (pos.entry_price - exit_price) * pos.quantity
+                        pnl_pct = ((pos.entry_price - exit_price) / pos.entry_price) * 100
+                    costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+                    trade = _Trade(
+                        user_id=user_id,
+                        bot_id=bot.id,
+                        strategy_id=pos.strategy_id,
+                        strategy_name=pos.strategy_name or "",
+                        symbol=pos.symbol,
+                        side=side,
+                        quantity=pos.quantity,
+                        entry_price=pos.entry_price,
+                        exit_price=exit_price,
+                        entry_time=pos.entry_time,
+                        exit_time=datetime.now(IST),
+                        stop_loss=pos.stop_loss or 0.0,
+                        take_profit=pos.take_profit or 0.0,
+                        pnl=round(pnl, 2),
+                        pnl_pct=round(pnl_pct, 2),
+                        costs=round(costs, 2),
+                        net_pnl=round(pnl - costs, 2),
+                        exit_reason="MANUAL_CLOSE",
+                        reason="Closed via Close All",
+                        peak_price=pos.entry_price,
+                        low_price=pos.entry_price,
+                        source="live",
+                    )
+                    db.add(trade)
+                    db.delete(pos)
+                db.commit()
+            cmd_path.unlink(missing_ok=True)
+
+            snapshot = load_bot_snapshot(bot.id, user_id)
+            if snapshot:
+                snapshot['positions'] = []
+                try:
+                    get_bot_snapshot_path(bot.id, user_id).write_text(json.dumps(snapshot))
+                except Exception:
+                    pass
+
+        return {"status": "success", "message": f"Close all command sent", "bot_running": running}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to close positions: {str(e)}")
     finally:
         if close_db:
             db.close()

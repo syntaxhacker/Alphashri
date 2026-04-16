@@ -249,6 +249,68 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         console.print("\n[yellow]Shutdown signal received. Stopping all strategies...[/yellow]")
         self.running = False
 
+    def _check_command_file(self):
+        bot_id = self.bot_config.id if self.bot_config else 0
+        cmd_path = Path(f"/tmp/bot-cmd-{bot_id}.json")
+        if not cmd_path.exists():
+            return
+        try:
+            cmd = json.loads(cmd_path.read_text())
+            if cmd.get("action") == "close_all":
+                prices = cmd.get("prices", {})
+                self._execute_close_all(prices)
+                console.print(f"[red]Executed close_all command for {len(prices)} symbols[/red]")
+        except Exception as e:
+            console.print(f"[yellow]Error reading command file: {e}[/yellow]")
+        finally:
+            try:
+                cmd_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    def _execute_close_all(self, prices: dict):
+        from trading.backtest.costs import calculate_trading_costs
+        for key, pos in list(self.portfolio.positions.items()):
+            exit_price = prices.get(pos.symbol, pos.current_price or pos.entry_price)
+            if exit_price <= 0:
+                continue
+            side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
+            costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+            trade = self.portfolio.close_position(
+                strategy_id=pos.strategy_id,
+                symbol=pos.symbol,
+                exit_price=exit_price,
+                exit_reason="MANUAL_CLOSE",
+                costs=costs,
+                exit_time=self._ist_now(),
+            )
+            if trade:
+                self._persist_trade_to_db({
+                    'strategy_id': pos.strategy_id,
+                    'strategy_name': '',
+                    'symbol': pos.symbol,
+                    'side': side,
+                    'quantity': pos.quantity,
+                    'entry_price': pos.entry_price,
+                    'exit_price': exit_price,
+                    'entry_time': pos.entry_time,
+                    'exit_time': trade.exit_time,
+                    'pnl': trade.pnl,
+                    'pnl_pct': trade.pnl_pct,
+                    'costs': trade.costs,
+                    'net_pnl': trade.net_pnl,
+                    'exit_reason': "MANUAL_CLOSE",
+                    'reason': "Closed via Close All",
+                    'stop_loss': pos.stop_loss,
+                    'take_profit': pos.take_profit,
+                    'peak_price': trade.peak_price,
+                    'low_price': trade.low_price,
+                })
+                self._persist_position_to_db({
+                    'strategy_id': pos.strategy_id,
+                    'symbol': pos.symbol,
+                }, action="delete")
+
     def _get_screener(self):
         """Lazy load screener."""
         if self._screener is None:
@@ -328,6 +390,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     net_pnl=trade_data.get('net_pnl', 0.0),
                     exit_reason=trade_data.get('exit_reason', ''),
                     reason=trade_data.get('reason', ''),
+                    peak_price=trade_data.get('peak_price', 0.0),
+                    low_price=trade_data.get('low_price', 0.0),
                     is_test=self.test_mode,
                     source='live' if not self.test_mode else 'test',
                 )
@@ -666,6 +730,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
                 if not self.is_market_open():
                     console.print("[yellow]Market closed. Waiting...[/yellow]")
+                    self._check_command_file()
                     self.save_snapshot()
                     time.sleep(interval)
                     continue
@@ -681,6 +746,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         for signal in signals:
                             self.execute_signal(strategy_id, signal)
 
+                self._check_command_file()
                 self.monitor_positions()
 
                 now_ist = self._ist_now()

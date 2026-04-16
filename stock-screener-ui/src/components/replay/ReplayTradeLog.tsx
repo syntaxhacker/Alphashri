@@ -134,6 +134,7 @@ export function ReplayTradeLog({
           value={strategyFilter}
           onChange={(v) => setStrategyFilter(v ?? "ALL")}
           allowDeselect={false}
+          data-testid="replay-trade-log-strategy-filter"
         />
         <Select
           size="xs"
@@ -142,6 +143,7 @@ export function ReplayTradeLog({
           value={symbolFilter}
           onChange={(v) => setSymbolFilter(v ?? "ALL")}
           allowDeselect={false}
+          data-testid="replay-trade-log-symbol-filter"
         />
         <Text size="xs" c="dimmed">
           {filteredTrades.length} trade{filteredTrades.length !== 1 ? "s" : ""}
@@ -224,6 +226,7 @@ export function ReplayTradeLog({
                   key={trade.id}
                   onClick={() => handleRowClick(trade)}
                   className={highlightedTradeId === trade.id ? "trade-row-highlighted" : undefined}
+                  data-testid={`replay-trade-row-${trade.id}`}
                 >
                   <Table.Td>
                     <Text size="xs" c="dimmed">
@@ -275,6 +278,7 @@ export function ReplayTradeLog({
                       component="button"
                       size="xs"
                       onClick={() => setStrategyFilter(trade.strategy)}
+                      data-testid={`replay-trade-strategy-link-${trade.id}`}
                     >
                       {trade.strategy}
                     </Anchor>

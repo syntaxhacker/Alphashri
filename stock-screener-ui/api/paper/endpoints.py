@@ -234,16 +234,19 @@ async def get_paper_chart(
             date_end = pd.Timestamp(target_date_str + " 23:59:59", tz=config.IST)
             filtered = df_full[(df_full.index >= date_start) & (df_full.index <= date_end)]
             if filtered.empty:
-                return df_full
+                last_day = df_full.index.date[-1]
+                target_day = date_start.date()
+                if last_day == target_day or (last_day < target_day):
+                    return df_full
             return filtered
 
         def _fetch_chart_data():
             sym = symbol.upper()
 
             if timeframe == '1day':
-                cached = get_cached_candles(sym, date)
-                if cached is not None:
-                    return cached
+                cached_df, cached = get_cached_candles(sym, date)
+                if cached_df is not None:
+                    return cached_df, True
                 from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=10)).strftime('%Y-%m-%d')
                 df_1m = upstox_api.fetch_historical_data_v3(
                     sym, unit='days', interval=1,
@@ -251,24 +254,26 @@ async def get_paper_chart(
                 )
                 df_1m = _filter_to_date_or_recent(df_1m, date)
                 save_cached_candles(sym, date, df_1m)
-                return df_1m
+                return df_1m, False
+
+            cached_df, cached = get_cached_candles(sym, date)
+            if cached_df is not None:
+                return cached_df, True
 
             if date == today:
                 df_1m = upstox_api.fetch_intraday_data_v3(sym, interval='1')
                 if df_1m is not None and not df_1m.empty:
-                    return df_1m
+                    save_cached_candles(sym, date, df_1m)
+                return df_1m, False
 
-            cached = get_cached_candles(sym, date)
-            if cached is not None:
-                return cached
             df_1m = upstox_api.fetch_historical_data_v3(
                 sym, unit='minutes', interval=1, to_date=date,
             )
             df_1m = _filter_to_date_or_recent(df_1m, date)
             save_cached_candles(sym, date, df_1m)
-            return df_1m
+            return df_1m, False
 
-        df_1m = await asyncio.to_thread(_fetch_chart_data)
+        df_1m, cached = await asyncio.to_thread(_fetch_chart_data)
 
         df = _resample_to_timeframe(df_1m, timeframe) if timeframe != '1day' else df_1m
 
@@ -428,7 +433,7 @@ async def get_paper_chart(
                     "side": t.get("side", ""),
                     "quantity": t.get("quantity", 0),
                     "entry_price": t.get("entry_price", 0),
-                    "exit_price": t.get("exit_price", 0),
+                    "exit_price": t.get("exit_price"),
                     "entry_time": t.get("entry_time", ""),
                     "exit_time": t.get("exit_time", ""),
                     "pnl": t.get("pnl", 0),
@@ -438,9 +443,16 @@ async def get_paper_chart(
                     "net_pnl": t.get("net_pnl", 0),
                     "sl_price": t.get("stop_loss", 0),
                     "tp_price": t.get("take_profit", 0),
+                    "peak_price": t.get("peak_price", 0),
+                    "low_price": t.get("low_price", 0),
                     "hold_duration_minutes": _calc_hold(t.get("entry_time"), t.get("exit_time")),
                     "strategy_id": t.get("strategy_id", 0),
                     "strategy_name": t.get("strategy_name", ""),
+                    "reason": t.get("reason", ""),
+                    "notes": t.get("notes", ""),
+                    "bot_id": t.get("bot_id"),
+                    "bot_name": t.get("bot_name"),
+                    "strategy_type": t.get("strategy_type", ""),
                 }
             return {
                 "trade_id": t.trade_id,
@@ -458,9 +470,16 @@ async def get_paper_chart(
                 "net_pnl": t.net_pnl,
                 "sl_price": t.sl_price,
                 "tp_price": t.tp_price,
+                "peak_price": getattr(t, 'peak_price', 0),
+                "low_price": getattr(t, 'low_price', 0),
                 "hold_duration_minutes": _calc_hold(t.entry_time, t.exit_time),
                 "strategy_id": t.strategy_id,
                 "strategy_name": t.strategy_name,
+                "reason": getattr(t, 'reason', ''),
+                "notes": getattr(t, 'notes', ''),
+                "bot_id": getattr(t, 'bot_id', None),
+                "bot_name": getattr(t, 'bot_name', None),
+                "strategy_type": getattr(t, 'strategy_type', ''),
             }
 
         trades_data = [_trade_to_dict(t) for t in symbol_trades]
@@ -504,6 +523,7 @@ async def get_paper_chart(
             "pivot_levels": pivot_levels,
             "ema_series": ema_series,
             "current_position": current_position,
+            "cached": cached,
         }
 
     except Exception as e:

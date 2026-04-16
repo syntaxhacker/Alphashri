@@ -86,7 +86,13 @@ export function StrategiesList({
               <IconCheck size={14} color="var(--mantine-color-teal-5)" />
             </Tooltip>
           )}
-          <Anchor component="button" size="sm" fw={500} onClick={() => onEdit(strategy)}>
+          <Anchor
+            component="button"
+            size="sm"
+            fw={500}
+            onClick={() => onEdit(strategy)}
+            data-testid={`strategy-name-link-${strategy.id}`}
+          >
             {strategy.name}
           </Anchor>
         </Group>
@@ -167,7 +173,7 @@ export function StrategiesList({
                 variant="subtle"
                 color="teal"
                 onClick={() => onSetActive(strategy.internal_id ?? Number(strategy.id))}
-                data-testid="set-active-btn"
+                data-testid={`set-active-btn-${strategy.id}`}
               >
                 <IconCheck size={14} />
               </ActionIcon>
@@ -178,7 +184,7 @@ export function StrategiesList({
             variant="subtle"
             color="blue"
             onClick={() => onEdit(strategy)}
-            data-testid="edit-strategy-btn"
+            data-testid={`edit-strategy-btn-${strategy.id}`}
             title="Edit"
           >
             <IconEdit size={14} />
@@ -189,7 +195,7 @@ export function StrategiesList({
             color="red"
             onClick={() => onDelete(strategy.internal_id ?? Number(strategy.id))}
             disabled={isActive(strategy)}
-            data-testid="delete-strategy-btn"
+            data-testid={`delete-strategy-btn-${strategy.id}`}
             title={isActive(strategy) ? "Cannot delete active strategy" : "Delete"}
           >
             <IconTrash size={14} />

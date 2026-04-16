@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from trading.journal import TradeJournal, get_journal
 from api.auth import get_current_user
@@ -221,8 +221,8 @@ async def delete_trade(
 
 
 class TradeNotesUpdate(BaseModel):
-    notes: Optional[str] = None
-    reason: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=500)
+    reason: Optional[str] = Field(default=None, max_length=500)
 
 
 @router.patch("/trades/{trade_id}")
@@ -239,10 +239,13 @@ async def update_trade_notes(
             Trade.user_id == user_id,
         ).first()
         if not trade:
-            trade = db.query(Trade).filter(
-                Trade.id == int(trade_id.replace("TRADE-", "")),
-                Trade.user_id == user_id,
-            ).first()
+            try:
+                trade = db.query(Trade).filter(
+                    Trade.id == int(trade_id.replace("TRADE-", "")),
+                    Trade.user_id == user_id,
+                ).first()
+            except (ValueError, OverflowError):
+                pass
         if not trade:
             raise HTTPException(status_code=404, detail=f"Trade {trade_id} not found")
         if body.notes is not None:

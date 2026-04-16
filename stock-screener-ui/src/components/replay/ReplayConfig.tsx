@@ -104,6 +104,7 @@ export function ReplayConfigBar({
             clearable
             searchable
             placeholder="Default bot"
+            data-testid="replay-bot-select"
           />
         </Box>
 
@@ -118,6 +119,7 @@ export function ReplayConfigBar({
             max={maxDate}
             value={config.date}
             onChange={handleDateChange}
+            data-testid="replay-date-input"
           />
         </Box>
 
@@ -132,6 +134,7 @@ export function ReplayConfigBar({
             value={config.strategy}
             onChange={(v) => setConfig({ strategy: v ?? "ALL" })}
             allowDeselect={false}
+            data-testid="replay-strategy-select"
           />
         </Box>
 
@@ -148,6 +151,7 @@ export function ReplayConfigBar({
             creatable
             allowDeselect={false}
             searchable
+            data-testid="replay-symbols-select"
           />
         </Box>
 
@@ -159,6 +163,7 @@ export function ReplayConfigBar({
             size="sm"
             checked={config.refresh_cache}
             onChange={(e) => setConfig({ refresh_cache: e.currentTarget.checked })}
+            data-testid="replay-refresh-cache-switch"
           />
         </Box>
 
@@ -169,6 +174,7 @@ export function ReplayConfigBar({
             variant="light"
             leftSection={<IconPlayerStop size={16} />}
             onClick={stopReplay}
+            data-testid="replay-stop-btn"
           >
             Stop
           </Button>
@@ -180,13 +186,20 @@ export function ReplayConfigBar({
             }
             disabled={!config.date}
             onClick={startReplay}
+            data-testid="replay-run-btn"
           >
             Run Replay
           </Button>
         )}
 
         {!isRunning && config.date && (
-          <Button size="sm" variant="subtle" color="gray" onClick={reset}>
+          <Button
+            size="sm"
+            variant="subtle"
+            color="gray"
+            onClick={reset}
+            data-testid="replay-reset-btn"
+          >
             Reset
           </Button>
         )}

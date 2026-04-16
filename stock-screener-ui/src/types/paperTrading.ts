@@ -40,8 +40,8 @@ export interface PaperTrade {
   exit_reason: string; // 'SL', 'TP', 'EOD', 'MANUAL'
   costs: number;
   net_pnl: number;
-  sl_price: number;
-  tp_price: number;
+  stop_loss: number;
+  take_profit: number;
   peak_price: number; // Highest price during trade
   low_price: number; // Lowest price during trade
   hold_duration_minutes: number | null; // Entry to exit duration

@@ -244,12 +244,14 @@ function buildTooltipFormatter(
     for (const p of params) {
       if (p.data && p.data.trade) {
         const t = p.data.trade;
-        const isPosition = "order_id" in t;
+        const isPosition = !("exit_price" in t) || !("trade_id" in t);
 
         if (isPosition) {
           const pos = t as PaperPosition;
-          const pnlColor = pos.pnl >= 0 ? "#00E676" : "#FF1744";
-          return `<div style="padding:6px 8px;font-family:monospace;font-size:${fontSizes.sm};line-height:1.4"><div style="color:#00BFFF;font-weight:bold;margin-bottom:4px">LIVE POSITION | ${pos.side}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${pos.entry_price.toFixed(2)}</b></span><span>Current: <b>₹${pos.current_price.toFixed(2)}</b></span><span>Qty: ${pos.quantity}</span></div><div style="display:flex;gap:12px"><span style="color:#FF00FF;">SL: ₹${pos.stop_loss.toFixed(2)}</span><span style="color:#FFFF00;">TP: ₹${pos.take_profit.toFixed(2)}</span></div><div style="margin-top:4px"><span style="color:${pnlColor};font-weight:bold">P&L: ₹${pos.pnl.toFixed(0)} (${pos.pnl_pct >= 0 ? "+" : ""}${pos.pnl_pct.toFixed(2)}%)</span></div></div>`;
+          const pnl = pos.pnl ?? 0;
+          const pnlPct = pos.pnl_pct ?? 0;
+          const pnlColor = pnl >= 0 ? "#00E676" : "#FF1744";
+          return `<div style="padding:6px 8px;font-family:monospace;font-size:${fontSizes.sm};line-height:1.4"><div style="color:#00BFFF;font-weight:bold;margin-bottom:4px">LIVE POSITION | ${pos.side}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${pos.entry_price.toFixed(2)}</b></span><span>Current: <b>₹${pos.current_price.toFixed(2)}</b></span><span>Qty: ${pos.quantity}</span></div><div style="display:flex;gap:12px"><span style="color:#FF00FF;">SL: ₹${(pos.stop_loss ?? 0).toFixed(2)}</span><span style="color:#FFFF00;">TP: ₹${(pos.take_profit ?? 0).toFixed(2)}</span></div><div style="margin-top:4px"><span style="color:${pnlColor};font-weight:bold">P&L: ₹${pnl.toFixed(0)} (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)</span></div></div>`;
         } else {
           const trade = t as PaperTrade;
           const pnlColor = trade.net_pnl >= 0 ? "#00E676" : "#FF1744";

@@ -1,9 +1,21 @@
-import { useMemo } from "react";
-import { Tabs, Badge, Text, Group, Flex, ScrollArea } from "@mantine/core";
+import { useMemo, useState } from "react";
+import {
+  Tabs,
+  Badge,
+  Text,
+  Group,
+  Flex,
+  ScrollArea,
+  Button,
+  ActionIcon,
+  Tooltip,
+} from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 import { getPaperTradingState, setSelectedStrategyTab, subscribe } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { closeAllPositions, refreshBotLiveData, refreshLiveData } from "../../api/paperTrading";
 import {
   PositionsTableBody,
   StrategySummaryFooter,
@@ -93,6 +105,47 @@ function StrategyTabs({
   );
 }
 
+function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
+  const [closing, setClosing] = useState(false);
+
+  const handleCloseAll = async () => {
+    if (!window.confirm(`Close all ${positions.length} positions at current prices?`)) return;
+    setClosing(true);
+    try {
+      const prices: Record<string, number> = {};
+      for (const p of positions) {
+        if (p.current_price > 0) prices[p.symbol] = p.current_price;
+      }
+      const state = getPaperTradingState();
+      const botId = state.availableBots.length > 0 ? state.availableBots[0].id : null;
+      if (!botId) throw new Error("No active bot found");
+      const result = await closeAllPositions(botId, prices);
+      await refreshBotLiveData(botId);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to close all positions";
+      alert(msg);
+    } finally {
+      setClosing(false);
+    }
+  };
+
+  return (
+    <Tooltip label="Close all positions at current prices">
+      <Button
+        size="compact-xs"
+        variant="light"
+        color="red"
+        leftSection={closing ? undefined : <IconX size={12} />}
+        loading={closing}
+        onClick={handleCloseAll}
+        data-testid="close-all-positions"
+      >
+        {closing ? "Closing..." : "Close All"}
+      </Button>
+    </Tooltip>
+  );
+}
+
 export function PaperPositionsTable() {
   useStoreSubscription(subscribe);
 
@@ -133,7 +186,8 @@ export function PaperPositionsTable() {
     );
   }
 
-  const filteredPositions = activeTab === "all" ? positions : strategyGroups.get(Number(activeTab)) || [];
+  const filteredPositions =
+    activeTab === "all" ? positions : strategyGroups.get(Number(activeTab)) || [];
 
   return (
     <Flex
@@ -157,9 +211,12 @@ export function PaperPositionsTable() {
             <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
               Positions ({positions.length})
             </Text>
-            <Badge color="red" variant="light" size="xs">
-              LIVE
-            </Badge>
+            <Group gap="xs">
+              {positions.length > 0 && <CloseAllButton positions={positions} />}
+              <Badge color="red" variant="light" size="xs">
+                LIVE
+              </Badge>
+            </Group>
           </Group>
 
           {isMultiStrategy && (

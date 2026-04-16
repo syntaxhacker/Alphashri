@@ -30,6 +30,7 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - Shared utilities: `formatCurrencyIN`, `formatNumber`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
 - Config/constants/theme consolidated in `src/config/` (constants.ts, theme.ts, backtestDefaults.ts)
 - ECharts: never wrap chart container in `ScrollArea` — ECharts needs explicit dimensions via `flex: 1` on a flex parent
+- **React keys**: never use `symbol` alone as key — always composite (`${strategy_id}-${symbol}`) or unique ID. Positions can have same symbol across strategies.
 
 ## Folder Structure
 ```
@@ -104,6 +105,39 @@ src/
   - `run()` → `send_bot_status()` (start/stop), `send_daily_summary()` (15:30 IST EOD)
 - `send_positions_snapshot()` available for on-demand use (not auto-triggered)
 - The separate `upstox_trader/screeners/tv_alerts.py` Telegram system is **unrelated** — that's for TradingView screener webhooks, not the paper trading engine
+
+## Bot Architecture
+- Bot runs as **separate subprocess** via `runner_cli.py` — NOT in the API process
+- API and bot communicate via: **DB** (positions/trades), **Redis** (heartbeat/status), **snapshots** (`/tmp/multi-strategy-bot-{user_id}-{bot_id}.json`)
+- Bot's in-memory `SharedPortfolioManager` is the source of truth for open positions — the API reads from snapshots/DB
+- **Close All Positions**: API writes command file `/tmp/bot-cmd-{bot_id}.json`, bot picks it up next cycle and closes via its own portfolio (creates Trade records, deletes Position records). If bot is stopped, API closes directly from DB + clears snapshot.
+- **Scan items**: `/api/bots/{bot_id}/scan` returns empty when bot is not running — prevents stale data display
+- **Position restore on restart**: `_load_positions_from_db()` in `runner_core.py` — `low_price` resets to `entry_price` (no historical low available in DB)
+- **Force exit**: `runner_core.py:FORCE_EXIT=(15,30)` is global market close time
+
+## Chart Cache
+- `api/paper/chart_cache.py` — pickle-based disk cache at `experiments/data/chart_cache/{date}/{symbol}.pkl`
+- Returns `(df, is_cached)` tuple — chart response includes `"cached": true/false`
+- Cache is checked **before** any fetch (intraday or historical)
+- **Today's data**: 60-second TTL via `.meta` file — prevents stale pre-market data poisoning
+- **Historical dates**: no TTL — data never changes
+- Today's intraday fetch that returns empty (pre-market) does NOT fall through to historical — returns empty to avoid caching wrong day's data
+- Pre-market cache poisoning fix: when `date == today` and `fetch_intraday_data_v3` returns None/empty, early return (no fallback to historical)
+
+## Trade Entry Reason Pipeline
+- Signal generators set `signal.notes` with detailed calculations (ORB: range%, SL%, ATR, ADX, RSI; SR Breakout: pivot type, buffer%; EMA Cross: gap, SL%; 52W Chaser: ADX, RSI; 52W Target: SL%, trail%)
+- `runner_signals.py:453` stores `signal.notes` in `position.metadata['entry_reason']`
+- On trade close, `position.metadata['entry_reason']` → `CompletedTrade.reason` → `_persist_trade_to_db` → `Trade.reason` column
+- Exit notes include PnL% and price level: "Stop loss hit ₹1340.00 (PnL: -0.40%)"
+- `CompletedTrade` has `reason`, `peak_price`, `low_price` fields — propagated from `SharedPosition` in `portfolio_core.py:close_position()`
+- `signal.notes` can be `None` — always use `signal.notes or ''` when assigning to scan items
+
+## Paper Trading UI Defaults
+- **Trade history**: defaults to "Today" filter (`filterFromDate`/`filterToDate` = today) instead of all-time
+- **Field naming**: `PaperPosition` and `PaperTrade` both use `stop_loss`/`take_profit` — never `sl_price`/`tp_price`
+- **Close All button**: in positions header, calls `POST /api/bots/{bot_id}/close-all` with current prices, shows loading state + error alert
+- **Expandable trade rows**: click to expand with TradeStats (SL, TP, Peak, Low, Costs, Gross/Net P&L) and TradeNotesEditor (editable Reason + Notes with Save)
+- **PATCH endpoint**: `PATCH /api/paper/trades/{trade_id}` — update notes/reason, max 500 chars
 
 ## Infrastructure
 - **Railway**: project `298aedcc-23a9-4ce3-9dbe-a87986f910de`, env `bc5056b2-6a82-4af3-bec2-2d1ac848fc5c`, service `b66dd871-18ac-49e7-a9fa-7addfb1be351`. Deploy via `git push` to `fix/*` or `develop` branch.
@@ -211,3 +245,19 @@ curl -s 'https://earner-production.up.railway.app/api/paper/trades?limit=5' \
 ```
 
 ✅ **Deployment done** when Railway check shows "pass" and (if backend changed) curl returns expected data.
+
+## DB Migrations (Alembic)
+- Location: `db/migrations/versions/`
+- Chain: `e5f6a7b8c9d0` → `f6a7b8c9d0e1` (add notes) → `g7b8c9d0e1f2` (add peak/low price) → `2026_04_16_add_reason_to_trades`
+- Trade model columns: `notes` (String 500), `reason` (String 500), `peak_price` (Float), `low_price` (Float), `bot_id` (Integer FK)
+- `Trade.to_dict()` includes all columns including `bot_id`, `peak_price`, `low_price`
+- Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`
+
+## Known Issues / Deferred
+- **3 DB columns missing from frontend config UI**: `enable_shorts`, `eod_exit_hour`, `eod_exit_minute`
+- **Replay system name→ID migration** (Phase 3) — deferred, known limitation
+- **ExitReasonBadge**: doesn't color-code rich exit reasons (MANUAL_CLOSE, PnL-formatted strings like "Stop loss hit ₹1340.00") — falls to gray default
+- **ExitReasonBadge missing cases**: `FORCE_CLOSE`, `TRAILING_STOP`, `MAX_HOLDING`, `NEW_52W_HIGH` — all show as raw gray text
+- **Portfolio summary compact redesign** — mentioned but not started
+- **52W daily data caching** — fetches 400 days per chart request with no caching
+- **`_filter_to_date_or_recent` timezone bug** — documented in AGENTS.md, known production issue

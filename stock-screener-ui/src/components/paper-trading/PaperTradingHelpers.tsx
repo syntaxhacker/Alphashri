@@ -46,8 +46,8 @@ export function usePaperViewActions(activeBotId: string | null) {
         let fromStr = currentState.filterFromDate;
         let toStr = currentState.filterToDate;
         if (!fromStr && !toStr) {
-          fromStr = dayjs().subtract(60, "day").format("YYYY-MM-DD");
-          toStr = dayjs().format("YYYY-MM-DD");
+          fromStr = dayjs().format("YYYY-MM-DD");
+          toStr = fromStr;
           setFilterFromDate(fromStr);
           setFilterToDate(toStr);
         }
@@ -94,12 +94,14 @@ export function usePaperViewActions(activeBotId: string | null) {
 export function useHistoryFilters() {
   const handleFilterFromDate = useCallback((value: string) => {
     setFilterFromDate(value || null);
-    refreshHistoryData();
+    const s = getPaperTradingState();
+    refreshHistoryData(s.filterBot || null, value || null, s.filterToDate);
   }, []);
 
   const handleFilterToDate = useCallback((value: string) => {
     setFilterToDate(value || null);
-    refreshHistoryData();
+    const s = getPaperTradingState();
+    refreshHistoryData(s.filterBot || null, s.filterFromDate, value || null);
   }, []);
 
   const handleFilterSymbol = useCallback((value: string | null) => {

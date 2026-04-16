@@ -147,6 +147,8 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
         if self.is_eod_exit_time(hour, minute):
             exit_type = SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT
             pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
+            if position_side == "SELL":
+                pnl_pct = -pnl_pct
             return self.create_signal(
                 symbol=symbol,
                 signal_type=exit_type,

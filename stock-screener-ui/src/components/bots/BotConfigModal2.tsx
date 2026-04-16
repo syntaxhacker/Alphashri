@@ -290,6 +290,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                       onChange={(val) =>
                         handleUpdateStrategy(strategy.id, "strategy_id", val || "")
                       }
+                      data-testid={`strategy-allocation-select-${strategy.id}`}
                     />
                     <NumberInput
                       label="Allocation %"
@@ -304,6 +305,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                           Number(val) || 20,
                         )
                       }
+                      data-testid={`strategy-allocation-pct-${strategy.id}`}
                     />
                     <NumberInput
                       label="Max Positions"
@@ -313,6 +315,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                       onChange={(val) =>
                         handleUpdateStrategy(strategy.id, "max_positions", Number(val) || 3)
                       }
+                      data-testid={`strategy-allocation-positions-${strategy.id}`}
                     />
                     <ActionIcon
                       color="red"

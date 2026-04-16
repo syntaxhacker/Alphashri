@@ -190,6 +190,9 @@ class SharedPortfolioManager:
             net_pnl=round(net_pnl, 2),
             strategy_id=strategy_id,
             strategy_name=position.strategy_name,
+            reason=position.metadata.get('entry_reason', '') if hasattr(position, 'metadata') else '',
+            peak_price=position.peak_price,
+            low_price=position.low_price if position.low_price != float('inf') else 0.0,
         )
 
         exit_value = exit_price * position.quantity

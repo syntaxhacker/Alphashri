@@ -22,8 +22,8 @@ const mockTrade = (overrides: Partial<PaperTrade> = {}): PaperTrade => ({
   exit_reason: "TP",
   costs: 50,
   net_pnl: 9950,
-  sl_price: 2400,
-  tp_price: 2700,
+  stop_loss: 2400,
+  take_profit: 2700,
   peak_price: 2650,
   low_price: 2480,
   notes: "",
@@ -100,7 +100,10 @@ describe("getUniqueStrategies", () => {
   });
 
   test("returns empty array when trades have no strategy_name", () => {
-    const trades = [mockTrade({ strategy_name: "", strategy_id: 0 }), mockTrade({ strategy_name: "", strategy_id: 0 })];
+    const trades = [
+      mockTrade({ strategy_name: "", strategy_id: 0 }),
+      mockTrade({ strategy_name: "", strategy_id: 0 }),
+    ];
     expect(getUniqueStrategies(trades)).toEqual([]);
   });
 
@@ -111,7 +114,10 @@ describe("getUniqueStrategies", () => {
       mockTrade({ strategy_name: "Breakout", strategy_id: 2 }),
     ];
     const result = getUniqueStrategies(trades);
-    expect(result).toEqual([{ id: 2, name: "Breakout" }, { id: 1, name: "ORB" }]);
+    expect(result).toEqual([
+      { id: 2, name: "Breakout" },
+      { id: 1, name: "ORB" },
+    ]);
   });
 
   test("handles single strategy", () => {

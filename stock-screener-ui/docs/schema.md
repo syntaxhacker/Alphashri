@@ -404,6 +404,10 @@ erDiagram
 | costs | Float | Yes | - |
 | net_pnl | Float | Yes | - |
 | exit_reason | String | Yes | - |
+| notes | String | Yes | - |
+| reason | String | Yes | - |
+| peak_price | Float | Yes | - |
+| low_price | Float | Yes | - |
 | is_test | Boolean | No | - |
 | source | String | No | - |
 | created_at | DateTime | No | - |

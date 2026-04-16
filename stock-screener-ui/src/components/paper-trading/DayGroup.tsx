@@ -1,5 +1,18 @@
 import { useRef, useEffect, useState } from "react";
-import { Collapse, Table, Badge, Text, Group, Flex, ActionIcon, Anchor, Grid, Stack, Textarea, Button } from "@mantine/core";
+import {
+  Collapse,
+  Table,
+  Badge,
+  Text,
+  Group,
+  Flex,
+  ActionIcon,
+  Anchor,
+  Grid,
+  Stack,
+  Textarea,
+  Button,
+} from "@mantine/core";
 import type { PaperTrade } from "../../types/paperTrading";
 import {
   formatNumber,
@@ -88,12 +101,16 @@ function TradeStats({ trade }: { trade: PaperTrade }) {
   const netSign = netPnl >= 0 ? "+" : "";
 
   const items = [
-    { label: "SL", value: `₹${trade.sl_price?.toFixed(2) ?? "-"}` },
-    { label: "TP", value: `₹${trade.tp_price?.toFixed(2) ?? "-"}` },
+    { label: "SL", value: `₹${trade.stop_loss?.toFixed(2) ?? "-"}` },
+    { label: "TP", value: `₹${trade.take_profit?.toFixed(2) ?? "-"}` },
     { label: "Peak", value: `₹${trade.peak_price?.toFixed(2) ?? "-"}` },
     { label: "Low", value: `₹${trade.low_price?.toFixed(2) ?? "-"}` },
     { label: "Costs", value: `₹${formatNumber(trade.costs)}` },
-    { label: "Gross P&L", value: `${grossSign}₹${formatNumber(Math.abs(grossPnl))}`, color: grossColor },
+    {
+      label: "Gross P&L",
+      value: `${grossSign}₹${formatNumber(Math.abs(grossPnl))}`,
+      color: grossColor,
+    },
     { label: "Net P&L", value: `${netSign}₹${formatNumber(Math.abs(netPnl))}`, color: netColor },
   ];
 
@@ -102,8 +119,12 @@ function TradeStats({ trade }: { trade: PaperTrade }) {
       {items.map((item) => (
         <Grid.Col key={item.label} span={{ base: 6, md: 3 }}>
           <Stack gap={1}>
-            <Text size="xs" c="dimmed">{item.label}</Text>
-            <Text size="sm" fw={500} c={item.color}>{item.value}</Text>
+            <Text size="xs" c="dimmed">
+              {item.label}
+            </Text>
+            <Text size="sm" fw={500} c={item.color}>
+              {item.value}
+            </Text>
           </Stack>
         </Grid.Col>
       ))}
@@ -126,7 +147,9 @@ function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
     <Stack gap="xs">
       <Group gap="sm" align="flex-start" grow>
         <Stack gap={1} style={{ flex: 1 }}>
-          <Text size="xs" c="dimmed">Reason</Text>
+          <Text size="xs" c="dimmed">
+            Reason
+          </Text>
           <Textarea
             size="xs"
             minRows={2}
@@ -135,10 +158,13 @@ function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
             onChange={(e) => setReason(e.currentTarget.value)}
             placeholder="Why was this trade taken?"
             styles={{ input: { background: "var(--mantine-color-body)" } }}
+            data-testid={`trade-reason-${trade.trade_id}`}
           />
         </Stack>
         <Stack gap={1} style={{ flex: 1 }}>
-          <Text size="xs" c="dimmed">Notes</Text>
+          <Text size="xs" c="dimmed">
+            Notes
+          </Text>
           <Textarea
             size="xs"
             minRows={2}
@@ -147,11 +173,18 @@ function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
             onChange={(e) => setNotes(e.currentTarget.value)}
             placeholder="Any additional notes..."
             styles={{ input: { background: "var(--mantine-color-body)" } }}
+            data-testid={`trade-notes-${trade.trade_id}`}
           />
         </Stack>
       </Group>
       <Group justify="flex-end">
-        <Button size="xs" variant="light" loading={saving} onClick={handleSave}>
+        <Button
+          size="xs"
+          variant="light"
+          loading={saving}
+          onClick={handleSave}
+          data-testid={`trade-notes-save-${trade.trade_id}`}
+        >
           Save
         </Button>
       </Group>
@@ -175,7 +208,13 @@ function TradeRow({
   selectedTradeId,
 }: {
   trade: PaperTrade;
-  onSelectSymbol: (s: string, t?: string, tradeId?: string, strategyType?: string, strategyId?: number) => void;
+  onSelectSymbol: (
+    s: string,
+    t?: string,
+    tradeId?: string,
+    strategyType?: string,
+    strategyId?: number,
+  ) => void;
   onDeleteTrade: (id: string) => void;
   selectedTradeId: string | null;
 }) {
@@ -197,7 +236,13 @@ function TradeRow({
         ref={rowRef}
         key={trade.trade_id}
         onClick={() =>
-          onSelectSymbol(trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_type || (getStrategyTypeFromName(trade.strategy_name) ?? undefined), trade.strategy_id)
+          onSelectSymbol(
+            trade.symbol,
+            trade.exit_time,
+            trade.trade_id,
+            trade.strategy_type || (getStrategyTypeFromName(trade.strategy_name) ?? undefined),
+            trade.strategy_id,
+          )
         }
         className={isSelected ? "trade-row-highlighted" : undefined}
         style={{ cursor: "pointer" }}
@@ -212,6 +257,7 @@ function TradeRow({
               e.stopPropagation();
               setDetailExpanded((v) => !v);
             }}
+            data-testid={`trade-detail-toggle-${trade.trade_id}`}
           >
             {detailExpanded ? "▼" : "▶"}
           </ActionIcon>
@@ -227,11 +273,13 @@ function TradeRow({
         <Table.Td>{trade.quantity}</Table.Td>
         <Table.Td>₹{trade.entry_price.toFixed(2)}</Table.Td>
         <Table.Td>{formatTimeOnly(trade.entry_time)}</Table.Td>
-        <Table.Td>₹{trade.exit_price.toFixed(2)}</Table.Td>
+        <Table.Td>{trade.exit_price != null ? `₹${trade.exit_price.toFixed(2)}` : "-"}</Table.Td>
         <Table.Td>{formatTimeOnly(trade.exit_time)}</Table.Td>
         <Table.Td>
           <Text size="sm" c="dimmed">
-            {trade.hold_duration_minutes != null ? formatDuration(trade.hold_duration_minutes) : "-"}
+            {trade.hold_duration_minutes != null
+              ? formatDuration(trade.hold_duration_minutes)
+              : "-"}
           </Text>
         </Table.Td>
         <Table.Td>
@@ -247,6 +295,7 @@ function TradeRow({
               e.stopPropagation();
               setFilterBot(trade.bot_id || null);
             }}
+            data-testid={`trade-bot-filter-${trade.trade_id}`}
           >
             {trade.bot_name || "-"}
           </Anchor>
@@ -259,6 +308,7 @@ function TradeRow({
               e.stopPropagation();
               setFilterStrategy(trade.strategy_id || null);
             }}
+            data-testid={`trade-strategy-filter-${trade.trade_id}`}
           >
             {trade.strategy_name || "default"}
           </Anchor>
@@ -325,7 +375,7 @@ export function DayGroup({
           <Table striped highlightOnHover styles={tableStyles}>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th />
+                <Table.Th p={0} />
                 <SortableHeader
                   label="Symbol"
                   columnKey="symbol"

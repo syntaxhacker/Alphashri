@@ -58,3 +58,6 @@ class CompletedTrade:
     strategy_name: str = ""
     sl_price: float = 0.0
     tp_price: float = 0.0
+    reason: str = ""
+    peak_price: float = 0.0
+    low_price: float = 0.0

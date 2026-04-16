@@ -32,8 +32,8 @@ export const initialPaperTradingState: PaperTradingState = {
   symbolPerformance: [],
 
   filterDate: null,
-  filterFromDate: null,
-  filterToDate: null,
+  filterFromDate: new Date().toISOString().split("T")[0],
+  filterToDate: new Date().toISOString().split("T")[0],
   filterSymbol: null,
   filterStrategy: null,
   filterBot: null,
@@ -359,12 +359,20 @@ export async function deleteTradeAction(tradeId: string): Promise<boolean> {
   }
 }
 
-export async function updateTradeNotesAction(tradeId: string, notes: string, reason: string): Promise<boolean> {
+export async function updateTradeNotesAction(
+  tradeId: string,
+  notes: string,
+  reason: string,
+): Promise<boolean> {
   try {
     const updated = await updateTradeNotes(tradeId, notes, reason);
     state = {
       ...state,
-      trades: state.trades.map((t) => (t.trade_id === tradeId ? { ...t, notes: updated.notes ?? notes, reason: updated.reason ?? reason } : t)),
+      trades: state.trades.map((t) =>
+        t.trade_id === tradeId
+          ? { ...t, notes: updated.notes ?? notes, reason: updated.reason ?? reason }
+          : t,
+      ),
     };
     notify();
     return true;

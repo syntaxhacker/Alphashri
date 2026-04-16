@@ -93,7 +93,13 @@ function PositionRow({
   onClose,
 }: {
   pos: PaperPosition;
-  onSelect: (symbol: string, tradeId?: string, strategyName?: string, strategyType?: string, strategyId?: number) => void;
+  onSelect: (
+    symbol: string,
+    tradeId?: string,
+    strategyName?: string,
+    strategyType?: string,
+    strategyId?: number,
+  ) => void;
   onClose: (symbol: string, price: number) => void;
 }) {
   const pnlClass = getPnLTextColor(pos.pnl ?? 0);
@@ -101,8 +107,16 @@ function PositionRow({
 
   return (
     <Table.Tr
-      key={pos.symbol}
-      onClick={() => onSelect(pos.symbol, pos.order_id, pos.strategy_name, pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined), pos.strategy_id)}
+      key={pos.order_id || `${pos.strategy_id}-${pos.symbol}`}
+      onClick={() =>
+        onSelect(
+          pos.symbol,
+          pos.order_id,
+          pos.strategy_name,
+          pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined),
+          pos.strategy_id,
+        )
+      }
       style={{ cursor: "pointer" }}
       data-testid={`position-row-${pos.symbol}`}
     >
@@ -171,7 +185,13 @@ export function PositionsTableBody({
     }
   };
 
-  const handleSelect = async (symbol: string, tradeId?: string, strategyName?: string, strategyType?: string, strategyId?: number) => {
+  const handleSelect = async (
+    symbol: string,
+    tradeId?: string,
+    strategyName?: string,
+    strategyType?: string,
+    strategyId?: number,
+  ) => {
     setSelectedSymbol(symbol);
     if (tradeId) setSelectedTradeId(tradeId, strategyType, strategyId);
     setShowAllTrades(true);
@@ -199,7 +219,7 @@ export function PositionsTableBody({
       <Table.Tbody>
         {positions.map((pos) => (
           <PositionRow
-            key={pos.symbol}
+            key={pos.order_id || `${pos.strategy_id}-${pos.symbol}`}
             pos={pos}
             onSelect={handleSelect}
             onClose={handleClosePosition}
@@ -261,7 +281,7 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
             <Table.Tbody>
               {rows.map((item) => (
                 <Table.Tr
-                  key={item.symbol}
+                  key={item.strategy_id ? `${item.strategy_id}-${item.symbol}` : item.symbol}
                   onClick={() => handleSelectSymbol(item.symbol)}
                   style={{ cursor: "pointer" }}
                   data-testid={`scan-row-${item.symbol}`}

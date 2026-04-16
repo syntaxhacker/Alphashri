@@ -213,7 +213,7 @@ class RunnerSignalsMixin:
 
                     scan_item['status'] = 'signal'
                     scan_item['side'] = 'LONG'
-                    scan_item['reason'] = signal.notes
+                    scan_item['reason'] = signal.notes or ''
 
                 elif signal.signal_type == SignalType.SHORT_ENTRY:
                     if runner.strategy_type == "ORB":
@@ -227,7 +227,7 @@ class RunnerSignalsMixin:
 
                     scan_item['status'] = 'signal'
                     scan_item['side'] = 'SHORT'
-                    scan_item['reason'] = signal.notes
+                    scan_item['reason'] = signal.notes or ''
 
                 new_signals.append(signal)
                 runner.signals_generated += 1
@@ -293,7 +293,7 @@ class RunnerSignalsMixin:
             if signal:
                 scan_item['status'] = 'signal'
                 scan_item['side'] = 'LONG'
-                scan_item['reason'] = signal.notes
+                scan_item['reason'] = signal.notes or ''
 
                 new_signals.append(signal)
                 runner.signals_generated += 1
@@ -614,9 +614,11 @@ class RunnerSignalsMixin:
                         'costs': trade.costs,
                         'net_pnl': trade.net_pnl,
                         'exit_reason': trade.exit_reason,
-                        'reason': trade.metadata.get('entry_reason', '') if hasattr(trade, 'metadata') else '',
+                        'reason': trade.reason,
                         'stop_loss': trade.sl_price if hasattr(trade, 'sl_price') else 0.0,
                         'take_profit': trade.tp_price if hasattr(trade, 'tp_price') else 0.0,
+                        'peak_price': trade.peak_price if hasattr(trade, 'peak_price') else 0.0,
+                        'low_price': trade.low_price if hasattr(trade, 'low_price') else 0.0,
                     })
 
                     send_trade_exit(

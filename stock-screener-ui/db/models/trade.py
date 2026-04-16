@@ -31,6 +31,8 @@ class Trade(Base):
     exit_reason = Column(String(50), nullable=True)
     notes = Column(String(500), nullable=True, default="")
     reason = Column(String(500), nullable=True, default="")
+    peak_price = Column(Float, nullable=True, default=0.0)
+    low_price = Column(Float, nullable=True, default=0.0)
     is_test = Column(Boolean, nullable=False, default=False)
     source = Column(String(20), nullable=False, default="live")
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -69,6 +71,9 @@ class Trade(Base):
             "hold_duration_minutes": hold,
             "notes": self.notes or "",
             "reason": self.reason or "",
+            "bot_id": self.bot_id,
+            "peak_price": self.peak_price or 0.0,
+            "low_price": self.low_price or 0.0,
         }
 
 
