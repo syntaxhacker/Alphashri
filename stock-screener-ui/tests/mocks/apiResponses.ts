@@ -786,6 +786,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             pnl: 500,
             pnl_pct: 1.33,
             strategy_name: "ORB Conservative",
+            strategy_id: 1,
           },
           {
             id: 2,
@@ -797,6 +798,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             pnl: 400,
             pnl_pct: 1.35,
             strategy_name: "ORB Aggressive",
+            strategy_id: 2,
           },
         ],
       }),
@@ -820,6 +822,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             pnl: 500,
             pnl_pct: 1.33,
             strategy_name: "ORB Conservative",
+            strategy_id: 1,
           },
           {
             id: 2,
@@ -831,6 +834,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             pnl: 400,
             pnl_pct: 1.35,
             strategy_name: "ORB Aggressive",
+            strategy_id: 2,
           },
         ],
         count: 2,

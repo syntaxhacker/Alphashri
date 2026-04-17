@@ -75,20 +75,16 @@ function useModalActions() {
 }
 
 function useStrategyActions() {
-  const onCreate = useCallback((data: StrategyFormData) => {
-    (window as any).createStrategy?.(data);
+  const onCreate = useCallback((_data: StrategyFormData) => {
   }, []);
 
-  const onEdit = useCallback((strategyId: number, data: StrategyFormData) => {
-    (window as any).updateStrategy?.(strategyId, data);
+  const onEdit = useCallback((_strategyId: number, _data: StrategyFormData) => {
   }, []);
 
-  const onDelete = useCallback((strategyId: number) => {
-    (window as any).deleteStrategy?.(strategyId);
+  const onDelete = useCallback((_strategyId: number) => {
   }, []);
 
-  const onSelect = useCallback((strategyId: number) => {
-    (window as any).viewStrategyDetails?.(strategyId);
+  const onSelect = useCallback((_strategyId: number) => {
   }, []);
 
   return { onCreate, onEdit, onDelete, onSelect };

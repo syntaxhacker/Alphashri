@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import * as state from "../state";
 import { subscribe } from "../state";
 import { fetchData, setupAutoRefresh, loadScreeners } from "../api";
@@ -18,6 +19,7 @@ export function getScreenerDefaults(data?: ScreenerData | null): ScreenerDefault
 }
 
 export function useScreenerState() {
+  const navigate = useNavigate();
   useStoreSubscription(subscribe);
 
   // Load data on mount
@@ -82,15 +84,10 @@ export function useScreenerState() {
   }, []);
 
   const onSymbolClick = useCallback((symbol: string) => {
-    if ((window as any).onSymbolClick) {
-      (window as any).onSymbolClick(symbol);
-    }
-  }, []);
+    navigate(`/chart/${symbol}`);
+  }, [navigate]);
 
-  const onSymbolHover = useCallback((symbol: string | null) => {
-    if ((window as any).onSymbolHover) {
-      (window as any).onSymbolHover(symbol);
-    }
+  const onSymbolHover = useCallback((_symbol: string | null) => {
   }, []);
 
   return {

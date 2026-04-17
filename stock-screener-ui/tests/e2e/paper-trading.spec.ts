@@ -419,6 +419,8 @@ test.describe("Paper Trading - Watchlist Scan", () => {
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
 
+    await scanCard.getByText("Skipped").click();
+
     await expect(scanCard.locator('[data-testid="scan-skipped-RELIANCE"]')).toBeVisible();
     await expect(scanCard).toContainText("RELIANCE");
   });

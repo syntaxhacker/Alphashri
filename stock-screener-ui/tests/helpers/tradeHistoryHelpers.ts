@@ -83,6 +83,7 @@ export async function mockEmptyTradeHistory(page: Page): Promise<void> {
 }
 
 export async function mockTradeHistoryWithCount(page: Page, count: number): Promise<void> {
+  const today = new Date().toISOString().split("T")[0];
   const trades = Array.from({ length: count }, (_, i) => ({
     trade_id: `trade-${i + 1}`,
     symbol: `STOCK${i}`,
@@ -90,7 +91,7 @@ export async function mockTradeHistoryWithCount(page: Page, count: number): Prom
     quantity: 10,
     entry_price: 100 + i,
     exit_price: 105 + i,
-    exit_time: new Date().toISOString(),
+    exit_time: `${today}T${String(9 + (i % 6)).padStart(2, "0")}:${String((i * 15) % 60).padStart(2, "0")}:00`,
     exit_reason: i % 3 === 0 ? "TP" : i % 3 === 1 ? "SL" : "EOD",
     net_pnl: i % 2 === 0 ? 50 : -20,
     strategy_name: i % 2 === 0 ? "ORB Conservative" : "ORB Aggressive",
@@ -108,6 +109,7 @@ export async function mockTradeHistoryWithCount(page: Page, count: number): Prom
 }
 
 export async function mockTradeHistoryWithSampleData(page: Page): Promise<void> {
+  const today = new Date().toISOString().split("T")[0];
   const trades = [
     {
       trade_id: "trade-1",
@@ -116,7 +118,7 @@ export async function mockTradeHistoryWithSampleData(page: Page): Promise<void> 
       quantity: 10,
       entry_price: 3750,
       exit_price: 3825,
-      exit_time: "2026-03-18T10:30:00",
+      exit_time: `${today}T10:30:00`,
       exit_reason: "TP",
       net_pnl: 750,
       strategy_name: "ORB Conservative",
@@ -130,7 +132,7 @@ export async function mockTradeHistoryWithSampleData(page: Page): Promise<void> 
       quantity: 20,
       entry_price: 1480,
       exit_price: 1455,
-      exit_time: "2026-03-18T11:15:00",
+      exit_time: `${today}T11:15:00`,
       exit_reason: "SL",
       net_pnl: -500,
       strategy_name: "ORB Aggressive",
@@ -144,7 +146,7 @@ export async function mockTradeHistoryWithSampleData(page: Page): Promise<void> 
       quantity: 5,
       entry_price: 2450,
       exit_price: 2520,
-      exit_time: "2026-03-17T14:00:00",
+      exit_time: `${today}T14:00:00`,
       exit_reason: "TP",
       net_pnl: 350,
       strategy_name: "ORB Conservative",

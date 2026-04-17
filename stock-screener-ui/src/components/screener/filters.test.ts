@@ -329,7 +329,7 @@ describe("renderSortableHeader", () => {
     expect(result).toContain("Score");
     expect(result).toContain('data-column="score"');
     expect(result).toContain('class=" sortable"');
-    expect(result).toContain("onclick=\"window.handleSort('score')\"");
+    expect(result).not.toContain("onclick");
     expect(result).toContain("sort-indicator");
   });
 

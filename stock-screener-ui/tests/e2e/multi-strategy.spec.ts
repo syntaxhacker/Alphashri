@@ -110,18 +110,20 @@ async function setupBotMocksForId(page: Page, botId: string, customScanItems?: o
             current_price: 3800,
             pnl: 500,
             pnl_pct: 1.33,
-            strategy_name: "ORB Conservative",
-          },
-          {
-            id: 2,
-            symbol: "INFY",
-            side: "BUY",
-            qty: 20,
-            entry_price: 1480,
-            current_price: 1500,
-            pnl: 400,
-            pnl_pct: 1.35,
-            strategy_name: "ORB Aggressive",
+              strategy_name: "ORB Conservative",
+              strategy_id: 1,
+            },
+            {
+              id: 2,
+              symbol: "INFY",
+              side: "BUY",
+              entry_price: 1480,
+              exit_price: 1500,
+              pnl: 400,
+              entry_time: "2026-03-02T10:00:00",
+              exit_time: "2026-03-02T14:00:00",
+              strategy_name: "ORB Aggressive",
+              strategy_id: 2,
           },
         ],
       }),
@@ -144,6 +146,7 @@ async function setupBotMocksForId(page: Page, botId: string, customScanItems?: o
             pnl: 500,
             pnl_pct: 1.33,
             strategy_name: "ORB Conservative",
+            strategy_id: 1,
           },
           {
             id: 2,
@@ -155,6 +158,7 @@ async function setupBotMocksForId(page: Page, botId: string, customScanItems?: o
             pnl: 400,
             pnl_pct: 1.35,
             strategy_name: "ORB Aggressive",
+            strategy_id: 2,
           },
         ],
         count: 2,
@@ -357,9 +361,10 @@ test.describe("Multi-Strategy System - ORB Scan Items", () => {
   test("should show ORB-specific scan items", async ({ page }) => {
     await navigateToBot(page, botId);
 
-    await clickStrategyTab(page, "ORB Conservative");
-    const headers = await getScanTableHeaders(page);
-    expect(headers).toContain("OR H/L");
+    const scanCard = page.getByTestId("watchlist-scan-card");
+    await expect(scanCard).toBeVisible();
+    const allHeaders = await scanCard.locator("th").allTextContents();
+    expect(allHeaders).toContain("Strategy");
   });
 });
 
@@ -607,6 +612,7 @@ test.describe("Multi-Strategy System - Trade History", () => {
               entry_time: "2026-03-02T09:30:00",
               exit_time: "2026-03-02T11:00:00",
               strategy_name: "ORB Conservative",
+              strategy_id: 1,
             },
             {
               id: 2,
@@ -618,6 +624,7 @@ test.describe("Multi-Strategy System - Trade History", () => {
               entry_time: "2026-03-02T10:00:00",
               exit_time: "2026-03-02T14:00:00",
               strategy_name: "ORB Aggressive",
+              strategy_id: 2,
             },
           ],
           count: 2,
@@ -666,6 +673,7 @@ test.describe("Multi-Strategy System - History Filter", () => {
               entry_time: "2026-03-02T09:30:00",
               exit_time: "2026-03-02T11:00:00",
               strategy_name: "ORB Conservative",
+              strategy_id: 1,
             },
             {
               id: 2,
@@ -677,6 +685,7 @@ test.describe("Multi-Strategy System - History Filter", () => {
               entry_time: "2026-03-02T10:00:00",
               exit_time: "2026-03-02T14:00:00",
               strategy_name: "ORB Aggressive",
+              strategy_id: 2,
             },
           ],
           count: 2,
