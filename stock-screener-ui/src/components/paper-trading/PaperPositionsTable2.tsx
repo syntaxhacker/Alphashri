@@ -1,21 +1,11 @@
 import { useMemo, useState } from "react";
-import {
-  Tabs,
-  Badge,
-  Text,
-  Group,
-  Flex,
-  ScrollArea,
-  Button,
-  ActionIcon,
-  Tooltip,
-} from "@mantine/core";
+import { Tabs, Badge, Text, Group, Flex, ScrollArea, Button, Tooltip } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import { getPaperTradingState, setSelectedStrategyTab, subscribe } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { closeAllPositions, refreshBotLiveData, refreshLiveData } from "../../api/paperTrading";
+import { closeAllPositions, refreshBotLiveData } from "../../api/paperTrading";
 import {
   PositionsTableBody,
   StrategySummaryFooter,
@@ -119,7 +109,7 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
       const state = getPaperTradingState();
       const botId = state.availableBots.length > 0 ? state.availableBots[0].id : null;
       if (!botId) throw new Error("No active bot found");
-      const result = await closeAllPositions(botId, prices);
+      await closeAllPositions(botId, prices);
       await refreshBotLiveData(botId);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to close all positions";

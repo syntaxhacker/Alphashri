@@ -1,15 +1,6 @@
 import { useCallback } from "react";
 import dayjs from "dayjs";
-import {
-  Flex,
-  Tabs,
-  SegmentedControl,
-  Text,
-  Group,
-  Button,
-  Select,
-  TextInput,
-} from "@mantine/core";
+import { Flex, Tabs, SegmentedControl, Text, Group, Button, Select } from "@mantine/core";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import {

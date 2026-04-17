@@ -16,7 +16,6 @@ import {
   CloseButton,
   Loader,
   ActionIcon,
-  Stack,
   Box,
   Portal,
 } from "@mantine/core";

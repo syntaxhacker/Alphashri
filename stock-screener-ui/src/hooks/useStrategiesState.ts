@@ -75,17 +75,13 @@ function useModalActions() {
 }
 
 function useStrategyActions() {
-  const onCreate = useCallback((_data: StrategyFormData) => {
-  }, []);
+  const onCreate = useCallback((_data: StrategyFormData) => {}, []);
 
-  const onEdit = useCallback((_strategyId: number, _data: StrategyFormData) => {
-  }, []);
+  const onEdit = useCallback((_strategyId: number, _data: StrategyFormData) => {}, []);
 
-  const onDelete = useCallback((_strategyId: number) => {
-  }, []);
+  const onDelete = useCallback((_strategyId: number) => {}, []);
 
-  const onSelect = useCallback((_strategyId: number) => {
-  }, []);
+  const onSelect = useCallback((_strategyId: number) => {}, []);
 
   return { onCreate, onEdit, onDelete, onSelect };
 }

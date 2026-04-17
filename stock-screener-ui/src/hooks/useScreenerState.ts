@@ -83,12 +83,14 @@ export function useScreenerState() {
     fetchData(state.data?.provider || "upstox", state.data?.mode || "intraday", screenerId);
   }, []);
 
-  const onSymbolClick = useCallback((symbol: string) => {
-    navigate(`/chart/${symbol}`);
-  }, [navigate]);
+  const onSymbolClick = useCallback(
+    (symbol: string) => {
+      navigate(`/chart/${symbol}`);
+    },
+    [navigate],
+  );
 
-  const onSymbolHover = useCallback((_symbol: string | null) => {
-  }, []);
+  const onSymbolHover = useCallback((_symbol: string | null) => {}, []);
 
   return {
     approachingStocks,

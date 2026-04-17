@@ -167,8 +167,7 @@ export function setHighlightedTrade(tradeId: number | null) {
   update({ highlightedTradeId: tradeId });
 }
 
-export function autoToggleOverlays(strategy: string) {
-  const s = strategy.toUpperCase();
+export function autoToggleOverlays(_strategy: string) {
   update({
     chartOptions: {
       ...state.chartOptions,
