@@ -312,6 +312,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
 
     chartRef.current = (window as any).echarts.init(chartDiv);
     chartRef.current.setOption(chartOption);
+    chartRef.current.resize();
 
     return () => {
       if (chartRef.current) {
@@ -368,7 +369,9 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
             </Text>
           </Box>
         )}
-        <div className="echarts-container" style={{ width: "100%", height: "100%" }} />
+        {!loading && (data?.candles.length ?? 0) > 0 && (
+          <div className="echarts-container" style={{ width: 320, height: 160, minHeight: 160 }} />
+        )}
       </Box>
     </Paper>
   );
@@ -425,6 +428,7 @@ function ExpandedPanel({
 
     chartRef.current = (window as any).echarts.init(chartDiv);
     chartRef.current.setOption(chartOption);
+    chartRef.current.resize();
 
     const handleResize = () => chartRef.current?.resize();
     window.addEventListener("resize", handleResize);
@@ -484,11 +488,15 @@ function ExpandedPanel({
         <CloseButton ml="auto" size="md" onClick={onClose} data-testid="preview-close-btn" />
       </Group>
 
-      <Box ref={chartContainerRef} style={{ flex: 1, padding: 8, minHeight: 0 }}>
+      <Box
+        ref={chartContainerRef}
+        style={{ flex: 1, padding: 8, minHeight: 0, position: "relative" }}
+      >
         {loading && (
           <Box
+            pos="absolute"
+            inset={0}
             style={{
-              height: "100%",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -497,10 +505,11 @@ function ExpandedPanel({
             <Loader />
           </Box>
         )}
-        {!loading && !data?.candles.length && (
+        {!loading && (data?.candles.length ?? 0) === 0 && (
           <Box
+            pos="absolute"
+            inset={0}
             style={{
-              height: "100%",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -509,7 +518,12 @@ function ExpandedPanel({
             <Text c="dimmed">No data available</Text>
           </Box>
         )}
-        <div className="echarts-container" style={{ width: "100%", height: "100%" }} />
+        {!loading && (data?.candles.length ?? 0) > 0 && (
+          <div
+            className="echarts-container"
+            style={{ width: "100%", height: "100%", minHeight: 0 }}
+          />
+        )}
       </Box>
 
       <Group
