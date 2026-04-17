@@ -31,7 +31,7 @@ createRoot(root).render(
   <Provider store={store}>
     <ColorSchemeScript defaultColorScheme="dark" />
     <MantineProvider theme={theme} defaultColorScheme="dark">
-      <Notifications position="top-right" />
+      <Notifications position="bottom-right" />
       <BrowserRouter>
         <App />
       </BrowserRouter>

@@ -90,8 +90,7 @@ export async function fetchChartPreview(
     const data: ChartPreviewData = await response.json();
 
     if (data.error) {
-      console.error("Chart preview error:", data.error);
-      return null;
+      return data;
     }
 
     // Cache the result
