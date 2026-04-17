@@ -10,7 +10,8 @@ TODAY_TTL_SECONDS = 60
 
 def _is_today(date: str) -> bool:
     from datetime import datetime
-    return date == datetime.now().strftime('%Y-%m-%d')
+    import config
+    return date == datetime.now(config.IST).strftime('%Y-%m-%d')
 
 
 def _get_meta_path(path: Path) -> Path:

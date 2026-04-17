@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import * as strategiesState from "../state/strategies";
+import * as botsState from "../state/bots";
 import { useStoreSubscription } from "./useStoreSubscription";
 import { updateStrategy as apiUpdateStrategy } from "../api/strategies";
 import type { StrategyConfig } from "../types/strategies";
@@ -90,16 +91,15 @@ function useStrategyActions() {
     (window as any).viewStrategyDetails?.(strategyId);
   }, []);
 
-  const onSetActive = useCallback((strategyId: number) => {
-    (window as any).setActiveStrategy?.(strategyId);
-  }, []);
-
-  return { onCreate, onEdit, onDelete, onSelect, onSetActive };
+  return { onCreate, onEdit, onDelete, onSelect };
 }
 
 export function useStrategiesState() {
   useStoreSubscription(strategiesState.subscribe);
+  useStoreSubscription(botsState.subscribe);
   const state = strategiesState.getStrategiesState();
+  const botsData = botsState.getBotsState();
+  const isAnyBotRunning = botsData.bots.some((b) => b.running);
 
   const { onViewChange, onRefresh } = useViewActions();
   const {
@@ -109,7 +109,7 @@ export function useStrategiesState() {
     onCloseEditModal,
     onCreateFromTemplate,
   } = useModalActions();
-  const { onCreate, onEdit, onDelete, onSelect, onSetActive } = useStrategyActions();
+  const { onCreate, onEdit, onDelete, onSelect } = useStrategyActions();
 
   const onClearError = useCallback(() => {
     strategiesState.clearError();
@@ -146,8 +146,8 @@ export function useStrategiesState() {
     onDeleteStrategy: onDelete,
     onCreateFromTemplate,
     onSelectStrategy: onSelect,
-    onSetActiveStrategy: onSetActive,
     onClearError,
     onUpdate,
+    isAnyBotRunning,
   };
 }

@@ -41,7 +41,7 @@ class ReplayDataProvider:
         if self._verbose:
             print(f"[ReplayDataProvider] Loading data for {self._date_str}...")
 
-        to_date_1m = (pd.Timestamp(self._date_str, tz=IST) + timedelta(days=2)).strftime("%Y-%m-%d")
+        to_date_1m = (pd.Timestamp(self._date_str, tz=IST) + timedelta(days=1)).strftime("%Y-%m-%d")
         seed_from = (pd.Timestamp(self._date_str, tz=IST) - timedelta(days=10)).strftime("%Y-%m-%d")
 
         for sym in self._symbols:

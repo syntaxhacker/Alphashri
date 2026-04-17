@@ -24,7 +24,6 @@ export function StrategiesPage({
   onCreateStrategy,
   onEditStrategy,
   onDeleteStrategy,
-  onSetActiveStrategy,
   onOpenCreateModal: _onOpenCreateModal,
   onOpenEditModal,
   onCloseCreateModal,
@@ -34,6 +33,7 @@ export function StrategiesPage({
   onUpdate,
   onRefresh,
   onClearError,
+  isAnyBotRunning,
 }: StrategiesPageProps) {
   const renderContent = () => {
     if (error) {
@@ -94,7 +94,6 @@ export function StrategiesPage({
             templates={templates}
             onEdit={onOpenEditModal}
             onDelete={onDeleteStrategy}
-            onSetActive={onSetActiveStrategy}
             onUpdate={onUpdate}
             isLoading={isLoading}
           />
@@ -159,6 +158,7 @@ export function StrategiesPage({
               onEditStrategy(editingStrategy.internal_id ?? Number(editingStrategy.id), data);
             }
           }}
+          isBotRunning={isAnyBotRunning}
           data-testid="strategies-edit-modal"
         />
       </Box>

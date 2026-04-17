@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 
+import config
 from fastapi import APIRouter, Query, HTTPException
 
 from api.screener import _to_float, _sanitize_for_json
@@ -226,8 +227,8 @@ async def get_chart_preview(
         }
 
     try:
-        to_date = datetime.now().strftime('%Y-%m-%d')
-        from_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+        to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
+        from_date = (datetime.now(config.IST) - timedelta(days=days)).strftime('%Y-%m-%d')
 
         df = await asyncio.to_thread(
             api.fetch_historical_data_v3,

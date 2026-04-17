@@ -263,7 +263,7 @@ class TestWeek52TargetSignalNotes:
             position_side="BUY",
             entry_price=3900.0,
             stop_loss=3822.0,
-            take_profit=39000.0,
+            take_profit=7800.0,
             current_price=3800.0,
             sl_pct=2.0,
         )

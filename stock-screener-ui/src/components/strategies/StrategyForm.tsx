@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Modal, Stack, TextInput, Select, Tabs, Alert, Group, Title, Text } from "@mantine/core";
-import { IconInfoCircle } from "@tabler/icons-react";
+import { IconInfoCircle, IconAlertTriangle } from "@tabler/icons-react";
 import type { StrategyFormProps, StrategyFormData } from "./types";
 import { DEFAULT_VALUES, getInitialValues } from "./strategyDefaults";
 import { OrbParamsPanel } from "./OrbParamsPanel";
@@ -33,6 +33,7 @@ export function StrategyForm({
   opened,
   onClose,
   onSubmit,
+  isBotRunning,
 }: StrategyFormProps) {
   const initialValues = getInitialValues({ mode, strategy, template });
   const [currentStrategyType, setCurrentStrategyType] = useState(initialValues.strategy_type);
@@ -62,7 +63,6 @@ export function StrategyForm({
       tp_pct: getNumVal(formData, "tp_pct", DEFAULT_VALUES.tp_pct),
       min_or_range_pct: getNumVal(formData, "min_or_range_pct", DEFAULT_VALUES.min_or_range_pct),
       max_or_range_pct: getNumVal(formData, "max_or_range_pct", DEFAULT_VALUES.max_or_range_pct),
-      max_positions: getNumVal(formData, "max_positions", DEFAULT_VALUES.max_positions),
       max_capital_per_trade_pct: getNumVal(
         formData,
         "max_capital_per_trade_pct",
@@ -152,6 +152,17 @@ export function StrategyForm({
         }}
       >
         <Stack gap="sm" className="strategy-form-content">
+          {mode === "edit" && isBotRunning && (
+            <Alert
+              icon={<IconAlertTriangle size={16} />}
+              color="yellow"
+              variant="light"
+              data-testid="strategy-form-restart-warning"
+            >
+              <Text size="sm">Bot restart required for changes to take effect</Text>
+            </Alert>
+          )}
+
           {template && (
             <Alert
               icon={<IconInfoCircle size={16} />}

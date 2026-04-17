@@ -1,4 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+
+import config
 
 from .screener_models import (
     MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float,
@@ -203,8 +205,8 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             if df_hist is None or df_hist.empty:
                 return None
         else:
-            to_date = datetime.now().strftime('%Y-%m-%d')
-            from_date = (datetime.now() - __import__('datetime').timedelta(days=5)).strftime('%Y-%m-%d')
+            to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
+            from_date = (datetime.now(config.IST) - timedelta(days=5)).strftime('%Y-%m-%d')
             df_hist = api.fetch_historical_data_v3(
                 symbol=symbol, unit='minutes', interval=1,
                 to_date=to_date, from_date=from_date

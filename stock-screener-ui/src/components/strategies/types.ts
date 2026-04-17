@@ -34,7 +34,6 @@ export interface StrategiesPageProps {
   onCreateStrategy: (data: StrategyFormData) => void;
   onEditStrategy: (strategyId: number, data: StrategyFormData) => void;
   onDeleteStrategy: (strategyId: number) => void;
-  onSetActiveStrategy: (strategyId: number) => void;
   onOpenCreateModal: (template?: StrategyConfig) => void;
   onOpenEditModal: (strategy: StrategyConfig) => void;
   onCloseCreateModal: () => void;
@@ -50,6 +49,9 @@ export interface StrategiesPageProps {
   onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
   onRefresh: () => void;
   onClearError: () => void;
+
+  // Bot state
+  isAnyBotRunning: boolean;
 }
 
 export interface StrategiesNavProps {
@@ -69,7 +71,6 @@ export interface StrategiesListProps {
   templates: StrategyConfig[];
   onEdit: (strategy: StrategyConfig) => void;
   onDelete: (strategyId: number) => void;
-  onSetActive: (strategyId: number) => void;
   onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
   isLoading: boolean;
 }
@@ -88,6 +89,7 @@ export interface StrategyFormProps {
   opened: boolean;
   onClose: () => void;
   onSubmit: (data: StrategyFormData) => void;
+  isBotRunning?: boolean;
 }
 
 export interface TemplateCardProps {

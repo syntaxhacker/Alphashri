@@ -50,7 +50,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
 
         stop_loss = round(current_price * (1 - self.sl_pct / 100), 2)
         # TP intentionally unreachable; exits managed entirely by trailing stop.
-        take_profit = round(current_price * 10, 2)
+        take_profit = round(current_price * 2, 2)
 
         return self.create_signal(
             symbol=symbol,

@@ -248,6 +248,14 @@ class RunnerSignalsMixin:
         if not self.is_market_open():
             return []
 
+        today = self._ist_now().date()
+        if not hasattr(self, '_swing_last_scan_date'):
+            self._swing_last_scan_date: dict = {}
+        last_date = self._swing_last_scan_date.get(strategy_id)
+        if last_date == today:
+            return []
+        self._swing_last_scan_date[strategy_id] = today
+
         new_signals = []
         scan_items = []
 

@@ -47,20 +47,19 @@ src/
 ```
 
 ## Replay Trading
-- Backend: `experiments/replay_trading_day.py` — SSE-based historical candle simulation
 - API: `api/replay_api.py` — `/api/replay/run` (SSE), `/api/replay/symbols`
+- Backend uses `trading/runner_core.py:MultiStrategyRunner.run_replay()` — loads strategy configs from DB (same as live trading)
 - Frontend: `src/components/replay/` — ReplayPage, ReplayChart, ReplayTradeLog, ReplaySummary, ReplayConfig, ReplayStats
 - State: `src/state/replay.ts` + `src/hooks/useReplayState.ts` — SSE event handler → store
 - Types: `src/types/replay.ts` — ReplayTrade, ReplayEMAData, ReplaySummary, SSE event types
 - Chart builder: `src/components/replay/buildReplayChartOption.ts` — matches paper trading colors from `chartOptions.ts`
 - Data fetch: `market_data/market_data.py` — universal `fetch_candles()`, `resample_candles()`, `get_api_client()`
 - Cache: `experiments/data/replay_cache/{date}/{symbol}.pkl` (gitignored)
-- Strategies use **hardcoded** configs in `STRATEGY_CONFIGS` dict (separate from live DB configs)
 - Late-entry guard: blocks entries within 30 min of earliest EOD exit across all strategies
 - Query params: date, strategy, symbols sync bidirectionally with URL
 - Overlay lines (ORB, pivots R1-R2/S1-S2, 52W high, EMA) only show for strategies with trades on selected symbol
 - EMA computed per-TF on backend from historical seed data (1m no-seed, 5m/15m/1h with 5m history seed)
-- Tests: `tests/test_market_data.py` (31 tests for fetch_candles, resample_candles, EMA)
+- Tests: `tests/test_market_data.py` (20 tests for fetch_candles, resample_candles)
 
 ## CSS
 - Legacy hardcoded CSS in `style.css` is being migrated to Mantine — prefer `var(--mantine-color-*)` vars
