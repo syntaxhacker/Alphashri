@@ -10,6 +10,7 @@ import {
   Select,
   TextInput,
 } from "@mantine/core";
+import { TradingDatePicker } from "../common/TradingDatePicker";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import {
   getPaperTradingState,
@@ -185,26 +186,24 @@ export function HistoryFilters({
         <Text size="sm" c="dimmed">
           From:
         </Text>
-        <TextInput
-          type="date"
-          size="sm"
+        <TradingDatePicker
           value={state.filterFromDate || ""}
-          onChange={(e) => filters.handleFilterFromDate(e.currentTarget.value)}
+          onChange={(v) => filters.handleFilterFromDate(v)}
           data-testid="filter-from-date"
-          styles={{ input: { width: 150 } }}
+          w={150}
+          placeholder="From"
         />
       </Group>
       <Group gap="xs">
         <Text size="sm" c="dimmed">
           To:
         </Text>
-        <TextInput
-          type="date"
-          size="sm"
+        <TradingDatePicker
           value={state.filterToDate || ""}
-          onChange={(e) => filters.handleFilterToDate(e.currentTarget.value)}
+          onChange={(v) => filters.handleFilterToDate(v)}
           data-testid="filter-to-date"
-          styles={{ input: { width: 150 } }}
+          w={150}
+          placeholder="To"
         />
       </Group>
       <Group gap="xs">

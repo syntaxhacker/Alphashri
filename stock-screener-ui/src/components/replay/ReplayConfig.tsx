@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Group, Box, Text, TextInput, Select, Button, Switch, Loader, Alert } from "@mantine/core";
+import { Group, Box, Text, Select, Button, Switch, Loader, Alert } from "@mantine/core";
 import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle } from "@tabler/icons-react";
 import { listBots } from "../../api/bots";
 import type { BotConfig } from "../../types/bots";
 import type { ReplayConfig as ReplayConfigType } from "../../types/replay";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { TradingDatePicker } from "../common/TradingDatePicker";
 import {
   getHolidayState,
   subscribeToHolidays,
@@ -79,14 +80,6 @@ export function ReplayConfigBar({
     }
   }, [config.date, holidayState.holidays]);
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newDate = e.currentTarget.value;
-    if (isTradingHoliday(newDate)) {
-      return;
-    }
-    setConfig({ date: newDate });
-  };
-
   return (
     <Box>
       <Group gap="sm" wrap="wrap" data-testid="replay-config">
@@ -112,13 +105,12 @@ export function ReplayConfigBar({
           <Text size="xs" fw={500} mb={2}>
             Date
           </Text>
-          <TextInput
-            type="date"
-            size="sm"
+          <TradingDatePicker
             w={160}
-            max={maxDate}
+            maxDate={maxDate}
             value={config.date}
-            onChange={handleDateChange}
+            onChange={(v) => setConfig({ date: v })}
+            placeholder="Pick date"
             data-testid="replay-date-input"
           />
         </Box>
