@@ -99,6 +99,10 @@ class Position(Base):
     is_test = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    strategy_type = Column(String(20), nullable=True, default="")
+    peak_price = Column(Float, nullable=True, default=0.0)
+    low_price = Column(Float, nullable=True, default=0.0)
+    metadata_json = Column(String(2000), nullable=True, default="")
 
     user = relationship("User", backref="positions")
     bot = relationship("BotConfig", backref="positions")
@@ -122,4 +126,7 @@ class Position(Base):
             "entry_time": self.entry_time.isoformat() if self.entry_time else None,
             "strategy_id": self.strategy_id,
             "strategy_name": self.strategy_name,
+            "strategy_type": self.strategy_type or "",
+            "peak_price": self.peak_price or 0.0,
+            "low_price": self.low_price or 0.0,
         }

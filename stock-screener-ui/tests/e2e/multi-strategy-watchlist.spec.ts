@@ -4,12 +4,7 @@ import {
   loginAsTestUser,
   setupPaperTradingMocks,
 } from "../helpers/multiStrategyHelpers";
-import {
-  BOT_IDS,
-  setupBotMocksForId,
-  navigateToBot,
-  clickStrategyTab,
-} from "./helpers/multiStrategyHelpers";
+import { BOT_IDS, setupBotMocksForId, navigateToBot } from "./helpers/multiStrategyHelpers";
 
 test.describe("Multi-Strategy System - Trade History", () => {
   const botId = BOT_IDS.tradeHistory;

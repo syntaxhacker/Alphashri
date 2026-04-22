@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   Box,
@@ -19,13 +19,22 @@ import {
   setShow52wLines,
   setShowEmaLines,
   subscribe,
-  setError,
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import { CompactPanel } from "../common/compact";
 import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
-import { buildChartOption, TIMEFRAME_OPTIONS } from "./chartOptions";
+import { TradingChart } from "../chart/TradingChart";
+import { normalizePaper } from "../../utils/chart/normalizePaper";
 import type { PaperPosition } from "../../types/paperTrading";
+
+const TIMEFRAME_OPTIONS = [
+  { value: "1min", label: "1m" },
+  { value: "5min", label: "5m" },
+  { value: "15min", label: "15m" },
+  { value: "30min", label: "30m" },
+  { value: "1hour", label: "1H" },
+  { value: "1day", label: "1D" },
+];
 
 function PositionInfo({ position }: { position: PaperPosition }) {
   const pnlClass = position.pnl >= 0 ? "positive" : "negative";
@@ -118,55 +127,6 @@ function ChartEmptyState({
       </Box>
     </CompactPanel>
   );
-}
-
-function useEChart(
-  chartRef: React.RefObject<HTMLDivElement | null>,
-  state: ReturnType<typeof getPaperTradingState>,
-  isDark: boolean,
-) {
-  const chartInstance = useRef<any>(null);
-
-  useEffect(() => {
-    if (!chartRef.current || !state.chartData || !state.selectedSymbol) return;
-    const echartsLib = (window as any).echarts;
-    if (!echartsLib) {
-      setError("PaperChart: ECharts not loaded");
-      return;
-    }
-    if (chartInstance.current) chartInstance.current.dispose();
-    chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
-    chartInstance.current.setOption(
-      buildChartOption(
-        state.chartData,
-        isDark,
-        state.selectedTradeId,
-        state.showAllTrades,
-        state.showOrbLines,
-        state.showPivotLines,
-        state.show52wLines,
-        state.showEmaLines,
-      ),
-    );
-    const handleResize = () => chartInstance.current?.resize();
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      chartInstance.current?.dispose();
-      chartInstance.current = null;
-    };
-  }, [
-    state.chartData,
-    state.selectedSymbol,
-    state.selectedTradeId,
-    state.showAllTrades,
-    state.showOrbLines,
-    state.showPivotLines,
-    state.show52wLines,
-    state.showEmaLines,
-    isDark,
-    chartRef,
-  ]);
 }
 
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
@@ -284,13 +244,34 @@ function getEmptyState(
 }
 
 export function PaperChart() {
-  const chartRef = useRef<HTMLDivElement>(null);
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
   const state = getPaperTradingState();
 
   useStoreSubscription(subscribe);
-  useEChart(chartRef, state, isDark);
+
+  const chartInput = useMemo(() => {
+    if (!state.chartData) return null;
+    return normalizePaper(
+      state.chartData,
+      isDark,
+      state.selectedTradeId,
+      state.showAllTrades,
+      state.showOrbLines,
+      state.showPivotLines,
+      state.show52wLines,
+      state.showEmaLines,
+    );
+  }, [
+    state.chartData,
+    isDark,
+    state.selectedTradeId,
+    state.showAllTrades,
+    state.showOrbLines,
+    state.showPivotLines,
+    state.show52wLines,
+    state.showEmaLines,
+  ]);
 
   const emptyState = getEmptyState(state);
   if (emptyState) {
@@ -321,13 +302,7 @@ export function PaperChart() {
       }}
     >
       <ChartHeader state={state} />
-      <Box
-        ref={chartRef}
-        data-testid="paper-echarts"
-        className="paper-chart-canvas"
-        id="echarts-container"
-        style={{ flex: 1, width: "100%", minHeight: 0 }}
-      />
+      <TradingChart input={chartInput!} isLoading={state.chartLoading} />
       <Flex
         px="sm"
         pb="sm"

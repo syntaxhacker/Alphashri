@@ -1,13 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useMantineColorScheme } from "@mantine/core";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import type { MarketHoliday } from "../../types/holidays";
-import { theme } from "../../config/theme";
 import { normalizeTime } from "../../utils/ui-helpers";
-import { buildHighlightMarkers, buildHighlightLevelSeries } from "../../utils/chartUtils";
-import { buildChartOption } from "./buildBacktestChartOption";
+import { normalizeBacktest } from "../../utils/chart/normalizeBacktest";
+import { TradingChart } from "../chart/TradingChart";
+import type { TradingChartHandle } from "../chart/TradingChart";
 
-const chartInstances = new Map<string, any>();
+const chartHandles = new Map<string, TradingChartHandle>();
+const highlightCallbacks = new Map<string, (id: number | null) => void>();
 
 interface BacktestChartProps {
   symbol: string;
@@ -68,93 +69,7 @@ function computeZoomRange(
     endIdx = Math.min(totalCandles - 1, resolvedExitIdx + padding);
   }
 
-  return { startIdx, endIdx, totalCandles, entryDate, resolvedExitIdx, isSameDay };
-}
-
-function applyZoomToChart(chart: any, startIdx: number, endIdx: number, totalCandles: number) {
-  const startPercent = (startIdx / totalCandles) * 100;
-  const endPercent = ((endIdx + 1) / totalCandles) * 100;
-  chart.dispatchAction({
-    type: "dataZoom",
-    dataZoomIndex: 0,
-    start: startPercent,
-    end: endPercent,
-  });
-  chart.dispatchAction({
-    type: "dataZoom",
-    dataZoomIndex: 1,
-    start: startPercent,
-    end: endPercent,
-  });
-}
-
-function applyHighlightOnChart(
-  chart: any,
-  chartData: SymbolChartData,
-  entryMarker: ChartTrade,
-  exitMarker: ChartTrade | undefined,
-  entryIdx: number,
-  resolvedExitIdx: number,
-  entryDate: string,
-  isSameDay: boolean,
-  tradeIndex: number,
-  fontSizes: Record<string, number>,
-) {
-  if (!selectedTrade || !entryDate) return;
-  const { highlightEntryMarker, highlightExitMarker } = buildHighlightMarkers(
-    entryMarker,
-    exitMarker,
-    entryIdx,
-    resolvedExitIdx,
-    tradeIndex,
-    fontSizes,
-  );
-  const levelSeries = buildHighlightLevelSeries(
-    chartData.candles,
-    entryDate,
-    entryIdx,
-    resolvedExitIdx,
-    selectedTrade,
-    isSameDay,
-    fontSizes,
-  );
-  const highlightSeries = [
-    ...levelSeries,
-    {
-      id: "highlight-entry",
-      name: "Selected Entry",
-      type: "scatter",
-      data: [highlightEntryMarker],
-      symbolSize: 32,
-      z: 25,
-      animation: true,
-      animationDuration: 200,
-    },
-    ...(highlightExitMarker
-      ? [
-          {
-            id: "highlight-exit",
-            name: "Selected Exit",
-            type: "scatter",
-            data: [highlightExitMarker],
-            symbolSize: 28,
-            z: 25,
-            animation: true,
-            animationDuration: 200,
-          },
-        ]
-      : []),
-  ];
-  chart.setOption({ series: highlightSeries });
-  setTimeout(() => {
-    chart.setOption({
-      series: [
-        { id: "highlight-entry", data: [] },
-        { id: "highlight-exit", data: [] },
-        { id: "trade-connect-line", data: [] },
-      ],
-    });
-  }, 5000);
+  return { startIdx, endIdx, totalCandles };
 }
 
 export function zoomToTrade(
@@ -164,16 +79,12 @@ export function zoomToTrade(
 ) {
   if (!chartData) return;
 
-  const fontSizes = theme.fontSizes;
-  const chart = chartInstances.get(symbol);
-  if (!chart) return;
+  const handle = chartHandles.get(symbol);
+  if (!handle) return;
 
-  const entryMarker = chartData.trades.find(
-    (t) => t.type === "entry" && t.trade_id === tradeIndex + 1,
-  );
-  const exitMarker = chartData.trades.find(
-    (t) => t.type === "exit" && t.trade_id === tradeIndex + 1,
-  );
+  const tradeId = tradeIndex + 1;
+  const entryMarker = chartData.trades.find((t) => t.type === "entry" && t.trade_id === tradeId);
+  const exitMarker = chartData.trades.find((t) => t.type === "exit" && t.trade_id === tradeId);
   if (!entryMarker) return;
 
   const candleTimeMap = new Map(chartData.candles.map((c, i) => [normalizeTime(c.time), i]));
@@ -187,22 +98,22 @@ export function zoomToTrade(
   const exitIdx = exitMarker ? findCandleIdx(exitMarker, candleTimeMap, candleDateMap) : undefined;
   if (entryIdx === undefined) return;
 
-  const { startIdx, endIdx, totalCandles, entryDate, resolvedExitIdx, isSameDay } =
-    computeZoomRange(chartData, entryMarker, exitMarker, entryIdx, exitIdx);
-
-  applyZoomToChart(chart, startIdx, endIdx, totalCandles);
-  applyHighlightOnChart(
-    chart,
+  const { startIdx, endIdx, totalCandles } = computeZoomRange(
     chartData,
     entryMarker,
     exitMarker,
     entryIdx,
-    resolvedExitIdx,
-    entryDate,
-    isSameDay,
-    tradeIndex,
-    fontSizes,
+    exitIdx,
   );
+
+  const cb = highlightCallbacks.get(symbol);
+  if (cb) {
+    cb(tradeId);
+  }
+
+  setTimeout(() => {
+    handle.zoomToTradeByIndex(startIdx, endIdx, totalCandles);
+  }, 200);
 }
 
 export function BacktestChart({
@@ -212,64 +123,26 @@ export function BacktestChart({
   onTradeClick,
   holidays,
 }: BacktestChartProps) {
-  const chartRef = useRef<HTMLDivElement>(null);
-  const chartInstance = useRef<any>(null);
+  const chartRef = useRef<TradingChartHandle | null>(null);
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
+  const [highlightedTradeId, setHighlightedTradeId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!chartRef.current || !chartData) return;
-
-    const echartsLib = (window as any).echarts;
-    if (!echartsLib) {
-      console.error("BacktestChart: ECharts not loaded");
-      return;
+    if (chartRef.current) {
+      chartHandles.set(symbol, chartRef.current);
     }
-
-    if (chartInstance.current) {
-      chartInstance.current.dispose();
-    }
-
-    chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
-    chartInstances.set(symbol, chartInstance.current);
-
-    const option = buildChartOption(chartData, isDark, holidays);
-    chartInstance.current.setOption(option);
-    chartInstance.current.resize();
-
-    if (onTradeClick) {
-      chartInstance.current.on("click", (params: any) => {
-        if (params.componentType === "series" && params.seriesType === "scatter") {
-          const data = params.data;
-          if (data && data.trade_id !== undefined) {
-            onTradeClick(data.trade_id - 1);
-          }
-        }
-      });
-    }
-
-    const handleResize = () => {
-      chartInstance.current?.resize();
-    };
-    window.addEventListener("resize", handleResize);
-
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => {
-            chartInstance.current?.resize();
-          })
-        : null;
-
-    resizeObserver?.observe(chartRef.current);
-
+    highlightCallbacks.set(symbol, setHighlightedTradeId);
     return () => {
-      window.removeEventListener("resize", handleResize);
-      resizeObserver?.disconnect();
-      chartInstance.current?.dispose();
-      chartInstances.delete(symbol);
-      chartInstance.current = null;
+      chartHandles.delete(symbol);
+      highlightCallbacks.delete(symbol);
     };
-  }, [chartData, onTradeClick, symbol, isDark, holidays]);
+  }, [symbol]);
+
+  const chartInput = useMemo(() => {
+    if (!chartData) return null;
+    return normalizeBacktest(chartData, isDark, holidays, highlightedTradeId);
+  }, [chartData, isDark, holidays, highlightedTradeId]);
 
   if (isLoading) {
     return (
@@ -290,7 +163,7 @@ export function BacktestChart({
     );
   }
 
-  if (!chartData) {
+  if (!chartData || !chartInput) {
     return (
       <Box
         className="backtest-chart-empty"
@@ -311,12 +184,13 @@ export function BacktestChart({
 
   return (
     <Box
-      ref={chartRef}
       id={`backtest-chart-${symbol}`}
       className="backtest-chart"
       data-testid="echarts-container"
       data-symbol={symbol}
-      style={{ width: "100%", height: "100%", minHeight: 0 }}
-    />
+      style={{ width: "100%", height: "100%", minHeight: 0, display: "flex" }}
+    >
+      <TradingChart ref={chartRef} input={chartInput} onTradeClick={onTradeClick} />
+    </Box>
   );
 }

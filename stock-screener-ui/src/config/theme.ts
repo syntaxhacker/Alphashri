@@ -178,7 +178,7 @@ export const theme = createTheme({
     },
     Tabs: {
       defaultProps: {
-        variant: "pills",
+        variant: "default",
       },
       styles: {
         tab: {

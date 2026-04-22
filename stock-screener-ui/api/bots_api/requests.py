@@ -63,3 +63,20 @@ class StrategyStatusResponse(BaseModel):
     allocated_capital: float
     pnl: float
     trades_count: int
+
+
+class BotSummaryStrategy(BaseModel):
+    id: str
+    name: str
+    strategy_type: str
+
+
+class BotSummaryResponse(BaseModel):
+    id: str
+    name: str
+    is_active: bool
+    running: bool
+    pid: Optional[int] = None
+    status: str = "STOPPED"
+    position_count: int = 0
+    strategies: List[BotSummaryStrategy] = []

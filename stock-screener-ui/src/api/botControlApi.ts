@@ -69,6 +69,17 @@ export function stopLiveAutoRefresh() {
   stopAutoRefresh();
 }
 
+export async function fetchBotSummaries(): Promise<any[]> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/bots/summary`);
+    const data = await response.json();
+    return data || [];
+  } catch (error) {
+    console.error("Failed to fetch bot summaries:", error);
+    return [];
+  }
+}
+
 // List all available bots
 export async function listBots(): Promise<any[]> {
   try {

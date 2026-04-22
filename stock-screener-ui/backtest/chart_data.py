@@ -138,29 +138,49 @@ def format_orb_zones(candles: List[Dict], or_minutes: int = 45) -> List[Dict]:
     return zones
 
 
-def format_trade_markers(trades: List[Dict]) -> List[Dict]:
-    """
-    Format trade data for chart markers.
-
-    Args:
-        trades: List of trade dicts from backtest
-
-    Returns:
-        List of formatted trade marker dicts
-    """
+def format_trade_markers(trades: List[Dict], candles: Optional[List[Dict]] = None) -> List[Dict]:
     markers = []
 
+    candle_time_map: Dict[str, int] = {}
+    if candles:
+        for i, c in enumerate(candles):
+            candle_time_map[c['time'][:19]] = i
+
+    def _find_idx(time_val: str) -> Optional[int]:
+        if not time_val:
+            return None
+        if candles is None:
+            return None
+        key = time_val[:19]
+        if key in candle_time_map:
+            return candle_time_map[key]
+        trade_date = time_val[:10]
+        best = -1
+        for i, c in enumerate(candles):
+            if c['date'] != trade_date:
+                if best >= 0:
+                    break
+                continue
+            if c['time'] <= time_val:
+                best = i
+            else:
+                break
+        return best if best >= 0 else None
+
     for idx, trade in enumerate(trades):
-        # Entry marker
+        entry_idx = _find_idx(trade.get('entry_time', ''))
+        exit_idx = _find_idx(trade.get('exit_time', ''))
+
         markers.append({
             'trade_id': idx + 1,
             'type': 'entry',
             'time': trade.get('entry_time'),
             'date': trade.get('date'),
             'price': trade['entry_price'],
+            'candle_idx': entry_idx,
             'marker': {
                 'symbol': 'triangle',
-                'color': '#2196F3',  # Blue
+                'color': '#2196F3',
                 'size': 12,
             },
             'trade': {
@@ -175,32 +195,27 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
                 'net_pnl_pct': trade['net_pnl_pct'],
                 'exit_reason': trade['exit_reason'],
                 'hold_duration_minutes': trade.get('hold_duration_minutes', 0),
-                # ORB strategy fields
                 'or_high': trade.get('or_high'),
                 'or_low': trade.get('or_low'),
-                # S/R Breakout pivot fields
                 'pp': trade.get('pp'),
                 'r1': trade.get('r1'),
                 's1': trade.get('s1'),
                 'r2': trade.get('r2'),
                 's2': trade.get('s2'),
-                # 52W Chaser fields
                 '52w_high': trade.get('52w_high') or trade.get('52w_high_entry'),
                 'trailing_active': trade.get('trailing_active'),
             }
         })
 
-        # Exit marker
         exit_color = {
-            'TP': '#4CAF50',  # Green
-            'SL': '#F44336',  # Red
-            'EOD': '#FFC107',  # Yellow
-            'TRAILING_STOP': '#9C27B0',  # Purple
-            'MAX_HOLDING': '#FF9800',  # Orange
-            'NEW_52W_HIGH': '#00BCD4',  # Cyan
+            'TP': '#4CAF50',
+            'SL': '#F44336',
+            'EOD': '#FFC107',
+            'TRAILING_STOP': '#9C27B0',
+            'MAX_HOLDING': '#FF9800',
+            'NEW_52W_HIGH': '#00BCD4',
         }.get(trade['exit_reason'], '#FFC107')
 
-        # Extract exit date from exit_time for proper matching
         exit_date = trade.get('exit_time', '')[:10] if trade.get('exit_time') else trade.get('date', '')
 
         markers.append({
@@ -209,6 +224,7 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
             'time': trade.get('exit_time'),
             'date': exit_date,
             'price': trade['exit_price'],
+            'candle_idx': exit_idx,
             'marker': {
                 'symbol': 'circle',
                 'color': exit_color,
@@ -226,16 +242,13 @@ def format_trade_markers(trades: List[Dict]) -> List[Dict]:
                 'net_pnl_pct': trade['net_pnl_pct'],
                 'exit_reason': trade['exit_reason'],
                 'hold_duration_minutes': trade.get('hold_duration_minutes', 0),
-                # ORB strategy fields
                 'or_high': trade.get('or_high'),
                 'or_low': trade.get('or_low'),
-                # S/R Breakout pivot fields
                 'pp': trade.get('pp'),
                 'r1': trade.get('r1'),
                 's1': trade.get('s1'),
                 'r2': trade.get('r2'),
                 's2': trade.get('s2'),
-                # 52W Chaser fields
                 '52w_high': trade.get('52w_high') or trade.get('52w_high_entry'),
                 'trailing_active': trade.get('trailing_active'),
             }
@@ -374,32 +387,16 @@ def build_chart_data_for_symbol(
     include_52w_line: bool = False,
     visuals=None
 ) -> Dict:
-    """
-    Build complete chart data for a single symbol.
-
-    Args:
-        symbol: Stock symbol
-        candles_df: DataFrame with OHLCV data
-        trades: List of trade dicts
-        or_minutes: OR period in minutes
-        include_52w_line: Whether to calculate rolling 52W high for all candles
-
-    Returns:
-        Dict with candles, orb_zones, pivot_levels, 52w_levels, and trades for charting
-    """
     candles = format_candle_data(candles_df)
     orb_zones = format_orb_zones(candles, or_minutes)
-    trade_markers = format_trade_markers(trades)
+    trade_markers = format_trade_markers(trades, candles)
     pivot_levels = extract_pivot_levels(trades)
 
-    # For 52W Chaser, calculate rolling 52W high for all candles (continuous line)
-    # Otherwise just extract from trades (for markers)
-    if include_52w_line:
+    if include_52w_line and len(candles) >= 252:
         week52_levels = calculate_52w_high_series(candles_df, period=252)
     else:
         week52_levels = extract_52w_levels(trades)
 
-    # Determine date range
     if candles:
         start_date = candles[0]['date']
         end_date = candles[-1]['date']

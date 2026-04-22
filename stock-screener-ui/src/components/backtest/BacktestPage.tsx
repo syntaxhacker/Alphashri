@@ -2,6 +2,7 @@ import { Box, Flex, Alert } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { useBacktestQueryParams } from "../../hooks/useBacktestQueryParams";
 import { BacktestConfig } from "./mantine";
 import { BacktestLeftPanel, BacktestRightPanel } from "./BacktestPanels";
 import { zoomToTrade } from "./BacktestChart";
@@ -21,7 +22,13 @@ import {
   setSelectedSymbols,
   resetBacktestState,
 } from "../../state/backtest";
-import { runBacktest, fetchStrategies, fetchCosts, fetchVariations } from "../../api/backtest";
+import {
+  runBacktest,
+  fetchStrategies,
+  fetchCosts,
+  fetchVariations,
+  fetchChartData,
+} from "../../api/backtest";
 import { chartTradesToTrades } from "../../api/chartBuilder";
 import { getHolidayState, subscribeToHolidays, loadHolidays } from "../../state/holidays";
 
@@ -132,6 +139,7 @@ function useBacktestEffects(state: any, setActiveTab: (tab: string | null) => vo
 
 function useBacktestActions(state: any) {
   const [saveToHistory, setSaveToHistory] = useState(true);
+  const [selectedTf, setSelectedTf] = useState<string>("");
   const resultsSort = useSortHandlers();
   const tradeSort = useTradeSortHandlers();
 
@@ -163,6 +171,17 @@ function useBacktestActions(state: any) {
     [state.selectedChartSymbol, state.chartData],
   );
 
+  const handleTfChange = useCallback(
+    async (tf: string | null) => {
+      const val = tf ?? "";
+      setSelectedTf(val);
+      if (!state.selectedChartSymbol) return;
+      const tfNum = val ? parseInt(val, 10) : undefined;
+      await fetchChartData(state.selectedChartSymbol, tfNum);
+    },
+    [state.selectedChartSymbol],
+  );
+
   return {
     saveToHistory,
     setSaveToHistory,
@@ -172,6 +191,8 @@ function useBacktestActions(state: any) {
     handleRunBacktest,
     handleViewChartAndTrades,
     handleZoomToTrade,
+    selectedTf,
+    handleTfChange,
   };
 }
 
@@ -270,6 +291,8 @@ function BacktestPanels({
           onTradeSort={actions.tradeSort.handleSort}
           onTradeRowClick={actions.handleZoomToTrade}
           onCloseTradeHistory={() => setTradeHistory(null, null)}
+          selectedTf={actions.selectedTf}
+          onTfChange={actions.handleTfChange}
         />
       </Box>
     </Flex>
@@ -279,6 +302,7 @@ function BacktestPanels({
 export function BacktestPage() {
   useStoreSubscription(subscribe);
   useStoreSubscription(subscribeToHolidays);
+  useBacktestQueryParams();
   const state = getBacktestState();
   const holidayState = getHolidayState();
   const [activeTab, setActiveTab] = useState<string | null>("results");

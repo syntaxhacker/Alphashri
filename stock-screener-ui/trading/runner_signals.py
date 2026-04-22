@@ -376,6 +376,8 @@ class RunnerSignalsMixin:
             'take_profit': signal.take_profit or 0.0,
             'entry_time': self._ist_now(),
             'current_price': signal.price,
+            'strategy_type': getattr(runner, 'strategy_type', ''),
+            'metadata': {'entry_reason': signal.notes or ''} if signal.notes else {},
         }, action="upsert")
         return True
 
@@ -497,8 +499,14 @@ class RunnerSignalsMixin:
         close_prices = {s: d['close'] for s, d in prices.items()}
         self.portfolio.update_prices(close_prices)
 
-        for pos in self.portfolio.get_all_positions():
+        all_positions = self.portfolio.get_all_positions()
+        low_prices = {
+            (p.strategy_id, p.symbol): p.low_price if p.low_price != float('inf') else 0.0
+            for p in self.portfolio.positions.values()
+        }
+        for pos in all_positions:
             if not self.replay_mode:
+                pos['low_price'] = low_prices.get((pos.get('strategy_id'), pos['symbol']), 0.0)
                 self._persist_position_to_db(pos, action="upsert")
 
         positions_to_close = []

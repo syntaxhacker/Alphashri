@@ -52,16 +52,13 @@ function StrategyTabs({
         if (v) setSelectedStrategyTab(v);
       }}
       data-testid="strategy-tabs"
-      className="paper-strategy-tabs"
-      id="strategy-tabs"
+      variant="default"
     >
       <Tabs.List>
         <Tabs.Tab value="all" data-testid="strategy-tab-all">
           <Group gap="xs">
             <span>All</span>
-            <Badge size="xs" variant="filled" color="blue">
-              {positions.length}
-            </Badge>
+            <Badge size="xs">{positions.length}</Badge>
             <Text size="xs" c={getPnLTextColor(allSummary.totalPnl)}>
               {allSummary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(allSummary.totalPnl)}
             </Text>
@@ -80,9 +77,7 @@ function StrategyTabs({
             >
               <Group gap="xs">
                 <span>{displayName}</span>
-                <Badge size="xs" variant="filled" color="blue">
-                  {summary.count}
-                </Badge>
+                <Badge size="xs">{summary.count}</Badge>
                 <Text size="xs" c={getPnLTextColor(summary.totalPnl)}>
                   {summary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(summary.totalPnl)}
                 </Text>

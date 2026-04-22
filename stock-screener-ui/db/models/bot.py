@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Table, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -194,6 +195,50 @@ class BotConfig(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class BotRuntimeState(Base):
+    __tablename__ = "bot_runtime_states"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    bot_id = Column(Integer, ForeignKey("bot_configs.id"), nullable=False, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    cash = Column(Float, nullable=False, default=0.0)
+    daily_pnl = Column(Float, nullable=False, default=0.0)
+    daily_trades = Column(Integer, nullable=False, default=0)
+    realized_pnl = Column(Float, nullable=False, default=0.0)
+    day_start = Column(String(10), nullable=False, default="")
+    scan_items = Column(String(50000), nullable=True, default="")
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    bot = relationship("BotConfig", backref="runtime_state")
+    user = relationship("User", backref="bot_runtime_states")
+
+
+class StrategyRuntimeState(Base):
+    __tablename__ = "strategy_runtime_states"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    bot_id = Column(Integer, ForeignKey("bot_configs.id"), nullable=False, index=True)
+    strategy_id = Column(Integer, ForeignKey("strategy_configs.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(20), nullable=False, default="pending")
+    signals_generated = Column(Integer, nullable=False, default=0)
+    trades_executed = Column(Integer, nullable=False, default=0)
+    last_scan_time = Column(DateTime(timezone=True), nullable=True)
+    capital_used = Column(Float, nullable=False, default=0.0)
+    available_capital = Column(Float, nullable=False, default=0.0)
+    positions_count = Column(Integer, nullable=False, default=0)
+    realized_pnl = Column(Float, nullable=False, default=0.0)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    bot = relationship("BotConfig", backref="strategy_runtime_states")
+    strategy = relationship("StrategyConfig", backref="runtime_states")
+    user = relationship("User", backref="strategy_runtime_states")
+
+    __table_args__ = (
+        UniqueConstraint("bot_id", "strategy_id", name="uq_bot_strategy_runtime"),
+    )
 
 
 class BacktestResult(Base):

@@ -40,11 +40,32 @@ export function PaperPortfolioCard({
 
   return (
     <CompactPanel data-testid="portfolio-card" className="paper-portfolio-card" id="portfolio-card">
-      <CompactStatGrid>
-        <CompactStat label="Total Value" value={`₹${formatCurrencyIN(portfolio.total_value)}`} />
-        <CompactStat label="Cash" value={`₹${formatCurrencyIN(portfolio.cash)}`} />
-        <CompactStat label="Margin Used" value={`₹${formatCurrencyIN(portfolio.margin_used)}`} />
+      <CompactStatGrid spacing="xs">
         <CompactStat
+          p="xs"
+          labelSize="xs"
+          valueSize="md"
+          label="Total Value"
+          value={`₹${formatCurrencyIN(portfolio.total_value)}`}
+        />
+        <CompactStat
+          p="xs"
+          labelSize="xs"
+          valueSize="md"
+          label="Cash"
+          value={`₹${formatCurrencyIN(portfolio.cash)}`}
+        />
+        <CompactStat
+          p="xs"
+          labelSize="xs"
+          valueSize="md"
+          label="Margin Used"
+          value={`₹${formatCurrencyIN(portfolio.margin_used)}`}
+        />
+        <CompactStat
+          p="xs"
+          labelSize="xs"
+          valueSize="md"
           label="Day P&L"
           value={`${pnlSign}₹${formatCurrencyIN(portfolio.day_pnl)}`}
           tone={pnlColor}

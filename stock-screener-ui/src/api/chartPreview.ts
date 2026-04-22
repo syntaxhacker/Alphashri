@@ -41,6 +41,7 @@ export interface ChartPreviewData {
   candles: PreviewCandle[];
   orb_zones: ORBZone[];
   pivot_levels: PivotLevel[];
+  high_52w?: number | null;
   timeframe: number;
   or_minutes?: number;
   total_candles: number;

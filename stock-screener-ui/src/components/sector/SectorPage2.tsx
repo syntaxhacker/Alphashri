@@ -316,12 +316,22 @@ function useSectorData() {
   const prevSectorDataRef = useRef<Record<string, number>>({});
   const prevStockDataRef = useRef<Record<string, number>>({});
   const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
 
-  const loadData = useCallback(async (mkt: string) => {
-    setLoading(true);
+  const loadData = useCallback(async (mkt: string, isInitial = false): Promise<boolean> => {
+    if (requestAbortRef.current) {
+      if (!isInitial) return false;
+      requestAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    requestAbortRef.current = controller;
+    if (isInitial) setLoading(true);
     setError(null);
     try {
-      const res = await fetchSectorPerformance(mkt);
+      const res = await fetchSectorPerformance(mkt, controller.signal);
+      if (controller.signal.aborted) {
+        return false;
+      }
       processSectorResponse(
         res,
         prevSectorDataRef.current,
@@ -330,10 +340,18 @@ function useSectorData() {
         setIntervalMovers,
       );
       setData(res);
+      return true;
     } catch (err) {
+      if (controller.signal.aborted) {
+        return false;
+      }
       setError(err instanceof Error ? err.message : "Failed to load sector data");
+      return true;
     } finally {
-      setLoading(false);
+      if (requestAbortRef.current === controller) {
+        requestAbortRef.current = null;
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -342,24 +360,59 @@ function useSectorData() {
     prevStockDataRef.current = {};
     setAlerts([]);
     setIntervalMovers([]);
-    loadData(market);
-    if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
-    let liveCount = 0;
-    const fast = setInterval(() => {
-      liveCount++;
-      loadData(market);
-      if (liveCount >= 5) {
-        clearInterval(fast);
+    if (liveTimeoutRef.current) {
+      clearTimeout(liveTimeoutRef.current);
+      liveTimeoutRef.current = null;
+    }
+    requestAbortRef.current?.abort();
+
+    if (activeTab !== "dashboard") {
+      setLoading(false);
+      return () => {
+        if (liveTimeoutRef.current) {
+          clearTimeout(liveTimeoutRef.current);
+          liveTimeoutRef.current = null;
+        }
+        requestAbortRef.current?.abort();
+      };
+    }
+
+    let cancelled = false;
+    let fastPollCount = 0;
+
+    const scheduleNextPoll = (delay: number) => {
+      if (cancelled) {
+        return;
+      }
+      liveTimeoutRef.current = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        void loadData(market).then((completed) => {
+          if (cancelled || !completed) {
+            return;
+          }
+          fastPollCount += 1;
+          scheduleNextPoll(fastPollCount < 2 ? 5000 : 60000);
+        });
+      }, delay);
+    };
+
+    void loadData(market).then((completed) => {
+      if (!cancelled && completed) {
+        scheduleNextPoll(5000);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (liveTimeoutRef.current) {
+        clearTimeout(liveTimeoutRef.current);
         liveTimeoutRef.current = null;
       }
-    }, 1000);
-    const slow = setInterval(() => loadData(market), 60000);
-    return () => {
-      clearInterval(fast);
-      clearInterval(slow);
-      if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
+      requestAbortRef.current?.abort();
     };
-  }, [market, loadData]);
+  }, [activeTab, market, loadData]);
 
   return {
     data,
@@ -439,7 +492,7 @@ function SectorTabContent({
   market: string;
   alerts: SectorAlert[];
   intervalMovers: InternalStockMover[];
-  loadData: (m: string) => Promise<void>;
+  loadData: (m: string, isInitial?: boolean) => Promise<boolean>;
 }) {
   if (activeTab !== "dashboard") {
     return (

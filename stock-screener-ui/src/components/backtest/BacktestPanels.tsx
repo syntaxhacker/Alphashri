@@ -137,6 +137,8 @@ interface BacktestRightPanelProps {
   onTradeSort: (column: string) => void;
   onTradeRowClick: (tradeIndex: number) => void;
   onCloseTradeHistory: () => void;
+  selectedTf: string | null;
+  onTfChange: (tf: string | null) => void;
 }
 
 export function BacktestRightPanel({
@@ -158,6 +160,8 @@ export function BacktestRightPanel({
   onTradeSort,
   onTradeRowClick,
   onCloseTradeHistory,
+  selectedTf,
+  onTfChange,
 }: BacktestRightPanelProps) {
   if (!showCharts || !results || results.length === 0) {
     return null;
@@ -182,9 +186,11 @@ export function BacktestRightPanel({
           zoomValue={zoomValue}
           onZoomChange={onZoomChange}
           chartDataMap={chartDataMap}
-          chartLoading={chartLoading}
+          chartLoading={!!chartLoading}
           onTradeClick={onTradeClick}
           holidays={holidays}
+          selectedTf={selectedTf}
+          onTfChange={onTfChange}
         />
       </Box>
       {hasTradeHistory && (

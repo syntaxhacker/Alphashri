@@ -181,9 +181,9 @@ def _get_trades_from_journals(
         from db.models.bot import StrategyConfig
         strategy_name = None
         with SessionLocal() as db:
-            config = db.query(StrategyConfig).filter(StrategyConfig.id == strategy_id).first()
-            if config:
-                strategy_name = config.name
+            strategy_cfg = db.query(StrategyConfig).filter(StrategyConfig.id == strategy_id).first()
+            if strategy_cfg:
+                strategy_name = strategy_cfg.name
         if strategy_name:
             all_trades = [t for t in all_trades if t.get('strategy_name') == strategy_name]
     if bot_id:

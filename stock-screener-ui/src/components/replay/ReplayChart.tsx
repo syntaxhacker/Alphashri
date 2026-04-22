@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
+import { useMemo, useState, forwardRef, useImperativeHandle, useRef } from "react";
 import { Box, Group, Text, Badge, Button, Switch, useMantineColorScheme } from "@mantine/core";
 import type {
   ReplayCandle,
@@ -9,7 +9,9 @@ import type {
   ReplayEMAData,
   ReplayChartOptions,
 } from "../../types/replay";
-import { buildReplayChartOption } from "./buildReplayChartOption";
+import { TradingChart } from "../chart/TradingChart";
+import type { TradingChartHandle } from "../chart/TradingChart";
+import { normalizeReplay } from "../../utils/chart/normalizeReplay";
 
 const TF_PRESETS = [
   { label: "1m", minutes: 1 },
@@ -74,7 +76,7 @@ interface ReplayChartProps {
   chartOptions: ReplayChartOptions;
   setChartOptions: (opts: Partial<ReplayChartOptions>) => void;
   highlightedTradeId: number | null;
-  onTradeClick?: (tradeId: number, entryTime: string, exitTime: string) => void;
+  onTradeClick?: (tradeId: number) => void;
 }
 
 export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(function ReplayChart(
@@ -84,43 +86,22 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
     orLevels,
     pivotLevels,
     high52wLevels,
-    emaData: _emaData,
+    emaData,
     selectedSymbol,
     setSelectedSymbol,
     chartOptions,
     setChartOptions,
     highlightedTradeId,
+    onTradeClick,
   },
   ref,
 ) {
-  const chartRef = useRef<HTMLDivElement>(null);
-  const chartInstance = useRef<any>(null);
+  const tradingChartRef = useRef<TradingChartHandle>(null);
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
-  const allTimesRef = useRef<string[]>([]);
   const [activeTF, setActiveTF] = useState(1);
 
   const symbols = useMemo(() => Object.keys(candlesBySymbol), [candlesBySymbol]);
-
-  const filteredTrades = useMemo(
-    () => trades.filter((t) => t.symbol === selectedSymbol),
-    [trades, selectedSymbol],
-  );
-
-  const filteredORLevels = useMemo(
-    () => orLevels.filter((o) => o.symbol === selectedSymbol),
-    [orLevels, selectedSymbol],
-  );
-
-  const filteredPivots = useMemo(
-    () => pivotLevels.filter((p) => p.symbol === selectedSymbol),
-    [pivotLevels, selectedSymbol],
-  );
-
-  const filtered52w = useMemo(
-    () => high52wLevels.filter((h) => h.symbol === selectedSymbol),
-    [high52wLevels, selectedSymbol],
-  );
 
   const rawCandles = candlesBySymbol[selectedSymbol] ?? [];
 
@@ -129,139 +110,52 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
     [rawCandles, activeTF],
   );
 
-  const displayEMA = useMemo(() => {
-    const backendEMA = _emaData[selectedSymbol];
-    if (!backendEMA) return null;
-    const tfData = backendEMA.timeframes[String(activeTF)];
-    if (!tfData || tfData.ema_fast.length === 0 || tfData.ema_slow.length === 0) return null;
-    return {
-      ema_fast_period: backendEMA.ema_fast_period,
-      ema_slow_period: backendEMA.ema_slow_period,
-      ema_fast: tfData.ema_fast,
-      ema_slow: tfData.ema_slow,
-    };
-  }, [selectedSymbol, _emaData, activeTF]);
+  const chartInput = useMemo(
+    () =>
+      normalizeReplay(
+        displayCandles,
+        trades,
+        orLevels,
+        pivotLevels,
+        high52wLevels,
+        emaData,
+        selectedSymbol,
+        isDark,
+        highlightedTradeId,
+        chartOptions.show_all_trades,
+        rawCandles,
+        activeTF,
+        {
+          show_orb_zones: chartOptions.show_orb_zones,
+          show_pivot_levels: chartOptions.show_pivot_levels,
+          show_52w_high: chartOptions.show_52w_high,
+          show_ema: chartOptions.show_ema,
+        },
+      ),
+    [
+      displayCandles,
+      trades,
+      orLevels,
+      pivotLevels,
+      high52wLevels,
+      emaData,
+      selectedSymbol,
+      isDark,
+      highlightedTradeId,
+      chartOptions,
+      rawCandles,
+      activeTF,
+    ],
+  );
 
   useImperativeHandle(ref, () => ({
     zoomToTrade(entryTime: string, exitTime: string) {
-      setTimeout(() => {
-        if (!chartInstance.current || !allTimesRef.current.length) return;
-        const times = allTimesRef.current;
-        const parse = (s: string) =>
-          s.includes("T")
-            ? s.split("T")[1].substring(0, 5)
-            : s.includes(" ")
-              ? s.split(" ")[1].substring(0, 5)
-              : s.substring(0, 5);
-        const entryKey = parse(entryTime);
-        const exitKey = parse(exitTime);
-
-        let entryIdx = times.findIndex((t) => t === entryKey);
-        if (entryIdx === -1) {
-          let best = -1;
-          for (let i = 0; i < times.length; i++) {
-            if (times[i] <= entryKey) best = i;
-            else break;
-          }
-          entryIdx = best >= 0 ? best : 0;
-        }
-        let exitIdx = times.findIndex((t) => t === exitKey);
-        if (exitIdx === -1) {
-          let best = -1;
-          for (let i = 0; i < times.length; i++) {
-            if (times[i] <= exitKey) best = i;
-            else break;
-          }
-          exitIdx = best >= 0 ? best : times.length - 1;
-        }
-
-        const total = times.length;
-        const span = exitIdx - entryIdx + 1;
-        const minWindow = Math.min(60, total);
-        const pad = Math.max(5, Math.floor((minWindow - span) / 2));
-        let start = Math.max(0, entryIdx - pad);
-        let end = Math.min(total - 1, exitIdx + pad);
-
-        if (end - start + 1 < minWindow) {
-          if (start === 0) end = Math.min(total - 1, minWindow - 1);
-          else start = Math.max(0, end - minWindow + 1);
-        }
-
-        const startPct = (start / total) * 100;
-        const endPct = ((end + 1) / total) * 100;
-
-        chartInstance.current.dispatchAction({
-          type: "dataZoom",
-          dataZoomIndex: 0,
-          start: startPct,
-          end: endPct,
-        });
-      }, 100);
+      tradingChartRef.current?.zoomToTradeByTime(entryTime, exitTime);
     },
     setTimeframe(minutes: number) {
       setActiveTF(minutes);
     },
   }));
-
-  useEffect(() => {
-    if (!chartRef.current || displayCandles.length === 0) return;
-
-    const echartsLib = (window as any).echarts;
-    if (!echartsLib) {
-      console.error("ReplayChart: ECharts not loaded");
-      return;
-    }
-
-    if (chartInstance.current) {
-      chartInstance.current.dispose();
-    }
-
-    chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
-    const option = buildReplayChartOption(
-      displayCandles,
-      filteredTrades,
-      filteredORLevels,
-      filteredPivots,
-      filtered52w,
-      displayEMA,
-      isDark,
-      chartOptions,
-      highlightedTradeId,
-      rawCandles,
-      activeTF,
-    );
-    chartInstance.current.setOption(option);
-    chartInstance.current.resize();
-
-    allTimesRef.current = displayCandles.map((c) => {
-      const parts = c.time.includes(" ") ? c.time.split(" ")[1] : c.time;
-      return parts.substring(0, 5);
-    });
-
-    const handleResize = () => chartInstance.current?.resize();
-    window.addEventListener("resize", handleResize);
-
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => chartInstance.current?.resize())
-        : null;
-    resizeObserver?.observe(chartRef.current);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      resizeObserver?.disconnect();
-      chartInstance.current?.dispose();
-      chartInstance.current = null;
-    };
-  }, [
-    displayCandles,
-    filteredTrades,
-    filteredORLevels,
-    isDark,
-    displayEMA,
-    chartOptions,
-    highlightedTradeId,
-  ]);
 
   if (symbols.length === 0) {
     return (
@@ -363,11 +257,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           data-testid="replay-show-ema"
         />
       </Group>
-      <Box
-        ref={chartRef}
-        data-testid="echarts-container"
-        style={{ flex: 1, width: "100%", minHeight: 0 }}
-      />
+      <TradingChart ref={tradingChartRef} input={chartInput} onTradeClick={onTradeClick} />
     </Box>
   );
 });

@@ -272,3 +272,20 @@ export interface BotInfo {
   }>;
   is_active: boolean;
 }
+
+export interface BotSummaryStrategy {
+  id: string;
+  name: string;
+  strategy_type: string;
+}
+
+export interface BotSummary {
+  id: string;
+  name: string;
+  is_active: boolean;
+  running: boolean;
+  pid: number | null;
+  status: string;
+  position_count: number;
+  strategies: BotSummaryStrategy[];
+}

@@ -140,6 +140,28 @@ def _calculate_pivot_points(df):
     return pivots
 
 
+
+
+def _calculate_52w_high(df):
+    """Calculate 52-week high from the full historical data."""
+    import pandas as pd
+
+    if df is None or df.empty:
+        return None
+
+    if not isinstance(df.index, pd.DatetimeIndex):
+        if 'date' in df.columns:
+            df = df.set_index('date')
+        elif 'time' in df.columns:
+            df = df.set_index('time')
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+
+    if 'high' not in df.columns:
+        return None
+
+    return round(float(df['high'].max()), 2)
+
 def _format_candles_for_chart(df):
     if df is None or df.empty:
         return []
@@ -167,14 +189,13 @@ def _format_candles_for_chart(df):
 @router.get("/api/chart/preview/{symbol}")
 async def get_chart_preview(
     symbol: str,
-    tf: int = Query(15, ge=1, le=60, description="Timeframe in minutes (1, 5, 15, 30, 60)"),
+    tf: int = Query(15, ge=1, le=1440, description="Timeframe in minutes (1, 5, 15, 30, 60, 120, 240, 720, 1440)"),
     days: int = Query(1, ge=1, le=30, description="Days of history (default 1 for hover preview)"),
-    or_minutes: int = Query(45, ge=15, le=90, description="Opening range period in minutes")
+    or_minutes: int = Query(45, ge=15, le=240, description="Opening range period in minutes")
 ):
-    from db.models import get_shared_broker_token
     from cache.redis_client import cache_get, cache_set, make_cache_key
     import config as app_config
-    from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
+    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
     import pandas as pd
 
     cache_key = make_cache_key("chart", symbol.upper(), tf=tf, days=days, or_minutes=or_minutes)
@@ -192,34 +213,22 @@ async def get_chart_preview(
             'candles': [],
             'orb_zones': [],
             'pivot_levels': [],
+            'high_52w': None,
             'timeframe': tf,
             'or_minutes': or_minutes,
             'total_candles': 0,
             'error': 'Upstox API credentials not configured'
         }
 
-    token_data = await asyncio.to_thread(get_shared_broker_token, 'upstox')
-    if not token_data or not token_data.get('access_token'):
-        return {
-            'symbol': symbol,
-            'candles': [],
-            'orb_zones': [],
-            'pivot_levels': [],
-            'timeframe': tf,
-            'or_minutes': or_minutes,
-            'total_candles': 0,
-            'error': 'Upstox not connected. Please connect your broker in Settings.'
-        }
-
     try:
-        api = TradingAPIFactory.create_client('upstox', api_key=api_key, api_secret=api_secret, quiet=True)
-        api.auth_handler.access_token = token_data['access_token']
+        api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
     except Exception as e:
         return {
             'symbol': symbol,
             'candles': [],
             'orb_zones': [],
             'pivot_levels': [],
+            'high_52w': None,
             'timeframe': tf,
             'or_minutes': or_minutes,
             'total_candles': 0,
@@ -262,11 +271,14 @@ async def get_chart_preview(
         df_tf = _resample_candles(df, tf)
         candles = _format_candles_for_chart(df_tf)
 
+        high_52w = _calculate_52w_high(df)
+
         result = _sanitize_for_json({
             'symbol': symbol,
             'candles': candles,
             'orb_zones': orb_zones,
             'pivot_levels': pivot_levels,
+            'high_52w': high_52w,
             'timeframe': tf,
             'or_minutes': or_minutes,
             'total_candles': len(candles),
@@ -281,6 +293,7 @@ async def get_chart_preview(
             'candles': [],
             'orb_zones': [],
             'pivot_levels': [],
+            'high_52w': None,
             'timeframe': tf,
             'or_minutes': or_minutes,
             'total_candles': 0,

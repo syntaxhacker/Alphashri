@@ -31,7 +31,10 @@ _TF_TO_UPSTOX: Dict[int, tuple] = {
     15: ("minutes", 15),
     30: ("minutes", 30),
     60: ("hours", 1),
+    240: ("hours", 4),
     1440: ("days", 1),
+    10080: ("weeks", 1),
+    43200: ("months", 1),
 }
 
 _RESAMPLE_RULE: Dict[int, str] = {
@@ -40,6 +43,10 @@ _RESAMPLE_RULE: Dict[int, str] = {
     15: "15min",
     30: "30min",
     60: "1h",
+    240: "4h",
+    1440: "1D",
+    10080: "1W",
+    43200: "1ME",
 }
 
 _IST = config.IST

@@ -1,4 +1,5 @@
 import asyncio
+import signal
 import sys
 import os
 import uuid as uuid_module
@@ -125,8 +126,7 @@ def is_bot_running(user_id: int, bot_id: int) -> tuple:
             return None, None
         val = client.get(f"bot:{user_id}:{bot_id}:status")
         if val:
-            parts = val.split(":")
-            pid = int(parts[1]) if len(parts) > 1 else None
+            pid = get_bot_pid(user_id, bot_id)
             if pid and _is_pid_alive(pid):
                 return True, pid
             else:
@@ -144,6 +144,19 @@ def _is_pid_alive(pid: int) -> bool:
         return True
     except (OSError, ProcessLookupError):
         return False
+
+
+def get_bot_pid(user_id: int, bot_id: int) -> Optional[int]:
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client:
+            pid_str = client.get(f"bot:{user_id}:{bot_id}:pid")
+            if pid_str:
+                return int(pid_str)
+    except Exception:
+        pass
+    return None
 
 
 def _set_bot_status_redis(user_id: int, bot_id: int, pid: int, ttl: int = 90):
@@ -246,40 +259,29 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False):
 
     env = {**os.environ, "PYTHONPATH": str(PROJECT_ROOT)}
 
+    log_file = open(log_path, 'a')
     process = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stdout=log_file,
+        stderr=log_file,
         cwd=str(PROJECT_ROOT),
         start_new_session=True,
         env=env,
     )
-
-    _stream_output = os.getenv("STREAM_BOT_OUTPUT", "false").lower() == "true"
-
-    def _stream_bot_output(p: subprocess.Popen, lp: Path):
-        import threading
-        def _reader():
-            with open(lp, 'w') as f:
-                if p.stdout:
-                    for line in iter(p.stdout.readline, b''):
-                        text = line.decode('utf-8', errors='replace')
-                        f.write(text)
-                        f.flush()
-                        if _stream_output:
-                            sys.__stdout__.write(text)
-                            sys.__stdout__.flush()
-                    p.stdout.close()
-        t = threading.Thread(target=_reader, daemon=True)
-        t.start()
-
-    _stream_bot_output(process, log_path)
 
     if user_id not in _bot_processes:
         _bot_processes[user_id] = {}
     _bot_processes[user_id][bot_id] = process
     _bot_logs[bot_id] = log_path
     _set_bot_status_redis(user_id, bot_id, process.pid)
+
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client:
+            client.setex(f"bot:{user_id}:{bot_id}:pid", 86400, str(process.pid))
+    except Exception:
+        pass
 
     console.print(f"[green]Started bot {bot_id} (PID: {process.pid})[/green]")
     return process
@@ -300,4 +302,26 @@ def stop_bot_process(user_id: int, bot_id: int):
 
         del _bot_processes[user_id][bot_id]
         _clear_bot_status_redis(user_id, bot_id)
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client:
+                client.delete(f"bot:{user_id}:{bot_id}:pid")
+        except Exception:
+            pass
         console.print(f"[yellow]Stopped bot {bot_id}[/yellow]")
+    else:
+        pid = get_bot_pid(user_id, bot_id)
+        if pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except (OSError, ProcessLookupError):
+                pass
+        _clear_bot_status_redis(user_id, bot_id)
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client:
+                client.delete(f"bot:{user_id}:{bot_id}:pid")
+        except Exception:
+            pass

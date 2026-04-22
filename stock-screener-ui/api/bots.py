@@ -58,7 +58,6 @@ from api.bots_api.bots_router import (
     get_strategy_by_uuid,
     validate_bot_ownership,
     get_bot_snapshot_path,
-    load_bot_snapshot,
     is_bot_running,
     _is_pid_alive,
     _set_bot_status_redis,
@@ -70,6 +69,8 @@ from api.bots_api.bots_router import (
     _bot_logs,
     SessionLocal as _SessionLocal,
 )
+
+from api.bot_state import get_bot_state
 
 from api.bots_api.bot_status import (
     list_available_strategies,
@@ -90,6 +91,7 @@ from api.bots_api.bot_strategies import (
 )
 
 __all__ = [
+    "get_bot_state",
     "router",
     "StrategyAllocation",
     "BotCreate",
@@ -103,7 +105,6 @@ __all__ = [
     "get_strategy_by_uuid",
     "validate_bot_ownership",
     "get_bot_snapshot_path",
-    "load_bot_snapshot",
     "is_bot_running",
     "_is_pid_alive",
     "_set_bot_status_redis",
@@ -154,8 +155,8 @@ def _get_sync_functions():
         
         def _sync_get_bot_portfolio(bot_uuid: str, user_id: int, db: Session) -> dict:
             bot = get_bot_by_uuid(bot_uuid, user_id, db)
-            snapshot = load_bot_snapshot(bot.id, user_id)
-            if not snapshot:
+            state = get_bot_state(bot.id, user_id, db)
+            if not state:
                 return {
                     "bot_id": bot.uuid,
                     "portfolio": {
@@ -179,10 +180,10 @@ def _get_sync_functions():
                 }
             return {
                 "bot_id": bot.uuid,
-                "portfolio": snapshot.get('portfolio'),
-                "positions": snapshot.get('positions', []),
-                "strategies": snapshot.get('strategies', {}),
-                "timestamp": snapshot.get('timestamp'),
+                "portfolio": state['portfolio'],
+                "positions": state['positions'],
+                "strategies": state['strategies'],
+                "timestamp": state['timestamp'],
             }
         
         _sync_get_bot_portfolio = _sync_get_bot_portfolio
@@ -329,8 +330,8 @@ async def get_bot_positions(
     try:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        snapshot = load_bot_snapshot(bot.id, user_id)
-        positions = snapshot.get('positions', []) if snapshot else []
+        state = get_bot_state(bot.id, user_id, db)
+        positions = state['positions'] if state else []
 
         if not positions:
             from db.models import Position as PositionModel
@@ -475,35 +476,9 @@ async def get_bot_scan(
     try:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        running, _ = is_bot_running(user_id, bot.id)
-        if not running:
-            return {
-                "bot_id": bot.uuid,
-                "scan_items": [],
-                "count": 0,
-                "timestamp": datetime.now().isoformat(),
-            }
-
-        snapshot = load_bot_snapshot(bot.id, user_id)
-
-        if not snapshot:
-            return {
-                "bot_id": bot.uuid,
-                "scan_items": [],
-                "count": 0,
-                "timestamp": datetime.now().isoformat(),
-            }
-
-        scan_items = snapshot.get('scan_items', [])
-
-        if not scan_items:
-            strategies = snapshot.get('strategies', {})
-            for strat_id, strat_data in strategies.items():
-                strat_scan = strat_data.get('scan_items', [])
-                for item in strat_scan:
-                    item['strategy_id'] = int(strat_id)
-                    item['strategy_name'] = strat_data.get('name', f'Strategy {strat_id}')
-                scan_items.extend(strat_scan)
+        state = get_bot_state(bot.id, user_id, db)
+        scan_items = state['scan_items'] if state else []
+        running = state is not None
 
         if strategy_id is not None:
             strat = get_strategy_by_uuid(strategy_id, db)
@@ -513,7 +488,8 @@ async def get_bot_scan(
             "bot_id": bot.uuid,
             "scan_items": scan_items,
             "count": len(scan_items),
-            "timestamp": snapshot.get('timestamp'),
+            "timestamp": state['timestamp'] if state else datetime.now().isoformat(),
+            "bot_running": running,
         }
     finally:
         if close_db:
@@ -545,63 +521,56 @@ async def close_all_bot_positions(
         bot = get_bot_by_uuid(bot_id, user_id, db)
         running, _ = is_bot_running(user_id, bot.id)
 
+        from db.models import Position as _Pos, Trade as _Trade
+        from backtest.costs import calculate_trading_costs
+        from config import IST
+        positions = db.query(_Pos).filter(_Pos.bot_id == bot.id).all()
+        closed_count = 0
+
+        if positions:
+            for pos in positions:
+                exit_price = request.prices.get(pos.symbol, pos.current_price or pos.entry_price)
+                side = pos.side.upper()
+                if side == "LONG":
+                    pnl = (exit_price - pos.entry_price) * pos.quantity
+                    pnl_pct = ((exit_price - pos.entry_price) / pos.entry_price) * 100
+                else:
+                    pnl = (pos.entry_price - exit_price) * pos.quantity
+                    pnl_pct = ((pos.entry_price - exit_price) / pos.entry_price) * 100
+                costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+                trade = _Trade(
+                    user_id=user_id,
+                    bot_id=bot.id,
+                    strategy_id=pos.strategy_id,
+                    strategy_name=pos.strategy_name or "",
+                    symbol=pos.symbol,
+                    side=side,
+                    quantity=pos.quantity,
+                    entry_price=pos.entry_price,
+                    exit_price=exit_price,
+                    entry_time=pos.entry_time,
+                    exit_time=datetime.now(IST),
+                    stop_loss=pos.stop_loss or 0.0,
+                    take_profit=pos.take_profit or 0.0,
+                    pnl=round(pnl, 2),
+                    pnl_pct=round(pnl_pct, 2),
+                    costs=round(costs, 2),
+                    net_pnl=round(pnl - costs, 2),
+                    exit_reason="MANUAL_CLOSE",
+                    reason="Closed via Close All",
+                    peak_price=pos.entry_price,
+                    low_price=pos.entry_price,
+                    source="live",
+                )
+                db.add(trade)
+                db.delete(pos)
+                closed_count += 1
+            db.commit()
+
         cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
-        cmd_path.write_text(json.dumps({"action": "close_all", "prices": request.prices}))
+        cmd_path.unlink(missing_ok=True)
 
-        if not running:
-            from db.models import Position as _Pos, Trade as _Trade
-            from backtest.costs import calculate_trading_costs
-            from config import IST
-            positions = db.query(_Pos).filter(_Pos.bot_id == bot.id).all()
-            if positions:
-                for pos in positions:
-                    exit_price = request.prices.get(pos.symbol, pos.current_price or pos.entry_price)
-                    side = pos.side.upper()
-                    if side == "LONG":
-                        pnl = (exit_price - pos.entry_price) * pos.quantity
-                        pnl_pct = ((exit_price - pos.entry_price) / pos.entry_price) * 100
-                    else:
-                        pnl = (pos.entry_price - exit_price) * pos.quantity
-                        pnl_pct = ((pos.entry_price - exit_price) / pos.entry_price) * 100
-                    costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
-                    trade = _Trade(
-                        user_id=user_id,
-                        bot_id=bot.id,
-                        strategy_id=pos.strategy_id,
-                        strategy_name=pos.strategy_name or "",
-                        symbol=pos.symbol,
-                        side=side,
-                        quantity=pos.quantity,
-                        entry_price=pos.entry_price,
-                        exit_price=exit_price,
-                        entry_time=pos.entry_time,
-                        exit_time=datetime.now(IST),
-                        stop_loss=pos.stop_loss or 0.0,
-                        take_profit=pos.take_profit or 0.0,
-                        pnl=round(pnl, 2),
-                        pnl_pct=round(pnl_pct, 2),
-                        costs=round(costs, 2),
-                        net_pnl=round(pnl - costs, 2),
-                        exit_reason="MANUAL_CLOSE",
-                        reason="Closed via Close All",
-                        peak_price=pos.entry_price,
-                        low_price=pos.entry_price,
-                        source="live",
-                    )
-                    db.add(trade)
-                    db.delete(pos)
-                db.commit()
-            cmd_path.unlink(missing_ok=True)
-
-            snapshot = load_bot_snapshot(bot.id, user_id)
-            if snapshot:
-                snapshot['positions'] = []
-                try:
-                    get_bot_snapshot_path(bot.id, user_id).write_text(json.dumps(snapshot))
-                except Exception:
-                    pass
-
-        return {"status": "success", "message": f"Close all command sent", "bot_running": running}
+        return {"status": "success", "message": f"Closed {closed_count} positions", "bot_running": running}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to close positions: {str(e)}")
     finally:
@@ -629,9 +598,9 @@ async def get_bot_performance(
     try:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        snapshot = load_bot_snapshot(bot.id, user_id)
+        state = get_bot_state(bot.id, user_id, db)
 
-        if not snapshot:
+        if not state:
             return {
                 "bot_id": bot.uuid,
                 "summary": {
@@ -646,8 +615,8 @@ async def get_bot_performance(
                 "timestamp": datetime.now().isoformat(),
             }
 
-        portfolio = snapshot.get('portfolio', {})
-        strategies = snapshot.get('strategies', {})
+        portfolio = state['portfolio']
+        strategies = state['strategies']
 
         total_trades = sum(
             s.get('portfolio_status', {}).get('trades_count', 0)
@@ -673,7 +642,7 @@ async def get_bot_performance(
                 for strat_id, strat_data in strategies.items()
             },
             "period_days": days,
-            "timestamp": snapshot.get('timestamp'),
+            "timestamp": state['timestamp'],
         }
     finally:
         if close_db:
@@ -699,16 +668,16 @@ async def compare_strategy_performance(
     try:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
-        snapshot = load_bot_snapshot(bot.id, user_id)
+        state = get_bot_state(bot.id, user_id, db)
 
-        if not snapshot:
+        if not state:
             return {
                 "bot_id": bot.uuid,
                 "comparison": [],
                 "timestamp": datetime.now().isoformat(),
             }
 
-        strategies = snapshot.get('strategies', {})
+        strategies = state['strategies']
 
         comparison = []
         for strat_id, strat_data in strategies.items():
@@ -731,7 +700,7 @@ async def compare_strategy_performance(
         return {
             "bot_id": bot.uuid,
             "comparison": comparison,
-            "timestamp": snapshot.get('timestamp'),
+            "timestamp": state['timestamp'],
         }
     finally:
         if close_db:

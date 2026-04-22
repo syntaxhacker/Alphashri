@@ -23,20 +23,7 @@ import { IconArrowsMaximize } from "@tabler/icons-react";
 import { fetchChartPreview, type ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption } from "../chart/chartRenderer";
 import { useNotification } from "../../hooks/useNotification";
-
-const TIMEFRAMES = [
-  { value: "1", label: "1m" },
-  { value: "5", label: "5m" },
-  { value: "15", label: "15m" },
-  { value: "30", label: "30m" },
-  { value: "60", label: "1h" },
-];
-
-const OR_MINUTES = [
-  { value: "30", label: "OR 30m" },
-  { value: "45", label: "OR 45m" },
-  { value: "60", label: "OR 60m" },
-];
+import { TIMEFRAMES, OR_MINUTES_OPTIONS } from "../../config/constants";
 
 let lastErrorNotified = "";
 let lastErrorTime = 0;
@@ -300,8 +287,10 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
       candles: data.candles,
       orb_zones: data.orb_zones,
       pivot_levels: data.pivot_levels,
+      high_52w: data.high_52w,
       size: "preview",
       showPivots: false,
+      show52wHigh: false,
     });
 
     if (!chartOption) return;
@@ -416,8 +405,10 @@ function ExpandedPanel({
       candles: data.candles,
       orb_zones: data.orb_zones,
       pivot_levels: data.pivot_levels,
+      high_52w: data.high_52w,
       size: "expanded",
       showPivots: true,
+      show52wHigh: true,
     });
 
     if (!chartOption) return;
@@ -471,7 +462,7 @@ function ExpandedPanel({
         <Select
           size="xs"
           w={70}
-          data={TIMEFRAMES}
+          data={TIMEFRAMES.map((t) => ({ value: String(t.value), label: t.label }))}
           value={String(timeframe)}
           onChange={onTimeframeChange}
           data-testid="preview-tf-select"
@@ -479,7 +470,7 @@ function ExpandedPanel({
         <Select
           size="xs"
           w={90}
-          data={OR_MINUTES}
+          data={OR_MINUTES_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
           value={String(orMinutes)}
           onChange={onOrMinutesChange}
           data-testid="preview-or-select"

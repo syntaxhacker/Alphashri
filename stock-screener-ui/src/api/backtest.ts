@@ -199,21 +199,36 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
 }
 
 // Fetch chart data for a symbol
-export async function fetchChartData(symbol: string): Promise<SymbolChartData | null> {
+export async function fetchChartData(symbol: string, tf?: number): Promise<SymbolChartData | null> {
   setChartLoading(true);
 
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/backtest/chart/${symbol}`);
-    const data: SymbolChartData = await response.json();
+    const params = tf != null ? `?tf=${tf}` : "";
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/chart/${symbol}${params}`);
 
-    if (data.error) {
-      console.error("Chart data error:", data.error);
+    if (!response.ok) {
+      console.error("Chart data error:", response.status);
       setChartLoading(false);
       return null;
     }
 
-    setChartData(symbol, data);
-    return data;
+    const data = (await response.json()) as any;
+
+    if (data.error || data.detail) {
+      console.error("Chart data error:", data.error || data.detail);
+      setChartLoading(false);
+      return null;
+    }
+
+    if (!data.candles || !Array.isArray(data.candles)) {
+      console.error("Chart data missing candles");
+      setChartLoading(false);
+      return null;
+    }
+
+    const chartData: SymbolChartData = data;
+    setChartData(symbol, chartData);
+    return chartData;
   } catch (error) {
     console.error("Failed to fetch chart data:", error);
     setChartLoading(false);

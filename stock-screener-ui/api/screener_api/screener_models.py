@@ -10,7 +10,7 @@ PROFILE_META = {
     'trending': {
         'section_labels': {'primary': '🎯 APPROACHING 52W HIGH', 'secondary': '✅ ALREADY TOUCHED 52W HIGH'},
         'filters': [],
-        'default_sort': {'column': 'score', 'direction': 'desc'}
+        'default_sort': {'column': 'to_52w_high', 'direction': 'asc'}
     },
     'high_momentum': {
         'section_labels': {'primary': '🚀 MOMENTUM CANDIDATES', 'secondary': '✅ STRONGER MOMENTUM SETUPS'},

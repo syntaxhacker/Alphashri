@@ -192,6 +192,7 @@ async def get_paper_chart(
                 '1min': '1min',
                 '5min': '5min',
                 '15min': '15min',
+                '30min': '30min',
                 '1hour': '1h',
             }
             resample_str = tf_map.get(tf, '5min')

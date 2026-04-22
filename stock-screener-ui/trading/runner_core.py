@@ -4,7 +4,7 @@ Core MultiStrategyRunner orchestration logic.
 Contains the main MultiStrategyRunner class that orchestrates multiple trading strategies.
 """
 
-import json
+import json as _json
 import signal
 import sys
 import time
@@ -17,11 +17,24 @@ import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-
-console = Console()
+from rich.text import Text
 
 from backtest.costs import calculate_trading_costs
 from trading.timezone import IST
+
+
+class _TimestampedConsole(Console):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._ist = IST
+
+    def print(self, *args, **kwargs):
+        ts = datetime.now(self._ist).strftime("%H:%M:%S")
+        ts_text = Text(f"[{ts}] ", style="dim")
+        super().print(ts_text, *args, **kwargs)
+
+
+console = _TimestampedConsole()
 from trading.replay_utils import DEFAULT_WATCHLIST, STRATEGY_FILTER_MAP, build_trade_close_event
 from trading.shared_portfolio import SharedPortfolioManager
 from trading.global_risk_manager import GlobalRiskManager
@@ -127,7 +140,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         else:
             raise ValueError("Either bot_config_id or bot_config must be provided")
 
-        self._init_common_fields(snapshot_file=Path(f"/tmp/multi-strategy-bot-{self.user_id}-{self.bot_config.id}.json"))
+        self._init_common_fields()
 
         self.portfolio = _get_shared_portfolio()(
             initial_capital=initial_capital,
@@ -144,18 +157,15 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.strategies: Dict[int, StrategyRunner] = {}
         self._load_strategies()
 
-        self.load_snapshot()
-
         self.journal = get_journal(user_id)
 
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-    def _init_common_fields(self, snapshot_file: Path = Path("/dev/null")):
+    def _init_common_fields(self):
         self.watchlist = []
         self.or_levels = {}
         self.cooldown_stocks: Dict[str, datetime] = {}
-        self.snapshot_file = snapshot_file
         self._screener = None
         self._data_fetcher = None
         self._daily_summary_sent = False
@@ -245,8 +255,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         console.print(f"[green]Loaded {len(self.strategies)} strategies for bot '{self.bot_config.name}'[/green]")
 
     def _signal_handler(self, signum, frame):
-        """Handle shutdown signals."""
-        console.print("\n[yellow]Shutdown signal received. Stopping all strategies...[/yellow]")
+        sig_name = signal.Signals(signum).name
+        console.print(f"\n[yellow]Received {sig_name}. Stopping all strategies...[/yellow]")
         self.running = False
 
     def _check_command_file(self):
@@ -255,7 +265,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         if not cmd_path.exists():
             return
         try:
-            cmd = json.loads(cmd_path.read_text())
+            cmd = _json.loads(cmd_path.read_text())
             if cmd.get("action") == "close_all":
                 prices = cmd.get("prices", {})
                 self._execute_close_all(prices)
@@ -430,6 +440,14 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         existing.take_profit = pos_data.get('take_profit', 0.0)
                         existing.unrealized_pnl = pos_data.get('unrealized_pnl', 0.0)
                         existing.unrealized_pnl_pct = pos_data.get('unrealized_pnl_pct', 0.0)
+                        if hasattr(existing, 'peak_price'):
+                            existing.peak_price = pos_data.get('peak_price', 0.0)
+                        if hasattr(existing, 'low_price'):
+                            existing.low_price = pos_data.get('low_price', 0.0)
+                        if hasattr(existing, 'strategy_type'):
+                            existing.strategy_type = pos_data.get('strategy_type', '')
+                        if hasattr(existing, 'metadata_json'):
+                            existing.metadata_json = _json.dumps(pos_data.get('metadata', {})) if pos_data.get('metadata') else ''
                     else:
                         position = Position(
                             user_id=self.user_id,
@@ -445,6 +463,10 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             entry_time=pos_data['entry_time'] if isinstance(pos_data['entry_time'], datetime) else datetime.fromisoformat(pos_data['entry_time']),
                             current_price=pos_data.get('current_price', 0.0),
                             is_test=self.test_mode,
+                            strategy_type=pos_data.get('strategy_type', ''),
+                            peak_price=pos_data.get('peak_price', 0.0),
+                            low_price=pos_data.get('low_price', 0.0),
+                            metadata_json=_json.dumps(pos_data.get('metadata', {})) if pos_data.get('metadata') else '',
                         )
                         db.add(position)
                     db.commit()
@@ -479,8 +501,10 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                 'take_profit': p.take_profit or 0.0,
                                 'entry_time': p.entry_time.isoformat() if p.entry_time else None,
                                 'current_price': p.current_price or p.entry_price,
-                                'peak_price': p.entry_price,
-                                'low_price': p.entry_price,
+                                'peak_price': getattr(p, 'peak_price', None) or p.entry_price,
+                                'low_price': getattr(p, 'low_price', None) or p.entry_price,
+                                'strategy_type': getattr(p, 'strategy_type', '') or '',
+                                'metadata': _json.loads(p.metadata_json) if getattr(p, 'metadata_json', None) else {},
                             }
                             self.portfolio.restore_position(pos_data)
                             restored += 1
@@ -488,6 +512,55 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             console.print(f"[yellow]Failed to restore position {p.symbol}: {e}[/yellow]")
                     if restored > 0:
                         console.print(f"[green]Restored {restored} positions from database[/green]")
+                        now = self._ist_now()
+                        today = now.date()
+                        to_close = []
+                        for key, pos in list(self.portfolio.positions.items()):
+                            entry_date = pos.entry_time.date() if pos.entry_time else None
+                            if entry_date and entry_date < today:
+                                to_close.append((key, pos))
+                        if to_close:
+                            for key, pos in to_close:
+                                exit_price = pos.current_price or pos.entry_price
+                                if exit_price <= 0:
+                                    continue
+                                side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
+                                costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+                                trade = self.portfolio.close_position(
+                                    strategy_id=pos.strategy_id,
+                                    symbol=pos.symbol,
+                                    exit_price=exit_price,
+                                    exit_reason="FORCE_CLOSE",
+                                    costs=costs,
+                                    exit_time=self._ist_now(),
+                                )
+                                if trade:
+                                    self._persist_trade_to_db({
+                                        'strategy_id': pos.strategy_id,
+                                        'strategy_name': pos.strategy_name or '',
+                                        'symbol': pos.symbol,
+                                        'side': side,
+                                        'quantity': pos.quantity,
+                                        'entry_price': pos.entry_price,
+                                        'exit_price': exit_price,
+                                        'entry_time': pos.entry_time,
+                                        'exit_time': trade.exit_time,
+                                        'pnl': trade.pnl,
+                                        'pnl_pct': trade.pnl_pct,
+                                        'costs': trade.costs,
+                                        'net_pnl': trade.net_pnl,
+                                        'exit_reason': "FORCE_CLOSE",
+                                        'reason': "Stale position from previous day",
+                                        'stop_loss': pos.stop_loss,
+                                        'take_profit': pos.take_profit,
+                                        'peak_price': trade.peak_price,
+                                        'low_price': trade.low_price,
+                                    })
+                                    self._persist_position_to_db({
+                                        'strategy_id': pos.strategy_id,
+                                        'symbol': pos.symbol,
+                                    }, action="delete")
+                            console.print(f"[yellow]Closed {len(to_close)} stale positions from previous days[/yellow]")
             finally:
                 db.close()
         except Exception:
@@ -548,73 +621,99 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 console.print("[yellow]Using default watchlist[/yellow]")
                 self.watchlist = DEFAULT_WATCHLIST.copy()
 
-    def save_snapshot(self):
-        """Save current state to snapshot file for UI."""
+    def persist_state(self):
         try:
-            snapshot = {
-                'timestamp': datetime.now(IST).isoformat(),
-                'bot_id': self.bot_config.id,
-                'bot_name': self.bot_config.name,
-                'running': self.running,
-                'portfolio': self.portfolio.get_portfolio_status(),
-                'strategies': {},
-                'positions': self.portfolio.get_all_positions(),
-                'scan_items': [],
-            }
+            from db.models import BotRuntimeState, StrategyRuntimeState
 
-            for strategy_id, runner in self.strategies.items():
-                strategy_scan_items = getattr(runner, 'last_scan_items', [])
+            db = self._get_db_session()
+            try:
+                portfolio = self.portfolio.get_portfolio_status()
 
-                snapshot['strategies'][str(strategy_id)] = {
-                    'id': runner.strategy_id,
-                    'name': runner.strategy_name,
-                    'status': runner.status,
-                    'signals_generated': runner.signals_generated,
-                    'trades_executed': runner.trades_executed,
-                    'last_scan_time': runner.last_scan_time.isoformat() if runner.last_scan_time else None,
-                    'portfolio_status': self.portfolio.get_strategy_status(strategy_id),
-                    'scan_items': strategy_scan_items,
-                }
+                bot_state = db.query(BotRuntimeState).filter(
+                    BotRuntimeState.bot_id == self.bot_config.id
+                ).first()
+                if not bot_state:
+                    bot_state = BotRuntimeState(
+                        bot_id=self.bot_config.id,
+                        user_id=self.user_id,
+                    )
+                    db.add(bot_state)
+                bot_state.cash = portfolio.get('cash', 0.0)
+                bot_state.daily_pnl = portfolio.get('daily_pnl', 0.0)
+                bot_state.daily_trades = portfolio.get('daily_trades', 0)
+                bot_state.realized_pnl = portfolio.get('realized_pnl', 0.0)
+                bot_state.day_start = self.portfolio.day_start.isoformat() if hasattr(self.portfolio, 'day_start') and self.portfolio.day_start else ""
+                db.flush()
 
-                for item in strategy_scan_items:
-                    item['strategy_name'] = runner.strategy_name
-                    snapshot['scan_items'].append(item)
+                for strategy_id, runner in self.strategies.items():
+                    s_status = self.portfolio.get_strategy_status(strategy_id)
+                    s_state = db.query(StrategyRuntimeState).filter(
+                        StrategyRuntimeState.bot_id == self.bot_config.id,
+                        StrategyRuntimeState.strategy_id == strategy_id,
+                    ).first()
+                    if not s_state:
+                        s_state = StrategyRuntimeState(
+                            bot_id=self.bot_config.id,
+                            strategy_id=strategy_id,
+                            user_id=self.user_id,
+                        )
+                        db.add(s_state)
+                    s_state.status = runner.status
+                    s_state.signals_generated = runner.signals_generated
+                    s_state.trades_executed = runner.trades_executed
+                    s_state.last_scan_time = runner.last_scan_time if runner.last_scan_time else None
+                    s_state.capital_used = s_status.get('capital_used', 0.0) if s_status else 0.0
+                    s_state.available_capital = s_status.get('available_capital', 0.0) if s_status else 0.0
+                    s_state.positions_count = s_status.get('positions_count', 0) if s_status else 0
+                    s_state.realized_pnl = s_status.get('realized_pnl', 0.0) if s_status else 0.0
+                    db.flush()
 
-            self.snapshot_file.write_text(json.dumps(snapshot, indent=2))
-
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                console.print(f"[yellow]DB state persist failed: {e}[/yellow]")
+            finally:
+                db.close()
         except Exception as e:
-            console.print(f"[dim red]Error saving snapshot: {e}[/dim red]")
+            console.print(f"[yellow]persist_state failed: {e}[/yellow]")
 
-    def load_snapshot(self):
-        """Load state from snapshot file if it exists."""
-        import traceback
-        if not self.snapshot_file.exists():
-            return
+        scan_items = []
+        for strategy_id, runner in self.strategies.items():
+            for item in getattr(runner, 'last_scan_items', []):
+                item_copy = dict(item)
+                item_copy['strategy_name'] = runner.strategy_name
+                item_copy['strategy_id'] = strategy_id
+                scan_items.append(item_copy)
 
         try:
-            console.print(f"[cyan]Loading state from snapshot: {self.snapshot_file}[/cyan]")
-            snapshot = json.loads(self.snapshot_file.read_text())
-            
-            if 'portfolio' in snapshot:
-                p_state = snapshot['portfolio']
-                self.portfolio.restore_state(p_state)
-            
-            if 'positions' in snapshot:
-                for pos_data in snapshot['positions']:
-                    self.portfolio.restore_position(pos_data)
-            
-            if 'strategies' in snapshot:
-                for s_id_str, s_data in snapshot['strategies'].items():
-                    s_id = int(s_id_str)
-                    if s_id in self.strategies:
-                        self.strategies[s_id].status = s_data.get('status', 'pending')
-                        self.strategies[s_id].signals_generated = s_data.get('signals_generated', 0)
-                        self.strategies[s_id].trades_executed = s_data.get('trades_executed', 0)
-            
-            console.print(f"[green]✓ State restored from snapshot[/green]")
+            db = self._get_db_session()
+            try:
+                from db.models import BotRuntimeState
+                bot_state = db.query(BotRuntimeState).filter(
+                    BotRuntimeState.bot_id == self.bot_config.id
+                ).first()
+                if bot_state:
+                    bot_state.scan_items = _json.dumps(scan_items)
+                    db.commit()
+            except Exception as e:
+                db.rollback()
+                console.print(f"[yellow]persist_state scan_items DB failed: {e}[/yellow]")
+            finally:
+                db.close()
         except Exception as e:
-            console.print(f"[red]Error loading snapshot: {e}[/red]")
-            console.print(traceback.format_exc())
+            console.print(f"[yellow]persist_state scan_items DB failed: {e}[/yellow]")
+
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client is not None:
+                client.setex(
+                    f"bot:{self.bot_config.id}:scan_items",
+                    300,
+                    _json.dumps(scan_items),
+                )
+        except Exception as e:
+            console.print(f"[yellow]persist_state Redis failed: {e}[/yellow]")
 
     def display_status(self):
         """Display current trading status."""
@@ -722,81 +821,101 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self._load_positions_from_db()
 
         cycle = 0
-        while self.running:
-            cycle += 1
+        crashed = False
+        try:
+            while self.running:
+                cycle += 1
 
-            try:
-                console.print(f"\n[dim]--- Cycle {cycle} @ {datetime.now(IST).strftime('%H:%M:%S')} ---[/dim]")
+                try:
+                    console.print(f"\n[dim]--- Cycle {cycle} @ {datetime.now(IST).strftime('%H:%M:%S')} ---[/dim]")
 
-                if not self.is_market_open():
-                    console.print("[yellow]Market closed. Waiting...[/yellow]")
+                    if not self.is_market_open():
+                        console.print("[yellow]Market closed. Waiting...[/yellow]")
+                        self._check_command_file()
+                        self.persist_state()
+                        time.sleep(interval)
+                        continue
+
+                    if cycle % 10 == 0:
+                        self.refresh_watchlist()
+
+                    for strategy_id, runner in self.strategies.items():
+                        if runner.status == "running":
+                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle % 30 != 0:
+                                continue
+                            signals = self.scan_for_signals(strategy_id)
+                            for signal in signals:
+                                self.execute_signal(strategy_id, signal)
+
                     self._check_command_file()
-                    self.save_snapshot()
-                    time.sleep(interval)
-                    continue
+                    self.monitor_positions()
 
-                if cycle % 10 == 0:
-                    self.refresh_watchlist()
+                    now_ist = self._ist_now()
+                    if now_ist.hour >= 15 and now_ist.minute >= 30 and not self._daily_summary_sent:
+                        self._daily_summary_sent = True
+                        ps = self.portfolio.get_portfolio_status()
+                        trades = self.portfolio.trades
+                        today_trades = [t for t in trades if t.exit_time and t.exit_time.date() == now_ist.date()]
+                        wins = [t for t in today_trades if t.net_pnl > 0]
+                        losses = [t for t in today_trades if t.net_pnl <= 0]
+                        best = max(today_trades, key=lambda t: t.net_pnl) if today_trades else None
+                        worst = min(today_trades, key=lambda t: t.net_pnl) if today_trades else None
+                        open_pos = self.portfolio.get_all_positions()
+                        send_daily_summary(
+                            bot_name=self.bot_config.name,
+                            total_pnl=ps.get('daily_pnl', 0),
+                            win_count=len(wins),
+                            loss_count=len(losses),
+                            best_trade={'symbol': best.symbol, 'pnl': best.pnl_pct} if best else None,
+                            worst_trade={'symbol': worst.symbol, 'pnl': worst.pnl_pct} if worst else None,
+                            open_positions=open_pos,
+                        )
 
-                for strategy_id, runner in self.strategies.items():
-                    if runner.status == "running":
-                        if runner.strategy_type in SWING_STRATEGY_TYPES and cycle % 30 != 0:
-                            continue
-                        signals = self.scan_for_signals(strategy_id)
-                        for signal in signals:
-                            self.execute_signal(strategy_id, signal)
+                    self.display_status()
 
-                self._check_command_file()
-                self.monitor_positions()
+                    self.persist_state()
 
-                now_ist = self._ist_now()
-                if now_ist.hour >= 15 and now_ist.minute >= 30 and not self._daily_summary_sent:
-                    self._daily_summary_sent = True
-                    ps = self.portfolio.get_portfolio_status()
-                    trades = self.portfolio.trades
-                    today_trades = [t for t in trades if t.exit_time and t.exit_time.date() == now_ist.date()]
-                    wins = [t for t in today_trades if t.net_pnl > 0]
-                    losses = [t for t in today_trades if t.net_pnl <= 0]
-                    best = max(today_trades, key=lambda t: t.net_pnl) if today_trades else None
-                    worst = min(today_trades, key=lambda t: t.net_pnl) if today_trades else None
-                    open_pos = self.portfolio.get_all_positions()
-                    send_daily_summary(
+                    self._write_heartbeat()
+
+                    if self.running and not self.is_force_exit_time():
+                        console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")
+                        time.sleep(interval)
+
+                except Exception as e:
+                    console.print(f"[red]Error in cycle {cycle}: {e}[/red]")
+                    import traceback as tb
+                    console.print(tb.format_exc())
+                    time.sleep(5)
+
+        except Exception as e:
+            crashed = True
+            console.print(f"[red]Bot crashed: {e}[/red]")
+            import traceback as tb
+            console.print(tb.format_exc())
+        else:
+            console.print("\n[bold]Trading stopped. Final status:[/bold]")
+            self.display_status()
+            self.journal.save_journal()
+            ps = self.portfolio.get_portfolio_status()
+            send_bot_status(
+                bot_name=self.bot_config.name,
+                status="stopped",
+                details=f"Total P&L: ₹{ps.get('total_pnl', 0):+,.0f} | Trades today: {ps.get('daily_trades', 0)}",
+            )
+        finally:
+            self._clear_heartbeat()
+            if crashed:
+                try:
+                    ps = self.portfolio.get_portfolio_status() if self.portfolio else None
+                    open_pos = self.portfolio.get_all_positions() if self.portfolio else []
+                    from trading.telegram_notifier import send_bot_status
+                    send_bot_status(
                         bot_name=self.bot_config.name,
-                        total_pnl=ps.get('daily_pnl', 0),
-                        win_count=len(wins),
-                        loss_count=len(losses),
-                        best_trade={'symbol': best.symbol, 'pnl': best.pnl_pct} if best else None,
-                        worst_trade={'symbol': worst.symbol, 'pnl': worst.pnl_pct} if worst else None,
-                        open_positions=open_pos,
+                        status="crashed",
+                        details=f"Positions open: {len(open_pos)} | P&L: ₹{ps.get('total_pnl', 0):+,.0f}" if ps else "Bot crashed on startup",
                     )
-
-                self.display_status()
-
-                self.save_snapshot()
-
-                self._write_heartbeat()
-
-                if self.running and not self.is_force_exit_time():
-                    console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")
-                    time.sleep(interval)
-
-            except Exception as e:
-                console.print(f"[red]Error in cycle {cycle}: {e}[/red]")
-                import traceback as tb
-                console.print(tb.format_exc())
-                time.sleep(5)
-
-        console.print("\n[bold]Trading stopped. Final status:[/bold]")
-        self.display_status()
-        self.journal.save_journal()
-        self._clear_heartbeat()
-
-        ps = self.portfolio.get_portfolio_status()
-        send_bot_status(
-            bot_name=self.bot_config.name,
-            status="stopped",
-            details=f"Total P&L: ₹{ps.get('total_pnl', 0):+,.0f} | Trades today: {ps.get('daily_trades', 0)}",
-        )
+                except Exception:
+                    pass
 
 
     def run_replay(

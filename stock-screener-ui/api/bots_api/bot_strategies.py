@@ -12,7 +12,6 @@ from .bots_router import (
     get_user_id,
     get_bot_by_uuid,
     get_strategy_by_uuid,
-    load_bot_snapshot,
     _db_available,
     SessionLocal,
 )

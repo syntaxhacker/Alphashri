@@ -859,13 +859,12 @@ class TestBacktestRunCredentialCheck:
         assert response.status_code == 503
         assert 'Upstox API credentials not configured' in response.json()['detail']
 
-    def test_run_allows_when_api_key_missing_but_token_exists(self, client, auth_headers):
-        """Test request proceeds when no API key but active broker token exists."""
+    def test_run_rejects_when_api_key_missing(self, client, auth_headers):
+        """Test request fails when no API key is set (broker token no longer bypasses this)."""
         import config
         from unittest.mock import patch as upatch
         with upatch.object(config, 'UPSTOX_API_KEY', None), \
-             upatch.object(config, 'UPSTOX_API_SECRET', None), \
-             upatch('db.models.get_shared_broker_token', return_value={'access_token': 'test-token'}):
+             upatch.object(config, 'UPSTOX_API_SECRET', None):
             response = client.post(
                 "/api/backtest/run",
                 json={
@@ -877,7 +876,7 @@ class TestBacktestRunCredentialCheck:
                 headers=auth_headers,
             )
 
-        assert response.status_code != 503
+        assert response.status_code == 503
 
     def test_run_allows_when_api_key_present(self, client, auth_headers):
         """Test request proceeds when UPSTOX_API_KEY is set."""

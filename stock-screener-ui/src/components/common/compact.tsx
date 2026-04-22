@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  Card,
   Group,
   Box,
   Paper,
@@ -123,6 +124,8 @@ interface CompactStatProps extends PaperProps {
   value: ReactNode;
   tone?: string;
   hint?: ReactNode;
+  labelSize?: "xs" | "sm" | "md" | "lg" | "xl";
+  valueSize?: "xs" | "sm" | "md" | "lg" | "xl";
 }
 
 export function CompactStat({
@@ -130,19 +133,23 @@ export function CompactStat({
   value,
   tone = "var(--mantine-color-text)",
   hint,
+  labelSize = "xs",
+  valueSize = "lg",
   ...paperProps
 }: CompactStatProps) {
   return (
-    <Paper
+    <Card
       radius="xs"
       p="sm"
+      withBorder
+      shadow="none"
       bg="light-dark(rgba(248, 250, 252, 0.85), rgba(15, 23, 42, 0.55))"
       {...paperProps}
     >
-      <Text size="xs" tt="uppercase" fw={700} c="dimmed" lh={1.1}>
+      <Text size={labelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1}>
         {label}
       </Text>
-      <Text size="lg" fw={700} c={tone} lh={1.1}>
+      <Text size={valueSize} fw={700} c={tone} lh={1.1}>
         {value}
       </Text>
       {hint ? (
@@ -154,7 +161,7 @@ export function CompactStat({
           <div style={{ marginTop: 4 }}>{hint}</div>
         )
       ) : null}
-    </Paper>
+    </Card>
   );
 }
 
