@@ -4,11 +4,20 @@
 React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
-- `bun run dev` — dev server (proxy /api → localhost:8765)
+- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`
+- `bun run dev` — dev server only (proxy /api → localhost:8765)
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
 - `bun run test` — vitest (unit, happy-dom)
-- `python -m pytest tests/` — backend tests
+- `source .venv/bin/activate && python -m pytest tests/` — backend tests
+
+## Python Environment
+- **Version**: pinned via `.python-version` (3.12.13) — pyenv reads this automatically
+- **Virtual env**: `.venv/` (created with `uv venv --python 3.12.13`)
+- **Package manager**: `uv` (faster than pip) — install deps with `uv pip install -r <requirements.txt>`
+- **Dependencies**: `../requirements.txt` (root) + `api/requirements.txt` (API-specific)
+- **Note**: `nautilus-trader` in `api/requirements.txt` requires Rust toolchain — install separately if needed
+- **`start.sh`**: auto-activates `.venv` before starting uvicorn; always use `./start.sh` to run both services
 
 ## Mantine v8 Rules
 - Reference `mantine_llm.txt` for component docs — never guess APIs
@@ -107,12 +116,23 @@ src/
 
 ## Bot Architecture
 - Bot runs as **separate subprocess** via `runner_cli.py` — NOT in the API process
-- API and bot communicate via: **DB** (positions/trades), **Redis** (heartbeat/status), **snapshots** (`/tmp/multi-strategy-bot-{user_id}-{bot_id}.json`)
-- Bot's in-memory `SharedPortfolioManager` is the source of truth for open positions — the API reads from snapshots/DB
-- **Close All Positions**: API writes command file `/tmp/bot-cmd-{bot_id}.json`, bot picks it up next cycle and closes via its own portfolio (creates Trade records, deletes Position records). If bot is stopped, API closes directly from DB + clears snapshot.
-- **Scan items**: `/api/bots/{bot_id}/scan` returns empty when bot is not running — prevents stale data display
-- **Position restore on restart**: `_load_positions_from_db()` in `runner_core.py` — `low_price` resets to `entry_price` (no historical low available in DB)
+- API and bot communicate via: **DB** (positions/trades/runtime state), **Redis** (heartbeat/status/PID)
+- State persistence: `persist_state()` in `runner_core.py` writes to `BotRuntimeState` + `StrategyRuntimeState` DB tables. No JSON snapshot files.
+- API reads bot state via `api/bot_state.py:get_bot_state()` — queries DB + Redis, returns same shape as old snapshot
+- Bot's in-memory `SharedPortfolioManager` is the source of truth for open positions — the API reads from DB
+- **Close All Positions**: API closes positions directly from DB (no command file). If bot is running, it detects the closed positions next cycle.
+- **Scan items**: persisted to `bot_runtime_states.scan_items` DB column. `/api/bots/{bot_id}/scan` reads from DB first, Redis as fallback.
+- **Position restore on restart**: `_load_positions_from_db()` in `runner_core.py` — force-closes positions from previous day with `FORCE_CLOSE` reason. `low_price` resets to `entry_price`.
 - **Force exit**: `runner_core.py:FORCE_EXIT=(15,30)` is global market close time
+- **Orphan bot stop**: `get_bot_pid()` reads PID from Redis key `bot:{user_id}:{bot_id}:pid` (24h TTL), sends SIGTERM
+- **Pipe deadlock fix**: bot stdout goes directly to log file (not PIPE) — prevents buffer fill on uvicorn reload
+- **Crash notification**: bot's `run()` wraps main loop in try/except, sends Telegram alert with open positions count + P&L on crash
+- **`_TimestampedConsole`**: prepends `[HH:MM:SS]` to all bot log lines
+
+## Market Data Auth
+- **Market data endpoints** (`/api/chart/preview`, `/api/paper/chart`, `/api/backtest/run`) use `UpstoxAPI` with `UPSTOX_API_KEY`/`UPSTOX_API_SECRET` — **no OAuth broker token needed**
+- **Options + broker endpoints** (`/api/options/*`, `/api/brokers/*`) require OAuth access token via `get_shared_broker_token('upstox')` — user must connect broker in Settings
+- Never gate market data behind broker OAuth check
 
 ## Chart Cache
 - `api/paper/chart_cache.py` — pickle-based disk cache at `experiments/data/chart_cache/{date}/{symbol}.pkl`
@@ -247,10 +267,10 @@ curl -s 'https://earner-production.up.railway.app/api/paper/trades?limit=5' \
 
 ## DB Migrations (Alembic)
 - Location: `db/migrations/versions/`
-- Chain: `e5f6a7b8c9d0` → `f6a7b8c9d0e1` (add notes) → `g7b8c9d0e1f2` (add peak/low price) → `2026_04_16_add_reason_to_trades`
+- Chain: `e5f6a7b8c9d0` → `f6a7b8c9d0e1` (add notes) → `g7b8c9d0e1f2` (add peak/low price) → `2026_04_16_add_reason_to_trades` → `2026_04_20_snapshot_to_db` (BotRuntimeState, StrategyRuntimeState, Position new columns)
 - Trade model columns: `notes` (String 500), `reason` (String 500), `peak_price` (Float), `low_price` (Float), `bot_id` (Integer FK)
 - `Trade.to_dict()` includes all columns including `bot_id`, `peak_price`, `low_price`
-- Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`
+- Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`. Position HAS `strategy_type`, `peak_price`, `low_price`, `metadata_json` columns (added in snapshot-to-DB migration).
 
 ## Known Issues / Deferred
 - **3 DB columns missing from frontend config UI**: `enable_shorts`, `eod_exit_hour`, `eod_exit_minute`

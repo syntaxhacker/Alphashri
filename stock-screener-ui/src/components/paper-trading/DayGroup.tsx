@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Collapse,
   Table,
@@ -219,6 +220,7 @@ function TradeRow({
   selectedTradeId: string | null;
 }) {
   const rowRef = useRef<HTMLTableRowElement>(null);
+  const navigate = useNavigate();
   const isSelected = trade.trade_id === selectedTradeId;
   const [detailExpanded, setDetailExpanded] = useState(false);
 
@@ -263,9 +265,18 @@ function TradeRow({
           </ActionIcon>
         </Table.Td>
         <Table.Td>
-          <Text fw={600} size="sm">
+          <Anchor
+            component="button"
+            type="button"
+            size="sm"
+            fw={600}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/chart/${trade.symbol}`);
+            }}
+          >
             {trade.symbol}
-          </Text>
+          </Anchor>
         </Table.Td>
         <Table.Td>
           <SideBadge side={trade.side} />
