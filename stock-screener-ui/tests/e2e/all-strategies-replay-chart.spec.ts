@@ -1,29 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-
-function generateReplayCandles(count: number = 20, base: number = 3750) {
-  const candles: any[] = [];
-  const times: string[] = [];
-  for (let h = 9; h <= 15; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      if (h === 9 && m === 0) continue;
-      if (h === 15 && m > 30) break;
-      times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    }
-  }
-  for (let i = 0; i < count && i < times.length; i++) {
-    const o = base + Math.random() * 40 - 20;
-    candles.push({
-      time: `2026-03-02T${times[i]}`,
-      open: +o.toFixed(2),
-      high: +(o + 8 + Math.random() * 8).toFixed(2),
-      low: +(o - 8 - Math.random() * 8).toFixed(2),
-      close: +(o + Math.random() * 16 - 8).toFixed(2),
-      volume: Math.floor(40000 + Math.random() * 80000),
-    });
-  }
-  return candles;
-}
+import { generateFullDayCandles } from "./helpers/chartHelpers";
 
 const orbTrades = [
   {
@@ -172,7 +149,7 @@ async function setupReplayMocks(
 
   const primarySymbol = trades[0]?.symbol || "TCS";
   const base = primarySymbol === "TCS" ? 3750 : primarySymbol === "RELIANCE" ? 2500 : 1480;
-  const candles = generateReplayCandles(20, base);
+  const candles = generateFullDayCandles(20, base);
 
   const winners = trades.filter((t) => t.pnl > 0).length;
   const losers = trades.filter((t) => t.pnl <= 0).length;
