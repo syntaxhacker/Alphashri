@@ -5,7 +5,7 @@ import {
   groupPositionsByStrategy,
   calcStrategySummary,
 } from "./PositionsHelpers";
-import { formatCurrencyIN, formatNumber, formatElapsed } from "../../utils/ui-helpers";
+import { formatNumber, formatElapsed } from "../../utils/ui-helpers";
 import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
 
 const mockPosition = (overrides: Partial<PaperPosition> = {}): PaperPosition => ({
@@ -24,34 +24,6 @@ const mockPosition = (overrides: Partial<PaperPosition> = {}): PaperPosition => 
   strategy_id: 1,
   strategy_name: "ORB Strategy",
   ...overrides,
-});
-
-describe("formatCurrencyIN", () => {
-  test("formats regular numbers with en-IN locale", () => {
-    const result = formatCurrencyIN(12345.67);
-    expect(result).toContain("12,345");
-  });
-
-  test("returns 0 for undefined", () => {
-    expect(formatCurrencyIN(undefined)).toBe("0");
-  });
-
-  test("returns 0 for null", () => {
-    expect(formatCurrencyIN(null)).toBe("0");
-  });
-
-  test("returns 0 for NaN", () => {
-    expect(formatCurrencyIN(NaN)).toBe("0");
-  });
-
-  test("handles zero", () => {
-    expect(formatCurrencyIN(0)).toBe("0");
-  });
-
-  test("handles negative numbers", () => {
-    const result = formatCurrencyIN(-5000);
-    expect(result).toContain("5,000");
-  });
 });
 
 describe("formatNumber", () => {

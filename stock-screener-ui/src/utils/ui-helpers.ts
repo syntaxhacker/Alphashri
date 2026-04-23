@@ -420,3 +420,9 @@ export function getStrategyTypeFromName(name: string | undefined | null): string
   if (upper.includes("52W")) return "52W_CHASER";
   return null;
 }
+
+export function parseTimeToHHMM(isoTime: string): string {
+  if (isoTime.includes("T")) return isoTime.split("T")[1].substring(0, 5);
+  if (isoTime.includes(" ")) return isoTime.split(" ")[1].substring(0, 5);
+  return isoTime.substring(0, 5);
+}

@@ -8,17 +8,11 @@ import type {
 } from "../../types/replay";
 import type {
   ChartInput,
-  UnifiedCandle,
-  UnifiedTrade,
   UnifiedOverlay,
   MarkAreaItem,
 } from "../chart/types";
-
-function parseTimeToHHMM(isoTime: string): string {
-  if (isoTime.includes("T")) return isoTime.split("T")[1].substring(0, 5);
-  if (isoTime.includes(" ")) return isoTime.split(" ")[1].substring(0, 5);
-  return isoTime.substring(0, 5);
-}
+import { parseTimeToHHMM } from "../ui-helpers";
+import { mapCandles, mapTrades } from "./normalizeCommon";
 
 export function normalizeReplay(
   candles: ReplayCandle[],
@@ -40,29 +34,10 @@ export function normalizeReplay(
     show_ema?: boolean;
   },
 ): ChartInput {
-  const unifiedCandles: UnifiedCandle[] = candles.map((c) => ({
-    time: c.time,
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close,
-    volume: c.volume,
-  }));
+  const unifiedCandles = mapCandles(candles);
 
-  const unifiedTrades: UnifiedTrade[] = trades
-    .filter((t) => t.symbol === selectedSymbol)
-    .map((t) => ({
-      id: t.id,
-      entry_price: t.entry_price,
-      exit_price: t.exit_price,
-      entry_time: t.entry_time,
-      exit_time: t.exit_time,
-      exit_reason: t.exit_reason,
-      quantity: t.quantity,
-      side: t.side as "BUY" | "SELL",
-      pnl: t.net_pnl,
-      costs: t.costs,
-    }));
+  const symbolTrades = trades.filter((t) => t.symbol === selectedSymbol);
+  const unifiedTrades = mapTrades(symbolTrades, (t) => (t as ReplayTrade).id);
 
   const overlays: UnifiedOverlay[] = [];
   const rc = rawCandles || candles;
