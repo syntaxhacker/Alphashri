@@ -89,7 +89,10 @@ class TestChartPreview:
         assert response.json()['timeframe'] == 30
 
     def test_chart_preview_invalid_timeframe(self, client, sample_candles_data):
-        response = _get_chart_response(client, "INFY", data=sample_candles_data, tf=120)
+        response = _get_chart_response(client, "INFY", data=sample_candles_data, tf=2000)
+        assert response.status_code == 422
+
+        response = _get_chart_response(client, "INFY", data=sample_candles_data, tf=0)
         assert response.status_code == 422
 
     def test_chart_preview_custom_days(self, client, sample_candles_data):

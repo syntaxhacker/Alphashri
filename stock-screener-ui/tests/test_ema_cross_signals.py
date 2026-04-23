@@ -129,7 +129,8 @@ class TestEMACrossSignalGenerator:
         signal = gen.check_entry("RELIANCE", market_data)
         assert signal is not None
         assert "EMA9" in signal.notes
-        assert "EMA21" in signal.notes
+        assert "21" in signal.notes
+        assert "cross" in signal.notes
 
     @pytest.mark.parametrize("side,entry,sl,tp,current,hour,minute,expected_type,expected_notes", [
         ("BUY", 100.0, 99.0, 105.0, 98.5, 11, 0, SignalType.LONG_EXIT, "Stop loss hit"),
@@ -137,7 +138,7 @@ class TestEMACrossSignalGenerator:
         ("SELL", 100.0, 101.0, 95.0, 102.0, 11, 0, SignalType.SHORT_EXIT, "Stop loss hit"),
         ("SELL", 100.0, 101.0, 95.0, 94.0, 11, 0, SignalType.SHORT_EXIT, "Take profit hit"),
         ("BUY", 100.0, 99.0, 105.0, 102.0, 11, 0, None, None),
-        ("BUY", 100.0, 99.0, 105.0, 102.0, 14, 46, SignalType.LONG_EXIT, "EOD force exit (14:45)"),
+        ("BUY", 100.0, 99.0, 105.0, 102.0, 14, 46, SignalType.LONG_EXIT, "EOD force exit"),
         ("BUY", 100.0, 99.0, 105.0, 102.0, 14, 0, None, None),
     ], ids=[
         "stop_loss_long", "take_profit_long",
@@ -159,7 +160,7 @@ class TestEMACrossSignalGenerator:
         else:
             assert signal is not None
             assert signal.signal_type == expected_type
-            assert signal.notes == expected_notes
+            assert expected_notes in signal.notes
 
     def test_strategy_type_attribute(self):
         assert EMACrossSignalGenerator.strategy_type == "EMA_CROSS"

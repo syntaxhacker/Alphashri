@@ -62,24 +62,26 @@ class TestSRBreakoutSignalGenerator:
     def test_check_entry_long_breakout_above_r1(self):
         pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
         r1 = pivots["R1"]
+        r2 = pivots["R2"]
         price = r1 * (1 + self.gen.breakout_buffer_pct / 100) + 1
         signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
         assert signal.price == price
         assert signal.stop_loss == round(price * (1 - self.gen.sl_pct / 100), 2)
-        assert signal.take_profit == round(price * (1 + self.gen.tp_pct / 100), 2)
+        assert signal.take_profit == round(r2, 2)
 
     def test_check_entry_short_breakdown_below_s1(self):
         pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
         s1 = pivots["S1"]
+        s2 = pivots["S2"]
         price = s1 * (1 - self.gen.breakout_buffer_pct / 100) - 1
         signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_ENTRY
         assert signal.price == price
         assert signal.stop_loss == round(price * (1 + self.gen.sl_pct / 100), 2)
-        assert signal.take_profit == round(price * (1 - self.gen.tp_pct / 100), 2)
+        assert signal.take_profit == round(s2, 2)
 
     def test_check_entry_no_signal_within_range(self):
         pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
@@ -364,7 +366,7 @@ class TestWeek52TargetSignalGenerator:
         price = 495.0
         signal = self.gen.check_entry("TEST", {"current_price": price, "high_52w": 500.0})
         assert signal is not None
-        assert signal.take_profit == round(price * 10, 2)
+        assert signal.take_profit == round(price * 2, 2)
 
     def test_check_exit_stop_loss_always_active(self):
         signal = self.gen.check_exit(

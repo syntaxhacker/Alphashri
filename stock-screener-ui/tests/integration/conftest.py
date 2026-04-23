@@ -325,6 +325,17 @@ def client(db: Session, test_user: User) -> TestClient:
         yield c
     app.dependency_overrides.clear()
 
+
+@pytest.fixture(scope="function")
+def unauth_client(db: Session) -> TestClient:
+    """Test client with DB override but no get_current_user override."""
+    def get_test_db():
+        yield db
+    app.dependency_overrides[get_db] = get_test_db
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
 # ============================================================================
 # User fixtures
 # ============================================================================
