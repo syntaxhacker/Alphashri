@@ -1137,10 +1137,11 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             if len(highs) < 2:
                 continue
 
-            high_52w = max(highs[-252:]) if len(highs) >= 252 else max(highs)
+            from trading.week52_utils import calculate_52w_high
+            high_52w = calculate_52w_high(highs, period=252, exclude_current=True)
             current_price = float(closes[-1])
 
-            if current_price > 0 and current_price >= high_52w * 0.95:
+            if current_price > 0 and high_52w is not None and current_price >= high_52w * 0.95:
                 for sid, runner in self.strategies.items():
                     if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
                         n_candles = len(provider._1m_data.get(sym, []))
@@ -1188,14 +1189,14 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     tf_seed = [seed_closes[i:i + tf][-1] for i in range(0, len(seed_closes), tf) if seed_closes[i:i + tf]]
                     n_seed_tf = len(tf_seed)
                     timeframes[str(tf)] = {
-                        "ema_fast": [round(v, 2) for v in ema_f_full[n_seed_tf:]],
-                        "ema_slow": [round(v, 2) for v in ema_s_full[n_seed_tf:]],
+                        "ema_fast": [round(v, 2) for v in ema_f_full[n_seed_tf:] if v is not None],
+                        "ema_slow": [round(v, 2) for v in ema_s_full[n_seed_tf:] if v is not None],
                     }
 
                 if timeframes:
                     timeframes["1"] = {
-                        "ema_fast": [round(v, 2) for v in ema_fast_today],
-                        "ema_slow": [round(v, 2) for v in ema_slow_today],
+                        "ema_fast": [round(v, 2) for v in ema_fast_today if v is not None],
+                        "ema_slow": [round(v, 2) for v in ema_slow_today if v is not None],
                     }
 
                 if sym in provider._daily_data and not provider._daily_data[sym].empty:
@@ -1206,8 +1207,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         if not timeframes:
                             timeframes = {}
                         timeframes["1440"] = {
-                            "ema_fast": [round(v, 2) for v in daily_ema_f],
-                            "ema_slow": [round(v, 2) for v in daily_ema_s],
+                            "ema_fast": [round(v, 2) for v in daily_ema_f if v is not None],
+                            "ema_slow": [round(v, 2) for v in daily_ema_s if v is not None],
                         }
                     self._replay_on_event({
                         "type": "ema_series",
