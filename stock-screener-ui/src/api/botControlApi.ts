@@ -243,6 +243,8 @@ export function normalizeBotPortfolio(
     ),
     daily_trades: Number(portfolio?.daily_trades ?? 0),
     open_positions: Number(portfolio?.open_positions ?? totalPositions),
+    max_daily_loss_pct: Number(portfolio?.max_daily_loss_pct ?? 0),
+    daily_loss_limit_exceeded: Boolean(portfolio?.daily_loss_limit_exceeded ?? false),
   };
 }
 

@@ -827,7 +827,15 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 cycle += 1
 
                 try:
-                    console.print(f"\n[dim]--- Cycle {cycle} @ {datetime.now(IST).strftime('%H:%M:%S')} ---[/dim]")
+                    now_ist = self._ist_now()
+                    if now_ist.date() != self.portfolio.day_start:
+                        console.print(f"[yellow]Day changed ({self.portfolio.day_start} → {now_ist.date()}), resetting daily counters[/yellow]")
+                        self.portfolio.reset_daily()
+                        if self.risk_manager:
+                            self.risk_manager.reset_daily()
+                        self._daily_summary_sent = False
+
+                    console.print(f"\n[dim]--- Cycle {cycle} @ {now_ist.strftime('%H:%M:%S')} ---[/dim]")
 
                     if not self.is_market_open():
                         console.print("[yellow]Market closed. Waiting...[/yellow]")

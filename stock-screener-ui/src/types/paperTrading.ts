@@ -71,6 +71,8 @@ export interface PortfolioStatus {
   daily_pnl_pct: number;
   daily_trades: number;
   open_positions: number;
+  max_daily_loss_pct?: number;
+  daily_loss_limit_exceeded?: boolean;
 }
 
 // Daily trading summary

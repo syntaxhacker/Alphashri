@@ -34,11 +34,15 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
     ).fetchall()
 
     strategies = {}
+    max_daily_loss_pct = 0.03
     for row in strategies_rows:
         sid = row.strategy_id
         strategy_cfg = db.query(StrategyConfig).filter(StrategyConfig.id == sid).first()
         if not strategy_cfg:
             continue
+
+        if hasattr(strategy_cfg, 'max_daily_loss_pct') and strategy_cfg.max_daily_loss_pct:
+            max_daily_loss_pct = max(max_daily_loss_pct, strategy_cfg.max_daily_loss_pct)
 
         s_runtime = db.query(StrategyRuntimeState).filter(
             StrategyRuntimeState.bot_id == bot_id,
@@ -128,6 +132,10 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
             'total_trades': sum(s.get('trades_executed', 0) for s in strategies.values()),
             'daily_pnl': bot_runtime.daily_pnl if bot_runtime else 0,
             'daily_trades': bot_runtime.daily_trades if bot_runtime else 0,
+            'max_daily_loss_pct': max_daily_loss_pct,
+            'daily_loss_limit_exceeded': (
+                abs(bot_runtime.daily_pnl) >= initial_capital * max_daily_loss_pct
+            ) if bot_runtime and bot_runtime.daily_pnl < 0 else False,
             'strategies_count': len(strategies),
         },
         'strategies': strategies,

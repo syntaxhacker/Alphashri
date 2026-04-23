@@ -1,4 +1,4 @@
-import { Group, Text, Badge } from "@mantine/core";
+import { Group, Text, Badge, Progress } from "@mantine/core";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { formatCurrencyIN, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -8,6 +8,8 @@ export interface Portfolio {
   margin_used: number;
   day_pnl: number;
   positions_count: number;
+  max_daily_loss_pct?: number;
+  daily_loss_limit_exceeded?: boolean;
 }
 
 export interface StrategySummary {
@@ -37,6 +39,26 @@ export function PaperPortfolioCard({
 
   const pnlColor = getPnLTextColor(portfolio.day_pnl);
   const pnlSign = portfolio.day_pnl >= 0 ? "+" : "";
+
+  const showDailyLossLimit =
+    portfolio.max_daily_loss_pct != null &&
+    portfolio.max_daily_loss_pct > 0 &&
+    portfolio.day_pnl < 0;
+
+  const dailyLossPct =
+    showDailyLossLimit && portfolio.max_daily_loss_pct
+      ? Math.min(
+          (Math.abs(portfolio.day_pnl) / (portfolio.max_daily_loss_pct * 100)) * 100,
+          100,
+        )
+      : 0;
+
+  const dailyLossBarColor =
+    portfolio.daily_loss_limit_exceeded
+      ? "red"
+      : dailyLossPct >= 80
+        ? "orange"
+        : "gray";
 
   return (
     <CompactPanel data-testid="portfolio-card" className="paper-portfolio-card" id="portfolio-card">
@@ -88,11 +110,34 @@ export function PaperPortfolioCard({
             {portfolio.positions_count}
           </Badge>
         </Group>
+
+        {portfolio.daily_loss_limit_exceeded && (
+          <Badge variant="filled" color="red" size="sm" data-testid="daily-loss-halted">
+            LOSS LIMIT
+          </Badge>
+        )}
       </Group>
+
+      {showDailyLossLimit && (
+        <Group gap="xs" mt={4} align="center">
+          <Progress
+            value={dailyLossPct}
+            size="xs"
+            radius="xl"
+            color={dailyLossBarColor}
+            style={{ flex: 1 }}
+            data-testid="daily-loss-progress"
+          />
+          <Text size="xs" c={portfolio.daily_loss_limit_exceeded ? "red" : "dimmed"}>
+            {dailyLossPct.toFixed(0)}% / {((portfolio.max_daily_loss_pct ?? 0) * 100).toFixed(0)}%
+          </Text>
+        </Group>
+      )}
 
       {isMultiStrategy && strategySummaries.length > 0 && (
         <Group
           gap={4}
+          mt="xs"
           data-testid="strategy-summaries"
           className="portfolio-strategies"
           id="strategy-summaries"

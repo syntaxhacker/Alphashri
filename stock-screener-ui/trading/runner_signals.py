@@ -333,6 +333,12 @@ class RunnerSignalsMixin:
             console.print(f"[yellow]TEST MODE: Would execute {signal.signal_type.value} {signal.symbol} @ ₹{signal.price:.2f}[/yellow]")
             return False
 
+        runner = self.strategies.get(strategy_id)
+        if runner and hasattr(runner, 'signal_generator') and hasattr(runner.signal_generator, 'is_eod_exit_time'):
+            now = self._ist_now()
+            if runner.signal_generator.is_eod_exit_time(now.hour, now.minute):
+                return False
+
         runner, validation, position = self._execute_signal_core(strategy_id, signal, SignalType)
 
         if not runner:
@@ -506,7 +512,7 @@ class RunnerSignalsMixin:
         }
         for pos in all_positions:
             if not self.replay_mode:
-                pos['low_price'] = low_prices.get((pos.get('strategy_id'), pos['symbol']), 0.0)
+                pos.low_price = low_prices.get((pos.strategy_id, pos.symbol), 0.0)
                 self._persist_position_to_db(pos, action="upsert")
 
         positions_to_close = []

@@ -9,12 +9,13 @@ from typing import Optional
 from fastapi import Depends
 
 from trading.paper_trader import get_paper_trader
-from trading.journal import TradeJournal
+from trading.journal import get_journal, TradeJournal
 from api.auth import get_current_user
 from db.models import User
 import config
 
 from .paper_api import router, _get_user_id, _load_fresh_bot_snapshot
+from .requests import ResetRequest, UpdatePricesRequest
 
 
 @router.get("/portfolio")
@@ -81,6 +82,23 @@ async def get_portfolio(user: "User" = Depends(get_current_user)):
         daily_pnl = status.get("daily_pnl", 0) or 0
         status["daily_pnl_pct"] = (daily_pnl / base * 100) if base else 0.0
 
+    from db.database import SessionLocal
+    db_session = SessionLocal()
+    try:
+        from db.models import BotConfig
+        bot_cfg = db_session.query(BotConfig).filter(BotConfig.user_id == user_id).first()
+        max_daily_loss_pct = bot_cfg.max_daily_loss_pct if bot_cfg else 0.03
+    except Exception:
+        max_daily_loss_pct = 0.03
+    finally:
+        db_session.close()
+
+    status["max_daily_loss_pct"] = max_daily_loss_pct
+    status["daily_loss_limit_exceeded"] = (
+        abs(status.get("daily_pnl", 0)) >= status.get("initial_capital", 0) * max_daily_loss_pct
+        and status.get("daily_pnl", 0) < 0
+    )
+
     if "realized_pnl_today" not in status:
         status["realized_pnl_today"] = round(realized_pnl_today, 2)
     if "daily_trades" not in status:
@@ -93,10 +111,9 @@ from datetime import datetime
 
 
 @router.post("/reset")
-async def reset_portfolio(request, user: "User" = Depends(get_current_user)):
+async def reset_portfolio(request: "ResetRequest", user: "User" = Depends(get_current_user)):
     """Reset paper trading with new capital."""
     from trading.paper_trader import reset_paper_trader
-    from .requests import ResetRequest
     
     user_id = _get_user_id(user)
     trader = reset_paper_trader(user_id, request.capital)
@@ -127,9 +144,8 @@ async def get_positions(user: "User" = Depends(get_current_user)):
 
 
 @router.post("/update-prices")
-async def update_prices(request, user: "User" = Depends(get_current_user)):
+async def update_prices(request: UpdatePricesRequest, user: "User" = Depends(get_current_user)):
     """Update prices and check for SL/TP triggers."""
-    from .requests import UpdatePricesRequest
     
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)

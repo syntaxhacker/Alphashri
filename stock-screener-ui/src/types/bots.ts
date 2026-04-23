@@ -74,6 +74,8 @@ export interface PortfolioSummary {
   total_pnl_pct: number;
   daily_pnl: number;
   total_positions: number;
+  max_daily_loss_pct?: number;
+  daily_loss_limit_exceeded?: boolean;
 }
 
 // Strategy status within bot
