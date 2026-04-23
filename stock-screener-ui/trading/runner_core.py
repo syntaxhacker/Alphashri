@@ -512,6 +512,31 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             console.print(f"[yellow]Failed to restore position {p.symbol}: {e}[/yellow]")
                     if restored > 0:
                         console.print(f"[green]Restored {restored} positions from database[/green]")
+
+                        today_symbols = set()
+                        for pos in self.portfolio.positions.values():
+                            entry_date = pos.entry_time.date() if pos.entry_time else None
+                            if entry_date and entry_date >= now.date():
+                                today_symbols.add(pos.symbol)
+
+                        if today_symbols:
+                            console.print(f"[dim]Fetching fresh prices for {len(today_symbols)} symbols...[/dim]")
+                            fetcher = self._get_data_fetcher()
+                            if fetcher:
+                                close_prices = {}
+                                for symbol in today_symbols:
+                                    try:
+                                        df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+                                        if df is not None and not df.empty:
+                                            close_prices[symbol] = df.iloc[-1]['close']
+                                    except Exception as e:
+                                        console.print(f"[dim red]Price fetch failed for {symbol}: {e}[/dim red]")
+                                if close_prices:
+                                    self.portfolio.update_prices(close_prices)
+                                    console.print(f"[green]Updated prices for {len(close_prices)} symbols[/green]")
+                                    for key, pos in self.portfolio.positions.items():
+                                        self._persist_position_to_db(pos, action="upsert")
+
                         now = self._ist_now()
                         today = now.date()
                         to_close = []
