@@ -1,5 +1,5 @@
 import type { HolidayMap } from "../chartUtils";
-import { formatVolume, getCandleChange } from "../chartUtils";
+import { formatVolume, getCandleChange, getCandleFromParams } from "../chartUtils";
 import type { UnifiedTrade } from "./types";
 
 export function buildTooltip(
@@ -58,12 +58,10 @@ export function buildTooltip(
       }
     }
 
-    const candle = params.find((p: any) => p.seriesType === "candlestick");
-    if (!candle) return "";
-    const idx = candle.dataIndex;
-    const c = candles[idx];
-    if (!c) return "";
-    const { change, changeColor } = getCandleChange(c.open, c.close);
+    const result = getCandleFromParams(params, candles);
+    if (!result) return "";
+    const c = result.candle;
+    const { change, changeColor } = result.change;
     const timeLabel =
       c.time_str || c.date
         ? `${c.date || ""} ${c.time_str || ""}`.trim()

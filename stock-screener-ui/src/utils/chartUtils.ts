@@ -25,6 +25,14 @@ export function getCandleChange(open: number, close: number) {
   return { change, changeColor };
 }
 
+export function getCandleFromParams(params: any[], candles: { open: number; close: number; [key: string]: any }[]) {
+  const candle = params.find((p: any) => p.seriesType === "candlestick");
+  if (!candle) return null;
+  const c = candles[candle.dataIndex];
+  if (!c) return null;
+  return { candle: c, change: getCandleChange(c.open, c.close) };
+}
+
 export function formatVolume(vol: number): string {
   if (vol >= 1000000) return (vol / 1000000).toFixed(1) + "M";
   if (vol >= 1000) return (vol / 1000).toFixed(1) + "K";
