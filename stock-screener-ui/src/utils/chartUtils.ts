@@ -19,6 +19,12 @@ export const CANDLESTICK_ITEM_STYLE = {
   borderColor0: "#FF1744",
 };
 
+export function getCandleChange(open: number, close: number) {
+  const change = open > 0 ? (((close - open) / open) * 100).toFixed(2) : "0";
+  const changeColor = close >= open ? CANDLESTICK_ITEM_STYLE.color : CANDLESTICK_ITEM_STYLE.color0;
+  return { change, changeColor };
+}
+
 export function formatVolume(vol: number): string {
   if (vol >= 1000000) return (vol / 1000000).toFixed(1) + "M";
   if (vol >= 1000) return (vol / 1000).toFixed(1) + "K";

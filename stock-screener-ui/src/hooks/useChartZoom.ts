@@ -28,6 +28,29 @@ function computeZoomRange(
   return { start, end };
 }
 
+function dispatchZoom(
+  chart: any,
+  startIdx: number,
+  endIdx: number,
+  total: number,
+) {
+  const { start, end } = computeZoomRange(startIdx, endIdx, total);
+  const startPct = (start / total) * 100;
+  const endPct = ((end + 1) / total) * 100;
+  chart.dispatchAction({
+    type: "dataZoom",
+    dataZoomIndex: 0,
+    start: startPct,
+    end: endPct,
+  });
+  chart.dispatchAction({
+    type: "dataZoom",
+    dataZoomIndex: 1,
+    start: startPct,
+    end: endPct,
+  });
+}
+
 export function useChartZoom(options: UseChartZoomOptions): UseChartZoomReturn {
   const { chartInstance } = options;
   const allTimesRef = useRef<string[]>([]);
@@ -60,23 +83,7 @@ export function useChartZoom(options: UseChartZoomOptions): UseChartZoomReturn {
           exitIdx = best >= 0 ? best : times.length - 1;
         }
 
-        const total = times.length;
-        const { start, end } = computeZoomRange(entryIdx, exitIdx, total);
-        const startPct = (start / total) * 100;
-        const endPct = ((end + 1) / total) * 100;
-
-        chartInstance.current.dispatchAction({
-          type: "dataZoom",
-          dataZoomIndex: 0,
-          start: startPct,
-          end: endPct,
-        });
-        chartInstance.current.dispatchAction({
-          type: "dataZoom",
-          dataZoomIndex: 1,
-          start: startPct,
-          end: endPct,
-        });
+        dispatchZoom(chartInstance.current, entryIdx, exitIdx, times.length);
       }, 100);
     },
     [chartInstance],
@@ -86,21 +93,7 @@ export function useChartZoom(options: UseChartZoomOptions): UseChartZoomReturn {
     (startIdx: number, endIdx: number, total: number) => {
       setTimeout(() => {
         if (!chartInstance.current) return;
-        const { start, end } = computeZoomRange(startIdx, endIdx, total);
-        const startPct = (start / total) * 100;
-        const endPct = ((end + 1) / total) * 100;
-        chartInstance.current.dispatchAction({
-          type: "dataZoom",
-          dataZoomIndex: 0,
-          start: startPct,
-          end: endPct,
-        });
-        chartInstance.current.dispatchAction({
-          type: "dataZoom",
-          dataZoomIndex: 1,
-          start: startPct,
-          end: endPct,
-        });
+        dispatchZoom(chartInstance.current, startIdx, endIdx, total);
       }, 150);
     },
     [chartInstance],

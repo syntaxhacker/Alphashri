@@ -1,78 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { formatNumber, formatTimeOnly, formatDateHeader } from "../../utils/ui-helpers";
+import { formatTimeOnly, formatDateHeader } from "../../utils/ui-helpers";
 import {
   getUniqueStrategies,
   getUniqueBots,
   filterByRange,
   groupTradesByDate,
 } from "./tradeHistoryUtils";
-import type { PaperTrade } from "../../types/paperTrading";
-
-const mockTrade = (overrides: Partial<PaperTrade> = {}): PaperTrade => ({
-  trade_id: "trade-1",
-  symbol: "RELIANCE",
-  side: "BUY",
-  quantity: 100,
-  entry_price: 2500,
-  exit_price: 2600,
-  entry_time: "2026-03-20T09:30:00Z",
-  exit_time: "2026-03-20T14:30:00Z",
-  pnl: 10000,
-  pnl_pct: 4.0,
-  exit_reason: "TP",
-  costs: 50,
-  net_pnl: 9950,
-  stop_loss: 2400,
-  take_profit: 2700,
-  peak_price: 2650,
-  low_price: 2480,
-  notes: "",
-  strategy_id: 1,
-  strategy_name: "ORB Strategy",
-  bot_id: null,
-  bot_name: null,
-  ...overrides,
-});
-
-describe("formatNumber", () => {
-  test("formats numbers below 1000 without suffix", () => {
-    expect(formatNumber(500)).toBe("500");
-    expect(formatNumber(999)).toBe("999");
-  });
-
-  test("formats thousands with K suffix", () => {
-    expect(formatNumber(1500)).toBe("1.5K");
-    expect(formatNumber(10000)).toBe("10.0K");
-    expect(formatNumber(99999)).toBe("100.0K");
-  });
-
-  test("formats lakhs with L suffix", () => {
-    expect(formatNumber(100000)).toBe("1.0L");
-    expect(formatNumber(150000)).toBe("1.5L");
-    expect(formatNumber(1000000)).toBe("10.0L");
-  });
-
-  test("handles negative numbers", () => {
-    expect(formatNumber(-1500)).toBe("-1.5K");
-    expect(formatNumber(-100000)).toBe("-1.0L");
-  });
-
-  test("handles zero", () => {
-    expect(formatNumber(0)).toBe("0");
-  });
-
-  test("returns 0 for undefined", () => {
-    expect(formatNumber(undefined)).toBe("0");
-  });
-
-  test("returns 0 for null", () => {
-    expect(formatNumber(null)).toBe("0");
-  });
-
-  test("returns 0 for NaN", () => {
-    expect(formatNumber(NaN)).toBe("0");
-  });
-});
+import { mockTrade } from "./testFixtures";
 
 describe("formatTimeOnly", () => {
   test("returns dash for empty string", () => {
