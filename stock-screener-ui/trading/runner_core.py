@@ -1126,7 +1126,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         if not self._replay_on_event:
             return
 
-        from trading.ema_cross_signals import EMACrossSignalGenerator
+        from trading.ema_utils import calculate_ema
 
         for sym in symbols:
             if sym not in provider._daily_data or provider._daily_data[sym].empty:
@@ -1173,8 +1173,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 full_closes = seed_closes + day_closes
                 n_seed = len(seed_closes)
 
-                ema_fast_full = EMACrossSignalGenerator.calculate_ema(full_closes, ema_fast_period)
-                ema_slow_full = EMACrossSignalGenerator.calculate_ema(full_closes, ema_slow_period)
+                ema_fast_full = calculate_ema(full_closes, ema_fast_period, return_full=True)
+                ema_slow_full = calculate_ema(full_closes, ema_slow_period, return_full=True)
                 ema_fast_today = ema_fast_full[n_seed:]
                 ema_slow_today = ema_slow_full[n_seed:]
 
@@ -1183,8 +1183,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     tf_full = [full_closes[i:i + tf][-1] for i in range(0, len(full_closes), tf) if full_closes[i:i + tf]]
                     if len(tf_full) < ema_slow_period:
                         continue
-                    ema_f_full = EMACrossSignalGenerator.calculate_ema(tf_full, ema_fast_period)
-                    ema_s_full = EMACrossSignalGenerator.calculate_ema(tf_full, ema_slow_period)
+                    ema_f_full = calculate_ema(tf_full, ema_fast_period, return_full=True)
+                    ema_s_full = calculate_ema(tf_full, ema_slow_period, return_full=True)
                     tf_seed = [seed_closes[i:i + tf][-1] for i in range(0, len(seed_closes), tf) if seed_closes[i:i + tf]]
                     n_seed_tf = len(tf_seed)
                     timeframes[str(tf)] = {
@@ -1201,8 +1201,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 if sym in provider._daily_data and not provider._daily_data[sym].empty:
                     daily_closes = provider._daily_data[sym]["close"].tolist()
                     if len(daily_closes) >= ema_slow_period:
-                        daily_ema_f = EMACrossSignalGenerator.calculate_ema(daily_closes, ema_fast_period)
-                        daily_ema_s = EMACrossSignalGenerator.calculate_ema(daily_closes, ema_slow_period)
+                        daily_ema_f = calculate_ema(daily_closes, ema_fast_period, return_full=True)
+                        daily_ema_s = calculate_ema(daily_closes, ema_slow_period, return_full=True)
                         if not timeframes:
                             timeframes = {}
                         timeframes["1440"] = {

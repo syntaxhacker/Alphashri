@@ -168,7 +168,7 @@ class RunnerRiskMixin:
 
     def fetch_ema_data(self, symbol: str, ema_fast_period: int = 9, ema_slow_period: int = 21) -> Optional[dict]:
         """Fetch intraday data and compute EMA crossover state for a symbol."""
-        from trading.ema_cross_signals import EMACrossSignalGenerator
+        from trading.ema_utils import calculate_ema
 
         try:
             fetcher = self._get_data_fetcher()
@@ -187,8 +187,8 @@ class RunnerRiskMixin:
             if len(closes) < ema_slow_period + 2:
                 return None
 
-            ema_fast = EMACrossSignalGenerator.calculate_ema(closes, ema_fast_period)
-            ema_slow = EMACrossSignalGenerator.calculate_ema(closes, ema_slow_period)
+            ema_fast = calculate_ema(closes, ema_fast_period, return_full=True)
+            ema_slow = calculate_ema(closes, ema_slow_period, return_full=True)
 
             if len(ema_fast) < 2 or len(ema_slow) < 2:
                 return None
