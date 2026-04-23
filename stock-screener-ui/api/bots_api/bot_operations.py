@@ -1,142 +1,46 @@
-"""
-Bot Management API - Endpoints for multi-strategy bot operations.
-
-This module provides REST API endpoints for:
-- Bot CRUD operations
-- Bot control (start/stop)
-- Strategy management within bots
-- Portfolio and performance views
-
-Backward compatibility: Re-exports all endpoints from bots_api submodules.
-"""
-
 import asyncio
-import sys
-import subprocess
-import json
-import os
-import uuid as uuid_module
-from pathlib import Path
 from datetime import datetime
-from typing import Optional, List, Dict
+from pathlib import Path
+from typing import Optional, Dict
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
-from rich.console import Console
+from fastapi import HTTPException, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-console = Console()
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-try:
-    from db.database import SessionLocal, get_db
-    from db.models import BotConfig, StrategyConfig, bot_strategies, User
-    _db_available = True
-except ImportError:
-    _db_available = False
-    get_db = None
-
-from api.auth import get_current_user
-from db.models import User
-
-from api.bots_api.requests import (
-    StrategyAllocation,
-    BotCreate,
-    BotUpdate,
-    BotResponse,
-    BotStatusResponse,
-    StrategyStatusResponse,
-)
-
-from api.bots_api.bots_router import (
+from .bots_router import (
     router,
     get_user_id,
-    validate_uuid,
     get_bot_by_uuid,
     get_strategy_by_uuid,
-    validate_bot_ownership,
-    get_bot_snapshot_path,
     is_bot_running,
-    _is_pid_alive,
-    _set_bot_status_redis,
-    _clear_bot_status_redis,
-    bot_to_response,
     start_bot_process,
     stop_bot_process,
-    _bot_processes,
     _bot_logs,
-    SessionLocal as _SessionLocal,
+    _db_available,
+    get_db,
+    SessionLocal,
 )
 
+from api.auth import get_current_user
 from api.bot_state import get_bot_state
 
-from api.bots_api.bot_status import (
-    list_available_strategies,
-    list_bots,
-    get_bot_status,
-)
 
-from api.bots_api.bot_config import (
-    create_bot,
-    update_bot,
-    delete_bot,
-    get_bot,
-)
-
-from api.bots_api.bot_strategies import (
-    start_strategy,
-    stop_strategy,
-)
-
-__all__ = [
-    "get_bot_state",
-    "router",
-    "StrategyAllocation",
-    "BotCreate",
-    "BotUpdate",
-    "BotResponse",
-    "BotStatusResponse",
-    "StrategyStatusResponse",
-    "get_user_id",
-    "validate_uuid",
-    "get_bot_by_uuid",
-    "get_strategy_by_uuid",
-    "validate_bot_ownership",
-    "get_bot_snapshot_path",
-    "is_bot_running",
-    "_is_pid_alive",
-    "_set_bot_status_redis",
-    "_clear_bot_status_redis",
-    "bot_to_response",
-    "start_bot_process",
-    "stop_bot_process",
-    "create_bot",
-    "update_bot",
-    "delete_bot",
-    "get_bot",
-    "list_available_strategies",
-    "list_bots",
-    "get_bot_status",
-    "start_strategy",
-    "stop_strategy",
-]
+class CloseAllRequest(BaseModel):
+    prices: Dict[str, float] = {}
 
 
 _sync_get_bot_logs_endpoint = None
 _sync_get_bot_portfolio = None
 _sync_get_bot_trades = None
 
+
 def _get_sync_functions():
     global _sync_get_bot_logs_endpoint, _sync_get_bot_portfolio, _sync_get_bot_trades
-    
+
     if _sync_get_bot_logs_endpoint is None:
-        from api.bots_api.bots_router import _bot_logs as bot_logs_holder
-        
         def _sync_get_bot_logs(bot_uuid: str, user_id: int, lines: int, db: Session) -> dict:
             bot = get_bot_by_uuid(bot_uuid, user_id, db)
-            log_path = bot_logs_holder.get(bot.id)
+            log_path = _bot_logs.get(bot.id)
             if not log_path or not log_path.exists():
                 return {"logs": "", "message": "No logs available"}
             try:
@@ -150,9 +54,9 @@ def _get_sync_functions():
                 }
             except Exception as e:
                 return {"logs": "", "error": str(e)}
-        
+
         _sync_get_bot_logs_endpoint = _sync_get_bot_logs
-        
+
         def _sync_get_bot_portfolio(bot_uuid: str, user_id: int, db: Session) -> dict:
             bot = get_bot_by_uuid(bot_uuid, user_id, db)
             state = get_bot_state(bot.id, user_id, db)
@@ -185,15 +89,15 @@ def _get_sync_functions():
                 "strategies": state['strategies'],
                 "timestamp": state['timestamp'],
             }
-        
+
         _sync_get_bot_portfolio = _sync_get_bot_portfolio
-        
+
         def _sync_get_bot_trades(bot_uuid: str, user_id: int, strategy_id: Optional[str],
                              limit: int, include_test: bool, db: Session) -> dict:
-            from db.models import Trade as TradeModel
-            
+            from db.models import Trade as TradeModel, bot_strategies
+
             bot = get_bot_by_uuid(bot_uuid, user_id, db)
-            
+
             result = db.execute(
                 bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
             ).fetchall()
@@ -255,9 +159,9 @@ def _get_sync_functions():
                 "count": len(trades),
                 "strategy_filter": strategy_id,
             }
-        
+
         _sync_get_bot_trades = _sync_get_bot_trades
-    
+
     return _sync_get_bot_logs_endpoint, _sync_get_bot_portfolio, _sync_get_bot_trades
 
 
@@ -275,7 +179,7 @@ async def get_bot_logs(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -299,7 +203,7 @@ async def get_bot_portfolio(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -324,7 +228,7 @@ async def get_bot_positions(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -371,7 +275,7 @@ async def get_bot_trades(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -400,7 +304,7 @@ async def start_bot(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -438,7 +342,7 @@ async def stop_bot(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -470,7 +374,7 @@ async def get_bot_scan(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -496,10 +400,6 @@ async def get_bot_scan(
             db.close()
 
 
-class CloseAllRequest(BaseModel):
-    prices: Dict[str, float] = {}
-
-
 @router.post("/{bot_id}/close-all")
 async def close_all_bot_positions(
     bot_id: str,
@@ -514,7 +414,7 @@ async def close_all_bot_positions(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -592,7 +492,7 @@ async def get_bot_performance(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -662,7 +562,7 @@ async def compare_strategy_performance(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -721,7 +621,7 @@ async def get_bot_trade_count(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -731,7 +631,7 @@ async def get_bot_trade_count(
             from trading.journal import get_journal
             journal = get_journal(user_id)
 
-            with _SessionLocal() as session:
+            with SessionLocal() as session:
                 result = session.execute(
                     bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
                 ).fetchall()
@@ -764,7 +664,7 @@ async def get_strategy_performance(
 
     close_db = False
     if db is None:
-        db = _SessionLocal()
+        db = SessionLocal()
         close_db = True
 
     try:
@@ -772,6 +672,7 @@ async def get_strategy_performance(
 
         try:
             from trading.journal import get_journal
+            from db.models import bot_strategies
             journal = get_journal(user_id)
 
             journal.load_all_journals(days=days)
@@ -784,7 +685,7 @@ async def get_strategy_performance(
                 ).fetchall()
                 bot_strategy_ids = [row.strategy_id for row in result]
             else:
-                with _SessionLocal() as session:
+                with SessionLocal() as session:
                     result = session.execute(
                         bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
                     ).fetchall()

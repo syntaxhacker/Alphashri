@@ -217,7 +217,7 @@ except Exception as e:
 
 # Bots router
 try:
-    from api.bots import router as bots_router
+    from api.bots_api import router as bots_router
     app.include_router(bots_router)
 except Exception as e:
     print(f"⚠️ Bots router not loaded: {e}")

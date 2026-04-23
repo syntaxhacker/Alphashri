@@ -8,6 +8,11 @@ from .requests import (
     StrategyStatusResponse,
 )
 
+from . import bot_operations
+from . import bot_status
+from . import bot_config
+from . import bot_strategies
+
 __all__ = [
     "router",
     "StrategyAllocation",

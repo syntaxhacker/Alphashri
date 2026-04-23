@@ -853,7 +853,7 @@ class TestBotLifecycleFlow:
         bot = bot_response.json()
 
         # Start bot (in test mode)
-        with patch('api.bots.start_bot_process') as mock_start:
+        with patch('api.bots_api.bot_operations.start_bot_process') as mock_start:
             mock_process = Mock()
             mock_process.pid = 12345
             mock_process.poll = Mock(return_value=None)  # Process running
@@ -874,7 +874,7 @@ class TestBotLifecycleFlow:
         # We're testing the flow, not the actual process management
 
         # Stop bot
-        with patch('api.bots.stop_bot_process') as mock_stop:
+        with patch('api.bots_api.bot_operations.stop_bot_process') as mock_stop:
             stop_response = client.post(f"/api/bots/{bot['id']}/stop")
 
             assert stop_response.status_code == 200
