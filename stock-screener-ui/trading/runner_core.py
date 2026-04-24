@@ -37,6 +37,15 @@ class _TimestampedConsole(Console):
 console = _TimestampedConsole()
 from trading.replay_utils import DEFAULT_WATCHLIST, STRATEGY_FILTER_MAP, build_trade_close_event
 from trading.shared_portfolio import SharedPortfolioManager
+
+# Default screener profiles per strategy type (used if not configured)
+STRATEGY_TYPE_DEFAULT_PROFILES = {
+    "ORB": ["volatility_trend"],
+    "SR_BREAKOUT": ["volatility_trend"],
+    "EMA_CROSS": ["trending"],
+    "52W_CHASER": ["near_52w_breakout"],
+    "52W_TARGET": ["near_52w_breakout"],
+}
 from trading.global_risk_manager import GlobalRiskManager
 from trading.journal import get_journal
 from trading.strategy_runner import StrategyRunner, INTRADAY_STRATEGY_TYPES, SWING_STRATEGY_TYPES
@@ -163,7 +172,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         signal.signal(signal.SIGTERM, self._signal_handler)
 
     def _init_common_fields(self):
-        self.watchlist = []
+        self.watchlist = []  # Shared watchlist (fallback)
+        self.strategy_watchlists = {}  # Per-strategy watchlists: {strategy_id: [symbols]}
         self.or_levels = {}
         self.cooldown_stocks: Dict[str, datetime] = {}
         self._screener = None
@@ -603,8 +613,11 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         now = self._ist_now()
         return now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]
 
-    def refresh_watchlist(self):
-        """Refresh watchlist from screener (shared across all strategies)."""
+    def refresh_watchlist(self, strategy_id=None):
+        """Refresh watchlist - per strategy if strategy_id provided."""
+        if strategy_id is not None and strategy_id in self.strategies:
+            return self._refresh_strategy_watchlist(strategy_id)
+
         console.print("\n[cyan]Refreshing shared watchlist from screener...[/cyan]")
 
         screener = self._get_screener()
@@ -612,7 +625,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             console.print("[red]Screener not available - using default watchlist[/red]")
             if not self.watchlist:
                 self.watchlist = DEFAULT_WATCHLIST.copy()
-            return
+            return self.watchlist
 
         try:
             df = screener.screen(limit=50, verify_nse=True)
@@ -621,12 +634,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 console.print("[yellow]No stocks from screener - using default watchlist[/yellow]")
                 if not self.watchlist:
                     self.watchlist = DEFAULT_WATCHLIST.copy()
-                return
+                return self.watchlist
 
             self.watchlist = df['name'].tolist()[:20]
             console.print(f"[green]Watchlist updated: {len(self.watchlist)} stocks[/green]")
 
-            table = Table(title="Shared ORB Watchlist")
+            table = Table(title="Shared Watchlist")
             table.add_column("#", width=3)
             table.add_column("Symbol")
             table.add_column("Price", justify="right")
@@ -639,12 +652,61 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 )
 
             console.print(table)
+            return self.watchlist
 
         except Exception as e:
             console.print(f"[red]Error refreshing watchlist: {e}[/red]")
             if not self.watchlist:
                 console.print("[yellow]Using default watchlist[/yellow]")
                 self.watchlist = DEFAULT_WATCHLIST.copy()
+            return self.watchlist
+
+    def _refresh_strategy_watchlist(self, strategy_id):
+        """Refresh watchlist for a specific strategy using its screener profiles."""
+        runner = self.strategies.get(strategy_id)
+        if not runner:
+            return self.watchlist  # Fallback to shared
+
+        config = runner.config if hasattr(runner, 'config') else {}
+        strategy_type = config.get('strategy_type', '')
+
+        # Get profiles from config, or use defaults
+        profiles = config.get('screener_profiles') or STRATEGY_TYPE_DEFAULT_PROFILES.get(
+            strategy_type, ['trending']
+        )
+
+        console.print(f"[cyan]Refreshing watchlist for strategy {strategy_id} ({strategy_type}) with profiles: {profiles}[/cyan]")
+
+        screener = self._get_screener()
+        all_symbols = []
+
+        if screener:
+            for profile in profiles:
+                try:
+                    df = screener.screen(limit=50, profile=profile, verify_nse=True)
+                    if not df.empty:
+                        all_symbols.extend(df['name'].tolist())
+                except Exception as e:
+                    console.print(f"[yellow]Error screening with profile {profile}: {e}[/yellow]")
+
+        if not all_symbols:
+            # Fallback to shared watchlist or default
+            if self.watchlist:
+                return self.watchlist
+            return DEFAULT_WATCHLIST.copy()
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_symbols = []
+        for s in all_symbols:
+            if s not in seen:
+                seen.add(s)
+                unique_symbols.append(s)
+
+        # Store per-strategy watchlist
+        self.strategy_watchlists[strategy_id] = unique_symbols[:50]
+        console.print(f"[green]Strategy {strategy_id} watchlist updated: {len(unique_symbols[:50])} stocks[/green]")
+        return self.strategy_watchlists[strategy_id]
 
     def persist_state(self):
         try:
@@ -870,10 +932,13 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         continue
 
                     if cycle % 10 == 0:
-                        self.refresh_watchlist()
+                        self.refresh_watchlist()  # Refresh shared watchlist
 
                     for strategy_id, runner in self.strategies.items():
                         if runner.status == "running":
+                            # Refresh per-strategy watchlist periodically (every 30 cycles)
+                            if cycle % 30 == 0:
+                                self.refresh_watchlist(strategy_id)
                             if runner.strategy_type in SWING_STRATEGY_TYPES and cycle % 30 != 0:
                                 continue
                             signals = self.scan_for_signals(strategy_id)

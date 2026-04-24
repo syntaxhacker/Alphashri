@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Stack, TextInput, Select, Tabs, Alert, Group, Title, Text } from "@mantine/core";
+import { Modal, Stack, TextInput, Select, Tabs, Alert, Group, Title, Text, MultiSelect } from "@mantine/core";
 import { IconInfoCircle, IconAlertTriangle } from "@tabler/icons-react";
 import type { StrategyFormProps, StrategyFormData } from "./types";
 import { DEFAULT_VALUES, getInitialValues } from "./strategyDefaults";
@@ -16,6 +16,20 @@ const STRATEGY_TYPES = [
   { value: "52W_CHASER", label: "52W Chaser" },
   { value: "52W_TARGET", label: "52W Target" },
   { value: "EMA_CROSS", label: "EMA Cross" },
+];
+
+const SCREENER_PROFILE_OPTIONS = [
+  { value: 'trending', label: 'Trending' },
+  { value: 'high_momentum', label: 'High Momentum' },
+  { value: 'volatility_trend', label: 'Volatility Trend' },
+  { value: 'near_52w_breakout', label: 'Near 52W Breakout' },
+  { value: 'buyer_interest', label: 'Buyer Interest' },
+  { value: 'buyer_interest_enhanced', label: 'Buyer Interest+' },
+  { value: 'nifty50_activity', label: 'Nifty50 Activity' },
+  { value: 'rsi_reversal', label: 'RSI Reversal' },
+  { value: 'market_open_gap', label: 'Gap Open' },
+  { value: 'nifty_movers', label: 'Nifty Movers' },
+  { value: 'intraday_momentum', label: 'Intraday Momentum' },
 ];
 
 const INTRADAY_TYPES = ["ORB", "SR_BREAKOUT", "EMA_CROSS"];
@@ -37,6 +51,7 @@ export function StrategyForm({
 }: StrategyFormProps) {
   const initialValues = getInitialValues({ mode, strategy, template });
   const [currentStrategyType, setCurrentStrategyType] = useState(initialValues.strategy_type);
+  const [selectedProfiles, setSelectedProfiles] = useState<string[]>(initialValues.screener_profiles || []);
   const isIntraday = INTRADAY_TYPES.includes(currentStrategyType);
   const isSwing = SWING_TYPES.includes(currentStrategyType);
   const isOrb = currentStrategyType === "ORB";
