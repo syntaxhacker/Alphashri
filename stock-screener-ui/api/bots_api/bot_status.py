@@ -15,14 +15,14 @@ from .bots_router import (
     get_user_id,
     get_bot_by_uuid,
     is_bot_running,
+    _db_available,
     SessionLocal,
 )
 from .requests import BotResponse, BotStatusResponse, BotSummaryResponse, BotSummaryStrategy
 
 
 def _get_db_available():
-    import api.bots
-    return api.bots._db_available
+    return _db_available
 
 
 def _sync_list_available_strategies(db: Session) -> list:

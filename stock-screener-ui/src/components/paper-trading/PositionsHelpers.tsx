@@ -1,14 +1,4 @@
 import {
-  Table,
-  Badge,
-  Text,
-  Group,
-  Flex,
-  Tooltip,
-  ActionIcon,
-  ScrollArea,
-} from "@mantine/core";
-import {
   getPaperTradingState,
   setSelectedSymbol,
   setSelectedTradeId,
@@ -23,7 +13,8 @@ import {
   getPnLTextColor,
   getStrategyTypeFromName,
 } from "../../utils/ui-helpers";
-import { SideBadge, ClickableSymbol } from "../common";
+import { SideBadge } from "../common";
+import { ClickableSymbol } from "../common";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
@@ -111,7 +102,6 @@ function PositionRow({
   ) => void;
   onClose: (symbol: string, price: number) => void;
 }) {
-  const navigate = useNavigate();
   const pnlClass = getPnLTextColor(pos.pnl ?? 0);
   const pnlSign = (pos.pnl ?? 0) >= 0 ? "+" : "";
 
@@ -131,18 +121,7 @@ function PositionRow({
       data-testid={`position-row-${pos.symbol}`}
     >
       <Table.Td>
-        <Anchor
-          component="button"
-          type="button"
-          size="sm"
-          fw={600}
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/chart/${pos.symbol}`);
-          }}
-        >
-          {pos.symbol}
-        </Anchor>
+        <ClickableSymbol symbol={pos.symbol} />
       </Table.Td>
       <Table.Td>
         <SideBadge side={pos.side} data-testid={`side-badge-${pos.symbol}`} />

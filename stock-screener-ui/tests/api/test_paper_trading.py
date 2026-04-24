@@ -309,6 +309,14 @@ def app(mock_paper_trader, mock_risk_manager, mock_journal, temp_journals_dir):
     app = FastAPI()
     app.include_router(paper_router)
 
+    from unittest.mock import MagicMock as _MagicMock
+    from api.auth import get_current_user
+
+    mock_user = _MagicMock()
+    mock_user.id = 1
+    mock_user.email = "test@example.com"
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
     # Mock the global functions
     def get_paper_trader_mock(user_id=None):
         return mock_paper_trader
@@ -328,11 +336,21 @@ def app(mock_paper_trader, mock_risk_manager, mock_journal, temp_journals_dir):
     def get_journal_mock(user_id=None):
         return mock_journal
 
-    # Patch the imports
-    with patch('api.paper_trading.get_paper_trader', side_effect=get_paper_trader_mock), \
-         patch('api.paper_trading.reset_paper_trader', side_effect=reset_paper_trader_mock), \
-         patch('api.paper_trading.get_risk_manager', side_effect=get_risk_manager_mock), \
-         patch('api.paper_trading.get_journal', side_effect=get_journal_mock):
+    # Patch at every import location since modules import the functions directly
+    with patch('api.paper.portfolio.get_paper_trader', side_effect=get_paper_trader_mock), \
+         patch('api.paper.endpoints.get_paper_trader', side_effect=get_paper_trader_mock), \
+         patch('api.paper.endpoints.get_risk_manager', side_effect=get_risk_manager_mock), \
+         patch('api.paper.endpoints.get_journal', side_effect=get_journal_mock), \
+         patch('api.paper.orders.get_paper_trader', side_effect=get_paper_trader_mock), \
+         patch('api.paper.orders.get_risk_manager', side_effect=get_risk_manager_mock), \
+         patch('api.paper.orders.get_journal', side_effect=get_journal_mock), \
+         patch('api.paper.history.get_journal', side_effect=get_journal_mock), \
+         patch('api.paper.paper_api.get_paper_trader', side_effect=get_paper_trader_mock), \
+         patch('api.paper.paper_api.get_journal', side_effect=get_journal_mock), \
+         patch('trading.paper_trader.get_paper_trader', side_effect=get_paper_trader_mock), \
+         patch('trading.paper_trader.reset_paper_trader', side_effect=reset_paper_trader_mock), \
+         patch('trading.risk_manager.get_risk_manager', side_effect=get_risk_manager_mock), \
+         patch('trading.journal.get_journal', side_effect=get_journal_mock):
 
         yield app
 
@@ -1020,7 +1038,7 @@ class TestRunnerControl:
 
     def test_get_bot_status_not_running(self, client):
         """Test GET /api/paper/bot/status when not running."""
-        with patch('api.paper_trading._get_bot_status') as mock_status:
+        with patch('api.paper.bot_control._get_bot_status') as mock_status:
             mock_status.return_value = {
                 "running": False,
                 "pid": None,
@@ -1039,7 +1057,7 @@ class TestRunnerControl:
 
     def test_get_bot_status_running(self, client):
         """Test GET /api/paper/bot/status when running."""
-        with patch('api.paper_trading._get_bot_status') as mock_status:
+        with patch('api.paper.bot_control._get_bot_status') as mock_status:
             mock_status.return_value = {
                 "running": True,
                 "pid": 12345,
@@ -1058,7 +1076,7 @@ class TestRunnerControl:
 
     def test_get_bot_snapshot(self, client):
         """Test GET /api/paper/bot/snapshot."""
-        with patch('api.paper_trading._paper_bot_snapshot_file') as mock_file:
+        with patch('api.paper.paper_api._paper_bot_snapshot_file') as mock_file:
             # Create temp file
             temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
             snapshot_data = {
@@ -1088,7 +1106,7 @@ class TestRunnerControl:
 
     def test_get_bot_snapshot_no_file(self, client):
         """Test GET /api/paper/bot/snapshot when file doesn't exist."""
-        with patch('api.paper_trading._paper_bot_snapshot_file') as mock_file:
+        with patch('api.paper.paper_api._paper_bot_snapshot_file') as mock_file:
             mock_file.exists.return_value = False
 
             response = client.get("/api/paper/bot/snapshot")
@@ -1100,10 +1118,10 @@ class TestRunnerControl:
 
     def test_start_bot(self, client):
         """Test POST /api/paper/bot/start."""
-        with patch('api.paper_trading._get_bot_status') as mock_status, \
-             patch('api.paper_trading.subprocess.Popen') as mock_popen, \
-             patch('api.paper_trading._write_runner_pid_file'), \
-             patch('api.paper_trading.Path') as mock_path:
+        with patch('api.paper.bot_control._get_bot_status') as mock_status, \
+             patch('subprocess.Popen') as mock_popen, \
+             patch('api.paper.bot_control._write_runner_pid_file'), \
+             patch('api.paper.bot_control.Path') as mock_path:
 
             mock_status.return_value = {"running": False, "pid": None, "runner_pids": []}
             mock_process = MagicMock()
@@ -1120,7 +1138,7 @@ class TestRunnerControl:
 
     def test_start_bot_already_running(self, client):
         """Test POST /api/paper/bot/start when already running."""
-        with patch('api.paper_trading._get_bot_status') as mock_status:
+        with patch('api.paper.bot_control._get_bot_status') as mock_status:
             mock_status.return_value = {
                 "running": True,
                 "pid": 12345,
@@ -1136,10 +1154,10 @@ class TestRunnerControl:
 
     def test_stop_bot(self, client):
         """Test POST /api/paper/bot/stop."""
-        with patch('api.paper_trading._get_bot_status') as mock_status, \
-             patch('api.paper_trading.subprocess.run') as mock_run, \
-             patch('api.paper_trading._clear_runner_pid_file'), \
-             patch('api.paper_trading._paper_bot_process', None):
+        with patch('api.paper.bot_control._get_bot_status') as mock_status, \
+             patch('subprocess.run') as mock_run, \
+             patch('api.paper.bot_control._clear_runner_pid_file'), \
+             patch('api.paper.bot_control._paper_bot_process', None):
 
             mock_status.return_value = {
                 "running": True,
@@ -1156,7 +1174,7 @@ class TestRunnerControl:
 
     def test_stop_bot_not_running(self, client):
         """Test POST /api/paper/bot/stop when not running."""
-        with patch('api.paper_trading._get_bot_status') as mock_status:
+        with patch('api.paper.bot_control._get_bot_status') as mock_status:
             mock_status.return_value = {
                 "running": False,
                 "pid": None,

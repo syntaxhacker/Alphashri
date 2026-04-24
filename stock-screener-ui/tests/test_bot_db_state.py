@@ -857,7 +857,7 @@ class TestCloseAllDirectDB:
     @pytest.fixture
     def app_client(self, db_engine, user):
         from db.database import get_db
-        from api.bots import router as bots_router
+        from api.bots_api import router as bots_router
         from api.auth import get_current_user
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
@@ -928,7 +928,7 @@ class TestCloseAllDirectDB:
         db.add(pos2)
         db.commit()
 
-        with patch("api.bots.is_bot_running", return_value=(False, None)), \
+        with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
              patch("backtest.costs.calculate_trading_costs", return_value={"total_costs": 50.0}):
             resp = app_client.post(
                 f"/api/bots/{bot.id}/close-all",

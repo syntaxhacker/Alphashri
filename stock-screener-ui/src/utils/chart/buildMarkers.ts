@@ -59,17 +59,11 @@ function applyXAxisMap(idx: number, candleToXAxis?: Map<number, number>): number
   return candleToXAxis?.get(idx) ?? idx;
 }
 
-function findCandleIdx(
-  trade: UnifiedTrade,
+function lookupTimeIndex(
+  key: string,
   times: string[],
   timeToIndex: Map<string, number>,
-  candleToXAxis?: Map<number, number>,
 ): number | undefined {
-  if (trade.candle_idx !== undefined) {
-    return applyXAxisMap(trade.candle_idx, candleToXAxis);
-  }
-
-  const key = trade.entry_time.substring(0, 16);
   const exact = timeToIndex.get(key);
   if (exact !== undefined) return exact;
 
@@ -81,6 +75,18 @@ function findCandleIdx(
   return best >= 0 ? timeToIndex.get(times[best]) : times.length > 0 ? 0 : undefined;
 }
 
+function findCandleIdx(
+  trade: UnifiedTrade,
+  times: string[],
+  timeToIndex: Map<string, number>,
+  candleToXAxis?: Map<number, number>,
+): number | undefined {
+  if (trade.candle_idx !== undefined) {
+    return applyXAxisMap(trade.candle_idx, candleToXAxis);
+  }
+  return lookupTimeIndex(trade.entry_time.substring(0, 16), times, timeToIndex);
+}
+
 function findExitIdx(
   trade: UnifiedTrade,
   times: string[],
@@ -88,21 +94,10 @@ function findExitIdx(
   candleToXAxis?: Map<number, number>,
 ): number | undefined {
   if (!trade.exit_time) return undefined;
-
   if (trade.exit_candle_idx !== undefined) {
     return applyXAxisMap(trade.exit_candle_idx, candleToXAxis);
   }
-
-  const key = trade.exit_time.substring(0, 16);
-  const exact = timeToIndex.get(key);
-  if (exact !== undefined) return exact;
-
-  let best = -1;
-  for (let i = 0; i < times.length; i++) {
-    if (times[i] <= key) best = i;
-    else break;
-  }
-  return best >= 0 ? timeToIndex.get(times[best]) : times.length > 0 ? 0 : undefined;
+  return lookupTimeIndex(trade.exit_time.substring(0, 16), times, timeToIndex);
 }
 
 function getEntrySymbol(trade: UnifiedTrade): { symbol: string; rotate?: number } {

@@ -30,6 +30,9 @@ try:
 except ImportError:
     _config_available = False
 
+# Import shared ORB utilities (single source of truth for OR calculations)
+from trading.orb_utils import calculate_or_levels as utils_calculate_or_levels
+
 console = Console()
 
 
@@ -124,12 +127,14 @@ class ORBSignalGenerator:
         self.or_levels: Dict[str, dict] = {}
         self.active_signals: Dict[str, ORBSignal] = {}
 
-    def calculate_or_levels(self, candles: List[dict]) -> Optional[dict]:
+    def calculate_or_levels(self, candles: List[dict], symbol: str = None) -> Optional[dict]:
         """
         Calculate opening range levels from candles.
+        Uses shared utility from trading.orb_utils (single source of truth).
 
         Args:
             candles: List of 5-min candles with 'time', 'high', 'low', 'close'
+            symbol: Optional symbol for caching OR levels per symbol
 
         Returns:
             Dict with OR levels or None if insufficient data
@@ -137,49 +142,30 @@ class ORBSignalGenerator:
         if not candles:
             return None
 
-        # Filter OR period candles (first 45 mins = 9 candles of 5 min)
-        or_candles = []
-        for candle in candles:
-            candle_time = candle.get('time', '')
-            if isinstance(candle_time, str):
-                try:
-                    dt = datetime.fromisoformat(candle_time)
-                except:
-                    continue
-            else:
-                dt = candle_time
+        # Use shared utility for OR calculation (single source of truth)
+        result = utils_calculate_or_levels(
+            candles=candles,
+            or_minutes=self.or_minutes,
+            market_open=self.MARKET_OPEN,
+        )
 
-            # Handle timezone-aware datetimes
-            if dt.tzinfo is not None:
-                dt = dt.astimezone(config.IST).replace(tzinfo=None)
+        # Cache the result if valid (OR levels should be fixed after OR period)
+        if result and symbol:
+            self.or_levels[symbol] = result
 
-            # Check if within OR period
-            market_open = datetime(dt.year, dt.month, dt.day, *self.MARKET_OPEN)
-            or_end = market_open + timedelta(minutes=self.or_minutes)
+        return result
 
-            if market_open <= dt <= or_end:
-                or_candles.append(candle)
+    def get_cached_or_levels(self, symbol: str) -> Optional[dict]:
+        """
+        Get cached OR levels for a symbol.
 
-        if len(or_candles) < 5:  # Need at least 5 candles
-            return None
+        Args:
+            symbol: Stock symbol
 
-        # Calculate OR levels
-        or_high = max(c['high'] for c in or_candles)
-        or_low = min(c['low'] for c in or_candles)
-        or_open = or_candles[0]['open'] if or_candles else 0  # Day's open
-        or_range = or_high - or_low
-        or_close = or_candles[-1]['close']
-        or_range_pct = (or_range / or_close) * 100 if or_close > 0 else 0
-
-        return {
-            'or_high': or_high,
-            'or_low': or_low,
-            'or_open': or_open,  # Day's open price
-            'or_range': or_range,
-            'or_range_pct': or_range_pct,
-            'or_close': or_close,
-            'or_candles': len(or_candles),
-        }
+        Returns:
+            Cached OR levels or None if not cached
+        """
+        return self.or_levels.get(symbol)
 
     def check_breakout(
         self,

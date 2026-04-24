@@ -37,6 +37,15 @@ class _TimestampedConsole(Console):
 console = _TimestampedConsole()
 from trading.replay_utils import DEFAULT_WATCHLIST, STRATEGY_FILTER_MAP, build_trade_close_event
 from trading.shared_portfolio import SharedPortfolioManager
+
+# Default screener profiles per strategy type (used if not configured)
+STRATEGY_TYPE_DEFAULT_PROFILES = {
+    "ORB": ["volatility_trend"],
+    "SR_BREAKOUT": ["volatility_trend"],
+    "EMA_CROSS": ["trending"],
+    "52W_CHASER": ["near_52w_breakout"],
+    "52W_TARGET": ["near_52w_breakout"],
+}
 from trading.global_risk_manager import GlobalRiskManager
 from trading.journal import get_journal
 from trading.strategy_runner import StrategyRunner, INTRADAY_STRATEGY_TYPES, SWING_STRATEGY_TYPES
@@ -163,7 +172,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         signal.signal(signal.SIGTERM, self._signal_handler)
 
     def _init_common_fields(self):
-        self.watchlist = []
+        self.watchlist = []  # Shared watchlist (fallback)
+        self.strategy_watchlists = {}  # Per-strategy watchlists: {strategy_id: [symbols]}
         self.or_levels = {}
         self.cooldown_stocks: Dict[str, datetime] = {}
         self._screener = None
@@ -325,6 +335,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         """Lazy load screener."""
         if self._screener is None:
             try:
+                import sys as _sys
+                from pathlib import Path as _Path
+                project_root = _Path(__file__).parent.parent
+                scanners_path = project_root / 'scanners'
+                _sys.path.insert(0, str(scanners_path))
+                _sys.path.insert(0, str(project_root.parent))
                 from orb_stock_screener import ORBStockScreener
                 self._screener = ORBStockScreener(use_relaxed=True)
             except ImportError:
@@ -512,6 +528,31 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             console.print(f"[yellow]Failed to restore position {p.symbol}: {e}[/yellow]")
                     if restored > 0:
                         console.print(f"[green]Restored {restored} positions from database[/green]")
+
+                        today_symbols = set()
+                        for pos in self.portfolio.positions.values():
+                            entry_date = pos.entry_time.date() if pos.entry_time else None
+                            if entry_date and entry_date >= now.date():
+                                today_symbols.add(pos.symbol)
+
+                        if today_symbols:
+                            console.print(f"[dim]Fetching fresh prices for {len(today_symbols)} symbols...[/dim]")
+                            fetcher = self._get_data_fetcher()
+                            if fetcher:
+                                close_prices = {}
+                                for symbol in today_symbols:
+                                    try:
+                                        df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+                                        if df is not None and not df.empty:
+                                            close_prices[symbol] = df.iloc[-1]['close']
+                                    except Exception as e:
+                                        console.print(f"[dim red]Price fetch failed for {symbol}: {e}[/dim red]")
+                                if close_prices:
+                                    self.portfolio.update_prices(close_prices)
+                                    console.print(f"[green]Updated prices for {len(close_prices)} symbols[/green]")
+                                    for key, pos in self.portfolio.positions.items():
+                                        self._persist_position_to_db(pos, action="upsert")
+
                         now = self._ist_now()
                         today = now.date()
                         to_close = []
@@ -578,30 +619,39 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         now = self._ist_now()
         return now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]
 
-    def refresh_watchlist(self):
-        """Refresh watchlist from screener (shared across all strategies)."""
+    def refresh_watchlist(self, strategy_id=None):
+        """Refresh watchlist - per strategy if strategy_id provided."""
+        if strategy_id is not None and strategy_id in self.strategies:
+            return self._refresh_strategy_watchlist(strategy_id)
+
         console.print("\n[cyan]Refreshing shared watchlist from screener...[/cyan]")
 
-        screener = self._get_screener()
-        if not screener:
-            console.print("[red]Screener not available - using default watchlist[/red]")
-            if not self.watchlist:
-                self.watchlist = DEFAULT_WATCHLIST.copy()
-            return
-
         try:
-            df = screener.screen(limit=50, verify_nse=True)
+            import sys as _sys
+            from pathlib import Path as _Path
+            this_mod = _sys.modules.get('trading.runner_core', None)
+            _file_ = this_mod.__file__ if this_mod and hasattr(this_mod, '__file__') else None
+            if not _file_:
+                console.print(f"[red]Cannot determine module path[/red]")
+                self.watchlist = DEFAULT_WATCHLIST.copy()
+                return self.watchlist
+            project_root = Path(_file_).parent.parent
+            _sys.path.insert(0, str(project_root.parent / 'scanners'))
+            _sys.path.insert(0, str(project_root.parent))
 
-            if df.empty:
+            import trending_upside as _tu
+            df = _tu.fetch_trending_stocks(limit=50, profile='trending')
+
+            if df is None or df.empty:
                 console.print("[yellow]No stocks from screener - using default watchlist[/yellow]")
                 if not self.watchlist:
                     self.watchlist = DEFAULT_WATCHLIST.copy()
-                return
+                return self.watchlist
 
             self.watchlist = df['name'].tolist()[:20]
             console.print(f"[green]Watchlist updated: {len(self.watchlist)} stocks[/green]")
 
-            table = Table(title="Shared ORB Watchlist")
+            table = Table(title="Shared Watchlist")
             table.add_column("#", width=3)
             table.add_column("Symbol")
             table.add_column("Price", justify="right")
@@ -614,12 +664,71 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 )
 
             console.print(table)
+            return self.watchlist
 
         except Exception as e:
             console.print(f"[red]Error refreshing watchlist: {e}[/red]")
             if not self.watchlist:
                 console.print("[yellow]Using default watchlist[/yellow]")
                 self.watchlist = DEFAULT_WATCHLIST.copy()
+            return self.watchlist
+
+    def _refresh_strategy_watchlist(self, strategy_id):
+        """Refresh watchlist for a specific strategy using its screener profiles."""
+        runner = self.strategies.get(strategy_id)
+        if not runner:
+            return self.watchlist  # Fallback to shared
+
+        config = runner.config if hasattr(runner, 'config') else {}
+        strategy_type = config.get('strategy_type', '')
+
+        # Get profiles from config, or use defaults
+        profiles = config.get('screener_profiles') or STRATEGY_TYPE_DEFAULT_PROFILES.get(
+            strategy_type, ['trending']
+        )
+
+        console.print(f"[cyan]Refreshing watchlist for strategy {strategy_id} ({strategy_type}) with profiles: {profiles}[/cyan]")
+
+        all_symbols = []
+
+        import sys as _sys
+        from pathlib import Path as _Path
+        this_mod = _sys.modules.get('trading.runner_core', None)
+        _file_ = this_mod.__file__ if this_mod and hasattr(this_mod, '__file__') else None
+        if not _file_:
+            console.print(f"[red]Cannot determine module path[/red]")
+            return self.watchlist
+        project_root = Path(_file_).parent.parent
+        _sys.path.insert(0, str(project_root.parent / 'scanners'))
+        _sys.path.insert(0, str(project_root.parent))
+
+        for profile in profiles:
+            try:
+                import trending_upside as _tu
+                df = _tu.fetch_trending_stocks(limit=50, profile=profile)
+                if df is not None and not df.empty:
+                    all_symbols.extend(df['name'].tolist())
+            except Exception as e:
+                console.print(f"[yellow]Error screening with profile {profile}: {e}[/yellow]")
+
+        if not all_symbols:
+            # Fallback to shared watchlist or default
+            if self.watchlist:
+                return self.watchlist
+            return DEFAULT_WATCHLIST.copy()
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_symbols = []
+        for s in all_symbols:
+            if s not in seen:
+                seen.add(s)
+                unique_symbols.append(s)
+
+        # Store per-strategy watchlist
+        self.strategy_watchlists[strategy_id] = unique_symbols[:50]
+        console.print(f"[green]Strategy {strategy_id} watchlist updated: {len(unique_symbols[:50])} stocks[/green]")
+        return self.strategy_watchlists[strategy_id]
 
     def persist_state(self):
         try:
@@ -845,11 +954,14 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         continue
 
                     if cycle % 10 == 0:
-                        self.refresh_watchlist()
+                        self.refresh_watchlist()  # Refresh shared watchlist
 
                     for strategy_id, runner in self.strategies.items():
                         if runner.status == "running":
-                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle % 30 != 0:
+                            # Refresh per-strategy watchlist periodically (every 30 cycles)
+                            if cycle % 30 == 0:
+                                self.refresh_watchlist(strategy_id)
+                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 30 != 0:
                                 continue
                             signals = self.scan_for_signals(strategy_id)
                             for signal in signals:
@@ -1101,7 +1213,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         if not self._replay_on_event:
             return
 
-        from trading.ema_cross_signals import EMACrossSignalGenerator
+        from trading.ema_utils import calculate_ema
 
         for sym in symbols:
             if sym not in provider._daily_data or provider._daily_data[sym].empty:
@@ -1112,10 +1224,11 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             if len(highs) < 2:
                 continue
 
-            high_52w = max(highs[-252:]) if len(highs) >= 252 else max(highs)
+            from trading.week52_utils import calculate_52w_high
+            high_52w = calculate_52w_high(highs, period=252, exclude_current=True)
             current_price = float(closes[-1])
 
-            if current_price > 0 and current_price >= high_52w * 0.95:
+            if current_price > 0 and high_52w is not None and current_price >= high_52w * 0.95:
                 for sid, runner in self.strategies.items():
                     if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
                         n_candles = len(provider._1m_data.get(sym, []))
@@ -1148,8 +1261,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 full_closes = seed_closes + day_closes
                 n_seed = len(seed_closes)
 
-                ema_fast_full = EMACrossSignalGenerator.calculate_ema(full_closes, ema_fast_period)
-                ema_slow_full = EMACrossSignalGenerator.calculate_ema(full_closes, ema_slow_period)
+                ema_fast_full = calculate_ema(full_closes, ema_fast_period, return_full=True)
+                ema_slow_full = calculate_ema(full_closes, ema_slow_period, return_full=True)
                 ema_fast_today = ema_fast_full[n_seed:]
                 ema_slow_today = ema_slow_full[n_seed:]
 
@@ -1158,31 +1271,31 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     tf_full = [full_closes[i:i + tf][-1] for i in range(0, len(full_closes), tf) if full_closes[i:i + tf]]
                     if len(tf_full) < ema_slow_period:
                         continue
-                    ema_f_full = EMACrossSignalGenerator.calculate_ema(tf_full, ema_fast_period)
-                    ema_s_full = EMACrossSignalGenerator.calculate_ema(tf_full, ema_slow_period)
+                    ema_f_full = calculate_ema(tf_full, ema_fast_period, return_full=True)
+                    ema_s_full = calculate_ema(tf_full, ema_slow_period, return_full=True)
                     tf_seed = [seed_closes[i:i + tf][-1] for i in range(0, len(seed_closes), tf) if seed_closes[i:i + tf]]
                     n_seed_tf = len(tf_seed)
                     timeframes[str(tf)] = {
-                        "ema_fast": [round(v, 2) for v in ema_f_full[n_seed_tf:]],
-                        "ema_slow": [round(v, 2) for v in ema_s_full[n_seed_tf:]],
+                        "ema_fast": [round(v, 2) for v in ema_f_full[n_seed_tf:] if v is not None],
+                        "ema_slow": [round(v, 2) for v in ema_s_full[n_seed_tf:] if v is not None],
                     }
 
                 if timeframes:
                     timeframes["1"] = {
-                        "ema_fast": [round(v, 2) for v in ema_fast_today],
-                        "ema_slow": [round(v, 2) for v in ema_slow_today],
+                        "ema_fast": [round(v, 2) for v in ema_fast_today if v is not None],
+                        "ema_slow": [round(v, 2) for v in ema_slow_today if v is not None],
                     }
 
                 if sym in provider._daily_data and not provider._daily_data[sym].empty:
                     daily_closes = provider._daily_data[sym]["close"].tolist()
                     if len(daily_closes) >= ema_slow_period:
-                        daily_ema_f = EMACrossSignalGenerator.calculate_ema(daily_closes, ema_fast_period)
-                        daily_ema_s = EMACrossSignalGenerator.calculate_ema(daily_closes, ema_slow_period)
+                        daily_ema_f = calculate_ema(daily_closes, ema_fast_period, return_full=True)
+                        daily_ema_s = calculate_ema(daily_closes, ema_slow_period, return_full=True)
                         if not timeframes:
                             timeframes = {}
                         timeframes["1440"] = {
-                            "ema_fast": [round(v, 2) for v in daily_ema_f],
-                            "ema_slow": [round(v, 2) for v in daily_ema_s],
+                            "ema_fast": [round(v, 2) for v in daily_ema_f if v is not None],
+                            "ema_slow": [round(v, 2) for v in daily_ema_s if v is not None],
                         }
                     self._replay_on_event({
                         "type": "ema_series",

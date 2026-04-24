@@ -16,6 +16,7 @@ on:
       - 'stock-screener-ui/db/models.py'
       - 'stock-screener-ui/db/migrations/**'
       - 'stock-screener-ui/alembic.ini'
+      - 'stock-screener-ui/scripts/validate_migrations.py'
   schedule:
     - cron: '0 2 * * *'
 
@@ -48,6 +49,10 @@ jobs:
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+      - name: Validate migration file integrity
+        run: |
+          cd stock-screener-ui
+          uv run --python 3.11 python scripts/validate_migrations.py
       - name: Run migrations on test DB
         run: |
           cd stock-screener-ui

@@ -5,94 +5,9 @@ import {
   groupPositionsByStrategy,
   calcStrategySummary,
 } from "./PositionsHelpers";
-import { formatCurrencyIN, formatNumber, formatElapsed } from "../../utils/ui-helpers";
-import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
-
-const mockPosition = (overrides: Partial<PaperPosition> = {}): PaperPosition => ({
-  symbol: "RELIANCE",
-  side: "BUY",
-  quantity: 100,
-  entry_price: 2500,
-  current_price: 2550,
-  entry_time: "2026-03-20T09:30:00Z",
-  stop_loss: 2450,
-  take_profit: 2650,
-  pnl: 5000,
-  pnl_pct: 2.0,
-  margin_used: 250000,
-  order_id: "ord-1",
-  strategy_id: 1,
-  strategy_name: "ORB Strategy",
-  ...overrides,
-});
-
-describe("formatCurrencyIN", () => {
-  test("formats regular numbers with en-IN locale", () => {
-    const result = formatCurrencyIN(12345.67);
-    expect(result).toContain("12,345");
-  });
-
-  test("returns 0 for undefined", () => {
-    expect(formatCurrencyIN(undefined)).toBe("0");
-  });
-
-  test("returns 0 for null", () => {
-    expect(formatCurrencyIN(null)).toBe("0");
-  });
-
-  test("returns 0 for NaN", () => {
-    expect(formatCurrencyIN(NaN)).toBe("0");
-  });
-
-  test("handles zero", () => {
-    expect(formatCurrencyIN(0)).toBe("0");
-  });
-
-  test("handles negative numbers", () => {
-    const result = formatCurrencyIN(-5000);
-    expect(result).toContain("5,000");
-  });
-});
-
-describe("formatNumber", () => {
-  test("formats numbers below 1000 without suffix", () => {
-    expect(formatNumber(500)).toBe("500");
-    expect(formatNumber(999)).toBe("999");
-  });
-
-  test("formats thousands with K suffix", () => {
-    expect(formatNumber(1500)).toBe("1.5K");
-    expect(formatNumber(10000)).toBe("10.0K");
-    expect(formatNumber(99999)).toBe("100.0K");
-  });
-
-  test("formats lakhs with L suffix", () => {
-    expect(formatNumber(100000)).toBe("1.0L");
-    expect(formatNumber(150000)).toBe("1.5L");
-    expect(formatNumber(1000000)).toBe("10.0L");
-  });
-
-  test("handles negative numbers", () => {
-    expect(formatNumber(-1500)).toBe("-1.5K");
-    expect(formatNumber(-100000)).toBe("-1.0L");
-  });
-
-  test("handles zero", () => {
-    expect(formatNumber(0)).toBe("0");
-  });
-
-  test("returns 0 for undefined", () => {
-    expect(formatNumber(undefined)).toBe("0");
-  });
-
-  test("returns 0 for null", () => {
-    expect(formatNumber(null)).toBe("0");
-  });
-
-  test("returns 0 for NaN", () => {
-    expect(formatNumber(NaN)).toBe("0");
-  });
-});
+import { formatElapsed } from "../../utils/ui-helpers";
+import type { PaperScanItem } from "../../types/paperTrading";
+import { mockPosition } from "./testFixtures";
 
 describe("formatElapsed", () => {
   test("returns dash for null", () => {

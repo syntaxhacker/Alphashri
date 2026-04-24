@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 
 from trading.orb_signals import ORBSignal, SignalType
 from trading.base_signals import BaseSignalGenerator
+from trading.week52_utils import calculate_52w_high
 
 
 class Week52TargetSignalGenerator(BaseSignalGenerator):
@@ -35,13 +36,18 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         high_52w = market_data.get("high_52w")
         daily_highs: List[float] = market_data.get("daily_highs", [])
 
-        if current_price is None or high_52w is None:
+        if current_price is None:
             return None
 
-        calculated_high = high_52w
+        # Calculate 52W high from daily highs if available, otherwise use high_52w from market data
+        calculated_high = None
         if daily_highs:
-            window = daily_highs[-252:]
-            calculated_high = max(window)
+            calculated_high = calculate_52w_high(daily_highs)
+        elif high_52w is not None:
+            calculated_high = high_52w
+
+        if calculated_high is None:
+            return None
 
         entry_threshold = calculated_high * (1 - self.entry_threshold_pct / 100)
 

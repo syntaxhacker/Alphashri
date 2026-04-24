@@ -217,7 +217,7 @@ except Exception as e:
 
 # Bots router
 try:
-    from api.bots import router as bots_router
+    from api.bots_api import router as bots_router
     app.include_router(bots_router)
 except Exception as e:
     print(f"⚠️ Bots router not loaded: {e}")
@@ -321,6 +321,17 @@ def client(db: Session, test_user: User) -> TestClient:
         return test_user
     app.dependency_overrides[get_db] = get_test_db
     app.dependency_overrides[get_current_user] = mock_get_current_user
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+def unauth_client(db: Session) -> TestClient:
+    """Test client with DB override but no get_current_user override."""
+    def get_test_db():
+        yield db
+    app.dependency_overrides[get_db] = get_test_db
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

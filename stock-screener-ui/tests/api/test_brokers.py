@@ -31,17 +31,19 @@ from db.models import BrokerConnection, save_broker_token, delete_broker_token
 class TestGetBrokerStatus:
     """Tests for GET /api/brokers/status endpoint."""
 
-    def test_status_returns_disconnected_when_no_token(self, client: TestClient, db: Session):
+    def test_status_returns_disconnected_when_no_token(self, client: TestClient, db: Session, monkeypatch):
         """Test: Returns disconnected when no token exists."""
         delete_broker_token("upstox", user_id=None)
-        response = client.get("/api/brokers/status")
+        with patch("api.brokers.TOKEN_FILE", Path("/nonexistent/.upstox_token.json")):
+            with patch("api.brokers.config.UPSTOX_ACCESS_TOKEN", None):
+                response = client.get("/api/brokers/status")
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["connected"] is False
-        assert data["broker"] == "upstox"
-        assert data["expires_in_hours"] is None
-        assert data["expires_at"] is None
+                assert response.status_code == 200
+                data = response.json()
+                assert data["connected"] is False
+                assert data["broker"] == "upstox"
+                assert data["expires_in_hours"] is None
+                assert data["expires_at"] is None
 
     def test_status_returns_connected_with_valid_db_token(self, client: TestClient, db: Session):
         """Test: Returns connected with valid token from database."""
@@ -255,33 +257,35 @@ class TestUpstoxCallback:
 class TestUpstoxDisconnect:
     """Tests for POST /api/brokers/upstox/disconnect endpoint."""
 
-    def test_disconnect_returns_success(self, client: TestClient, db: Session):
+    def test_disconnect_returns_success(self, auth_client: TestClient, db: Session):
         """Test: Disconnect returns success."""
-        response = client.post("/api/brokers/upstox/disconnect")
+        response = auth_client.post("/api/brokers/upstox/disconnect")
 
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
 
-    def test_disconnect_removes_db_token(self, client: TestClient, db: Session):
+    def test_disconnect_removes_db_token(self, auth_client: TestClient, db: Session):
         """Test: Disconnect removes token from database."""
         save_broker_token("upstox", "token_to_delete", user_id=None)
 
-        response = client.post("/api/brokers/upstox/disconnect")
+        response = auth_client.post("/api/brokers/upstox/disconnect")
 
         assert response.status_code == 200
 
-        status_response = client.get("/api/brokers/status")
-        assert status_response.json()["connected"] is False
+        with patch("api.brokers.config.UPSTOX_ACCESS_TOKEN", None):
+            with patch("api.brokers.TOKEN_FILE", Path("/nonexistent/.upstox_token.json")):
+                status_response = auth_client.get("/api/brokers/status")
+                assert status_response.json()["connected"] is False
 
-    def test_disconnect_removes_file_token(self, client: TestClient, db: Session, tmp_path: Path):
+    def test_disconnect_removes_file_token(self, auth_client: TestClient, db: Session, tmp_path: Path):
         """Test: Disconnect removes file token."""
         token_file = tmp_path / ".upstox_token.json"
         with open(token_file, "w") as f:
             json.dump({"access_token": "file_token"}, f)
 
         with patch("api.brokers.TOKEN_FILE", token_file):
-            response = client.post("/api/brokers/upstox/disconnect")
+            response = auth_client.post("/api/brokers/upstox/disconnect")
 
             assert response.status_code == 200
             assert not token_file.exists()

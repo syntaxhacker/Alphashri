@@ -19,6 +19,20 @@ export const CANDLESTICK_ITEM_STYLE = {
   borderColor0: "#FF1744",
 };
 
+export function getCandleChange(open: number, close: number) {
+  const change = open > 0 ? (((close - open) / open) * 100).toFixed(2) : "0";
+  const changeColor = close >= open ? CANDLESTICK_ITEM_STYLE.color : CANDLESTICK_ITEM_STYLE.color0;
+  return { change, changeColor };
+}
+
+export function getCandleFromParams(params: any[], candles: { open: number; close: number; [key: string]: any }[]) {
+  const candle = params.find((p: any) => p.seriesType === "candlestick");
+  if (!candle) return null;
+  const c = candles[candle.dataIndex];
+  if (!c) return null;
+  return { candle: c, change: getCandleChange(c.open, c.close) };
+}
+
 export function formatVolume(vol: number): string {
   if (vol >= 1000000) return (vol / 1000000).toFixed(1) + "M";
   if (vol >= 1000) return (vol / 1000).toFixed(1) + "K";

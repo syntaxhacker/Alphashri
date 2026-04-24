@@ -10,6 +10,7 @@ import type { ORBZone } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import { formatTimeLabel } from "../../utils/chartTimeUtils";
+import { getCandleChange, getCandleFromParams } from "../../utils/chartUtils";
 export { buildPivotSeries, formatTimeLabel };
 
 export type ChartSize = "preview" | "expanded" | "full";
@@ -289,15 +290,11 @@ export function buildORBLine(
  * Format tooltip content.
  */
 export function formatTooltip(params: any, candles: PreviewCandle[], isDark: boolean): string {
-  const candle = params.find((p: any) => p.seriesType === "candlestick");
-  if (!candle) return "";
+  const result = getCandleFromParams(params, candles);
+  if (!result) return "";
 
-  const idx = candle.dataIndex;
-  const c = candles[idx];
-  if (!c) return "";
-
-  const change = c.open > 0 ? (((c.close - c.open) / c.open) * 100).toFixed(2) : "0";
-  const changeColor = c.close >= c.open ? "#00E676" : "#FF1744";
+  const c = result.candle;
+  const { change, changeColor } = result.change;
   const textColor = isDark ? "#e0e0e0" : "#333333";
   const fontFamily = theme.fontFamily;
   const fontSizes = theme.fontSizes;

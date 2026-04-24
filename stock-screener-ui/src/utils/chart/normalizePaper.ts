@@ -1,13 +1,12 @@
 import type { PaperChartData } from "../../types/paperTrading";
 import type {
   ChartInput,
-  UnifiedCandle,
-  UnifiedTrade,
   UnifiedOverlay,
   UnifiedLivePosition,
   MarkLineData,
   MarkAreaItem,
 } from "../chart/types";
+import { mapCandles, mapTrades } from "./normalizeCommon";
 
 export function normalizePaper(
   data: PaperChartData,
@@ -19,27 +18,9 @@ export function normalizePaper(
   show52wLines?: boolean,
   showEmaLines?: boolean,
 ): ChartInput {
-  const candles: UnifiedCandle[] = data.candles.map((c) => ({
-    time: c.time,
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close,
-    volume: c.volume,
-  }));
+  const candles = mapCandles(data.candles);
 
-  const trades: UnifiedTrade[] = data.trades.map((t, idx) => ({
-    id: parseInt(t.trade_id, 10) || idx,
-    entry_price: t.entry_price,
-    exit_price: t.exit_price,
-    entry_time: t.entry_time,
-    exit_time: t.exit_time,
-    exit_reason: t.exit_reason,
-    quantity: t.quantity,
-    side: t.side as "BUY" | "SELL",
-    pnl: t.net_pnl,
-    costs: t.costs,
-  }));
+  const trades = mapTrades(data.trades, (t, idx) => parseInt((t as PaperChartData["trades"][number]).trade_id, 10) || idx);
 
   const overlays: UnifiedOverlay[] = [];
   const markLines: MarkLineData[] = [];

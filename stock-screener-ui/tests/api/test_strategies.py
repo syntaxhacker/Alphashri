@@ -31,11 +31,11 @@ class TestListStrategies:
     """Tests for GET /api/strategies endpoint."""
 
     def test_list_all_non_template_strategies(
-        self, client: TestClient, sample_template_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_template_strategy: StrategyConfig,
         sample_strategies: list[StrategyConfig]
     ):
         """Test listing all non-template strategies."""
-        response = client.get("/api/strategies")
+        response = auth_client.get("/api/strategies")
         assert response.status_code == 200
 
         data = response.json()
@@ -48,12 +48,12 @@ class TestListStrategies:
             assert strategy["is_template"] is False
 
     def test_list_with_include_templates_true(
-        self, client: TestClient,
+        self, auth_client: TestClient,
         sample_template_strategy: StrategyConfig,
         sample_strategies: list[StrategyConfig]
     ):
         """Test listing with include_templates=true."""
-        response = client.get("/api/strategies?include_templates=true")
+        response = auth_client.get("/api/strategies?include_templates=true")
         assert response.status_code == 200
 
         data = response.json()
@@ -65,13 +65,13 @@ class TestListStrategies:
         assert sample_template_strategy.uuid in template_uuids
 
     def test_filter_by_strategy_type(
-        self, client: TestClient,
+        self, auth_client: TestClient,
         sample_template_strategy: StrategyConfig,
         sample_strategies: list[StrategyConfig]
     ):
         """Test filtering by strategy_type."""
         # First get all ORB strategies
-        response = client.get("/api/strategies?strategy_type=ORB")
+        response = auth_client.get("/api/strategies?strategy_type=ORB")
         assert response.status_code == 200
 
         data = response.json()
@@ -79,16 +79,16 @@ class TestListStrategies:
             assert strategy["strategy_type"] == "ORB"
 
         # Then get 52W_CHASER strategies
-        response = client.get("/api/strategies?strategy_type=52W_CHASER")
+        response = auth_client.get("/api/strategies?strategy_type=52W_CHASER")
         assert response.status_code == 200
 
         data = response.json()
         for strategy in data["strategies"]:
             assert strategy["strategy_type"] == "52W_CHASER"
 
-    def test_response_structure(self, client: TestClient, sample_strategy: StrategyConfig):
+    def test_response_structure(self, auth_client: TestClient, sample_strategy: StrategyConfig):
         """Test response has correct structure."""
-        response = client.get("/api/strategies")
+        response = auth_client.get("/api/strategies")
         assert response.status_code == 200
 
         data = response.json()
@@ -97,10 +97,10 @@ class TestListStrategies:
         assert data["count"] == len(data["strategies"])
 
     def test_strategies_sorted_by_type_and_name(
-        self, client: TestClient, sample_strategies: list[StrategyConfig]
+        self, auth_client: TestClient, sample_strategies: list[StrategyConfig]
     ):
         """Test strategies are sorted by type then name."""
-        response = client.get("/api/strategies")
+        response = auth_client.get("/api/strategies")
         assert response.status_code == 200
 
         data = response.json()
@@ -115,9 +115,9 @@ class TestListStrategies:
                 or current["name"] <= next_item["name"]
             )
 
-    def test_list_empty_database(self, client: TestClient, db: Session):
+    def test_list_empty_database(self, auth_client: TestClient, db: Session):
         """Test listing strategies when database is empty."""
-        response = client.get("/api/strategies")
+        response = auth_client.get("/api/strategies")
         assert response.status_code == 200
 
         data = response.json()
@@ -133,10 +133,10 @@ class TestListTemplates:
     """Tests for GET /api/strategies/templates endpoint."""
 
     def test_list_all_active_templates(
-        self, client: TestClient, sample_template_strategies: list[StrategyConfig]
+        self, auth_client: TestClient, sample_template_strategies: list[StrategyConfig]
     ):
         """Test listing all active templates."""
-        response = client.get("/api/strategies/templates")
+        response = auth_client.get("/api/strategies/templates")
         assert response.status_code == 200
 
         data = response.json()
@@ -148,12 +148,12 @@ class TestListTemplates:
         assert data["count"] == len(active_templates)
 
     def test_only_templates_returned(
-        self, client: TestClient,
+        self, auth_client: TestClient,
         sample_template_strategy: StrategyConfig,
         sample_strategy: StrategyConfig
     ):
         """Test only templates with is_template=True are returned."""
-        response = client.get("/api/strategies/templates")
+        response = auth_client.get("/api/strategies/templates")
         assert response.status_code == 200
 
         data = response.json()
@@ -162,10 +162,10 @@ class TestListTemplates:
             assert template["is_active"] is True
 
     def test_inactive_templates_not_returned(
-        self, client: TestClient, sample_template_strategies: list[StrategyConfig]
+        self, auth_client: TestClient, sample_template_strategies: list[StrategyConfig]
     ):
         """Test inactive templates are not returned."""
-        response = client.get("/api/strategies/templates")
+        response = auth_client.get("/api/strategies/templates")
         assert response.status_code == 200
 
         data = response.json()
@@ -175,10 +175,10 @@ class TestListTemplates:
         assert "Inactive Template" not in template_names
 
     def test_templates_sorted_by_name(
-        self, client: TestClient, sample_template_strategies: list[StrategyConfig]
+        self, auth_client: TestClient, sample_template_strategies: list[StrategyConfig]
     ):
         """Test templates are sorted by name."""
-        response = client.get("/api/strategies/templates")
+        response = auth_client.get("/api/strategies/templates")
         assert response.status_code == 200
 
         data = response.json()
@@ -187,9 +187,9 @@ class TestListTemplates:
         for i in range(len(templates) - 1):
             assert templates[i]["name"] <= templates[i + 1]["name"]
 
-    def test_empty_templates_list(self, client: TestClient, db: Session):
+    def test_empty_templates_list(self, auth_client: TestClient, db: Session):
         """Test listing templates when none exist."""
-        response = client.get("/api/strategies/templates")
+        response = auth_client.get("/api/strategies/templates")
         assert response.status_code == 200
 
         data = response.json()
@@ -204,9 +204,9 @@ class TestListTemplates:
 class TestGetStrategy:
     """Tests for GET /api/strategies/{id} endpoint."""
 
-    def test_get_existing_strategy(self, client: TestClient, sample_strategy: StrategyConfig):
+    def test_get_existing_strategy(self, auth_client: TestClient, sample_strategy: StrategyConfig):
         """Test getting an existing strategy by ID."""
-        response = client.get(f"/api/strategies/{sample_strategy.id}")
+        response = auth_client.get(f"/api/strategies/{sample_strategy.id}")
         assert response.status_code == 200
 
         data = response.json()
@@ -214,19 +214,19 @@ class TestGetStrategy:
         assert data["strategy"]["id"] == sample_strategy.uuid
         assert data["strategy"]["name"] == sample_strategy.name
 
-    def test_get_non_existent_strategy(self, client: TestClient):
+    def test_get_non_existent_strategy(self, auth_client: TestClient):
         """Test getting a non-existent strategy returns 404."""
-        response = client.get("/api/strategies/99999")
+        response = auth_client.get("/api/strategies/99999")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
     def test_get_template_includes_variations(
-        self, client: TestClient,
+        self, auth_client: TestClient,
         sample_template_strategy: StrategyConfig,
         sample_strategies: list[StrategyConfig]
     ):
         """Test that getting a template includes its variations."""
-        response = client.get(f"/api/strategies/{sample_template_strategy.id}")
+        response = auth_client.get(f"/api/strategies/{sample_template_strategy.id}")
         assert response.status_code == 200
 
         data = response.json()
@@ -241,9 +241,9 @@ class TestGetStrategy:
             assert variation["is_active"] is True
             assert variation["parent_id"] == sample_template_strategy.id
 
-    def test_get_non_template_no_variations(self, client: TestClient, sample_strategy: StrategyConfig):
+    def test_get_non_template_no_variations(self, auth_client: TestClient, sample_strategy: StrategyConfig):
         """Test that getting a non-template strategy returns empty variations."""
-        response = client.get(f"/api/strategies/{sample_strategy.id}")
+        response = auth_client.get(f"/api/strategies/{sample_strategy.id}")
         assert response.status_code == 200
 
         data = response.json()
@@ -252,9 +252,9 @@ class TestGetStrategy:
         # Non-templates should have empty variations list
         assert data["variations"] == []
 
-    def test_get_strategy_response_structure(self, client: TestClient, sample_strategy: StrategyConfig):
+    def test_get_strategy_response_structure(self, auth_client: TestClient, sample_strategy: StrategyConfig):
         """Test get strategy response has all expected fields."""
-        response = client.get(f"/api/strategies/{sample_strategy.id}")
+        response = auth_client.get(f"/api/strategies/{sample_strategy.id}")
         assert response.status_code == 200
 
         data = response.json()
@@ -286,14 +286,14 @@ class TestGetStrategy:
 class TestCreateStrategy:
     """Tests for POST /api/strategies endpoint."""
 
-    def test_create_strategy_with_minimal_fields(self, client: TestClient, db: Session):
+    def test_create_strategy_with_minimal_fields(self, auth_client: TestClient, db: Session):
         """Test creating a strategy with minimal required fields."""
         strategy_data = {
             "name": "Minimal Strategy",
             "strategy_type": "ORB"
         }
 
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -311,7 +311,7 @@ class TestCreateStrategy:
         assert strategy is not None
 
     def test_create_strategy_with_all_parameters(
-        self, client: TestClient, sample_template_strategy: StrategyConfig
+        self, auth_client: TestClient, sample_template_strategy: StrategyConfig
     ):
         """Test creating a strategy with all parameters."""
         strategy_data = {
@@ -335,7 +335,7 @@ class TestCreateStrategy:
             "max_distance_from_or_pct": 1.3,
         }
 
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -348,7 +348,7 @@ class TestCreateStrategy:
         assert strategy["max_positions"] == 4
 
     def test_create_strategy_from_template(
-        self, client: TestClient, sample_template_strategy: StrategyConfig, db: Session
+        self, auth_client: TestClient, sample_template_strategy: StrategyConfig, db: Session
     ):
         """Test creating a strategy from template (with parent_id)."""
         strategy_data = {
@@ -361,7 +361,7 @@ class TestCreateStrategy:
             "tp_pct": 1.8,
         }
 
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -373,18 +373,18 @@ class TestCreateStrategy:
         assert strategy["tp_pct"] == 1.8  # Overridden
         assert strategy["or_minutes"] == 45  # Inherited from template
 
-    def test_create_with_duplicate_name(self, client: TestClient, sample_strategy: StrategyConfig):
+    def test_create_with_duplicate_name(self, auth_client: TestClient, sample_strategy: StrategyConfig):
         """Test creating with duplicate name returns 400."""
         strategy_data = {
             "name": sample_strategy.name,  # Duplicate
             "strategy_type": "ORB"
         }
 
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"].lower()
 
-    def test_create_with_non_existent_parent_id(self, client: TestClient):
+    def test_create_with_non_existent_parent_id(self, auth_client: TestClient):
         """Test creating with non-existent parent_id returns 400."""
         strategy_data = {
             "name": "Orphan Strategy",
@@ -392,12 +392,12 @@ class TestCreateStrategy:
             "parent_id": 99999  # Non-existent
         }
 
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 400
         assert "parent" in response.json()["detail"].lower()
 
     def test_verify_parent_defaults_inherited(
-        self, client: TestClient, sample_template_strategy: StrategyConfig
+        self, auth_client: TestClient, sample_template_strategy: StrategyConfig
     ):
         """Test that parent defaults are properly inherited."""
         # Template has specific values
@@ -412,7 +412,7 @@ class TestCreateStrategy:
             "tp_pct": 2.0,
         }
 
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -425,7 +425,7 @@ class TestCreateStrategy:
         assert strategy["tp_pct"] == 2.0
 
     def test_verify_request_values_override_parent_defaults(
-        self, client: TestClient, sample_template_strategy: StrategyConfig
+        self, auth_client: TestClient, sample_template_strategy: StrategyConfig
     ):
         """Test that request values override parent defaults."""
         strategy_data = {
@@ -438,7 +438,7 @@ class TestCreateStrategy:
             "max_positions": 10,
         }
 
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -449,7 +449,7 @@ class TestCreateStrategy:
         assert strategy["max_positions"] == 10
 
     def test_verify_strategy_created_in_database(
-        self, client: TestClient, db: Session
+        self, auth_client: TestClient, db: Session
     ):
         """Test that strategy is persisted to database."""
         strategy_data = {
@@ -457,7 +457,7 @@ class TestCreateStrategy:
             "strategy_type": "ORB"
         }
 
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 200
 
         strategy_uuid = response.json()["strategy"]["id"]
@@ -477,12 +477,12 @@ class TestCreateStrategy:
 class TestUpdateStrategy:
     """Tests for PUT /api/strategies/{id} endpoint."""
 
-    def test_update_strategy_name(self, client: TestClient, sample_strategy: StrategyConfig, db: Session):
+    def test_update_strategy_name(self, auth_client: TestClient, sample_strategy: StrategyConfig, db: Session):
         """Test updating strategy name."""
         new_name = "Updated Strategy Name"
         update_data = {"name": new_name}
 
-        response = client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
+        response = auth_client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -493,7 +493,7 @@ class TestUpdateStrategy:
         db.refresh(sample_strategy)
         assert sample_strategy.name == new_name
 
-    def test_update_strategy_parameters(self, client: TestClient, sample_strategy: StrategyConfig):
+    def test_update_strategy_parameters(self, auth_client: TestClient, sample_strategy: StrategyConfig):
         """Test updating strategy parameters (sl_pct, tp_pct, etc.)."""
         update_data = {
             "sl_pct": 0.6,
@@ -502,7 +502,7 @@ class TestUpdateStrategy:
             "or_minutes": 20,
         }
 
-        response = client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
+        response = auth_client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -513,11 +513,11 @@ class TestUpdateStrategy:
         assert strategy["max_positions"] == 8
         assert strategy["or_minutes"] == 20
 
-    def test_update_is_active_status(self, client: TestClient, sample_strategy: StrategyConfig):
+    def test_update_is_active_status(self, auth_client: TestClient, sample_strategy: StrategyConfig):
         """Test updating is_active status."""
         update_data = {"is_active": False}
 
-        response = client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
+        response = auth_client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -525,14 +525,14 @@ class TestUpdateStrategy:
 
         # Reactivate
         update_data = {"is_active": True}
-        response = client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
+        response = auth_client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
         assert response.status_code == 200
 
         data = response.json()
         assert data["strategy"]["is_active"] is True
 
     def test_set_strategy_as_default(
-        self, client: TestClient, sample_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_strategy: StrategyConfig,
         default_strategy: StrategyConfig, db: Session
     ):
         """Test setting strategy as default (is_default=True)."""
@@ -540,7 +540,7 @@ class TestUpdateStrategy:
         assert default_strategy.is_default is True
 
         update_data = {"is_default": True}
-        response = client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
+        response = auth_client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
         assert response.status_code == 200
 
         # Old default should be unset
@@ -551,24 +551,24 @@ class TestUpdateStrategy:
         data = response.json()
         assert data["strategy"]["is_default"] is True
 
-    def test_update_non_existent_strategy(self, client: TestClient):
+    def test_update_non_existent_strategy(self, auth_client: TestClient):
         """Test updating non-existent strategy returns 404."""
         update_data = {"name": "New Name"}
 
-        response = client.put("/api/strategies/99999", json=update_data)
+        response = auth_client.put("/api/strategies/99999", json=update_data)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    def test_update_template_strategy(self, client: TestClient, sample_template_strategy: StrategyConfig):
+    def test_update_template_strategy(self, auth_client: TestClient, sample_template_strategy: StrategyConfig):
         """Test updating template strategy returns 400."""
         update_data = {"name": "Should Not Work"}
 
-        response = client.put(f"/api/strategies/{sample_template_strategy.id}", json=update_data)
+        response = auth_client.put(f"/api/strategies/{sample_template_strategy.id}", json=update_data)
         assert response.status_code == 400
         assert "template" in response.json()["detail"].lower()
 
     def test_verify_other_defaults_unset_when_setting_new_default(
-        self, client: TestClient, db: Session
+        self, auth_client: TestClient, db: Session
     ):
         """Test that other defaults are unset when setting new default."""
         # Create multiple strategies
@@ -589,7 +589,7 @@ class TestUpdateStrategy:
         assert strategies[0].is_default is True
 
         # Set second as default
-        response = client.put(f"/api/strategies/{strategies[1].id}", json={"is_default": True})
+        response = auth_client.put(f"/api/strategies/{strategies[1].id}", json={"is_default": True})
         assert response.status_code == 200
 
         # Check all strategies
@@ -602,14 +602,14 @@ class TestUpdateStrategy:
         assert strategies[2].is_default is False
 
     def test_verify_changes_persisted(
-        self, client: TestClient, sample_strategy: StrategyConfig, db: Session
+        self, auth_client: TestClient, sample_strategy: StrategyConfig, db: Session
     ):
         """Test that changes are persisted to database."""
         original_description = sample_strategy.description
         new_description = "Updated description"
 
         update_data = {"description": new_description}
-        response = client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
+        response = auth_client.put(f"/api/strategies/{sample_strategy.id}", json=update_data)
         assert response.status_code == 200
 
         # Clear session and reload from database
@@ -628,7 +628,7 @@ class TestUpdateStrategy:
 class TestDeleteStrategy:
     """Tests for DELETE /api/strategies/{id} endpoint."""
 
-    def test_delete_existing_strategy(self, client: TestClient, db: Session):
+    def test_delete_existing_strategy(self, auth_client: TestClient, db: Session):
         """Test deleting existing strategy (soft delete)."""
         strategy = StrategyConfig(
             name="To Be Deleted",
@@ -640,27 +640,27 @@ class TestDeleteStrategy:
         db.commit()
         strategy_id = strategy.id
 
-        response = client.delete(f"/api/strategies/{strategy_id}")
+        response = auth_client.delete(f"/api/strategies/{strategy_id}")
         assert response.status_code == 200
 
         data = response.json()
         assert data["status"] == "success"
         assert "deleted" in data["message"].lower()
 
-    def test_delete_non_existent_strategy(self, client: TestClient):
+    def test_delete_non_existent_strategy(self, auth_client: TestClient):
         """Test deleting non-existent strategy returns 404."""
-        response = client.delete("/api/strategies/99999")
+        response = auth_client.delete("/api/strategies/99999")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    def test_delete_template_strategy(self, client: TestClient, sample_template_strategy: StrategyConfig):
+    def test_delete_template_strategy(self, auth_client: TestClient, sample_template_strategy: StrategyConfig):
         """Test deleting template strategy returns 400."""
-        response = client.delete(f"/api/strategies/{sample_template_strategy.id}")
+        response = auth_client.delete(f"/api/strategies/{sample_template_strategy.id}")
         assert response.status_code == 400
         assert "template" in response.json()["detail"].lower()
 
     def test_verify_is_active_set_to_false(
-        self, client: TestClient, db: Session
+        self, auth_client: TestClient, db: Session
     ):
         """Test that is_active is set to False after soft delete."""
         strategy = StrategyConfig(
@@ -673,7 +673,7 @@ class TestDeleteStrategy:
         db.commit()
         strategy_id = strategy.id
 
-        response = client.delete(f"/api/strategies/{strategy_id}")
+        response = auth_client.delete(f"/api/strategies/{strategy_id}")
         assert response.status_code == 200
 
         # Verify is_active is False
@@ -681,7 +681,7 @@ class TestDeleteStrategy:
         assert strategy.is_active is False
 
     def test_verify_strategy_still_exists_in_database(
-        self, client: TestClient, db: Session
+        self, auth_client: TestClient, db: Session
     ):
         """Test that strategy still exists in database after soft delete."""
         strategy = StrategyConfig(
@@ -694,7 +694,7 @@ class TestDeleteStrategy:
         db.commit()
         strategy_id = strategy.id
 
-        response = client.delete(f"/api/strategies/{strategy_id}")
+        response = auth_client.delete(f"/api/strategies/{strategy_id}")
         assert response.status_code == 200
 
         # Strategy should still exist in database
@@ -705,7 +705,7 @@ class TestDeleteStrategy:
         assert deleted_strategy.is_active is False
 
     def test_deleted_strategy_marked_inactive(
-        self, client: TestClient, db: Session
+        self, auth_client: TestClient, db: Session
     ):
         """Test that deleted strategy is marked as inactive (soft delete)."""
         strategy = StrategyConfig(
@@ -723,7 +723,7 @@ class TestDeleteStrategy:
         assert strategy.is_active is True
 
         # Delete it (soft delete)
-        response = client.delete(f"/api/strategies/{strategy_id}")
+        response = auth_client.delete(f"/api/strategies/{strategy_id}")
         assert response.status_code == 200
 
         # Verify is_active is set to False
@@ -732,7 +732,7 @@ class TestDeleteStrategy:
 
         # Note: The list endpoint doesn't filter by is_active,
         # so the strategy will still appear in the list but with is_active=False
-        response = client.get(f"/api/strategies/{strategy_id}")
+        response = auth_client.get(f"/api/strategies/{strategy_id}")
         assert response.status_code == 200
         assert response.json()["strategy"]["is_active"] is False
 
@@ -745,11 +745,11 @@ class TestGetStrategyPerformance:
     """Tests for GET /api/strategies/{id}/performance endpoint."""
 
     def test_get_performance_for_strategy_with_trades(
-        self, client: TestClient, sample_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_strategy: StrategyConfig,
         mock_load_all_trades
     ):
         """Test getting performance for strategy with trades."""
-        response = client.get(f"/api/strategies/{sample_strategy.id}/performance")
+        response = auth_client.get(f"/api/strategies/{sample_strategy.id}/performance")
         assert response.status_code == 200
 
         data = response.json()
@@ -762,14 +762,14 @@ class TestGetStrategyPerformance:
         assert "net_pnl" in data
 
     def test_get_performance_for_strategy_with_no_trades(
-        self, client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+        self, auth_client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
     ):
         """Test getting performance for strategy with no trades."""
         # Mock to return empty trades for this specific test
         def mock_load_empty(user_id: int):
             return []
 
-        monkeypatch.setattr("api.strategies._load_all_trades", mock_load_empty)
+        monkeypatch.setattr("api.strat_api.strat_query._load_all_trades", mock_load_empty)
 
         strategy = StrategyConfig(
             name="No Trades Strategy",
@@ -780,7 +780,7 @@ class TestGetStrategyPerformance:
         db.add(strategy)
         db.commit()
 
-        response = client.get(f"/api/strategies/{strategy.id}/performance")
+        response = auth_client.get(f"/api/strategies/{strategy.id}/performance")
         assert response.status_code == 200
 
         data = response.json()
@@ -791,19 +791,19 @@ class TestGetStrategyPerformance:
         assert data["net_pnl"] == 0
 
     def test_filter_out_test_trades(
-        self, client: TestClient, sample_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_strategy: StrategyConfig,
         mock_load_all_trades
     ):
         """Test filtering out test trades (include_test=false)."""
         # First get all trades
-        response = client.get(
+        response = auth_client.get(
             f"/api/strategies/{sample_strategy.id}/performance?include_test=true"
         )
         assert response.status_code == 200
         data_with_test = response.json()
 
         # Then get without test trades
-        response = client.get(
+        response = auth_client.get(
             f"/api/strategies/{sample_strategy.id}/performance?include_test=false"
         )
         assert response.status_code == 200
@@ -812,17 +812,17 @@ class TestGetStrategyPerformance:
         # Without test trades should have fewer or equal trades
         assert data_without_test["total_trades"] <= data_with_test["total_trades"]
 
-    def test_get_performance_for_non_existent_strategy(self, client: TestClient):
+    def test_get_performance_for_non_existent_strategy(self, auth_client: TestClient):
         """Test getting performance for non-existent strategy returns 404."""
-        response = client.get("/api/strategies/99999/performance")
+        response = auth_client.get("/api/strategies/99999/performance")
         assert response.status_code == 404
 
     def test_verify_performance_stats(
-        self, client: TestClient, sample_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_strategy: StrategyConfig,
         mock_load_all_trades
     ):
         """Test performance stats are calculated correctly."""
-        response = client.get(f"/api/strategies/{sample_strategy.id}/performance")
+        response = auth_client.get(f"/api/strategies/{sample_strategy.id}/performance")
         assert response.status_code == 200
 
         data = response.json()
@@ -839,11 +839,11 @@ class TestGetStrategyPerformance:
         assert data["win_rate"] == round(expected_win_rate, 1)
 
     def test_verify_test_trades_count(
-        self, client: TestClient, sample_template_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_template_strategy: StrategyConfig,
         mock_load_all_trades
     ):
         """Test that test_trades count and has_test_data flag are correct."""
-        response = client.get(f"/api/strategies/{sample_template_strategy.id}/performance")
+        response = auth_client.get(f"/api/strategies/{sample_template_strategy.id}/performance")
         assert response.status_code == 200
 
         data = response.json()
@@ -862,11 +862,11 @@ class TestGetStrategyTrades:
     """Tests for GET /api/strategies/{id}/trades endpoint."""
 
     def test_get_trades_with_default_limit(
-        self, client: TestClient, sample_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_strategy: StrategyConfig,
         mock_load_all_trades
     ):
         """Test getting trades with default limit (50)."""
-        response = client.get(f"/api/strategies/{sample_strategy.id}/trades")
+        response = auth_client.get(f"/api/strategies/{sample_strategy.id}/trades")
         assert response.status_code == 200
 
         data = response.json()
@@ -876,12 +876,12 @@ class TestGetStrategyTrades:
         assert len(data["trades"]) <= 50  # Default limit
 
     def test_get_trades_with_custom_limit(
-        self, client: TestClient, sample_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_strategy: StrategyConfig,
         mock_load_all_trades
     ):
         """Test getting trades with custom limit."""
         limit = 2
-        response = client.get(
+        response = auth_client.get(
             f"/api/strategies/{sample_strategy.id}/trades?limit={limit}"
         )
         assert response.status_code == 200
@@ -890,18 +890,18 @@ class TestGetStrategyTrades:
         assert len(data["trades"]) <= limit
 
     def test_filter_out_test_trades(
-        self, client: TestClient, sample_template_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_template_strategy: StrategyConfig,
         mock_load_all_trades
     ):
         """Test filtering out test trades (include_test=false)."""
         # Get with test trades
-        response = client.get(
+        response = auth_client.get(
             f"/api/strategies/{sample_template_strategy.id}/trades?include_test=true"
         )
         data_with_test = response.json()
 
         # Get without test trades
-        response = client.get(
+        response = auth_client.get(
             f"/api/strategies/{sample_template_strategy.id}/trades?include_test=false"
         )
         data_without_test = response.json()
@@ -909,17 +909,17 @@ class TestGetStrategyTrades:
         # Without test trades should have fewer or equal
         assert len(data_without_test["trades"]) <= len(data_with_test["trades"])
 
-    def test_get_trades_for_non_existent_strategy(self, client: TestClient):
+    def test_get_trades_for_non_existent_strategy(self, auth_client: TestClient):
         """Test getting trades for non-existent strategy returns 404."""
-        response = client.get("/api/strategies/99999/trades")
+        response = auth_client.get("/api/strategies/99999/trades")
         assert response.status_code == 404
 
     def test_verify_trades_sorted_by_exit_time(
-        self, client: TestClient, sample_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_strategy: StrategyConfig,
         mock_load_all_trades
     ):
         """Test trades are sorted by exit_time descending."""
-        response = client.get(f"/api/strategies/{sample_strategy.id}/trades")
+        response = auth_client.get(f"/api/strategies/{sample_strategy.id}/trades")
         assert response.status_code == 200
 
         data = response.json()
@@ -931,11 +931,11 @@ class TestGetStrategyTrades:
                 assert trades[i]["exit_time"] >= trades[i + 1]["exit_time"]
 
     def test_verify_response_includes_strategy_name(
-        self, client: TestClient, sample_strategy: StrategyConfig,
+        self, auth_client: TestClient, sample_strategy: StrategyConfig,
         mock_load_all_trades
     ):
         """Test response includes strategy_name."""
-        response = client.get(f"/api/strategies/{sample_strategy.id}/trades")
+        response = auth_client.get(f"/api/strategies/{sample_strategy.id}/trades")
         assert response.status_code == 200
 
         data = response.json()
@@ -951,12 +951,12 @@ class TestGetStrategyVariations:
     """Tests for GET /api/strategies/{id}/variations endpoint."""
 
     def test_get_variations_for_template_strategy(
-        self, client: TestClient,
+        self, auth_client: TestClient,
         sample_template_strategy: StrategyConfig,
         sample_strategies: list[StrategyConfig]
     ):
         """Test getting variations for a template strategy."""
-        response = client.get(f"/api/strategies/{sample_template_strategy.id}/variations")
+        response = auth_client.get(f"/api/strategies/{sample_template_strategy.id}/variations")
         assert response.status_code == 200
 
         data = response.json()
@@ -968,20 +968,20 @@ class TestGetStrategyVariations:
         assert data["parent"]["is_template"] is True
 
     def test_get_variations_for_non_template(
-        self, client: TestClient, sample_strategy: StrategyConfig
+        self, auth_client: TestClient, sample_strategy: StrategyConfig
     ):
         """Test getting variations for non-template strategy returns 400."""
-        response = client.get(f"/api/strategies/{sample_strategy.id}/variations")
+        response = auth_client.get(f"/api/strategies/{sample_strategy.id}/variations")
         assert response.status_code == 400
         assert "template" in response.json()["detail"].lower()
 
-    def test_get_variations_for_non_existent_strategy(self, client: TestClient):
+    def test_get_variations_for_non_existent_strategy(self, auth_client: TestClient):
         """Test getting variations for non-existent strategy returns 404."""
-        response = client.get("/api/strategies/99999/variations")
+        response = auth_client.get("/api/strategies/99999/variations")
         assert response.status_code == 404
 
     def test_verify_only_active_variations_returned(
-        self, client: TestClient,
+        self, auth_client: TestClient,
         sample_template_strategy: StrategyConfig,
         sample_strategies: list[StrategyConfig], db: Session
     ):
@@ -997,7 +997,7 @@ class TestGetStrategyVariations:
         db.add(inactive_var)
         db.commit()
 
-        response = client.get(f"/api/strategies/{sample_template_strategy.id}/variations")
+        response = auth_client.get(f"/api/strategies/{sample_template_strategy.id}/variations")
         assert response.status_code == 200
 
         data = response.json()
@@ -1006,12 +1006,12 @@ class TestGetStrategyVariations:
         assert inactive_var.id not in variation_ids
 
     def test_verify_variations_sorted_by_name(
-        self, client: TestClient,
+        self, auth_client: TestClient,
         sample_template_strategy: StrategyConfig,
         sample_strategies: list[StrategyConfig]
     ):
         """Test variations are sorted by name."""
-        response = client.get(f"/api/strategies/{sample_template_strategy.id}/variations")
+        response = auth_client.get(f"/api/strategies/{sample_template_strategy.id}/variations")
         assert response.status_code == 200
 
         data = response.json()
@@ -1021,12 +1021,12 @@ class TestGetStrategyVariations:
             assert variations[i]["name"] <= variations[i + 1]["name"]
 
     def test_variations_include_parent_reference(
-        self, client: TestClient,
+        self, auth_client: TestClient,
         sample_template_strategy: StrategyConfig,
         sample_strategies: list[StrategyConfig]
     ):
         """Test that variations correctly reference their parent."""
-        response = client.get(f"/api/strategies/{sample_template_strategy.id}/variations")
+        response = auth_client.get(f"/api/strategies/{sample_template_strategy.id}/variations")
         assert response.status_code == 200
 
         data = response.json()
@@ -1041,7 +1041,7 @@ class TestGetStrategyVariations:
 class TestStrategyEdgeCases:
     """Additional edge case tests for strategy endpoints."""
 
-    def test_create_strategy_with_negative_parameters(self, client: TestClient):
+    def test_create_strategy_with_negative_parameters(self, auth_client: TestClient):
         """Test creating strategy with negative percentage values."""
         strategy_data = {
             "name": "Negative Values",
@@ -1050,11 +1050,11 @@ class TestStrategyEdgeCases:
         }
 
         # API should accept this (no validation in current implementation)
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         # The API currently doesn't validate ranges
         assert response.status_code == 200
 
-    def test_create_strategy_with_zero_parameters(self, client: TestClient):
+    def test_create_strategy_with_zero_parameters(self, auth_client: TestClient):
         """Test creating strategy with zero values."""
         strategy_data = {
             "name": "Zero Values",
@@ -1062,42 +1062,42 @@ class TestStrategyEdgeCases:
             "max_positions": 0,
         }
 
-        response = client.post("/api/strategies", json=strategy_data)
+        response = auth_client.post("/api/strategies", json=strategy_data)
         assert response.status_code == 200
 
     def test_update_strategy_with_empty_body(
-        self, client: TestClient, sample_strategy: StrategyConfig
+        self, auth_client: TestClient, sample_strategy: StrategyConfig
     ):
         """Test updating strategy with empty body (no changes)."""
-        response = client.put(f"/api/strategies/{sample_strategy.id}", json={})
+        response = auth_client.put(f"/api/strategies/{sample_strategy.id}", json={})
         assert response.status_code == 200
         # Should return success but no changes
 
-    def test_get_strategy_by_id_as_string(self, client: TestClient, sample_strategy: StrategyConfig):
+    def test_get_strategy_by_id_as_string(self, auth_client: TestClient, sample_strategy: StrategyConfig):
         """Test getting strategy with string ID (FastAPI coercion)."""
-        response = client.get(f"/api/strategies/{str(sample_strategy.id)}")
+        response = auth_client.get(f"/api/strategies/{str(sample_strategy.id)}")
         assert response.status_code == 200
 
-    def test_concurrent_strategy_creation(self, client: TestClient):
+    def test_concurrent_strategy_creation(self, auth_client: TestClient):
         """Test creating strategies with similar names (race condition)."""
         name = f"Concurrent Test {datetime.now().timestamp()}"
 
         # Create first
-        response1 = client.post("/api/strategies", json={
+        response1 = auth_client.post("/api/strategies", json={
             "name": name,
             "strategy_type": "ORB"
         })
         assert response1.status_code == 200
 
         # Try to create duplicate
-        response2 = client.post("/api/strategies", json={
+        response2 = auth_client.post("/api/strategies", json={
             "name": name,
             "strategy_type": "ORB"
         })
         assert response2.status_code == 400
 
     def test_delete_already_deleted_strategy(
-        self, client: TestClient, db: Session
+        self, auth_client: TestClient, db: Session
     ):
         """Test deleting a strategy that's already inactive."""
         strategy = StrategyConfig(
@@ -1110,11 +1110,11 @@ class TestStrategyEdgeCases:
         db.commit()
 
         # Should still return success
-        response = client.delete(f"/api/strategies/{strategy.id}")
+        response = auth_client.delete(f"/api/strategies/{strategy.id}")
         assert response.status_code == 200
 
     def test_performance_with_large_pnl_values(
-        self, client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+        self, auth_client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
     ):
         """Test performance calculation with large P&L values."""
         strategy = StrategyConfig(
@@ -1147,9 +1147,9 @@ class TestStrategyEdgeCases:
         def mock_load(user_id):
             return large_trades
 
-        monkeypatch.setattr("api.strategies._load_all_trades", mock_load)
+        monkeypatch.setattr("api.strat_api.strat_query._load_all_trades", mock_load)
 
-        response = client.get(f"/api/strategies/{strategy.id}/performance")
+        response = auth_client.get(f"/api/strategies/{strategy.id}/performance")
         assert response.status_code == 200
 
         data = response.json()

@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { setupNewsTest, openNewsPanel, gotoNewsPage } from "./helpers/newsHelpers";
+import {
+  setupNewsTest,
+  openNewsPanel,
+  gotoNewsPage,
+  openRootPage,
+} from "./helpers/newsHelpers";
 
 test.describe("News Panel - Basic Functionality", () => {
   test.beforeEach(async ({ page }) => {
@@ -7,22 +12,19 @@ test.describe("News Panel - Basic Functionality", () => {
   });
 
   test("should show news toggle button on page load", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     const toggleBtn = page.locator('[data-testid="news-toggle-btn"]');
     await expect(toggleBtn).toBeVisible({ timeout: 15000 });
     await expect(toggleBtn).toContainText("NEWS");
   });
 
   test("should open panel when toggle button is clicked", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
   });
 
   test("should close panel when close button is clicked", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
     const panel = page.locator('[data-testid="news-panel"]');
     const closeBtn = panel.locator(".news-close-btn");
@@ -33,8 +35,7 @@ test.describe("News Panel - Basic Functionality", () => {
   });
 
   test("should close panel when overlay is clicked", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
     const panel = page.locator('[data-testid="news-panel"]');
     const overlay = page.locator(".news-overlay");
@@ -51,8 +52,7 @@ test.describe("News Panel - Content Display", () => {
   });
 
   test("should display news source selector", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
     const sourceSelector = page
       .locator('[data-testid="news-panel"]')
@@ -61,8 +61,7 @@ test.describe("News Panel - Content Display", () => {
   });
 
   test("should display refresh button", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
     const refreshBtn = page
       .locator('[data-testid="news-panel"]')
@@ -71,8 +70,7 @@ test.describe("News Panel - Content Display", () => {
   });
 
   test("should display news items", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
     await expect(
       page.locator('[data-testid="news-panel"]').locator('[data-testid="news-item"]').first(),
@@ -80,8 +78,7 @@ test.describe("News Panel - Content Display", () => {
   });
 
   test("should show headlines for news items", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
     await expect(
       page.locator('[data-testid="news-panel"]').locator(".news-item-headline").first(),
@@ -91,8 +88,7 @@ test.describe("News Panel - Content Display", () => {
   });
 
   test("should mark unread items with visual indicator", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
     await expect(
       page.locator('[data-testid="news-panel"]').locator('[data-testid="news-item"]').first(),
@@ -111,8 +107,7 @@ test.describe("News Panel - Source Switching", () => {
   });
 
   test("should allow switching news sources", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
     const sourceSelector = page
       .locator('[data-testid="news-panel"]')
@@ -142,8 +137,7 @@ test.describe("News Panel - Refresh", () => {
         requestCount++;
       }
     });
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await openRootPage(page);
     await openNewsPanel(page);
     await expect(
       page.locator('[data-testid="news-panel"]').locator('[data-testid="news-item"]').first(),

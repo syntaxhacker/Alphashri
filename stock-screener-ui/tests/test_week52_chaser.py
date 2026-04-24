@@ -35,7 +35,6 @@ from backtest.strategies.week52_chaser import (
     Week52ChaserConfig,
     Week52ChaserNautilusStrategy,
     Week52ChaserStrategy,
-    Week52HighIndicator,
 )
 from nautilus_trader.model.data import BarType
 
@@ -90,35 +89,18 @@ class TestWeek52ChaserConfig:
         assert any("Entry Threshold" in e for e in errors)
 
 
-class TestWeek52HighIndicator:
-    def test_indicator_requires_min_periods(self):
-        ind = Week52HighIndicator(period=252, min_periods=5)
-        for i in range(4):
-            ind.update(float(100 + i))
-            assert not ind.is_initialized(), f"Should not be initialized after {i+1} bars"
-
-        ind.update(104.0)
-        assert ind.is_initialized()
-
-    def test_indicator_excludes_current_bar(self):
-        ind = Week52HighIndicator(period=252, min_periods=3)
-        ind.update(100.0)
-        ind.update(105.0)
-        ind.update(90.0)
-        val = ind.update(50.0)
-        assert val == 105.0
-
-
 class TestWeek52ChaserLogic:
-    def _seed_indicator(self, strategy, high_value=100.0, bars=25):
+    def _seed_data(self, strategy, high_value=100.0, bars=25):
+        """Seed the strategy with historical data."""
+        from backtest.strategies.week52_chaser import get_date_from_ns
         ts_base = 1700000000
         for i in range(bars):
             bar = make_bar(high_value - 2, high_value, high_value - 5, ts_base + i * 86400)
             strategy.on_bar(bar)
-        assert strategy._high_52w.value is not None
+        assert strategy._current_52w_high is not None
 
     def _seed_active_position(self, strategy, entry_price=100.0, entry_52w_high=102.0):
-        self._seed_indicator(strategy, high_value=entry_52w_high, bars=25)
+        self._seed_data(strategy, high_value=entry_52w_high, bars=25)
         strategy._in_position = True
         strategy._entry_price = entry_price
         strategy._entry_52w_high = entry_52w_high
@@ -129,7 +111,7 @@ class TestWeek52ChaserLogic:
         strategy._current_entry_time = datetime(2024, 1, 15, tzinfo=timezone.utc)
 
     def test_enter_on_proximity_to_52w_high(self, chaser_strategy):
-        self._seed_indicator(chaser_strategy, high_value=100.0, bars=25)
+        self._seed_data(chaser_strategy, high_value=100.0, bars=25)
 
         ts = 1700000000 + 26 * 86400
         entry_bar = make_bar(close=98.5, high=99.0, low=97.0, ts_sec=ts)

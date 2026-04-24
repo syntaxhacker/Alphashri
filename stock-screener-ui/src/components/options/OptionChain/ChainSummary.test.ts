@@ -14,6 +14,16 @@ const makeEmptyStrike = (strike: number): StrikeRow => ({
   pe: {},
 });
 
+const zeroSummary: Summary = {
+  pcr: 0,
+  max_pain: 0,
+  expected_move: null,
+  total_ce_oi: 0,
+  total_pe_oi: 0,
+};
+
+const defaultSummary: Summary = { ...zeroSummary, pcr: 1.0 };
+
 describe("ChainSummary computation", () => {
   describe("PCR calculation", () => {
     test("returns pcr from summary when available", () => {
@@ -92,14 +102,7 @@ describe("ChainSummary computation", () => {
     });
 
     test("handles max_pain of 0", () => {
-      const summary: Summary = {
-        pcr: 0,
-        max_pain: 0,
-        expected_move: null,
-        total_ce_oi: 0,
-        total_pe_oi: 0,
-      };
-      expect(computeStats([], summary).maxPain).toBe(0);
+      expect(computeStats([], zeroSummary).maxPain).toBe(0);
     });
   });
 
@@ -130,29 +133,6 @@ describe("ChainSummary computation", () => {
         total_pe_oi: 700,
       };
       expect(computeStats(matrix, summary).resistanceStrike).toBe(0);
-    });
-
-    test("returns 0 when ce has no market_data", () => {
-      const matrix = [makeEmptyStrike(24000), makeEmptyStrike(24500)];
-      const summary: Summary = {
-        pcr: 0,
-        max_pain: 0,
-        expected_move: null,
-        total_ce_oi: 0,
-        total_pe_oi: 0,
-      };
-      expect(computeStats(matrix, summary).resistanceStrike).toBe(0);
-    });
-
-    test("returns 0 when strike matrix is empty", () => {
-      const summary: Summary = {
-        pcr: 1.0,
-        max_pain: 0,
-        expected_move: null,
-        total_ce_oi: 0,
-        total_pe_oi: 0,
-      };
-      expect(computeStats([], summary).resistanceStrike).toBe(0);
     });
 
     test("picks first strike when multiple have equal max CE OI", () => {
@@ -197,29 +177,6 @@ describe("ChainSummary computation", () => {
       expect(computeStats(matrix, summary).supportStrike).toBe(0);
     });
 
-    test("returns 0 when pe has no market_data", () => {
-      const matrix = [makeEmptyStrike(24000), makeEmptyStrike(24500)];
-      const summary: Summary = {
-        pcr: 0,
-        max_pain: 0,
-        expected_move: null,
-        total_ce_oi: 0,
-        total_pe_oi: 0,
-      };
-      expect(computeStats(matrix, summary).supportStrike).toBe(0);
-    });
-
-    test("returns 0 when strike matrix is empty", () => {
-      const summary: Summary = {
-        pcr: 1.0,
-        max_pain: 0,
-        expected_move: null,
-        total_ce_oi: 0,
-        total_pe_oi: 0,
-      };
-      expect(computeStats([], summary).supportStrike).toBe(0);
-    });
-
     test("picks first strike when multiple have equal max PE OI", () => {
       const matrix = [makeStrike(24000, 0, 5000), makeStrike(24500, 0, 5000)];
       const summary: Summary = {
@@ -229,11 +186,25 @@ describe("ChainSummary computation", () => {
         total_ce_oi: 0,
         total_pe_oi: 10000,
       };
-      expect(computeStats(matrix, summary).supportStrike).toBe(24000);
-    });
+    expect(computeStats(matrix, summary).supportStrike).toBe(24000);
+  });
+});
+
+describe.each([
+  { side: "ce", field: "resistanceStrike" as const },
+  { side: "pe", field: "supportStrike" as const },
+])("$side edge cases", ({ side, field }) => {
+  test(`returns 0 when ${side} has no market_data`, () => {
+    const matrix = [makeEmptyStrike(24000), makeEmptyStrike(24500)];
+    expect(computeStats(matrix, zeroSummary)[field]).toBe(0);
   });
 
-  describe("expected move", () => {
+  test("returns 0 when strike matrix is empty", () => {
+    expect(computeStats([], defaultSummary)[field]).toBe(0);
+  });
+});
+
+describe("expected move", () => {
     test("returns expected_move from summary", () => {
       const expectedMove = { lower: 23500, upper: 25000, range: 750 };
       const summary: Summary = {
@@ -247,14 +218,7 @@ describe("ChainSummary computation", () => {
     });
 
     test("returns null when expected_move is not in summary", () => {
-      const summary: Summary = {
-        pcr: 1.0,
-        max_pain: 0,
-        expected_move: null,
-        total_ce_oi: 0,
-        total_pe_oi: 0,
-      };
-      expect(computeStats([], summary).expectedMove).toBeNull();
+      expect(computeStats([], defaultSummary).expectedMove).toBeNull();
     });
 
     test("returns null when no summary is provided", () => {

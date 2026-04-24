@@ -1,35 +1,12 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-
-function generatePreviewCandles(count: number = 10, base: number = 2500) {
-  const candles: any[] = [];
-  const times = [
-    "09:15",
-    "09:30",
-    "09:45",
-    "10:00",
-    "10:15",
-    "10:30",
-    "10:45",
-    "11:00",
-    "11:15",
-    "11:30",
-  ];
-  for (let i = 0; i < count; i++) {
-    const o = base + Math.random() * 50 - 25;
-    candles.push({
-      time: `2026-03-02T${times[i % times.length]}`,
-      date: "2026-03-02",
-      time_str: times[i % times.length],
-      open: +o.toFixed(2),
-      high: +(o + 10 + Math.random() * 10).toFixed(2),
-      low: +(o - 10 - Math.random() * 10).toFixed(2),
-      close: +(o + Math.random() * 20 - 10).toFixed(2),
-      volume: Math.floor(50000 + Math.random() * 100000),
-    });
-  }
-  return candles;
-}
+import {
+  generateCandles,
+  expectChartVisible,
+  gotoChart,
+  createOrbZone,
+  createPivotLevels,
+} from "./helpers/chartHelpers";
 
 async function setupChartPreviewMock(
   page: Page,
@@ -44,7 +21,7 @@ async function setupChartPreviewMock(
   await setupApiMocks(page);
   await loginAsTestUser(page);
 
-  const candles = generatePreviewCandles(
+  const candles = generateCandles(
     10,
     data.symbol === "TCS"
       ? 3750
@@ -96,58 +73,22 @@ test.describe("Chart Preview - ORB Strategy Levels", () => {
   test("should display chart with ORB data", async ({ page }) => {
     await setupChartPreviewMock(page, {
       symbol: "RELIANCE",
-      orbZones: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          or_high: 2540,
-          or_low: 2490,
-          or_end_time: "09:45",
-        },
-      ],
-      pivotLevels: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          pp: 2520,
-          r1: 2560,
-          s1: 2480,
-          r2: 2590,
-          s2: 2450,
-        },
-      ],
+      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
+      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
     });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
     await expect(page.locator('[data-testid="chart-title"]')).toContainText("RELIANCE");
   });
 
   test("should display ORB high and low lines", async ({ page }) => {
     await setupChartPreviewMock(page, {
       symbol: "RELIANCE",
-      orbZones: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          or_high: 2540,
-          or_low: 2490,
-          or_end_time: "09:45",
-        },
-      ],
-      pivotLevels: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          pp: 2520,
-          r1: 2560,
-          s1: 2480,
-          r2: 2590,
-          s2: 2450,
-        },
-      ],
+      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
+      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
     });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
     const option = await getChartOption(page);
     const series = option?.series || [];
     expect(series.some((s: any) => s.name === "OR High")).toBeTruthy();
@@ -157,18 +98,10 @@ test.describe("Chart Preview - ORB Strategy Levels", () => {
   test("should display ORB high and low lines with data", async ({ page }) => {
     await setupChartPreviewMock(page, {
       symbol: "RELIANCE",
-      orbZones: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          or_high: 2540,
-          or_low: 2490,
-          or_end_time: "09:45",
-        },
-      ],
+      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
     });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
     const option = await getChartOption(page);
     const series = option?.series || [];
     const orbHigh = series.find((s: any) => s.name === "OR High");
@@ -184,20 +117,10 @@ test.describe("Chart Preview - Pivot Levels", () => {
   test("should display pivot levels (PP, R1, S1)", async ({ page }) => {
     await setupChartPreviewMock(page, {
       symbol: "RELIANCE",
-      pivotLevels: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          pp: 2520,
-          r1: 2560,
-          s1: 2480,
-          r2: 2590,
-          s2: 2450,
-        },
-      ],
+      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
     });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
     const option = await getChartOption(page);
     const series = option?.series || [];
     const pivotNames = series
@@ -215,8 +138,8 @@ test.describe("Chart Preview - 52W Levels", () => {
       symbol: "TCS",
       week52Levels: { high_52w: 3900, low_52w: 3400, distance_to_high_pct: 2.5, near_high: true },
     });
-    await page.goto("/chart/TCS");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "TCS");
+    await expectChartVisible(page);
     await expect(page.locator('[data-testid="chart-title"]')).toContainText("TCS");
   });
 
@@ -225,8 +148,8 @@ test.describe("Chart Preview - 52W Levels", () => {
       symbol: "TCS",
       week52Levels: { high_52w: 3900, low_52w: 3400, distance_to_high_pct: 2.5, near_high: true },
     });
-    await page.goto("/chart/TCS");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "TCS");
+    await expectChartVisible(page);
     const option = await getChartOption(page);
     expect(option).not.toBeNull();
     expect(option?.series).toBeDefined();
@@ -257,8 +180,8 @@ test.describe("Chart Preview - Trade Markers", () => {
         },
       ],
     });
-    await page.goto("/chart/HDFC");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "HDFC");
+    await expectChartVisible(page);
     const option = await getChartOption(page);
     expect(option).not.toBeNull();
     expect(option?.series).toBeDefined();
@@ -278,42 +201,66 @@ test.describe("Chart Preview - Timeframe Switching", () => {
   for (const tf of timeframes) {
     test(`should switch to ${tf.label} timeframe`, async ({ page }) => {
       await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-      await page.goto("/chart/RELIANCE");
-      await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({
-        timeout: 10000,
-      });
+      await gotoChart(page, "RELIANCE");
+      await expectChartVisible(page);
       const tfSelect = page.locator('[data-testid="chart-timeframe-select"]');
       await expect(tfSelect).toBeVisible();
       await tfSelect.selectOption(tf.value);
-      await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({
-        timeout: 5000,
-      });
+      await expectChartVisible(page, 5000);
       const footer = page.locator('[data-testid="chart-footer"]');
       await expect(footer).toContainText(`TF: ${tf.label}`);
     });
   }
+
+  test("should display timeframe selector dropdown", async ({ page }) => {
+    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
+    await expect(page.locator("label:has-text('Timeframe')")).toBeVisible();
+  });
+
+  test("should refresh chart data when timeframe changes", async ({ page }) => {
+    let requestCount = 0;
+    await setupApiMocks(page);
+    await loginAsTestUser(page);
+    await page.route("**/api/chart/preview/**", async (route) => {
+      requestCount++;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "RELIANCE",
+          candles: generateCandles(10, 2500),
+          timeframe: 15,
+          or_minutes: 45,
+          total_candles: 10,
+          orb_zones: [],
+          pivot_levels: [],
+        }),
+      });
+    });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
+    const initialCount = requestCount;
+    const tfSelect = page.locator('[data-testid="chart-timeframe-select"]');
+    await tfSelect.selectOption("30");
+    await expectChartVisible(page, 5000);
+    expect(requestCount).toBeGreaterThan(initialCount);
+  });
 });
 
 test.describe("Chart Preview - OR Minutes Setting", () => {
   test("should change OR minutes setting", async ({ page }) => {
     await setupChartPreviewMock(page, {
       symbol: "RELIANCE",
-      orbZones: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          or_high: 2540,
-          or_low: 2490,
-          or_end_time: "09:45",
-        },
-      ],
+      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
     });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
     const orSelect = page.locator('[data-testid="chart-or-select"]');
     await expect(orSelect).toBeVisible();
     await orSelect.selectOption("30");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
+    await expectChartVisible(page, 5000);
   });
 });
 
@@ -321,26 +268,16 @@ test.describe("Chart Preview - Pivot Toggle", () => {
   test("should toggle pivots checkbox", async ({ page }) => {
     await setupChartPreviewMock(page, {
       symbol: "RELIANCE",
-      pivotLevels: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          pp: 2520,
-          r1: 2560,
-          s1: 2480,
-          r2: 2590,
-          s2: 2450,
-        },
-      ],
+      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
     });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
     const pivotsCheckbox = page.locator('[data-testid="chart-pivots-checkbox"]');
     await expect(pivotsCheckbox).toBeVisible();
     await pivotsCheckbox.uncheck();
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
+    await expectChartVisible(page, 5000);
     await pivotsCheckbox.check();
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 5000 });
+    await expectChartVisible(page, 5000);
   });
 });
 
@@ -348,30 +285,12 @@ test.describe("Chart Preview - Combined Overlays (All Strategy Types)", () => {
   test("should render chart with ORB + Pivot + 52W overlays simultaneously", async ({ page }) => {
     await setupChartPreviewMock(page, {
       symbol: "RELIANCE",
-      orbZones: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          or_high: 2540,
-          or_low: 2490,
-          or_end_time: "09:45",
-        },
-      ],
-      pivotLevels: [
-        {
-          date: "2026-03-02",
-          date_raw: "2026-03-02",
-          pp: 2520,
-          r1: 2560,
-          s1: 2480,
-          r2: 2590,
-          s2: 2450,
-        },
-      ],
+      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
+      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
       week52Levels: { high_52w: 2600, low_52w: 2200, distance_to_high_pct: 4.0, near_high: false },
     });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
     const option = await getChartOption(page);
     const series = option?.series || [];
     const overlayNames = series
@@ -384,13 +303,13 @@ test.describe("Chart Preview - Combined Overlays (All Strategy Types)", () => {
 test.describe("Chart Preview - Navigation and Controls", () => {
   test("should show chart controls", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.goto("/chart/RELIANCE");
+    await gotoChart(page, "RELIANCE");
     await expect(page.locator('[data-testid="chart-controls"]')).toBeVisible({ timeout: 10000 });
   });
 
   test("should show back button", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.goto("/chart/RELIANCE");
+    await gotoChart(page, "RELIANCE");
     await expect(page.locator('[data-testid="chart-back-btn"]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-testid="chart-back-btn"]')).toContainText("Back");
   });
@@ -399,8 +318,8 @@ test.describe("Chart Preview - Navigation and Controls", () => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await page.goto("/");
     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
-    await page.goto("/chart/RELIANCE", { waitUntil: "domcontentloaded" });
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE", { waitUntil: "domcontentloaded" });
+    await expectChartVisible(page);
     await page.locator('[data-testid="chart-back-btn"]').click();
     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
     expect(page.url()).not.toContain("/chart/RELIANCE");
@@ -408,13 +327,13 @@ test.describe("Chart Preview - Navigation and Controls", () => {
 
   test("should show symbol in title", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.goto("/chart/RELIANCE");
+    await gotoChart(page, "RELIANCE");
     await expect(page.locator('[data-testid="chart-title"]')).toContainText("RELIANCE");
   });
 
   test("should show candle count in footer", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.goto("/chart/RELIANCE");
+    await gotoChart(page, "RELIANCE");
     await expect(page.locator('[data-testid="chart-footer"]')).toContainText("candles");
   });
 });
@@ -426,7 +345,7 @@ test.describe("Chart Preview - Error and Edge Cases", () => {
     await page.route("**/api/chart/preview/**", async (route) => {
       await route.abort("failed");
     });
-    await page.goto("/chart/INVALID");
+    await gotoChart(page, "INVALID");
     await expect(page.locator('[data-testid="chart-error"]').first()).toBeVisible({
       timeout: 5000,
     });
@@ -442,7 +361,7 @@ test.describe("Chart Preview - Error and Edge Cases", () => {
         body: JSON.stringify({ error: "Internal server error" }),
       });
     });
-    await page.goto("/chart/ERROR");
+    await gotoChart(page, "ERROR");
     await expect(page.locator('[data-testid="chart-error"]')).toBeVisible({ timeout: 5000 });
   });
 
@@ -465,7 +384,7 @@ test.describe("Chart Preview - Error and Edge Cases", () => {
         }),
       });
     });
-    await page.goto("/chart/EMPTY");
+    await gotoChart(page, "EMPTY");
     await expect(
       page.locator('[data-testid="chart-error"], [data-testid="chart-loading"]'),
     ).toBeVisible({ timeout: 5000 });
@@ -475,6 +394,7 @@ test.describe("Chart Preview - Error and Edge Cases", () => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await page.goto("/chart");
+
     await expect(
       page
         .locator(
@@ -489,23 +409,30 @@ test.describe("Chart Preview - Responsive", () => {
   test("should render on mobile viewport", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
   });
 
   test("should render on tablet viewport", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await page.setViewportSize({ width: 768, height: 1024 });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
+  });
+
+  test("should render on desktop viewport", async ({ page }) => {
+    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
   });
 });
 
 test.describe("Chart Preview - Data Zoom", () => {
   test("should have dataZoom configured", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.goto("/chart/RELIANCE");
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await gotoChart(page, "RELIANCE");
+    await expectChartVisible(page);
     const option = await getChartOption(page);
     expect(option?.dataZoom).not.toBeNull();
     expect(option?.dataZoom?.length).toBeGreaterThan(0);
@@ -515,7 +442,7 @@ test.describe("Chart Preview - Data Zoom", () => {
 
   test("should support zoom via mouse wheel", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.goto("/chart/RELIANCE");
+    await gotoChart(page, "RELIANCE");
     const container = page.locator('[data-testid="candlestick-chart"]');
     await container.hover({ position: { x: 200, y: 200 } });
     await page.mouse.wheel(0, -100);
@@ -524,7 +451,7 @@ test.describe("Chart Preview - Data Zoom", () => {
 
   test("should support pan via drag", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.goto("/chart/RELIANCE");
+    await gotoChart(page, "RELIANCE");
     const container = page.locator('[data-testid="candlestick-chart"]');
     const box = await container.boundingBox();
     if (box) {
@@ -548,7 +475,7 @@ test.describe("Chart Preview - Loading State", () => {
         contentType: "application/json",
         body: JSON.stringify({
           symbol: "RELIANCE",
-          candles: generatePreviewCandles(5),
+          candles: generateCandles(5),
           timeframe: 15,
           or_minutes: 45,
           total_candles: 5,
@@ -557,8 +484,8 @@ test.describe("Chart Preview - Loading State", () => {
         }),
       });
     });
-    await page.goto("/chart/RELIANCE");
+    await gotoChart(page, "RELIANCE");
     await expect(page.locator('[data-testid="chart-loading"]')).toBeVisible();
-    await expect(page.locator('[data-testid="candlestick-chart"]')).toBeVisible({ timeout: 10000 });
+    await expectChartVisible(page);
   });
 });

@@ -8,6 +8,7 @@ stored in the database.
 from typing import Optional, List
 from dataclasses import dataclass, field
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,9 @@ class StrategyConfigData:
     eod_exit_minute: int = 45
     min_rr_ratio: float = 2.0
 
+    # Screener Profiles (multi-select)
+    screener_profiles: List[str] = field(default_factory=list)
+
     # Cost Parameters
     brokerage_pct: float = 0.0003
     min_brokerage: float = 20
@@ -115,6 +119,7 @@ class StrategyConfigData:
             eod_exit_hour=model.eod_exit_hour,
             eod_exit_minute=model.eod_exit_minute,
             min_rr_ratio=model.min_rr_ratio,
+            screener_profiles=json.loads(model.screener_profiles) if isinstance(model.screener_profiles, str) else [],
             ema_fast_period=model.ema_fast_period,
             ema_slow_period=model.ema_slow_period,
             brokerage_pct=model.brokerage_pct,
@@ -164,6 +169,7 @@ class StrategyConfigData:
             "eod_exit_hour": self.eod_exit_hour,
             "eod_exit_minute": self.eod_exit_minute,
             "min_rr_ratio": self.min_rr_ratio,
+            "screener_profiles": self.screener_profiles,
             "ema_fast_period": self.ema_fast_period,
             "ema_slow_period": self.ema_slow_period,
             "brokerage_pct": self.brokerage_pct,

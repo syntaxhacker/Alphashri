@@ -6,13 +6,11 @@ Long when fast EMA crosses above slow EMA, short when fast crosses below.
 Uses intraday (5-min) candle data. Exits via SL/TP or EOD force exit.
 """
 
-from datetime import datetime
 from typing import Optional
-
-import config
 
 from trading.orb_signals import ORBSignal, SignalType
 from trading.base_signals import BaseSignalGenerator
+from trading.ema_utils import calculate_ema as _calculate_ema
 
 
 class EMACrossSignalGenerator(BaseSignalGenerator):
@@ -24,20 +22,19 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
         self.ema_slow_period = int(config.get("ema_slow_period", 21))
         self.sl_pct = float(config.get("sl_pct", 0.5))
         self.tp_pct = float(config.get("tp_pct", 1.5))
+        self.enable_shorts = bool(config.get("enable_shorts", False))
+        self.cooldown_bars = int(config.get("cooldown_bars", 3))
         eod_hour = int(config.get("eod_exit_hour", 14))
         eod_minute = int(config.get("eod_exit_minute", 45))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct,
                          eod_exit_hour=eod_hour, eod_exit_minute=eod_minute)
+        self._last_exit_bar = None
+        self._bar_number = 0
 
     @staticmethod
     def calculate_ema(closes: list, period: int) -> list:
-        if not closes:
-            return []
-        multiplier = 2.0 / (period + 1)
-        ema = [closes[0]]
-        for price in closes[1:]:
-            ema.append(price * multiplier + ema[-1] * (1 - multiplier))
-        return ema
+        """Wrapper for backward compatibility. Delegates to shared utility."""
+        return _calculate_ema(closes, period, return_full=True)
 
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
         current_price = market_data.get("current_price")
@@ -48,6 +45,12 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
 
         if any(v is None for v in [current_price, ema_fast_current, ema_fast_prev, ema_slow_current, ema_slow_prev]):
             return None
+
+        # Check cooldown after exit
+        self._bar_number += 1
+        if self._last_exit_bar is not None and self.cooldown_bars > 0:
+            if (self._bar_number - self._last_exit_bar) < self.cooldown_bars:
+                return None
 
         bullish_cross = ema_fast_prev <= ema_slow_prev and ema_fast_current > ema_slow_current
         bearish_cross = ema_fast_prev >= ema_slow_prev and ema_fast_current < ema_slow_current
@@ -66,7 +69,7 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
                 score=gap,
             )
 
-        if bearish_cross:
+        if bearish_cross and self.enable_shorts:
             sl = current_price * (1 + self.sl_pct / 100)
             tp = current_price * (1 - self.tp_pct / 100)
             gap = ema_slow_current - ema_fast_current
@@ -82,48 +85,8 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
 
         return None
 
-    def check_exit(
-        self,
-        symbol: str,
-        position_side: str,
-        entry_price: float,
-        stop_loss: float,
-        take_profit: float,
-        current_price: float,
-        **kwargs,
-    ) -> Optional[ORBSignal]:
-        now = kwargs.get("timestamp", datetime.now(config.IST))
-        if isinstance(now, datetime):
-            hour, minute = now.hour, now.minute
-        else:
-            hour, minute = datetime.now(config.IST).hour, datetime.now(config.IST).minute
+    def record_exit(self) -> None:
+        """Record exit event for cooldown tracking. Call after position is closed."""
+        self._last_exit_bar = self._bar_number
 
-        if self.is_eod_exit_time(hour, minute):
-            exit_type = SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT
-            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
-            if position_side == "SELL":
-                pnl_pct = -pnl_pct
-            return self.create_signal(
-                symbol=symbol,
-                signal_type=exit_type,
-                price=current_price,
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                notes=f"EOD force exit ({self.eod_exit_hour}:{self.eod_exit_minute:02d}) (PnL: {pnl_pct:+.2f}%)",
-            )
 
-        if position_side == "BUY":
-            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
-            if current_price <= stop_loss:
-                return self.create_signal(symbol=symbol, signal_type=SignalType.LONG_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)")
-            if current_price >= take_profit:
-                return self.create_signal(symbol=symbol, signal_type=SignalType.LONG_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)")
-
-        if position_side == "SELL":
-            pnl_pct = ((entry_price - current_price) / entry_price) * 100 if entry_price else 0
-            if current_price >= stop_loss:
-                return self.create_signal(symbol=symbol, signal_type=SignalType.SHORT_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)")
-            if current_price <= take_profit:
-                return self.create_signal(symbol=symbol, signal_type=SignalType.SHORT_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)")
-
-        return None

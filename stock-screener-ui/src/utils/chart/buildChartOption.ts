@@ -7,13 +7,8 @@ import { buildTooltip } from "./buildTooltip";
 import { buildLegend } from "./buildLegend";
 import { buildLivePositionMarker, buildLivePositionMarkLines } from "./buildLivePosition";
 import { getChartThemeColors, buildHolidayMap, insertHolidayGaps } from "../chartUtils";
+import { parseTimeToHHMM } from "../ui-helpers";
 import { theme } from "../../config/theme";
-
-function parseTimeToHHMM(isoTime: string): string {
-  if (isoTime.includes("T")) return isoTime.split("T")[1].substring(0, 5);
-  if (isoTime.includes(" ")) return isoTime.split(" ")[1].substring(0, 5);
-  return isoTime.substring(0, 5);
-}
 
 export function buildChartOption(input: ChartInput): Record<string, unknown> {
   const colors = getChartThemeColors(input.isDark, theme);
