@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import {
   Table,
   Badge,
@@ -8,7 +7,6 @@ import {
   Tooltip,
   ActionIcon,
   ScrollArea,
-  Anchor,
 } from "@mantine/core";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
