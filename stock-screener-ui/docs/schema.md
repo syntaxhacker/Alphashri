@@ -298,7 +298,7 @@ erDiagram
 | date | Date | No | UNIQUE |
 | description | String | No | - |
 | type | String | No | - |
-| created_at | DateTime | No | - |
+| created_at | DateTime | Yes | - |
 | *(Unique: `uq_market_holiday_date` on date)* | | | |
 
 ### news_articles
@@ -422,6 +422,7 @@ erDiagram
 | eod_exit_hour | Integer | Yes | - |
 | eod_exit_minute | Integer | Yes | - |
 | min_rr_ratio | Float | Yes | - |
+| screener_profiles | String | Yes | - |
 | brokerage_pct | Float | Yes | - |
 | min_brokerage | Float | Yes | - |
 | stt_pct | Float | Yes | - |
