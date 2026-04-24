@@ -236,6 +236,17 @@ export function StrategyForm({
             data-testid="strategy-description-input"
           />
 
+          <MultiSelect
+            label="Screener Profiles"
+            placeholder="Select screener profiles"
+            data={SCREENER_PROFILE_OPTIONS}
+            value={selectedProfiles}
+            onChange={setSelectedProfiles}
+            clearable
+            searchable
+            data-testid="strategy-screener-profiles"
+          />
+
           <Tabs
             value={activeTab}
             onChange={setActiveTab}
