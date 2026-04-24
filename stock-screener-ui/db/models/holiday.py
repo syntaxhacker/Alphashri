@@ -17,7 +17,7 @@ class MarketHoliday(Base):
     date = Column(Date, nullable=False, unique=True, index=True)
     description = Column(String(200), nullable=False)
     type = Column(Enum(HolidayType, name="holiday_type"), nullable=False, default=HolidayType.TRADING)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
 
     __table_args__ = (
         UniqueConstraint("date", name="uq_market_holiday_date"),

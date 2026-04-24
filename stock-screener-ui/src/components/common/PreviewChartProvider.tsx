@@ -88,20 +88,16 @@ export function PreviewChartProvider({ children }: { children: ReactNode }) {
       hoverTimerRef.current = null;
     }
     hoverTimerRef.current = window.setTimeout(async () => {
-      // Check if still hovering same symbol before showing
-      setHoverState((prev) => {
-        if (prev.symbol !== symbol) {
-          return prev; // Skip if symbol changed
-        }
-        return {
-          ...prev,
-          visible: true,
-          x: event.clientX + 15,
-          y: event.clientY + 15,
-          loading: true,
-          data: null,
-        };
-      });
+      // Set visible state with symbol
+      setHoverState((prev) => ({
+        ...prev,
+        visible: true,
+        symbol,
+        x: event.clientX + 15,
+        y: event.clientY + 15,
+        loading: true,
+        data: null,
+      }));
       try {
         const data = await fetchChartPreview(symbol, 15, 1, 45);
         setHoverState((prev) => {
