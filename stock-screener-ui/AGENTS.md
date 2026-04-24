@@ -268,6 +268,9 @@ curl -s 'https://earner-production.up.railway.app/api/paper/trades?limit=5' \
 ## DB Migrations (Alembic)
 - Location: `db/migrations/versions/`
 - Chain: `e5f6a7b8c9d0` → `f6a7b8c9d0e1` (add notes) → `g7b8c9d0e1f2` (add peak/low price) → `2026_04_16_add_reason_to_trades` → `2026_04_20_snapshot_to_db` (BotRuntimeState, StrategyRuntimeState, Position new columns)
+- **Validation**: `python scripts/validate_migrations.py` — CI runs this automatically on PRs touching `db/migrations/**`
+- **Rule**: `down_revision` must be the actual revision ID (e.g., `'h8b9c0d1e2f3'`), never the filename
+- **How to find parent revision**: Look at the parent migration file's `revision = '...'` variable, not its filename
 - Trade model columns: `notes` (String 500), `reason` (String 500), `peak_price` (Float), `low_price` (Float), `bot_id` (Integer FK)
 - `Trade.to_dict()` includes all columns including `bot_id`, `peak_price`, `low_price`
 - Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`. Position HAS `strategy_type`, `peak_price`, `low_price`, `metadata_json` columns (added in snapshot-to-DB migration).
