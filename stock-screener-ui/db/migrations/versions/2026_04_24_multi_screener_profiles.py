@@ -11,7 +11,7 @@ import json
 
 # Revision identifiers
 revision = '2026_04_24_multi_screener_profiles'
-down_revision = '2026_04_20_snapshot_to_db'
+down_revision = 'h8b9c0d1e2f3'
 branch_labels = None
 depends_on = None
 
