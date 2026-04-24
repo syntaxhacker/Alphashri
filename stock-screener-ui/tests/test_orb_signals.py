@@ -197,7 +197,7 @@ class TestORBSignalGeneratorInit:
         assert generator.tp_pct == 1.2
         assert generator.min_or_range_pct == 0.5
         assert generator.max_or_range_pct == 3.0
-        assert isinstance(generator.breakout_buffer_pct, float)
+        assert generator.breakout_buffer_pct == 0.3
 
     def test_init_custom_or_minutes(self):
         """Test initialization with custom or_minutes."""
@@ -407,8 +407,9 @@ class TestCalculateORLevels:
     def test_calculate_or_levels_timezone_aware(self):
         """Test handling of timezone-aware datetimes."""
         generator = ORBSignalGenerator()
+        from datetime import timezone
 
-        base = datetime(2024, 1, 15, 9, 15, tzinfo=config.IST)
+        base = datetime(2024, 1, 15, 9, 15, tzinfo=timezone.utc)
         candles = [
             {'time': base + timedelta(minutes=i*5), 'open': 100+i, 'high': 100+i+1, 'low': 100+i-1, 'close': 100+i}
             for i in range(9)
@@ -754,7 +755,7 @@ class TestCheckExit:
 
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
-        assert "Stop loss hit" in signal.notes
+        assert signal.notes == "Stop loss hit"
 
     def test_long_exit_on_take_profit(self, generator, mocker):
         """Test long exit when take profit is hit."""
@@ -773,7 +774,7 @@ class TestCheckExit:
 
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
-        assert "Take profit hit" in signal.notes
+        assert signal.notes == "Take profit hit"
 
     def test_short_exit_on_stop_loss(self, generator, mocker):
         """Test short exit when stop loss is hit."""
@@ -792,7 +793,7 @@ class TestCheckExit:
 
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_EXIT
-        assert "Stop loss hit" in signal.notes
+        assert signal.notes == "Stop loss hit"
 
     def test_short_exit_on_take_profit(self, generator, mocker):
         """Test short exit when take profit is hit."""
@@ -811,7 +812,7 @@ class TestCheckExit:
 
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_EXIT
-        assert "Take profit hit" in signal.notes
+        assert signal.notes == "Take profit hit"
 
     def test_no_exit_price_within_range_long(self, generator, mocker):
         """Test no exit for long when price is within SL/TP range."""
@@ -955,7 +956,7 @@ class TestCheckExit:
         )
 
         assert signal is not None
-        assert "Stop loss hit" in signal.notes
+        assert signal.notes == "Stop loss hit"
 
     def test_long_exit_exact_take_profit(self, generator, mocker):
         """Test long exit when price is exactly at take profit."""
@@ -973,7 +974,7 @@ class TestCheckExit:
         )
 
         assert signal is not None
-        assert "Take profit hit" in signal.notes
+        assert signal.notes == "Take profit hit"
 
 
 # ============================================================================
@@ -1133,7 +1134,7 @@ class TestCreateEntrySignal:
 
     def test_signal_has_timestamp(self):
         """Test that signal has a timestamp."""
-        before = datetime.now(config.IST)
+        before = datetime.now()
         signal = create_entry_signal(
             symbol="TEST",
             price=100.0,
@@ -1141,7 +1142,7 @@ class TestCreateEntrySignal:
             or_low=97.0,
             side="LONG",
         )
-        after = datetime.now(config.IST)
+        after = datetime.now()
 
         assert before <= signal.timestamp <= after
 

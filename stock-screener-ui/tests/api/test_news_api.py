@@ -7,7 +7,7 @@ Test cases cover:
 """
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch, MagicMock
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,7 +20,7 @@ if 'news_api' not in sys.modules:
     news_api_stub._aggregator.fetch_all = MagicMock(return_value=[])
     sys.modules['news_api'] = news_api_stub
 
-from api_server_fastapi import app
+from api_server_fastapi import app, _news_available, _llm_available
 from fastapi.testclient import TestClient
 
 import api_server_fastapi
@@ -29,22 +29,9 @@ api_server_fastapi._llm_available = True
 
 client = TestClient(app)
 
-
-@pytest.fixture(autouse=True)
-def _clear_news_cache():
-    """Clear any cached news analysis between tests."""
-    try:
-        from cache.redis_client import cache_get, _cache_store
-        if hasattr(_cache_store, 'clear'):
-            _cache_store.clear()
-    except Exception:
-        pass
-    yield
-
-
 class TestNewsEndpoints:
 
-    @patch('api_server_fastapi.fetch_article_content')
+    @patch('news_api.fetch_article_content')
     @patch('api_server_fastapi.article_analyzer')
     def test_analyze_endpoint_success(self, mock_analyzer, mock_fetcher):
         """Verify the /api/news/analyze endpoint stitches fetched content and AI analysis together."""
@@ -76,9 +63,8 @@ class TestNewsEndpoints:
         assert data["analysis"]["sentiment"] == "BULLISH"
         assert data["analysis"]["impact_score"] == 9
 
-    @patch('api_server_fastapi.fetch_article_content')
-    @patch('api_server_fastapi.article_analyzer')
-    def test_analyze_endpoint_fetch_error(self, mock_analyzer, mock_fetcher):
+    @patch('news_api.fetch_article_content')
+    def test_analyze_endpoint_fetch_error(self, mock_fetcher):
         """Verify errors during article scraping are handled gracefully."""
         mock_fetcher.return_value = {
             "error": "Site blocked",
@@ -102,64 +88,59 @@ def mock_news_aggregator(monkeypatch):
              ]
     monkeypatch.setattr(news_api, '_aggregator', MockAggregator())
 
-
 class TestSentimentEndpoint:
 
-    def test_symbol_sentiment_success(self, mock_news_aggregator):
+    @patch('news_api.fetch_article_content')
+    @patch('api_server_fastapi.article_analyzer')
+    def test_symbol_sentiment_success(self, mock_analyzer, mock_fetcher, mock_news_aggregator):
         """Verify the /api/news/sentiment/{symbol} endpoint aggregates properly."""
-        with patch('api_server_fastapi._news_available', True), \
-             patch('api_server_fastapi._llm_available', True), \
-             patch('api_server_fastapi.fetch_article_content') as mock_fetcher, \
-             patch('api_server_fastapi.article_analyzer') as mock_analyzer:
 
-            def side_effect_fetch(url):
-                if "url1" in url:
-                    return {
-                        "headline": "Reliance hits high",
-                        "description": "Good news today",
-                        "publishedAt": "2026-01-01"
-                    }
+        def side_effect_fetch(url):
+            if "url1" in url:
                 return {
-                    "headline": "Reliance faces issues",
-                    "description": "Bad times.",
-                    "publishedAt": "2026-01-02"
+                    "headline": "Reliance hits high",
+                    "description": "Good news today",
+                    "publishedAt": "2026-01-01"
                 }
-
-            mock_fetcher.side_effect = side_effect_fetch
-
-            def side_effect_analyze(url, headline, content):
-                if "high" in headline:
-                    return {"impact_score": 10, "sentiment": "BULLISH", "trade_ideas": []}
-                return {"impact_score": 2, "sentiment": "BEARISH", "trade_ideas": []}
-
-            mock_analyzer.analyze_article.side_effect = side_effect_analyze
-
-            response = client.get("/api/news/sentiment/RELIANCE")
-
-            assert response.status_code == 200
-            data = response.json()
-
-            assert data["symbol"] == "RELIANCE"
-            assert data["articles_analyzed"] == 2
-            assert data["sentiment_score"] == 40.0
-            assert data["sentiment_label"] == "BULLISH"
-
-    def test_symbol_sentiment_no_news(self, mock_news_aggregator):
-        """Verify the endpoint returns a clean NO_RECENT_NEWS status if the symbol isn't in top news."""
-        with patch('api_server_fastapi._news_available', True), \
-             patch('api_server_fastapi._llm_available', True), \
-             patch('api_server_fastapi.fetch_article_content') as mock_fetcher:
-
-            mock_fetcher.return_value = {
-                "headline": "Other company news",
-                "description": "Nothing happening",
-                "symbols": []
+            return {
+                "headline": "Reliance faces issues",
+                "description": "Bad times.",
+                "publishedAt": "2026-01-02"
             }
 
-            response = client.get("/api/news/sentiment/ITC")
-            assert response.status_code == 200
-            data = response.json()
+        mock_fetcher.side_effect = side_effect_fetch
 
-            assert data["status"] == "NO_RECENT_NEWS"
-            assert data["articles_analyzed"] == 0
-            assert data["sentiment_score"] == 0
+        def side_effect_analyze(url, headline, content):
+            if "high" in headline:
+                return {"impact_score": 10, "sentiment": "BULLISH", "trade_ideas": []}
+            return {"impact_score": 2, "sentiment": "BEARISH", "trade_ideas": []}
+
+        mock_analyzer.analyze_article.side_effect = side_effect_analyze
+
+        response = client.get("/api/news/sentiment/RELIANCE")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["symbol"] == "RELIANCE"
+        assert data["articles_analyzed"] == 2
+        assert data["sentiment_score"] == 40.0
+        assert data["sentiment_label"] == "BULLISH"
+
+    @patch('news_api.fetch_article_content')
+    def test_symbol_sentiment_no_news(self, mock_fetcher, mock_news_aggregator):
+        """Verify the endpoint returns a clean NO_RECENT_NEWS status if the symbol isn't in top news."""
+
+        mock_fetcher.return_value = {
+            "headline": "Other company news",
+            "description": "Nothing happening",
+            "symbols": []
+        }
+
+        response = client.get("/api/news/sentiment/ITC")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["status"] == "NO_RECENT_NEWS"
+        assert data["articles_analyzed"] == 0
+        assert data["sentiment_score"] == 0

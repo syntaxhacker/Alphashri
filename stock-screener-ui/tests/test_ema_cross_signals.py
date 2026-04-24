@@ -1,7 +1,6 @@
 import pytest
 from datetime import datetime
 
-from trading.ema_utils import calculate_ema
 from trading.ema_cross_signals import EMACrossSignalGenerator
 from trading.orb_signals import SignalType
 
@@ -14,21 +13,20 @@ class TestEMACrossSignalGenerator:
 
     def test_calculate_ema_basic(self):
         closes = [10, 11, 12, 11, 13]
-        result = calculate_ema(closes, 3, return_full=True)
+        result = EMACrossSignalGenerator.calculate_ema(closes, 3)
+        multiplier = 2.0 / 4
         assert len(result) == 5
-        assert result[0] is None  # First period-1 values are None
-        assert result[1] is None
-        # EMA_2 = SMA(10, 11, 12) = 11.0
-        assert abs(result[2] - 11.0) < 0.01
-        # EMA_3 = 11 * 0.5 + 11.0 * 0.5 = 11.0
-        assert abs(result[3] - 11.0) < 0.01
-        # EMA_4 = 13 * 0.5 + 11.0 * 0.5 = 12.0
-        assert abs(result[4] - 12.0) < 0.01
+        assert result[0] == 10
+        assert result[1] == 11 * multiplier + 10 * (1 - multiplier)
+        assert result[2] == 12 * multiplier + result[1] * (1 - multiplier)
+        assert result[3] == 11 * multiplier + result[2] * (1 - multiplier)
+        assert result[4] == 13 * multiplier + result[3] * (1 - multiplier)
 
-    def test_calculate_ema_insufficient_data(self):
-        assert calculate_ema([], 5, return_full=True) == []
-        assert calculate_ema([42], 5, return_full=True) == []
-        assert calculate_ema([10, 11], 3, return_full=True) == []
+    def test_calculate_ema_empty_list(self):
+        assert EMACrossSignalGenerator.calculate_ema([], 5) == []
+
+    def test_calculate_ema_single_value(self):
+        assert EMACrossSignalGenerator.calculate_ema([42], 5) == [42]
 
     def test_config_defaults(self):
         gen = EMACrossSignalGenerator({})
@@ -45,44 +43,43 @@ class TestEMACrossSignalGenerator:
         assert gen.sl_pct == 1.0
         assert gen.tp_pct == 2.0
 
-    @pytest.mark.parametrize("market_data,expected_type,expected_price,enable_shorts", [
+    @pytest.mark.parametrize("market_data,expected_type,expected_price", [
         (
             {"current_price": 100.0, "ema_fast_prev": 99.0, "ema_slow_prev": 100.0,
              "ema_fast_current": 101.0, "ema_slow_current": 100.0},
-            SignalType.LONG_ENTRY, 100.0, False,
+            SignalType.LONG_ENTRY, 100.0,
         ),
         (
             {"current_price": 100.0, "ema_fast_prev": 101.0, "ema_slow_prev": 100.0,
              "ema_fast_current": 99.0, "ema_slow_current": 100.0},
-            SignalType.SHORT_ENTRY, 100.0, True,
+            SignalType.SHORT_ENTRY, 100.0,
         ),
         (
             {"current_price": 100.0, "ema_fast_prev": 102.0, "ema_slow_prev": 100.0,
              "ema_fast_current": 103.0, "ema_slow_current": 101.0},
-            None, None, False,
+            None, None,
         ),
         (
             {"current_price": 100.0, "ema_fast_prev": 98.0, "ema_slow_prev": 100.0,
              "ema_fast_current": 97.0, "ema_slow_current": 99.0},
-            None, None, False,
+            None, None,
         ),
         (
             {"current_price": 100.0, "ema_fast_prev": 100.0, "ema_slow_prev": 100.0,
              "ema_fast_current": 100.0, "ema_slow_current": 100.0},
-            None, None, False,
+            None, None,
         ),
         (
             {"current_price": 100.0, "ema_fast_prev": 100.0, "ema_slow_prev": 100.0,
              "ema_fast_current": 101.0, "ema_slow_current": 100.0},
-            SignalType.LONG_ENTRY, 100.0, False,
+            SignalType.LONG_ENTRY, 100.0,
         ),
     ], ids=[
         "bullish_crossover", "bearish_crossover",
         "no_crossover_fast_above", "no_crossover_fast_below",
         "equal_no_cross", "bullish_from_equal",
     ])
-    def test_check_entry_scenarios(self, market_data, expected_type, expected_price, enable_shorts):
-        gen = EMACrossSignalGenerator({"enable_shorts": enable_shorts})
+    def test_check_entry_scenarios(self, gen, market_data, expected_type, expected_price):
         signal = gen.check_entry("RELIANCE", market_data)
         if expected_type is None:
             assert signal is None
@@ -109,8 +106,6 @@ class TestEMACrossSignalGenerator:
         assert long_signal.stop_loss == round(200.0 * (1 - 0.5 / 100), 2)
         assert long_signal.take_profit == round(200.0 * (1 + 1.5 / 100), 2)
 
-    def test_check_entry_sl_tp_calculated_shorts(self):
-        gen = EMACrossSignalGenerator({"enable_shorts": True})
         market_data_bearish = {
             "current_price": 200.0,
             "ema_fast_prev": 201.0,
@@ -134,8 +129,7 @@ class TestEMACrossSignalGenerator:
         signal = gen.check_entry("RELIANCE", market_data)
         assert signal is not None
         assert "EMA9" in signal.notes
-        assert "21" in signal.notes
-        assert "cross" in signal.notes
+        assert "EMA21" in signal.notes
 
     @pytest.mark.parametrize("side,entry,sl,tp,current,hour,minute,expected_type,expected_notes", [
         ("BUY", 100.0, 99.0, 105.0, 98.5, 11, 0, SignalType.LONG_EXIT, "Stop loss hit"),
@@ -143,7 +137,7 @@ class TestEMACrossSignalGenerator:
         ("SELL", 100.0, 101.0, 95.0, 102.0, 11, 0, SignalType.SHORT_EXIT, "Stop loss hit"),
         ("SELL", 100.0, 101.0, 95.0, 94.0, 11, 0, SignalType.SHORT_EXIT, "Take profit hit"),
         ("BUY", 100.0, 99.0, 105.0, 102.0, 11, 0, None, None),
-        ("BUY", 100.0, 99.0, 105.0, 102.0, 14, 46, SignalType.LONG_EXIT, "EOD force exit"),
+        ("BUY", 100.0, 99.0, 105.0, 102.0, 14, 46, SignalType.LONG_EXIT, "EOD force exit (14:45)"),
         ("BUY", 100.0, 99.0, 105.0, 102.0, 14, 0, None, None),
     ], ids=[
         "stop_loss_long", "take_profit_long",
@@ -165,57 +159,7 @@ class TestEMACrossSignalGenerator:
         else:
             assert signal is not None
             assert signal.signal_type == expected_type
-            assert expected_notes in signal.notes
-
-    def test_check_entry_enable_shorts_false(self):
-        """Test that enable_shorts=False (default) prevents bearish signals."""
-        gen = EMACrossSignalGenerator({"enable_shorts": False})
-        market_data = {
-            "current_price": 100.0,
-            "ema_fast_prev": 101.0,
-            "ema_slow_prev": 100.0,
-            "ema_fast_current": 99.0,
-            "ema_slow_current": 100.0,
-        }
-        signal = gen.check_entry("RELIANCE", market_data)
-        assert signal is None
-
-    def test_check_entry_enable_shorts_true(self):
-        """Test that enable_shorts=True allows bearish signals."""
-        gen = EMACrossSignalGenerator({"enable_shorts": True})
-        market_data = {
-            "current_price": 100.0,
-            "ema_fast_prev": 101.0,
-            "ema_slow_prev": 100.0,
-            "ema_fast_current": 99.0,
-            "ema_slow_current": 100.0,
-        }
-        signal = gen.check_entry("RELIANCE", market_data)
-        assert signal is not None
-        assert signal.signal_type == SignalType.SHORT_ENTRY
-
-    def test_check_entry_cooldown(self):
-        """Test cooldown logic prevents immediate re-entry after exit."""
-        gen = EMACrossSignalGenerator({"cooldown_bars": 3})
-        gen._bar_number = 10
-        gen._last_exit_bar = 9  # Exit just happened
-
-        market_data = {
-            "current_price": 100.0,
-            "ema_fast_prev": 99.0,
-            "ema_slow_prev": 100.0,
-            "ema_fast_current": 101.0,
-            "ema_slow_current": 100.0,
-        }
-        # Within cooldown period
-        signal = gen.check_entry("RELIANCE", market_data)
-        assert signal is None
-
-        # After cooldown period
-        gen._bar_number = 13
-        signal = gen.check_entry("RELIANCE", market_data)
-        assert signal is not None
-        assert signal.signal_type == SignalType.LONG_ENTRY
+            assert signal.notes == expected_notes
 
     def test_strategy_type_attribute(self):
         assert EMACrossSignalGenerator.strategy_type == "EMA_CROSS"

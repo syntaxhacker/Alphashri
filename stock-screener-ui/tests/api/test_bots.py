@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-from api.bots_api import router as bots_router
+from api.bots import router as bots_router
 
 
 # ============================================================================
@@ -289,10 +289,10 @@ def app(mock_session_local, sample_bot_snapshot, mock_journal):
     app = FastAPI()
     app.include_router(bots_router)
 
-    with patch('api.bots_api.bot_operations._db_available', True), \
-         patch('api.bots_api.bot_operations.SessionLocal', return_value=mock_session_local), \
-         patch('api.bots_api.bots_router.get_bot_snapshot_path') as mock_snapshot_path, \
-         patch('api.bots_api.bot_operations.get_bot_state') as mock_get_state, \
+    with patch('api.bots._db_available', True), \
+         patch('api.bots.SessionLocal', return_value=mock_session_local), \
+         patch('api.bots.get_bot_snapshot_path') as mock_snapshot_path, \
+         patch('api.bots.get_bot_state') as mock_get_state, \
          patch('trading.journal.get_journal', return_value=mock_journal):
 
         def get_snapshot_path(bot_id, user_id=0):
@@ -350,7 +350,7 @@ class TestAvailableStrategies:
     @pytest.mark.unit
     def test_get_available_strategies_db_unavailable(self, client):
         """Test GET /api/bots/available-strategies when DB unavailable."""
-        with patch('api.bots_api.bot_operations._db_available', False):
+        with patch('api.bots._db_available', False):
             response = client.get("/api/bots/available-strategies")
 
             assert response.status_code == 401
@@ -543,7 +543,7 @@ class TestBotCRUD:
         test_db.commit()
         test_db.refresh(bot)
 
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
+        with patch('api.bots.is_bot_running', return_value=(False, None)):
             response = client_with_db.delete(f"/api/bots/{bot.uuid}")
 
             assert response.status_code == 200
@@ -592,8 +592,8 @@ class TestBotControl:
     @pytest.mark.integration
     def test_start_bot(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/start."""
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)), \
-             patch('api.bots_api.bot_operations.start_bot_process') as mock_start:
+        with patch('api.bots.is_bot_running', return_value=(False, None)), \
+             patch('api.bots.start_bot_process') as mock_start:
 
             mock_process = MagicMock()
             mock_process.pid = 12345
@@ -609,7 +609,7 @@ class TestBotControl:
     @pytest.mark.integration
     def test_start_bot_already_running(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/start when already running."""
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(True, 12345)):
+        with patch('api.bots.is_bot_running', return_value=(True, 12345)):
 
             response = client_with_db.post(f"/api/bots/{test_bot.uuid}/start")
 
@@ -632,7 +632,7 @@ class TestBotControl:
         test_db.commit()
         test_db.refresh(bot)
 
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
+        with patch('api.bots.is_bot_running', return_value=(False, None)):
 
             response = client_with_db.post(f"/api/bots/{bot.uuid}/start")
 
@@ -650,8 +650,8 @@ class TestBotControl:
     @pytest.mark.integration
     def test_start_bot_test_mode(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/start with test_mode=True."""
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)), \
-             patch('api.bots_api.bot_operations.start_bot_process') as mock_start:
+        with patch('api.bots.is_bot_running', return_value=(False, None)), \
+             patch('api.bots.start_bot_process') as mock_start:
 
             mock_process = MagicMock()
             mock_process.pid = 12345
@@ -667,8 +667,8 @@ class TestBotControl:
     @pytest.mark.integration
     def test_stop_bot(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/stop."""
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(True, 12345)), \
-             patch('api.bots_api.bot_operations.stop_bot_process') as mock_stop:
+        with patch('api.bots.is_bot_running', return_value=(True, 12345)), \
+             patch('api.bots.stop_bot_process') as mock_stop:
 
             response = client_with_db.post(f"/api/bots/{test_bot.uuid}/stop")
 
@@ -680,7 +680,7 @@ class TestBotControl:
     @pytest.mark.integration
     def test_stop_bot_not_running(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/stop when not running."""
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
+        with patch('api.bots.is_bot_running', return_value=(False, None)):
             response = client_with_db.post(f"/api/bots/{test_bot.uuid}/stop")
 
             assert response.status_code == 200
@@ -718,7 +718,7 @@ class TestBotControl:
     @pytest.mark.integration
     def test_get_bot_status_nonexistent(self, client_with_db):
         """Test GET /api/bots/{bot_id}/status with non-existent bot."""
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
+        with patch('api.bots.is_bot_running', return_value=(False, None)):
             fake_uuid = str(uuid_module.uuid4())
             response = client_with_db.get(f"/api/bots/{fake_uuid}/status")
 
@@ -892,7 +892,7 @@ class TestBotPositionsFromDB:
         db.add(pos)
         db.commit()
 
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
+        with patch('api.bots.get_bot_state', return_value=None):
             response = client.get(
                 f"/api/bots/{bot.uuid}/positions",
                 headers=auth_headers,
@@ -915,7 +915,7 @@ class TestBotPositionsFromDB:
         log_file.write(log_content)
         log_file.close()
 
-        with patch('api.bots_api.bot_operations._bot_logs', {test_bot.id: Path(log_file.name)}):
+        with patch('api.bots._bot_logs', {test_bot.id: Path(log_file.name)}):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/logs")
 
             Path(log_file.name).unlink(missing_ok=True)
@@ -929,7 +929,7 @@ class TestBotPositionsFromDB:
     @pytest.mark.integration
     def test_get_bot_logs_no_logs(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/logs when no logs available."""
-        with patch('api.bots_api.bot_operations._bot_logs', {}):
+        with patch('api.bots._bot_logs', {}):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/logs")
 
             assert response.status_code == 200
@@ -947,7 +947,7 @@ class TestBotPositionsFromDB:
         log_file.write(log_content)
         log_file.close()
 
-        with patch('api.bots_api.bot_operations._bot_logs', {test_bot.id: Path(log_file.name)}):
+        with patch('api.bots._bot_logs', {test_bot.id: Path(log_file.name)}):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/logs?lines=5")
 
             Path(log_file.name).unlink(missing_ok=True)
@@ -1007,7 +1007,7 @@ class TestPortfolioAndPositions:
             "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
+        with patch('api.bots.get_bot_state', return_value=snapshot):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/portfolio")
 
             assert response.status_code == 200
@@ -1020,7 +1020,7 @@ class TestPortfolioAndPositions:
     @pytest.mark.integration
     def test_get_bot_portfolio_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/portfolio when no snapshot exists."""
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
+        with patch('api.bots.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/portfolio")
 
             assert response.status_code == 200
@@ -1055,7 +1055,7 @@ class TestPortfolioAndPositions:
             ]
         }
         
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
+        with patch('api.bots.get_bot_state', return_value=snapshot):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/positions")
 
             assert response.status_code == 200
@@ -1081,7 +1081,7 @@ class TestPortfolioAndPositions:
             ]
         }
         
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
+        with patch('api.bots.get_bot_state', return_value=snapshot):
             response = client_with_db.get(
                 f"/api/bots/{test_bot.uuid}/positions?strategy_id={test_strategy.uuid}"
             )
@@ -1093,7 +1093,7 @@ class TestPortfolioAndPositions:
     @pytest.mark.integration
     def test_get_bot_positions_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/positions when no snapshot exists."""
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
+        with patch('api.bots.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/positions")
 
             assert response.status_code == 200
@@ -1113,7 +1113,7 @@ class TestPortfolioAndPositions:
             "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
+        with patch('api.bots.get_bot_state', return_value=snapshot):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/scan")
 
             assert response.status_code == 200
@@ -1134,7 +1134,7 @@ class TestPortfolioAndPositions:
             "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
+        with patch('api.bots.get_bot_state', return_value=snapshot):
             response = client_with_db.get(
                 f"/api/bots/{test_bot.uuid}/scan?strategy_id={test_strategy.uuid}"
             )
@@ -1146,7 +1146,7 @@ class TestPortfolioAndPositions:
     @pytest.mark.integration
     def test_get_bot_scan_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/scan when no snapshot exists."""
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
+        with patch('api.bots.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/scan")
 
             assert response.status_code == 200
@@ -1184,7 +1184,7 @@ class TestPerformanceEndpoints:
             "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot), \
+        with patch('api.bots.get_bot_state', return_value=snapshot), \
              patch('trading.journal.get_journal') as mock_get_journal:
             
             mock_journal = MagicMock()
@@ -1203,7 +1203,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_get_bot_performance_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/performance when no snapshot exists."""
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
+        with patch('api.bots.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance")
 
             assert response.status_code == 200
@@ -1221,7 +1221,7 @@ class TestPerformanceEndpoints:
             "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot), \
+        with patch('api.bots.get_bot_state', return_value=snapshot), \
              patch('trading.journal.get_journal') as mock_get_journal:
             
             mock_journal = MagicMock()
@@ -1252,7 +1252,7 @@ class TestPerformanceEndpoints:
             "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot), \
+        with patch('api.bots.get_bot_state', return_value=snapshot), \
              patch('trading.journal.get_journal') as mock_get_journal:
             
             mock_journal = MagicMock()
@@ -1271,7 +1271,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_compare_strategy_performance_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/performance/compare when no snapshot."""
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
+        with patch('api.bots.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance/compare")
 
             assert response.status_code == 200
@@ -1401,7 +1401,7 @@ class TestErrorHandling:
     @pytest.mark.unit
     def test_database_unavailable(self, client_with_db):
         """Test endpoints when database is unavailable."""
-        with patch('api.bots_api.bot_status._db_available', False):
+        with patch('api.bots._db_available', False):
             response = client_with_db.get("/api/bots")
             assert response.status_code == 500
             assert "database" in response.json()["detail"].lower()
@@ -1750,7 +1750,7 @@ class TestBotPositionsFromDB:
         test_db.add(pos)
         test_db.commit()
 
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
+        with patch('api.bots.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{bot_uuid}/positions")
         assert response.status_code == 200
         data = response.json()

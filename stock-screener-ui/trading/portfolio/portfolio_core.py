@@ -6,8 +6,6 @@ import config
 
 from rich.console import Console
 
-from trading.risk_utils import position_to_dict
-
 from .portfolio_models import (
     StrategyAllocation,
     SharedPosition,
@@ -306,18 +304,43 @@ class SharedPortfolioManager:
 
     def get_positions_by_strategy(self, strategy_id: int) -> List[dict]:
         return [
-            position_to_dict(pos)
+            {
+                'symbol': pos.symbol,
+                'side': pos.side.value,
+                'quantity': pos.quantity,
+                'entry_price': pos.entry_price,
+                'current_price': pos.current_price,
+                'stop_loss': pos.stop_loss,
+                'take_profit': pos.take_profit,
+                'unrealized_pnl': pos.unrealized_pnl,
+                'unrealized_pnl_pct': pos.unrealized_pnl_pct,
+                'entry_time': pos.entry_time.isoformat(),
+                'strategy_id': pos.strategy_id,
+                'strategy_name': pos.strategy_name,
+            }
             for key, pos in self.positions.items()
             if pos.strategy_id == strategy_id
         ]
 
     def get_all_positions(self) -> List[dict]:
         return [
-            position_to_dict(pos, extra_fields={
+            {
+                'symbol': pos.symbol,
+                'side': pos.side.value,
+                'quantity': pos.quantity,
+                'entry_price': pos.entry_price,
+                'current_price': pos.current_price,
+                'stop_loss': pos.stop_loss,
+                'take_profit': pos.take_profit,
+                'unrealized_pnl': pos.unrealized_pnl,
+                'unrealized_pnl_pct': pos.unrealized_pnl_pct,
+                'entry_time': pos.entry_time.isoformat(),
+                'strategy_id': pos.strategy_id,
+                'strategy_name': pos.strategy_name,
                 'strategy_type': pos.strategy_type,
                 'peak_price': pos.peak_price,
                 'metadata': pos.metadata,
-            })
+            }
             for pos in self.positions.values()
         ]
 

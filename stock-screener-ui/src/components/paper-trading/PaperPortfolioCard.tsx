@@ -94,11 +94,29 @@ export function PaperPortfolioCard({
         />
       </CompactStatGrid>
 
-      {portfolio.daily_loss_limit_exceeded && (
-        <Badge variant="filled" color="red" size="xs" mt={4} data-testid="daily-loss-halted">
-          LOSS LIMIT
-        </Badge>
-      )}
+      <Group
+        gap={6}
+        mt="sm"
+        align="center"
+        data-testid="portfolio-row-2"
+        className="portfolio-row"
+        id="portfolio-row-2"
+      >
+        <Group gap={6} align="center">
+          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            Positions
+          </Text>
+          <Badge variant="light" color="blue" size="sm">
+            {portfolio.positions_count}
+          </Badge>
+        </Group>
+
+        {portfolio.daily_loss_limit_exceeded && (
+          <Badge variant="filled" color="red" size="sm" data-testid="daily-loss-halted">
+            LOSS LIMIT
+          </Badge>
+        )}
+      </Group>
 
       {showDailyLossLimit && (
         <Group gap="xs" mt={4} align="center">

@@ -485,8 +485,9 @@ class TestORBNautilusStrategyInit:
         strategy = ORBNautilusStrategy(config=config)
 
         assert strategy._current_date is None
-        assert strategy._or_levels is None
-        assert strategy._or_candles == []
+        assert strategy._or_high is None
+        assert strategy._or_low is None
+        assert strategy._or_bars == 0
         assert strategy._or_defined is False
         assert strategy._entry_price is None
         assert strategy._position_side is None
@@ -514,8 +515,8 @@ class TestORBNautilusStrategyOnReset:
         """Test: on_reset clears all state variables."""
         strategy = self._create_strategy()
         strategy._current_date = "2024-01-15"
-        strategy._or_levels = {'or_high': 100.0, 'or_low': 95.0}
-        strategy._or_candles = [{'time': '2024-01-15T09:15:00', 'open': 99, 'high': 100, 'low': 95, 'close': 98}]
+        strategy._or_high = 100.0
+        strategy._or_low = 95.0
         strategy._or_defined = True
         strategy._position_side = "LONG"
         strategy._entry_price = 100.0
@@ -523,8 +524,8 @@ class TestORBNautilusStrategyOnReset:
         strategy.on_reset()
 
         assert strategy._current_date is None
-        assert strategy._or_levels is None
-        assert strategy._or_candles == []
+        assert strategy._or_high is None
+        assert strategy._or_low is None
         assert strategy._or_defined is False
         assert strategy._position_side is None
         assert strategy._entry_price is None

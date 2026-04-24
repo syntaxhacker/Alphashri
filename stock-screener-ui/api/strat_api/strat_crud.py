@@ -1,5 +1,4 @@
 import asyncio
-import json
 from typing import Optional
 
 from fastapi import Depends, HTTPException
@@ -66,7 +65,6 @@ def _sync_create_strategy(db, request):
             "eod_exit_hour": parent.eod_exit_hour,
             "eod_exit_minute": parent.eod_exit_minute,
             "min_rr_ratio": parent.min_rr_ratio,
-            "screener_profiles": json.dumps(parent.screener_profiles) if parent.screener_profiles else None,
             "brokerage_pct": parent.brokerage_pct,
             "min_brokerage": parent.min_brokerage,
             "stt_pct": parent.stt_pct,
@@ -83,7 +81,6 @@ def _sync_create_strategy(db, request):
         "description": request.description,
         "is_template": False,
         "is_active": True,
-        "screener_profiles": json.dumps(request.screener_profiles) if request.screener_profiles else None,
     }
 
     for field in [
@@ -92,7 +89,6 @@ def _sync_create_strategy(db, request):
         "max_total_exposure_pct", "risk_per_trade_pct", "min_trade_value",
         "max_trade_value", "cooldown_minutes", "max_distance_from_or_pct",
         "enable_shorts", "eod_exit_hour", "eod_exit_minute", "min_rr_ratio",
-        "screener_profiles",
     ]:
         request_val = getattr(request, field, None)
         strategy_data[field] = request_val if request_val is not None else defaults.get(field)
@@ -116,10 +112,7 @@ def _sync_update_strategy(db, strategy_id, request):
     update_data = request.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if value is not None and hasattr(strategy, key):
-            if key == "screener_profiles" and value:
-                setattr(strategy, key, json.dumps(value))
-            else:
-                setattr(strategy, key, value)
+            setattr(strategy, key, value)
 
     if request.is_default:
         db.query(StrategyConfig).filter(

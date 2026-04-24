@@ -266,7 +266,7 @@ class TestBotStartupFlow:
         bot = bot_response.json()
 
         # Mock the process creation
-        with patch('api.bots_api.bot_operations.start_bot_process') as mock_start:
+        with patch('api.bots.start_bot_process') as mock_start:
             mock_process = Mock()
             mock_process.pid = 12345
             mock_process.poll = Mock(return_value=None)  # Process running
@@ -561,7 +561,7 @@ class TestBotMonitoringFlow:
         bot = bot_response.json()
 
         # Mock log file
-        with patch('api.bots_api.bot_operations._bot_logs', {bot['id']: Path("/tmp/test-bot.log")}):
+        with patch('api.bots._bot_logs', {bot['id']: Path("/tmp/test-bot.log")}):
             # Create temporary log file
             log_content = "2026-03-03 10:00:00 [INFO] Bot started\n2026-03-03 10:00:01 [INFO] Scanning for signals\n"
 
@@ -638,7 +638,7 @@ class TestBotMonitoringFlow:
             }
         }
 
-        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot_data):
+        with patch('api.bots.get_bot_state', return_value=snapshot_data):
             portfolio_response = client.get(f"/api/bots/{bot['id']}/portfolio")
 
             assert portfolio_response.status_code == 200
@@ -685,8 +685,8 @@ class TestBotShutdownFlow:
         bot = bot_response.json()
 
         # Mock running and stopping
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(True, 12345)):
-            with patch('api.bots_api.bot_operations.stop_bot_process') as mock_stop:
+        with patch('api.bots.is_bot_running', return_value=(True, 12345)):
+            with patch('api.bots.stop_bot_process') as mock_stop:
                 stop_response = client.post(f"/api/bots/{bot['id']}/stop")
 
                 assert stop_response.status_code == 200
@@ -719,7 +719,7 @@ class TestBotShutdownFlow:
         bot = bot_response.json()
 
         # Mock not running state
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
+        with patch('api.bots.is_bot_running', return_value=(False, None)):
             status_response = client.get(f"/api/bots/{bot['id']}/status")
 
             assert status_response.status_code == 200
@@ -877,9 +877,9 @@ class TestResourceCleanup:
         bot = bot_response.json()
 
         # Mock crashed state (process.poll() returns exit code)
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
+        with patch('api.bots.is_bot_running', return_value=(False, None)):
             # Even after crash, should be able to start again
-            with patch('api.bots_api.bot_operations.start_bot_process') as mock_start:
+            with patch('api.bots.start_bot_process') as mock_start:
                 mock_process = Mock()
                 mock_process.pid = 54321
                 mock_start.return_value = mock_process

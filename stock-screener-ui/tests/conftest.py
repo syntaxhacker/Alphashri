@@ -155,7 +155,7 @@ def test_bot_uuid(test_bot):
 @pytest.fixture
 def client_with_db(test_db_engine, test_user):
     """Create test client with test database and auth override."""
-    from api.bots_api import router as bots_router
+    from api.bots import router as bots_router
     from db.models import bot_strategies
     
     app = FastAPI()
@@ -195,7 +195,7 @@ def client_with_db(test_db_engine, test_user):
 @pytest.fixture
 def client(test_db_engine):
     """Basic test client with test database (no auth override)."""
-    from api.bots_api import router as bots_router
+    from api.bots import router as bots_router
     
     app = FastAPI()
     app.include_router(bots_router)

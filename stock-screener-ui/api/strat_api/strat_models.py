@@ -1,4 +1,5 @@
-from typing import Optional, List
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -29,8 +30,7 @@ class StrategyCreate(BaseModel):
     eod_exit_hour: Optional[int] = None
     eod_exit_minute: Optional[int] = None
     min_rr_ratio: Optional[float] = None
-    # Screener Profiles (multi-select)
-    screener_profiles: Optional[List[str]] = None
+    min_rr_ratio: Optional[float] = None
 
 
 class StrategyUpdate(BaseModel):
@@ -58,5 +58,3 @@ class StrategyUpdate(BaseModel):
     eod_exit_hour: Optional[int] = None
     eod_exit_minute: Optional[int] = None
     min_rr_ratio: Optional[float] = None
-    # Screener Profiles (multi-select)
-    screener_profiles: Optional[List[str]] = None

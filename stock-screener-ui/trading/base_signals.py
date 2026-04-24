@@ -34,21 +34,7 @@ class BaseSignalGenerator(ABC):
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
         pass
 
-    def _get_current_time(self, **kwargs):
-        now = kwargs.get("timestamp", datetime.now(config.IST))
-        if isinstance(now, datetime):
-            return now.hour, now.minute
-        now = datetime.now(config.IST)
-        return now.hour, now.minute
-
-    def _calc_pnl_pct(self, position_side: str, entry_price: float, current_price: float) -> float:
-        if not entry_price:
-            return 0.0
-        pnl_pct = ((current_price - entry_price) / entry_price) * 100
-        if position_side == "SELL":
-            pnl_pct = -pnl_pct
-        return pnl_pct
-
+    @abstractmethod
     def check_exit(
         self,
         symbol: str,
@@ -59,35 +45,7 @@ class BaseSignalGenerator(ABC):
         current_price: float,
         **kwargs,
     ) -> Optional[ORBSignal]:
-        hour, minute = self._get_current_time(**kwargs)
-
-        if self.is_eod_exit_time(hour, minute):
-            exit_type = SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT
-            pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
-            return self.create_signal(
-                symbol=symbol,
-                signal_type=exit_type,
-                price=current_price,
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                notes=f"EOD force exit ({self.eod_exit_hour}:{self.eod_exit_minute:02d}) (PnL: {pnl_pct:+.2f}%)",
-            )
-
-        if position_side == "BUY":
-            pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
-            if current_price <= stop_loss:
-                return self.create_signal(symbol=symbol, signal_type=SignalType.LONG_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)")
-            if current_price >= take_profit:
-                return self.create_signal(symbol=symbol, signal_type=SignalType.LONG_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)")
-
-        if position_side == "SELL":
-            pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
-            if current_price >= stop_loss:
-                return self.create_signal(symbol=symbol, signal_type=SignalType.SHORT_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)")
-            if current_price <= take_profit:
-                return self.create_signal(symbol=symbol, signal_type=SignalType.SHORT_EXIT, price=current_price, stop_loss=stop_loss, take_profit=take_profit, notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)")
-
-        return None
+        pass
 
     def create_signal(
         self,

@@ -51,58 +51,67 @@ const createLoadingState = () =>
     trades: false,
   }) as any;
 
-type MockStateOverrides = Partial<{
-  bots: any[];
-  selectedBot: any;
-  botStatus: any;
-  botTrades: any[];
-  availableStrategies: any[];
-  error: string | null;
-  showCreateModal: boolean;
-  showEditModal: boolean;
-  editingBot: any;
-}>;
-
-const defaultState: () => ReturnType<MockStateOverrides & typeof createLoadingState> = () => ({
-  bots: [],
-  selectedBot: null,
-  botStatus: null,
-  botTrades: [],
-  availableStrategies: [],
-  loading: createLoadingState(),
-  error: null,
-  showCreateModal: false,
-  showEditModal: false,
-  editingBot: null,
-});
-
-function mockState(overrides: MockStateOverrides = {}) {
-  vi.mocked(botsState.getBotsState).mockReturnValue({ ...defaultState(), ...overrides });
-  vi.mocked(botsState.getCurrentView).mockReturnValue("list");
-}
-
 describe("renderBotsView", () => {
   it("renders bots-view container", () => {
-    mockState();
+    vi.mocked(botsState.getBotsState).mockReturnValue({
+      bots: [],
+      selectedBot: null,
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
+    });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
     expect(html).toContain('data-testid="bots-view"');
   });
 
   it("renders list tab as active when view is list", () => {
-    mockState();
+    vi.mocked(botsState.getBotsState).mockReturnValue({
+      bots: [],
+      selectedBot: null,
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
+    });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
     expect(html).toContain('class="bots-tab active"');
     expect(html).toContain("Bots");
   });
 
   it("renders empty state when no bots", () => {
-    mockState();
+    vi.mocked(botsState.getBotsState).mockReturnValue({
+      bots: [],
+      selectedBot: null,
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
+    });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
     expect(html).toContain("No bots configured");
   });
 
   it("renders bot list with bots data", () => {
-    mockState({
+    vi.mocked(botsState.getBotsState).mockReturnValue({
       bots: [
         {
           id: "bot-1",
@@ -125,7 +134,18 @@ describe("renderBotsView", () => {
           pid: null,
         },
       ],
+      selectedBot: null,
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
     });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
     expect(html).toContain('data-testid="bots-list"');
     expect(html).toContain("Test Bot");
@@ -133,7 +153,7 @@ describe("renderBotsView", () => {
   });
 
   it("renders running status with PID when bot is running", () => {
-    mockState({
+    vi.mocked(botsState.getBotsState).mockReturnValue({
       bots: [
         {
           id: "bot-1",
@@ -148,13 +168,24 @@ describe("renderBotsView", () => {
           pid: 12345,
         },
       ],
+      selectedBot: null,
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
     });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
     expect(html).toContain("Running (PID 12345)");
   });
 
   it("renders inactive badge when bot is not active", () => {
-    mockState({
+    vi.mocked(botsState.getBotsState).mockReturnValue({
       bots: [
         {
           id: "bot-1",
@@ -169,86 +200,244 @@ describe("renderBotsView", () => {
           pid: null,
         },
       ],
+      selectedBot: null,
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
     });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
     expect(html).toContain("Inactive");
   });
 
   it("renders error when present", () => {
-    mockState({ error: "Something went wrong" });
+    vi.mocked(botsState.getBotsState).mockReturnValue({
+      bots: [],
+      selectedBot: null,
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: "Something went wrong",
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
+    });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
     expect(html).toContain('data-testid="bots-error"');
     expect(html).toContain("Something went wrong");
   });
 
   it("renders create modal when showCreateModal is true", () => {
-    mockState({ showCreateModal: true });
+    vi.mocked(botsState.getBotsState).mockReturnValue({
+      bots: [],
+      selectedBot: null,
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: true,
+      showEditModal: false,
+      editingBot: null,
+    });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
     expect(html).toContain("config-form");
   });
 
   it("disables status tab when no bot is selected", () => {
-    mockState();
+    vi.mocked(botsState.getBotsState).mockReturnValue({
+      bots: [],
+      selectedBot: null,
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
+    });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
     expect(html).toContain('data-testid="bots-tab-status"');
     expect(html).toContain("disabled");
   });
 
-  it.each([
-    {
-      name: "renders strategy allocations for selected bot",
-      strategies: [
-        { id: "s1", name: "Momentum", strategy_type: "momentum", max_positions: 5, capital_allocation_pct: 0.6 },
-        { id: "s2", name: "Mean Revert", strategy_type: "mean_revert", max_positions: 3, capital_allocation_pct: 0.4 },
+  it("renders strategy allocations for selected bot", () => {
+    vi.mocked(botsState.getBotsState).mockReturnValue({
+      bots: [
+        {
+          id: "bot-1",
+          name: "Alloc Bot",
+          is_active: true,
+          max_total_positions: 10,
+          max_total_capital_pct: 1.0,
+          strategies: [
+            {
+              id: "s1",
+              name: "Momentum",
+              strategy_type: "momentum",
+              max_positions: 5,
+              capital_allocation_pct: 0.6,
+            },
+            {
+              id: "s2",
+              name: "Mean Revert",
+              strategy_type: "mean_revert",
+              max_positions: 3,
+              capital_allocation_pct: 0.4,
+            },
+          ],
+          created_at: null,
+          updated_at: null,
+          running: false,
+          pid: null,
+        },
       ],
-      expected: ["Momentum", "60%", "Mean Revert", "40%", "Total: 100%"],
-    },
-    {
-      name: "renders warning when allocation exceeds 100%",
-      strategies: [
-        { id: "s1", name: "Strat1", strategy_type: "t", max_positions: 5, capital_allocation_pct: 0.6 },
-        { id: "s2", name: "Strat2", strategy_type: "t", max_positions: 5, capital_allocation_pct: 0.6 },
-      ],
-      expected: ["Over 100%"],
-    },
-  ])("$name", ({ strategies, expected }) => {
-    const bot = {
-      id: "bot-1",
-      name: "Test Bot",
-      is_active: true,
-      max_total_positions: 10,
-      max_total_capital_pct: 1.0,
-      strategies,
-      created_at: null,
-      updated_at: null,
-      running: false,
-      pid: null,
-    };
-    mockState({ bots: [bot], selectedBot: bot });
+      selectedBot: {
+        id: "bot-1",
+        name: "Alloc Bot",
+        is_active: true,
+        max_total_positions: 10,
+        max_total_capital_pct: 1.0,
+        strategies: [
+          {
+            id: "s1",
+            name: "Momentum",
+            strategy_type: "momentum",
+            max_positions: 5,
+            capital_allocation_pct: 0.6,
+          },
+          {
+            id: "s2",
+            name: "Mean Revert",
+            strategy_type: "mean_revert",
+            max_positions: 3,
+            capital_allocation_pct: 0.4,
+          },
+        ],
+        created_at: null,
+        updated_at: null,
+        running: false,
+        pid: null,
+      },
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
+    });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
     const html = renderBotsView();
-    for (const text of expected) {
-      expect(html).toContain(text);
-    }
+    expect(html).toContain("Momentum");
+    expect(html).toContain("60%");
+    expect(html).toContain("Mean Revert");
+    expect(html).toContain("40%");
+    expect(html).toContain("Total: 100%");
+  });
+
+  it("renders warning when allocation exceeds 100%", () => {
+    vi.mocked(botsState.getBotsState).mockReturnValue({
+      bots: [
+        {
+          id: "bot-1",
+          name: "Over Bot",
+          is_active: true,
+          max_total_positions: 10,
+          max_total_capital_pct: 1.0,
+          strategies: [
+            {
+              id: "s1",
+              name: "Strat1",
+              strategy_type: "t",
+              max_positions: 5,
+              capital_allocation_pct: 0.6,
+            },
+            {
+              id: "s2",
+              name: "Strat2",
+              strategy_type: "t",
+              max_positions: 5,
+              capital_allocation_pct: 0.6,
+            },
+          ],
+          created_at: null,
+          updated_at: null,
+          running: false,
+          pid: null,
+        },
+      ],
+      selectedBot: {
+        id: "bot-1",
+        name: "Over Bot",
+        is_active: true,
+        max_total_positions: 10,
+        max_total_capital_pct: 1.0,
+        strategies: [
+          {
+            id: "s1",
+            name: "Strat1",
+            strategy_type: "t",
+            max_positions: 5,
+            capital_allocation_pct: 0.6,
+          },
+          {
+            id: "s2",
+            name: "Strat2",
+            strategy_type: "t",
+            max_positions: 5,
+            capital_allocation_pct: 0.6,
+          },
+        ],
+        created_at: null,
+        updated_at: null,
+        running: false,
+        pid: null,
+      },
+      botStatus: null,
+      botTrades: [],
+      availableStrategies: [],
+      loading: createLoadingState(),
+      error: null,
+      showCreateModal: false,
+      showEditModal: false,
+      editingBot: null,
+    });
+    vi.mocked(botsState.getCurrentView).mockReturnValue("list");
+
+    const html = renderBotsView();
+    expect(html).toContain("Over 100%");
   });
 });
 
 describe("initBotsHandlers", () => {
-  const windowHandlers = [
-    "setBotsView",
-    "clearBotError",
-    "viewBotStatus",
-    "startBot",
-    "stopBot",
-    "editBot",
-    "deleteBot",
-    "openCreateBotModal",
-  ] as const;
-
   it("attaches handlers to window", () => {
     initBotsHandlers();
-    for (const handler of windowHandlers) {
-      expect(typeof (window as any)[handler]).toBe("function");
-    }
+
+    expect(typeof (window as any).setBotsView).toBe("function");
+    expect(typeof (window as any).clearBotError).toBe("function");
+    expect(typeof (window as any).viewBotStatus).toBe("function");
+    expect(typeof (window as any).startBot).toBe("function");
+    expect(typeof (window as any).stopBot).toBe("function");
+    expect(typeof (window as any).editBot).toBe("function");
+    expect(typeof (window as any).deleteBot).toBe("function");
+    expect(typeof (window as any).openCreateBotModal).toBe("function");
   });
 
   it("calls initBotsState", () => {

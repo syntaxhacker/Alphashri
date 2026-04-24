@@ -257,7 +257,7 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False):
     if test_mode:
         cmd.append("--test")
 
-    env = {**os.environ, "PYTHONPATH": f"{PROJECT_ROOT}:{PROJECT_ROOT.parent}"}
+    env = {**os.environ, "PYTHONPATH": str(PROJECT_ROOT)}
 
     log_file = open(log_path, 'a')
     process = subprocess.Popen(

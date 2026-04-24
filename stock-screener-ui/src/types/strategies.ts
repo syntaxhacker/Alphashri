@@ -44,12 +44,10 @@ export interface StrategyConfig {
   // S/R Breakout Parameters
   pivot_type: string;
   breakout_buffer_pct: number;
-   // Risk Validation
-   min_rr_ratio: number;
-   // Screener Profiles (multi-select)
-   screener_profiles?: string[];
-   // Cost Parameters
-   brokerage_pct: number;
+  // Risk Validation
+  min_rr_ratio: number;
+  // Cost Parameters
+  brokerage_pct: number;
   min_brokerage: number;
   stt_pct: number;
   exchange_pct: number;
@@ -98,10 +96,8 @@ export interface StrategyCreate {
   // S/R Breakout parameters
   pivot_type?: string;
   breakout_buffer_pct?: number;
-   // Risk validation
-   min_rr_ratio?: number;
-   // Screener Profiles (multi-select)
-   screener_profiles?: string[];
+  // Risk validation
+  min_rr_ratio?: number;
 }
 
 // Strategy update request
@@ -135,9 +131,7 @@ export interface StrategyUpdate {
   ema_slow_period?: number;
   pivot_type?: string;
   breakout_buffer_pct?: number;
-   min_rr_ratio?: number;
-   // Screener Profiles (multi-select)
-   screener_profiles?: string[];
+  min_rr_ratio?: number;
 }
 
 // Strategy with variations (for template view)

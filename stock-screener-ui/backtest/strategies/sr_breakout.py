@@ -13,6 +13,7 @@ import sys
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
+from dataclasses import dataclass
 
 import config
 IST = config.IST
@@ -42,7 +43,69 @@ _project_root_dir = os.path.dirname(_ui_dir)
 if _project_root_dir not in sys.path:
     sys.path.insert(0, _project_root_dir)
 
-from trading.pivot_utils import PivotPoints, calculate_pivot_points
+
+@dataclass
+class PivotPoints:
+    """Pivot point levels."""
+    pp: float  # Pivot Point
+    r1: float  # Resistance 1
+    r2: float  # Resistance 2
+    r3: float  # Resistance 3
+    s1: float  # Support 1
+    s2: float  # Support 2
+    s3: float  # Support 3
+
+
+def calculate_pivot_points(high: float, low: float, close: float, pivot_type: str = 'classic') -> PivotPoints:
+    """
+    Calculate pivot points from previous day's HLC.
+
+    Args:
+        high: Previous day's high
+        low: Previous day's low
+        close: Previous day's close
+        pivot_type: 'classic', 'fibonacci', or 'camarilla'
+
+    Returns:
+        PivotPoints with all levels calculated
+    """
+    if pivot_type == 'classic':
+        pp = (high + low + close) / 3
+        r1 = (2 * pp) - low
+        r2 = pp + (high - low)
+        r3 = high + 2 * (pp - low)
+        s1 = (2 * pp) - high
+        s2 = pp - (high - low)
+        s3 = low - 2 * (high - pp)
+    elif pivot_type == 'fibonacci':
+        pp = (high + low + close) / 3
+        range_hl = high - low
+        r1 = pp + (0.382 * range_hl)
+        r2 = pp + (0.618 * range_hl)
+        r3 = pp + (1.000 * range_hl)
+        s1 = pp - (0.382 * range_hl)
+        s2 = pp - (0.618 * range_hl)
+        s3 = pp - (1.000 * range_hl)
+    elif pivot_type == 'camarilla':
+        pp = (high + low + close) / 3
+        range_hl = high - low
+        r1 = close + (range_hl * 1.1 / 12)
+        r2 = close + (range_hl * 1.1 / 6)
+        r3 = close + (range_hl * 1.1 / 4)
+        s1 = close - (range_hl * 1.1 / 12)
+        s2 = close - (range_hl * 1.1 / 6)
+        s3 = close - (range_hl * 1.1 / 4)
+    else:
+        # Default to classic
+        pp = (high + low + close) / 3
+        r1 = (2 * pp) - low
+        r2 = pp + (high - low)
+        r3 = high + 2 * (pp - low)
+        s1 = (2 * pp) - high
+        s2 = pp - (high - low)
+        s3 = low - 2 * (high - pp)
+
+    return PivotPoints(pp=pp, r1=r1, r2=r2, r3=r3, s1=s1, s2=s2, s3=s3)
 
 
 def get_ist_time(ts_ns: int) -> tuple:

@@ -44,23 +44,19 @@ class RunnerSignalsMixin:
         Scan watchlist for signals for a specific strategy.
 
         Dispatches to the appropriate scan method based on strategy type.
-        Uses per-strategy watchlist if available, otherwise falls back to shared watchlist.
         """
         runner = self.strategies.get(strategy_id)
         if not runner or runner.status != "running":
             return []
 
-        # Get per-strategy watchlist or fall back to shared
-        watchlist = self.strategy_watchlists.get(strategy_id, self.watchlist)
-
         if runner.strategy_type in INTRADAY_STRATEGY_TYPES:
-            return self._scan_intraday_strategy(strategy_id, watchlist)
+            return self._scan_intraday_strategy(strategy_id)
         elif runner.strategy_type in SWING_STRATEGY_TYPES:
-            return self._scan_swing_strategy(strategy_id, watchlist)
+            return self._scan_swing_strategy(strategy_id)
         else:
-            return self._scan_intraday_strategy(strategy_id, watchlist)
+            return self._scan_intraday_strategy(strategy_id)
 
-    def _scan_intraday_strategy(self, strategy_id: int, watchlist: list = None) -> list:
+    def _scan_intraday_strategy(self, strategy_id: int) -> list:
         """Scan for signals using intraday data (ORB, SR_BREAKOUT)."""
         runner = self.strategies.get(strategy_id)
         if not runner or runner.status != "running":
@@ -69,14 +65,10 @@ class RunnerSignalsMixin:
         if not self.is_trading_hours():
             return []
 
-        # Use provided watchlist or fall back to shared watchlist
-        if watchlist is None:
-            watchlist = self.watchlist
-
         new_signals = []
         scan_items = []
 
-        for symbol in watchlist:
+        for symbol in self.watchlist:
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
@@ -247,7 +239,7 @@ class RunnerSignalsMixin:
         runner.last_scan_time = self._ist_now()
         return new_signals
 
-    def _scan_swing_strategy(self, strategy_id: int, watchlist: list = None) -> list:
+    def _scan_swing_strategy(self, strategy_id: int) -> list:
         """Scan for signals using daily data (52W_CHASER, 52W_TARGET)."""
         runner = self.strategies.get(strategy_id)
         if not runner or runner.status != "running":
@@ -264,14 +256,10 @@ class RunnerSignalsMixin:
             return []
         self._swing_last_scan_date[strategy_id] = today
 
-        # Use provided watchlist or fall back to shared
-        if watchlist is None:
-            watchlist = self.watchlist
-
         new_signals = []
         scan_items = []
 
-        for symbol in watchlist:
+        for symbol in self.watchlist:
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
@@ -524,7 +512,7 @@ class RunnerSignalsMixin:
         }
         for pos in all_positions:
             if not self.replay_mode:
-                pos['low_price'] = low_prices.get((pos['strategy_id'], pos['symbol']), 0.0)
+                pos['low_price'] = low_prices.get((pos.get('strategy_id'), pos['symbol']), 0.0)
                 self._persist_position_to_db(pos, action="upsert")
 
         positions_to_close = []

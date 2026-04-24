@@ -1,10 +1,7 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-import {
-  TEST_BOT_UUID,
-  setupBotApiMocks,
-  expectPositionsVisible,
-} from "./helpers/botHelpers";
+
+const TEST_BOT_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
 const ALL_STRATEGY_TYPES = [
   { id: 1, name: "ORB Conservative", strategy_type: "ORB", allocation: 0.3 },
@@ -23,6 +20,68 @@ async function setupMultiStrategyBot(
   await setupApiMocks(page);
   await loginAsTestUser(page);
 
+  await page.route("**/api/bots", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: TEST_BOT_UUID,
+          name: "All Strategies Bot",
+          strategies: strategies.map((s) => ({ id: s.id, name: s.name, allocation: s.allocation })),
+          is_active: true,
+          is_running: false,
+        },
+      ]),
+    });
+  });
+
+  await page.route(`**/api/bots/${TEST_BOT_UUID}/start`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "success", pid: 12345 }),
+    });
+  });
+  await page.route(`**/api/bots/${TEST_BOT_UUID}/stop`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "success" }),
+    });
+  });
+  await page.route(`**/api/bots/${TEST_BOT_UUID}/status`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        is_running: false,
+        pid: null,
+        portfolio: { cash: 100000, equity: 105000 },
+        positions: [],
+        strategies: strategies.map((s) => ({
+          id: s.id,
+          name: s.name,
+          pnl: Math.floor(Math.random() * 5000),
+        })),
+      }),
+    });
+  });
+  await page.route(`**/api/bots/${TEST_BOT_UUID}/portfolio`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        cash: 100000,
+        equity: 105000,
+        pnl: 5000,
+        margin_used: 50000,
+        daily_pnl: 1000,
+        positions: [],
+      }),
+    });
+  });
+
   const positions = strategies.map((s, i) => ({
     id: i + 1,
     symbol: ["TCS", "RELIANCE", "INFY", "HDFC", "SBIN"][i % 5],
@@ -40,6 +99,21 @@ async function setupMultiStrategyBot(
     entry_time: "2026-03-02T09:30:00",
   }));
 
+  await page.route(`**/api/bots/${TEST_BOT_UUID}/positions`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ positions, count: positions.length }),
+    });
+  });
+  await page.route("**/api/paper/positions", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ positions, count: positions.length }),
+    });
+  });
+
   const scanItems = strategies.map((s, i) => ({
     id: i + 1,
     symbol: ["TCS", "RELIANCE", "INFY", "HDFC", "SBIN"][i % 5],
@@ -49,12 +123,29 @@ async function setupMultiStrategyBot(
     strategy_name: s.name,
   }));
 
-  await setupBotApiMocks(page, {
-    botId: TEST_BOT_UUID,
-    botName: "All Strategies Bot",
-    strategies: strategies.map((s) => ({ id: s.id, name: s.name, allocation: s.allocation })),
-    positions,
-    scanItems,
+  await page.route(`**/api/bots/${TEST_BOT_UUID}/scan*`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        bot_id: TEST_BOT_UUID,
+        scan_items: scanItems,
+        count: scanItems.length,
+      }),
+    });
+  });
+  await page.route("**/api/paper/bot/snapshot", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        watchlist: [],
+        open_positions: positions,
+        scan_items: scanItems,
+        signals: [],
+      }),
+    });
   });
 }
 
@@ -88,7 +179,9 @@ test.describe("Multi-Strategy - All 5 Strategy Types", () => {
     await setupMultiStrategyBot(page);
     await navigateToBot(page);
 
-    await expectPositionsVisible(page);
+    await expect(page.locator('[data-testid="positions-table-container"]')).toBeVisible({
+      timeout: 15000,
+    });
 
     const symbols = ["TCS", "RELIANCE", "INFY", "HDFC", "SBIN"];
     for (const symbol of symbols) {
@@ -191,7 +284,9 @@ test.describe("Multi-Strategy - Strategy Type Display in Positions", () => {
     await setupMultiStrategyBot(page);
     await navigateToBot(page);
 
-    await expectPositionsVisible(page);
+    await expect(page.locator('[data-testid="positions-table-container"]')).toBeVisible({
+      timeout: 15000,
+    });
     await expect(
       page
         .locator('[data-testid="positions-table-container"]')
@@ -204,7 +299,9 @@ test.describe("Multi-Strategy - Strategy Type Display in Positions", () => {
     await setupMultiStrategyBot(page);
     await navigateToBot(page);
 
-    await expectPositionsVisible(page);
+    await expect(page.locator('[data-testid="positions-table-container"]')).toBeVisible({
+      timeout: 15000,
+    });
 
     for (const s of ALL_STRATEGY_TYPES) {
       await expect(page.locator('[data-testid="positions-table-container"]')).toContainText(s.name);
@@ -217,7 +314,9 @@ test.describe("Multi-Strategy - Single Strategy Bot", () => {
     await setupMultiStrategyBot(page, [ALL_STRATEGY_TYPES[0]]);
     await navigateToBot(page);
 
-    await expectPositionsVisible(page);
+    await expect(page.locator('[data-testid="positions-table-container"]')).toBeVisible({
+      timeout: 15000,
+    });
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
       timeout: 10000,
     });
@@ -227,7 +326,9 @@ test.describe("Multi-Strategy - Single Strategy Bot", () => {
     await setupMultiStrategyBot(page, [ALL_STRATEGY_TYPES[3]]);
     await navigateToBot(page);
 
-    await expectPositionsVisible(page);
+    await expect(page.locator('[data-testid="positions-table-container"]')).toBeVisible({
+      timeout: 15000,
+    });
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
       timeout: 10000,
     });
@@ -237,7 +338,9 @@ test.describe("Multi-Strategy - Single Strategy Bot", () => {
     await setupMultiStrategyBot(page, [ALL_STRATEGY_TYPES[2]]);
     await navigateToBot(page);
 
-    await expectPositionsVisible(page);
+    await expect(page.locator('[data-testid="positions-table-container"]')).toBeVisible({
+      timeout: 15000,
+    });
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
       timeout: 10000,
     });

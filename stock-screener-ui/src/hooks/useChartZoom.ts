@@ -1,5 +1,4 @@
 import { useRef, useCallback } from "react";
-import { parseTimeToHHMM } from "../utils/ui-helpers";
 
 interface UseChartZoomOptions {
   chartInstance: React.MutableRefObject<any>;
@@ -9,6 +8,12 @@ interface UseChartZoomReturn {
   allTimesRef: React.MutableRefObject<string[]>;
   zoomToTradeByTime: (entryTime: string, exitTime: string) => void;
   zoomToTradeByIndex: (startIdx: number, endIdx: number, total: number) => void;
+}
+
+function parseTimeToHHMM(isoTime: string): string {
+  if (isoTime.includes("T")) return isoTime.split("T")[1].substring(0, 5);
+  if (isoTime.includes(" ")) return isoTime.split(" ")[1].substring(0, 5);
+  return isoTime.substring(0, 5);
 }
 
 function computeZoomRange(
@@ -26,29 +31,6 @@ function computeZoomRange(
     else start = Math.max(0, end - minWindow + 1);
   }
   return { start, end };
-}
-
-function dispatchZoom(
-  chart: any,
-  startIdx: number,
-  endIdx: number,
-  total: number,
-) {
-  const { start, end } = computeZoomRange(startIdx, endIdx, total);
-  const startPct = (start / total) * 100;
-  const endPct = ((end + 1) / total) * 100;
-  chart.dispatchAction({
-    type: "dataZoom",
-    dataZoomIndex: 0,
-    start: startPct,
-    end: endPct,
-  });
-  chart.dispatchAction({
-    type: "dataZoom",
-    dataZoomIndex: 1,
-    start: startPct,
-    end: endPct,
-  });
 }
 
 export function useChartZoom(options: UseChartZoomOptions): UseChartZoomReturn {
@@ -83,7 +65,23 @@ export function useChartZoom(options: UseChartZoomOptions): UseChartZoomReturn {
           exitIdx = best >= 0 ? best : times.length - 1;
         }
 
-        dispatchZoom(chartInstance.current, entryIdx, exitIdx, times.length);
+        const total = times.length;
+        const { start, end } = computeZoomRange(entryIdx, exitIdx, total);
+        const startPct = (start / total) * 100;
+        const endPct = ((end + 1) / total) * 100;
+
+        chartInstance.current.dispatchAction({
+          type: "dataZoom",
+          dataZoomIndex: 0,
+          start: startPct,
+          end: endPct,
+        });
+        chartInstance.current.dispatchAction({
+          type: "dataZoom",
+          dataZoomIndex: 1,
+          start: startPct,
+          end: endPct,
+        });
       }, 100);
     },
     [chartInstance],
@@ -93,7 +91,21 @@ export function useChartZoom(options: UseChartZoomOptions): UseChartZoomReturn {
     (startIdx: number, endIdx: number, total: number) => {
       setTimeout(() => {
         if (!chartInstance.current) return;
-        dispatchZoom(chartInstance.current, startIdx, endIdx, total);
+        const { start, end } = computeZoomRange(startIdx, endIdx, total);
+        const startPct = (start / total) * 100;
+        const endPct = ((end + 1) / total) * 100;
+        chartInstance.current.dispatchAction({
+          type: "dataZoom",
+          dataZoomIndex: 0,
+          start: startPct,
+          end: endPct,
+        });
+        chartInstance.current.dispatchAction({
+          type: "dataZoom",
+          dataZoomIndex: 1,
+          start: startPct,
+          end: endPct,
+        });
       }, 150);
     },
     [chartInstance],

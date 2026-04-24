@@ -33,14 +33,34 @@ from nautilus_trader.config import StrategyConfig
 
 from .base import BaseStrategy, StrategyParam
 from ..costs import calculate_trading_costs
-from trading.ema_utils import calculate_ema as _calculate_ema
+
+_current_file_dir = os.path.dirname(os.path.abspath(__file__))
+_backtest_dir = os.path.dirname(_current_file_dir)
+_ui_dir = os.path.dirname(_backtest_dir)
+_project_root_dir = os.path.dirname(_ui_dir)
+
+if _project_root_dir not in sys.path:
+    sys.path.insert(0, _project_root_dir)
+
+
+def get_ist_time(ts_ns: int) -> tuple:
+    """Convert nanosecond timestamp to IST time components."""
+    ts_sec = ts_ns / 1_000_000_000
+    dt_utc = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
+    dt_ist = dt_utc.astimezone(IST)
+    return dt_ist.hour, dt_ist.minute, dt_ist.date()
 
 
 def calculate_ema(prices: List[float], period: int) -> float:
-    """Calculate Exponential Moving Average from a list of prices.
-    Wrapper for backward compatibility. Delegates to shared utility.
-    """
-    return _calculate_ema(prices, period, return_full=False)
+    """Calculate Exponential Moving Average from a list of prices."""
+    if len(prices) < period:
+        return prices[-1] if prices else 0.0
+
+    multiplier = 2.0 / (period + 1)
+    ema = sum(prices[:period]) / period
+    for price in prices[period:]:
+        ema = (price - ema) * multiplier + ema
+    return ema
 
 
 def run_single_stock_backtest(args):

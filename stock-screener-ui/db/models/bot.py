@@ -1,4 +1,3 @@
-import json
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Table, UniqueConstraint
@@ -76,8 +75,6 @@ class StrategyConfig(Base):
     eod_exit_minute = Column(Integer, default=45)
     min_rr_ratio = Column(Float, default=2.0)
 
-    screener_profiles = Column(String(500), nullable=True)  # JSON array: '["trending", "near_52w_breakout"]'
-
     brokerage_pct = Column(Float, default=0.0003)
     min_brokerage = Column(Float, default=20)
     stt_pct = Column(Float, default=0.00025)
@@ -135,7 +132,6 @@ class StrategyConfig(Base):
             "eod_exit_hour": self.eod_exit_hour,
             "eod_exit_minute": self.eod_exit_minute,
             "min_rr_ratio": self.min_rr_ratio,
-            "screener_profiles": json.loads(self.screener_profiles) if self.screener_profiles else [],
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
             "stt_pct": self.stt_pct,

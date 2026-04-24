@@ -992,8 +992,7 @@ class TestSingletonFunctions:
         assert trader.initial_capital == 500_000
         assert trader.cash == 500_000
 
-    @patch.object(PaperTrader, '_load_todays_trades_from_journal')
-    def test_reset_paper_trader_user(self, mock_load):
+    def test_reset_paper_trader_user(self):
         """Test reset_paper_trader for specific user."""
         trader1 = get_paper_trader(user_id=1)
         trader1.cash = 500_000

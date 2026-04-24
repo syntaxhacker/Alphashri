@@ -595,8 +595,7 @@ class TestMonitorPositionsReplay:
             "total_positions": 1, "capital_used": 10_000, "daily_pnl": -25000,
         }
 
-        with patch("trading.runner_signals.calculate_trading_costs", return_value={"total_costs": 0.0}):
-            runner.monitor_positions()
+        runner.monitor_positions()
 
         mock_risk_alert.assert_not_called()
 
@@ -1458,17 +1457,14 @@ class TestExecuteSignalCore:
         assert mock_position.metadata['max_holding_days'] == 20
 
     def test_non_swing_no_metadata(self):
-        """T20: ORB strategy does not set swing-specific metadata on position."""
+        """T20: ORB strategy does not set metadata on position."""
         runner = self._make_runner()
         signal, SignalType = self._setup_valid_trade(runner)
 
         runner._execute_signal_core(1, signal, SignalType)
 
         mock_position = runner.portfolio.open_position.return_value
-        assert mock_position.metadata.get('strategy_type') is None
-        assert 'max_holding_days' not in mock_position.metadata
-        assert 'trailing_stop_pct' not in mock_position.metadata
-        assert 'enable_trailing_stop' not in mock_position.metadata
+        assert not hasattr(mock_position, 'metadata') or mock_position.metadata == {}
 
     def test_replay_on_event_none_no_crash(self):
         """T21: _execute_replay_signal works with _replay_on_event=None."""
@@ -1722,6 +1718,7 @@ class TestInitCommonFields:
         runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
         runner._init_common_fields()
+        assert runner.snapshot_file == Path("/dev/null")
         assert runner.watchlist == []
         assert runner.cooldown_stocks == {}
         assert runner.replay_mode is False
@@ -1736,6 +1733,5 @@ class TestInitCommonFields:
 
         runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
 
-        runner._init_common_fields()
-        assert runner.watchlist == []
-        assert runner.replay_mode is False
+        runner._init_common_fields(snapshot_file=Path("/tmp/test.json"))
+        assert runner.snapshot_file == Path("/tmp/test.json")

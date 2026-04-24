@@ -14,12 +14,6 @@ from datetime import datetime
 
 from rich.console import Console
 
-from trading.risk_utils import (
-    make_validation_result,
-    apply_risk_reward_to_result,
-    calculate_position_size as _calc_position_size,
-)
-
 console = Console()
 
 
@@ -361,38 +355,76 @@ class GlobalRiskManager:
         Returns:
             Dict with validation result and calculated values
         """
-        result = make_validation_result()
+        result = {
+            'valid': False,
+            'shares': 0,
+            'trade_value': 0,
+            'risk_amount': 0,
+            'risk_pct': 0,
+            'reward_amount': 0,
+            'reward_pct': 0,
+            'rr_ratio': 0,
+            'reason': '',
+        }
 
-        rr_failed = apply_risk_reward_to_result(
-            result, entry_price, stop_loss, take_profit, side, min_rr_ratio,
-        )
-        if rr_failed is not None:
+        # Calculate risk/reward
+        if side == "BUY":
+            risk = abs(entry_price - stop_loss)
+            reward = abs(take_profit - entry_price)
+        else:
+            risk = abs(stop_loss - entry_price)
+            reward = abs(entry_price - take_profit)
+
+        if entry_price <= 0:
+            result['reason'] = "Invalid entry price"
             return result
 
-        risk_per_share = abs(entry_price - stop_loss)
+        risk_pct = risk / entry_price * 100
+        reward_pct = reward / entry_price * 100
+        rr_ratio = reward / risk if risk > 0 else 0
+
+        result['risk_pct'] = round(risk_pct, 2)
+        result['reward_pct'] = round(reward_pct, 2)
+        result['rr_ratio'] = round(rr_ratio, 2)
+
+        # Check risk/reward ratio (use rounded value to avoid float precision rejections)
+        if result['rr_ratio'] < min_rr_ratio:
+            result['reason'] = f"Risk/reward ratio ({rr_ratio:.1f}) too low. Minimum 1:{min_rr_ratio:.1f} required."
+            return result
 
         # Calculate position size using strategy's allocated capital
         allocated_capital = total_capital * strategy_allocation_pct
 
-        shares = _calc_position_size(
-            capital=allocated_capital,
-            entry_price=entry_price,
-            risk_per_share=risk_per_share,
-            risk_per_trade_pct=risk_per_trade_pct,
-            max_capital_per_trade_pct=max_capital_per_trade_pct,
-            min_trade_value=min_trade_value,
-            max_trade_value=max_trade_value,
-        )
+        # Method 1: Risk-based sizing (based on allocated capital)
+        max_risk = allocated_capital * risk_per_trade_pct
+        shares_by_risk = int(max_risk / risk) if risk > 0 else 0
+
+        # Method 2: Max capital allocation (based on allocated capital)
+        max_capital = allocated_capital * max_capital_per_trade_pct
+        shares_by_capital = int(max_capital / entry_price)
+
+        # Take the smaller
+        shares = min(shares_by_risk, shares_by_capital)
+
+        # Check min/max trade value
+        trade_value = shares * entry_price
+        if trade_value < min_trade_value:
+            shares = int(min_trade_value / entry_price)
+            trade_value = shares * entry_price
+            if risk > 0 and shares * risk > max_risk:
+                result['reason'] = "Min trade value exceeds risk limit"
+                return result
+        elif trade_value > max_trade_value:
+            shares = int(max_trade_value / entry_price)
+            trade_value = shares * entry_price
 
         if shares <= 0:
             result['reason'] = "Insufficient capital for minimum trade size"
             return result
 
-        trade_value = shares * entry_price
-
         result['shares'] = shares
         result['trade_value'] = round(trade_value, 2)
-        result['risk_amount'] = round(shares * risk_per_share, 2)
+        result['risk_amount'] = round(shares * risk, 2)
 
 
         # Now check if we can trade

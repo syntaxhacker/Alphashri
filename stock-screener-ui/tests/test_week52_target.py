@@ -61,7 +61,7 @@ class TestWeek52TargetLogic:
         bar_type_str = f"TEST.SIMULATED-1-DAY-LAST-EXTERNAL"
 
         for i in range(101):
-            bar = make_bar(97.0, 100.0, 95.0, ts + i * 86400, bar_type_str)
+            bar = make_bar(98.0, 100.0, 95.0, ts + i * 86400, bar_type_str)
             week52_target_strategy.on_bar(bar)
 
         entry_bar = make_bar(98.0, 105.0, 95.0, ts + 102 * 86400, bar_type_str)

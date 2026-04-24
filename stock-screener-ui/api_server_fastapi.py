@@ -274,7 +274,7 @@ except Exception as e:
     print(f"⚠️ Could not load market ticker API: {e}")
 
 try:
-    from api.bots_api import router as bots_router
+    from api.bots import router as bots_router
     app.include_router(bots_router)
     print("✅ Bots API loaded at /api/bots")
 except Exception as e:

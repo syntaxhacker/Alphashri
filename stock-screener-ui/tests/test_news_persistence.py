@@ -272,12 +272,11 @@ class TestNewsPersistenceService:
     
     def test_cleanup_old_articles(self, persistence_service):
         mock_db = MagicMock()
-        mock_articles = [MagicMock() for _ in range(5)]
-        mock_db.query.return_value.filter.return_value.all.return_value = mock_articles
-
+        mock_db.query.return_value.filter.return_value.delete.return_value = 5
+        
         with patch('services.news_persistence.SessionLocal', return_value=mock_db):
             result = persistence_service.cleanup_old_articles(days=30)
-
+            
             assert result == 5
             mock_db.commit.assert_called()
 

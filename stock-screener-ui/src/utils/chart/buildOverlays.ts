@@ -11,21 +11,19 @@ export function buildOverlays(
   const candleSource = rawCandles || candles;
   const series: any[] = [];
 
-  function mapLevelValues(overlay: UnifiedOverlay) {
-    if (!overlay.levels.length) return null;
-    const hasDates = overlay.levels.some((l) => l.date);
-    return candleSource.map((c) => {
-      if (hasDates) {
-        const match = overlay.levels.find((l) => l.date && c.date && l.date === c.date);
-        return match ? match.value : null;
-      }
-      return overlay.levels[0].value;
-    });
-  }
-
   for (const overlay of overlays) {
     if (overlay.type === "line") {
-      const lineData = extendSeriesData(mapLevelValues(overlay)!);
+      const lineData = extendSeriesData(
+        candleSource.map((c) => {
+          if (!overlay.levels.length) return null;
+          const hasDates = overlay.levels.some((l) => l.date);
+          if (hasDates) {
+            const match = overlay.levels.find((l) => l.date && c.date && l.date === c.date);
+            return match ? match.value : null;
+          }
+          return overlay.levels[0].value;
+        }),
+      );
 
       const showLabels = overlay.showLabel !== false;
       const value = overlay.levels[0]?.value;
@@ -69,7 +67,16 @@ export function buildOverlays(
       const topValue = overlay.levels.length > 0 ? overlay.levels[0].value : null;
       if (topValue == null) continue;
 
-      const topData = extendSeriesData(mapLevelValues(overlay)!);
+      const hasDates = overlay.levels.some((l) => l.date);
+      const topData = extendSeriesData(
+        candleSource.map((c) => {
+          if (hasDates) {
+            const match = overlay.levels.find((l) => l.date && c.date && l.date === c.date);
+            return match ? match.value : null;
+          }
+          return overlay.levels[0].value;
+        }),
+      );
 
       series.push({
         id: `${overlay.id}_top`,
