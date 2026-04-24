@@ -1,5 +1,4 @@
 import { useRef, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Collapse,
   Table,
@@ -8,7 +7,6 @@ import {
   Group,
   Flex,
   ActionIcon,
-  Anchor,
   Grid,
   Stack,
   Textarea,
@@ -24,7 +22,8 @@ import {
   sortByField,
   getStrategyTypeFromName,
 } from "../../utils/ui-helpers";
-import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
+import { SideBadge, ExitReasonBadge } from "../common";
+import { ClickableSymbol } from "../common";
 import { SortableHeader } from "../common/SortableHeader";
 import { setFilterStrategy, setFilterBot, updateTradeNotesAction } from "../../state/paperTrading";
 
@@ -220,7 +219,6 @@ function TradeRow({
   selectedTradeId: string | null;
 }) {
   const rowRef = useRef<HTMLTableRowElement>(null);
-  const navigate = useNavigate();
   const isSelected = trade.trade_id === selectedTradeId;
   const [detailExpanded, setDetailExpanded] = useState(false);
 
@@ -265,18 +263,7 @@ function TradeRow({
           </ActionIcon>
         </Table.Td>
         <Table.Td>
-          <Anchor
-            component="button"
-            type="button"
-            size="sm"
-            fw={600}
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/chart/${trade.symbol}`);
-            }}
-          >
-            {trade.symbol}
-          </Anchor>
+          <ClickableSymbol symbol={trade.symbol} />
         </Table.Td>
         <Table.Td>
           <SideBadge side={trade.side} />

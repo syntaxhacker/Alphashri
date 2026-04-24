@@ -4,7 +4,8 @@ import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTradin
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import { nearBreakoutPct, tableStyles as TABLE_STYLES } from "./PositionsHelpers";
-import { SideBadge } from "../common/BadgeComponents";
+import { SideBadge } from "../common";
+import { ClickableSymbol } from "../common";
 
 interface WatchlistScanProps {
   snapshot: PaperBotSnapshot | null;
@@ -21,7 +22,7 @@ function SignalRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: stri
       data-testid={`scan-signal-${item.symbol}`}
     >
       <Table.Td>
-        <Text fw={600}>{item.symbol}</Text>
+        <ClickableSymbol symbol={item.symbol} showPreview />
       </Table.Td>
       <Table.Td>
         <SideBadge side={item.side || "LONG"} />
@@ -52,7 +53,7 @@ function WatchingRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: st
       data-testid={`scan-watching-${item.symbol}`}
     >
       <Table.Td>
-        <Text fw={600}>{item.symbol}</Text>
+        <ClickableSymbol symbol={item.symbol} showPreview />
       </Table.Td>
       <Table.Td>
         <Badge variant="light" color="yellow" size="xs">
@@ -88,7 +89,7 @@ function SkippedRow({
     <Table.Tr data-testid={`scan-skipped-${item.symbol}`}>
       <Table.Td>
         <Text fw={500} c="dimmed">
-          {item.symbol}
+          <ClickableSymbol symbol={item.symbol} showPreview />
         </Text>
       </Table.Td>
       <Table.Td>
