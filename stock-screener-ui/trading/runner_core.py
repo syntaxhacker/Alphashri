@@ -335,6 +335,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         """Lazy load screener."""
         if self._screener is None:
             try:
+                import sys as _sys
+                from pathlib import Path as _Path
+                project_root = _Path(__file__).parent.parent
+                scanners_path = project_root / 'scanners'
+                _sys.path.insert(0, str(scanners_path))
+                _sys.path.insert(0, str(project_root.parent))
                 from orb_stock_screener import ORBStockScreener
                 self._screener = ORBStockScreener(use_relaxed=True)
             except ImportError:
@@ -620,17 +626,23 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
         console.print("\n[cyan]Refreshing shared watchlist from screener...[/cyan]")
 
-        screener = self._get_screener()
-        if not screener:
-            console.print("[red]Screener not available - using default watchlist[/red]")
-            if not self.watchlist:
-                self.watchlist = DEFAULT_WATCHLIST.copy()
-            return self.watchlist
-
         try:
-            df = screener.screen(limit=50, verify_nse=True)
+            import sys as _sys
+            from pathlib import Path as _Path
+            this_mod = _sys.modules.get('trading.runner_core', None)
+            _file_ = this_mod.__file__ if this_mod and hasattr(this_mod, '__file__') else None
+            if not _file_:
+                console.print(f"[red]Cannot determine module path[/red]")
+                self.watchlist = DEFAULT_WATCHLIST.copy()
+                return self.watchlist
+            project_root = Path(_file_).parent.parent
+            _sys.path.insert(0, str(project_root.parent / 'scanners'))
+            _sys.path.insert(0, str(project_root.parent))
 
-            if df.empty:
+            import trending_upside as _tu
+            df = _tu.fetch_trending_stocks(limit=50, profile='trending')
+
+            if df is None or df.empty:
                 console.print("[yellow]No stocks from screener - using default watchlist[/yellow]")
                 if not self.watchlist:
                     self.watchlist = DEFAULT_WATCHLIST.copy()
@@ -677,17 +689,27 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
         console.print(f"[cyan]Refreshing watchlist for strategy {strategy_id} ({strategy_type}) with profiles: {profiles}[/cyan]")
 
-        screener = self._get_screener()
         all_symbols = []
 
-        if screener:
-            for profile in profiles:
-                try:
-                    df = screener.screen(limit=50, profile=profile, verify_nse=True)
-                    if not df.empty:
-                        all_symbols.extend(df['name'].tolist())
-                except Exception as e:
-                    console.print(f"[yellow]Error screening with profile {profile}: {e}[/yellow]")
+        import sys as _sys
+        from pathlib import Path as _Path
+        this_mod = _sys.modules.get('trading.runner_core', None)
+        _file_ = this_mod.__file__ if this_mod and hasattr(this_mod, '__file__') else None
+        if not _file_:
+            console.print(f"[red]Cannot determine module path[/red]")
+            return self.watchlist
+        project_root = Path(_file_).parent.parent
+        _sys.path.insert(0, str(project_root.parent / 'scanners'))
+        _sys.path.insert(0, str(project_root.parent))
+
+        for profile in profiles:
+            try:
+                import trending_upside as _tu
+                df = _tu.fetch_trending_stocks(limit=50, profile=profile)
+                if df is not None and not df.empty:
+                    all_symbols.extend(df['name'].tolist())
+            except Exception as e:
+                console.print(f"[yellow]Error screening with profile {profile}: {e}[/yellow]")
 
         if not all_symbols:
             # Fallback to shared watchlist or default

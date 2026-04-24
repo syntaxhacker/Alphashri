@@ -524,7 +524,7 @@ class RunnerSignalsMixin:
         }
         for pos in all_positions:
             if not self.replay_mode:
-                pos.low_price = low_prices.get((pos.strategy_id, pos.symbol), 0.0)
+                pos['low_price'] = low_prices.get((pos['strategy_id'], pos['symbol']), 0.0)
                 self._persist_position_to_db(pos, action="upsert")
 
         positions_to_close = []
