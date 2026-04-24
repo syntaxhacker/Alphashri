@@ -18,6 +18,7 @@ import {
   setShowPivotLines,
   setShow52wLines,
   setShowEmaLines,
+  setIntradayOnly,
   subscribe,
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
@@ -26,15 +27,38 @@ import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
 import { TradingChart } from "../chart/TradingChart";
 import { normalizePaper } from "../../utils/chart/normalizePaper";
 import type { PaperPosition } from "../../types/paperTrading";
+import { TIMEFRAMES } from "../../config/constants";
 
-const TIMEFRAME_OPTIONS = [
-  { value: "1min", label: "1m" },
-  { value: "5min", label: "5m" },
-  { value: "15min", label: "15m" },
-  { value: "30min", label: "30m" },
-  { value: "1hour", label: "1H" },
-  { value: "1day", label: "1D" },
-];
+// Map numeric values to API format: 1 -> "1min", 60 -> "1hour", etc.
+const toApiFormat = (val: number): string => {
+  if (val === 1) return "1min";
+  if (val === 5) return "5min";
+  if (val === 15) return "15min";
+  if (val === 30) return "30min";
+  if (val === 60) return "1hour";
+  if (val === 120) return "2hour";
+  if (val === 240) return "4hour";
+  if (val === 720) return "12hour";
+  if (val === 1440) return "1day";
+  return `${val}min`;
+};
+
+// Select shows label but stores API format value
+const TIMEFRAME_OPTIONS = TIMEFRAMES.map((tf) => ({
+  value: toApiFormat(tf.value),
+  label: tf.label,
+}));
+
+// Format date range for display: "2026-03-24 to 2026-04-24" → "Mar 24 - Apr 24"
+const formatDateRange = (range: string): string => {
+  if (!range.includes(" to ")) return range;
+  const [start, end] = range.split(" to ");
+  const fmt = (d: string) => {
+    const dt = new Date(d);
+    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+  return `${fmt(start)} - ${fmt(end)}`;
+};
 
 function PositionInfo({ position }: { position: PaperPosition }) {
   const pnlClass = position.pnl >= 0 ? "positive" : "negative";
@@ -140,9 +164,25 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           state.chartData.date,
           value,
           state.selectedStrategyId,
+          state.intradayOnly,
         );
     },
-    [state.selectedSymbol, state.chartData?.date],
+    [state.selectedSymbol, state.chartData?.date, state.intradayOnly, state.selectedStrategyId],
+  );
+
+  const handleIntradayToggle = useCallback(
+    async (checked: boolean) => {
+      setIntradayOnly(checked);
+      if (state.selectedSymbol && state.chartData?.date)
+        await fetchPaperChart(
+          state.selectedSymbol,
+          state.chartData.date,
+          state.chartTimeframe,
+          state.selectedStrategyId,
+          checked,
+        );
+    },
+    [state.selectedSymbol, state.chartData?.date, state.chartTimeframe, state.selectedStrategyId],
   );
 
   return (
@@ -161,6 +201,11 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       <Group gap="sm">
         <Text fw={600} size="lg">
           {state.chartData?.symbol} - {state.chartData?.date}
+          {state.chartData?.actual_date && state.chartData.actual_date !== state.chartData.date && (
+            <Text span size="xs" c="dimmed" ml={4}>
+              (Showing {formatDateRange(state.chartData.actual_date)})
+            </Text>
+          )}
         </Text>
         <Select
           data-testid="paper-chart-timeframe"
@@ -172,6 +217,13 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         />
       </Group>
       <Group gap="sm">
+        <Switch
+          size="xs"
+          label="Intraday"
+          checked={state.intradayOnly}
+          onChange={(e) => handleIntradayToggle(e.currentTarget.checked)}
+          data-testid="intraday-switch"
+        />
         <Switch
           size="xs"
           label="All trades"
@@ -200,7 +252,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           label="52W"
           checked={state.show52wLines}
           onChange={(e) => setShow52wLines(e.currentTarget.checked)}
-          styles={{ label: { color: "#E91E63" } }}
+          styles={{ label: { color: "#E91063" } }}
           data-testid="show-52w-lines"
         />
         <Switch

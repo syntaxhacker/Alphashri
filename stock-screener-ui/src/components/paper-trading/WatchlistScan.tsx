@@ -28,6 +28,7 @@ function SignalRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: stri
         <SideBadge side={item.side || "LONG"} />
       </Table.Td>
       <Table.Td>{item.price ? `₹${item.price.toFixed(2)}` : "-"}</Table.Td>
+      <Table.Td>{item.high_52w ? `₹${item.high_52w.toFixed(0)}` : "-"}</Table.Td>
       <Table.Td>{nearText}</Table.Td>
       <Table.Td>
         <Badge variant="outline" color="blue" size="xs">
@@ -61,6 +62,7 @@ function WatchingRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: st
         </Badge>
       </Table.Td>
       <Table.Td>{item.price ? `₹${item.price.toFixed(2)}` : "-"}</Table.Td>
+      <Table.Td>{item.high_52w ? `₹${item.high_52w.toFixed(0)}` : "-"}</Table.Td>
       <Table.Td>
         <Text size="xs" c="yellow" fw={500}>
           {nearText}
@@ -118,7 +120,13 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
   const handleSelectSymbol = async (symbol: string) => {
     setSelectedSymbol(symbol);
     const currentState = getPaperTradingState();
-    await fetchPaperChart(symbol, undefined, currentState.chartTimeframe);
+    await fetchPaperChart(
+      symbol,
+      undefined,
+      currentState.chartTimeframe,
+      currentState.selectedStrategyId,
+      currentState.intradayOnly,
+    );
   };
 
   const { signals, watching, skipped } = useMemo(() => {
@@ -239,6 +247,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                     <Table.Th>Sym</Table.Th>
                     <Table.Th>Side</Table.Th>
                     <Table.Th>Price</Table.Th>
+                    <Table.Th>52W High</Table.Th>
                     <Table.Th>Near</Table.Th>
                     <Table.Th>Strategy</Table.Th>
                     <Table.Th>Reason</Table.Th>
@@ -282,6 +291,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                     <Table.Th>Sym</Table.Th>
                     <Table.Th>Status</Table.Th>
                     <Table.Th>Price</Table.Th>
+                    <Table.Th>52W High</Table.Th>
                     <Table.Th>Near</Table.Th>
                     <Table.Th>Strategy</Table.Th>
                     <Table.Th>Reason</Table.Th>

@@ -1,13 +1,4 @@
-import {
-  Table,
-  Badge,
-  Text,
-  Group,
-  Flex,
-  Tooltip,
-  ActionIcon,
-  ScrollArea,
-} from "@mantine/core";
+import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import {
@@ -24,6 +15,16 @@ export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
   const orHigh = item.or_high;
   const orLow = item.or_low;
+  const high52w = item.high_52w;
+
+  // Use 52W high if ORB levels not available
+  if (
+    (orHigh == null || orLow == null || orHigh <= 0 || orLow <= 0) &&
+    high52w != null &&
+    high52w > 0
+  ) {
+    return ((high52w - price) / high52w) * 100;
+  }
   if (price == null || orHigh == null || orLow == null || orHigh <= 0 || orLow <= 0) return 9999;
   if (price <= orHigh && price >= orLow) {
     const toHigh = ((orHigh - price) / orHigh) * 100;
@@ -200,7 +201,13 @@ export function PositionsTableBody({
     if (tradeId) setSelectedTradeId(tradeId, strategyType, strategyId);
     setShowAllTrades(true);
     const state = getPaperTradingState();
-    await fetchPaperChart(symbol, undefined, state.chartTimeframe, state.selectedStrategyId);
+    await fetchPaperChart(
+      symbol,
+      undefined,
+      state.chartTimeframe,
+      state.selectedStrategyId,
+      state.intradayOnly,
+    );
   };
 
   return (
@@ -240,7 +247,13 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
   const handleSelectSymbol = async (symbol: string) => {
     setSelectedSymbol(symbol);
     const currentState = getPaperTradingState();
-    await fetchPaperChart(symbol, undefined, currentState.chartTimeframe);
+    await fetchPaperChart(
+      symbol,
+      undefined,
+      currentState.chartTimeframe,
+      currentState.selectedStrategyId,
+      currentState.intradayOnly,
+    );
   };
 
   if (!snapshot || !snapshot.scan_items || snapshot.scan_items.length === 0) return null;

@@ -81,36 +81,40 @@ export function PreviewChartProvider({ children }: { children: ReactNode }) {
   const hoverChartRef = useRef<any>(null);
   const expandedChartRef = useRef<any>(null);
 
-  const showPreviewChart = useCallback(
-    (event: React.MouseEvent, symbol: string) => {
-      if (hoverTimerRef.current) {
-        clearTimeout(hoverTimerRef.current);
-      }
-      hoverTimerRef.current = window.setTimeout(async () => {
-        setHoverState((prev) => ({
+  const showPreviewChart = useCallback((event: React.MouseEvent, symbol: string) => {
+    // Immediately clear any pending show to prevent stale previews
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    hoverTimerRef.current = window.setTimeout(async () => {
+      // Check if still hovering same symbol before showing
+      setHoverState((prev) => {
+        if (prev.symbol !== symbol) {
+          return prev; // Skip if symbol changed
+        }
+        return {
           ...prev,
           visible: true,
-          symbol,
           x: event.clientX + 15,
           y: event.clientY + 15,
           loading: true,
           data: null,
-        }));
-        try {
-          const data = await fetchChartPreview(symbol, 15, 1, 45);
-          if (data?.error) {
-            notifyErrorOnce(notify, data.error);
-            setHoverState((prev) => ({ ...prev, loading: false }));
-            return;
+        };
+      });
+      try {
+        const data = await fetchChartPreview(symbol, 15, 1, 45);
+        setHoverState((prev) => {
+          if (prev.symbol !== symbol) {
+            return prev;
           }
-          setHoverState((prev) => ({ ...prev, data: data ?? null, loading: false }));
-        } catch {
-          setHoverState((prev) => ({ ...prev, loading: false }));
-        }
-      }, 300);
-    },
-    [notify],
-  );
+          return { ...prev, data: data ?? null, loading: false };
+        });
+      } catch {
+        setHoverState((prev) => ({ ...prev, loading: false }));
+      }
+    }, 300);
+  }, []);
 
   const hidePreviewChart = useCallback(() => {
     if (hoverTimerRef.current) {

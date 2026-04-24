@@ -137,11 +137,82 @@ async def health_check():
     }
 
 
+def _find_last_trading_day(upstox_api, symbol: str, from_date: str, max_days: int = 10) -> str:
+    """Find the last trading day with data, going back up to max_days."""
+    from datetime import timedelta
+    
+    # Always try to fetch data - Upstox returns last available trading day
+    # regardless of the date we request
+    for i in range(max_days):
+        check_date = (datetime.strptime(from_date, '%Y-%m-%d') - timedelta(days=i)).strftime('%Y-%m-%d')
+        try:
+            df = upstox_api.fetch_historical_data_v3(
+                symbol=symbol,
+                unit='minutes',
+                interval=1,
+                to_date=check_date,
+            )
+            if df is not None and not df.empty:
+                df.index = pd.to_datetime(df.index)
+                if len(df.index) > 0:
+                    last_ts = df.index[-1]
+                    # This is the ACTUAL last trading day in the data
+                    actual_date = last_ts.strftime('%Y-%m-%d')
+                    console.print(f"[dim]Requested {check_date}, got data from {actual_date}[/dim]")
+                    return actual_date
+        except Exception:
+            continue
+    # Fallback: try fetching from today
+    try:
+        df = upstox_api.fetch_historical_data_v3(symbol=symbol, unit='minutes', interval=1, to_date=from_date)
+        if df is not None and not df.empty:
+            df.index = pd.to_datetime(df.index)
+            return df.index[-1].strftime('%Y-%m-%d')
+    except Exception:
+        pass
+    return from_date
+
+
+
+def _fetch_candles_at_tf(upstox_api, symbol: str, timeframe: str, from_date: str = None, to_date: str = None):
+    """Fetch candles at the requested timeframe directly from Upstox."""
+    tf_map = {
+        '1min': 1,
+        '5min': 5,
+        '15min': 15,
+        '30min': 30,
+        '1hour': 60,
+        '2hour': 120,
+        '4hour': 240,
+        '12hour': 720,
+        '1day': 'D'
+    }
+    interval = tf_map.get(timeframe)
+    if not interval:
+        interval = 5  # default
+    
+    # For longer TFs, we need more historical days
+    if interval in ['D', 720, 120, 240]:
+        # Need 30+ days for proper 12h/daily candles
+        from_date = (datetime.now(config.IST) - timedelta(days=45)).strftime('%Y-%m-%d')
+    else:
+        from_date = (datetime.now(config.IST) - timedelta(days=5)).strftime('%Y-%m-%d')
+    
+    return upstox_api.fetch_historical_data_v3(
+        symbol=symbol,
+        unit='minutes',
+        interval=interval,
+        from_date=from_date,
+        to_date=to_date or datetime.now(config.IST).strftime('%Y-%m-%d')
+    )
+
+
 @router.get("/chart/{symbol}")
 async def get_paper_chart(
     symbol: str,
     date: Optional[str] = None,
     timeframe: str = "5min",
+    intraday_only: bool = False,
     strategy_id: Optional[int] = None,
     user: "User" = Depends(get_current_user),
 ):
@@ -168,6 +239,10 @@ async def get_paper_chart(
                 '15min': '15min',
                 '30min': '30min',
                 '1hour': '1h',
+                '2hour': '2h',
+                '4hour': '4h',
+                '12hour': '12h',
+                '1day': '1D',
             }
             resample_str = tf_map.get(tf, '5min')
 
@@ -205,21 +280,54 @@ async def get_paper_chart(
         def _filter_to_date_or_recent(df_full, target_date_str):
             if df_full is None or df_full.empty:
                 return df_full
+            df_full.index = pd.to_datetime(df_full.index)
             date_start = pd.Timestamp(target_date_str + " 00:00:00", tz=config.IST)
             date_end = pd.Timestamp(target_date_str + " 23:59:59", tz=config.IST)
             filtered = df_full[(df_full.index >= date_start) & (df_full.index <= date_end)]
             if filtered.empty:
-                last_day = df_full.index.date[-1]
-                target_day = date_start.date()
-                if last_day == target_day or (last_day < target_day):
-                    return df_full
+                # Weekend/holiday: extract last available trading day only
+                last_date = df_full.index[-1].date()
+                last_start = pd.Timestamp(f"{last_date} 00:00:00", tz=config.IST)
+                last_end = pd.Timestamp(f"{last_date} 23:59:59", tz=config.IST)
+                last_day = df_full[(df_full.index >= last_start) & (df_full.index <= last_end)]
+                if not last_day.empty:
+                    return last_day
+                return df_full  # Fallback to full df if single-day extraction fails
             return filtered
 
+        # Timeframes that should be fetched directly (not resampled from 1min)
+        direct_tf_timeframes = {'12hour', '1day', '2hour', '4hour'}
+        
+        fetched_at_tf = False  # Track if we got data at the requested TF
+        
         def _fetch_chart_data():
+            nonlocal fetched_at_tf
             sym = symbol.upper()
 
+            # For longer TFs, try direct fetch first, fallback to resampling
+            if timeframe in direct_tf_timeframes:
+                cached_df, cached = get_cached_candles(sym, date, timeframe)
+                if cached_df is not None and not cached_df.empty:
+                    fetched_at_tf = True
+                    return cached_df, True
+                
+                # Try direct fetch at requested timeframe
+                try:
+                    df_tf = _fetch_candles_at_tf(
+                        upstox_api, sym, timeframe, 
+                        from_date=None, to_date=date
+                    )
+                    if df_tf is not None and not df_tf.empty:
+                        fetched_at_tf = True
+                        save_cached_candles(sym, date, df_tf, timeframe)
+                        return df_tf, False
+                except Exception:
+                    pass
+                
+                # Fallback to resampling from 1min if direct fetch fails
+
             if timeframe == '1day':
-                cached_df, cached = get_cached_candles(sym, date)
+                cached_df, cached = get_cached_candles(sym, date, timeframe)
                 if cached_df is not None:
                     return cached_df, True
                 from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=10)).strftime('%Y-%m-%d')
@@ -228,7 +336,7 @@ async def get_paper_chart(
                     to_date=date, from_date=from_date,
                 )
                 df_1m = _filter_to_date_or_recent(df_1m, date)
-                save_cached_candles(sym, date, df_1m)
+                save_cached_candles(sym, date, df_1m, timeframe)
                 return df_1m, False
 
             cached_df, cached = get_cached_candles(sym, date)
@@ -236,7 +344,15 @@ async def get_paper_chart(
                 return cached_df, True
 
             if date == today:
+                # Try intraday first, but on weekends it may return None
                 df_1m = upstox_api.fetch_intraday_data_v3(sym, interval='1')
+                if df_1m is None or df_1m.empty:
+                    # Fallback to historical - returns data up to to_date (works on weekends)
+                    df_1m = upstox_api.fetch_historical_data_v3(
+                        sym, unit='minutes', interval=1, to_date=date,
+                    )
+                    # Don't filter - just use whatever the API returns
+                    # On weekends, API returns last available trading day
                 if df_1m is not None and not df_1m.empty:
                     save_cached_candles(sym, date, df_1m)
                 return df_1m, False
@@ -250,10 +366,60 @@ async def get_paper_chart(
 
         df_1m, cached = await asyncio.to_thread(_fetch_chart_data)
 
-        df = _resample_to_timeframe(df_1m, timeframe) if timeframe != '1day' else df_1m
+        # Resample only if direct fetch didn't succeed at the requested TF
+        if fetched_at_tf:
+            df = df_1m  # Already at correct TF
+        elif timeframe in direct_tf_timeframes:
+            df = _resample_to_timeframe(df_1m, timeframe)
+        else:
+            df = _resample_to_timeframe(df_1m, timeframe) if timeframe != '1day' else df_1m
+
+        # Auto-fallback: if no data, find last trading day
+        actual_date = date
+        if df is None or df.empty:
+            # Try to find last trading day
+            try:
+                actual_date = _find_last_trading_day(upstox_api, symbol.upper(), date, max_days=10)
+                if actual_date != date:
+                    console.print(f"[dim]No data for {date}, using last trading day: {actual_date}[/dim]")
+                    # Re-fetch for the actual trading date (need inline, can't reuse _fetch_chart_data closure)
+                    sym = symbol.upper()
+                    if actual_date == today:
+                        df_1m = upstox_api.fetch_intraday_data_v3(sym, interval='1')
+                        if df_1m is not None and not df_1m.empty:
+                            save_cached_candles(sym, actual_date, df_1m)
+                    else:
+                        df_1m = upstox_api.fetch_historical_data_v3(sym, unit='minutes', interval=1, to_date=actual_date)
+                        df_1m = _filter_to_date_or_recent(df_1m, actual_date)
+                        if df_1m is not None and not df_1m.empty:
+                            save_cached_candles(sym, actual_date, df_1m)
+                    # Re-fetch at the correct timeframe (always resample since direct fetch failed)
+                    if timeframe in direct_tf_timeframes:
+                        df = _resample_to_timeframe(df_1m, timeframe)
+                    else:
+                        df = _resample_to_timeframe(df_1m, timeframe) if timeframe != '1day' else df_1m
+            except Exception as e:
+                console.print(f"[yellow]Auto-fallback failed: {e}[/yellow]")
 
         if df is None or df.empty:
             return {"error": f"No data for {symbol} on {date}", "symbol": symbol, "date": date}
+
+        # Filter to last single trading day if intraday_only=True
+        if intraday_only and len(df.index) > 1:
+            df.index = pd.to_datetime(df.index)
+            last_date = df.index[-1].date()
+            df = df[df.index.date == last_date]
+
+        # Extract actual date from returned data (may differ from requested on weekends)
+        actual_date = date
+        if len(df.index) > 0:
+            first_ts = pd.to_datetime(df.index[0])
+            last_ts = pd.to_datetime(df.index[-1])
+            actual_date = last_ts.strftime('%Y-%m-%d')
+            # Verify all data is from same day
+            if first_ts.strftime('%Y-%m-%d') != actual_date:
+                # Multi-day data (e.g., 12h candles spanning multiple days)
+                actual_date = f"{first_ts.strftime('%Y-%m-%d')} to {last_ts.strftime('%Y-%m-%d')}"
 
         candles = []
         for idx, row in df.iterrows():
@@ -490,6 +656,7 @@ async def get_paper_chart(
         return {
             "symbol": symbol.upper(),
             "date": date,
+            "actual_date": actual_date if actual_date != date else None,  # Show if different from requested
             "timeframe": timeframe,
             "candles": candles,
             "trades": trades_data,

@@ -132,6 +132,7 @@ export interface PivotLevels {
 export interface PaperChartData {
   symbol: string;
   date: string;
+  actual_date?: string | null; // Actual data date (differs from requested on weekends/holidays)
   candles: CandleData[];
   trades: PaperTrade[];
   orb_levels: ORBLevels | null;
@@ -233,6 +234,7 @@ export interface PaperTradingState {
   showPivotLines: boolean;
   show52wLines: boolean;
   showEmaLines: boolean;
+  intradayOnly: boolean;
   chartData: PaperChartData | null;
   chartLoading: boolean;
   chartTimeframe: string;

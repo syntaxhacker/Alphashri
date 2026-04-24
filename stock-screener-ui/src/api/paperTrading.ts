@@ -220,6 +220,7 @@ export async function fetchPaperChart(
   date?: string,
   timeframe?: string,
   strategyId?: number | null,
+  intradayOnly?: boolean,
 ): Promise<PaperChartData | null> {
   setChartLoading(true);
 
@@ -228,6 +229,7 @@ export async function fetchPaperChart(
     if (date) params.append("date", date);
     if (timeframe) params.append("timeframe", timeframe);
     if (strategyId) params.append("strategy_id", String(strategyId));
+    if (intradayOnly) params.append("intraday_only", "true");
     const queryString = params.toString();
     const url = queryString
       ? `${API_BASE}/api/paper/chart/${symbol}?${queryString}`

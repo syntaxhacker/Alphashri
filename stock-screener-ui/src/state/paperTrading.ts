@@ -47,6 +47,7 @@ export const initialPaperTradingState: PaperTradingState = {
   showPivotLines: false,
   show52wLines: false,
   showEmaLines: false,
+  intradayOnly: false,
   chartData: null,
   chartLoading: false,
   chartTimeframe: "5min",
@@ -204,6 +205,11 @@ export function setShow52wLines(show: boolean) {
 
 export function setShowEmaLines(show: boolean) {
   state = { ...state, showEmaLines: show };
+  notify();
+}
+
+export function setIntradayOnly(intraday: boolean) {
+  state = { ...state, intradayOnly: intraday };
   notify();
 }
 
