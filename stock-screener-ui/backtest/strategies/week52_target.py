@@ -34,6 +34,7 @@ from nautilus_trader.config import StrategyConfig
 
 from .base import BaseStrategy, StrategyParam
 from ..costs import calculate_trading_costs
+from trading.week52_utils import calculate_52w_high
 
 # Add project root to path for imports
 _current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -133,12 +134,8 @@ class Week52TargetNautilusStrategy(Strategy):
         # Track price history for 52W high calculation
         self._price_history.append(high_price)
         
-        # Calculate 52W high (252 trading days) — exclude current bar to avoid look-ahead bias
-        history_excluding_current = self._price_history[:-1]
-        if len(history_excluding_current) >= 252:
-            self._52w_high = max(history_excluding_current[-252:])
-        elif len(history_excluding_current) >= 100:
-            self._52w_high = max(history_excluding_current)
+        # Calculate 52W high using shared utility (excludes current bar to avoid look-ahead bias)
+        self._52w_high = calculate_52w_high(self._price_history, exclude_current=True)
         
         # Debug logging
         if len(self._price_history) % 50 == 0:
