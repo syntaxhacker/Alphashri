@@ -198,16 +198,40 @@ describe("renderBotsView", () => {
     {
       name: "renders strategy allocations for selected bot",
       strategies: [
-        { id: "s1", name: "Momentum", strategy_type: "momentum", max_positions: 5, capital_allocation_pct: 0.6 },
-        { id: "s2", name: "Mean Revert", strategy_type: "mean_revert", max_positions: 3, capital_allocation_pct: 0.4 },
+        {
+          id: "s1",
+          name: "Momentum",
+          strategy_type: "momentum",
+          max_positions: 5,
+          capital_allocation_pct: 0.6,
+        },
+        {
+          id: "s2",
+          name: "Mean Revert",
+          strategy_type: "mean_revert",
+          max_positions: 3,
+          capital_allocation_pct: 0.4,
+        },
       ],
       expected: ["Momentum", "60%", "Mean Revert", "40%", "Total: 100%"],
     },
     {
       name: "renders warning when allocation exceeds 100%",
       strategies: [
-        { id: "s1", name: "Strat1", strategy_type: "t", max_positions: 5, capital_allocation_pct: 0.6 },
-        { id: "s2", name: "Strat2", strategy_type: "t", max_positions: 5, capital_allocation_pct: 0.6 },
+        {
+          id: "s1",
+          name: "Strat1",
+          strategy_type: "t",
+          max_positions: 5,
+          capital_allocation_pct: 0.6,
+        },
+        {
+          id: "s2",
+          name: "Strat2",
+          strategy_type: "t",
+          max_positions: 5,
+          capital_allocation_pct: 0.6,
+        },
       ],
       expected: ["Over 100%"],
     },

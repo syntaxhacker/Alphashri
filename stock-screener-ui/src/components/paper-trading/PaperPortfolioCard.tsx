@@ -47,18 +47,14 @@ export function PaperPortfolioCard({
 
   const dailyLossPct =
     showDailyLossLimit && portfolio.max_daily_loss_pct
-      ? Math.min(
-          (Math.abs(portfolio.day_pnl) / (portfolio.max_daily_loss_pct * 100)) * 100,
-          100,
-        )
+      ? Math.min((Math.abs(portfolio.day_pnl) / (portfolio.max_daily_loss_pct * 100)) * 100, 100)
       : 0;
 
-  const dailyLossBarColor =
-    portfolio.daily_loss_limit_exceeded
-      ? "red"
-      : dailyLossPct >= 80
-        ? "orange"
-        : "gray";
+  const dailyLossBarColor = portfolio.daily_loss_limit_exceeded
+    ? "red"
+    : dailyLossPct >= 80
+      ? "orange"
+      : "gray";
 
   return (
     <CompactPanel data-testid="portfolio-card" className="paper-portfolio-card" id="portfolio-card">

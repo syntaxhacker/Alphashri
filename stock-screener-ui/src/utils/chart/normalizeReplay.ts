@@ -6,11 +6,7 @@ import type {
   Replay52WLevel,
   ReplayEMAData,
 } from "../../types/replay";
-import type {
-  ChartInput,
-  UnifiedOverlay,
-  MarkAreaItem,
-} from "../chart/types";
+import type { ChartInput, UnifiedOverlay, MarkAreaItem } from "../chart/types";
 import { parseTimeToHHMM } from "../ui-helpers";
 import { mapCandles, mapTrades } from "./normalizeCommon";
 

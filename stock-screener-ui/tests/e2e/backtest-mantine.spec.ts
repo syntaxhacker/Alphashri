@@ -173,7 +173,9 @@ test.describe("Backtest - Mantine Features", () => {
           },
         ],
       },
-      variations: [{ id: "default-variation", name: "Default", strategy_type: "ORB", is_template: true }],
+      variations: [
+        { id: "default-variation", name: "Default", strategy_type: "ORB", is_template: true },
+      ],
     });
     await mockSymbolSearch(page);
     await mockBacktestRun(page, {
@@ -514,7 +516,9 @@ test.describe("Backtest - Mantine Features", () => {
       await expect(page.locator('[data-testid="chip-RELIANCE"]')).toBeVisible({ timeout: 5000 });
       const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
       await clearBtn.click();
-      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({
+        timeout: 5000,
+      });
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
       await expect(runBtn).toBeDisabled();
     });
@@ -527,7 +531,9 @@ test.describe("Backtest - Mantine Features", () => {
       await expect(page.locator('[data-testid="chip-RELIANCE"]')).toBeVisible({ timeout: 5000 });
       const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
       await clearBtn.click();
-      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({ timeout: 5000 });
+      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({
+        timeout: 5000,
+      });
     });
   });
 

@@ -20,7 +20,10 @@ export function normalizePaper(
 ): ChartInput {
   const candles = mapCandles(data.candles);
 
-  const trades = mapTrades(data.trades, (t, idx) => parseInt((t as PaperChartData["trades"][number]).trade_id, 10) || idx);
+  const trades = mapTrades(
+    data.trades,
+    (t, idx) => parseInt((t as PaperChartData["trades"][number]).trade_id, 10) || idx,
+  );
 
   const overlays: UnifiedOverlay[] = [];
   const markLines: MarkLineData[] = [];

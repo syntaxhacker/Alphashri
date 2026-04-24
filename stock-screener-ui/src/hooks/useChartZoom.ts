@@ -28,12 +28,7 @@ function computeZoomRange(
   return { start, end };
 }
 
-function dispatchZoom(
-  chart: any,
-  startIdx: number,
-  endIdx: number,
-  total: number,
-) {
+function dispatchZoom(chart: any, startIdx: number, endIdx: number, total: number) {
   const { start, end } = computeZoomRange(startIdx, endIdx, total);
   const startPct = (start / total) * 100;
   const endPct = ((end + 1) / total) * 100;

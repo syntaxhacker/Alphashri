@@ -36,8 +36,12 @@ def _write_meta(path: Path) -> None:
         pass
 
 
-def get_cached_candles(symbol: str, date: str) -> tuple[pd.DataFrame | None, bool]:
-    path = CACHE_DIR / date / f"{symbol.upper()}.pkl"
+def get_cached_candles(symbol: str, date: str, timeframe: str = None) -> tuple[pd.DataFrame | None, bool]:
+    # Include timeframe in cache key to separate different TFs
+    if timeframe:
+        path = CACHE_DIR / date / f"{symbol.upper()}_{timeframe}.pkl"
+    else:
+        path = CACHE_DIR / date / f"{symbol.upper()}.pkl"
     if not path.exists():
         return None, False
     try:
@@ -54,10 +58,14 @@ def get_cached_candles(symbol: str, date: str) -> tuple[pd.DataFrame | None, boo
         return None, False
 
 
-def save_cached_candles(symbol: str, date: str, df: pd.DataFrame) -> None:
+def save_cached_candles(symbol: str, date: str, df: pd.DataFrame, timeframe: str = None) -> None:
     if df is None or df.empty:
         return
-    path = CACHE_DIR / date / f"{symbol.upper()}.pkl"
+    # Include timeframe in cache key to separate different TFs
+    if timeframe:
+        path = CACHE_DIR / date / f"{symbol.upper()}_{timeframe}.pkl"
+    else:
+        path = CACHE_DIR / date / f"{symbol.upper()}.pkl"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as f:
         pickle.dump(df, f)

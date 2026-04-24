@@ -138,10 +138,16 @@ export function PaperPositionsTable() {
   const { positions, selectedSymbol, selectedStrategyTab, botSnapshot, isLoading } = state;
 
   const sortedPositions = useMemo(
-    () => [...positions].sort((a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime()),
+    () =>
+      [...positions].sort(
+        (a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime(),
+      ),
     [positions],
   );
-  const strategyGroups = useMemo(() => groupPositionsByStrategy(sortedPositions), [sortedPositions]);
+  const strategyGroups = useMemo(
+    () => groupPositionsByStrategy(sortedPositions),
+    [sortedPositions],
+  );
   const isMultiStrategy = strategyGroups.size > 1;
   const activeTab = selectedStrategyTab || "all";
 
@@ -176,9 +182,11 @@ export function PaperPositionsTable() {
   }
 
   const filteredPositions =
-    activeTab === "all" ? sortedPositions : (strategyGroups.get(Number(activeTab)) || []).sort(
-      (a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime(),
-    );
+    activeTab === "all"
+      ? sortedPositions
+      : (strategyGroups.get(Number(activeTab)) || []).sort(
+          (a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime(),
+        );
 
   return (
     <Flex

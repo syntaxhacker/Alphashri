@@ -1,10 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-import {
-  TEST_BOT_UUID,
-  setupBotApiMocks,
-  expectPositionsVisible,
-} from "./helpers/botHelpers";
+import { TEST_BOT_UUID, setupBotApiMocks, expectPositionsVisible } from "./helpers/botHelpers";
 
 const ALL_STRATEGY_TYPES = [
   { id: 1, name: "ORB Conservative", strategy_type: "ORB", allocation: 0.3 },

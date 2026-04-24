@@ -25,7 +25,10 @@ export function getCandleChange(open: number, close: number) {
   return { change, changeColor };
 }
 
-export function getCandleFromParams(params: any[], candles: { open: number; close: number; [key: string]: any }[]) {
+export function getCandleFromParams(
+  params: any[],
+  candles: { open: number; close: number; [key: string]: any }[],
+) {
   const candle = params.find((p: any) => p.seriesType === "candlestick");
   if (!candle) return null;
   const c = candles[candle.dataIndex];

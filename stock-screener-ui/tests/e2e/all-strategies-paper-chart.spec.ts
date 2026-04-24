@@ -1,10 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-import {
-  TEST_BOT_UUID,
-  setupBotApiMocks,
-  createLivePosition,
-} from "./helpers/botHelpers";
+import { TEST_BOT_UUID, setupBotApiMocks, createLivePosition } from "./helpers/botHelpers";
 import { generateCandles } from "./helpers/chartHelpers";
 
 async function setupPaperWithChart(
@@ -171,7 +167,16 @@ test.describe("Paper Chart - SR Breakout Strategy", () => {
       strategyName: "SR Breakout",
       orbLevels: null,
       pivotLevels: { pp: 2520, r1: 2560, s1: 2480, r2: 2590, s2: 2450 },
-      livePosition: createLivePosition({ symbol: "RELIANCE", entry_price: 2565, current_price: 2580, pnl: 150, pnl_pct: 0.58, quantity: 50, stop_loss: 2520, take_profit: 2620 }),
+      livePosition: createLivePosition({
+        symbol: "RELIANCE",
+        entry_price: 2565,
+        current_price: 2580,
+        pnl: 150,
+        pnl_pct: 0.58,
+        quantity: 50,
+        stop_loss: 2520,
+        take_profit: 2620,
+      }),
     });
     await navigateAndClickPosition(page, "RELIANCE");
     await verifyPaperChartRenders(page);
@@ -182,7 +187,14 @@ test.describe("Paper Chart - SR Breakout Strategy", () => {
       positionSymbol: "RELIANCE",
       strategyName: "SR Breakout",
       orbLevels: null,
-      livePosition: createLivePosition({ symbol: "RELIANCE", entry_price: 2565, current_price: 2580, pnl: 150, pnl_pct: 0.58, quantity: 50 }),
+      livePosition: createLivePosition({
+        symbol: "RELIANCE",
+        entry_price: 2565,
+        current_price: 2580,
+        pnl: 150,
+        pnl_pct: 0.58,
+        quantity: 50,
+      }),
     });
     await navigateAndClickPosition(page, "RELIANCE");
     await expect(page.locator('[data-testid="show-pivot-lines"]')).toBeVisible({ timeout: 10000 });
@@ -196,7 +208,15 @@ test.describe("Paper Chart - 52W Chaser Strategy", () => {
       strategyName: "52W Chaser",
       orbLevels: null,
       week52Levels: { high_52w: 3900, low_52w: 3400, distance_to_high_pct: 2.5, near_high: true },
-      livePosition: createLivePosition({ entry_price: 3850, current_price: 3870, pnl: 200, pnl_pct: 0.52, quantity: 20, stop_loss: 3800, take_profit: 3950 }),
+      livePosition: createLivePosition({
+        entry_price: 3850,
+        current_price: 3870,
+        pnl: 200,
+        pnl_pct: 0.52,
+        quantity: 20,
+        stop_loss: 3800,
+        take_profit: 3950,
+      }),
     });
     await navigateAndClickPosition(page, "TCS");
     await verifyPaperChartRenders(page);
@@ -208,7 +228,13 @@ test.describe("Paper Chart - 52W Chaser Strategy", () => {
       strategyName: "52W Chaser",
       orbLevels: null,
       week52Levels: { high_52w: 3900, low_52w: 3400, distance_to_high_pct: 2.5, near_high: true },
-      livePosition: createLivePosition({ entry_price: 3850, current_price: 3870, pnl: 200, pnl_pct: 0.52, quantity: 20 }),
+      livePosition: createLivePosition({
+        entry_price: 3850,
+        current_price: 3870,
+        pnl: 200,
+        pnl_pct: 0.52,
+        quantity: 20,
+      }),
     });
     await navigateAndClickPosition(page, "TCS");
     await expect(page.locator('[data-testid="show-52w-lines"]')).toBeVisible({ timeout: 10000 });
@@ -226,7 +252,16 @@ test.describe("Paper Chart - EMA Cross Strategy", () => {
         ema_9: [1485, 1490, 1495, 1500, 1505, 1510, 1515, 1520, 1525, 1530],
         ema_21: [1480, 1482, 1485, 1488, 1490, 1493, 1496, 1500, 1503, 1507],
       },
-      livePosition: createLivePosition({ symbol: "INFY", entry_price: 1500, current_price: 1510, pnl: 200, pnl_pct: 0.67, quantity: 30, stop_loss: 1470, take_profit: 1550 }),
+      livePosition: createLivePosition({
+        symbol: "INFY",
+        entry_price: 1500,
+        current_price: 1510,
+        pnl: 200,
+        pnl_pct: 0.67,
+        quantity: 30,
+        stop_loss: 1470,
+        take_profit: 1550,
+      }),
     });
     await navigateAndClickPosition(page, "INFY");
     await verifyPaperChartRenders(page);
@@ -242,7 +277,14 @@ test.describe("Paper Chart - EMA Cross Strategy", () => {
         ema_9: [1485, 1490, 1495, 1500, 1505, 1510, 1515, 1520, 1525, 1530],
         ema_21: [1480, 1482, 1485, 1488, 1490, 1493, 1496, 1500, 1503, 1507],
       },
-      livePosition: createLivePosition({ symbol: "INFY", entry_price: 1500, current_price: 1510, pnl: 200, pnl_pct: 0.67, quantity: 30 }),
+      livePosition: createLivePosition({
+        symbol: "INFY",
+        entry_price: 1500,
+        current_price: 1510,
+        pnl: 200,
+        pnl_pct: 0.67,
+        quantity: 30,
+      }),
     });
     await navigateAndClickPosition(page, "INFY");
     await expect(page.locator('[data-testid="show-ema-lines"]')).toBeVisible({ timeout: 10000 });
@@ -321,7 +363,17 @@ test.describe("Paper Chart - SELL Side Position", () => {
       positionSymbol: "HDFC",
       strategyName: "SR Breakout",
       orbLevels: null,
-      livePosition: createLivePosition({ symbol: "HDFC", side: "SELL", entry_price: 1650, current_price: 1630, pnl: 200, pnl_pct: 0.61, quantity: 50, stop_loss: 1680, take_profit: 1600 }),
+      livePosition: createLivePosition({
+        symbol: "HDFC",
+        side: "SELL",
+        entry_price: 1650,
+        current_price: 1630,
+        pnl: 200,
+        pnl_pct: 0.61,
+        quantity: 50,
+        stop_loss: 1680,
+        take_profit: 1600,
+      }),
     });
     await navigateAndClickPosition(page, "HDFC");
     await verifyPaperChartRenders(page);

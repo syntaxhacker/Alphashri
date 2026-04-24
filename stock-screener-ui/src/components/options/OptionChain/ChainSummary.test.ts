@@ -186,25 +186,25 @@ describe("ChainSummary computation", () => {
         total_ce_oi: 0,
         total_pe_oi: 10000,
       };
-    expect(computeStats(matrix, summary).supportStrike).toBe(24000);
-  });
-});
-
-describe.each([
-  { side: "ce", field: "resistanceStrike" as const },
-  { side: "pe", field: "supportStrike" as const },
-])("$side edge cases", ({ side, field }) => {
-  test(`returns 0 when ${side} has no market_data`, () => {
-    const matrix = [makeEmptyStrike(24000), makeEmptyStrike(24500)];
-    expect(computeStats(matrix, zeroSummary)[field]).toBe(0);
+      expect(computeStats(matrix, summary).supportStrike).toBe(24000);
+    });
   });
 
-  test("returns 0 when strike matrix is empty", () => {
-    expect(computeStats([], defaultSummary)[field]).toBe(0);
-  });
-});
+  describe.each([
+    { side: "ce", field: "resistanceStrike" as const },
+    { side: "pe", field: "supportStrike" as const },
+  ])("$side edge cases", ({ side, field }) => {
+    test(`returns 0 when ${side} has no market_data`, () => {
+      const matrix = [makeEmptyStrike(24000), makeEmptyStrike(24500)];
+      expect(computeStats(matrix, zeroSummary)[field]).toBe(0);
+    });
 
-describe("expected move", () => {
+    test("returns 0 when strike matrix is empty", () => {
+      expect(computeStats([], defaultSummary)[field]).toBe(0);
+    });
+  });
+
+  describe("expected move", () => {
     test("returns expected_move from summary", () => {
       const expectedMove = { lower: 23500, upper: 25000, range: 750 };
       const summary: Summary = {
