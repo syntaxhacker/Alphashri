@@ -961,7 +961,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             # Refresh per-strategy watchlist periodically (every 30 cycles)
                             if cycle % 30 == 0:
                                 self.refresh_watchlist(strategy_id)
-                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle % 30 != 0:
+                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 30 != 0:
                                 continue
                             signals = self.scan_for_signals(strategy_id)
                             for signal in signals:
