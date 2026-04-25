@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Group, MultiSelect, Tooltip, Badge, ActionIcon } from "@mantine/core";
+import { Box, Group, MultiSelect, Tooltip, Badge, ActionIcon } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { IconChevronDown, IconChevronUp, IconX } from "@tabler/icons-react";
 import { searchSymbols } from "../../api/symbols";
@@ -82,7 +82,7 @@ export function SymbolChips({
         )}
       </Group>
       {selectedSymbols.length > 0 && (
-        <div
+        <Box
           className={`config-symbols-chips ${symbolsExpanded ? "expanded" : ""}`}
           data-testid="symbol-chips"
         >
@@ -95,7 +95,6 @@ export function SymbolChips({
               rightSection={
                 <IconX
                   size={10}
-                  style={{ cursor: "pointer" }}
                   onClick={() => handleRemoveSymbol(symbol)}
                 />
               }
@@ -111,7 +110,6 @@ export function SymbolChips({
               size="sm"
               className="symbol-chip symbol-expand-toggle"
               onClick={() => setSymbolsExpanded(true)}
-              style={{ cursor: "pointer" }}
               rightSection={<IconChevronDown size={10} />}
               data-testid="symbol-expand-more-btn"
             >
@@ -125,14 +123,13 @@ export function SymbolChips({
               size="sm"
               className="symbol-chip symbol-expand-toggle"
               onClick={() => setSymbolsExpanded(false)}
-              style={{ cursor: "pointer" }}
               rightSection={<IconChevronUp size={10} />}
               data-testid="symbol-expand-less-btn"
             >
               Less
             </Badge>
           )}
-        </div>
+        </Box>
       )}
     </>
   );

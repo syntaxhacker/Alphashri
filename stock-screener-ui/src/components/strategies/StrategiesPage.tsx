@@ -1,4 +1,4 @@
-import { Box, Stack, Button, Group, Text } from "@mantine/core";
+import { Box, Stack, Flex, Button, Group, Text } from "@mantine/core";
 import { IconAlertCircle, IconRefresh } from "@tabler/icons-react";
 import { StrategiesNav } from "./StrategiesNav";
 import { TemplatesView } from "./TemplatesView";
@@ -114,11 +114,11 @@ export function StrategiesPage({
 
   return (
     <CompactPage>
-      <Box
+      <Stack
         h="100%"
         className="strategies-page"
         id="strategies-main"
-        style={{ display: "flex", flexDirection: "column", gap: "var(--mantine-spacing-sm)" }}
+        gap="sm"
         data-testid="strategies-view"
       >
         <Box
@@ -129,15 +129,15 @@ export function StrategiesPage({
           <StrategiesNav activeView={activeView} onChange={onViewChange} />
         </Box>
 
-        <Box
+        <Flex
           flex={1}
           className="strategies-content"
           id="strategies-content"
-          style={{ minHeight: 0, display: "flex", overflow: "hidden" }}
+          style={{ minHeight: 0, overflow: "hidden" }}
           data-testid="strategies-content"
         >
           <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>{renderContent()}</Box>
-        </Box>
+        </Flex>
 
         <StrategyForm
           mode="create"
@@ -161,7 +161,7 @@ export function StrategiesPage({
           isBotRunning={isAnyBotRunning}
           data-testid="strategies-edit-modal"
         />
-      </Box>
+      </Stack>
     </CompactPage>
   );
 }

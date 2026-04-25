@@ -1,4 +1,4 @@
-import { Box, Flex } from "@mantine/core";
+import { Flex } from "@mantine/core";
 import type { SymbolChartData, Trade } from "../../types/backtest";
 import { BacktestChartTabs, TradeHistoryTable } from "./mantine";
 
@@ -47,12 +47,11 @@ export function BacktestRightPanel({
 
   return (
     <Flex direction="column" gap="sm" h="100%" style={{ minHeight: 0 }}>
-      <Box
+      <Flex
+        direction="column"
         style={{
           minHeight: 0,
           flex: hasTradeHistory ? "1 1 50%" : "1 1 100%",
-          display: "flex",
-          flexDirection: "column",
         }}
       >
         <BacktestChartTabs
@@ -65,15 +64,14 @@ export function BacktestRightPanel({
           chartLoading={chartLoading}
           onTradeClick={onTradeClick}
         />
-      </Box>
+      </Flex>
       {hasTradeHistory && (
-        <Box
+        <Flex
+          direction="column"
           style={{
             minHeight: 0,
             flex: "1 1 50%",
             overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
           }}
         >
           <TradeHistoryTable
@@ -85,7 +83,7 @@ export function BacktestRightPanel({
             onRowClick={onTradeClick}
             onClose={onCloseTradeHistory}
           />
-        </Box>
+        </Flex>
       )}
     </Flex>
   );

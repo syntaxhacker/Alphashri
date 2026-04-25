@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Center, Loader } from "@mantine/core";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
@@ -46,10 +47,9 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="auth-loading">
-        <div className="auth-spinner"></div>
-        <span>Loading...</span>
-      </div>
+      <Center className="auth-loading">
+        <Loader size="sm" />
+      </Center>
     );
   }
 

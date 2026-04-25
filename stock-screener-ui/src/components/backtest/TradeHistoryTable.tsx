@@ -1,9 +1,10 @@
-import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Box } from "@mantine/core";
+import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Stack } from "@mantine/core";
 import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { Trade } from "../../types/backtest";
 import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";
 import { SortableHeader } from "../common/SortableHeader";
 import { DataTable } from "../common/DataTable";
+import { TINT_LOSS_ROW } from "../../config/colors";
 
 export function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
   return [...trades].sort((a, b) => {
@@ -105,14 +106,12 @@ export function TradeHistoryTable({
   const getTradeIndex = (trade: Trade) => trades.indexOf(trade);
 
   return (
-    <Box
+    <Stack
       id="trade-history-table"
       className="trade-history-panel"
       data-testid="trade-history-panel"
+      h="100%"
       style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
         minHeight: 0,
         overflow: "hidden",
       }}
@@ -272,10 +271,9 @@ export function TradeHistoryTable({
                 <Table.Tr
                   key={originalIndex}
                   onClick={() => onRowClick(originalIndex)}
-                  style={{ cursor: "pointer" }}
                   data-trade-number={tradeNumber}
                   title="Click to zoom to this trade"
-                  bg={t.net_pnl >= 0 ? undefined : "rgba(255, 0, 0, 0.05)"}
+                  bg={t.net_pnl >= 0 ? undefined : TINT_LOSS_ROW}
                 >
                   <Table.Td>
                     <Text size="sm">{tradeNumber}</Text>
@@ -352,6 +350,6 @@ export function TradeHistoryTable({
           </Table.Tbody>
         </DataTable>
       </ScrollArea>
-    </Box>
+    </Stack>
   );
 }

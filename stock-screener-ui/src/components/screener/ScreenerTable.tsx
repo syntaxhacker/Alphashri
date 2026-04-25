@@ -36,7 +36,6 @@ export function ScreenerTable({
       return (
         <Table.Th
           key={column.key}
-          style={{ cursor: "pointer" }}
           onClick={() => onSortChange(column.key)}
           data-testid={`sort-header-${column.key}`}
           className={`screener-table-header-cell sortable ${sortColumn === column.key ? "sorted" : ""}`}

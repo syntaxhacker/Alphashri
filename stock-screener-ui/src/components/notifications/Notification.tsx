@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Box } from "@mantine/core";
 import type { Notification } from "../../state/store/notificationsSlice";
 
 type NotificationItemProps = {
@@ -39,7 +40,7 @@ export function NotificationItem({ notification, onDismiss }: NotificationItemPr
   }, [notification.id, notification.duration, onDismiss]);
 
   return (
-    <div
+    <Box
       className={`toast-item ${config.className}`}
       role="alert"
       aria-live="polite"
@@ -61,6 +62,6 @@ export function NotificationItem({ notification, onDismiss }: NotificationItemPr
       >
         ✕
       </button>
-    </div>
+    </Box>
   );
 }

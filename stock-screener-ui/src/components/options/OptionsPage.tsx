@@ -1,4 +1,4 @@
-import { Box, ScrollArea } from "@mantine/core";
+import { Box, Stack, ScrollArea } from "@mantine/core";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
 import { GreeksPanel } from "./OptionGreeks/GreeksPanel";
@@ -46,11 +46,11 @@ export function OptionsPage({
   summary,
 }: OptionsPageProps) {
   return (
-    <Box
+    <Stack
       id="options-main"
       className="options-page"
       h="100%"
-      style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+      style={{ overflow: "hidden" }}
       data-testid="options-view"
     >
       <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
@@ -98,6 +98,6 @@ export function OptionsPage({
           )}
         </ScrollArea>
       </Box>
-    </Box>
+    </Stack>
   );
 }
