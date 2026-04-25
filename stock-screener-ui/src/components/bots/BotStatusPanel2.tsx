@@ -1,18 +1,6 @@
-import {
-  Box,
-  Card,
-  Text,
-  Button,
-  Group,
-  Stack,
-  Grid,
-} from "@mantine/core";
+import { Box, Card, Text, Button, Group, Stack, Grid } from "@mantine/core";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
-import type {
-  BotConfig,
-  BotStatus,
-  BotTrade,
-} from "../../types/bots";
+import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
 import { StatusBadge } from "../common/BadgeComponents";
 import {
@@ -76,6 +64,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
               <StatusBadge
                 running={status?.running ?? false}
                 pid={status?.pid ?? undefined}
+                statusUnknown={status?.status === "unknown"}
                 data-testid="bot-running-badge"
               />
             </Stack>

@@ -120,6 +120,40 @@ class TestTradeModel:
         assert len(test_user.trades) == 1
         assert len(test_bot.trades) == 1
 
+    def test_to_dict_includes_notes_and_reason(self, test_db, test_user):
+        trade = Trade(
+            user_id=test_user.id,
+            strategy_name="Test",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=10,
+            entry_price=2500.0,
+            entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+            notes="good breakout",
+            reason="ORB Conservative",
+        )
+        test_db.add(trade)
+        test_db.commit()
+        d = trade.to_dict()
+        assert d["notes"] == "good breakout"
+        assert d["reason"] == "ORB Conservative"
+
+    def test_to_dict_defaults_notes_and_reason_to_empty_string(self, test_db, test_user):
+        trade = Trade(
+            user_id=test_user.id,
+            strategy_name="Test",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=10,
+            entry_price=2500.0,
+            entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+        )
+        test_db.add(trade)
+        test_db.commit()
+        d = trade.to_dict()
+        assert d["notes"] == ""
+        assert d["reason"] == ""
+
 
 @pytest.mark.unit
 class TestPositionModel:

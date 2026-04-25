@@ -10,6 +10,7 @@ import type { ORBZone } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import { formatTimeLabel } from "../../utils/chartTimeUtils";
+import { getCandleFromParams } from "../../utils/chartUtils";
 export { buildPivotSeries, formatTimeLabel };
 
 export type ChartSize = "preview" | "expanded" | "full";
@@ -19,8 +20,10 @@ export interface ChartRenderOptions {
   candles: PreviewCandle[];
   orb_zones?: ORBZone[];
   pivot_levels?: PivotLevel[];
+  high_52w?: number | null;
   size: ChartSize;
   showPivots?: boolean;
+  show52wHigh?: boolean;
   isDark?: boolean;
 }
 
@@ -33,8 +36,10 @@ export function buildChartOption(options: ChartRenderOptions): any {
     candles,
     orb_zones = [],
     pivot_levels = [],
+    high_52w = null,
     size,
     showPivots = false,
+    show52wHigh = true,
     isDark = true,
   } = options;
 
@@ -65,6 +70,9 @@ export function buildChartOption(options: ChartRenderOptions): any {
 
   // Build pivot lines (only if showPivots)
   const pivotSeries = showPivots ? buildPivotSeries(candles, pivot_levels) : [];
+
+  // Build 52-week high line (horizontal line across all candles)
+  const high52wData = show52wHigh && high_52w ? candles.map(() => high_52w) : [];
 
   // Base configuration
   const chartOption: any = {
@@ -171,6 +179,30 @@ export function buildChartOption(options: ChartRenderOptions): any {
       },
       // Pivot level series
       ...pivotSeries,
+      // 52-week high line
+      ...(show52wHigh && high_52w
+        ? [
+            {
+              id: "high-52w",
+              name: "52W High",
+              type: "line",
+              data: high52wData,
+              showSymbol: false,
+              silent: true,
+              z: 4,
+              lineStyle: {
+                color: "#FF9800", // Orange
+                width: isSmall ? 1 : 2,
+                type: "dotted",
+              },
+              tooltip: {
+                show: !isSmall,
+                formatter: () =>
+                  `<span style="color:#FF9800">52W High: ₹${high_52w.toFixed(2)}</span>`,
+              },
+            },
+          ]
+        : []),
     ],
   };
 
@@ -184,7 +216,13 @@ export function buildChartOption(options: ChartRenderOptions): any {
 
   if (!isSmall) {
     chartOption.legend = {
-      data: ["Price", "OR High", "OR Low", ...(showPivots ? ["R1", "PP", "S1"] : [])],
+      data: [
+        "Price",
+        "OR High",
+        "OR Low",
+        ...(show52wHigh && high_52w ? ["52W High"] : []),
+        ...(showPivots ? ["R1", "PP", "S1"] : []),
+      ],
       bottom: isFull ? 40 : 10,
       itemWidth: 14,
       itemHeight: 10,
@@ -252,15 +290,11 @@ export function buildORBLine(
  * Format tooltip content.
  */
 export function formatTooltip(params: any, candles: PreviewCandle[], isDark: boolean): string {
-  const candle = params.find((p: any) => p.seriesType === "candlestick");
-  if (!candle) return "";
+  const result = getCandleFromParams(params, candles);
+  if (!result) return "";
 
-  const idx = candle.dataIndex;
-  const c = candles[idx];
-  if (!c) return "";
-
-  const change = c.open > 0 ? (((c.close - c.open) / c.open) * 100).toFixed(2) : "0";
-  const changeColor = c.close >= c.open ? "#00E676" : "#FF1744";
+  const c = result.candle;
+  const { change, changeColor } = result.change;
   const textColor = isDark ? "#e0e0e0" : "#333333";
   const fontFamily = theme.fontFamily;
   const fontSizes = theme.fontSizes;

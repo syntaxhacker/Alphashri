@@ -1,6 +1,6 @@
 import { Stack, Box, Button, Text, Group } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ScreenerNav } from "./ScreenerNav";
 import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerTable } from "./ScreenerTable";
@@ -11,6 +11,7 @@ import { getColumnsForScreener } from "./columns";
 import type { Stock } from "../../types";
 import { useTableSort } from "../../hooks/useTableSort";
 import { CompactPage, CompactPanel } from "../common/compact";
+import * as state from "../../state";
 
 interface ScreenerPageProps {
   screenerOptions: Array<{ id: string; label: string; description?: string }>;
@@ -57,15 +58,32 @@ export function ScreenerPage({
   onSymbolHover,
   error,
 }: ScreenerPageProps) {
-  const {
-    sortColumn,
-    sortDirection,
-    handleSort: handleSortChange,
-    getSortedData,
-  } = useTableSort<Stock>({
-    initialColumn: "score",
-    initialDirection: "desc",
+  const { getSortedData } = useTableSort<Stock>({
+    sortColumn: state.sortColumn,
+    sortDirection: state.sortDirection,
   });
+
+  const sortColumn = state.sortColumn;
+  const sortDirection = state.sortDirection;
+
+  const handleSortChange = (column: string) => {
+    if (state.sortColumn === column) {
+      state.setSortDirection(state.sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      state.setSortColumn(column);
+      state.setSortDirection("desc");
+    }
+  };
+
+  // Reset sort when screener changes to its prescribed default
+  useEffect(() => {
+    const meta = state.profileMetaById[activeScreener];
+    if (meta?.default_sort?.column) {
+      state.setSortColumn(meta.default_sort.column);
+      state.setSortDirection(meta.default_sort.direction || "desc");
+    }
+  }, [activeScreener]);
+
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
 
   const sortedApproaching = useMemo(

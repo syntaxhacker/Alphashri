@@ -36,13 +36,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         data-testid="app-header"
       >
         <Group justify="space-between" align="center" h="100%" px="sm" gap="sm">
-          <Text
-            fw={700}
-            size="lg"
-            id="app-logo"
-            data-testid="app-logo"
-            style={{ flex: "none" }}
-          >
+          <Text fw={700} size="lg" id="app-logo" data-testid="app-logo" style={{ flex: "none" }}>
             🚀 Alphashri
           </Text>
           <Box flex={1}>

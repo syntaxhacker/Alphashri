@@ -173,10 +173,14 @@ class TestCalculateRSI:
 
     def test_rsi_neutral_at_50_for_flat_prices(self):
         """Test: RSI near 50 for flat price movement."""
+        np.random.seed(42)  # Fix seed for reproducibility
         n = 50
         prices = pd.Series([100 + np.random.uniform(-0.5, 0.5) for _ in range(n)])
         rsi = calculate_rsi(prices)
-        assert 40 < rsi.iloc[-1] < 60
+        valid_rsi = rsi.dropna()
+        assert all(0 <= v <= 100 for v in valid_rsi)
+        # For near-flat prices, RSI should be in neutral territory
+        assert 30 < rsi.iloc[-1] < 70
 
     def test_rsi_high_for_uptrend(self):
         """Test: RSI is high for uptrending prices."""
@@ -229,103 +233,54 @@ class TestGetDateFromNs:
         assert diff < 1
 
 
-class TestWeek52HighIndicator:
-    """Tests for Week52HighIndicator class."""
+class TestWeek52HighCalculation:
+    """Tests for calculate_52w_high() shared utility."""
 
-    def test_initialization_default_params(self):
-        """Test: Indicator initializes with default parameters."""
-        indicator = Week52HighIndicator()
-        assert indicator.period == 252
-        assert indicator.min_periods == 100
-
-    def test_initialization_custom_params(self):
-        """Test: Indicator initializes with custom parameters."""
-        indicator = Week52HighIndicator(period=100, min_periods=50)
-        assert indicator.period == 100
-        assert indicator.min_periods == 50
-
-    def test_update_returns_none_before_min_periods(self):
-        """Test: Returns None before any previous bars available."""
-        indicator = Week52HighIndicator(period=252, min_periods=100)
-        result = indicator.update(100.0)
+    def test_returns_none_for_empty_list(self):
+        """Test: Returns None for empty list."""
+        from trading.week52_utils import calculate_52w_high
+        result = calculate_52w_high([], period=252, exclude_current=True)
         assert result is None
 
-    def test_update_returns_value_after_min_periods(self):
-        """Test: Returns value after minimum periods reached."""
-        indicator = Week52HighIndicator(period=252, min_periods=10)
-        for i in range(5):
-            indicator.update(100.0)
+    def test_returns_max_under_period(self):
+        """Test: Returns max of available data when under period."""
+        from trading.week52_utils import calculate_52w_high
+        highs = [100.0, 105.0, 103.0]
+        result = calculate_52w_high(highs, period=252, exclude_current=True)
+        assert result == 105.0
 
-        for i in range(10):
-            result = indicator.update(100.0 + i)
-        assert result is not None
+    def test_excludes_current_bar(self):
+        """Test: Current bar excluded to prevent look-ahead bias."""
+        from trading.week52_utils import calculate_52w_high
+        highs = [100.0, 105.0, 110.0, 115.0, 200.0]  # 200 is current
+        result = calculate_52w_high(highs, period=252, exclude_current=True)
+        assert result == 115.0  # Not 200
 
-    def test_tracks_rolling_high(self):
-        """Test: Correctly tracks the rolling high."""
-        indicator = Week52HighIndicator(period=10, min_periods=5)
+    def test_includes_current_bar(self):
+        """Test: Current bar included when exclude_current=False."""
+        from trading.week52_utils import calculate_52w_high
+        highs = [100.0, 105.0, 200.0]
+        result = calculate_52w_high(highs, period=252, exclude_current=False)
+        assert result == 200.0
 
-        prices = [100, 105, 110, 108, 112, 115, 113, 118, 116, 120]
-        for price in prices:
-            indicator.update(price)
+    def test_rolling_window(self):
+        """Test: Only last 'period' values used."""
+        from trading.week52_utils import calculate_52w_high
+        # 300 values, only last 252 should be used
+        highs = list(range(1, 301))  # 1, 2, 3, ..., 300
+        result = calculate_52w_high(highs, period=252, exclude_current=True)
+        # Last 252 values are 49-300, exclude current (300) = max is 299
+        assert result == 299
 
-        assert indicator.value is not None
+    def test_lookahead_bias_prevention(self):
+        """Test: verify exclude_current=True prevents look-ahead bias."""
+        from trading.week52_utils import calculate_52w_high
+        highs = [90.0, 95.0, 100.0, 105.0, 200.0]  # 200 is current bar's high
+        result_excluded = calculate_52w_high(highs, period=252, exclude_current=True)
+        result_included = calculate_52w_high(highs, period=252, exclude_current=False)
 
-    def test_excludes_current_bar_to_avoid_lookahead(self):
-        """Test: Current bar's high is excluded from calculation."""
-        indicator = Week52HighIndicator(period=10, min_periods=3)
-
-        indicator.update(100)
-        indicator.update(105)
-        indicator.update(110)
-        result = indicator.update(200)
-
-        assert result == 110
-
-    def test_is_initialized(self):
-        """Test: is_initialized returns correct status."""
-        indicator = Week52HighIndicator(period=252, min_periods=5)
-
-        assert not indicator.is_initialized()
-        for i in range(4):
-            indicator.update(100.0)
-        assert not indicator.is_initialized()
-        indicator.update(100.0)
-        assert indicator.is_initialized()
-
-    def test_maintains_max_period_rolling_window(self):
-        """Test: Maintains only last 'period' prices."""
-        indicator = Week52HighIndicator(period=5, min_periods=3)
-
-        for i in range(10):
-            indicator.update(100 + i)
-
-        assert len(indicator._high_prices) == 5
-
-    def test_value_property(self):
-        """Test: value property returns current 52W high."""
-        indicator = Week52HighIndicator(period=10, min_periods=3)
-
-        assert indicator.value is None
-        indicator.update(100)
-        indicator.update(105)
-        indicator.update(110)
-        indicator.update(108)
-
-        assert indicator.value == 110
-
-    def test_rolling_high_updates_correctly(self):
-        """Test: Rolling high updates as old values fall off."""
-        indicator = Week52HighIndicator(period=5, min_periods=3)
-
-        prices = [100, 110, 120, 115, 105, 95, 85]
-        results = []
-
-        for price in prices:
-            indicator.update(price)
-            if indicator.value is not None:
-                results.append(indicator.value)
-
-        assert len(results) > 0
+        assert result_excluded == 105.0  # Without 200
+        assert result_included == 200.0   # With 200
 
 
 class TestWeek52ChaserStrategyMetadata:

@@ -140,5 +140,5 @@ export function renderSortableHeader(
   tooltip = "",
 ): string {
   const tooltipAttr = tooltip ? ` title="${tooltip}"` : "";
-  return `<th class="${className} sortable" data-column="${column}"${tooltipAttr} onclick="window.handleSort('${column}')">${label} ${renderSortIndicator(column)}</th>`;
+  return `<th class="${className} sortable" data-column="${column}"${tooltipAttr}>${label} ${renderSortIndicator(column)}</th>`;
 }

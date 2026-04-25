@@ -1,29 +1,19 @@
-import { Table, Group, Text, ActionIcon, Badge, Tooltip } from "@mantine/core";
-import { IconEdit, IconTrash, IconCheck, IconAlertCircle } from "@tabler/icons-react";
+import { Table, Group, Text, ActionIcon, Badge, Anchor } from "@mantine/core";
+import { IconEdit, IconTrash } from "@tabler/icons-react";
 import type { StrategiesListProps } from "./types";
 import { CompactPanel } from "../common/compact";
 import { DataTable } from "../common/DataTable";
+import { EditableNumberCell } from "./EditableNumberCell";
 
 export function StrategiesList({
   strategies,
   templates,
   onEdit,
   onDelete,
-  onSetActive,
+  onUpdate,
   isLoading,
 }: StrategiesListProps) {
   const nonTemplates = strategies.filter((s) => !s.is_template);
-
-  // Determine the actual active strategy (prefer default if multiple or none active)
-  const activeByFlag = nonTemplates.filter((s) => s.is_active);
-  let activeStrategy: (typeof nonTemplates)[0] | undefined;
-
-  if (activeByFlag.length === 1) {
-    activeStrategy = activeByFlag[0];
-  } else {
-    // Multiple active or none - prefer default
-    activeStrategy = nonTemplates.find((s) => s.is_default) || nonTemplates[0];
-  }
 
   if (isLoading) {
     return (
@@ -67,27 +57,18 @@ export function StrategiesList({
     return parent ? parent.name : `#${parentId}`;
   };
 
-  const isActive = (strategy: (typeof nonTemplates)[0]) => {
-    return activeStrategy?.id === strategy.id;
-  };
-
   const rows = nonTemplates.map((strategy) => (
-    <Table.Tr
-      key={strategy.id}
-      data-testid={`strategy-row-${strategy.id}`}
-      style={isActive(strategy) ? { backgroundColor: "var(--mantine-color-teal-1)" } : undefined}
-    >
+    <Table.Tr key={strategy.id} data-testid={`strategy-row-${strategy.id}`}>
       <Table.Td>
-        <Group gap="xs" wrap="nowrap">
-          {isActive(strategy) && (
-            <Tooltip label="Active Strategy">
-              <IconCheck size={14} color="var(--mantine-color-teal-5)" />
-            </Tooltip>
-          )}
-          <Text fw={500} size="sm">
-            {strategy.name}
-          </Text>
-        </Group>
+        <Anchor
+          component="button"
+          size="sm"
+          fw={500}
+          onClick={() => onEdit(strategy)}
+          data-testid={`strategy-name-link-${strategy.id}`}
+        >
+          {strategy.name}
+        </Anchor>
       </Table.Td>
       <Table.Td>
         <Badge size="sm" variant="light">
@@ -98,46 +79,49 @@ export function StrategiesList({
         <Text size="sm">{getParentName(strategy.parent_id)}</Text>
       </Table.Td>
       <Table.Td>
-        <Text size="sm">{strategy.sl_pct}%</Text>
+        <EditableNumberCell
+          value={strategy.sl_pct}
+          field="sl_pct"
+          strategyId={strategy.internal_id ?? Number(strategy.id)}
+          step={0.1}
+          decimalScale={1}
+          min={0.1}
+          suffix="%"
+          onUpdate={onUpdate}
+        />
       </Table.Td>
       <Table.Td>
-        <Text size="sm">{strategy.tp_pct}%</Text>
+        <EditableNumberCell
+          value={strategy.tp_pct}
+          field="tp_pct"
+          strategyId={strategy.internal_id ?? Number(strategy.id)}
+          step={0.1}
+          decimalScale={1}
+          min={0.1}
+          suffix="%"
+          onUpdate={onUpdate}
+        />
       </Table.Td>
       <Table.Td>
-        <Text size="sm">{strategy.max_positions}</Text>
-      </Table.Td>
-      <Table.Td>
-        {isActive(strategy) ? (
-          <Badge size="sm" color="teal" variant="light">
-            Active
-          </Badge>
-        ) : (
-          <Text size="sm" c="dimmed">
-            -
-          </Text>
-        )}
+        <EditableNumberCell
+          value={strategy.min_rr_ratio}
+          field="min_rr_ratio"
+          strategyId={strategy.internal_id ?? Number(strategy.id)}
+          step={0.1}
+          decimalScale={1}
+          min={0.5}
+          suffix="x"
+          onUpdate={onUpdate}
+        />
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          {!isActive(strategy) && (
-            <Tooltip label="Set as Active">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                color="teal"
-                onClick={() => onSetActive(strategy.internal_id ?? Number(strategy.id))}
-                data-testid="set-active-btn"
-              >
-                <IconCheck size={14} />
-              </ActionIcon>
-            </Tooltip>
-          )}
           <ActionIcon
             size="sm"
             variant="subtle"
             color="blue"
             onClick={() => onEdit(strategy)}
-            data-testid="edit-strategy-btn"
+            data-testid={`edit-strategy-btn-${strategy.id}`}
             title="Edit"
           >
             <IconEdit size={14} />
@@ -147,9 +131,8 @@ export function StrategiesList({
             variant="subtle"
             color="red"
             onClick={() => onDelete(strategy.internal_id ?? Number(strategy.id))}
-            disabled={isActive(strategy)}
-            data-testid="delete-strategy-btn"
-            title={isActive(strategy) ? "Cannot delete active strategy" : "Delete"}
+            data-testid={`delete-strategy-btn-${strategy.id}`}
+            title="Delete"
           >
             <IconTrash size={14} />
           </ActionIcon>
@@ -181,8 +164,7 @@ export function StrategiesList({
             <Table.Th>Parent</Table.Th>
             <Table.Th>SL%</Table.Th>
             <Table.Th>TP%</Table.Th>
-            <Table.Th>Max Positions</Table.Th>
-            <Table.Th>Status</Table.Th>
+            <Table.Th>Min RR</Table.Th>
             <Table.Th>Actions</Table.Th>
           </Table.Tr>
         </Table.Thead>

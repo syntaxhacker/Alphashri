@@ -13,7 +13,7 @@ test.describe("Table Sorting", () => {
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
     await clickSortHeader(page, "score");
-    await expectSortIndicator(page, "score", "asc");
+    await expectSortIndicator(page, "score", "desc");
   });
 
   test("should toggle sort direction when clicking same column twice", async ({ page }) => {
@@ -21,10 +21,10 @@ test.describe("Table Sorting", () => {
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
     await clickSortHeader(page, "score");
-    await expectSortIndicator(page, "score", "asc");
+    await expectSortIndicator(page, "score", "desc");
 
     await clickSortHeader(page, "score");
-    await expectSortIndicator(page, "score", "desc");
+    await expectSortIndicator(page, "score", "asc");
   });
 
   test("should sort by Symbol column", async ({ page }) => {

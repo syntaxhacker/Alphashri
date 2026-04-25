@@ -77,6 +77,7 @@ class TestStrategyConfigDataDefaults:
         assert config.tp_pct == 1.2
         assert config.min_or_range_pct == 0.5
         assert config.max_or_range_pct == 3.0
+        assert config.breakout_buffer_pct == 0.3
 
     def test_default_risk_management_parameters(self):
         """Test default risk management parameter values."""

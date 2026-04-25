@@ -7,7 +7,7 @@ with automatic symbol-to-instrument mapping.
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 import sys
@@ -181,7 +181,7 @@ class NewsPersistenceService:
         """Get recent articles within specified hours, sorted by publish date."""
         db = SessionLocal()
         try:
-            since = datetime.utcnow() - timedelta(hours=hours)
+            since = datetime.now(timezone.utc) - timedelta(hours=hours)
             query = db.query(NewsArticle).filter(NewsArticle.fetched_at >= since)
             
             if source:
@@ -271,7 +271,7 @@ class NewsPersistenceService:
         """Remove articles older than specified days."""
         db = SessionLocal()
         try:
-            cutoff = datetime.utcnow() - timedelta(days=days)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
             articles = db.query(NewsArticle).filter(
                 NewsArticle.fetched_at < cutoff
             ).all()

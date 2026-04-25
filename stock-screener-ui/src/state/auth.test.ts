@@ -33,21 +33,38 @@ function createMockFetchResponse(data: any, ok = true, status = 200) {
   };
 }
 
+function resetAuthState() {
+  localStorage.clear();
+  authState.isAuthenticated = false;
+  authState.user = null;
+  authState.loading = true;
+  authState.error = null;
+  vi.stubGlobal("fetch", vi.fn());
+}
+
+function cleanupAuth() {
+  vi.restoreAllMocks();
+  localStorage.clear();
+}
+
+function mockAuthFetchChain(tokenData: any, userData: any) {
+  const mockFetch = vi
+    .fn()
+    .mockResolvedValueOnce(createMockFetchResponse(tokenData))
+    .mockResolvedValueOnce(createMockFetchResponse(userData));
+  vi.stubGlobal("fetch", mockFetch);
+  return mockFetch;
+}
+
+const tokenResponse = { access_token: "at", refresh_token: "rt" };
+
 describe("auth state", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    localStorage.clear();
-    authState.isAuthenticated = false;
-    authState.user = null;
-    authState.loading = true;
-    authState.error = null;
-    vi.stubGlobal("fetch", vi.fn());
+    resetAuthState();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-    localStorage.clear();
-  });
+  afterEach(cleanupAuth);
 
   it("has correct initial state", () => {
     expect(authState.isAuthenticated).toBe(false);
@@ -58,18 +75,8 @@ describe("auth state", () => {
 });
 
 describe("subscribe", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    authState.isAuthenticated = false;
-    authState.user = null;
-    authState.loading = true;
-    authState.error = null;
-    vi.stubGlobal("fetch", vi.fn());
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    localStorage.clear();
-  });
+  beforeEach(resetAuthState);
+  afterEach(cleanupAuth);
 
   it("returns unsubscribe function", () => {
     const unsub = subscribe(vi.fn());
@@ -81,16 +88,7 @@ describe("subscribe", () => {
     const cb = vi.fn();
     const unsub = subscribe(cb);
 
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(
-        createMockFetchResponse({
-          access_token: "at",
-          refresh_token: "rt",
-        }),
-      )
-      .mockResolvedValueOnce(createMockFetchResponse(mockUser));
-    vi.stubGlobal("fetch", mockFetch);
+    mockAuthFetchChain(tokenResponse, mockUser);
 
     await login("test@example.com", "password");
     expect(cb).toHaveBeenCalled();
@@ -99,18 +97,8 @@ describe("subscribe", () => {
 });
 
 describe("token management", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    authState.isAuthenticated = false;
-    authState.user = null;
-    authState.loading = true;
-    authState.error = null;
-    vi.stubGlobal("fetch", vi.fn());
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    localStorage.clear();
-  });
+  beforeEach(resetAuthState);
+  afterEach(cleanupAuth);
 
   it("getAccessToken returns null when no token", () => {
     expect(getAccessToken()).toBeNull();
@@ -143,18 +131,8 @@ describe("token management", () => {
 });
 
 describe("stored user", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    authState.isAuthenticated = false;
-    authState.user = null;
-    authState.loading = true;
-    authState.error = null;
-    vi.stubGlobal("fetch", vi.fn());
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    localStorage.clear();
-  });
+  beforeEach(resetAuthState);
+  afterEach(cleanupAuth);
 
   it("getStoredUser returns null when no user stored", () => {
     expect(getStoredUser()).toBeNull();
@@ -172,18 +150,8 @@ describe("stored user", () => {
 });
 
 describe("fetchWithAuth", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    authState.isAuthenticated = false;
-    authState.user = null;
-    authState.loading = true;
-    authState.error = null;
-    vi.stubGlobal("fetch", vi.fn());
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    localStorage.clear();
-  });
+  beforeEach(resetAuthState);
+  afterEach(cleanupAuth);
 
   it("includes Authorization header when token exists", async () => {
     setTokens("access-123", "refresh-456");
@@ -226,30 +194,11 @@ describe("fetchWithAuth", () => {
 });
 
 describe("login", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    authState.isAuthenticated = false;
-    authState.user = null;
-    authState.loading = true;
-    authState.error = null;
-    vi.stubGlobal("fetch", vi.fn());
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    localStorage.clear();
-  });
+  beforeEach(resetAuthState);
+  afterEach(cleanupAuth);
 
   it("successful login sets auth state", async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(
-        createMockFetchResponse({
-          access_token: "at",
-          refresh_token: "rt",
-        }),
-      )
-      .mockResolvedValueOnce(createMockFetchResponse(mockUser));
-    vi.stubGlobal("fetch", mockFetch);
+    mockAuthFetchChain(tokenResponse, mockUser);
 
     const result = await login("test@example.com", "password");
     expect(result.success).toBe(true);
@@ -296,12 +245,7 @@ describe("login", () => {
     setStoredUser(mockUser);
     const mockFetch = vi
       .fn()
-      .mockResolvedValueOnce(
-        createMockFetchResponse({
-          access_token: "at",
-          refresh_token: "rt",
-        }),
-      )
+      .mockResolvedValueOnce(createMockFetchResponse(tokenResponse))
       .mockResolvedValueOnce(createMockFetchResponse({}, false, 500));
     vi.stubGlobal("fetch", mockFetch);
 
@@ -313,30 +257,11 @@ describe("login", () => {
 });
 
 describe("register", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    authState.isAuthenticated = false;
-    authState.user = null;
-    authState.loading = true;
-    authState.error = null;
-    vi.stubGlobal("fetch", vi.fn());
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    localStorage.clear();
-  });
+  beforeEach(resetAuthState);
+  afterEach(cleanupAuth);
 
   it("successful registration", async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(
-        createMockFetchResponse({
-          access_token: "at",
-          refresh_token: "rt",
-        }),
-      )
-      .mockResolvedValueOnce(createMockFetchResponse(mockUser));
-    vi.stubGlobal("fetch", mockFetch);
+    mockAuthFetchChain(tokenResponse, mockUser);
 
     const result = await register("test@example.com", "password", "Test User");
     expect(result.success).toBe(true);
@@ -358,18 +283,8 @@ describe("register", () => {
 });
 
 describe("logout", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    authState.isAuthenticated = false;
-    authState.user = null;
-    authState.loading = true;
-    authState.error = null;
-    vi.stubGlobal("fetch", vi.fn());
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    localStorage.clear();
-  });
+  beforeEach(resetAuthState);
+  afterEach(cleanupAuth);
 
   it("clears tokens and resets state", async () => {
     setTokens("at", "rt");
@@ -409,18 +324,8 @@ describe("logout", () => {
 });
 
 describe("checkAuth", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    authState.isAuthenticated = false;
-    authState.user = null;
-    authState.loading = true;
-    authState.error = null;
-    vi.stubGlobal("fetch", vi.fn());
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    localStorage.clear();
-  });
+  beforeEach(resetAuthState);
+  afterEach(cleanupAuth);
 
   it("returns false when no access token", async () => {
     const result = await checkAuth();

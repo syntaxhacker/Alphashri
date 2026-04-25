@@ -4,11 +4,20 @@
 React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
-- `bun run dev` — dev server (proxy /api → localhost:8765)
+- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`
+- `bun run dev` — dev server only (proxy /api → localhost:8765)
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
 - `bun run test` — vitest (unit, happy-dom)
-- `python -m pytest tests/` — backend tests
+- `source .venv/bin/activate && python -m pytest tests/` — backend tests
+
+## Python Environment
+- **Version**: pinned via `.python-version` (3.12.13) — pyenv reads this automatically
+- **Virtual env**: `.venv/` (created with `uv venv --python 3.12.13`)
+- **Package manager**: `uv` (faster than pip) — install deps with `uv pip install -r <requirements.txt>`
+- **Dependencies**: `../requirements.txt` (root) + `api/requirements.txt` (API-specific)
+- **Note**: `nautilus-trader` in `api/requirements.txt` requires Rust toolchain — install separately if needed
+- **`start.sh`**: auto-activates `.venv` before starting uvicorn; always use `./start.sh` to run both services
 
 ## Mantine v8 Rules
 - Reference `mantine_llm.txt` for component docs — never guess APIs
@@ -30,6 +39,7 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - Shared utilities: `formatCurrencyIN`, `formatNumber`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
 - Config/constants/theme consolidated in `src/config/` (constants.ts, theme.ts, backtestDefaults.ts)
 - ECharts: never wrap chart container in `ScrollArea` — ECharts needs explicit dimensions via `flex: 1` on a flex parent
+- **React keys**: never use `symbol` alone as key — always composite (`${strategy_id}-${symbol}`) or unique ID. Positions can have same symbol across strategies.
 
 ## Folder Structure
 ```
@@ -45,6 +55,10 @@ src/
   utils/        # shared utilities (ui-helpers, chartUtils, notifications, runtime_utils)
 ```
 
+## Replay Trading
+- Components: `src/components/replay/` — page-level feature, uses SSE from `api/replay_api.py`
+- Cache: `experiments/data/replay_cache/{date}/{symbol}.pkl` (gitignored)
+
 ## CSS
 - Legacy hardcoded CSS in `style.css` is being migrated to Mantine — prefer `var(--mantine-color-*)` vars
 - Remove dead CSS classes when removing old components (verify with grep before deleting)
@@ -59,20 +73,69 @@ src/
 - **Trades endpoint** (`/api/paper/trades`): queries PostgreSQL first, falls back to journal files. The `get_trades` and `_get_trades_from_db` functions handle this.
 - **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug on production — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works locally because `railway run` may use different config. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the Docker container.
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
+- **Trading costs**: `backtest/costs.py:calculate_trading_costs()` is the single source of truth. Both `runner_signals.py` and `paper_portfolio.py` use it — never use flat `trade_value * 0.0006`.
+
+## Strategy Config Pipeline
+- **DB Model** (`db/models/bot.py:StrategyConfig`) → **Dataclass** (`trading/config_loader.py:StrategyConfigData`) → **Dict** (`runner.config`) → **SignalGenerator** / **RiskManager**
+- All strategy params flow through this pipeline. Adding a new param requires touching all 4 layers + API models + CRUD + migration.
+- `base_signals.py` is the abstract base for all signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, and `is_eod_exit_time()`.
+- Each signal generator reads its own params from `config` dict in `__init__()` — no hardcoded values in signal generators.
+- **Risk params**: `min_rr_ratio`, `risk_per_trade_pct`, `max_capital_per_trade_pct` flow from `runner.config` → `global_risk_manager.validate_trade()`.
+- **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `min_rr_ratio=1.5`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
+- **Hardcoded values audit** (all strategy-specific values are now configurable):
+  - `runner_core.py:FORCE_EXIT=(15,30)` — global market close, NOT strategy-specific. Safe to keep.
+  - `runner_signals.py:178` — `day_change_pct > 2.0` ORB skip filter. Generic safety, could be config in future.
+  - `week52_chaser_signals.py:128-132` — ADX<25, RSI 50-70 filters. 52W-specific, could be config.
+  - `runner_signals.py:581` — `0.8` daily loss alert multiplier. Could be global risk param.
+  - Fibonacci pivot constants in `sr_breakout_signals.py` — mathematical constants, never change.
 
 ## Telegram Notifications
-- Module: `trading/telegram_notifier.py` — all Telegram alert functions
-- Config: `TELEGRAM_CONFIG` in root `config.py` (`bot_token`, `chat_id`, `enabled`)
-- Env vars: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED` (default `true`)
-- All calls are **non-blocking** via `ThreadPoolExecutor` — never slows the scan loop
-- Rate limited: max 25 msgs/min, 60s cooldown per dedup key (same symbol/action)
-- Failures are logged via `rich.Console` but never crash the bot
-- Hooked into `MultiStrategyRunner` at 6 points:
-  - `execute_signal()` → `send_trade_entry()` (position opened), `send_signal_rejected()` (risk validation failed)
-  - `monitor_positions()` → `send_trade_exit()` (position closed), `send_risk_alert()` (daily loss approaching limit)
-  - `run()` → `send_bot_status()` (start/stop), `send_daily_summary()` (15:30 IST EOD)
-- `send_positions_snapshot()` available for on-demand use (not auto-triggered)
-- The separate `upstox_trader/screeners/tv_alerts.py` Telegram system is **unrelated** — that's for TradingView screener webhooks, not the paper trading engine
+- Module: `trading/telegram_notifier.py` — all calls are non-blocking via `ThreadPoolExecutor`
+- The separate `upstox_trader/screeners/tv_alerts.py` Telegram system is **unrelated** — that's for TradingView screener webhooks
+
+## Bot Architecture
+- Bot runs as **separate subprocess** via `runner_cli.py` — NOT in the API process
+- API and bot communicate via: **DB** (positions/trades/runtime state), **Redis** (heartbeat/status/PID)
+- State persistence: `persist_state()` in `runner_core.py` writes to `BotRuntimeState` + `StrategyRuntimeState` DB tables. No JSON snapshot files.
+- API reads bot state via `api/bot_state.py:get_bot_state()` — queries DB + Redis, returns same shape as old snapshot
+- Bot's in-memory `SharedPortfolioManager` is the source of truth for open positions — the API reads from DB
+- **Close All Positions**: API closes positions directly from DB (no command file). If bot is running, it detects the closed positions next cycle.
+- **Scan items**: persisted to `bot_runtime_states.scan_items` DB column. `/api/bots/{bot_id}/scan` reads from DB first, Redis as fallback.
+- **Position restore on restart**: `_load_positions_from_db()` in `runner_core.py` — force-closes positions from previous day with `FORCE_CLOSE` reason. `low_price` resets to `entry_price`.
+- **Force exit**: `runner_core.py:FORCE_EXIT=(15,30)` is global market close time
+- **Orphan bot stop**: `get_bot_pid()` reads PID from Redis key `bot:{user_id}:{bot_id}:pid` (24h TTL), sends SIGTERM
+- **Pipe deadlock fix**: bot stdout goes directly to log file (not PIPE) — prevents buffer fill on uvicorn reload
+- **Crash notification**: bot's `run()` wraps main loop in try/except, sends Telegram alert with open positions count + P&L on crash
+- **`_TimestampedConsole`**: prepends `[HH:MM:SS]` to all bot log lines
+
+## Market Data Auth
+- **Market data endpoints** (`/api/chart/preview`, `/api/paper/chart`, `/api/backtest/run`) use `UpstoxAPI` with `UPSTOX_API_KEY`/`UPSTOX_API_SECRET` — **no OAuth broker token needed**
+- **Options + broker endpoints** (`/api/options/*`, `/api/brokers/*`) require OAuth access token via `get_shared_broker_token('upstox')` — user must connect broker in Settings
+- Never gate market data behind broker OAuth check
+
+## Chart Cache
+- `api/paper/chart_cache.py` — pickle-based disk cache at `experiments/data/chart_cache/{date}/{symbol}.pkl`
+- Returns `(df, is_cached)` tuple — chart response includes `"cached": true/false`
+- Cache is checked **before** any fetch (intraday or historical)
+- **Today's data**: 60-second TTL via `.meta` file — prevents stale pre-market data poisoning
+- **Historical dates**: no TTL — data never changes
+- Today's intraday fetch that returns empty (pre-market) does NOT fall through to historical — returns empty to avoid caching wrong day's data
+- Pre-market cache poisoning fix: when `date == today` and `fetch_intraday_data_v3` returns None/empty, early return (no fallback to historical)
+
+## Trade Entry Reason Pipeline
+- Signal generators set `signal.notes` with detailed calculations (ORB: range%, SL%, ATR, ADX, RSI; SR Breakout: pivot type, buffer%; EMA Cross: gap, SL%; 52W Chaser: ADX, RSI; 52W Target: SL%, trail%)
+- `runner_signals.py:453` stores `signal.notes` in `position.metadata['entry_reason']`
+- On trade close, `position.metadata['entry_reason']` → `CompletedTrade.reason` → `_persist_trade_to_db` → `Trade.reason` column
+- Exit notes include PnL% and price level: "Stop loss hit ₹1340.00 (PnL: -0.40%)"
+- `CompletedTrade` has `reason`, `peak_price`, `low_price` fields — propagated from `SharedPosition` in `portfolio_core.py:close_position()`
+- `signal.notes` can be `None` — always use `signal.notes or ''` when assigning to scan items
+
+## Paper Trading UI Defaults
+- **Trade history**: defaults to "Today" filter (`filterFromDate`/`filterToDate` = today) instead of all-time
+- **Field naming**: `PaperPosition` and `PaperTrade` both use `stop_loss`/`take_profit` — never `sl_price`/`tp_price`
+- **Close All button**: in positions header, calls `POST /api/bots/{bot_id}/close-all` with current prices, shows loading state + error alert
+- **Expandable trade rows**: click to expand with TradeStats (SL, TP, Peak, Low, Costs, Gross/Net P&L) and TradeNotesEditor (editable Reason + Notes with Save)
+- **PATCH endpoint**: `PATCH /api/paper/trades/{trade_id}` — update notes/reason, max 500 chars
 
 ## Infrastructure
 - **Railway**: project `298aedcc-23a9-4ce3-9dbe-a87986f910de`, env `bc5056b2-6a82-4af3-bec2-2d1ac848fc5c`, service `b66dd871-18ac-49e7-a9fa-7addfb1be351`. Deploy via `git push` to `fix/*` or `develop` branch.
@@ -80,6 +143,13 @@ src/
 - **Redis**: on Upstash — used for bot heartbeat (90s TTL key `bot:{bot_id}:heartbeat`). NOT on Railway.
 - **Deploy**: frontend builds to Cloudflare Pages via Wrangler, backend runs on Railway as FastAPI
 - **Env vars**: see `.env.example` — `DATABASE_URL`, `UPSTOX_API_KEY/SECRET`, `REDIS_URL`, `BACKEND_JWT_SECRET`, `VITE_API_BASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED`
+
+### Cloudflare Pages Build
+- Build command: `bun install && bun run build` (Cloudflare Pages build image does **not** have `bun`; it silently falls back to `npm install`)
+- **Critical**: `npm` is stricter than `bun` about peer dependency conflicts. A mismatch between `@mantine/core` and `@mantine/dates` major versions will cause the build to fail with `ERESOLVE unable to resolve dependency tree`
+- **Rule**: all `@mantine/*` packages must share the same major version. If you upgrade one, upgrade all.
+- Output directory: `dist`
+- Root directory: `stock-screener-ui`
 
 ## Debugging
 
@@ -180,3 +250,22 @@ curl -s 'https://earner-production.up.railway.app/api/paper/trades?limit=5' \
 ```
 
 ✅ **Deployment done** when Railway check shows "pass" and (if backend changed) curl returns expected data.
+
+## DB Migrations (Alembic)
+- Location: `db/migrations/versions/`
+- Chain: `e5f6a7b8c9d0` → `f6a7b8c9d0e1` (add notes) → `g7b8c9d0e1f2` (add peak/low price) → `2026_04_16_add_reason_to_trades` → `2026_04_20_snapshot_to_db` (BotRuntimeState, StrategyRuntimeState, Position new columns)
+- **Validation**: `python scripts/validate_migrations.py` — CI runs this automatically on PRs touching `db/migrations/**`
+- **Rule**: `down_revision` must be the actual revision ID (e.g., `'h8b9c0d1e2f3'`), never the filename
+- **How to find parent revision**: Look at the parent migration file's `revision = '...'` variable, not its filename
+- Trade model columns: `notes` (String 500), `reason` (String 500), `peak_price` (Float), `low_price` (Float), `bot_id` (Integer FK)
+- `Trade.to_dict()` includes all columns including `bot_id`, `peak_price`, `low_price`
+- Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`. Position HAS `strategy_type`, `peak_price`, `low_price`, `metadata_json` columns (added in snapshot-to-DB migration).
+
+## Known Issues / Deferred
+- **3 DB columns missing from frontend config UI**: `enable_shorts`, `eod_exit_hour`, `eod_exit_minute`
+- **Replay system name→ID migration** (Phase 3) — deferred, known limitation
+- **ExitReasonBadge**: doesn't color-code rich exit reasons (MANUAL_CLOSE, PnL-formatted strings like "Stop loss hit ₹1340.00") — falls to gray default
+- **ExitReasonBadge missing cases**: `FORCE_CLOSE`, `TRAILING_STOP`, `MAX_HOLDING`, `NEW_52W_HIGH` — all show as raw gray text
+- **Portfolio summary compact redesign** — mentioned but not started
+- **52W daily data caching** — fetches 400 days per chart request with no caching
+- **`_filter_to_date_or_recent` timezone bug** — documented in AGENTS.md, known production issue

@@ -1,5 +1,13 @@
 import type { ColumnDef } from "./index";
-import { symbolCol, scoreCol, sectorCol, touched52wCol, dayChangeCol, volumeMCol, perfWCol } from "./base";
+import {
+  symbolCol,
+  scoreCol,
+  sectorCol,
+  touched52wCol,
+  dayChangeCol,
+  volumeMCol,
+  perfWCol,
+} from "./base";
 
 export function getBuyerInterestColumns(): ColumnDef[] {
   return [

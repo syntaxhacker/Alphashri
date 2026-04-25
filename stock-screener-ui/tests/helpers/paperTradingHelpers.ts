@@ -43,38 +43,32 @@ export async function navigateToPaperTradingWithBot(
     positionsEmpty.waitFor({ state: "visible", timeout: 20000 }),
   ]).catch(() => {});
 
-  // Now try to find and click the bot selector if it's visible
-  const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
-  const isSelectorVisible = await segmentedControl.isVisible().catch(() => false);
+  // Now try to find and click the bot card if it's visible
+  const botCard = page.locator(`[data-testid="bot-card-${botId}"]`);
+  const isCardVisible = await botCard.isVisible().catch(() => false);
 
-  if (isSelectorVisible) {
-    // For Mantine SegmentedControl with radio buttons, click the label with the bot name
-    // If botId is a UUID or "2", click "Multi-Strategy Bot", otherwise click "Default"
-    const botName = botId === "default" || botId === "1" ? "Default" : "Multi-Strategy Bot";
-
-    // Wait for the option to be available and click it
-    const botLabel = segmentedControl.locator(`label:has-text("${botName}")`);
-    const count = await botLabel.count();
-
-    if (count > 0) {
-      await botLabel.first().click({ timeout: 10000 });
-    } else {
-      // Fallback: click directly on the visible text within the control
-      await segmentedControl.getByText(botName, { exact: false }).first().click({ timeout: 10000 });
+  if (isCardVisible) {
+    await botCard.click({ timeout: 10000 });
+  } else {
+    // Fallback: click first available bot card
+    const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
+    const hasBotCards = await firstBotCard.isVisible().catch(() => false);
+    if (hasBotCards) {
+      await firstBotCard.click({ timeout: 10000 });
     }
-
-    // Wait a moment for the selection to register and API calls to start
-    await page.waitForTimeout(500);
-
-    // Wait for positions to load (either data appears or empty state)
-    await page.waitForFunction(
-      () => {
-        const loadingText = document.body.textContent;
-        return !loadingText?.includes("Loading positions...");
-      },
-      { timeout: 10000 },
-    );
   }
+
+  // Wait a moment for the selection to register and API calls to start
+  await page.waitForTimeout(500);
+
+  // Wait for positions to load (either data appears or empty state)
+  await page.waitForFunction(
+    () => {
+      const loadingText = document.body.textContent;
+      return !loadingText?.includes("Loading positions...");
+    },
+    { timeout: 10000 },
+  );
 
   // Additional wait for UI to settle
   await page.waitForTimeout(500);
@@ -101,7 +95,7 @@ export async function clickPaperTradingTab(page: Page, tabName: string): Promise
  * Get bot selector dropdown
  */
 export function getBotSelector(page: Page) {
-  return page.locator(".bot-selector-dropdown");
+  return page.locator('[data-testid^="bot-card-"]');
 }
 
 /**

@@ -33,34 +33,14 @@ from nautilus_trader.config import StrategyConfig
 
 from .base import BaseStrategy, StrategyParam
 from ..costs import calculate_trading_costs
-
-_current_file_dir = os.path.dirname(os.path.abspath(__file__))
-_backtest_dir = os.path.dirname(_current_file_dir)
-_ui_dir = os.path.dirname(_backtest_dir)
-_project_root_dir = os.path.dirname(_ui_dir)
-
-if _project_root_dir not in sys.path:
-    sys.path.insert(0, _project_root_dir)
-
-
-def get_ist_time(ts_ns: int) -> tuple:
-    """Convert nanosecond timestamp to IST time components."""
-    ts_sec = ts_ns / 1_000_000_000
-    dt_utc = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
-    dt_ist = dt_utc.astimezone(IST)
-    return dt_ist.hour, dt_ist.minute, dt_ist.date()
+from trading.ema_utils import calculate_ema as _calculate_ema
 
 
 def calculate_ema(prices: List[float], period: int) -> float:
-    """Calculate Exponential Moving Average from a list of prices."""
-    if len(prices) < period:
-        return prices[-1] if prices else 0.0
-
-    multiplier = 2.0 / (period + 1)
-    ema = sum(prices[:period]) / period
-    for price in prices[period:]:
-        ema = (price - ema) * multiplier + ema
-    return ema
+    """Calculate Exponential Moving Average from a list of prices.
+    Wrapper for backward compatibility. Delegates to shared utility.
+    """
+    return _calculate_ema(prices, period, return_full=False)
 
 
 def run_single_stock_backtest(args):
@@ -573,7 +553,7 @@ class EMACrossStrategy(BaseStrategy):
                     if result.get('trade_list'):
                         chart_data[result['symbol']] = {
                             'trades': result['trade_list'],
-                            'visuals': self.get_visuals(result['trade_list'], params)
+                            'visuals': self.get_visuals(result['trade_list'], params, all_candles.get(result['symbol']))
                         }
         else:
             for args in worker_args:
@@ -591,7 +571,7 @@ class EMACrossStrategy(BaseStrategy):
                 if result.get('trade_list'):
                     chart_data[result['symbol']] = {
                         'trades': result['trade_list'],
-                        'visuals': self.get_visuals(result['trade_list'], params)
+                        'visuals': self.get_visuals(result['trade_list'], params, all_candles.get(result['symbol']))
                     }
 
         total_gross = sum(r['gross_pnl'] for r in results)
@@ -623,37 +603,20 @@ class EMACrossStrategy(BaseStrategy):
             'run_time': datetime.now().isoformat(),
         }
 
-    def get_visuals(self, trades: List[Dict], params: Dict) -> List[Dict]:
-        """Return EMA line overlays on chart."""
-        if not trades:
-            return []
+    def get_visuals(self, trades: List[Dict], params: Dict, candles_df=None) -> List[Dict]:
+        if candles_df is None:
+            return {}
 
-        visuals = []
-        dates_seen = set()
-        for trade in trades:
-            trade_date = trade.get('date')
-            if trade_date and trade_date not in dates_seen:
-                dates_seen.add(trade_date)
-                ema_fast = trade.get('ema_fast')
-                ema_slow = trade.get('ema_slow')
+        import pandas as pd
+        ema_fast_period = int(params.get('ema_fast_period', 9))
+        ema_slow_period = int(params.get('ema_slow_period', 21))
+        closes = candles_df['close'].tolist()
+        ema_fast = pd.Series(closes).ewm(span=ema_fast_period, adjust=False).mean().round(2).tolist()
+        ema_slow = pd.Series(closes).ewm(span=ema_slow_period, adjust=False).mean().round(2).tolist()
 
-                if ema_fast is not None:
-                    visuals.append({
-                        'id': f"ema_fast_{trade_date}",
-                        'type': 'line',
-                        'label': 'EMA Fast',
-                        'color': '#10ac84',
-                        'value': ema_fast,
-                        'date': trade_date,
-                    })
-                if ema_slow is not None:
-                    visuals.append({
-                        'id': f"ema_slow_{trade_date}",
-                        'type': 'line',
-                        'label': 'EMA Slow',
-                        'color': '#ee5253',
-                        'value': ema_slow,
-                        'date': trade_date,
-                    })
-
-        return visuals
+        return {
+            'ema_series': [
+                {'label': f'EMA {ema_fast_period}', 'color': '#10ac84', 'data': ema_fast},
+                {'label': f'EMA {ema_slow_period}', 'color': '#ee5253', 'data': ema_slow},
+            ]
+        }

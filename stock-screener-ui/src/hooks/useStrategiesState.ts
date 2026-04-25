@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import * as strategiesState from "../state/strategies";
+import * as botsState from "../state/bots";
 import { useStoreSubscription } from "./useStoreSubscription";
+import { updateStrategy as apiUpdateStrategy } from "../api/strategies";
 import type { StrategyConfig } from "../types/strategies";
 import type { StrategyView, StrategyFormData } from "../components/strategies/types";
 
@@ -19,84 +21,98 @@ export function getViewLoadAction(view: StrategyView): ViewLoadAction {
   }
 }
 
-export function useStrategiesState() {
-  useStoreSubscription(strategiesState.subscribe);
-  const state = strategiesState.getStrategiesState();
+function loadForView(view: StrategyView) {
+  if (view === "templates") {
+    strategiesState.loadTemplates();
+  } else if (view === "list") {
+    strategiesState.loadStrategies(true);
+  } else if (view === "performance") {
+    strategiesState.loadAllPerformance();
+  }
+}
 
-  const handleViewChange = useCallback((view: StrategyView) => {
+function useViewActions() {
+  const onViewChange = useCallback((view: StrategyView) => {
     strategiesState.setCurrentView(view);
-    if (view === "templates") {
-      strategiesState.loadTemplates();
-    } else if (view === "list") {
-      strategiesState.loadStrategies(true);
-    } else if (view === "performance") {
-      strategiesState.loadAllPerformance();
-    }
+    loadForView(view);
   }, []);
 
-  const handleRefresh = useCallback(() => {
-    const currentView = strategiesState.getCurrentView();
-    if (currentView === "templates") {
-      strategiesState.loadTemplates();
-    } else if (currentView === "list") {
-      strategiesState.loadStrategies(true);
-    } else if (currentView === "performance") {
-      strategiesState.loadAllPerformance();
-    }
+  const onRefresh = useCallback(() => {
+    loadForView(strategiesState.getCurrentView() as StrategyView);
   }, []);
 
-  const handleOpenCreateModal = useCallback((template?: StrategyConfig) => {
+  return { onViewChange, onRefresh };
+}
+
+function useModalActions() {
+  const onOpenCreateModal = useCallback((template?: StrategyConfig) => {
     strategiesState.openCreateModal(template || null);
   }, []);
 
-  const handleOpenEditModal = useCallback((strategy: StrategyConfig) => {
+  const onOpenEditModal = useCallback((strategy: StrategyConfig) => {
     strategiesState.openEditModal(strategy);
   }, []);
 
-  const handleCloseCreateModal = useCallback(() => {
+  const onCloseCreateModal = useCallback(() => {
     strategiesState.closeCreateModal();
   }, []);
 
-  const handleCloseEditModal = useCallback(() => {
+  const onCloseEditModal = useCallback(() => {
     strategiesState.closeEditModal();
   }, []);
 
-  const handleCreateStrategy = useCallback((data: StrategyFormData) => {
-    if ((window as any).createStrategy) {
-      (window as any).createStrategy(data);
-    }
-  }, []);
-
-  const handleEditStrategy = useCallback((strategyId: number, data: StrategyFormData) => {
-    if ((window as any).updateStrategy) {
-      (window as any).updateStrategy(strategyId, data);
-    }
-  }, []);
-
-  const handleDeleteStrategy = useCallback((strategyId: number) => {
-    if ((window as any).deleteStrategy) {
-      (window as any).deleteStrategy(strategyId);
-    }
-  }, []);
-
-  const handleCreateFromTemplate = useCallback((template: StrategyConfig) => {
+  const onCreateFromTemplate = useCallback((template: StrategyConfig) => {
     strategiesState.openCreateModal(template);
   }, []);
 
-  const handleSelectStrategy = useCallback((strategyId: number) => {
-    if ((window as any).viewStrategyDetails) {
-      (window as any).viewStrategyDetails(strategyId);
-    }
-  }, []);
+  return {
+    onOpenCreateModal,
+    onOpenEditModal,
+    onCloseCreateModal,
+    onCloseEditModal,
+    onCreateFromTemplate,
+  };
+}
 
-  const handleSetActiveStrategy = useCallback((strategyId: number) => {
-    if ((window as any).setActiveStrategy) {
-      (window as any).setActiveStrategy(strategyId);
-    }
-  }, []);
+function useStrategyActions() {
+  const onCreate = useCallback((_data: StrategyFormData) => {}, []);
 
-  const handleClearError = useCallback(() => {
+  const onEdit = useCallback((_strategyId: number, _data: StrategyFormData) => {}, []);
+
+  const onDelete = useCallback((_strategyId: number) => {}, []);
+
+  const onSelect = useCallback((_strategyId: number) => {}, []);
+
+  return { onCreate, onEdit, onDelete, onSelect };
+}
+
+export function useStrategiesState() {
+  useStoreSubscription(strategiesState.subscribe);
+  useStoreSubscription(botsState.subscribe);
+  const state = strategiesState.getStrategiesState();
+  const botsData = botsState.getBotsState();
+  const isAnyBotRunning = botsData.bots.some((b) => b.running);
+
+  const { onViewChange, onRefresh } = useViewActions();
+  const {
+    onOpenCreateModal,
+    onOpenEditModal,
+    onCloseCreateModal,
+    onCloseEditModal,
+    onCreateFromTemplate,
+  } = useModalActions();
+  const { onCreate, onEdit, onDelete, onSelect } = useStrategyActions();
+
+  const onClearError = useCallback(() => {
     strategiesState.clearError();
+  }, []);
+
+  const onUpdate = useCallback(async (strategyId: number, field: string, value: number) => {
+    const result = await apiUpdateStrategy(strategyId, { [field]: value });
+    if (result.strategy) {
+      strategiesState.loadStrategies(false);
+    }
+    return result;
   }, []);
 
   return {
@@ -111,18 +127,19 @@ export function useStrategiesState() {
     showEditModal: state.showEditModal,
     editingStrategy: state.editingStrategy,
     parentTemplate: state.parentTemplate,
-    onViewChange: handleViewChange,
-    onRefresh: handleRefresh,
-    onOpenCreateModal: handleOpenCreateModal,
-    onOpenEditModal: handleOpenEditModal,
-    onCloseCreateModal: handleCloseCreateModal,
-    onCloseEditModal: handleCloseEditModal,
-    onCreateStrategy: handleCreateStrategy,
-    onEditStrategy: handleEditStrategy,
-    onDeleteStrategy: handleDeleteStrategy,
-    onCreateFromTemplate: handleCreateFromTemplate,
-    onSelectStrategy: handleSelectStrategy,
-    onSetActiveStrategy: handleSetActiveStrategy,
-    onClearError: handleClearError,
+    onViewChange,
+    onRefresh,
+    onOpenCreateModal,
+    onOpenEditModal,
+    onCloseCreateModal,
+    onCloseEditModal,
+    onCreateStrategy: onCreate,
+    onEditStrategy: onEdit,
+    onDeleteStrategy: onDelete,
+    onCreateFromTemplate,
+    onSelectStrategy: onSelect,
+    onClearError,
+    onUpdate,
+    isAnyBotRunning,
   };
 }

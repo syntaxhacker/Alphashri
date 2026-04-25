@@ -3,20 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useMantineColorScheme } from "@mantine/core";
 import { fetchChartPreview, ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption } from "../../components/chart/chartRenderer";
-
-const TIMEFRAMES = [
-  { value: 1, label: "1m" },
-  { value: 5, label: "5m" },
-  { value: 15, label: "15m" },
-  { value: 30, label: "30m" },
-  { value: 60, label: "1h" },
-];
-
-const OR_MINUTES = [
-  { value: 30, label: "OR 30m" },
-  { value: 45, label: "OR 45m" },
-  { value: 60, label: "OR 60m" },
-];
+import { TIMEFRAMES, OR_MINUTES_OPTIONS } from "../../config/constants";
 
 const ChartView: React.FC = () => {
   const { symbol } = useParams<{ symbol: string }>();
@@ -30,6 +17,7 @@ const ChartView: React.FC = () => {
   const [timeframe, setTimeframe] = useState(15);
   const [orMinutes, setOrMinutes] = useState(45);
   const [showPivots, setShowPivots] = useState(true);
+  const [show52wHigh, setShow52wHigh] = useState(true);
 
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<any>(null);
@@ -80,8 +68,10 @@ const ChartView: React.FC = () => {
       candles: data.candles,
       orb_zones: data.orb_zones,
       pivot_levels: data.pivot_levels,
+      high_52w: data.high_52w,
       size: "full",
       showPivots,
+      show52wHigh,
       isDark,
     });
 
@@ -107,7 +97,7 @@ const ChartView: React.FC = () => {
       window.removeEventListener("resize", handleResize);
       chartInstanceRef.current?.dispose();
     };
-  }, [data, showPivots, loading, isDark]);
+  }, [data, showPivots, show52wHigh, loading, isDark]);
 
   if (!symbol) {
     return (
@@ -151,7 +141,7 @@ const ChartView: React.FC = () => {
               onChange={(e) => setOrMinutes(parseInt(e.target.value))}
               data-testid="chart-or-select"
             >
-              {OR_MINUTES.map((or) => (
+              {OR_MINUTES_OPTIONS.map((or) => (
                 <option key={or.value} value={or.value}>
                   {or.label}
                 </option>
@@ -168,6 +158,18 @@ const ChartView: React.FC = () => {
                 data-testid="chart-pivots-checkbox"
               />
               Pivots
+            </label>
+          </div>
+
+          <div className="control-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={show52wHigh}
+                onChange={(e) => setShow52wHigh(e.target.checked)}
+                data-testid="chart-52w-checkbox"
+              />
+              52W High
             </label>
           </div>
         </div>
@@ -207,6 +209,12 @@ const ChartView: React.FC = () => {
           <span>TF: {timeframe}m</span>
           <span>•</span>
           <span>OR: {orMinutes}m</span>
+          {data.high_52w && (
+            <>
+              <span>•</span>
+              <span>52W High: ₹{data.high_52w.toFixed(2)}</span>
+            </>
+          )}
         </div>
       )}
     </div>
