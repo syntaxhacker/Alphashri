@@ -451,3 +451,43 @@ test.describe("Paper Trading - Position Actions", () => {
     await page.waitForTimeout(500);
   });
 });
+
+test.describe("Paper Trading - Settings Tab", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTest(page);
+  });
+
+  test("should display settings panel when clicking settings tab", async ({ page }) => {
+    await navigateToPaperTrading(page);
+
+    const settingsTab = page.locator('[data-testid="tab-settings"]');
+    await settingsTab.click();
+
+    await expect(page.locator('[data-testid="paper-settings-panel"]')).toBeVisible({
+      timeout: 10000,
+    });
+  });
+
+  test("should show strategy selector in settings", async ({ page }) => {
+    await navigateToPaperTrading(page);
+
+    const settingsTab = page.locator('[data-testid="tab-settings"]');
+    await settingsTab.click();
+
+    const strategySelector = page.locator('[data-testid="strategy-selector"]');
+    await expect(strategySelector).toBeVisible({ timeout: 10000 });
+  });
+});
+
+test.describe("Paper Trading - Chart Toggles", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTest(page);
+  });
+
+  test("should display chart panel exists", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const rightPanel = page.locator('[data-testid="paper-right-panel"]');
+    await expect(rightPanel).toBeVisible();
+  });
+});
