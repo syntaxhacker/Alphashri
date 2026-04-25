@@ -20,12 +20,7 @@ test.describe("Paper Chart - Intraday Toggle", () => {
     });
 
     const switchElement = page.locator('[data-testid="intraday-switch"]');
-    const isSwitchVisible = await switchElement.isVisible().catch(() => false);
-
-    if (!isSwitchVisible) {
-      test.skip();
-      return;
-    }
+    await expect(switchElement).toBeVisible();
 
     const isChecked = await switchElement.evaluate(
       (el: Element) => (el as HTMLInputElement).checked,
@@ -46,13 +41,6 @@ test.describe("Paper Chart - Intraday Toggle", () => {
     });
 
     const switchElement = page.locator('[data-testid="intraday-switch"]');
-    const isSwitchVisible = await switchElement.isVisible().catch(() => false);
-
-    if (!isSwitchVisible) {
-      test.skip();
-      return;
-    }
-
     await expect(switchElement).toBeVisible();
   });
 });
