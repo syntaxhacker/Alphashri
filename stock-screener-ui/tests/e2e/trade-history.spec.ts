@@ -166,27 +166,20 @@ test.describe("Trade History - Pagination", () => {
 });
 
 test.describe("Trade History - Filter Dropdowns", () => {
-  test.beforeEach(async ({ page }) => {
-    await setupTradeHistoryMocks(page);
-  });
+  const filterCases = [
+    { filterName: "bot", testId: "bot-filter-select" },
+    { filterName: "strategy", testId: "strategy-filter-select" },
+  ];
 
-  test("should display bot filter select dropdown", async ({ page }) => {
-    await mockTradeHistoryWithSampleData(page);
-    await navigateToTradeHistoryWithBot(page);
-    await verifyHistoryPanelVisible(page);
-
-    const botFilter = page.locator('[data-testid="bot-filter-select"]');
-    await expect(botFilter).toBeVisible();
-  });
-
-  test("should display strategy filter select dropdown", async ({ page }) => {
-    await mockTradeHistoryWithSampleData(page);
-    await navigateToTradeHistoryWithBot(page);
-    await verifyHistoryPanelVisible(page);
-
-    const strategyFilter = page.locator('[data-testid="strategy-filter-select"]');
-    await expect(strategyFilter).toBeVisible();
-  });
+  for (const { filterName, testId } of filterCases) {
+    test(`should display ${filterName} filter select dropdown`, async ({ page }) => {
+      await setupTradeHistoryMocks(page);
+      await mockTradeHistoryWithSampleData(page);
+      await navigateToTradeHistoryWithBot(page);
+      await verifyHistoryPanelVisible(page);
+      await expect(page.locator(`[data-testid="${testId}"]`)).toBeVisible();
+    });
+  }
 });
 
 test.describe("Trade History - Trade Interactions", () => {
