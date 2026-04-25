@@ -89,7 +89,11 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
           pid: isRunning ? 12345 : null,
           status: isRunning ? "running" : "stopped",
           position_count: positions.length,
-          strategies: strategies.map((s) => ({ id: String(s.id), name: s.name, strategy_type: "ORB" })),
+          strategies: strategies.map((s) => ({
+            id: String(s.id),
+            name: s.name,
+            strategy_type: "ORB",
+          })),
         },
       ]),
     });

@@ -486,3 +486,165 @@ test.describe("Paper Trading - Chart Toggles", () => {
     await expect(rightPanel).toBeVisible();
   });
 });
+
+// Helper function to navigate to paper trading settings
+async function navigateToPaperTradingSettings(page: import("@playwright/test").Page) {
+  await page.goto("/paper", { timeout: 30000 });
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
+  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
+    timeout: 20000,
+  });
+
+  await expect(page.locator('[data-testid="tab-settings"]')).toBeVisible();
+
+  const settingsTab = page.locator('[data-testid="tab-settings"]');
+  await settingsTab.waitFor({ state: "visible", timeout: 10000 });
+  await settingsTab.click({ timeout: 10000 });
+
+  await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
+}
+
+test.describe("Paper Trading - Settings Panel Sections", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTest(page);
+  });
+
+  test("should display all settings section headers", async ({ page }) => {
+    await navigateToPaperTradingSettings(page);
+
+    // Verify section headers are visible
+    await expect(page.locator("text=ORB Settings")).toBeVisible();
+    await expect(page.locator("text=Risk Management")).toBeVisible();
+    await expect(page.locator("text=Runner Settings")).toBeVisible();
+    await expect(page.locator("text=Trading Costs")).toBeVisible();
+  });
+
+  test.describe("TradingCostsSection", () => {
+    test.beforeEach(async ({ page }) => {
+      await setupPaperTradingTest(page);
+    });
+
+    test("should display TradingCostsSection fields", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify brokerage field exists
+      await expect(page.locator('[data-testid="config-brokerage"]')).toBeVisible();
+      // Verify min-brokerage field exists
+      await expect(page.locator('[data-testid="config-min-brokerage"]')).toBeVisible();
+      // Verify STT field exists
+      await expect(page.locator('[data-testid="config-stt"]')).toBeVisible();
+      // Verify exchange field exists
+      await expect(page.locator('[data-testid="config-exchange"]')).toBeVisible();
+      // Verify sebi field exists
+      await expect(page.locator('[data-testid="config-sebi"]')).toBeVisible();
+      // Verify stamp field exists
+      await expect(page.locator('[data-testid="config-stamp"]')).toBeVisible();
+      // Verify GST field exists
+      await expect(page.locator('[data-testid="config-gst"]')).toBeVisible();
+    });
+
+    test("should display TradingCostsSection field labels", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify field labels are visible inside costs section
+      const costsSection = page.locator("#costs-section");
+      await expect(costsSection.locator('label:has-text("Brokerage %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("Min Brokerage")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("STT %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("Exchange %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("SEBI %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("Stamp %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("GST %")')).toBeVisible();
+    });
+  });
+
+  test.describe("RiskManagementSection", () => {
+    test.beforeEach(async ({ page }) => {
+      await setupPaperTradingTest(page);
+    });
+
+    test("should display RiskManagementSection fields", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify max-positions field exists
+      await expect(page.locator('[data-testid="config-max-positions"]')).toBeVisible();
+      // Verify capital-per-trade field exists
+      await expect(page.locator('[data-testid="config-capital-per-trade"]')).toBeVisible();
+      // Verify daily-loss field exists
+      await expect(page.locator('[data-testid="config-daily-loss"]')).toBeVisible();
+      // Verify max-exposure field exists
+      await expect(page.locator('[data-testid="config-max-exposure"]')).toBeVisible();
+      // Verify risk-per-trade field exists
+      await expect(page.locator('[data-testid="config-risk-per-trade"]')).toBeVisible();
+    });
+
+    test("should display RiskManagementSection field labels", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify field labels are visible inside risk section
+      const riskSection = page.locator("#risk-section");
+      await expect(riskSection.locator('label:has-text("Max Positions")')).toBeVisible();
+      await expect(riskSection.locator('label:has-text("Capital/Trade %")')).toBeVisible();
+      await expect(riskSection.locator('label:has-text("Daily Loss %")')).toBeVisible();
+      await expect(riskSection.locator('label:has-text("Max Exposure %")')).toBeVisible();
+      await expect(riskSection.locator('label:has-text("Risk/Trade %")')).toBeVisible();
+    });
+  });
+
+  test.describe("OrbSettingsSection", () => {
+    test.beforeEach(async ({ page }) => {
+      await setupPaperTradingTest(page);
+    });
+
+    test("should display OrbSettingsSection fields", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify OR minutes field exists
+      await expect(page.locator('[data-testid="config-or-minutes"]')).toBeVisible();
+      // Verify SL% field exists
+      await expect(page.locator('[data-testid="config-sl-pct"]')).toBeVisible();
+      // Verify TP% field exists
+      await expect(page.locator('[data-testid="config-tp-pct"]')).toBeVisible();
+      // Verify min OR range field exists
+      await expect(page.locator('[data-testid="config-min-or-range"]')).toBeVisible();
+      // Verify max OR range field exists
+      await expect(page.locator('[data-testid="config-max-or-range"]')).toBeVisible();
+    });
+
+    test("should display OrbSettingsSection field labels", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify field labels are visible inside ORB section
+      const orbSection = page.locator("#orb-section");
+      await expect(orbSection.locator('label:has-text("OR Minutes")')).toBeVisible();
+      await expect(orbSection.locator('label:has-text("Stop Loss %")')).toBeVisible();
+      await expect(orbSection.locator('label:has-text("Take Profit %")')).toBeVisible();
+      await expect(orbSection.locator('label:has-text("Min OR Range %")')).toBeVisible();
+      await expect(orbSection.locator('label:has-text("Max OR Range %")')).toBeVisible();
+    });
+  });
+
+  test.describe("RunnerSettingsSection", () => {
+    test.beforeEach(async ({ page }) => {
+      await setupPaperTradingTest(page);
+    });
+
+    test("should display RunnerSettingsSection fields", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify cooldown field exists
+      await expect(page.locator('[data-testid="config-cooldown"]')).toBeVisible();
+      // Verify max-distance field exists
+      await expect(page.locator('[data-testid="config-max-distance"]')).toBeVisible();
+    });
+
+    test("should display RunnerSettingsSection field labels", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify field labels are visible inside runner section
+      const runnerSection = page.locator("#runner-section");
+      await expect(runnerSection.locator('label:has-text("Cooldown (min)")')).toBeVisible();
+      await expect(runnerSection.locator('label:has-text("Max Distance from OR %")')).toBeVisible();
+    });
+  });
+});

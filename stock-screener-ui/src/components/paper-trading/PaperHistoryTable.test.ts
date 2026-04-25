@@ -1,10 +1,12 @@
 import { describe, expect, test } from "vitest";
+import dayjs from "dayjs";
 import { formatTimeOnly, formatDateHeader } from "../../utils/ui-helpers";
 import {
   getUniqueStrategies,
   getUniqueBots,
   filterByRange,
   groupTradesByDate,
+  getPeriodFromDateRange,
 } from "./tradeHistoryUtils";
 import { mockTrade } from "./testFixtures";
 
@@ -207,5 +209,31 @@ describe("formatDateHeader", () => {
   test("includes weekday", () => {
     const result = formatDateHeader("2026-03-20");
     expect(result).toMatch(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
+  });
+});
+
+describe("getPeriodFromDateRange", () => {
+  test("returns 'all' when both dates are null", () => {
+    expect(getPeriodFromDateRange(null, null)).toBe("all");
+  });
+
+  test("returns 'today' when both dates equal today", () => {
+    const today = dayjs().format("YYYY-MM-DD");
+    expect(getPeriodFromDateRange(today, today)).toBe("today");
+  });
+
+  test("returns 'week' when fromDate is 7 days ago", () => {
+    const weekAgo = dayjs().subtract(7, "day").format("YYYY-MM-DD");
+    expect(getPeriodFromDateRange(weekAgo, null)).toBe("week");
+  });
+
+  test("returns 'month' when fromDate is 1 month ago", () => {
+    const monthAgo = dayjs().subtract(1, "month").format("YYYY-MM-DD");
+    expect(getPeriodFromDateRange(monthAgo, null)).toBe("month");
+  });
+
+  test("returns 'year' when fromDate is 1 year ago", () => {
+    const yearAgo = dayjs().subtract(1, "year").format("YYYY-MM-DD");
+    expect(getPeriodFromDateRange(yearAgo, null)).toBe("year");
   });
 });

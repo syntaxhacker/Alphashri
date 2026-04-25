@@ -165,6 +165,30 @@ test.describe("Trade History - Pagination", () => {
   });
 });
 
+test.describe("Trade History - Filter Dropdowns", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupTradeHistoryMocks(page);
+  });
+
+  test("should display bot filter select dropdown", async ({ page }) => {
+    await mockTradeHistoryWithSampleData(page);
+    await navigateToTradeHistoryWithBot(page);
+    await verifyHistoryPanelVisible(page);
+
+    const botFilter = page.locator('[data-testid="bot-filter-select"]');
+    await expect(botFilter).toBeVisible();
+  });
+
+  test("should display strategy filter select dropdown", async ({ page }) => {
+    await mockTradeHistoryWithSampleData(page);
+    await navigateToTradeHistoryWithBot(page);
+    await verifyHistoryPanelVisible(page);
+
+    const strategyFilter = page.locator('[data-testid="strategy-filter-select"]');
+    await expect(strategyFilter).toBeVisible();
+  });
+});
+
 test.describe("Trade History - Trade Interactions", () => {
   test.beforeEach(async ({ page }) => {
     await setupTradeHistoryMocks(page);
