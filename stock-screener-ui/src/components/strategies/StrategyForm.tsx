@@ -1,6 +1,17 @@
 import { useState } from "react";
-import { Modal, Stack, TextInput, Select, Tabs, Alert, Group, Title, Text } from "@mantine/core";
-import { IconInfoCircle } from "@tabler/icons-react";
+import {
+  Modal,
+  Stack,
+  TextInput,
+  Select,
+  Tabs,
+  Alert,
+  Group,
+  Title,
+  Text,
+  MultiSelect,
+} from "@mantine/core";
+import { IconInfoCircle, IconAlertTriangle } from "@tabler/icons-react";
 import type { StrategyFormProps, StrategyFormData } from "./types";
 import { DEFAULT_VALUES, getInitialValues } from "./strategyDefaults";
 import { OrbParamsPanel } from "./OrbParamsPanel";
@@ -18,6 +29,20 @@ const STRATEGY_TYPES = [
   { value: "EMA_CROSS", label: "EMA Cross" },
 ];
 
+const SCREENER_PROFILE_OPTIONS = [
+  { value: "trending", label: "Trending" },
+  { value: "high_momentum", label: "High Momentum" },
+  { value: "volatility_trend", label: "Volatility Trend" },
+  { value: "near_52w_breakout", label: "Near 52W Breakout" },
+  { value: "buyer_interest", label: "Buyer Interest" },
+  { value: "buyer_interest_enhanced", label: "Buyer Interest+" },
+  { value: "nifty50_activity", label: "Nifty50 Activity" },
+  { value: "rsi_reversal", label: "RSI Reversal" },
+  { value: "market_open_gap", label: "Gap Open" },
+  { value: "nifty_movers", label: "Nifty Movers" },
+  { value: "intraday_momentum", label: "Intraday Momentum" },
+];
+
 const INTRADAY_TYPES = ["ORB", "SR_BREAKOUT", "EMA_CROSS"];
 const SWING_TYPES = ["52W_CHASER", "52W_TARGET"];
 
@@ -33,9 +58,13 @@ export function StrategyForm({
   opened,
   onClose,
   onSubmit,
+  isBotRunning,
 }: StrategyFormProps) {
   const initialValues = getInitialValues({ mode, strategy, template });
   const [currentStrategyType, setCurrentStrategyType] = useState(initialValues.strategy_type);
+  const [selectedProfiles, setSelectedProfiles] = useState<string[]>(
+    initialValues.screener_profiles || [],
+  );
   const isIntraday = INTRADAY_TYPES.includes(currentStrategyType);
   const isSwing = SWING_TYPES.includes(currentStrategyType);
   const isOrb = currentStrategyType === "ORB";
@@ -62,7 +91,6 @@ export function StrategyForm({
       tp_pct: getNumVal(formData, "tp_pct", DEFAULT_VALUES.tp_pct),
       min_or_range_pct: getNumVal(formData, "min_or_range_pct", DEFAULT_VALUES.min_or_range_pct),
       max_or_range_pct: getNumVal(formData, "max_or_range_pct", DEFAULT_VALUES.max_or_range_pct),
-      max_positions: getNumVal(formData, "max_positions", DEFAULT_VALUES.max_positions),
       max_capital_per_trade_pct: getNumVal(
         formData,
         "max_capital_per_trade_pct",
@@ -112,6 +140,7 @@ export function StrategyForm({
         DEFAULT_VALUES.breakout_buffer_pct,
       ),
       pivot_type: (formData.get("pivot_type") as string) || DEFAULT_VALUES.pivot_type,
+      min_rr_ratio: getNumVal(formData, "min_rr_ratio", DEFAULT_VALUES.min_rr_ratio),
     };
 
     const enableTrailingEl = form.querySelector(
@@ -151,6 +180,17 @@ export function StrategyForm({
         }}
       >
         <Stack gap="sm" className="strategy-form-content">
+          {mode === "edit" && isBotRunning && (
+            <Alert
+              icon={<IconAlertTriangle size={16} />}
+              color="yellow"
+              variant="light"
+              data-testid="strategy-form-restart-warning"
+            >
+              <Text size="sm">Bot restart required for changes to take effect</Text>
+            </Alert>
+          )}
+
           {template && (
             <Alert
               icon={<IconInfoCircle size={16} />}
@@ -207,6 +247,17 @@ export function StrategyForm({
             placeholder="Optional description"
             defaultValue={initialValues.description}
             data-testid="strategy-description-input"
+          />
+
+          <MultiSelect
+            label="Screener Profiles"
+            placeholder="Select screener profiles"
+            data={SCREENER_PROFILE_OPTIONS}
+            value={selectedProfiles}
+            onChange={setSelectedProfiles}
+            clearable
+            searchable
+            data-testid="strategy-screener-profiles"
           />
 
           <Tabs

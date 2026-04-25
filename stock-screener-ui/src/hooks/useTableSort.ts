@@ -4,6 +4,8 @@ interface UseTableSortOptions {
   initialColumn?: string;
   initialDirection?: "asc" | "desc";
   defaultDirection?: "asc" | "desc";
+  sortColumn?: string | null;
+  sortDirection?: "asc" | "desc";
 }
 
 interface UseTableSortReturn<T> {
@@ -24,8 +26,9 @@ export function useTableSort<T>(options?: UseTableSortOptions): UseTableSortRetu
     direction: initialDirection,
   });
 
-  const sortColumn = sortState.column;
-  const sortDirection = sortState.direction;
+  const sortColumn = options?.sortColumn !== undefined ? options.sortColumn : sortState.column;
+  const sortDirection =
+    options?.sortDirection !== undefined ? options.sortDirection : sortState.direction;
 
   const handleSort = useCallback(
     (column: string) => {
@@ -41,7 +44,7 @@ export function useTableSort<T>(options?: UseTableSortOptions): UseTableSortRetu
 
   const getSortedData = useCallback(
     (data: T[], getColumnValue: (item: T) => string | number): T[] => {
-      if (!sortState.column) return data;
+      if (!sortColumn) return data;
       return [...data].sort((a, b) => {
         const aVal = getColumnValue(a);
         const bVal = getColumnValue(b);
@@ -53,7 +56,7 @@ export function useTableSort<T>(options?: UseTableSortOptions): UseTableSortRetu
           : (bVal as number) - (aVal as number);
       });
     },
-    [sortState.column, sortState.direction],
+    [sortColumn, sortDirection],
   );
 
   return { sortColumn, sortDirection, handleSort, getSortedData };

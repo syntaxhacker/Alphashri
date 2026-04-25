@@ -118,17 +118,19 @@ class TestNewsAPI:
 
         Should return empty items array with total=0.
         """
-        mock_fetch = Mock(return_value=[])
+        mock_persistence = Mock()
+        mock_persistence.get_recent_articles = Mock(return_value=[])
 
         with patch('api_server_fastapi._news_available', True):
-            with patch('api_server_fastapi.fetch_news', mock_fetch):
-                response = client.get("/api/news")
-                assert response.status_code == 200
-                data = response.json()
+            with patch('services.news_persistence.get_persistence_service', return_value=mock_persistence):
+                with patch('cache.redis_client.is_cache_available', return_value=False):
+                    response = client.get("/api/news")
+                    assert response.status_code == 200
+                    data = response.json()
 
-                assert data['items'] == []
-                assert data['total'] == 0
-                assert 'fetchedAt' in data
+                    assert data['items'] == []
+                    assert data['total'] == 0
+                    assert 'fetchedAt' in data
 
     def test_get_news_api_unavailable(self, client):
         """

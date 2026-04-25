@@ -69,6 +69,17 @@ export function stopLiveAutoRefresh() {
   stopAutoRefresh();
 }
 
+export async function fetchBotSummaries(): Promise<any[]> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/bots/summary`);
+    const data = await response.json();
+    return data || [];
+  } catch (error) {
+    console.error("Failed to fetch bot summaries:", error);
+    return [];
+  }
+}
+
 // List all available bots
 export async function listBots(): Promise<any[]> {
   try {
@@ -232,6 +243,8 @@ export function normalizeBotPortfolio(
     ),
     daily_trades: Number(portfolio?.daily_trades ?? 0),
     open_positions: Number(portfolio?.open_positions ?? totalPositions),
+    max_daily_loss_pct: Number(portfolio?.max_daily_loss_pct ?? 0),
+    daily_loss_limit_exceeded: Boolean(portfolio?.daily_loss_limit_exceeded ?? false),
   };
 }
 
@@ -269,8 +282,8 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
         entry_price: p.entry_price,
         current_price: p.current_price || p.entry_price,
         entry_time: p.entry_time,
-        stop_loss: p.sl_price || 0,
-        take_profit: p.tp_price || 0,
+        stop_loss: p.stop_loss || 0,
+        take_profit: p.take_profit || 0,
         pnl: p.unrealized_pnl || 0,
         pnl_pct: p.unrealized_pnl_pct || 0,
         margin_used: p.margin_used || 0,

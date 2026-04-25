@@ -21,6 +21,7 @@ class TestBotRecovery:
         config.max_total_capital_pct = 0.8
         return config
 
+    @pytest.mark.skip(reason="save_snapshot/load_snapshot removed — state now persisted via persist_state() to DB + Redis")
     def test_save_and_load_snapshot(self, mock_bot_config, tmp_path):
         """Test that state is correctly saved to and loaded from a snapshot."""
         user_id = 999

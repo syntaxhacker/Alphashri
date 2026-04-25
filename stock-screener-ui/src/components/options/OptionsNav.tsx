@@ -12,8 +12,6 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
       className="options-nav"
       value={activeTab}
       onChange={(val) => val && onTabChange(val)}
-      variant="pills"
-      color="blue"
       mb="md"
       data-testid="options-nav"
     >

@@ -35,7 +35,7 @@ from tests.helpers.db import import_all_models
 @pytest.fixture
 def app():
     """Create a test FastAPI app with the bots router."""
-    from api.bots import router
+    from api.bots_api import router
     from api.auth import get_current_user
     from db.models import User
 
@@ -79,7 +79,7 @@ def db_session(app):
 
     # Patch SessionLocal and engine in both modules
     with patch('db.database.SessionLocal', TestingSessionLocal), \
-         patch('api.bots.SessionLocal', TestingSessionLocal), \
+         patch('api.bots_api.bot_operations.SessionLocal', TestingSessionLocal), \
          patch('db.database.engine', engine):
         db = TestingSessionLocal()
         try:
@@ -124,14 +124,14 @@ def test_strategies(db_session):
 @pytest.fixture
 def cleanup_bot_processes():
     """Clean up any bot processes created during tests."""
-    from api.bots import _bot_processes, _bot_logs
+    from api.bots_api.bots_router import _bot_processes, _bot_logs
     original_processes = _bot_processes.copy()
     original_logs = _bot_logs.copy()
 
     yield
 
-    from api.bots import _bot_processes as current_processes
-    from api.bots import _bot_logs as current_logs
+    from api.bots_api.bots_router import _bot_processes as current_processes
+    from api.bots_api.bots_router import _bot_logs as current_logs
 
     # Stop any test processes
     for user_id, bots in current_processes.items():
@@ -548,7 +548,7 @@ class TestBotCRUD:
 
     def test_delete_running_bot_stops_process(self, client, db_session, cleanup_bot_processes):
         """Test deleting a running bot stops the process first."""
-        from api.bots import _bot_processes
+        from api.bots_api.bots_router import _bot_processes
         from db.models import BotConfig
 
         bot = BotConfig(
@@ -586,7 +586,7 @@ class TestBotCRUD:
 class TestBotControl:
     """Test bot control endpoints."""
 
-    @patch('api.bots.start_bot_process')
+    @patch('api.bots_api.bot_operations.start_bot_process')
     def test_start_bot_success(self, mock_start_process, client, db_session):
         from db.models import BotConfig
 
@@ -605,8 +605,8 @@ class TestBotControl:
         mock_process.pid = 12345
         mock_start_process.return_value = mock_process
 
-        with patch('api.bots._db_available', True), \
-             patch('api.bots.is_bot_running', return_value=(False, None)):
+        with patch('api.bots_api.bot_operations._db_available', True), \
+             patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
             response = client.post(f"/api/bots/{bot.id}/start")
             assert response.status_code == 200
             data = response.json()
@@ -638,7 +638,7 @@ class TestBotControl:
         assert response.status_code == 400
         assert "not active" in response.json()['detail']
 
-    @patch('api.bots.is_bot_running')
+    @patch('api.bots_api.bot_operations.is_bot_running')
     def test_start_already_running_bot(self, mock_is_running, client, db_session):
         """Test starting an already running bot returns status."""
         from db.models import BotConfig
@@ -656,13 +656,13 @@ class TestBotControl:
 
         mock_is_running.return_value = (True, 12345)
 
-        with patch('api.bots._db_available', True):
+        with patch('api.bots_api.bot_operations._db_available', True):
             response = client.post(f"/api/bots/{bot.id}/start")
             assert response.status_code == 200
             assert "already running" in response.json()['message']
 
-    @patch('api.bots.stop_bot_process')
-    @patch('api.bots.is_bot_running')
+    @patch('api.bots_api.bot_operations.stop_bot_process')
+    @patch('api.bots_api.bot_operations.is_bot_running')
     def test_stop_running_bot(self, mock_is_running, mock_stop, client, db_session):
         """Test stopping a running bot."""
         from db.models import BotConfig
@@ -680,13 +680,13 @@ class TestBotControl:
 
         mock_is_running.return_value = (True, 12345)
 
-        with patch('api.bots._db_available', True):
+        with patch('api.bots_api.bot_operations._db_available', True):
             response = client.post(f"/api/bots/{bot.id}/stop")
             assert response.status_code == 200
             assert "stopped" in response.json()['message']
             mock_stop.assert_called_once()
 
-    @patch('api.bots.is_bot_running')
+    @patch('api.bots_api.bot_operations.is_bot_running')
     def test_stop_non_running_bot(self, mock_is_running, client, db_session):
         """Test stopping a bot that is not running."""
         from db.models import BotConfig
@@ -704,14 +704,14 @@ class TestBotControl:
 
         mock_is_running.return_value = (False, None)
 
-        with patch('api.bots._db_available', True):
+        with patch('api.bots_api.bot_operations._db_available', True):
             response = client.post(f"/api/bots/{bot.id}/stop")
             assert response.status_code == 200
             assert "not running" in response.json()['message']
 
-    @patch('api.bots.is_bot_running')
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_status_running(self, mock_load_snapshot, mock_is_running, client, db_session):
+    @patch('api.bots_api.bot_status.is_bot_running')
+    @patch('api.bots_api.bot_status.get_bot_state')
+    def test_get_bot_status_running(self, mock_get_state, mock_is_running, client, db_session):
         """Test getting status of a running bot."""
         from db.models import BotConfig
 
@@ -727,14 +727,14 @@ class TestBotControl:
         db_session.refresh(bot)
 
         mock_is_running.return_value = (True, 12345)
-        mock_load_snapshot.return_value = {
+        mock_get_state.return_value = {
             "portfolio": {"total_pnl": 1000},
             "positions": [],
             "strategies": {},
             "timestamp": "2026-03-03T10:00:00"
         }
 
-        with patch('api.bots._db_available', True):
+        with patch('api.bots_api.bot_operations._db_available', True):
             response = client.get(f"/api/bots/{bot.id}/status")
             assert response.status_code == 200
             data = response.json()
@@ -744,9 +744,9 @@ class TestBotControl:
             assert data['bot_id'] == bot.uuid
             assert data['bot_name'] == bot.name
 
-    @patch('api.bots.is_bot_running')
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_status_not_running(self, mock_load_snapshot, mock_is_running, client, db_session):
+    @patch('api.bots_api.bot_status.is_bot_running')
+    @patch('api.bots_api.bot_status.get_bot_state')
+    def test_get_bot_status_not_running(self, mock_get_state, mock_is_running, client, db_session):
         """Test getting status of a stopped bot."""
         from db.models import BotConfig
 
@@ -762,9 +762,9 @@ class TestBotControl:
         db_session.refresh(bot)
 
         mock_is_running.return_value = (False, None)
-        mock_load_snapshot.return_value = None
+        mock_get_state.return_value = None
 
-        with patch('api.bots._db_available', True):
+        with patch('api.bots_api.bot_operations._db_available', True):
             response = client.get(f"/api/bots/{bot.id}/status")
             assert response.status_code == 200
             data = response.json()
@@ -779,7 +779,6 @@ class TestBotControl:
         response = client.get(f"/api/bots/{nonexistent_uuid}/status")
         assert response.status_code == 404
 
-    @patch('api.bots._bot_logs', {})
     def test_get_bot_logs_no_logs(self, client, db_session):
         """Test getting logs when no logs available."""
         from db.models import BotConfig
@@ -795,17 +794,17 @@ class TestBotControl:
         db_session.commit()
         db_session.refresh(bot)
 
-        with patch('api.bots._db_available', True):
+        with patch('api.bots_api.bot_operations._db_available', True):
             response = client.get(f"/api/bots/{bot.id}/logs")
             assert response.status_code == 200
             data = response.json()
             assert data['logs'] == ""
             assert "No logs available" in data['message']
 
-    @patch('api.bots._bot_logs', {})
     def test_get_bot_logs_with_custom_line_count(self, client, db_session):
         """Test getting logs with custom line count."""
         from db.models import BotConfig
+        from api.bots_api.bots_router import _bot_logs
 
         bot = BotConfig(
             name="Test Bot",
@@ -818,11 +817,14 @@ class TestBotControl:
         db_session.commit()
         db_session.refresh(bot)
 
-        with patch('api.bots._bot_logs', {bot.id: Path(__file__)}):
+        _bot_logs[bot.id] = Path(__file__)
+        try:
             response = client.get(f"/api/bots/{bot.id}/logs?lines=50")
             assert response.status_code == 200
             data = response.json()
             assert 'total_lines' in data
+        finally:
+            _bot_logs.pop(bot.id, None)
 
 
 # ============================================
@@ -866,8 +868,8 @@ class TestAvailableStrategies:
 class TestBotPortfolioPositions:
     """Test bot portfolio and positions endpoints."""
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_portfolio_success(self, mock_load_snapshot, client, db_session, mock_snapshot_file):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_portfolio_success(self, mock_get_state, client, db_session, mock_snapshot_file):
         """Test getting portfolio for a running bot."""
         from db.models import BotConfig
 
@@ -882,7 +884,7 @@ class TestBotPortfolioPositions:
         db_session.commit()
         db_session.refresh(bot)
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/portfolio")
         assert response.status_code == 200
@@ -893,8 +895,8 @@ class TestBotPortfolioPositions:
         assert 'strategies' in data
         assert data['portfolio']['initial_capital'] == 1000000
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_portfolio_no_snapshot(self, mock_load_snapshot, client, db_session):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_portfolio_no_snapshot(self, mock_get_state, client, db_session):
         """Test getting portfolio when bot has no snapshot returns default."""
         from db.models import BotConfig
 
@@ -909,7 +911,7 @@ class TestBotPortfolioPositions:
         db_session.commit()
         db_session.refresh(bot)
 
-        mock_load_snapshot.return_value = None
+        mock_get_state.return_value = None
 
         response = client.get(f"/api/bots/{bot.id}/portfolio")
         assert response.status_code == 200
@@ -919,8 +921,8 @@ class TestBotPortfolioPositions:
         assert data['positions'] == []
         assert data['strategies'] == {}
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_positions_all(self, mock_load_snapshot, client, db_session, mock_snapshot_file):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_positions_all(self, mock_get_state, client, db_session, mock_snapshot_file):
         """Test getting all positions for a bot."""
         from db.models import BotConfig
 
@@ -935,7 +937,7 @@ class TestBotPortfolioPositions:
         db_session.commit()
         db_session.refresh(bot)
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/positions")
         assert response.status_code == 200
@@ -944,8 +946,8 @@ class TestBotPortfolioPositions:
         assert len(data['positions']) == 2
         assert data['count'] == 2
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_positions_filtered_by_strategy(self, mock_load_snapshot, client, db_session, mock_snapshot_file):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_positions_filtered_by_strategy(self, mock_get_state, client, db_session, mock_snapshot_file):
         """Test filtering positions by strategy_id."""
         from db.models import BotConfig, StrategyConfig
 
@@ -975,7 +977,7 @@ class TestBotPortfolioPositions:
         db_session.refresh(bot)
 
         snapshot_data = json.loads(mock_snapshot_file.read_text())
-        mock_load_snapshot.return_value = snapshot_data
+        mock_get_state.return_value = snapshot_data
 
         response = client.get(f"/api/bots/{bot.id}/positions?strategy_id=1")
         assert response.status_code == 200
@@ -984,8 +986,8 @@ class TestBotPortfolioPositions:
         assert data['positions'][0]['strategy_id'] == 1
         assert data['bot_id'] == bot.uuid
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_scan_items(self, mock_load_snapshot, client, db_session, mock_snapshot_file):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_scan_items(self, mock_get_state, client, db_session, mock_snapshot_file):
         """Test getting scan items for a bot."""
         from db.models import BotConfig
 
@@ -1000,7 +1002,7 @@ class TestBotPortfolioPositions:
         db_session.commit()
         db_session.refresh(bot)
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/scan")
         assert response.status_code == 200
@@ -1008,8 +1010,8 @@ class TestBotPortfolioPositions:
         assert 'scan_items' in data
         assert len(data['scan_items']) > 0
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_scan_filtered_by_strategy(self, mock_load_snapshot, client, db_session, mock_snapshot_file):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_scan_filtered_by_strategy(self, mock_get_state, client, db_session, mock_snapshot_file):
         """Test filtering scan items by strategy_id."""
         from db.models import BotConfig, StrategyConfig
 
@@ -1039,7 +1041,7 @@ class TestBotPortfolioPositions:
         db_session.refresh(bot)
 
         snapshot_data = json.loads(mock_snapshot_file.read_text())
-        mock_load_snapshot.return_value = snapshot_data
+        mock_get_state.return_value = snapshot_data
 
         response = client.get(f"/api/bots/{bot.id}/scan?strategy_id=1")
         assert response.status_code == 200
@@ -1055,8 +1057,8 @@ class TestBotPortfolioPositions:
 class TestBotPerformance:
     """Test bot performance endpoints."""
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_performance(self, mock_load_snapshot, client, db_session, mock_snapshot_file):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_performance(self, mock_get_state, client, db_session, mock_snapshot_file):
         """Test getting performance summary for a bot."""
         from db.models import BotConfig
 
@@ -1071,7 +1073,7 @@ class TestBotPerformance:
         db_session.commit()
         db_session.refresh(bot)
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/performance")
         assert response.status_code == 200
@@ -1081,8 +1083,8 @@ class TestBotPerformance:
         assert data['summary']['total_pnl'] == 6000
         assert data['summary']['total_positions'] == 2
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_performance_with_custom_days(self, mock_load_snapshot, client, db_session, mock_snapshot_file):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_performance_with_custom_days(self, mock_get_state, client, db_session, mock_snapshot_file):
         """Test getting performance with custom days parameter."""
         from db.models import BotConfig
 
@@ -1097,15 +1099,15 @@ class TestBotPerformance:
         db_session.commit()
         db_session.refresh(bot)
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/performance?days=7")
         assert response.status_code == 200
         data = response.json()
         assert data['period_days'] == 7
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_compare_strategy_performance(self, mock_load_snapshot, client, db_session, mock_snapshot_file):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_compare_strategy_performance(self, mock_get_state, client, db_session, mock_snapshot_file):
         """Test comparing performance across strategies."""
         from db.models import BotConfig
 
@@ -1120,15 +1122,15 @@ class TestBotPerformance:
         db_session.commit()
         db_session.refresh(bot)
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/performance/compare")
         assert response.status_code == 200
         data = response.json()
         assert 'comparison' in data
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_trades(self, mock_load_snapshot, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_trades(self, mock_get_state, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
         """Test getting trade history for a bot."""
         from db.models import BotConfig, bot_strategies
 
@@ -1154,7 +1156,7 @@ class TestBotPerformance:
             db_session.execute(stmt)
         db_session.commit()
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/trades")
         assert response.status_code == 200
@@ -1162,8 +1164,8 @@ class TestBotPerformance:
         assert 'trades' in data
         assert 'count' in data
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_trades_filtered_by_strategy(self, mock_load_snapshot, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_trades_filtered_by_strategy(self, mock_get_state, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
         """Test filtering trades by strategy_id."""
         from db.models import BotConfig, bot_strategies
 
@@ -1189,7 +1191,7 @@ class TestBotPerformance:
             db_session.execute(stmt)
         db_session.commit()
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/trades?strategy_id={test_strategies[0].id}")
         assert response.status_code == 200
@@ -1197,8 +1199,8 @@ class TestBotPerformance:
         for trade in data['trades']:
             assert trade['strategy_id'] == test_strategies[0].id
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_bot_trades_exclude_test_data(self, mock_load_snapshot, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_bot_trades_exclude_test_data(self, mock_get_state, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
         """Test filtering out test trades."""
         from db.models import BotConfig, bot_strategies
 
@@ -1223,7 +1225,7 @@ class TestBotPerformance:
             db_session.execute(stmt)
         db_session.commit()
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/trades?include_test=false")
         assert response.status_code == 200
@@ -1231,8 +1233,8 @@ class TestBotPerformance:
         for trade in data['trades']:
             assert trade.get('is_test', False) is False
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_strategy_performance(self, mock_load_snapshot, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_strategy_performance(self, mock_get_state, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
         """Test getting strategy performance breakdown."""
         from db.models import BotConfig, bot_strategies
 
@@ -1257,13 +1259,13 @@ class TestBotPerformance:
             db_session.execute(stmt)
         db_session.commit()
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/strategy-performance")
         assert response.status_code == 200
 
-    @patch('api.bots.load_bot_snapshot')
-    def test_get_strategy_performance_with_days(self, mock_load_snapshot, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
+    @patch('api.bots_api.bot_operations.get_bot_state')
+    def test_get_strategy_performance_with_days(self, mock_get_state, client, db_session, test_strategies, mock_snapshot_file, mock_journal_with_trades):
         """Test getting strategy performance with days parameter."""
         from db.models import BotConfig, bot_strategies
 
@@ -1288,7 +1290,7 @@ class TestBotPerformance:
             db_session.execute(stmt)
         db_session.commit()
 
-        mock_load_snapshot.return_value = json.loads(mock_snapshot_file.read_text())
+        mock_get_state.return_value = json.loads(mock_snapshot_file.read_text())
 
         response = client.get(f"/api/bots/{bot.id}/strategy-performance?days=7")
         assert response.status_code == 200
@@ -1373,9 +1375,9 @@ class TestBotLifecycle:
         db_session.commit()
 
         # Start bot
-        with patch('api.bots.start_bot_process') as mock_start, \
-             patch('api.bots.is_bot_running', return_value=(False, None)), \
-             patch('api.bots._db_available', True):
+        with patch('api.bots_api.bot_operations.start_bot_process') as mock_start, \
+             patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)), \
+             patch('api.bots_api.bot_operations._db_available', True):
             mock_process = MagicMock()
             mock_process.pid = 12345
             mock_start.return_value = mock_process
@@ -1383,24 +1385,24 @@ class TestBotLifecycle:
             assert start_resp.status_code == 200
 
         # Check status (running)
-        with patch('api.bots.is_bot_running', return_value=(True, 12345)), \
-             patch('api.bots.load_bot_snapshot', return_value={"portfolio": {}, "positions": [], "strategies": {}, "timestamp": ""}), \
-             patch('api.bots._db_available', True):
+        with patch('api.bots_api.bot_status.is_bot_running', return_value=(True, 12345)), \
+             patch('api.bots_api.bot_status.get_bot_state', return_value={"portfolio": {}, "positions": [], "strategies": {}, "timestamp": ""}), \
+             patch('api.bots_api.bot_operations._db_available', True):
             status_resp = client.get(f"/api/bots/{bot.id}/status")
             assert status_resp.status_code == 200
             assert status_resp.json()['running'] is True
 
         # Stop bot
-        with patch('api.bots.stop_bot_process') as mock_stop, \
-             patch('api.bots.is_bot_running', return_value=(True, 12345)), \
-             patch('api.bots._db_available', True):
+        with patch('api.bots_api.bot_operations.stop_bot_process') as mock_stop, \
+             patch('api.bots_api.bot_operations.is_bot_running', return_value=(True, 12345)), \
+             patch('api.bots_api.bot_operations._db_available', True):
             stop_resp = client.post(f"/api/bots/{bot.id}/stop")
             assert stop_resp.status_code == 200
             mock_stop.assert_called_once()
 
         # Delete bot
-        with patch('api.bots._bot_processes', {}), \
-             patch('api.bots._db_available', True):
+        with patch('api.bots_api.bots_router._bot_processes', {}), \
+             patch('api.bots_api.bot_operations._db_available', True):
             del_resp = client.delete(f"/api/bots/{bot.id}")
             assert del_resp.status_code == 200
 
@@ -1414,7 +1416,7 @@ class TestBotErrorCases:
 
     def test_database_not_available(self, client):
         """Test behavior when database is not available."""
-        with patch('api.bots._db_available', False):
+        with patch('api.bots_api.bot_status._db_available', False):
             response = client.get("/api/bots")
             assert response.status_code == 500
 
@@ -1465,21 +1467,21 @@ class TestProcessManagement:
     @patch('subprocess.Popen')
     def test_start_bot_process_mock(self, mock_popen):
         """Test starting a bot process."""
-        from api.bots import start_bot_process
+        from api.bots_api.bots_router import start_bot_process
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
 
-        with patch('api.bots._db_available', True):
+        with patch('api.bots_api.bots_router._db_available', True):
             process = start_bot_process(user_id=1, bot_id=1)
             assert process == mock_process
 
     @patch('subprocess.Popen')
     def test_stop_bot_process_mock(self, mock_popen):
         """Test stopping a bot process."""
-        from api.bots import stop_bot_process
+        from api.bots_api.bots_router import stop_bot_process
         mock_process = MagicMock()
         mock_process.poll.return_value = None
-        with patch('api.bots._bot_processes', {1: {1: mock_process}}):
+        with patch('api.bots_api.bots_router._bot_processes', {1: {1: mock_process}}):
             stop_bot_process(user_id=1, bot_id=1)
             mock_process.terminate.assert_called_once()

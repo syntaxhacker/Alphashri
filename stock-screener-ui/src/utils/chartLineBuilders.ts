@@ -80,3 +80,53 @@ export function buildPivotSeries(
     },
   ];
 }
+
+export function buildWeek52Series(
+  candles: Array<{ date: string }>,
+  week52_levels: Array<{ date: string; "52w_high": number }>,
+  extendSeriesData: (data: any[]) => any[],
+): any[] {
+  if (!week52_levels || week52_levels.length === 0) return [];
+  const data = extendSeriesData(
+    candles.map((c) => {
+      const level = week52_levels.find((l) => l.date === c.date);
+      return level ? level["52w_high"] : null;
+    }),
+  );
+  return [
+    {
+      id: "52w-high",
+      name: "52W High",
+      type: "line",
+      data,
+      showSymbol: false,
+      silent: true,
+      z: 5,
+      lineStyle: { color: "#FFD700", width: 2, type: "dashed" },
+    },
+  ];
+}
+
+export function buildEmaSeries(
+  ema_series: Array<{ label: string; color: string; data: any[] }>,
+  extendSeriesData: (data: any[]) => any[],
+  legendData: string[],
+): any[] {
+  if (!ema_series?.length) return [];
+  const series: any[] = [];
+  for (const ema of ema_series) {
+    series.push({
+      name: ema.label,
+      type: "line",
+      data: extendSeriesData(ema.data),
+      showSymbol: false,
+      connectNulls: true,
+      silent: true,
+      z: 5,
+      lineStyle: { color: ema.color, width: 1.5 },
+      tooltip: { show: true },
+    });
+    if (!legendData.includes(ema.label)) legendData.push(ema.label);
+  }
+  return series;
+}

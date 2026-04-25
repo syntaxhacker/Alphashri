@@ -7,7 +7,6 @@ import type {
   StrategyUpdate,
 } from "../types/strategies";
 import * as api from "../api/strategies";
-import { loadPerformance, loadAllPerformance } from "./strategies/performanceActions";
 import {
   openCreateModal,
   closeCreateModal,
@@ -111,24 +110,6 @@ export async function loadInitialData(): Promise<void> {
     ]);
 
     let strategies = strategiesResult.strategies;
-
-    const nonTemplates = strategies.filter((s) => !s.is_template);
-    const hasActive = nonTemplates.some((s) => s.is_active);
-    if (!hasActive && nonTemplates.length > 0) {
-      const defaultStrategy = nonTemplates.find((s) => s.is_default) || nonTemplates[0];
-      if (defaultStrategy) {
-        const strategyId = defaultStrategy.internal_id ?? Number(defaultStrategy.id);
-        try {
-          await api.updateStrategy(strategyId, { is_active: true });
-          strategies = strategies.map((s) => ({
-            ...s,
-            is_active: s.id === defaultStrategy.id,
-          }));
-        } catch (_error) {
-          console.error("Failed to auto-activate default strategy:", _error);
-        }
-      }
-    }
 
     state = {
       ...state,
@@ -264,10 +245,6 @@ export function clearError(): void {
 export function selectStrategy(strategy: StrategyConfig | null): void {
   state = { ...state, selectedStrategy: strategy, performance: null };
   notify();
-  if (strategy) {
-    const strategyId = strategy.internal_id ?? Number(strategy.id);
-    loadPerformance(strategyId);
-  }
 }
 
 let initialized = false;
@@ -277,11 +254,4 @@ export function initStrategiesState(): void {
   loadInitialData();
 }
 
-export {
-  loadPerformance,
-  loadAllPerformance,
-  openCreateModal,
-  closeCreateModal,
-  openEditModal,
-  closeEditModal,
-};
+export { openCreateModal, closeCreateModal, openEditModal, closeEditModal };

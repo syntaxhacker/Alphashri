@@ -1,15 +1,7 @@
 import { useCallback } from "react";
 import dayjs from "dayjs";
-import {
-  Flex,
-  Tabs,
-  SegmentedControl,
-  Text,
-  Group,
-  Button,
-  Select,
-  TextInput,
-} from "@mantine/core";
+import { Flex, Tabs, Text, Group, Button, Select } from "@mantine/core";
+import { TradingDatePicker } from "../common/TradingDatePicker";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import {
   getPaperTradingState,
@@ -18,7 +10,7 @@ import {
   setFilterToDate,
   setFilterSymbol,
 } from "../../state/paperTrading";
-import type { PaperTradingView, PaperTrade, BotInfo } from "../../types/paperTrading";
+import type { PaperTradingView, PaperTrade, BotSummary } from "../../types/paperTrading";
 import {
   refreshLiveData,
   refreshHistoryData,
@@ -30,6 +22,8 @@ import {
   startPaperBot,
   stopPaperBot,
 } from "../../api/paperTrading";
+import { BotCardStrip } from "./BotCardStrip";
+import { StatusBadge } from "../common/BadgeComponents";
 
 export function usePaperViewActions(activeBotId: string | null) {
   const handleViewChange = useCallback(
@@ -46,8 +40,8 @@ export function usePaperViewActions(activeBotId: string | null) {
         let fromStr = currentState.filterFromDate;
         let toStr = currentState.filterToDate;
         if (!fromStr && !toStr) {
-          fromStr = dayjs().subtract(60, "day").format("YYYY-MM-DD");
-          toStr = dayjs().format("YYYY-MM-DD");
+          fromStr = dayjs().format("YYYY-MM-DD");
+          toStr = fromStr;
           setFilterFromDate(fromStr);
           setFilterToDate(toStr);
         }
@@ -94,12 +88,14 @@ export function usePaperViewActions(activeBotId: string | null) {
 export function useHistoryFilters() {
   const handleFilterFromDate = useCallback((value: string) => {
     setFilterFromDate(value || null);
-    refreshHistoryData();
+    const s = getPaperTradingState();
+    refreshHistoryData(s.filterBot || null, value || null, s.filterToDate);
   }, []);
 
   const handleFilterToDate = useCallback((value: string) => {
     setFilterToDate(value || null);
-    refreshHistoryData();
+    const s = getPaperTradingState();
+    refreshHistoryData(s.filterBot || null, s.filterFromDate, value || null);
   }, []);
 
   const handleFilterSymbol = useCallback((value: string | null) => {
@@ -111,36 +107,27 @@ export function useHistoryFilters() {
 
 export function LiveFilters({
   activeBotId,
+  bots,
   state,
   actions,
 }: {
   activeBotId: string | null;
+  bots: BotSummary[];
   state: ReturnType<typeof getPaperTradingState>;
   actions: ReturnType<typeof usePaperViewActions>;
 }) {
+  const selectedBot = bots.find((b) => b.id === activeBotId);
+  const botName = selectedBot?.name || "Bot";
+
   return (
     <Flex gap="sm" align="center" wrap="wrap">
+      <BotCardStrip bots={bots} selectedBotId={activeBotId} onSelect={actions.handleBotSelect} />
       <Group gap="xs">
-        <Text size="sm" c="dimmed">
-          Bot:
-        </Text>
-        <SegmentedControl
-          size="sm"
-          value={activeBotId || ""}
-          onChange={actions.handleBotSelect}
-          data={state.availableBots.map((bot: BotInfo) => ({ value: bot.id, label: bot.name }))}
-          data-testid="bot-selector-dropdown"
+        <StatusBadge
+          running={state.botRunning}
+          pid={state.botPid ?? undefined}
+          data-testid="bot-status"
         />
-      </Group>
-      <Group gap="xs">
-        <Text size="sm" c="dimmed">
-          Status:
-        </Text>
-        <Text size="sm" fw={500} c={state.botRunning ? "green" : "red"} data-testid="bot-status">
-          {state.botRunning ? `Running${state.botPid ? ` (${state.botPid})` : ""}` : "Stopped"}
-        </Text>
-      </Group>
-      <Group gap="xs">
         <Button
           size="xs"
           variant="subtle"
@@ -160,7 +147,7 @@ export function LiveFilters({
           onClick={actions.handleToggleBot}
           data-testid={state.botRunning ? "stop-bot-btn" : "start-bot-btn"}
         >
-          {state.botRunning ? "Stop Bot" : "Start Bot"}
+          {state.botRunning ? `Stop ${botName}` : `Start ${botName}`}
         </Button>
       </Group>
     </Flex>
@@ -183,26 +170,24 @@ export function HistoryFilters({
         <Text size="sm" c="dimmed">
           From:
         </Text>
-        <TextInput
-          type="date"
-          size="sm"
+        <TradingDatePicker
           value={state.filterFromDate || ""}
-          onChange={(e) => filters.handleFilterFromDate(e.currentTarget.value)}
+          onChange={(v) => filters.handleFilterFromDate(v)}
           data-testid="filter-from-date"
-          styles={{ input: { width: 150 } }}
+          w={150}
+          placeholder="From"
         />
       </Group>
       <Group gap="xs">
         <Text size="sm" c="dimmed">
           To:
         </Text>
-        <TextInput
-          type="date"
-          size="sm"
+        <TradingDatePicker
           value={state.filterToDate || ""}
-          onChange={(e) => filters.handleFilterToDate(e.currentTarget.value)}
+          onChange={(v) => filters.handleFilterToDate(v)}
           data-testid="filter-to-date"
-          styles={{ input: { width: 150 } }}
+          w={150}
+          placeholder="To"
         />
       </Group>
       <Group gap="xs">
@@ -225,17 +210,19 @@ export function HistoryFilters({
 
 export function FiltersBar({
   activeBotId,
+  bots,
   state,
   actions,
   filters,
 }: {
   activeBotId: string | null;
+  bots: BotSummary[];
   state: ReturnType<typeof getPaperTradingState>;
   actions: ReturnType<typeof usePaperViewActions>;
   filters: ReturnType<typeof useHistoryFilters>;
 }) {
   if (state.currentView === "live")
-    return <LiveFilters activeBotId={activeBotId} state={state} actions={actions} />;
+    return <LiveFilters activeBotId={activeBotId} bots={bots} state={state} actions={actions} />;
   if (state.currentView === "history") return <HistoryFilters state={state} filters={filters} />;
   return null;
 }
@@ -251,6 +238,7 @@ export function PaperTradingTabs({
     <Tabs
       value={state.currentView}
       onChange={onViewChange}
+      variant="default"
       className="paper-trading-tabs"
       id="paper-tabs"
       data-testid="paper-trading-tabs"

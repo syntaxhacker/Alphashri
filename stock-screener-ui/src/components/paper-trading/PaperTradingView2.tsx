@@ -14,6 +14,8 @@ import {
   refreshBotLiveData,
   listBots,
 } from "../../api/paperTrading";
+import { fetchBotSummaries } from "../../api/botControlApi";
+import type { BotSummary } from "../../types/paperTrading";
 import {
   PaperPositionsTable,
   PaperPortfolioCard,
@@ -30,6 +32,7 @@ import {
 
 export function PaperTradingView() {
   const [activeBotId, setActiveBotId] = useState<string | null>(null);
+  const [botSummaries, setBotSummaries] = useState<BotSummary[]>([]);
 
   useStoreSubscription(subscribe);
   const state = getPaperTradingState();
@@ -43,8 +46,9 @@ export function PaperTradingView() {
 
   const loadInitialData = async () => {
     try {
-      const bots = await listBots();
+      const [bots, summaries] = await Promise.all([listBots(), fetchBotSummaries()]);
       setAvailableBots(bots);
+      setBotSummaries(summaries);
       const botId = activeBotId || (bots.length > 0 ? bots[0].id : null);
       if (botId) {
         setActiveBotId(botId);
@@ -112,6 +116,7 @@ export function PaperTradingView() {
           <Flex data-testid="paper-filters">
             <FiltersBar
               activeBotId={activeBotId}
+              bots={botSummaries}
               state={state}
               actions={{ ...actions, handleBotSelect }}
               filters={filters}
@@ -131,7 +136,7 @@ export function PaperTradingView() {
           <Flex h="100%" gap="md" direction={{ base: "column", md: "row" }} className="paper-live-view" id="live-view-grid">
             <Flex
               direction="column"
-              w={{ base: "100%", md: "30%" }}
+              w={{ base: "100%", md: "50%" }}
               style={{ minWidth: 0 }}
               className="paper-left-panel"
               id="left-panel"
@@ -183,7 +188,11 @@ export function PaperTradingView() {
             data-testid="paper-settings-panel"
             direction="column"
           >
-            <PaperSettings />
+            <ScrollArea flex={1} style={{ minHeight: 0 }} type="auto" offsetScrollbars>
+              <Flex direction="column" w="100%" style={{ maxWidth: 780, margin: "0 auto" }}>
+                <PaperSettings />
+              </Flex>
+            </ScrollArea>
           </Flex>
         )}
       </Flex>

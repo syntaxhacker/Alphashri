@@ -1,12 +1,16 @@
 import dayjs from "dayjs";
 import type { PaperTrade } from "../../types/paperTrading";
 
-export function getUniqueStrategies(trades: PaperTrade[]): string[] {
-  const strategies = new Set<string>();
+export function getUniqueStrategies(trades: PaperTrade[]): { id: number; name: string }[] {
+  const map = new Map<number, string>();
   for (const trade of trades) {
-    if (trade.strategy_name) strategies.add(trade.strategy_name);
+    if (trade.strategy_id && trade.strategy_name) {
+      map.set(trade.strategy_id, trade.strategy_name);
+    }
   }
-  return Array.from(strategies).sort();
+  return Array.from(map.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function getUniqueBots(trades: PaperTrade[]): Array<{ id: string; name: string }> {

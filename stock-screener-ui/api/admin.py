@@ -4,7 +4,7 @@ from db.database import SessionLocal, get_db
 from db.models import LLMRun, User
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from pydantic import BaseModel
 
@@ -89,7 +89,7 @@ def get_llm_stats(db: Session = Depends(get_db), admin = Depends(require_admin))
         func.sum(LLMRun.total_tokens).label('tokens'),
         func.sum(LLMRun.cost_usd).label('cost_usd')
     ).filter(
-        LLMRun.created_at >= datetime.utcnow() - timedelta(days=7)
+        LLMRun.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
     ).group_by(
         func.date(LLMRun.created_at)
     ).order_by(

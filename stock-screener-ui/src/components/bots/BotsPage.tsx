@@ -1,16 +1,6 @@
 import { useEffect, useCallback, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import {
-  Box,
-  Tabs,
-  Button,
-  Group,
-  Stack,
-  Text,
-  Badge,
-  ActionIcon,
-  Table,
-} from "@mantine/core";
+import { Box, Tabs, Button, Group, Stack, Text, Badge, ActionIcon, Table } from "@mantine/core";
 import {
   IconRobot,
   IconChartLine,
@@ -153,7 +143,8 @@ export function BotsPage() {
                 <Table.Td>
                   <StatusBadge
                     running={bot.running}
-                    pid={bot.pid}
+                    pid={bot.pid ?? undefined}
+                    statusUnknown={bot.status === "UNKNOWN"}
                     data-testid={`bot-status-${bot.id}`}
                   />
                 </Table.Td>

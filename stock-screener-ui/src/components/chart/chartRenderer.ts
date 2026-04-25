@@ -10,6 +10,7 @@ import type { ORBZone } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import { formatTimeLabel } from "../../utils/chartTimeUtils";
+import { getCandleFromParams } from "../../utils/chartUtils";
 import {
   CHART_DARK_BG, CHART_LIGHT_BG,
   CHART_DARK_TEXT, CHART_LIGHT_TEXT,

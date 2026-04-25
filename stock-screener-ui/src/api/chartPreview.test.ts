@@ -111,7 +111,7 @@ describe("fetchChartPreview", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null when response data has error field", async () => {
+  it("returns data with error field instead of null", async () => {
     mockedFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ ...mockData, error: "Symbol not found" }),
@@ -119,7 +119,8 @@ describe("fetchChartPreview", () => {
 
     const result = await fetchChartPreview("BADSIGN");
 
-    expect(result).toBeNull();
+    expect(result).toBeTruthy();
+    expect(result?.error).toBe("Symbol not found");
   });
 
   it("returns null on network error", async () => {

@@ -380,10 +380,9 @@ class TestOrderPlacementFlow:
             BUY = "BUY"
             SELL = "SELL"
 
-        # Mock the paper trading module
-        with patch('api.paper_trading.get_paper_trader') as mock_get_trader, \
-             patch('api.paper_trading.get_risk_manager') as mock_get_risk_manager, \
-             patch('api.paper_trading.OrderSide', OrderSide):
+        with patch('api.paper.orders.get_paper_trader') as mock_get_trader, \
+             patch('api.paper.orders.get_risk_manager') as mock_get_risk_manager, \
+             patch('api.paper.orders.OrderSide', OrderSide):
             # Create mock risk manager
             mock_risk_manager = Mock()
             mock_risk_manager.validate_trade = Mock(return_value={'valid': True})
@@ -395,6 +394,7 @@ class TestOrderPlacementFlow:
                     self.positions = {}
                     self.cash = 100000.0
                     self.initial_capital = 100000.0
+                    self.trades = []
                 
                 def get_portfolio_status(self):
                     total_value = self.cash + sum(
@@ -403,7 +403,8 @@ class TestOrderPlacementFlow:
                     return {
                         'total_value': total_value,
                         'cash': self.cash,
-                        'margin_used': 0.0
+                        'margin_used': 0.0,
+                        'initial_capital': self.initial_capital,
                     }
                 
                 def place_order(self, symbol, side, quantity, price, stop_loss=None, take_profit=None):
@@ -488,7 +489,7 @@ class TestPositionManagementFlow:
         4. Close position
         5. Verify realized P&L
         """
-        with patch('api.paper_trading.get_paper_trader') as mock_get_trader:
+        with patch('api.paper.portfolio.get_paper_trader') as mock_get_trader:
             # Create mock trader
             mock_trader = Mock()
             mock_trader.cash = 100000.0
@@ -598,12 +599,9 @@ class TestPnLCalculationFlow:
         bot = bot_response.json()
         
         # Load real TradeJournal class via importlib to avoid conftest mock
-        ROOT = Path(__file__).resolve().parents[2]
-        journal_path = ROOT / "trading" / "journal.py"
-        spec = importlib.util.spec_from_file_location("real_journal", str(journal_path))
-        journal_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(journal_mod)
-        TradeJournal = journal_mod.TradeJournal
+        import importlib
+        journal_pkg = importlib.import_module("trading.journal")
+        TradeJournal = journal_pkg.TradeJournal
         
         temp_dir = tempfile.mkdtemp()
         journal = TradeJournal(journal_dir=temp_dir, user_id=test_user.id)
@@ -700,19 +698,12 @@ class TestTradeJournalingFlow:
         2. Log trades using real journal
         3. Verify trades are recorded
         """
-        import importlib.util
-        from pathlib import Path
         import tempfile
 
-        ROOT = Path(__file__).resolve().parents[2]
-        journal_path = ROOT / "trading" / "journal.py"
-        spec = importlib.util.spec_from_file_location("real_trading_journal", str(journal_path))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        RealTradeJournal = mod.TradeJournal
+        from trading.journal import TradeJournal
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            journal = RealTradeJournal(journal_dir=tmpdir, user_id=user.id)
+            journal = TradeJournal(journal_dir=tmpdir, user_id=user.id)
 
             # Log some test trades
             trade1 = {
@@ -778,21 +769,15 @@ class TestTradeJournalingFlow:
         """Test that journal persists to file and can be loaded."""
         from pathlib import Path
         from datetime import datetime
-        import importlib.util
+
+        from trading.journal import TradeJournal
 
         # Create journal in temp directory
         journal_dir = str(tmp_path / "journals" / "1")
         # Ensure directory exists before creating TradeJournal
         Path(journal_dir).mkdir(parents=True, exist_ok=True)
 
-        # Load real TradeJournal class dynamically to avoid conftest mock
-        ROOT = Path(__file__).resolve().parents[2]
-        journal_path = ROOT / "trading" / "journal.py"
-        spec = importlib.util.spec_from_file_location("real_trading_journal", str(journal_path))
-        journal_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(journal_mod)
-        RealTradeJournal = journal_mod.TradeJournal
-        journal = RealTradeJournal(journal_dir=journal_dir, user_id=1)
+        journal = TradeJournal(journal_dir=journal_dir, user_id=1)
 
         # Log a trade
         trade = {
@@ -817,7 +802,7 @@ class TestTradeJournalingFlow:
         journal.save_journal()
 
         # Create new journal instance (simulating app restart)
-        journal2 = RealTradeJournal(journal_dir=journal_dir, user_id=1)
+        journal2 = TradeJournal(journal_dir=journal_dir, user_id=1)
         # Load using the same journal_dir and daily filename
         journal2.load_journal(str(Path(journal_dir) / f"journal_{datetime.now().strftime('%Y%m%d')}.json"))
 
@@ -868,7 +853,7 @@ class TestBotLifecycleFlow:
         bot = bot_response.json()
 
         # Start bot (in test mode)
-        with patch('api.bots.start_bot_process') as mock_start:
+        with patch('api.bots_api.bot_operations.start_bot_process') as mock_start:
             mock_process = Mock()
             mock_process.pid = 12345
             mock_process.poll = Mock(return_value=None)  # Process running
@@ -889,7 +874,7 @@ class TestBotLifecycleFlow:
         # We're testing the flow, not the actual process management
 
         # Stop bot
-        with patch('api.bots.stop_bot_process') as mock_stop:
+        with patch('api.bots_api.bot_operations.stop_bot_process') as mock_stop:
             stop_response = client.post(f"/api/bots/{bot['id']}/stop")
 
             assert stop_response.status_code == 200
@@ -961,9 +946,9 @@ class TestErrorRecoveryInTrading:
                         del self.positions[symbol]
                 return order
 
-        with patch('api.paper_trading.get_paper_trader') as mock_get_trader, \
-             patch('api.paper_trading.get_risk_manager') as mock_get_risk_manager, \
-             patch('api.paper_trading.OrderSide', OrderSide):
+        with patch('api.paper.orders.get_paper_trader') as mock_get_trader, \
+             patch('api.paper.orders.get_risk_manager') as mock_get_risk_manager, \
+             patch('api.paper.orders.OrderSide', OrderSide):
             fake_trader = FakeTrader()
             mock_get_trader.return_value = fake_trader
             mock_risk_manager = Mock()
@@ -995,7 +980,7 @@ class TestErrorRecoveryInTrading:
 
     def test_recovery_after_api_failure(self, client: TestClient):
         """Test that API can recover from temporary failures."""
-        with patch('api.paper_trading.get_paper_trader') as mock_get_trader:
+        with patch('api.paper.portfolio.get_paper_trader') as mock_get_trader:
             # Create a mock trader for successful case
             success_trader = Mock()
             portfolio_data = {

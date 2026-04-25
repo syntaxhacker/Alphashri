@@ -1,42 +1,62 @@
-# Autoresearch: SR Breakout Win Rate & Profit Factor
+# Autoresearch: ORB Best Conditions for Highest Profit Factor
 
 ## Objective
-Optimize the Classic S/R Breakout strategy parameters to maximize profit factor (PF) and win rate (WR) without overfitting. The strategy enters when price breaks above R1 (or below S1) pivot level with a buffer.
+Find the optimal ORB strategy parameters (or_minutes, sl_pct, tp_pct, breakout_buffer_pct, cooldown_bars, enable_shorts) that maximize profit factor on the top 25 most volatile NSE stocks over 90 days of historical data.
 
 ## Metrics
 - **Primary**: profit_factor (ratio, higher is better)
-- **Secondary**: win_rate (%), total_pnl (INR), total_trades (count)
+- **Secondary**: win_rate (%), net_pnl (INR), total_trades (count), stocks_with_trades (count)
 
 ## How to Run
-`./autoresearch.sh` — reads cached data, outputs `METRIC` lines. Fast, no API calls.
+`./autoresearch.sh` — reads cached data from `../experiments/data/orb_cache.pkl`, outputs `METRIC` lines. Fast (< 30s), no API calls.
 
-Parameters via env vars: `SR_SL`, `SR_TP`, `SR_BUFFER`, `SR_PIVOT`, `SR_MIN_HOUR`, `SR_MIN_MIN`, `SR_MAX_HOUR`, `SR_MAX_MIN`.
+Parameters via env vars: `ORB_OR_MIN`, `ORB_SL`, `ORB_TP`, `ORB_BUFFER`, `ORB_COOLDOWN`, `ORB_SHORTS`, `ORB_TRADE_SIZE`, `ORB_MIN_ENTRY`, `ORB_CACHE_DIR`.
 
 ## Files in Scope
-- `trading/sr_breakout_signals.py` — Signal generator (pivot calc, entry/exit logic)
-- `trading/multi_strategy_runner.py` — Scan loop, entry price source, position monitoring
-- `experiments/sr_data_cache.pkl` — Cached 1-min intraday + daily data for 18 symbols (Apr 2, 2026)
-- `scripts/sr_benchmark.py` — Benchmark script (reads cache, runs simulation)
+- `experiments/orb_cache.py` — Pre-fetches intraday data for top 25 volatile stocks
+- `experiments/orb_benchmark.py` — Standalone ORB simulation on cached data, outputs METRIC lines
+- `autoresearch.sh` — Shell wrapper that sets env vars and runs benchmark
+- `backtest/costs.py` — Trading costs calculator (imported by benchmark, DO NOT modify)
+- `backtest/strategies/orb.py` — Reference Nautilus ORB strategy (DO NOT modify)
 
 ## Off Limits
-- No changes to ORB strategy or other strategies
-- No changes to DB models or API endpoints
+- No changes to ORB strategy code (`backtest/strategies/orb.py`)
+- No changes to API endpoints or DB models
 - No new dependencies
+- No changes to trading/live strategy code
 
 ## Constraints
-- Data is a single day (Apr 2, 2026) — avoid overfitting to this specific day
-- Strategy must remain simple (fixed % SL/TP, pivot-based entry)
-- Must work with the existing `multi_strategy_runner.py` architecture
+- Benchmark uses cached data (pre-fetched once via `python3 experiments/orb_cache.py`)
+- Simulation must match Nautilus strategy behavior (PF calculated from net_pnl after costs)
+- Data is 90 days of 5-min candles
+- Only F&O stocks (liquid enough for real trading)
 
 ## What's Been Tried
-- **Entry price fix**: Changed from stale daily close to live 1-min close (already applied before session)
-- **Baseline SL=1.0% TP=3.0%**: PF=1.25, WR=18.8% — most breakouts at 9:15 reverse immediately
-- **Time filter min=10:30**: Biggest single improvement. PF=6.05. Opening gaps are false breakouts.
-- **Camarilla pivot**: Better than classic for NSE intraday. PF=13.93 when combined with time filter.
-- **SL=0.6% TP=2.0%**: Sweet spot. PF=17.42, WR=53.3%. Tight SL works because time filter prevents early whipsaws.
-- **Buffer variation (0.05-0.3)**: No significant effect with camarilla pivot.
-- **Max entry time**: No significant effect (14:00-15:30 all similar).
-- **Fibonacci pivot**: Worse than classic and camarilla for this data set.
 
-## Best Result
-**PF=17.42, WR=53.3%** — camarilla pivot, SL=0.6%, TP=2.0%, buffer=0.1%, min_entry=10:30
+### Baseline (PF=0.91)
+OR_MIN=45, SL=0.4%, TP=1.2%, buffer=0.3%, cooldown=3, no shorts → 1485 trades, net=-56K
+
+### Parameter Sweeps (individual)
+| Parameter | Best | PF | Notes |
+|-----------|------|----|-------|
+| SL | 1.0% | 1.00 | Wider SL reduces SL exits but not enough alone |
+| TP | 2.0% | 0.98 | Moderate TP best; 0.6% too tight, 3.0% too ambitious |
+| OR_MIN | 45 (base) | 0.91 | Shorter = more noise, longer = fewer trades |
+| Buffer | 0.2% | 0.94 | 0.3% best when combined with other params |
+| Cooldown | **6** | **1.15** | **Biggest single lever. Reduces overtrading.** |
+| Shorts | OFF | better | Doubles trades without improving WR |
+
+### Grid Search (CD=6 + SL×TP×Buffer)
+Best: SL=0.8/TP=2.0/BUF=0.3 or SL=1.0/TP=1.5/BUF=0.3 → PF=1.27
+
+### Cooldown Sweep with best SL/TP/Buffer
+CD=15 (75 min) → PF=1.29 (best). CD=30 → PF=1.28 (diminishing returns)
+
+### Time Filter
+min_entry=10:30 → PF=1.08 (no help, cooldown already handles it)
+
+### Best Config Found
+```
+OR_MIN=45, SL=1.0%, TP=1.5%, buffer=0.3%, cooldown=15 bars (75 min), shorts=OFF
+→ PF=1.29, WR=41.5%, 615 trades/90 days, net_pnl=+101,690 INR
+```
