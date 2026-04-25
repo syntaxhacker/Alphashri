@@ -19,6 +19,7 @@ import type {
   Trade,
   Week52Levels,
 } from "../types/backtest";
+import { MARKER_ENTRY, EXIT_COLORS, EXIT_DEFAULT } from "../config/colors";
 interface RawCandle {
   index: string[]; // IST strings like "2025-10-24T09:15:00"
   open: number[];
@@ -288,18 +289,13 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
       price: trade.entry_price,
       marker: {
         symbol: "triangle",
-        color: "#00BFFF",
+        color: MARKER_ENTRY,
         size: 16,
       },
       trade: tradeData,
     });
 
     // Exit marker
-    const exitColors: Record<string, string> = {
-      TP: "#00E676",
-      SL: "#FF1744",
-      EOD: "#FFEA00",
-    };
     markers.push({
       trade_id: idx + 1,
       type: "exit",
@@ -309,7 +305,7 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
       price: trade.exit_price,
       marker: {
         symbol: "circle",
-        color: exitColors[trade.exit_reason] || "#FFEA00",
+        color: EXIT_COLORS[trade.exit_reason] || EXIT_DEFAULT,
         size: 14,
       },
       trade: tradeData,

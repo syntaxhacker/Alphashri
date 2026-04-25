@@ -1,4 +1,4 @@
-import { Box, Flex, Tabs } from "@mantine/core";
+import { Box, Flex, Tabs, Center } from "@mantine/core";
 import { IconTable, IconHistory } from "@tabler/icons-react";
 import type { BacktestResult } from "../../types/backtest";
 import {
@@ -51,10 +51,10 @@ export function BacktestLeftPanel({
       style={{ display: "flex", flexDirection: "column" }}
     >
       <Tabs.List flex="0 0 auto">
-        <Tabs.Tab value="results" leftSection={<IconTable size={14} />}>
+        <Tabs.Tab value="results" leftSection={<IconTable size={14} />} data-testid="backtest-tab-results">
           Results
         </Tabs.Tab>
-        <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>
+        <Tabs.Tab value="history" leftSection={<IconHistory size={14} />} data-testid="backtest-tab-history">
           History
         </Tabs.Tab>
       </Tabs.List>
@@ -74,18 +74,9 @@ export function BacktestLeftPanel({
             }}
           />
         ) : !results || results.length === 0 ? (
-          <Box
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "var(--mantine-color-dimmed)",
-            }}
-            data-testid="results-empty"
-          >
+          <Center h="100%" c="dimmed" data-testid="results-empty">
             No results yet. Run a backtest.
-          </Box>
+          </Center>
         ) : (
           <Flex
             direction="column"

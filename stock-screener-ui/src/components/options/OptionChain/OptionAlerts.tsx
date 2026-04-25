@@ -96,7 +96,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       {alerts.length === 0 ? (
         <Box
           py="lg"
-          style={{ textAlign: "center" }}
+          ta="center"
           className="alerts-empty-state"
           data-testid="options-alerts-empty"
         >

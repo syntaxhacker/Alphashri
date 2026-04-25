@@ -216,6 +216,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
         variant="contained"
         multiple
         defaultValue={["signals", "watching"]}
+        data-testid="watchlist-scan-accordion"
         styles={{
           item: { border: "none", backgroundColor: "transparent" },
           control: { ...SECTION_HEADER },
@@ -223,7 +224,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
           chevron: { fontSize: 10 },
         }}
       >
-        <Accordion.Item value="signals">
+        <Accordion.Item value="signals" data-testid="watchlist-scan-signals">
           <Accordion.Control>
             <Group gap="xs">
               <Badge size="xs" variant="filled" color="green" circle />
@@ -267,7 +268,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
           </Accordion.Panel>
         </Accordion.Item>
 
-        <Accordion.Item value="watching">
+        <Accordion.Item value="watching" data-testid="watchlist-scan-watching">
           <Accordion.Control>
             <Group gap="xs">
               <Badge size="xs" variant="filled" color="yellow" circle />
@@ -311,7 +312,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
           </Accordion.Panel>
         </Accordion.Item>
 
-        <Accordion.Item value="skipped">
+        <Accordion.Item value="skipped" data-testid="watchlist-scan-skipped">
           <Accordion.Control>
             <Group gap="xs">
               <Badge size="xs" variant="filled" color="gray" circle />

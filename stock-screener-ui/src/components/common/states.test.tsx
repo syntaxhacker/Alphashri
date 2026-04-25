@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
-import { LoadingState, EmptyState, ErrorAlert } from "./states";
+import { InlineLoader, EmptyState, ErrorAlert } from "./states";
 
 afterEach(cleanup);
 
@@ -10,19 +10,14 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   return <MantineProvider>{children}</MantineProvider>;
 }
 
-describe("LoadingState", () => {
-  it("renders with default message", () => {
-    render(<LoadingState />, { wrapper: Wrapper });
-    expect(screen.getByText("Loading...")).toBeTruthy();
-  });
-
-  it("renders custom message", () => {
-    render(<LoadingState message="Fetching data..." />, { wrapper: Wrapper });
-    expect(screen.getByText("Fetching data...")).toBeTruthy();
+describe("InlineLoader", () => {
+  it("renders", () => {
+    render(<InlineLoader />, { wrapper: Wrapper });
+    expect(document.querySelector(".mantine-Loader-root")).toBeTruthy();
   });
 
   it("renders data-testid", () => {
-    render(<LoadingState data-testid="test-loading" />, { wrapper: Wrapper });
+    render(<InlineLoader data-testid="test-loading" />, { wrapper: Wrapper });
     expect(screen.getByTestId("test-loading")).toBeTruthy();
   });
 });

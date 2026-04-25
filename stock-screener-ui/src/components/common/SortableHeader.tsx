@@ -26,7 +26,6 @@ export function SortableHeader({
 
   return (
     <Table.Th
-      style={{ cursor: sortable ? "pointer" : "default" }}
       onClick={() => sortable && onSort(columnKey)}
       data-testid={testId || `sort-header-${columnKey}`}
     >

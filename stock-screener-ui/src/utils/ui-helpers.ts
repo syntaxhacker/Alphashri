@@ -1,3 +1,5 @@
+import { POSITIVE, NEGATIVE, MARKER_TP, MARKER_SL, MARKER_EOD, EXIT_DEFAULT } from "../config/colors";
+
 export function formatCurrency(amount: number | undefined | null, precision: number = 0): string {
   if (amount === undefined || amount === null || isNaN(amount)) return "0";
   return `₹${amount.toFixed(precision)}`;
@@ -183,23 +185,20 @@ export function getPnLClass(value: number): "positive" | "negative" | "" {
  * Get color for P&L value
  */
 export function getPnLColor(value: number): string {
-  if (value >= 0) return "#00E676"; // Green
-  return "#FF1744"; // Red
+  if (value >= 0) return POSITIVE;
+  return NEGATIVE;
 }
 
-/**
- * Get exit reason color
- */
 export function getExitReasonColor(reason: string): string {
   switch (reason) {
     case "TP":
-      return "#00E676"; // Green
+      return MARKER_TP;
     case "SL":
-      return "#FF1744"; // Red
+      return MARKER_SL;
     case "EOD":
-      return "#FFEA00"; // Yellow
+      return MARKER_EOD;
     default:
-      return "#FFEA00";
+      return EXIT_DEFAULT;
   }
 }
 

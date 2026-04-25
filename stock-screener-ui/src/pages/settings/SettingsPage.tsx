@@ -84,7 +84,7 @@ export function SettingsPage() {
       id="settings-page"
       className="settings-page"
       data-testid="settings-page"
-      style={{ height: "100%", overflow: "hidden" }}
+      h="100%" style={{ overflow: "hidden" }}
     >
       <CompactPage
         title="Settings"
