@@ -59,9 +59,10 @@ async function navigateToBot(page: Page) {
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
-  const botSelector = page.locator('[data-testid="bot-selector-dropdown"]');
-  await botSelector.waitFor({ state: "visible", timeout: 10000 });
-  await botSelector.getByText("All Strategies Bot", { exact: false }).first().click();
+  const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
+  await firstBotCard.click();
+
+  await page.getByTestId("tab-live").click();
   await page.waitForLoadState("networkidle");
 }
 
