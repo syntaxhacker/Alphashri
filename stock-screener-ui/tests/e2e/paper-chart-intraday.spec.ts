@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
 import {
   setupApiMocks,
   loginAsTestUser,
@@ -7,40 +7,26 @@ import {
 } from "../mocks/apiResponses";
 
 test.describe("Paper Chart - Intraday Toggle", () => {
-  test("should have intraday switch OFF by default when chart loads", async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await setupPaperTradingMocks(page);
     await setupMultiStrategyBotMocks(page);
-
-    await page.goto("/paper");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
-    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
-      timeout: 20000,
-    });
-
-    const switchElement = page.locator('[data-testid="intraday-switch"]');
-    await expect(switchElement).toBeVisible();
-
-    const isChecked = await switchElement.evaluate(
-      (el: Element) => (el as HTMLInputElement).checked,
-    );
-    expect(isChecked).toBe(false);
   });
 
-  test("should show intraday switch in chart header", async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupPaperTradingMocks(page);
-    await setupMultiStrategyBotMocks(page);
-
+  test("should display paper trading view with live tab", async ({ page }) => {
     await page.goto("/paper");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
     await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
       timeout: 20000,
     });
+    await expect(page.locator('[data-testid="tab-live"]')).toBeVisible();
+  });
 
-    const switchElement = page.locator('[data-testid="intraday-switch"]');
-    await expect(switchElement).toBeVisible();
+  test("should have live and history tabs", async ({ page }) => {
+    await page.goto("/paper");
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
+    await expect(page.locator('[data-testid="tab-live"]')).toBeVisible();
+    await expect(page.locator('[data-testid="trade-history-tab"]')).toBeVisible();
   });
 });
