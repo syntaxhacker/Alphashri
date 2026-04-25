@@ -10,11 +10,6 @@ import {
   navigateToPaperTradingWithBot,
 } from "../helpers/paperTradingHelpers";
 
-async function selectBot(page: import("@playwright/test").Page, _botId: string) {
-  const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
-  await firstBotCard.click();
-}
-
 const TEST_BOT_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
 // Shared beforeEach for paper trading tests
