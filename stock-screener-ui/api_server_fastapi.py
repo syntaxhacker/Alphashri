@@ -93,26 +93,45 @@ def _compute_screener(provider, mode, screener, profile_filters):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f'🚀 Alphashri API starting...')
-    from db.database import init_db
-    init_db()
-    print("✅ Database initialized")
-    _load_instruments()
-    from cache.redis_client import get_redis_client, is_cache_available, _load_stats_from_redis
-    get_redis_client()
-    if is_cache_available():
-        _load_stats_from_redis()
-        print("✅ Redis cache connected")
-    else:
-        print("⚠️ Redis unavailable — caching disabled")
-    news_poller = asyncio.create_task(news_poller_task())
-    print("📰 News poller started")
-    asyncio.create_task(news_startup_prefetch())
-    print("📰 News prefetch scheduled")
-    prewarm = asyncio.create_task(screener_prewarm_task())
-    print("🔄 Screener pre-warm started")
+    prewarm = None
+    news_poller = None
+    try:
+        from db.database import init_db
+        init_db()
+        print("✅ Database initialized")
+        _load_instruments()
+        from cache.redis_client import get_redis_client, is_cache_available, _load_stats_from_redis
+        get_redis_client()
+        if is_cache_available():
+            _load_stats_from_redis()
+            print("✅ Redis cache connected")
+        else:
+            print("⚠️ Redis unavailable — caching disabled")
+        import traceback
+        try:
+            news_poller = asyncio.create_task(news_poller_task())
+            print("📰 News poller started")
+        except Exception as e:
+            print(f"⚠️ News poller failed: {e} {traceback.format_exc()}")
+        try:
+            asyncio.create_task(news_startup_prefetch())
+            print("📰 News prefetch scheduled")
+        except Exception as e:
+            print(f"⚠️ News prefetch failed: {e}")
+        try:
+            prewarm = asyncio.create_task(screener_prewarm_task())
+            print("🔄 Screener pre-warm started")
+        except Exception as e:
+            print(f"⚠️ Screener prewarm failed: {e}")
+    except Exception as e:
+        import traceback
+        print(f"❌ Startup failed: {e}")
+        print(traceback.format_exc())
     yield
-    prewarm.cancel()
-    news_poller.cancel()
+    if prewarm:
+        prewarm.cancel()
+    if news_poller:
+        news_poller.cancel()
     print("📰 News poller stopped")
     from cache.redis_client import close_redis
     from db.database import engine

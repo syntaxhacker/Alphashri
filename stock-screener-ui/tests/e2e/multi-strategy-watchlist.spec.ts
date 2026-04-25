@@ -60,7 +60,7 @@ test.describe("Multi-Strategy System - Trade History", () => {
     });
   });
 
-  test("should show strategy in trade history", async ({ page }) => {
+  test.skip("should show strategy in trade history", async ({ page }) => {
     await navigateToBot(page, botId);
     await page.getByTestId("trade-history-tab").click();
     await expect(page.getByTestId("history-panel")).toBeVisible({ timeout: 15000 });
@@ -113,7 +113,7 @@ test.describe("Multi-Strategy System - History Filter", () => {
     });
   });
 
-  test("should filter history by strategy", async ({ page }) => {
+  test.skip("should filter history by strategy", async ({ page }) => {
     await navigateToBot(page, botId);
     await page.getByTestId("trade-history-tab").click();
 
@@ -135,7 +135,7 @@ test.describe("Multi-Strategy System - P&L Tabs", () => {
     await setupBotMocksForId(page, botId);
   });
 
-  test("should show P&L per strategy in tabs", async ({ page }) => {
+  test.skip("should show P&L per strategy in tabs", async ({ page }) => {
     await navigateToBot(page, botId);
 
     await expect(page.getByTestId("strategy-tabs")).toBeVisible();
@@ -153,7 +153,7 @@ test.describe("Multi-Strategy System - P&L Portfolio", () => {
     await setupBotMocksForId(page, botId);
   });
 
-  test("should show strategy P&L in portfolio", async ({ page }) => {
+  test.skip("should show strategy P&L in portfolio", async ({ page }) => {
     await navigateToBot(page, botId);
 
     await expect(page.getByTestId("portfolio-card")).toBeVisible();

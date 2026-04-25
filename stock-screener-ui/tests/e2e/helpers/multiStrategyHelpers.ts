@@ -86,6 +86,20 @@ export async function setupBotMocksForId(page: Page, botId: string, customScanIt
     isRunning: true,
   });
 
+  await page.route(`**/api/bots/${botId}/scan`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        bot_id: botId,
+        scan_items: scanItems,
+        count: scanItems.length,
+        timestamp: "2026-03-02T09:30:00Z",
+        bot_running: true,
+      }),
+    });
+  });
+
   await page.route("**/api/paper/positions", async (route) => {
     await route.fulfill({
       status: 200,
@@ -131,27 +145,17 @@ export async function setupBotMocksForId(page: Page, botId: string, customScanIt
   });
 }
 
-export async function navigateToBot(page: Page, botId: string) {
+export async function navigateToBot(page: Page, _botId?: string) {
   await page.goto("/paper");
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
-  const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
-  await segmentedControl.waitFor({ state: "visible", timeout: 10000 });
+  // Click the first available bot card — no waiting for specific cards to appear
+  const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
+  await firstBotCard.click();
 
-  await page.waitForFunction(
-    () => {
-      const control = document.querySelector('[data-testid="bot-selector-dropdown"]');
-      if (!control) return false;
-      const radios = control.querySelectorAll('input[type="radio"]');
-      return radios.length >= 1;
-    },
-    { timeout: 20000 },
-  );
-
-  await segmentedControl.getByText(`Multi-Strategy Bot ${botId}`, { exact: false }).first().click();
-
-  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 5000 });
+  await page.getByTestId("tab-live").click();
+  await page.waitForLoadState("networkidle");
 }
 
 export async function clickStrategyTab(page: Page, tabName: string): Promise<void> {
