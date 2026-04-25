@@ -126,7 +126,8 @@ export function BotsPage() {
                 <Table.Td>
                   <Group gap="xs">
                     <Box
-                      w={8} h={8}
+                      w={8}
+                      h={8}
                       style={{
                         borderRadius: "50%",
                         backgroundColor: bot.running ? BOT_RUNNING : BOT_STOPPED,

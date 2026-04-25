@@ -6,17 +6,27 @@ import type {
 } from "../../types/paperTrading";
 import { theme } from "../../config/theme";
 import {
-  MARKER_BUY, MARKER_SELL, MARKER_STOP_LOSS, MARKER_CUSTOM,
+  MARKER_BUY,
+  MARKER_SELL,
+  MARKER_STOP_LOSS,
+  MARKER_CUSTOM,
   MARKER_BORDER,
-  PIVOT_R1, PIVOT_PP, PIVOT_S1,
-  PIVOT_OR_HIGH, PIVOT_OR_LOW,
-  PIVOT_52W_HIGH, PIVOT_52W_LOW,
-  POSITIVE, NEGATIVE,
+  PIVOT_R1,
+  PIVOT_PP,
+  PIVOT_S1,
+  PIVOT_OR_HIGH,
+  PIVOT_OR_LOW,
+  PIVOT_52W_HIGH,
+  PIVOT_52W_LOW,
+  POSITIVE,
+  NEGATIVE,
   MARKER_ENTRY,
   CHART_DARK_MUTED,
-  BULLISH, BEARISH,
+  BULLISH,
+  BEARISH,
   ORB_AREA,
-  VOLUME_BULLISH, VOLUME_BEARISH,
+  VOLUME_BULLISH,
+  VOLUME_BEARISH,
 } from "../../config/colors";
 
 export const TIMEFRAME_OPTIONS = [
@@ -179,24 +189,79 @@ function buildMarkLines(
 ): any[] {
   const lines: any[] = [];
   if (current_position) {
-    lines.push({ name: `SL ${current_position.stop_loss}`, yAxis: current_position.stop_loss, lineStyle: { color: MARKER_STOP_LOSS, type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `TP ${current_position.take_profit}`, yAxis: current_position.take_profit, lineStyle: { color: MARKER_SELL, type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
+    lines.push({
+      name: `SL ${current_position.stop_loss}`,
+      yAxis: current_position.stop_loss,
+      lineStyle: { color: MARKER_STOP_LOSS, type: "dashed", width: 2 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `TP ${current_position.take_profit}`,
+      yAxis: current_position.take_profit,
+      lineStyle: { color: MARKER_SELL, type: "dashed", width: 2 },
+      label: { position: "insideEndTop" },
+    });
   }
   if (orb_levels && showOrb) {
-    lines.push({ name: `OR-H ${orb_levels.or_high}`, yAxis: orb_levels.or_high, lineStyle: { color: PIVOT_OR_HIGH, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `OR-L ${orb_levels.or_low}`, yAxis: orb_levels.or_low, lineStyle: { color: PIVOT_OR_LOW, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({
+      name: `OR-H ${orb_levels.or_high}`,
+      yAxis: orb_levels.or_high,
+      lineStyle: { color: PIVOT_OR_HIGH, type: "dashed", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `OR-L ${orb_levels.or_low}`,
+      yAxis: orb_levels.or_low,
+      lineStyle: { color: PIVOT_OR_LOW, type: "dashed", width: 1 },
+      label: { position: "insideEndTop" },
+    });
   }
   if (pivot_levels && showPivot) {
-    lines.push({ name: `R2 ${pivot_levels.r2}`, yAxis: pivot_levels.r2, lineStyle: { color: PIVOT_R1, type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `R1 ${pivot_levels.r1}`, yAxis: pivot_levels.r1, lineStyle: { color: PIVOT_R1, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `PP ${pivot_levels.pp}`, yAxis: pivot_levels.pp, lineStyle: { color: PIVOT_PP, type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `S1 ${pivot_levels.s1}`, yAxis: pivot_levels.s1, lineStyle: { color: PIVOT_S1, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
-    lines.push({ name: `S2 ${pivot_levels.s2}`, yAxis: pivot_levels.s2, lineStyle: { color: PIVOT_S1, type: "dotted", width: 1 }, label: { position: "insideEndTop" } });
+    lines.push({
+      name: `R2 ${pivot_levels.r2}`,
+      yAxis: pivot_levels.r2,
+      lineStyle: { color: PIVOT_R1, type: "dotted", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `R1 ${pivot_levels.r1}`,
+      yAxis: pivot_levels.r1,
+      lineStyle: { color: PIVOT_R1, type: "dashed", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `PP ${pivot_levels.pp}`,
+      yAxis: pivot_levels.pp,
+      lineStyle: { color: PIVOT_PP, type: "dotted", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `S1 ${pivot_levels.s1}`,
+      yAxis: pivot_levels.s1,
+      lineStyle: { color: PIVOT_S1, type: "dashed", width: 1 },
+      label: { position: "insideEndTop" },
+    });
+    lines.push({
+      name: `S2 ${pivot_levels.s2}`,
+      yAxis: pivot_levels.s2,
+      lineStyle: { color: PIVOT_S1, type: "dotted", width: 1 },
+      label: { position: "insideEndTop" },
+    });
   }
   if (week52_levels && show52w) {
-    lines.push({ name: `52W-H ${week52_levels.high_52w}`, yAxis: week52_levels.high_52w, lineStyle: { color: PIVOT_52W_HIGH, type: "dashed", width: 2 }, label: { position: "insideEndTop" } });
+    lines.push({
+      name: `52W-H ${week52_levels.high_52w}`,
+      yAxis: week52_levels.high_52w,
+      lineStyle: { color: PIVOT_52W_HIGH, type: "dashed", width: 2 },
+      label: { position: "insideEndTop" },
+    });
     if (week52_levels.low_52w > 0) {
-      lines.push({ name: `52W-L ${week52_levels.low_52w}`, yAxis: week52_levels.low_52w, lineStyle: { color: PIVOT_52W_LOW, type: "dashed", width: 1 }, label: { position: "insideEndTop" } });
+      lines.push({
+        name: `52W-L ${week52_levels.low_52w}`,
+        yAxis: week52_levels.low_52w,
+        lineStyle: { color: PIVOT_52W_LOW, type: "dashed", width: 1 },
+        label: { position: "insideEndTop" },
+      });
     }
   }
   return lines;
@@ -278,7 +343,15 @@ export function buildChartOption(
     selectedTradeId,
     showAllTrades,
   );
-  const markLines = buildMarkLines(current_position, orb_levels, week52_levels, pivot_levels, showOrbLines, showPivotLines, show52wLines);
+  const markLines = buildMarkLines(
+    current_position,
+    orb_levels,
+    week52_levels,
+    pivot_levels,
+    showOrbLines,
+    showPivotLines,
+    show52wLines,
+  );
 
   return {
     backgroundColor: bgColor,
@@ -360,20 +433,21 @@ export function buildChartOption(
                 label: { color: "inherit", fontSize: 11, formatter: "{b}" },
               }
             : undefined,
-        markArea: orb_levels && showOrbLines
-          ? {
-              data: [
-                [
-                  {
-                    xAxis: times[0],
-                    yAxis: orb_levels.or_low,
-                    itemStyle: { color: ORB_AREA },
-                  },
-                  { xAxis: times[Math.min(8, times.length - 1)], yAxis: orb_levels.or_high },
+        markArea:
+          orb_levels && showOrbLines
+            ? {
+                data: [
+                  [
+                    {
+                      xAxis: times[0],
+                      yAxis: orb_levels.or_low,
+                      itemStyle: { color: ORB_AREA },
+                    },
+                    { xAxis: times[Math.min(8, times.length - 1)], yAxis: orb_levels.or_high },
+                  ],
                 ],
-              ],
-            }
-          : undefined,
+              }
+            : undefined,
       },
       { name: "Entry", type: "scatter", data: entryMarkers, symbolSize: 18, z: 10 },
       { name: "TP Exit", type: "scatter", data: tpMarkers, symbolSize: 16, z: 10 },
@@ -386,8 +460,7 @@ export function buildChartOption(
         yAxisIndex: 1,
         data: volumeData,
         itemStyle: {
-          color: (params: any) =>
-            params.data[2] === 1 ? VOLUME_BULLISH : VOLUME_BEARISH,
+          color: (params: any) => (params.data[2] === 1 ? VOLUME_BULLISH : VOLUME_BEARISH),
         },
       },
     ],

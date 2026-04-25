@@ -41,7 +41,12 @@ const navItems = [
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];
 
-export function NavbarNested({ activePath, collapsed, onToggleCollapse, onMobileNavigate }: NavbarNestedProps) {
+export function NavbarNested({
+  activePath,
+  collapsed,
+  onToggleCollapse,
+  onMobileNavigate,
+}: NavbarNestedProps) {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const { user } = useAuth();
 

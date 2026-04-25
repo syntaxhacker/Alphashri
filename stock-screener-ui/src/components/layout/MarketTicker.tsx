@@ -80,7 +80,8 @@ export function MarketTicker() {
         data-testid="market-ticker"
         id="market-ticker"
         className="market-ticker market-ticker-loading"
-        px="sm" py="xs"
+        px="sm"
+        py="xs"
       >
         <Group gap="sm">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -98,7 +99,8 @@ export function MarketTicker() {
         data-testid="market-ticker"
         id="market-ticker"
         className="market-ticker market-ticker-error"
-        px="sm" py="xs"
+        px="sm"
+        py="xs"
       >
         <Text size="sm" c="dimmed">
           Market data unavailable
@@ -122,7 +124,8 @@ export function MarketTicker() {
       data-testid="market-ticker"
       id="market-ticker"
       className="market-ticker"
-      px="sm" py="xs"
+      px="sm"
+      py="xs"
       style={{
         overflowX: "auto",
       }}

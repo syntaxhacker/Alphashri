@@ -94,13 +94,10 @@ function NewsPageDesktop({
   articleDetailProps: React.ComponentProps<typeof ArticleDetail>;
 }) {
   return (
-    <Flex
-      data-testid="news-page"
-      className="news-page"
-      h="100%" style={{ overflow: "hidden" }}
-    >
+    <Flex data-testid="news-page" className="news-page" h="100%" style={{ overflow: "hidden" }}>
       <Stack
-        w="35%" miw={300}
+        w="35%"
+        miw={300}
         style={{
           borderRight: "1px solid var(--mantine-color-default-border)",
           overflow: "hidden",

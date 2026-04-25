@@ -1,4 +1,11 @@
-import { POSITIVE, NEGATIVE, MARKER_TP, MARKER_SL, MARKER_EOD, EXIT_DEFAULT } from "../config/colors";
+import {
+  POSITIVE,
+  NEGATIVE,
+  MARKER_TP,
+  MARKER_SL,
+  MARKER_EOD,
+  EXIT_DEFAULT,
+} from "../config/colors";
 
 export function formatCurrency(amount: number | undefined | null, precision: number = 0): string {
   if (amount === undefined || amount === null || isNaN(amount)) return "0";
