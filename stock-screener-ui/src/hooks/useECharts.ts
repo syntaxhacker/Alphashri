@@ -1,51 +1,61 @@
-import { useEffect, useRef } from "react";
+import { useRef, useEffect, useCallback } from "react";
 
 interface UseEChartsOptions {
   isDark: boolean;
-  onClick?: (params: any) => void;
+  onChartClick?: (params: any) => void;
 }
 
-export function useECharts(
-  chartRef: React.RefObject<HTMLDivElement | null>,
-  option: any,
-  { isDark, onClick }: UseEChartsOptions,
-) {
+interface UseEChartsReturn {
+  chartRef: React.RefObject<HTMLDivElement | null>;
+  chartInstance: React.MutableRefObject<any>;
+  setChartOption: (option: any) => void;
+}
+
+export function useECharts(options: UseEChartsOptions): UseEChartsReturn {
+  const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<any>(null);
+  const isDarkRef = useRef(options.isDark);
+  const onChartClickRef = useRef(options.onChartClick);
+  const { onChartClick } = options;
 
-  useEffect(() => {
+  isDarkRef.current = options.isDark;
+  onChartClickRef.current = onChartClick;
+
+  const setChartOption = useCallback((option: any) => {
     if (!chartRef.current) return;
-    if (!option || (typeof option === "object" && Object.keys(option).length === 0)) return;
-
     const echartsLib = (window as any).echarts;
     if (!echartsLib) return;
 
-    if (chartInstance.current) chartInstance.current.dispose();
-
-    chartInstance.current = echartsLib.init(chartRef.current, isDark ? "dark" : null);
-    chartInstance.current.setOption(option);
-    chartInstance.current.resize();
-
-    if (onClick) {
-      chartInstance.current.on("click", onClick);
+    if (!chartInstance.current) {
+      chartInstance.current = echartsLib.init(chartRef.current, isDarkRef.current ? "dark" : null);
+      if (onChartClickRef.current) {
+        chartInstance.current.on("click", onChartClickRef.current);
+      }
     }
 
+    chartInstance.current.setOption(option, true);
+    chartInstance.current.resize();
+  }, []);
+
+  useEffect(() => {
     const handleResize = () => chartInstance.current?.resize();
     window.addEventListener("resize", handleResize);
 
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => chartInstance.current?.resize())
-        : null;
-
-    resizeObserver?.observe(chartRef.current);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && chartRef.current) {
+      ro = new ResizeObserver(() => chartInstance.current?.resize());
+      ro.observe(chartRef.current);
+    }
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      resizeObserver?.disconnect();
-      chartInstance.current?.dispose();
-      chartInstance.current = null;
+      ro?.disconnect();
+      if (chartInstance.current) {
+        chartInstance.current.dispose();
+        chartInstance.current = null;
+      }
     };
-  }, [option, isDark, onClick, chartRef]);
+  }, []);
 
-  return chartInstance;
+  return { chartRef, chartInstance, setChartOption };
 }

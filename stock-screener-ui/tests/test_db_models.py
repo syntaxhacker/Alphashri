@@ -306,6 +306,7 @@ class TestStrategyConfigModel:
         assert strategy.tp_pct == 1.2
         assert strategy.min_or_range_pct == 0.5
         assert strategy.max_or_range_pct == 3.0
+        assert strategy.breakout_buffer_pct == 0.3
         assert strategy.max_positions == 5
         assert strategy.max_capital_per_trade_pct == 0.10
         assert strategy.max_daily_loss_pct == 0.02

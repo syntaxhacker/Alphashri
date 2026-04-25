@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 
 from trading.orb_signals import ORBSignal, SignalType
 from trading.base_signals import BaseSignalGenerator
+from trading.week52_utils import calculate_52w_high
 
 
 class Week52ChaserSignalGenerator(BaseSignalGenerator):
@@ -33,6 +34,11 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
         current_price = market_data.get("current_price")
         high_52w = market_data.get("high_52w")
+        daily_highs: List[float] = market_data.get("daily_highs", [])
+
+        # Use provided high_52w or calculate from daily_highs using shared utility
+        if high_52w is None:
+            high_52w = calculate_52w_high(daily_highs)
 
         if current_price is None or high_52w is None or current_price <= 0:
             return None
@@ -60,7 +66,7 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
             or_range_pct=round(distance_pct, 2),
             adx=float(market_data.get("adx", 0.0) or 0.0),
             rsi=float(market_data.get("rsi", 0.0) or 0.0),
-            notes=f"Price within {distance_pct:.2f}% of 52W high ₹{high_52w:.2f}",
+            notes=f"Within {distance_pct:.2f}% of 52W high ₹{high_52w:.2f} | SL {self.sl_pct}% TP {self.tp_pct}% | ADX {float(market_data.get('adx', 0.0) or 0.0):.0f} RSI {float(market_data.get('rsi', 0.0) or 0.0):.0f}",
         )
 
     def check_exit(

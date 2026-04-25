@@ -207,6 +207,11 @@ export async function openNewsPanel(page: Page) {
   await expect(panel).toHaveClass(/open/, { timeout: 15000 });
 }
 
+export async function openRootPage(page: Page) {
+  await page.goto("/");
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+}
+
 export async function gotoNewsPage(page: Page) {
   await page.goto("/news");
   await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });

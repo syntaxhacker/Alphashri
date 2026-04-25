@@ -1,22 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useMantineColorScheme, Loader, Box } from "@mantine/core";
+import { useMantineColorScheme } from "@mantine/core";
 import { fetchChartPreview, ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption } from "../../components/chart/chartRenderer";
-
-const TIMEFRAMES = [
-  { value: 1, label: "1m" },
-  { value: 5, label: "5m" },
-  { value: 15, label: "15m" },
-  { value: 30, label: "30m" },
-  { value: 60, label: "1h" },
-];
-
-const OR_MINUTES = [
-  { value: 30, label: "OR 30m" },
-  { value: 45, label: "OR 45m" },
-  { value: 60, label: "OR 60m" },
-];
+import { TIMEFRAMES, OR_MINUTES_OPTIONS } from "../../config/constants";
 
 const ChartView: React.FC = () => {
   const { symbol } = useParams<{ symbol: string }>();
@@ -30,6 +17,7 @@ const ChartView: React.FC = () => {
   const [timeframe, setTimeframe] = useState(15);
   const [orMinutes, setOrMinutes] = useState(45);
   const [showPivots, setShowPivots] = useState(true);
+  const [show52wHigh, setShow52wHigh] = useState(true);
 
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<any>(null);
@@ -80,8 +68,10 @@ const ChartView: React.FC = () => {
       candles: data.candles,
       orb_zones: data.orb_zones,
       pivot_levels: data.pivot_levels,
+      high_52w: data.high_52w,
       size: "full",
       showPivots,
+      show52wHigh,
       isDark,
     });
 
@@ -107,20 +97,20 @@ const ChartView: React.FC = () => {
       window.removeEventListener("resize", handleResize);
       chartInstanceRef.current?.dispose();
     };
-  }, [data, showPivots, loading, isDark]);
+  }, [data, showPivots, show52wHigh, loading, isDark]);
 
   if (!symbol) {
     return (
-      <Box className="chart-view-error" data-testid="chart-view-error">
+      <div className="chart-view-error" data-testid="chart-view-error">
         <p>No symbol specified</p>
         <button onClick={() => navigate("/")}>Back to Screener</button>
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box className="chart-view" data-testid="chart-view" id="chart-view">
-      <Box className="chart-view-header" id="chart-header" data-testid="chart-header">
+    <div className="chart-view" data-testid="chart-view" id="chart-view">
+      <div className="chart-view-header" id="chart-header" data-testid="chart-header">
         <button className="back-btn" onClick={() => navigate(-1)} data-testid="chart-back-btn">
           ← Back
         </button>
@@ -128,8 +118,8 @@ const ChartView: React.FC = () => {
           {symbol}
         </h2>
 
-        <Box className="chart-controls" id="chart-controls" data-testid="chart-controls">
-          <Box className="control-group">
+        <div className="chart-controls" id="chart-controls" data-testid="chart-controls">
+          <div className="control-group">
             <label>Timeframe:</label>
             <select
               value={timeframe}
@@ -142,24 +132,24 @@ const ChartView: React.FC = () => {
                 </option>
               ))}
             </select>
-          </Box>
+          </div>
 
-          <Box className="control-group">
+          <div className="control-group">
             <label>OR:</label>
             <select
               value={orMinutes}
               onChange={(e) => setOrMinutes(parseInt(e.target.value))}
               data-testid="chart-or-select"
             >
-              {OR_MINUTES.map((or) => (
+              {OR_MINUTES_OPTIONS.map((or) => (
                 <option key={or.value} value={or.value}>
                   {or.label}
                 </option>
               ))}
             </select>
-          </Box>
+          </div>
 
-          <Box className="control-group">
+          <div className="control-group">
             <label>
               <input
                 type="checkbox"
@@ -169,48 +159,65 @@ const ChartView: React.FC = () => {
               />
               Pivots
             </label>
-          </Box>
-        </Box>
-      </Box>
+          </div>
 
-      <Box className="chart-view-body" id="chart-body" data-testid="chart-body">
+          <div className="control-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={show52wHigh}
+                onChange={(e) => setShow52wHigh(e.target.checked)}
+                data-testid="chart-52w-checkbox"
+              />
+              52W High
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="chart-view-body" id="chart-body" data-testid="chart-body">
         {loading && (
-          <Box className="chart-loading" data-testid="chart-loading">
-            <Loader size="sm" />
-          </Box>
+          <div className="chart-loading" data-testid="chart-loading">
+            <p>Loading chart...</p>
+          </div>
         )}
 
         {error && (
-          <Box className="chart-error" data-testid="chart-error">
+          <div className="chart-error" data-testid="chart-error">
             <p>{error}</p>
             <button onClick={() => window.location.reload()} data-testid="chart-retry-btn">
               Retry
             </button>
-          </Box>
+          </div>
         )}
 
         {!loading && !error && data && (
-          <Box
+          <div
             ref={chartRef}
             className="chart-container-full"
             data-testid="candlestick-chart"
             id="candlestick-chart"
-            w="100%"
-            h="100%"
+            style={{ width: "100%", height: "100%" }}
           />
         )}
-      </Box>
+      </div>
 
       {data && (
-        <Box className="chart-view-footer" id="chart-footer" data-testid="chart-footer">
+        <div className="chart-view-footer" id="chart-footer" data-testid="chart-footer">
           <span>{data.candles.length} candles</span>
           <span>•</span>
           <span>TF: {timeframe}m</span>
           <span>•</span>
           <span>OR: {orMinutes}m</span>
-        </Box>
+          {data.high_52w && (
+            <>
+              <span>•</span>
+              <span>52W High: ₹{data.high_52w.toFixed(2)}</span>
+            </>
+          )}
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
 

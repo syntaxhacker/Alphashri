@@ -36,7 +36,7 @@ from api.auth import (
 class TestCompleteAuthFlow:
     """Test complete authentication flow from registration to logout."""
 
-    def test_complete_registration_to_logout_flow(self, client: TestClient):
+    def test_complete_registration_to_logout_flow(self, unauth_client):
         """
         Test the complete user lifecycle:
         1. Register new user
@@ -51,7 +51,7 @@ class TestCompleteAuthFlow:
             "display_name": "Flow Test User"
         }
 
-        register_response = client.post("/api/auth/register", json=user_data)
+        register_response = unauth_client.post("/api/auth/register", json=user_data)
         assert register_response.status_code == 201
 
         register_data = register_response.json()
@@ -65,7 +65,7 @@ class TestCompleteAuthFlow:
 
         # Step 2: Access protected route with access token
         headers = {"Authorization": f"Bearer {access_token}"}
-        me_response = client.get("/api/auth/me", headers=headers)
+        me_response = unauth_client.get("/api/auth/me", headers=headers)
 
         assert me_response.status_code == 200
         user_info = me_response.json()
@@ -74,7 +74,7 @@ class TestCompleteAuthFlow:
         assert user_info["initial_capital"] == 1000000.0  # Default value
 
         # Step 3: Update user settings
-        update_response = client.put(
+        update_response = unauth_client.put(
             "/api/auth/me",
             headers=headers,
             params={
@@ -89,7 +89,7 @@ class TestCompleteAuthFlow:
         assert updated_user["initial_capital"] == 2000000.0
 
         # Step 4: Refresh the access token
-        refresh_response = client.post(
+        refresh_response = unauth_client.post(
             "/api/auth/refresh",
             json={"refresh_token": refresh_token}
         )
@@ -105,19 +105,19 @@ class TestCompleteAuthFlow:
 
         # Step 5: Verify old access token still works (brief overlap period)
         old_headers = {"Authorization": f"Bearer {access_token}"}
-        old_me_response = client.get("/api/auth/me", headers=old_headers)
+        old_me_response = unauth_client.get("/api/auth/me", headers=old_headers)
 
         # Old token may or may not work depending on revocation implementation
         # This tests current behavior
 
         # Step 6: Verify new token works
         new_headers = {"Authorization": f"Bearer {new_access_token}"}
-        new_me_response = client.get("/api/auth/me", headers=new_headers)
+        new_me_response = unauth_client.get("/api/auth/me", headers=new_headers)
 
         assert new_me_response.status_code == 200
 
         # Step 7: Logout
-        logout_response = client.post(
+        logout_response = unauth_client.post(
             "/api/auth/logout",
             headers={"Authorization": f"Bearer {refresh_token}"}
         )
@@ -126,7 +126,7 @@ class TestCompleteAuthFlow:
         assert logout_response.json()["message"] == "Logged out successfully"
 
         # Step 8: Verify refresh token no longer works after logout
-        failed_refresh = client.post(
+        failed_refresh = unauth_client.post(
             "/api/auth/refresh",
             json={"refresh_token": refresh_token}
         )
@@ -216,7 +216,7 @@ class TestCompleteAuthFlow:
 class TestTokenLifecycle:
     """Test token lifecycle including expiration and refresh."""
 
-    def test_access_token_expiration_in_api(self, client: TestClient):
+    def test_access_token_expiration_in_api(self, unauth_client):
         """Test that expired access tokens are rejected by API."""
         # Create and register a user
         user_data = {
@@ -225,7 +225,7 @@ class TestTokenLifecycle:
             "display_name": "Expire Test User"
         }
 
-        client.post("/api/auth/register", json=user_data)
+        unauth_client.post("/api/auth/register", json=user_data)
 
         # Create an expired access token manually
         from api.auth import create_access_token
@@ -246,7 +246,7 @@ class TestTokenLifecycle:
 
         # Try to use expired token
         headers = {"Authorization": f"Bearer {expired_token}"}
-        me_response = client.get("/api/auth/me", headers=headers)
+        me_response = unauth_client.get("/api/auth/me", headers=headers)
 
         assert me_response.status_code == 401
         assert "expired" in me_response.json()["detail"].lower()
@@ -357,7 +357,7 @@ class TestTokenLifecycle:
 class TestSessionManagement:
     """Test session management and cleanup."""
 
-    def test_session_persistence_across_requests(self, client: TestClient):
+    def test_session_persistence_across_requests(self, unauth_client):
         """Test that session persists across multiple API requests."""
         # Register and login
         user_data = {
@@ -366,13 +366,13 @@ class TestSessionManagement:
             "display_name": "Persistence Test User"
         }
 
-        register_response = client.post("/api/auth/register", json=user_data)
+        register_response = unauth_client.post("/api/auth/register", json=user_data)
         access_token = register_response.json()["access_token"]
         headers = {"Authorization": f"Bearer {access_token}"}
 
         # Make multiple requests with same token
         for i in range(5):
-            me_response = client.get("/api/auth/me", headers=headers)
+            me_response = unauth_client.get("/api/auth/me", headers=headers)
             assert me_response.status_code == 200
             assert me_response.json()["email"] == user_data["email"]
 
@@ -446,7 +446,7 @@ class TestSessionManagement:
 class TestErrorRecovery:
     """Test error handling and recovery scenarios."""
 
-    def test_recovery_after_invalid_token(self, client: TestClient):
+    def test_recovery_after_invalid_token(self, unauth_client):
         """Test that user can recover after using invalid token."""
         # Register a user
         user_data = {
@@ -455,18 +455,18 @@ class TestErrorRecovery:
             "display_name": "Recovery Test User"
         }
 
-        register_response = client.post("/api/auth/register", json=user_data)
+        register_response = unauth_client.post("/api/auth/register", json=user_data)
         access_token = register_response.json()["access_token"]
 
         # Try to access with invalid token first
         invalid_headers = {"Authorization": "Bearer invalid.token.here"}
-        failed_response = client.get("/api/auth/me", headers=invalid_headers)
+        failed_response = unauth_client.get("/api/auth/me", headers=invalid_headers)
 
         assert failed_response.status_code == 401
 
         # Now use valid token - should work
         valid_headers = {"Authorization": f"Bearer {access_token}"}
-        success_response = client.get("/api/auth/me", headers=valid_headers)
+        success_response = unauth_client.get("/api/auth/me", headers=valid_headers)
 
         assert success_response.status_code == 200
 
@@ -588,7 +588,7 @@ class TestCleanupOnFailure:
 class TestTokenPersistence:
     """Test token persistence and usage over time."""
 
-    def test_access_token_works_until_expiration(self, client: TestClient):
+    def test_access_token_works_until_expiration(self, unauth_client):
         """Test that access token continues to work until expiration."""
         # Register user
         user_data = {
@@ -597,13 +597,13 @@ class TestTokenPersistence:
             "display_name": "Token Persistence User"
         }
 
-        register_response = client.post("/api/auth/register", json=user_data)
+        register_response = unauth_client.post("/api/auth/register", json=user_data)
         access_token = register_response.json()["access_token"]
         headers = {"Authorization": f"Bearer {access_token}"}
 
         # Use token multiple times
         for i in range(10):
-            me_response = client.get("/api/auth/me", headers=headers)
+            me_response = unauth_client.get("/api/auth/me", headers=headers)
             assert me_response.status_code == 200
             assert me_response.json()["email"] == user_data["email"]
 

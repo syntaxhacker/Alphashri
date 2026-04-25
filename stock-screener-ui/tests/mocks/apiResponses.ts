@@ -713,6 +713,42 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
     });
   });
 
+  // Mock bot summaries endpoint (used by BotCardStrip)
+  await page.route("**/api/bots/summary", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: BOT_UUID_1,
+          name: "Multi-Strategy Bot",
+          is_active: true,
+          running: false,
+          pid: null,
+          status: "stopped",
+          position_count: 0,
+          strategies: [
+            { id: STRATEGY_UUID_1, name: "ORB Conservative", strategy_type: "ORB" },
+            { id: STRATEGY_UUID_2, name: "ORB Aggressive", strategy_type: "ORB" },
+          ],
+        },
+        {
+          id: BOT_UUID_2,
+          name: "Multi-Strategy Bot",
+          is_active: true,
+          running: true,
+          pid: 12345,
+          status: "running",
+          position_count: 2,
+          strategies: [
+            { id: STRATEGY_UUID_1, name: "ORB Conservative", strategy_type: "ORB" },
+            { id: STRATEGY_UUID_2, name: "ORB Aggressive", strategy_type: "ORB" },
+          ],
+        },
+      ]),
+    });
+  });
+
   // Mock bot start
   await page.route(/\/api\/bots\/[a-f0-9-]+\/start/, async (route) => {
     await route.fulfill({
@@ -786,6 +822,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             pnl: 500,
             pnl_pct: 1.33,
             strategy_name: "ORB Conservative",
+            strategy_id: 1,
           },
           {
             id: 2,
@@ -797,6 +834,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             pnl: 400,
             pnl_pct: 1.35,
             strategy_name: "ORB Aggressive",
+            strategy_id: 2,
           },
         ],
       }),
@@ -820,6 +858,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             pnl: 500,
             pnl_pct: 1.33,
             strategy_name: "ORB Conservative",
+            strategy_id: 1,
           },
           {
             id: 2,
@@ -831,6 +870,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
             pnl: 400,
             pnl_pct: 1.35,
             strategy_name: "ORB Aggressive",
+            strategy_id: 2,
           },
         ],
         count: 2,

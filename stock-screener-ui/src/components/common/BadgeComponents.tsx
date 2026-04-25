@@ -56,6 +56,7 @@ export function ExitReasonBadge({
 interface StatusBadgeProps {
   running: boolean;
   pid?: number;
+  statusUnknown?: boolean;
   size?: string;
   "data-testid"?: string;
 }
@@ -63,9 +64,17 @@ interface StatusBadgeProps {
 export function StatusBadge({
   running,
   pid,
+  statusUnknown,
   size = "sm",
   "data-testid": testId,
 }: StatusBadgeProps) {
+  if (statusUnknown) {
+    return (
+      <Badge color="yellow" variant="light" size={size} data-testid={testId}>
+        Unknown (Redis unavailable)
+      </Badge>
+    );
+  }
   return (
     <Badge color={running ? "green" : "gray"} variant="light" size={size} data-testid={testId}>
       {running ? (pid ? `Running (PID ${pid})` : "Running") : "Stopped"}

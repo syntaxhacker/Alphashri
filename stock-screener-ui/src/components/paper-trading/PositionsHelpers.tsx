@@ -1,19 +1,36 @@
-import { Box, Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
-import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
+import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
+import {
+  getPaperTradingState,
+  setSelectedSymbol,
+  setSelectedTradeId,
+  setShowAllTrades,
+} from "../../state/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import {
   formatCurrencyIN,
   formatNumber,
   formatElapsed,
   getPnLTextColor,
+  getStrategyTypeFromName,
 } from "../../utils/ui-helpers";
-import { SideBadge } from "../common/BadgeComponents";
+import { SideBadge } from "../common";
+import { ClickableSymbol } from "../common";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
   const orHigh = item.or_high;
   const orLow = item.or_low;
+  const high52w = item.high_52w;
+
+  // Use 52W high if ORB levels not available
+  if (
+    (orHigh == null || orLow == null || orHigh <= 0 || orLow <= 0) &&
+    high52w != null &&
+    high52w > 0
+  ) {
+    return ((high52w - price) / high52w) * 100;
+  }
   if (price == null || orHigh == null || orLow == null || orHigh <= 0 || orLow <= 0) return 9999;
   if (price <= orHigh && price >= orLow) {
     const toHigh = ((orHigh - price) / orHigh) * 100;
@@ -30,10 +47,10 @@ export function formatNear(item: PaperScanItem): string {
   return `${v.toFixed(2)}%`;
 }
 
-export function groupPositionsByStrategy(positions: PaperPosition[]): Map<string, PaperPosition[]> {
-  const groups = new Map<string, PaperPosition[]>();
+export function groupPositionsByStrategy(positions: PaperPosition[]): Map<number, PaperPosition[]> {
+  const groups = new Map<number, PaperPosition[]>();
   for (const pos of positions) {
-    const key = pos.strategy_name || `Strategy ${pos.strategy_id || 0}`;
+    const key = pos.strategy_id || 0;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(pos);
   }
@@ -87,7 +104,13 @@ function PositionRow({
   onClose,
 }: {
   pos: PaperPosition;
-  onSelect: (symbol: string) => void;
+  onSelect: (
+    symbol: string,
+    tradeId?: string,
+    strategyName?: string,
+    strategyType?: string,
+    strategyId?: number,
+  ) => void;
   onClose: (symbol: string, price: number) => void;
 }) {
   const pnlClass = getPnLTextColor(pos.pnl ?? 0);
@@ -95,12 +118,32 @@ function PositionRow({
 
   return (
     <Table.Tr
-      key={pos.symbol}
-      onClick={() => onSelect(pos.symbol)}
+      key={pos.order_id || `${pos.strategy_id}-${pos.symbol}`}
+      onClick={() =>
+        onSelect(
+          pos.symbol,
+          pos.order_id,
+          pos.strategy_name,
+          pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined),
+          pos.strategy_id,
+        )
+      }
+      style={{ cursor: "pointer" }}
       data-testid={`position-row-${pos.symbol}`}
     >
       <Table.Td>
-        <Text fw={600}>{pos.symbol}</Text>
+        <ClickableSymbol
+          symbol={pos.symbol}
+          onClick={() =>
+            onSelect(
+              pos.symbol,
+              pos.order_id,
+              pos.strategy_name,
+              pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined),
+              pos.strategy_id,
+            )
+          }
+        />
       </Table.Td>
       <Table.Td>
         <SideBadge side={pos.side} data-testid={`side-badge-${pos.symbol}`} />
@@ -164,10 +207,24 @@ export function PositionsTableBody({
     }
   };
 
-  const handleSelect = async (symbol: string) => {
+  const handleSelect = async (
+    symbol: string,
+    tradeId?: string,
+    strategyName?: string,
+    strategyType?: string,
+    strategyId?: number,
+  ) => {
     setSelectedSymbol(symbol);
+    if (tradeId) setSelectedTradeId(tradeId, strategyType, strategyId);
+    setShowAllTrades(true);
     const state = getPaperTradingState();
-    await fetchPaperChart(symbol, undefined, state.chartTimeframe);
+    await fetchPaperChart(
+      symbol,
+      undefined,
+      state.chartTimeframe,
+      state.selectedStrategyId,
+      state.intradayOnly,
+    );
   };
 
   return (
@@ -190,7 +247,7 @@ export function PositionsTableBody({
       <Table.Tbody>
         {positions.map((pos) => (
           <PositionRow
-            key={pos.symbol}
+            key={pos.order_id || `${pos.strategy_id}-${pos.symbol}`}
             pos={pos}
             onSelect={handleSelect}
             onClose={handleClosePosition}
@@ -207,7 +264,13 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
   const handleSelectSymbol = async (symbol: string) => {
     setSelectedSymbol(symbol);
     const currentState = getPaperTradingState();
-    await fetchPaperChart(symbol, undefined, currentState.chartTimeframe);
+    await fetchPaperChart(
+      symbol,
+      undefined,
+      currentState.chartTimeframe,
+      currentState.selectedStrategyId,
+      currentState.intradayOnly,
+    );
   };
 
   if (!snapshot || !snapshot.scan_items || snapshot.scan_items.length === 0) return null;
@@ -237,7 +300,7 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
         </Text>
       </Group>
       <ScrollArea flex={1} style={{ minHeight: 0 }}>
-        <Box style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto" }}>
           <Table striped highlightOnHover styles={TABLE_STYLES}>
             <Table.Thead>
               <Table.Tr>
@@ -252,8 +315,9 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
             <Table.Tbody>
               {rows.map((item) => (
                 <Table.Tr
-                  key={item.symbol}
+                  key={item.strategy_id ? `${item.strategy_id}-${item.symbol}` : item.symbol}
                   onClick={() => handleSelectSymbol(item.symbol)}
+                  style={{ cursor: "pointer" }}
                   data-testid={`scan-row-${item.symbol}`}
                 >
                   <Table.Td>
@@ -278,7 +342,7 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
               ))}
             </Table.Tbody>
           </Table>
-        </Box>
+        </div>
       </ScrollArea>
     </Flex>
   );
@@ -287,10 +351,11 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
 export function StrategySummaryFooter({
   strategyGroups,
 }: {
-  strategyGroups: Map<string, PaperPosition[]>;
+  strategyGroups: Map<number, PaperPosition[]>;
 }) {
-  const summaries = Array.from(strategyGroups.entries()).map(([name, positions]) => ({
-    name,
+  const summaries = Array.from(strategyGroups.entries()).map(([id, positions]) => ({
+    id,
+    name: positions[0]?.strategy_name || `Strategy ${id}`,
     ...calcStrategySummary(positions),
   }));
 

@@ -17,7 +17,9 @@ import threading
 import requests
 import warnings
 from queue import Queue
-from .scanner_utils import display_tradingview_csv
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from scanner_utils import display_tradingview_csv
 
 console = Console()
 

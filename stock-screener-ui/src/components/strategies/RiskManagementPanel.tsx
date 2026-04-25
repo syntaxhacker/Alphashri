@@ -12,15 +12,6 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
       <Stack gap="sm" mt="sm">
         <Group grow>
           <NumberInput
-            label="Max Positions"
-            name="max_positions"
-            defaultValue={initialValues.max_positions}
-            min={1}
-            max={20}
-            required
-            data-testid="strategy-max-positions-input"
-          />
-          <NumberInput
             label="Capital Per Trade %"
             name="max_capital_per_trade_pct"
             defaultValue={initialValues.max_capital_per_trade_pct}
@@ -61,6 +52,17 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
             suffix="%"
             data-testid="strategy-risk-per-trade-input"
           />
+          <NumberInput
+            label="Min R:R Ratio"
+            name="min_rr_ratio"
+            defaultValue={initialValues.min_rr_ratio}
+            min={0.1}
+            max={10}
+            step={0.1}
+            data-testid="strategy-min-rr-input"
+          />
+        </Group>
+        <Group grow>
           {isIntraday ? (
             <NumberInput
               label="Cooldown Minutes"

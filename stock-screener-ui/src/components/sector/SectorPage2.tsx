@@ -26,19 +26,10 @@ import {
 import { SectorTable } from "./SectorTable";
 import { fetchSectorPerformance } from "../../api/sector";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
-import {
-  CompactPanel,
-  CompactStat,
-  CompactStatGrid,
-} from "../common/compact";
+import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
-import {
-  detectSectorAlerts,
-  detectIntervalMovers,
-  SectorTreemap,
-} from "./SectorHelpers";
+import { detectSectorAlerts, detectIntervalMovers, SectorTreemap } from "./SectorHelpers";
 import type { SectorAlert, InternalStockMover } from "./SectorHelpers";
-import { TINT_POSITIVE, TINT_NEGATIVE } from "../../config/colors";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -58,20 +49,13 @@ function AlertsList({ alerts }: { alerts: SectorAlert[] }) {
           key={i}
           p="xs"
           withBorder
-          bg={
-            alert.direction === "SURGING"
-              ? TINT_POSITIVE
-              : TINT_NEGATIVE
-          }
+          bg={alert.direction === "SURGING" ? "rgba(64, 192, 87, 0.05)" : "rgba(250, 82, 82, 0.05)"}
         >
           <Group justify="space-between">
             <Text size="sm" fw={700}>
               [{alert.timestamp}] {alert.sector}
             </Text>
-            <Badge
-              color={alert.direction === "SURGING" ? "green" : "red"}
-              size="sm"
-            >
+            <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="sm">
               {alert.direction} ({formatPercentage(alert.delta, 2, false)})
             </Badge>
           </Group>
@@ -104,12 +88,8 @@ function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }) {
         {movers.map((mover) => (
           <Table.Tr key={mover.symbol}>
             <Table.Td fw={600}>{mover.symbol}</Table.Td>
-            <Table.Td align="right">
-              {mover.prev_change.toFixed(2)}%
-            </Table.Td>
-            <Table.Td align="right">
-              {mover.change.toFixed(2)}%
-            </Table.Td>
+            <Table.Td align="right">{mover.prev_change.toFixed(2)}%</Table.Td>
+            <Table.Td align="right">{mover.change.toFixed(2)}%</Table.Td>
             <Table.Td align="right">
               <Text c={getPnLTextColor(mover.delta)} fw={700}>
                 {mover.delta > 0 ? "+" : ""}
@@ -135,7 +115,7 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-alerts-card"
         data-testid="sector-alerts-card"
-        style={{ flex: "1 1 50%" }}
+        style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
         title={
           <Group justify="space-between" mb="xs">
             <Title order={4}>Real-time Alerts</Title>
@@ -151,7 +131,7 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-interval-movers-card"
         data-testid="sector-interval-movers-card"
-        style={{ flex: "1 1 50%" }}
+        style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
         title={
           <Group justify="space-between" mb="xs">
             <Title order={4}>Interval Movers</Title>
@@ -184,19 +164,13 @@ function LoadingPanel() {
   );
 }
 
-function ErrorPanel({
-  error,
-  onRetry,
-}: {
-  error: string;
-  onRetry: () => void;
-}) {
+function ErrorPanel({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
     <CompactPanel
       title="Error"
       description={error}
       action={
-        <Button variant="light" color="red" size="sm" onClick={onRetry} data-testid="sector-retry-btn">
+        <Button variant="light" color="red" size="sm" onClick={onRetry}>
           Retry
         </Button>
       }
@@ -206,10 +180,7 @@ function ErrorPanel({
 
 function EmptyPanel() {
   return (
-    <CompactPanel
-      title="No sector data"
-      description="No sector data available for this market."
-    />
+    <CompactPanel title="No sector data" description="No sector data available for this market." />
   );
 }
 
@@ -281,7 +252,7 @@ function DashboardContent({
             </Group>
           }
         >
-          <Box px="sm" pb="sm" flex={1} style={{ minHeight: 0 }}>
+          <Box px="sm" pb="sm" style={{ minHeight: 0, flex: 1 }}>
             <SectorTreemap sectors={data.sectors} />
           </Box>
         </CompactPanel>
@@ -289,6 +260,8 @@ function DashboardContent({
         <CompactPanel
           style={{
             overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
             minHeight: 0,
           }}
           id="sector-table-container"
@@ -343,18 +316,42 @@ function useSectorData() {
   const prevSectorDataRef = useRef<Record<string, number>>({});
   const prevStockDataRef = useRef<Record<string, number>>({});
   const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
 
-  const loadData = useCallback(async (mkt: string) => {
-    setLoading(true);
+  const loadData = useCallback(async (mkt: string, isInitial = false): Promise<boolean> => {
+    if (requestAbortRef.current) {
+      if (!isInitial) return false;
+      requestAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    requestAbortRef.current = controller;
+    if (isInitial) setLoading(true);
     setError(null);
     try {
-      const res = await fetchSectorPerformance(mkt);
-      processSectorResponse(res, prevSectorDataRef.current, prevStockDataRef.current, setAlerts, setIntervalMovers);
+      const res = await fetchSectorPerformance(mkt, controller.signal);
+      if (controller.signal.aborted) {
+        return false;
+      }
+      processSectorResponse(
+        res,
+        prevSectorDataRef.current,
+        prevStockDataRef.current,
+        setAlerts,
+        setIntervalMovers,
+      );
       setData(res);
+      return true;
     } catch (err) {
+      if (controller.signal.aborted) {
+        return false;
+      }
       setError(err instanceof Error ? err.message : "Failed to load sector data");
+      return true;
     } finally {
-      setLoading(false);
+      if (requestAbortRef.current === controller) {
+        requestAbortRef.current = null;
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -363,26 +360,72 @@ function useSectorData() {
     prevStockDataRef.current = {};
     setAlerts([]);
     setIntervalMovers([]);
-    loadData(market);
-    if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
-    let liveCount = 0;
-    const fast = setInterval(() => {
-      liveCount++;
-      loadData(market);
-      if (liveCount >= 5) {
-        clearInterval(fast);
+    if (liveTimeoutRef.current) {
+      clearTimeout(liveTimeoutRef.current);
+      liveTimeoutRef.current = null;
+    }
+    requestAbortRef.current?.abort();
+
+    if (activeTab !== "dashboard") {
+      setLoading(false);
+      return () => {
+        if (liveTimeoutRef.current) {
+          clearTimeout(liveTimeoutRef.current);
+          liveTimeoutRef.current = null;
+        }
+        requestAbortRef.current?.abort();
+      };
+    }
+
+    let cancelled = false;
+    let fastPollCount = 0;
+
+    const scheduleNextPoll = (delay: number) => {
+      if (cancelled) {
+        return;
+      }
+      liveTimeoutRef.current = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        void loadData(market).then((completed) => {
+          if (cancelled || !completed) {
+            return;
+          }
+          fastPollCount += 1;
+          scheduleNextPoll(fastPollCount < 2 ? 5000 : 60000);
+        });
+      }, delay);
+    };
+
+    void loadData(market).then((completed) => {
+      if (!cancelled && completed) {
+        scheduleNextPoll(5000);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (liveTimeoutRef.current) {
+        clearTimeout(liveTimeoutRef.current);
         liveTimeoutRef.current = null;
       }
-    }, 1000);
-    const slow = setInterval(() => loadData(market), 60000);
-    return () => {
-      clearInterval(fast);
-      clearInterval(slow);
-      if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
+      requestAbortRef.current?.abort();
     };
-  }, [market, loadData]);
+  }, [activeTab, market, loadData]);
 
-  return { data, loading, error, market, setMarket, activeTab, setActiveTab, alerts, intervalMovers, loadData };
+  return {
+    data,
+    loading,
+    error,
+    market,
+    setMarket,
+    activeTab,
+    setActiveTab,
+    alerts,
+    intervalMovers,
+    loadData,
+  };
 }
 
 function SectorPageHeader({
@@ -433,7 +476,14 @@ function SectorPageHeader({
 }
 
 function SectorTabContent({
-  activeTab, data, loading, error, market, alerts, intervalMovers, loadData,
+  activeTab,
+  data,
+  loading,
+  error,
+  market,
+  alerts,
+  intervalMovers,
+  loadData,
 }: {
   activeTab: string | null;
   data: SectorResponse | null;
@@ -442,12 +492,20 @@ function SectorTabContent({
   market: string;
   alerts: SectorAlert[];
   intervalMovers: InternalStockMover[];
-  loadData: (m: string) => Promise<void>;
+  loadData: (m: string, isInitial?: boolean) => Promise<boolean>;
 }) {
   if (activeTab !== "dashboard") {
     return (
-      <Box h="100%" className="sector-analysis-frame-wrap" data-testid="sector-analysis-frame"
-        style={{ borderRadius: "var(--mantine-radius-default)", overflow: "auto", border: "1px solid var(--mantine-color-dark-4)" }}>
+      <Box
+        h="100%"
+        className="sector-analysis-frame-wrap"
+        data-testid="sector-analysis-frame"
+        style={{
+          borderRadius: "var(--mantine-radius-default)",
+          overflow: "auto",
+          border: "1px solid var(--mantine-color-dark-4)",
+        }}
+      >
         <iframe
           src={`${API_BASE}/sector/dashboard-modular.html`}
           title="Sector Rotation Dashboard"
@@ -467,23 +525,53 @@ function SectorTabContent({
 export function SectorPage() {
   const state = useSectorData();
   return (
-    <Stack gap="sm" h="100%" style={{ overflow: "hidden" }} data-testid="sector-analysis-view">
-      <SectorPageHeader market={state.market} setMarket={state.setMarket} loading={state.loading} onRefresh={() => state.loadData(state.market)} />
-      <Stack id="sector-page" className="sector-page" flex={1} style={{ minHeight: 0 }}>
+    <Stack
+      gap="sm"
+      style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      data-testid="sector-analysis-view"
+    >
+      <SectorPageHeader
+        market={state.market}
+        setMarket={state.setMarket}
+        loading={state.loading}
+        onRefresh={() => state.loadData(state.market)}
+      />
+      <Box
+        id="sector-page"
+        className="sector-page"
+        flex={1}
+        style={{ display: "flex", flexDirection: "column", minHeight: 0 }}
+      >
         <Tabs value={state.activeTab} onChange={state.setActiveTab}>
           <Tabs.List>
-            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />} data-testid="sector-tab-dashboard">Live Dashboard</Tabs.Tab>
-            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />} data-testid="sector-tab-historical">Historical Cycles</Tabs.Tab>
+            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
+              Live Dashboard
+            </Tabs.Tab>
+            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
+              Historical Cycles
+            </Tabs.Tab>
           </Tabs.List>
         </Tabs>
-        <Box flex={1} py={0} px="md" pb="md" style={{ minHeight: 0, overflow: "auto" }}>
+        <Box
+          flex={1}
+          style={{
+            minHeight: 0,
+            padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)",
+            overflow: "auto",
+          }}
+        >
           <SectorTabContent
-            activeTab={state.activeTab} data={state.data} loading={state.loading}
-            error={state.error} market={state.market} alerts={state.alerts}
-            intervalMovers={state.intervalMovers} loadData={state.loadData}
+            activeTab={state.activeTab}
+            data={state.data}
+            loading={state.loading}
+            error={state.error}
+            market={state.market}
+            alerts={state.alerts}
+            intervalMovers={state.intervalMovers}
+            loadData={state.loadData}
           />
         </Box>
-      </Stack>
+      </Box>
     </Stack>
   );
 }

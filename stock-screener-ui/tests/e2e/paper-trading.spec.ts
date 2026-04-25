@@ -10,12 +10,6 @@ import {
   navigateToPaperTradingWithBot,
 } from "../helpers/paperTradingHelpers";
 
-async function selectBot(page: import("@playwright/test").Page, _botId: string) {
-  await page
-    .locator('[data-testid="bot-selector-dropdown"]')
-    .waitFor({ state: "visible", timeout: 10000 });
-}
-
 const TEST_BOT_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
 // Shared beforeEach for paper trading tests
@@ -41,22 +35,11 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await expect(page.getByTestId("tab-settings")).toBeVisible();
   });
 
-  test("should display bot selector dropdown", async ({ page }) => {
+  test("should display bot cards", async ({ page }) => {
     await navigateToPaperTrading(page);
 
-    // Verify bot selector is visible
-    await expect(page.locator('[data-testid="bot-selector-dropdown"]')).toBeVisible();
-  });
-
-  test.skip("should list available bots in dropdown", async ({ page }) => {
-    await navigateToPaperTrading(page);
-
-    const dropdown = page.getByTestId("bot-selector-dropdown");
-    await expect(dropdown).toBeVisible();
-
-    // Use the helper that works with Mantine SegmentedControl
-    await selectBot(page, TEST_BOT_UUID);
-    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 5000 });
+    // Verify bot cards are visible
+    await expect(page.locator('[data-testid^="bot-card-"]').first()).toBeVisible();
   });
 
   // Note: This test uses the mock data from setupMultiStrategyBotMocks
@@ -69,14 +52,13 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await expect(portfolioCard).toContainText("Cash");
   });
 
-  test.skip("should show scan items from multi-strategy bot", async ({ page }) => {
+  test("should show scan items from multi-strategy bot", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    const scanCard = page.locator(".scan-card");
-    await expect(scanCard).toBeVisible();
-
-    const strategyCol = page.locator(".scan-table th:has-text('Strategy')");
-    await expect(strategyCol).toBeVisible();
+    // Wait for scan card to load with mock data
+    await page.waitForTimeout(1000);
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
   });
 
   // Note: This test uses the mock data from setupMultiStrategyBotMocks
@@ -113,13 +95,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
     // Verify bot status is shown (should show Running with PID from mock)
     await expect(page.locator('[data-testid="bot-status"]')).toBeVisible();
-  });
-
-  test.skip("should show auto-refresh toggle", async ({ page }) => {
-    await navigateToPaperTrading(page);
-
-    // Verify auto-refresh checkbox is visible
-    await expect(page.locator('label:has-text("Auto-refresh")')).toBeVisible();
   });
 
   test("should show empty state when no positions", async ({ page }) => {
@@ -229,11 +204,11 @@ test.describe("Paper Trading - Bot Controls", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    await page.locator('button:has-text("Start Bot")').click();
+    await page.locator('[data-testid="start-bot-btn"]').click();
 
     await expect(page.locator('[data-testid="bot-status"]')).toContainText("Running");
     await expect(page.locator('[data-testid="bot-status"]')).toContainText("22133");
-    await expect(page.locator('button:has-text("Stop Bot")')).toBeVisible();
+    await expect(page.locator('[data-testid="stop-bot-btn"]')).toBeVisible();
   });
 
   test("should show Start Bot button when bot is not running", async ({ page }) => {
@@ -256,7 +231,7 @@ test.describe("Paper Trading - Bot Controls", () => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify Start Bot button is visible
-    await expect(page.locator('button:has-text("Start Bot")')).toBeVisible();
+    await expect(page.locator('[data-testid="start-bot-btn"]')).toBeVisible();
   });
 
   test("should show Stop Bot button when bot is running", async ({ page }) => {
@@ -271,15 +246,14 @@ test.describe("Paper Trading - Bot Controls", () => {
           is_active: true,
           strategies: [],
           running: true,
-          pid: 12345,
+          pid: 22133,
         }),
       });
     });
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify Stop Bot button is visible
-    await expect(page.locator('button:has-text("Stop Bot")')).toBeVisible();
+    await expect(page.locator('[data-testid="stop-bot-btn"]')).toBeVisible();
   });
 });
 
@@ -298,25 +272,411 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("INFY");
   });
+});
 
-  test.skip("should filter scan items by selected strategy tab", async ({ page }) => {
-    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+test.describe("Paper Trading - Watchlist Scan", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTest(page);
 
-    // Click on "ORB Conservative" tab
-    await page.locator('[data-testid="strategy-tab-orb-conservative"]').click();
-
-    // Verify scan table shows strategy column
-    await expect(page.locator('[data-testid="watchlist-scan-card"]')).toBeVisible();
+    await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          bot_id: TEST_BOT_UUID,
+          scan_items: [
+            {
+              symbol: "TCS",
+              price: 3750,
+              or_high: 3760,
+              or_low: 3745,
+              status: "signal",
+              side: "LONG",
+              strategy_name: "ORB Conservative",
+              reason: "Breakout above OR high",
+            },
+            {
+              symbol: "SBIN",
+              price: 1071,
+              or_high: 1075,
+              or_low: 1070,
+              status: "signal",
+              side: "SHORT",
+              strategy_name: "ORB Aggressive",
+              reason: "Breakdown below OR low",
+            },
+            {
+              symbol: "HDFCBANK",
+              price: 1346,
+              or_high: 1360,
+              or_low: 1330,
+              status: "watching",
+              strategy_name: "ORB Conservative",
+            },
+            {
+              symbol: "RELIANCE",
+              price: 1341,
+              or_high: 1340,
+              or_low: 1334,
+              status: "skipped",
+              strategy_name: "ORB Conservative",
+              reason: "OR range too small",
+            },
+            {
+              symbol: "RELIANCE",
+              price: 1341,
+              status: "skipped",
+              strategy_name: "ORB Aggressive",
+              reason: "OR range outside limits",
+            },
+          ],
+          count: 5,
+        }),
+      });
+    });
   });
 
-  test.skip("should show strategy P&L in tab badges", async ({ page }) => {
+  test("should display Watchlist Scan card with accordion sections", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify strategy tabs show P&L badges
-    const conservativeTab = page.locator('[data-testid="strategy-tab-orb-conservative"]');
-    await expect(conservativeTab).toBeVisible();
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard).toContainText("Watchlist Scan");
+  });
 
-    // Verify P&L is shown in tab
-    await expect(conservativeTab.locator(".tab-pnl")).toBeVisible();
+  test("should use accordion component (not flat table)", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard.locator('[data-testid="watchlist-scan-accordion"]')).toBeVisible();
+  });
+
+  test("should have Signals accordion item", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard.locator('[data-testid="watchlist-scan-signals"]')).toBeVisible();
+  });
+
+  test("should have Watching accordion item", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard.locator('[data-testid="watchlist-scan-watching"]')).toBeVisible();
+  });
+
+  test("should have Skipped accordion item", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard.locator('[data-testid="watchlist-scan-skipped"]')).toBeVisible();
+  });
+
+  test("should display Signals section with signal items", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+
+    await expect(scanCard).toContainText("Signals");
+    await expect(scanCard.locator('[data-testid="scan-signal-TCS"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="scan-signal-SBIN"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="scan-signal-TCS"]')).toContainText("LONG");
+    await expect(scanCard.locator('[data-testid="scan-signal-SBIN"]')).toContainText("SHORT");
+  });
+
+  test("should display watching items", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+
+    await expect(scanCard.locator('[data-testid="scan-watching-HDFCBANK"]')).toBeVisible();
+  });
+
+  test("should display skipped items in table", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+
+    await scanCard.getByText("Skipped").click();
+
+    await expect(scanCard.locator('[data-testid="scan-skipped-RELIANCE"]')).toBeVisible();
+    await expect(scanCard).toContainText("RELIANCE");
+  });
+
+  test("should deduplicate skipped symbols across strategies", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+
+    const relianceCount = await scanCard.locator("text=RELIANCE").count();
+    expect(relianceCount).toBeLessThan(3);
+  });
+
+  test("should show No scan data yet when bot is stopped", async ({ page }) => {
+    await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ bot_id: TEST_BOT_UUID, scan_items: [], count: 0 }),
+      });
+    });
+
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard).toContainText("No scan data yet");
+  });
+});
+
+test.describe("Paper Trading - Position Actions", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTest(page);
+  });
+
+  test("should show close button for each position", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const closeBtn = page.locator('[data-testid="close-position-TCS"]');
+    await expect(closeBtn).toBeVisible();
+  });
+
+  test("should click close position button without error", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const closeBtn = page.locator('[data-testid="close-position-TCS"]');
+    await closeBtn.click();
+
+    await page.waitForTimeout(500);
+  });
+
+  test("should show Close All button when positions exist", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const closeAllBtn = page.locator('[data-testid="close-all-positions"]');
+    await expect(closeAllBtn).toBeVisible();
+  });
+
+  test("should click Close All button without error", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    page.on("dialog", async (dialog) => {
+      await dialog.accept();
+    });
+
+    const closeAllBtn = page.locator('[data-testid="close-all-positions"]');
+    await closeAllBtn.click();
+
+    await page.waitForTimeout(500);
+  });
+});
+
+test.describe("Paper Trading - Settings Tab", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTest(page);
+  });
+
+  test("should display settings panel when clicking settings tab", async ({ page }) => {
+    await navigateToPaperTrading(page);
+
+    const settingsTab = page.locator('[data-testid="tab-settings"]');
+    await settingsTab.click();
+
+    await expect(page.locator('[data-testid="paper-settings-panel"]')).toBeVisible({
+      timeout: 10000,
+    });
+  });
+
+  test("should show strategy selector in settings", async ({ page }) => {
+    await navigateToPaperTrading(page);
+
+    const settingsTab = page.locator('[data-testid="tab-settings"]');
+    await settingsTab.click();
+
+    const strategySelector = page.locator('[data-testid="strategy-selector"]');
+    await expect(strategySelector).toBeVisible({ timeout: 10000 });
+  });
+});
+
+test.describe("Paper Trading - Chart Toggles", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTest(page);
+  });
+
+  test("should display chart panel exists", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const rightPanel = page.locator('[data-testid="paper-right-panel"]');
+    await expect(rightPanel).toBeVisible();
+  });
+});
+
+// Helper function to navigate to paper trading settings
+async function navigateToPaperTradingSettings(page: import("@playwright/test").Page) {
+  await page.goto("/paper", { timeout: 30000 });
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
+  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
+    timeout: 20000,
+  });
+
+  await expect(page.locator('[data-testid="tab-settings"]')).toBeVisible();
+
+  const settingsTab = page.locator('[data-testid="tab-settings"]');
+  await settingsTab.waitFor({ state: "visible", timeout: 10000 });
+  await settingsTab.click({ timeout: 10000 });
+
+  await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
+}
+
+test.describe("Paper Trading - Settings Panel Sections", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTest(page);
+  });
+
+  test("should display all settings section headers", async ({ page }) => {
+    await navigateToPaperTradingSettings(page);
+
+    // Verify section headers are visible
+    await expect(page.locator("text=ORB Settings")).toBeVisible();
+    await expect(page.locator("text=Risk Management")).toBeVisible();
+    await expect(page.locator("text=Runner Settings")).toBeVisible();
+    await expect(page.locator("text=Trading Costs")).toBeVisible();
+  });
+
+  test.describe("TradingCostsSection", () => {
+    test.beforeEach(async ({ page }) => {
+      await setupPaperTradingTest(page);
+    });
+
+    test("should display TradingCostsSection fields", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify brokerage field exists
+      await expect(page.locator('[data-testid="config-brokerage"]')).toBeVisible();
+      // Verify min-brokerage field exists
+      await expect(page.locator('[data-testid="config-min-brokerage"]')).toBeVisible();
+      // Verify STT field exists
+      await expect(page.locator('[data-testid="config-stt"]')).toBeVisible();
+      // Verify exchange field exists
+      await expect(page.locator('[data-testid="config-exchange"]')).toBeVisible();
+      // Verify sebi field exists
+      await expect(page.locator('[data-testid="config-sebi"]')).toBeVisible();
+      // Verify stamp field exists
+      await expect(page.locator('[data-testid="config-stamp"]')).toBeVisible();
+      // Verify GST field exists
+      await expect(page.locator('[data-testid="config-gst"]')).toBeVisible();
+    });
+
+    test("should display TradingCostsSection field labels", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify field labels are visible inside costs section
+      const costsSection = page.locator("#costs-section");
+      await expect(costsSection.locator('label:has-text("Brokerage %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("Min Brokerage")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("STT %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("Exchange %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("SEBI %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("Stamp %")')).toBeVisible();
+      await expect(costsSection.locator('label:has-text("GST %")')).toBeVisible();
+    });
+  });
+
+  test.describe("RiskManagementSection", () => {
+    test.beforeEach(async ({ page }) => {
+      await setupPaperTradingTest(page);
+    });
+
+    test("should display RiskManagementSection fields", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify max-positions field exists
+      await expect(page.locator('[data-testid="config-max-positions"]')).toBeVisible();
+      // Verify capital-per-trade field exists
+      await expect(page.locator('[data-testid="config-capital-per-trade"]')).toBeVisible();
+      // Verify daily-loss field exists
+      await expect(page.locator('[data-testid="config-daily-loss"]')).toBeVisible();
+      // Verify max-exposure field exists
+      await expect(page.locator('[data-testid="config-max-exposure"]')).toBeVisible();
+      // Verify risk-per-trade field exists
+      await expect(page.locator('[data-testid="config-risk-per-trade"]')).toBeVisible();
+    });
+
+    test("should display RiskManagementSection field labels", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify field labels are visible inside risk section
+      const riskSection = page.locator("#risk-section");
+      await expect(riskSection.locator('label:has-text("Max Positions")')).toBeVisible();
+      await expect(riskSection.locator('label:has-text("Capital/Trade %")')).toBeVisible();
+      await expect(riskSection.locator('label:has-text("Daily Loss %")')).toBeVisible();
+      await expect(riskSection.locator('label:has-text("Max Exposure %")')).toBeVisible();
+      await expect(riskSection.locator('label:has-text("Risk/Trade %")')).toBeVisible();
+    });
+  });
+
+  test.describe("OrbSettingsSection", () => {
+    test.beforeEach(async ({ page }) => {
+      await setupPaperTradingTest(page);
+    });
+
+    test("should display OrbSettingsSection fields", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify OR minutes field exists
+      await expect(page.locator('[data-testid="config-or-minutes"]')).toBeVisible();
+      // Verify SL% field exists
+      await expect(page.locator('[data-testid="config-sl-pct"]')).toBeVisible();
+      // Verify TP% field exists
+      await expect(page.locator('[data-testid="config-tp-pct"]')).toBeVisible();
+      // Verify min OR range field exists
+      await expect(page.locator('[data-testid="config-min-or-range"]')).toBeVisible();
+      // Verify max OR range field exists
+      await expect(page.locator('[data-testid="config-max-or-range"]')).toBeVisible();
+    });
+
+    test("should display OrbSettingsSection field labels", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify field labels are visible inside ORB section
+      const orbSection = page.locator("#orb-section");
+      await expect(orbSection.locator('label:has-text("OR Minutes")')).toBeVisible();
+      await expect(orbSection.locator('label:has-text("Stop Loss %")')).toBeVisible();
+      await expect(orbSection.locator('label:has-text("Take Profit %")')).toBeVisible();
+      await expect(orbSection.locator('label:has-text("Min OR Range %")')).toBeVisible();
+      await expect(orbSection.locator('label:has-text("Max OR Range %")')).toBeVisible();
+    });
+  });
+
+  test.describe("RunnerSettingsSection", () => {
+    test.beforeEach(async ({ page }) => {
+      await setupPaperTradingTest(page);
+    });
+
+    test("should display RunnerSettingsSection fields", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify cooldown field exists
+      await expect(page.locator('[data-testid="config-cooldown"]')).toBeVisible();
+      // Verify max-distance field exists
+      await expect(page.locator('[data-testid="config-max-distance"]')).toBeVisible();
+    });
+
+    test("should display RunnerSettingsSection field labels", async ({ page }) => {
+      await navigateToPaperTradingSettings(page);
+
+      // Verify field labels are visible inside runner section
+      const runnerSection = page.locator("#runner-section");
+      await expect(runnerSection.locator('label:has-text("Cooldown (min)")')).toBeVisible();
+      await expect(runnerSection.locator('label:has-text("Max Distance from OR %")')).toBeVisible();
+    });
   });
 });

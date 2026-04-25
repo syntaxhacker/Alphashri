@@ -4,12 +4,14 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
 import { NotificationContainer } from "./components/notifications/NotificationContainer";
+import { PreviewChartProvider } from "./components/common/PreviewChartProvider";
 import { AppLayout } from "./components/layout/AppLayout";
 import { SectorPage } from "./components/sector/SectorPage2";
 import { ScreenerContainer } from "./pages/screener/ScreenerContainer";
 import { StrategiesContainer } from "./pages/strategies/StrategiesContainer";
 import { BacktestPage } from "./components/backtest/mantine";
 import { PaperTradingView } from "./components/paper-trading/mantine";
+import { ReplayPage } from "./components/replay/mantine";
 import { BotsPage } from "./components/bots/mantine";
 import { OptionsContainer } from "./pages/options/OptionsContainer";
 import { SettingsPage } from "./pages/settings/SettingsPage";
@@ -57,20 +59,23 @@ function AppContent() {
 
   return (
     <AppLayout>
-      <Routes>
-        <Route path="/" element={<ScreenerContainer />} />
-        <Route path="/backtest" element={<BacktestPage />} />
-        <Route path="/paper" element={<PaperTradingView />} />
-        <Route path="/sector" element={<SectorPage />} />
-        <Route path="/strategies" element={<StrategiesContainer />} />
-        <Route path="/bots" element={<BotsPage />} />
-        <Route path="/options" element={<OptionsContainer />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/news" element={<NewsPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/chart/:symbol?" element={<ChartView />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <PreviewChartProvider>
+        <Routes>
+          <Route path="/" element={<ScreenerContainer />} />
+          <Route path="/backtest" element={<BacktestPage />} />
+          <Route path="/paper" element={<PaperTradingView />} />
+          <Route path="/replay" element={<ReplayPage />} />
+          <Route path="/sector" element={<SectorPage />} />
+          <Route path="/strategies" element={<StrategiesContainer />} />
+          <Route path="/bots" element={<BotsPage />} />
+          <Route path="/options" element={<OptionsContainer />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/news" element={<NewsPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/chart/:symbol?" element={<ChartView />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </PreviewChartProvider>
       <NotificationContainer />
     </AppLayout>
   );

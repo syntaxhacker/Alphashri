@@ -1,4 +1,5 @@
 import "@mantine/core/styles.css";
+import "@mantine/dates/styles.css";
 import "@mantine/notifications/styles.css";
 import "./style.css";
 import * as Sentry from "@sentry/react";
@@ -31,7 +32,7 @@ createRoot(root).render(
   <Provider store={store}>
     <ColorSchemeScript defaultColorScheme="dark" />
     <MantineProvider theme={theme} defaultColorScheme="dark">
-      <Notifications position="top-right" />
+      <Notifications position="bottom-right" />
       <BrowserRouter>
         <App />
       </BrowserRouter>

@@ -111,6 +111,7 @@ export function SymbolChips({
               className="symbol-chip symbol-expand-toggle"
               onClick={() => setSymbolsExpanded(true)}
               rightSection={<IconChevronDown size={10} />}
+              data-testid="symbol-expand-more-btn"
             >
               +{hiddenCount} more
             </Badge>
@@ -123,6 +124,7 @@ export function SymbolChips({
               className="symbol-chip symbol-expand-toggle"
               onClick={() => setSymbolsExpanded(false)}
               rightSection={<IconChevronUp size={10} />}
+              data-testid="symbol-expand-less-btn"
             >
               Less
             </Badge>

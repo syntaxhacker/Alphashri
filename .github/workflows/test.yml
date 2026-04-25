@@ -16,6 +16,7 @@ on:
       - 'stock-screener-ui/db/models.py'
       - 'stock-screener-ui/db/migrations/**'
       - 'stock-screener-ui/alembic.ini'
+      - 'stock-screener-ui/scripts/validate_migrations.py'
   schedule:
     - cron: '0 2 * * *'
 
@@ -48,6 +49,10 @@ jobs:
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+      - name: Validate migration file integrity
+        run: |
+          cd stock-screener-ui
+          uv run --python 3.11 python scripts/validate_migrations.py
       - name: Run migrations on test DB
         run: |
           cd stock-screener-ui
@@ -135,7 +140,7 @@ jobs:
           retention-days: 7
 
   e2e-full:
-    name: E2E Full (shard ${{ matrix.shard }}/4)
+    name: E2E Full (shard ${{ matrix.shard }}/8)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [frontend-lint-typecheck, frontend-unit]
@@ -143,7 +148,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -165,7 +170,7 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run full E2E tests
-        run: cd stock-screener-ui && npx playwright test --shard=${{ matrix.shard }}/4
+        run: cd stock-screener-ui && npx playwright test --shard=${{ matrix.shard }}/8
         env:
           CI: true
       - uses: actions/upload-artifact@v4

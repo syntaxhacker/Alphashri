@@ -164,8 +164,16 @@ export async function loadScreeners() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
     state.setScreenerOptions(payload.screeners || []);
-    state.setActiveScreener(payload.default || "trending");
+    const defaultScreener = payload.default || "trending";
+    state.setActiveScreener(defaultScreener);
     state.setProfileMetaById(payload.meta_by_id || {});
+
+    // Set initial sort from default screener meta
+    const defaultMeta = payload.meta_by_id?.[defaultScreener];
+    if (defaultMeta?.default_sort?.column) {
+      state.setSortColumn(defaultMeta.default_sort.column);
+      state.setSortDirection(defaultMeta.default_sort.direction || "desc");
+    }
   } catch {
     state.setScreenerOptions(DEFAULT_SCREENER_OPTIONS);
     state.setActiveScreener("trending");

@@ -151,6 +151,26 @@ export async function deleteTrade(tradeId: string): Promise<{ success: boolean; 
   }
 }
 
+export async function updateTradeNotes(
+  tradeId: string,
+  notes: string,
+  reason: string,
+): Promise<PaperTrade> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades/${tradeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes, reason }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "Failed to update trade");
+    return data;
+  } catch (error) {
+    console.error("Failed to update trade notes:", error);
+    throw error;
+  }
+}
+
 // Fetch daily report
 export async function fetchDailyReport(date?: string): Promise<DailySummary | null> {
   try {
@@ -199,6 +219,8 @@ export async function fetchPaperChart(
   symbol: string,
   date?: string,
   timeframe?: string,
+  strategyId?: number | null,
+  intradayOnly?: boolean,
 ): Promise<PaperChartData | null> {
   setChartLoading(true);
 
@@ -206,6 +228,8 @@ export async function fetchPaperChart(
     const params = new URLSearchParams();
     if (date) params.append("date", date);
     if (timeframe) params.append("timeframe", timeframe);
+    if (strategyId) params.append("strategy_id", String(strategyId));
+    if (intradayOnly) params.append("intraday_only", "true");
     const queryString = params.toString();
     const url = queryString
       ? `${API_BASE}/api/paper/chart/${symbol}?${queryString}`
@@ -307,6 +331,27 @@ export async function closePaperPosition(
     return { success: true, pnl: data.pnl };
   } catch (error) {
     console.error("Failed to close position:", error);
+    throw error;
+  }
+}
+
+export async function closeAllPositions(
+  botId: string,
+  prices: Record<string, number>,
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/close-all`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prices }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "Failed to close all positions");
+    }
+    return { success: true, message: data.message };
+  } catch (error) {
+    console.error("Failed to close all positions:", error);
     throw error;
   }
 }

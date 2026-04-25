@@ -22,6 +22,7 @@ export interface PaperPosition {
   order_id: string;
   strategy_id: number;
   strategy_name: string;
+  strategy_type?: string;
 }
 
 // Completed trade from journal
@@ -39,14 +40,16 @@ export interface PaperTrade {
   exit_reason: string; // 'SL', 'TP', 'EOD', 'MANUAL'
   costs: number;
   net_pnl: number;
-  sl_price: number;
-  tp_price: number;
+  stop_loss: number;
+  take_profit: number;
   peak_price: number; // Highest price during trade
   low_price: number; // Lowest price during trade
   hold_duration_minutes: number | null; // Entry to exit duration
   notes: string;
+  reason: string;
   strategy_id: number;
   strategy_name: string;
+  strategy_type?: string;
   bot_id: string | null;
   bot_name: string | null;
 }
@@ -68,6 +71,8 @@ export interface PortfolioStatus {
   daily_pnl_pct: number;
   daily_trades: number;
   open_positions: number;
+  max_daily_loss_pct?: number;
+  daily_loss_limit_exceeded?: boolean;
 }
 
 // Daily trading summary
@@ -127,12 +132,17 @@ export interface PivotLevels {
 export interface PaperChartData {
   symbol: string;
   date: string;
+  actual_date?: string | null; // Actual data date (differs from requested on weekends/holidays)
   candles: CandleData[];
   trades: PaperTrade[];
   orb_levels: ORBLevels | null;
   week52_levels: Week52Levels | null;
   pivot_levels: PivotLevels | null;
   current_position: PaperPosition | null;
+  ema_series?: {
+    ema_fast: { label: string; color: string; data: number[] };
+    ema_slow: { label: string; color: string; data: number[] };
+  } | null;
 }
 
 export interface CandleData {
@@ -150,6 +160,7 @@ export interface ORBLevels {
   or_open: number;
   or_range: number;
   or_range_pct: number;
+  or_minutes?: number;
 }
 
 // 52-week high levels for swing strategies
@@ -168,7 +179,11 @@ export interface PaperScanItem {
   price?: number;
   or_high?: number;
   or_low?: number;
+  or_range_pct?: number;
+  high_52w?: number;
   reason?: string;
+  strategy_name?: string;
+  strategy_id?: number;
 }
 
 export interface PaperBotSnapshot {
@@ -206,17 +221,20 @@ export interface PaperTradingState {
   filterFromDate: string | null;
   filterToDate: string | null;
   filterSymbol: string | null;
-  filterStrategy: string | null; // Filter by strategy name
+  filterStrategy: number | null; // Filter by strategy ID
   filterBot: string | null; // Filter by bot ID (UUID)
 
   // Chart state
   selectedSymbol: string | null;
+  selectedStrategyId: number | null;
   selectedStrategyTab: string | null; // For multi-strategy position tabs
   selectedTradeId: string | null; // Trade ID to highlight on chart
   showAllTrades: boolean; // Show all trades or just selectedTradeId
   showOrbLines: boolean;
   showPivotLines: boolean;
   show52wLines: boolean;
+  showEmaLines: boolean;
+  intradayOnly: boolean;
   chartData: PaperChartData | null;
   chartLoading: boolean;
   chartTimeframe: string;
@@ -257,4 +275,21 @@ export interface BotInfo {
     strategy_type: string;
   }>;
   is_active: boolean;
+}
+
+export interface BotSummaryStrategy {
+  id: string;
+  name: string;
+  strategy_type: string;
+}
+
+export interface BotSummary {
+  id: string;
+  name: string;
+  is_active: boolean;
+  running: boolean;
+  pid: number | null;
+  status: string;
+  position_count: number;
+  strategies: BotSummaryStrategy[];
 }

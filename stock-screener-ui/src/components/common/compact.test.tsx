@@ -39,6 +39,11 @@ vi.mock("@mantine/core", () => ({
       {children}
     </h2>
   ),
+  Card: ({ children, ...props }: any) => (
+    <div data-testid="card" {...props}>
+      {children}
+    </div>
+  ),
 }));
 
 afterEach(() => {

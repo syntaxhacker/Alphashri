@@ -22,6 +22,7 @@ export interface StrategyWithAllocation {
 // Bot configuration
 export interface BotConfig {
   id: string; // uuid string
+  uuid: string;
   name: string;
   is_active: boolean;
   max_total_positions: number;
@@ -31,6 +32,8 @@ export interface BotConfig {
   updated_at: string | null;
   running: boolean;
   pid: number | null;
+  status?: string;
+  error?: string | null;
 }
 // Bot creation request
 export interface BotCreate {
@@ -53,7 +56,7 @@ export interface BotStatus {
   bot_id: string;
   running: boolean;
   pid: number | null;
-  status: "running" | "stopped";
+  status: "running" | "stopped" | "unknown";
   portfolio: PortfolioSummary | null;
   strategies: Record<string, StrategyStatus>;
   positions?: BotPosition[];
@@ -71,6 +74,8 @@ export interface PortfolioSummary {
   total_pnl_pct: number;
   daily_pnl: number;
   total_positions: number;
+  max_daily_loss_pct?: number;
+  daily_loss_limit_exceeded?: boolean;
 }
 
 // Strategy status within bot
@@ -140,9 +145,8 @@ export interface BotTrade {
 export interface BotTradesResponse {
   trades: BotTrade[];
 }
-// Available strategy
 export interface AvailableStrategy {
-  id: string; // uuid string
+  id: string;
   name: string;
   strategy_type: string;
   is_template: boolean;
@@ -150,6 +154,24 @@ export interface AvailableStrategy {
   sl_pct: number;
   tp_pct: number;
   max_positions: number;
+  or_minutes: number;
+  min_or_range_pct: number;
+  max_or_range_pct: number;
+  max_distance_from_or_pct: number;
+  cooldown_minutes: number;
+  enable_shorts: boolean;
+  eod_exit_hour: number;
+  eod_exit_minute: number;
+  min_rr_ratio: number;
+  pivot_type: string;
+  breakout_buffer_pct: number;
+  entry_threshold_pct: number;
+  enable_trailing_stop: boolean;
+  trailing_stop_pct: number;
+  max_holding_days: number;
+  cooldown_days: number;
+  ema_fast_period: number;
+  ema_slow_period: number;
 }
 // Strategy comparison
 export interface StrategyComparison {

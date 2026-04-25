@@ -20,6 +20,7 @@ import pytest
 from datetime import datetime, timedelta
 from dataclasses import fields
 
+import config
 from trading.orb_signals import (
     SignalType,
     ORBSignal,
@@ -196,6 +197,7 @@ class TestORBSignalGeneratorInit:
         assert generator.tp_pct == 1.2
         assert generator.min_or_range_pct == 0.5
         assert generator.max_or_range_pct == 3.0
+        assert isinstance(generator.breakout_buffer_pct, float)
 
     def test_init_custom_or_minutes(self):
         """Test initialization with custom or_minutes."""
@@ -228,6 +230,7 @@ class TestORBSignalGeneratorInit:
             tp_pct=1.8,
             min_or_range_pct=0.4,
             max_or_range_pct=2.0,
+            breakout_buffer_pct=0.5,
         )
 
         assert generator.or_minutes == 60
@@ -235,6 +238,7 @@ class TestORBSignalGeneratorInit:
         assert generator.tp_pct == 1.8
         assert generator.min_or_range_pct == 0.4
         assert generator.max_or_range_pct == 2.0
+        assert generator.breakout_buffer_pct == 0.5
 
     def test_init_empty_caches(self):
         """Test that caches are initialized empty."""
@@ -403,9 +407,8 @@ class TestCalculateORLevels:
     def test_calculate_or_levels_timezone_aware(self):
         """Test handling of timezone-aware datetimes."""
         generator = ORBSignalGenerator()
-        from datetime import timezone
 
-        base = datetime(2024, 1, 15, 9, 15, tzinfo=timezone.utc)
+        base = datetime(2024, 1, 15, 9, 15, tzinfo=config.IST)
         candles = [
             {'time': base + timedelta(minutes=i*5), 'open': 100+i, 'high': 100+i+1, 'low': 100+i-1, 'close': 100+i}
             for i in range(9)
@@ -601,13 +604,13 @@ class TestCheckBreakout:
 
     def test_signal_has_timestamp(self, generator, valid_or_levels):
         """Test that signal has a timestamp."""
-        before = datetime.now()
+        before = datetime.now(config.IST)
         signal = generator.check_breakout(
             symbol="TEST",
             current_price=100.5,
             or_levels=valid_or_levels,
         )
-        after = datetime.now()
+        after = datetime.now(config.IST)
 
         assert before <= signal.timestamp <= after
 
@@ -751,7 +754,7 @@ class TestCheckExit:
 
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
-        assert signal.notes == "Stop loss hit"
+        assert "Stop loss hit" in signal.notes
 
     def test_long_exit_on_take_profit(self, generator, mocker):
         """Test long exit when take profit is hit."""
@@ -770,7 +773,7 @@ class TestCheckExit:
 
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
-        assert signal.notes == "Take profit hit"
+        assert "Take profit hit" in signal.notes
 
     def test_short_exit_on_stop_loss(self, generator, mocker):
         """Test short exit when stop loss is hit."""
@@ -789,7 +792,7 @@ class TestCheckExit:
 
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_EXIT
-        assert signal.notes == "Stop loss hit"
+        assert "Stop loss hit" in signal.notes
 
     def test_short_exit_on_take_profit(self, generator, mocker):
         """Test short exit when take profit is hit."""
@@ -808,7 +811,7 @@ class TestCheckExit:
 
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_EXIT
-        assert signal.notes == "Take profit hit"
+        assert "Take profit hit" in signal.notes
 
     def test_no_exit_price_within_range_long(self, generator, mocker):
         """Test no exit for long when price is within SL/TP range."""
@@ -952,7 +955,7 @@ class TestCheckExit:
         )
 
         assert signal is not None
-        assert signal.notes == "Stop loss hit"
+        assert "Stop loss hit" in signal.notes
 
     def test_long_exit_exact_take_profit(self, generator, mocker):
         """Test long exit when price is exactly at take profit."""
@@ -970,7 +973,7 @@ class TestCheckExit:
         )
 
         assert signal is not None
-        assert signal.notes == "Take profit hit"
+        assert "Take profit hit" in signal.notes
 
 
 # ============================================================================
@@ -1130,7 +1133,7 @@ class TestCreateEntrySignal:
 
     def test_signal_has_timestamp(self):
         """Test that signal has a timestamp."""
-        before = datetime.now()
+        before = datetime.now(config.IST)
         signal = create_entry_signal(
             symbol="TEST",
             price=100.0,
@@ -1138,7 +1141,7 @@ class TestCreateEntrySignal:
             or_low=97.0,
             side="LONG",
         )
-        after = datetime.now()
+        after = datetime.now(config.IST)
 
         assert before <= signal.timestamp <= after
 
@@ -1235,7 +1238,7 @@ class TestORBSignalGeneratorIntegration:
 
         signal = generator.check_breakout(
             symbol="TEST",
-            current_price=102.8,
+            current_price=103.0,
             or_levels=or_levels,
         )
 
@@ -1265,7 +1268,7 @@ class TestORBSignalGeneratorIntegration:
 
         signal = generator.check_breakout(
             symbol="TEST",
-            current_price=99.5,
+            current_price=99.4,
             or_levels=or_levels,
         )
 
@@ -1365,7 +1368,7 @@ class TestEdgeCases:
 
         signal = generator.check_breakout(
             symbol="TEST",
-            current_price=100.02,
+            current_price=100.5,
             or_levels=or_levels,
         )
 
@@ -1413,7 +1416,7 @@ class TestEdgeCases:
 
         signal_above_high = generator.check_breakout(
             symbol="TEST",
-            current_price=100.01,
+            current_price=100.4,
             or_levels=or_levels,
         )
         assert signal_above_high is not None
@@ -1421,7 +1424,7 @@ class TestEdgeCases:
 
         signal_below_low = generator.check_breakout(
             symbol="TEST",
-            current_price=97.99,
+            current_price=97.5,
             or_levels=or_levels,
         )
         assert signal_below_low is not None
