@@ -76,6 +76,25 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
+  await page.route("**/api/bots/summary", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: botId,
+          name: botName,
+          is_active: true,
+          running: isRunning,
+          pid: isRunning ? 12345 : null,
+          status: isRunning ? "running" : "stopped",
+          position_count: positions.length,
+          strategies: strategies.map((s) => ({ id: String(s.id), name: s.name, strategy_type: "ORB" })),
+        },
+      ]),
+    });
+  });
+
   await page.route(`**/api/bots/${botId}/start`, async (route) => {
     await route.fulfill({
       status: 200,

@@ -40,11 +40,11 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await expect(page.getByTestId("tab-settings")).toBeVisible();
   });
 
-  test("should display bot selector dropdown", async ({ page }) => {
+  test("should display bot cards", async ({ page }) => {
     await navigateToPaperTrading(page);
 
-    // Verify bot selector is visible
-    await expect(page.locator('[data-testid="bot-selector-dropdown"]')).toBeVisible();
+    // Verify bot cards are visible
+    await expect(page.locator('[data-testid^="bot-card-"]').first()).toBeVisible();
   });
 
   test.skip("should list available bots in dropdown", async ({ page }) => {
@@ -228,11 +228,11 @@ test.describe("Paper Trading - Bot Controls", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    await page.locator('button:has-text("Start Bot")').click();
+    await page.locator('[data-testid="start-bot-btn"]').click();
 
     await expect(page.locator('[data-testid="bot-status"]')).toContainText("Running");
     await expect(page.locator('[data-testid="bot-status"]')).toContainText("22133");
-    await expect(page.locator('button:has-text("Stop Bot")')).toBeVisible();
+    await expect(page.locator('[data-testid="stop-bot-btn"]')).toBeVisible();
   });
 
   test("should show Start Bot button when bot is not running", async ({ page }) => {
@@ -255,7 +255,7 @@ test.describe("Paper Trading - Bot Controls", () => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Verify Start Bot button is visible
-    await expect(page.locator('button:has-text("Start Bot")')).toBeVisible();
+    await expect(page.locator('[data-testid="start-bot-btn"]')).toBeVisible();
   });
 
   test("should show Stop Bot button when bot is running", async ({ page }) => {
@@ -270,15 +270,14 @@ test.describe("Paper Trading - Bot Controls", () => {
           is_active: true,
           strategies: [],
           running: true,
-          pid: 12345,
+          pid: 22133,
         }),
       });
     });
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify Stop Bot button is visible
-    await expect(page.locator('button:has-text("Stop Bot")')).toBeVisible();
+    await expect(page.locator('[data-testid="stop-bot-btn"]')).toBeVisible();
   });
 });
 

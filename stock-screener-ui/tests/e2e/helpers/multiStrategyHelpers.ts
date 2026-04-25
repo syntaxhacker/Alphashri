@@ -150,7 +150,8 @@ export async function navigateToBot(page: Page, _botId?: string) {
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
-  // Click the first available bot card — no waiting for specific cards to appear
+  // Wait for bot cards and click the first available one
+  await page.waitForSelector('[data-testid^="bot-card-"]', { state: "visible", timeout: 10000 });
   const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
   await firstBotCard.click();
 

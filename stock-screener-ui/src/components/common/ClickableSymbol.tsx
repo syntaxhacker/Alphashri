@@ -10,6 +10,7 @@ interface ClickableSymbolProps {
   showPreview?: boolean;
   previewTimeout?: number;
   onClick?: (symbol: string) => void;
+  stopClickPropagation?: boolean;
 }
 
 export function ClickableSymbol({
@@ -19,6 +20,7 @@ export function ClickableSymbol({
   showPreview = false,
   previewTimeout = 5000,
   onClick,
+  stopClickPropagation = true,
 }: ClickableSymbolProps) {
   const navigate = useNavigate();
   const { showPreviewChart, hidePreviewChart } = usePreviewChart();
@@ -52,7 +54,9 @@ export function ClickableSymbol({
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+    if (stopClickPropagation) {
+      e.stopPropagation();
+    }
     handleClosePreview();
     if (onClick) {
       onClick(symbol);

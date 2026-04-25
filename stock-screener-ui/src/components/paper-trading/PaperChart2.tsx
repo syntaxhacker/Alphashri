@@ -133,7 +133,7 @@ function ChartEmptyState({
 }) {
   return (
     <CompactPanel
-      data-testid="paper-chart-container"
+      data-testid="paper-chart-empty"
       className={`paper-chart-container ${className}`}
       id="paper-chart"
       style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -345,35 +345,18 @@ export function PaperChart() {
       className="paper-chart-container"
       id="paper-chart"
       h="100%"
-      style={{
-        padding: 0,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-      }}
+      style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
     >
       <ChartHeader state={state} />
-      <TradingChart input={chartInput!} isLoading={state.chartLoading} />
-      <Flex
-        px="sm"
-        pb="sm"
-        className="paper-chart-footer"
-        id="chart-footer"
-        justify="center"
-        align="center"
-        gap="xs"
-        style={{ flex: "0 0 auto" }}
-      >
-        <ChartLegend
-          orbLabel={
-            state.chartData?.orb_levels?.or_minutes
-              ? `ORB ${state.chartData.orb_levels.or_minutes}m`
-              : undefined
-          }
-          hasWeek52={!!state.chartData?.week52_levels}
-        />
-      </Flex>
+      {chartInput && <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />}
+      <ChartLegend
+        orbLabel={
+          state.chartData?.orb_levels
+            ? `ORB (${state.chartData.orb_levels.or_minutes}m)`
+            : undefined
+        }
+        hasWeek52={!!state.chartData?.week52_levels}
+      />
     </CompactPanel>
   );
 }

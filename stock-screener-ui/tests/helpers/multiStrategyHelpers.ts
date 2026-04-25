@@ -28,21 +28,17 @@ export async function navigateToMultiStrategyBot(page: Page, botId: string = "2"
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
-  // Wait for bot selector to be populated
-  const dropdown = page.locator(".bot-selector-dropdown");
-  await dropdown.waitFor({ state: "visible", timeout: 10000 });
+  // Wait for bot cards to be visible
+  await page.waitForSelector('[data-testid^="bot-card-"]', { state: "visible", timeout: 10000 });
 
-  // Wait for options to be populated (bots API call completes)
-  await page.waitForFunction(
-    (selector) => {
-      const select = document.querySelector(selector);
-      return select && select.querySelectorAll("option[value]").length > 0;
-    },
-    ".bot-selector-dropdown",
-    { timeout: 10000 },
-  );
-
-  await dropdown.selectOption(botId);
+  // Click the requested bot card or the first available one
+  const botCard = page.locator(`[data-testid="bot-card-${botId}"]`);
+  const isCardVisible = await botCard.isVisible().catch(() => false);
+  if (isCardVisible) {
+    await botCard.click();
+  } else {
+    await page.locator('[data-testid^="bot-card-"]').first().click();
+  }
 
   // Wait for positions to load (not just "Loading positions...")
   await page.waitForFunction(

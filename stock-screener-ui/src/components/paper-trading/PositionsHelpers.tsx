@@ -1,5 +1,11 @@
 import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
+import {
+  getPaperTradingState,
+  setSelectedSymbol,
+  setSelectedTradeId,
+  setShowAllTrades,
+} from "../../state/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import {
   formatCurrencyIN,
@@ -126,7 +132,18 @@ function PositionRow({
       data-testid={`position-row-${pos.symbol}`}
     >
       <Table.Td>
-        <ClickableSymbol symbol={pos.symbol} />
+        <ClickableSymbol
+          symbol={pos.symbol}
+          onClick={() =>
+            onSelect(
+              pos.symbol,
+              pos.order_id,
+              pos.strategy_name,
+              pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined),
+              pos.strategy_id,
+            )
+          }
+        />
       </Table.Td>
       <Table.Td>
         <SideBadge side={pos.side} data-testid={`side-badge-${pos.symbol}`} />

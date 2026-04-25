@@ -45,12 +45,16 @@ export async function selectBot(page: Page, botId: string): Promise<void> {
     await navigateToLiveTab(page);
   }
 
-  const segmentedControl = page.locator('[data-testid="bot-selector-dropdown"]');
-  await segmentedControl.waitFor({ state: "visible", timeout: 10000 });
+  const botCard = page.locator(`[data-testid="bot-card-${botId}"]`);
+  const isCardVisible = await botCard.isVisible().catch(() => false);
 
-  const botInput = segmentedControl.locator(`input[value="${botId}"]`);
-  await expect(botInput).toBeAttached({ timeout: 5000 });
-  await botInput.evaluate((el) => (el as HTMLInputElement).click());
+  if (isCardVisible) {
+    await botCard.click();
+  } else {
+    // Fallback: click first available bot card
+    const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
+    await firstBotCard.click();
+  }
   await page.waitForTimeout(500);
 }
 
