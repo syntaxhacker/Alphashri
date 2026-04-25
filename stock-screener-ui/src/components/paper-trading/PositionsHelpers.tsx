@@ -1,4 +1,4 @@
-import { Box, Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
+import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon } from "@mantine/core";
 import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
@@ -198,89 +198,6 @@ export function PositionsTableBody({
         ))}
       </Table.Tbody>
     </Table>
-  );
-}
-
-export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null }) {
-  const state = getPaperTradingState();
-
-  const handleSelectSymbol = async (symbol: string) => {
-    setSelectedSymbol(symbol);
-    const currentState = getPaperTradingState();
-    await fetchPaperChart(symbol, undefined, currentState.chartTimeframe);
-  };
-
-  if (!snapshot || !snapshot.scan_items || snapshot.scan_items.length === 0) return null;
-
-  const scanTime = snapshot.timestamp ? new Date(snapshot.timestamp).toLocaleTimeString() : "-";
-
-  let scanItems = snapshot.scan_items;
-  if (state.selectedStrategyTab && state.selectedStrategyTab !== "all") {
-    scanItems = scanItems.filter((item) => item.status === state.selectedStrategyTab);
-  }
-
-  const rows = [...scanItems].sort((a, b) => nearBreakoutPct(a) - nearBreakoutPct(b)).slice(0, 12);
-
-  return (
-    <Flex
-      direction="column"
-      data-testid="watchlist-scan-card"
-      className="paper-watchlist-scan"
-      id="watchlist-scan"
-    >
-      <Group justify="space-between" px="xs" py={2}>
-        <Text fw={600} size="xs" c="dimmed" tt="uppercase">
-          Watchlist Scan
-        </Text>
-        <Text size="xs" c="dimmed">
-          {scanTime}
-        </Text>
-      </Group>
-      <ScrollArea flex={1} style={{ minHeight: 0 }}>
-        <Box style={{ overflowX: "auto" }}>
-          <Table striped highlightOnHover styles={TABLE_STYLES}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Sym</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Price</Table.Th>
-                <Table.Th>OR H/L</Table.Th>
-                <Table.Th>Near</Table.Th>
-                <Table.Th>Reason</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((item) => (
-                <Table.Tr
-                  key={item.symbol}
-                  onClick={() => handleSelectSymbol(item.symbol)}
-                  data-testid={`scan-row-${item.symbol}`}
-                >
-                  <Table.Td>
-                    <Text fw={600} size="sm">
-                      {item.symbol}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge variant="outline" color="blue" size="xs">
-                      {item.status || "-"}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>{item.price ? `₹${item.price.toFixed(2)}` : "-"}</Table.Td>
-                  <Table.Td>
-                    {item.or_high && item.or_low
-                      ? `₹${item.or_high.toFixed(2)} / ₹${item.or_low.toFixed(2)}`
-                      : "-"}
-                  </Table.Td>
-                  <Table.Td>{formatNear(item)}</Table.Td>
-                  <Table.Td>{item.reason || "-"}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Box>
-      </ScrollArea>
-    </Flex>
   );
 }
 

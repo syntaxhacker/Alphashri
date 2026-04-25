@@ -6,11 +6,11 @@ import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   PositionsTableBody,
-  WatchlistScan,
   StrategySummaryFooter,
   groupPositionsByStrategy,
   calcStrategySummary,
 } from "./PositionsHelpers";
+import { WatchlistScan } from "./WatchlistScan";
 
 function EmptyPositions() {
   return (
