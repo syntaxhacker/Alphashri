@@ -344,6 +344,38 @@ test.describe("Paper Trading - Watchlist Scan", () => {
     await expect(scanCard).toContainText("Watchlist Scan");
   });
 
+  test("should use accordion component (not flat table)", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard.locator('[data-testid="watchlist-scan-accordion"]')).toBeVisible();
+  });
+
+  test("should have Signals accordion item", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard.locator('[data-testid="watchlist-scan-signals"]')).toBeVisible();
+  });
+
+  test("should have Watching accordion item", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard.locator('[data-testid="watchlist-scan-watching"]')).toBeVisible();
+  });
+
+  test("should have Skipped accordion item", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
+    await expect(scanCard).toBeVisible({ timeout: 10000 });
+    await expect(scanCard.locator('[data-testid="watchlist-scan-skipped"]')).toBeVisible();
+  });
+
   test("should display Signals section with signal items", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
