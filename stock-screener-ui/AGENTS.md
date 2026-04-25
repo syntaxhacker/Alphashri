@@ -56,19 +56,8 @@ src/
 ```
 
 ## Replay Trading
-- API: `api/replay_api.py` — `/api/replay/run` (SSE), `/api/replay/symbols`
-- Backend uses `trading/runner_core.py:MultiStrategyRunner.run_replay()` — loads strategy configs from DB (same as live trading)
-- Frontend: `src/components/replay/` — ReplayPage, ReplayChart, ReplayTradeLog, ReplaySummary, ReplayConfig, ReplayStats
-- State: `src/state/replay.ts` + `src/hooks/useReplayState.ts` — SSE event handler → store
-- Types: `src/types/replay.ts` — ReplayTrade, ReplayEMAData, ReplaySummary, SSE event types
-- Chart builder: `src/components/replay/buildReplayChartOption.ts` — matches paper trading colors from `chartOptions.ts`
-- Data fetch: `market_data/market_data.py` — universal `fetch_candles()`, `resample_candles()`, `get_api_client()`
+- Components: `src/components/replay/` — page-level feature, uses SSE from `api/replay_api.py`
 - Cache: `experiments/data/replay_cache/{date}/{symbol}.pkl` (gitignored)
-- Late-entry guard: blocks entries within 30 min of earliest EOD exit across all strategies
-- Query params: date, strategy, symbols sync bidirectionally with URL
-- Overlay lines (ORB, pivots R1-R2/S1-S2, 52W high, EMA) only show for strategies with trades on selected symbol
-- EMA computed per-TF on backend from historical seed data (1m no-seed, 5m/15m/1h with 5m history seed)
-- Tests: `tests/test_market_data.py` (20 tests for fetch_candles, resample_candles)
 
 ## CSS
 - Legacy hardcoded CSS in `style.css` is being migrated to Mantine — prefer `var(--mantine-color-*)` vars
@@ -101,18 +90,8 @@ src/
   - Fibonacci pivot constants in `sr_breakout_signals.py` — mathematical constants, never change.
 
 ## Telegram Notifications
-- Module: `trading/telegram_notifier.py` — all Telegram alert functions
-- Config: `TELEGRAM_CONFIG` in root `config.py` (`bot_token`, `chat_id`, `enabled`)
-- Env vars: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED` (default `true`)
-- All calls are **non-blocking** via `ThreadPoolExecutor` — never slows the scan loop
-- Rate limited: max 25 msgs/min, 60s cooldown per dedup key (same symbol/action)
-- Failures are logged via `rich.Console` but never crash the bot
-- Hooked into `MultiStrategyRunner` at 6 points:
-  - `execute_signal()` → `send_trade_entry()` (position opened), `send_signal_rejected()` (risk validation failed)
-  - `monitor_positions()` → `send_trade_exit()` (position closed), `send_risk_alert()` (daily loss approaching limit)
-  - `run()` → `send_bot_status()` (start/stop), `send_daily_summary()` (15:30 IST EOD)
-- `send_positions_snapshot()` available for on-demand use (not auto-triggered)
-- The separate `upstox_trader/screeners/tv_alerts.py` Telegram system is **unrelated** — that's for TradingView screener webhooks, not the paper trading engine
+- Module: `trading/telegram_notifier.py` — all calls are non-blocking via `ThreadPoolExecutor`
+- The separate `upstox_trader/screeners/tv_alerts.py` Telegram system is **unrelated** — that's for TradingView screener webhooks
 
 ## Bot Architecture
 - Bot runs as **separate subprocess** via `runner_cli.py` — NOT in the API process
@@ -164,6 +143,13 @@ src/
 - **Redis**: on Upstash — used for bot heartbeat (90s TTL key `bot:{bot_id}:heartbeat`). NOT on Railway.
 - **Deploy**: frontend builds to Cloudflare Pages via Wrangler, backend runs on Railway as FastAPI
 - **Env vars**: see `.env.example` — `DATABASE_URL`, `UPSTOX_API_KEY/SECRET`, `REDIS_URL`, `BACKEND_JWT_SECRET`, `VITE_API_BASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED`
+
+### Cloudflare Pages Build
+- Build command: `bun install && bun run build` (Cloudflare Pages build image does **not** have `bun`; it silently falls back to `npm install`)
+- **Critical**: `npm` is stricter than `bun` about peer dependency conflicts. A mismatch between `@mantine/core` and `@mantine/dates` major versions will cause the build to fail with `ERESOLVE unable to resolve dependency tree`
+- **Rule**: all `@mantine/*` packages must share the same major version. If you upgrade one, upgrade all.
+- Output directory: `dist`
+- Root directory: `stock-screener-ui`
 
 ## Debugging
 

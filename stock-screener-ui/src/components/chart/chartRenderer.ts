@@ -10,7 +10,7 @@ import type { ORBZone } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import { formatTimeLabel } from "../../utils/chartTimeUtils";
-import { getCandleChange, getCandleFromParams } from "../../utils/chartUtils";
+import { getCandleFromParams } from "../../utils/chartUtils";
 export { buildPivotSeries, formatTimeLabel };
 
 export type ChartSize = "preview" | "expanded" | "full";

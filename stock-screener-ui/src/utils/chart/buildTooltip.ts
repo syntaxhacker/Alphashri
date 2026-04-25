@@ -1,5 +1,5 @@
 import type { HolidayMap } from "../chartUtils";
-import { formatVolume, getCandleChange, getCandleFromParams } from "../chartUtils";
+import { formatVolume, getCandleFromParams } from "../chartUtils";
 import type { UnifiedTrade } from "./types";
 
 export function buildTooltip(
