@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 import pytest
 from unittest.mock import patch, MagicMock
+from sqlalchemy.orm import Session  # Added import
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
