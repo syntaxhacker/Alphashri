@@ -239,6 +239,8 @@ test.describe("Backtest - Mantine Features", () => {
       await withTradeHistoryPanel(page, async () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
+          await firstTradeRow.scrollIntoViewIfNeeded();
+          await firstTradeRow.waitFor({ state: "stable" });
           await firstTradeRow.click();
           await expect(page.locator(".trade-row-highlighted")).toBeVisible({ timeout: 5000 });
         }
@@ -253,6 +255,8 @@ test.describe("Backtest - Mantine Features", () => {
       await withTradeHistoryPanel(page, async () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
+          await firstTradeRow.scrollIntoViewIfNeeded();
+          await firstTradeRow.waitFor({ state: "stable" });
           await firstTradeRow.click();
           await page.waitForLoadState("networkidle");
           expect(
@@ -268,6 +272,8 @@ test.describe("Backtest - Mantine Features", () => {
       await withTradeHistoryPanel(page, async () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
+          await firstTradeRow.scrollIntoViewIfNeeded();
+          await firstTradeRow.waitFor({ state: "stable" });
           await firstTradeRow.click();
           await page.waitForLoadState("networkidle");
           await page.waitForLoadState("networkidle");

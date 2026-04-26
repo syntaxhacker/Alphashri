@@ -165,12 +165,16 @@ test.describe("Layout - Sidebar", () => {
     const initialBox = await navbar.boundingBox();
     expect(initialBox?.width).toBeGreaterThan(100);
 
+    await toggleBtn.scrollIntoViewIfNeeded();
+    await toggleBtn.waitFor({ state: "stable" });
     await toggleBtn.click();
     await page.waitForLoadState("networkidle");
 
     const collapsedBox = await navbar.boundingBox();
     expect(collapsedBox?.width).toBeLessThanOrEqual(100);
 
+    await toggleBtn.scrollIntoViewIfNeeded();
+    await toggleBtn.waitFor({ state: "stable" });
     await toggleBtn.click();
     await page.waitForLoadState("networkidle");
 

@@ -761,6 +761,9 @@ test.describe("Backtest - Trade Highlight on Click", () => {
     if (await tradeHistoryPanel.isVisible()) {
       const firstRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
       if (await firstRow.isVisible()) {
+        // Ensure row is stable and in view before clicking
+        await firstRow.scrollIntoViewIfNeeded();
+        await firstRow.waitFor({ state: "stable" });
         await firstRow.click();
         await expect(page.locator(".trade-row-highlighted")).toBeVisible({ timeout: 5000 });
       }
