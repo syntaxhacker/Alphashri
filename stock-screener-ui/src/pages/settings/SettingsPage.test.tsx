@@ -134,8 +134,12 @@ describe("SettingsPage", () => {
 
     renderWithRouter(<SettingsPage />);
 
+    // Wait for the button to appear AND for loading to complete
     await waitFor(() => {
-      expect(screen.getByTestId("connect-upstox-btn")).toBeInTheDocument();
+      const btn = screen.getByTestId("connect-upstox-btn");
+      expect(btn).toBeInTheDocument();
+      // Ensure button is not in loading state
+      expect(btn).not.toHaveAttribute("data-loading");
     });
 
     const connectBtn = screen.getByTestId("connect-upstox-btn");
@@ -150,8 +154,11 @@ describe("SettingsPage", () => {
 
     renderWithRouter(<SettingsPage />);
 
+    // Wait for the button to appear AND for loading to complete
     await waitFor(() => {
-      expect(screen.getByTestId("disconnect-upstox-btn")).toBeInTheDocument();
+      const btn = screen.getByTestId("disconnect-upstox-btn");
+      expect(btn).toBeInTheDocument();
+      expect(btn).not.toHaveAttribute("data-loading");
     });
 
     const disconnectBtn = screen.getByTestId("disconnect-upstox-btn");
@@ -166,8 +173,11 @@ describe("SettingsPage", () => {
 
     renderWithRouter(<SettingsPage />);
 
+    // Wait for the button to appear AND for loading to complete
     await waitFor(() => {
-      expect(screen.getByTestId("disconnect-upstox-btn")).toBeInTheDocument();
+      const btn = screen.getByTestId("disconnect-upstox-btn");
+      expect(btn).toBeInTheDocument();
+      expect(btn).not.toHaveAttribute("data-loading");
     });
 
     const disconnectBtn = screen.getByTestId("disconnect-upstox-btn");
