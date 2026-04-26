@@ -94,9 +94,7 @@ export function CompactPanel({
   scrollable = false,
   ...paperProps
 }: CompactPanelProps) {
-  const panelStyle: CSSProperties = scrollable
-    ? { ...SCROLLABLE_PANEL_STYLE, ...style }
-    : style;
+  const panelStyle: CSSProperties = scrollable ? { ...SCROLLABLE_PANEL_STYLE, ...style } : style;
 
   return (
     <Paper
@@ -129,11 +127,7 @@ export function CompactPanel({
           {action}
         </Group>
       )}
-      {scrollable ? (
-        <Box style={SCROLL_CONTAINER_STYLE}>{children}</Box>
-      ) : (
-        children
-      )}
+      {scrollable ? <Box style={SCROLL_CONTAINER_STYLE}>{children}</Box> : children}
     </Paper>
   );
 }
