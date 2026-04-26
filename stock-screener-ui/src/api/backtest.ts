@@ -29,8 +29,17 @@ import {
 } from "../state/backtest";
 import { buildChartData } from "./chartBuilder";
 import { fetchWithAuth } from "../state/auth";
+import { notifications } from "@mantine/notifications";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+
+function showBacktestError(message: string) {
+  notifications.show({
+    title: "Backtest Error",
+    message,
+    color: "red",
+  });
+}
 
 // Calculate totals from results
 export function calculateTotals(results: BacktestResult[]): BacktestTotals {
@@ -134,6 +143,7 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
         msg = errBody.detail || errBody.error || msg;
       } catch {}
       setError(msg);
+      showBacktestError(msg);
       return null;
     }
 
@@ -142,6 +152,7 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
 
     if (data.error) {
       setError(data.error);
+      showBacktestError(data.error);
       return null;
     }
 
@@ -188,21 +199,36 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
 }
 
 // Fetch chart data for a symbol
-export async function fetchChartData(symbol: string): Promise<SymbolChartData | null> {
+export async function fetchChartData(symbol: string, tf?: number): Promise<SymbolChartData | null> {
   setChartLoading(true);
 
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/backtest/chart/${symbol}`);
-    const data: SymbolChartData = await response.json();
+    const params = tf != null ? `?tf=${tf}` : "";
+    const response = await fetchWithAuth(`${API_BASE}/api/backtest/chart/${symbol}${params}`);
 
-    if (data.error) {
-      console.error("Chart data error:", data.error);
+    if (!response.ok) {
+      console.error("Chart data error:", response.status);
       setChartLoading(false);
       return null;
     }
 
-    setChartData(symbol, data);
-    return data;
+    const data = (await response.json()) as any;
+
+    if (data.error || data.detail) {
+      console.error("Chart data error:", data.error || data.detail);
+      setChartLoading(false);
+      return null;
+    }
+
+    if (!data.candles || !Array.isArray(data.candles)) {
+      console.error("Chart data missing candles");
+      setChartLoading(false);
+      return null;
+    }
+
+    const chartData: SymbolChartData = data;
+    setChartData(symbol, chartData);
+    return chartData;
   } catch (error) {
     console.error("Failed to fetch chart data:", error);
     setChartLoading(false);

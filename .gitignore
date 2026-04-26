@@ -46,11 +46,14 @@ ENV/
 
 cache/
 !stock-screener-ui/cache/
+experiments/data/
+stock-screener-ui/experiments/data/
 
 
-visualizations/html/
+ visualizations/html/
 backtest_results/
 models/
+!stock-screener-ui/db/models/
 wandb/
 
 data_cache/

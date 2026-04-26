@@ -1,0 +1,67 @@
+import { useEffect } from "react";
+import { Box } from "@mantine/core";
+import type { Notification } from "../../state/store/notificationsSlice";
+
+type NotificationItemProps = {
+  notification: Notification;
+  onDismiss: (id: string) => void;
+};
+
+export const typeConfig = {
+  success: {
+    icon: "✓",
+    className: "toast-success",
+  },
+  error: {
+    icon: "✕",
+    className: "toast-error",
+  },
+  warning: {
+    icon: "⚠",
+    className: "toast-warning",
+  },
+  info: {
+    icon: "ℹ",
+    className: "toast-info",
+  },
+};
+
+export function NotificationItem({ notification, onDismiss }: NotificationItemProps) {
+  const config = typeConfig[notification.type];
+
+  useEffect(() => {
+    if (notification.duration && notification.duration > 0) {
+      const timer = setTimeout(() => {
+        onDismiss(notification.id);
+      }, notification.duration);
+
+      return () => clearTimeout(timer);
+    }
+  }, [notification.id, notification.duration, onDismiss]);
+
+  return (
+    <Box
+      className={`toast-item ${config.className}`}
+      role="alert"
+      aria-live="polite"
+      aria-atomic="true"
+      data-testid={`notification-${notification.type}`}
+      data-notification-id={notification.id}
+    >
+      <span className="toast-icon" aria-hidden="true">
+        {config.icon}
+      </span>
+      <span className="toast-message" data-testid="notification-message">
+        {notification.message}
+      </span>
+      <button
+        className="toast-dismiss"
+        onClick={() => onDismiss(notification.id)}
+        aria-label="Dismiss notification"
+        data-testid="notification-dismiss-btn"
+      >
+        ✕
+      </button>
+    </Box>
+  );
+}

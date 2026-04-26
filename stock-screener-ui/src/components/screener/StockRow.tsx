@@ -3,14 +3,7 @@ import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { Stock } from "../../types";
 import type { ColumnDef, FormattedCell } from "./columns";
 import { getValueColor, getScoreColor } from "../../utils/ui-helpers";
-
-declare global {
-  interface Window {
-    showPreviewChart?: (event: MouseEvent, symbol: string) => void;
-    hidePreviewChart?: () => void;
-    toggleExpandedChart?: (symbol: string) => void;
-  }
-}
+import { usePreviewChart } from "../common/PreviewChartProvider";
 
 interface StockRowProps {
   stock: Stock;
@@ -34,18 +27,20 @@ export function StockRow({
   onSymbolClick,
   onSymbolHover,
 }: StockRowProps) {
+  const { showPreviewChart, hidePreviewChart } = usePreviewChart();
+
   const handleMouseEnter = (e: React.MouseEvent, symbol: string) => {
     onSymbolHover(symbol);
-    window.showPreviewChart?.(e.nativeEvent, symbol);
+    showPreviewChart(e, symbol);
   };
 
   const handleMouseLeave = () => {
     onSymbolHover(null);
-    window.hidePreviewChart?.();
+    hidePreviewChart();
   };
 
   const handleClick = (symbol: string) => {
-    window.hidePreviewChart?.();
+    hidePreviewChart();
     onSymbolClick(symbol);
   };
 

@@ -1,3 +1,12 @@
+import {
+  POSITIVE,
+  NEGATIVE,
+  MARKER_TP,
+  MARKER_SL,
+  MARKER_EOD,
+  EXIT_DEFAULT,
+} from "../config/colors";
+
 export function formatCurrency(amount: number | undefined | null, precision: number = 0): string {
   if (amount === undefined || amount === null || isNaN(amount)) return "0";
   return `₹${amount.toFixed(precision)}`;
@@ -50,50 +59,40 @@ export function formatPercentage(
 // Date/Time Formatting
 // ============================================
 
+function extractDateTimeParts(isoStr: string) {
+  const parts = isoStr.split("T");
+  const datePart = parts[0];
+  const timePart = parts[1]
+    ?.replace("Z", "")
+    .replace(/\+00:00/g, "")
+    .replace(/\+05:30/g, "")
+    .substring(0, 5);
+  return { datePart, timePart };
+}
+
+function parseDateParts(isoStr: string): { d: number; m: number; timePart: string } | null {
+  const { datePart, timePart } = extractDateTimeParts(isoStr);
+  if (!datePart) return null;
+  const [_year, month, day] = datePart.split("-");
+  return { d: parseInt(day), m: parseInt(month) - 1, timePart };
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 /**
  * Format date to human readable: "12th Thu Jan 2025 10:30"
  */
 export function formatDateTimeHuman(isoStr: string): string {
   if (!isoStr) return "-";
-
   try {
-    const parts = isoStr.split("T");
-    const datePart = parts[0];
-    const timePart = parts[1]
-      ?.replace("Z", "")
-      .replace(/\+00:00/g, "")
-      .replace(/\+05:30/g, "")
-      .substring(0, 5);
-
-    if (!datePart) return "-";
-
-    const [_year, month, day] = datePart.split("-");
-    const d = parseInt(day);
-    const m = parseInt(month) - 1;
-
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-
-    const date = new Date(parseInt(_year), m, d);
-    const dayName = days[date.getDay()];
-    const monthName = months[m];
-
-    const suffix = getOrdinalSuffix(d);
-
-    return `${d}${suffix} ${dayName} ${monthName} ${timePart || ""}`;
+    const parsed = parseDateParts(isoStr);
+    if (!parsed) return "-";
+    const { d, m, timePart } = parsed;
+    const date = new Date(new Date().getFullYear(), m, d);
+    const dayName = DAYS[date.getDay()];
+    const monthName = MONTHS[m];
+    return `${d}${getOrdinalSuffix(d)} ${dayName} ${monthName} ${timePart || ""}`;
   } catch {
     return "-";
   }
@@ -104,39 +103,11 @@ export function formatDateTimeHuman(isoStr: string): string {
  */
 export function formatDateTimeCompact(isoStr: string): string {
   if (!isoStr) return "-";
-
   try {
-    const parts = isoStr.split("T");
-    const datePart = parts[0];
-    const timePart = parts[1]
-      ?.replace("Z", "")
-      .replace(/\+00:00/g, "")
-      .replace(/\+05:30/g, "")
-      .substring(0, 5);
-
-    if (!datePart) return "-";
-
-    const [_year, month, day] = datePart.split("-");
-    const d = parseInt(day);
-    const m = parseInt(month) - 1;
-
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    const suffix = getOrdinalSuffix(d);
-
-    return `${d}${suffix} ${months[m]} ${timePart || ""}`;
+    const parsed = parseDateParts(isoStr);
+    if (!parsed) return "-";
+    const { d, m, timePart } = parsed;
+    return `${d}${getOrdinalSuffix(d)} ${MONTHS[m]} ${timePart || ""}`;
   } catch {
     return "-";
   }
@@ -221,23 +192,20 @@ export function getPnLClass(value: number): "positive" | "negative" | "" {
  * Get color for P&L value
  */
 export function getPnLColor(value: number): string {
-  if (value >= 0) return "#00E676"; // Green
-  return "#FF1744"; // Red
+  if (value >= 0) return POSITIVE;
+  return NEGATIVE;
 }
 
-/**
- * Get exit reason color
- */
 export function getExitReasonColor(reason: string): string {
   switch (reason) {
     case "TP":
-      return "#00E676"; // Green
+      return MARKER_TP;
     case "SL":
-      return "#FF1744"; // Red
+      return MARKER_SL;
     case "EOD":
-      return "#FFEA00"; // Yellow
+      return MARKER_EOD;
     default:
-      return "#FFEA00";
+      return EXIT_DEFAULT;
   }
 }
 
@@ -269,6 +237,33 @@ export function getNextSortDirection(
     return "desc"; // Default to descending for new column
   }
   return currentDirection === "asc" ? "desc" : "asc";
+}
+
+export function sortByField<T>(
+  items: T[],
+  field: keyof T | ((item: T) => string | number | null | undefined),
+  direction: "asc" | "desc",
+): T[] {
+  const sorted = [...items];
+  const accessor = typeof field === "function" ? field : (item: T) => item[field];
+  const dir = direction === "asc" ? 1 : -1;
+
+  sorted.sort((a, b) => {
+    const aVal = accessor(a);
+    const bVal = accessor(b);
+
+    if (aVal == null && bVal == null) return 0;
+    if (aVal == null) return 1;
+    if (bVal == null) return -1;
+
+    if (typeof aVal === "string" && typeof bVal === "string") {
+      return dir * aVal.localeCompare(bVal);
+    }
+
+    return dir * ((aVal as number) - (bVal as number));
+  });
+
+  return sorted;
 }
 
 // ============================================
@@ -416,4 +411,20 @@ export function formatTimeAgo(isoString: string): string {
   } catch {
     return "";
   }
+}
+
+export function getStrategyTypeFromName(name: string | undefined | null): string | null {
+  if (!name) return null;
+  const upper = name.toUpperCase();
+  if (upper.includes("ORB")) return "ORB";
+  if (upper.includes("S/R BREAKOUT") || upper.includes("SR BREAKOUT")) return "SR_BREAKOUT";
+  if (upper.includes("EMA CROSS")) return "EMA_CROSS";
+  if (upper.includes("52W")) return "52W_CHASER";
+  return null;
+}
+
+export function parseTimeToHHMM(isoTime: string): string {
+  if (isoTime.includes("T")) return isoTime.split("T")[1].substring(0, 5);
+  if (isoTime.includes(" ")) return isoTime.split(" ")[1].substring(0, 5);
+  return isoTime.substring(0, 5);
 }

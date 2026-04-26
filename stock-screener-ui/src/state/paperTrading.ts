@@ -16,7 +16,7 @@ import type {
   BotInfo,
 } from "../types/paperTrading";
 
-import { deleteTrade } from "../api/paperTrading";
+import { deleteTrade, updateTradeNotes } from "../api/paperTrading";
 import { createSubscriber } from "./createSubscriber";
 
 // Initial state
@@ -32,14 +32,22 @@ export const initialPaperTradingState: PaperTradingState = {
   symbolPerformance: [],
 
   filterDate: null,
-  filterFromDate: null,
-  filterToDate: null,
+  filterFromDate: new Date().toISOString().split("T")[0],
+  filterToDate: new Date().toISOString().split("T")[0],
   filterSymbol: null,
   filterStrategy: null,
   filterBot: null,
 
   selectedSymbol: null,
-  selectedStrategyTab: null, // For multi-strategy position tabs
+  selectedStrategyId: null,
+  selectedStrategyTab: null,
+  selectedTradeId: null,
+  showAllTrades: false,
+  showOrbLines: false,
+  showPivotLines: false,
+  show52wLines: false,
+  showEmaLines: false,
+  intradayOnly: false,
   chartData: null,
   chartLoading: false,
   chartTimeframe: "5min",
@@ -139,14 +147,69 @@ export function setFilterSymbol(symbol: string | null) {
   notify();
 }
 
-export function setFilterStrategy(strategy: string | null) {
-  state = { ...state, filterStrategy: strategy };
+export function setFilterStrategy(strategyId: number | null) {
+  state = { ...state, filterStrategy: strategyId };
   notify();
 }
 
 // Chart management
 export function setSelectedSymbol(symbol: string | null) {
-  state = { ...state, selectedSymbol: symbol };
+  state = { ...state, selectedSymbol: symbol, selectedTradeId: null };
+  notify();
+}
+
+export function setSelectedTradeId(
+  tradeId: string | null,
+  strategyType?: string | null,
+  strategyId?: number | null,
+) {
+  let showOrb = false;
+  let showPivot = false;
+  let show52w = false;
+  if (strategyType) {
+    if (strategyType === "ORB") showOrb = true;
+    if (strategyType === "SR_BREAKOUT") showPivot = true;
+    if (strategyType.startsWith("52W")) show52w = true;
+  }
+  state = {
+    ...state,
+    selectedTradeId: tradeId,
+    selectedStrategyId: strategyId ?? null,
+    showAllTrades: false,
+    showOrbLines: showOrb,
+    showPivotLines: showPivot,
+    show52wLines: show52w,
+  };
+  notify();
+}
+
+export function setShowAllTrades(show: boolean) {
+  state = { ...state, showAllTrades: show };
+  notify();
+}
+
+export function setShowOrbLines(show: boolean) {
+  state = { ...state, showOrbLines: show };
+  notify();
+}
+
+export function setShowPivotLines(show: boolean) {
+  state = { ...state, showPivotLines: show };
+  notify();
+}
+
+export function setShow52wLines(show: boolean) {
+  state = { ...state, show52wLines: show };
+  notify();
+}
+
+export function setShowEmaLines(show: boolean) {
+  state = { ...state, showEmaLines: show };
+  notify();
+}
+
+export function setIntradayOnly(intraday: boolean) {
+  state = { ...state, intradayOnly: intraday };
   notify();
 }
 
@@ -298,6 +361,29 @@ export async function deleteTradeAction(tradeId: string): Promise<boolean> {
     return true;
   } catch (error) {
     setError(error instanceof Error ? error.message : "Failed to delete trade");
+    return false;
+  }
+}
+
+export async function updateTradeNotesAction(
+  tradeId: string,
+  notes: string,
+  reason: string,
+): Promise<boolean> {
+  try {
+    const updated = await updateTradeNotes(tradeId, notes, reason);
+    state = {
+      ...state,
+      trades: state.trades.map((t) =>
+        t.trade_id === tradeId
+          ? { ...t, notes: updated.notes ?? notes, reason: updated.reason ?? reason }
+          : t,
+      ),
+    };
+    notify();
+    return true;
+  } catch (error) {
+    setError(error instanceof Error ? error.message : "Failed to update trade");
     return false;
   }
 }

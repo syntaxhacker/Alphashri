@@ -119,7 +119,7 @@ export function ScreenerHeatmap({
   ) as Record<string, { min: number; max: number }>;
 
   return (
-    <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="sm">
+    <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="sm" data-testid="screener-heatmap">
       {stocks.map((stock) => (
         <Box
           key={stock.symbol}
@@ -127,9 +127,8 @@ export function ScreenerHeatmap({
           style={{
             background: "light-dark(rgba(248, 250, 252, 0.92), rgba(15, 23, 42, 0.42))",
             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
-            cursor: "pointer",
           }}
-          data-testid={`screener-heatmap-card-${stock.symbol}`}
+          data-testid={`heatmap-${stock.symbol}`}
           onClick={() => onSymbolClick(stock.symbol)}
           onMouseEnter={() => onSymbolHover(stock.symbol)}
           onMouseLeave={() => onSymbolHover(null)}

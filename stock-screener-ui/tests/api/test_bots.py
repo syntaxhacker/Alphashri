@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-from api.bots import router as bots_router
+from api.bots_api import router as bots_router
 
 
 # ============================================================================
@@ -289,10 +289,10 @@ def app(mock_session_local, sample_bot_snapshot, mock_journal):
     app = FastAPI()
     app.include_router(bots_router)
 
-    with patch('api.bots._db_available', True), \
-         patch('api.bots.SessionLocal', return_value=mock_session_local), \
-         patch('api.bots.get_bot_snapshot_path') as mock_snapshot_path, \
-         patch('api.bots.load_bot_snapshot') as mock_load_snapshot, \
+    with patch('api.bots_api.bot_operations._db_available', True), \
+         patch('api.bots_api.bot_operations.SessionLocal', return_value=mock_session_local), \
+         patch('api.bots_api.bots_router.get_bot_snapshot_path') as mock_snapshot_path, \
+         patch('api.bots_api.bot_operations.get_bot_state') as mock_get_state, \
          patch('trading.journal.get_journal', return_value=mock_journal):
 
         def get_snapshot_path(bot_id, user_id=0):
@@ -312,7 +312,7 @@ def app(mock_session_local, sample_bot_snapshot, mock_journal):
                     return json.load(f)
             return None
 
-        mock_load_snapshot.side_effect = load_snapshot
+        mock_get_state.side_effect = load_snapshot
 
         yield app
 
@@ -350,7 +350,7 @@ class TestAvailableStrategies:
     @pytest.mark.unit
     def test_get_available_strategies_db_unavailable(self, client):
         """Test GET /api/bots/available-strategies when DB unavailable."""
-        with patch('api.bots._db_available', False):
+        with patch('api.bots_api.bot_operations._db_available', False):
             response = client.get("/api/bots/available-strategies")
 
             assert response.status_code == 401
@@ -543,7 +543,7 @@ class TestBotCRUD:
         test_db.commit()
         test_db.refresh(bot)
 
-        with patch('api.bots.is_bot_running', return_value=(False, None)):
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
             response = client_with_db.delete(f"/api/bots/{bot.uuid}")
 
             assert response.status_code == 200
@@ -573,8 +573,8 @@ class TestBotCRUD:
         test_db.commit()
         test_db.refresh(bot)
 
-        with patch('api.bots.is_bot_running', return_value=(True, 12345)), \
-             patch('api.bots.stop_bot_process') as mock_stop:
+        with patch('api.bots_api.bot_config.is_bot_running', return_value=(True, 12345)), \
+             patch('api.bots_api.bot_config.stop_bot_process') as mock_stop:
 
             response = client_with_db.delete(f"/api/bots/{bot.uuid}")
 
@@ -592,8 +592,8 @@ class TestBotControl:
     @pytest.mark.integration
     def test_start_bot(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/start."""
-        with patch('api.bots.is_bot_running', return_value=(False, None)), \
-             patch('api.bots.start_bot_process') as mock_start:
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)), \
+             patch('api.bots_api.bot_operations.start_bot_process') as mock_start:
 
             mock_process = MagicMock()
             mock_process.pid = 12345
@@ -609,7 +609,7 @@ class TestBotControl:
     @pytest.mark.integration
     def test_start_bot_already_running(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/start when already running."""
-        with patch('api.bots.is_bot_running', return_value=(True, 12345)):
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(True, 12345)):
 
             response = client_with_db.post(f"/api/bots/{test_bot.uuid}/start")
 
@@ -632,7 +632,7 @@ class TestBotControl:
         test_db.commit()
         test_db.refresh(bot)
 
-        with patch('api.bots.is_bot_running', return_value=(False, None)):
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
 
             response = client_with_db.post(f"/api/bots/{bot.uuid}/start")
 
@@ -650,8 +650,8 @@ class TestBotControl:
     @pytest.mark.integration
     def test_start_bot_test_mode(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/start with test_mode=True."""
-        with patch('api.bots.is_bot_running', return_value=(False, None)), \
-             patch('api.bots.start_bot_process') as mock_start:
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)), \
+             patch('api.bots_api.bot_operations.start_bot_process') as mock_start:
 
             mock_process = MagicMock()
             mock_process.pid = 12345
@@ -667,8 +667,8 @@ class TestBotControl:
     @pytest.mark.integration
     def test_stop_bot(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/stop."""
-        with patch('api.bots.is_bot_running', return_value=(True, 12345)), \
-             patch('api.bots.stop_bot_process') as mock_stop:
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(True, 12345)), \
+             patch('api.bots_api.bot_operations.stop_bot_process') as mock_stop:
 
             response = client_with_db.post(f"/api/bots/{test_bot.uuid}/stop")
 
@@ -680,7 +680,7 @@ class TestBotControl:
     @pytest.mark.integration
     def test_stop_bot_not_running(self, client_with_db, test_bot):
         """Test POST /api/bots/{bot_id}/stop when not running."""
-        with patch('api.bots.is_bot_running', return_value=(False, None)):
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
             response = client_with_db.post(f"/api/bots/{test_bot.uuid}/stop")
 
             assert response.status_code == 200
@@ -690,8 +690,8 @@ class TestBotControl:
     @pytest.mark.integration
     def test_get_bot_status_running(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/status when running."""
-        with patch('api.bots.is_bot_running', return_value=(True, 12345)), \
-             patch('api.bots.load_bot_snapshot', return_value=None):
+        with patch('api.bots_api.bot_status.is_bot_running', return_value=(True, 12345)), \
+             patch('api.bot_state.get_bot_state', return_value=None):
 
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/status")
 
@@ -705,8 +705,8 @@ class TestBotControl:
     @pytest.mark.integration
     def test_get_bot_status_not_running(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/status when not running."""
-        with patch('api.bots.is_bot_running', return_value=(False, None)), \
-             patch('api.bots.load_bot_snapshot', return_value=None):
+        with patch('api.bots_api.bot_status.is_bot_running', return_value=(False, None)), \
+             patch('api.bot_state.get_bot_state', return_value=None):
 
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/status")
 
@@ -718,11 +718,191 @@ class TestBotControl:
     @pytest.mark.integration
     def test_get_bot_status_nonexistent(self, client_with_db):
         """Test GET /api/bots/{bot_id}/status with non-existent bot."""
-        with patch('api.bots.is_bot_running', return_value=(False, None)):
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
             fake_uuid = str(uuid_module.uuid4())
             response = client_with_db.get(f"/api/bots/{fake_uuid}/status")
 
-            assert response.status_code == 404
+        assert response.status_code == 404
+
+
+class TestBotTradesFromDB:
+    """Test that trades endpoint reads from database."""
+
+    def test_get_bot_trades_from_db(self, db, single_strategy_bot, auth_headers, client):
+        from db.models import Trade, User, StrategyConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        user = db.query(User).order_by(User.id.desc()).first()
+        bot = single_strategy_bot
+        bot.user_id = user.id
+        db.commit()
+
+        strategy = db.query(StrategyConfig).filter(StrategyConfig.bot_configs.any(id=bot.id)).first()
+
+        trade = Trade(
+            user_id=user.id,
+            bot_id=bot.id,
+            strategy_id=strategy.id,
+            strategy_name="ORB Conservative",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=50,
+            entry_price=2000.0,
+            exit_price=2100.0,
+            entry_time=datetime(2026, 3, 30, 10, 15, 0, tzinfo=IST),
+            exit_time=datetime(2026, 3, 30, 11, 30, 0, tzinfo=IST),
+            pnl=5000.0,
+            pnl_pct=2.5,
+            costs=50.0,
+            net_pnl=4950.0,
+            exit_reason="TP",
+            is_test=False,
+            source="live",
+        )
+        db.add(trade)
+        db.commit()
+
+        response = client.get(
+            f"/api/bots/{bot.uuid}/trades",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "RELIANCE"
+        assert data["trades"][0]["pnl"] == 5000.0
+
+    def test_get_bot_trades_filter_by_strategy_db(self, db, multi_strategy_bot, auth_headers, client):
+        from db.models import Trade, User, StrategyConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        user = db.query(User).order_by(User.id.desc()).first()
+        bot = multi_strategy_bot
+        bot.user_id = user.id
+        db.commit()
+
+        strategies = db.query(StrategyConfig).filter(StrategyConfig.bot_configs.any(id=bot.id)).all()
+
+        for i, strat in enumerate(strategies):
+            trade = Trade(
+                user_id=user.id,
+                bot_id=bot.id,
+                strategy_id=strat.id,
+                strategy_name=strat.name,
+                symbol=f"SYM{i}",
+                side="BUY",
+                quantity=10,
+                entry_price=1000.0,
+                exit_price=1100.0,
+                entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+                exit_time=datetime(2026, 3, 30, 11, 0, 0, tzinfo=IST),
+                pnl=1000.0,
+                pnl_pct=10.0,
+                is_test=False,
+                source="live",
+            )
+            db.add(trade)
+        db.commit()
+
+        response = client.get(
+            f"/api/bots/{bot.uuid}/trades?strategy_id={strategies[0].uuid}",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "SYM0"
+
+    def test_get_bot_trades_exclude_test_data_db(self, db, single_strategy_bot, auth_headers, client):
+        from db.models import Trade, User, StrategyConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        user = db.query(User).order_by(User.id.desc()).first()
+        bot = single_strategy_bot
+        bot.user_id = user.id
+        db.commit()
+
+        strategy = db.query(StrategyConfig).filter(StrategyConfig.bot_configs.any(id=bot.id)).first()
+
+        for is_test in [True, False]:
+            trade = Trade(
+                user_id=user.id,
+                bot_id=bot.id,
+                strategy_id=strategy.id,
+                strategy_name="Test",
+                symbol="TEST" if is_test else "REAL",
+                side="BUY",
+                quantity=10,
+                entry_price=100.0,
+                exit_price=110.0,
+                entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+                exit_time=datetime(2026, 3, 30, 11, 0, 0, tzinfo=IST),
+                pnl=100.0,
+                pnl_pct=10.0,
+                is_test=is_test,
+                source="test" if is_test else "live",
+            )
+            db.add(trade)
+        db.commit()
+
+        response = client.get(
+            f"/api/bots/{bot.uuid}/trades",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "REAL"
+
+
+class TestBotPositionsFromDB:
+    """Test positions endpoint DB fallback when snapshot unavailable."""
+
+    def test_get_bot_positions_db_fallback(self, db, single_strategy_bot, auth_headers, client):
+        from db.models import Position, User, StrategyConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        user = db.query(User).order_by(User.id.desc()).first()
+        bot = single_strategy_bot
+        bot.user_id = user.id
+        db.commit()
+
+        strategy = db.query(StrategyConfig).filter(StrategyConfig.bot_configs.any(id=bot.id)).first()
+
+        pos = Position(
+            user_id=user.id,
+            bot_id=bot.id,
+            strategy_id=strategy.id,
+            strategy_name="ORB",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=50,
+            entry_price=2000.0,
+            stop_loss=1900.0,
+            take_profit=2200.0,
+            entry_time=datetime(2026, 3, 30, 10, 15, 0, tzinfo=IST),
+            current_price=2050.0,
+            unrealized_pnl=2500.0,
+            unrealized_pnl_pct=1.25,
+        )
+        db.add(pos)
+        db.commit()
+
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
+            response = client.get(
+                f"/api/bots/{bot.uuid}/positions",
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["positions"][0]["symbol"] == "RELIANCE"
+        assert data["positions"][0]["current_price"] == 2050.0
+
 
     @pytest.mark.integration
     def test_get_bot_logs(self, client_with_db, test_bot):
@@ -735,7 +915,7 @@ class TestBotControl:
         log_file.write(log_content)
         log_file.close()
 
-        with patch('api.bots._bot_logs', {test_bot.id: Path(log_file.name)}):
+        with patch('api.bots_api.bot_operations._bot_logs', {test_bot.id: Path(log_file.name)}):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/logs")
 
             Path(log_file.name).unlink(missing_ok=True)
@@ -749,7 +929,7 @@ class TestBotControl:
     @pytest.mark.integration
     def test_get_bot_logs_no_logs(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/logs when no logs available."""
-        with patch('api.bots._bot_logs', {}):
+        with patch('api.bots_api.bot_operations._bot_logs', {}):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/logs")
 
             assert response.status_code == 200
@@ -767,7 +947,7 @@ class TestBotControl:
         log_file.write(log_content)
         log_file.close()
 
-        with patch('api.bots._bot_logs', {test_bot.id: Path(log_file.name)}):
+        with patch('api.bots_api.bot_operations._bot_logs', {test_bot.id: Path(log_file.name)}):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/logs?lines=5")
 
             Path(log_file.name).unlink(missing_ok=True)
@@ -827,7 +1007,7 @@ class TestPortfolioAndPositions:
             "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/portfolio")
 
             assert response.status_code == 200
@@ -840,7 +1020,7 @@ class TestPortfolioAndPositions:
     @pytest.mark.integration
     def test_get_bot_portfolio_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/portfolio when no snapshot exists."""
-        with patch('api.bots.load_bot_snapshot', return_value=None):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/portfolio")
 
             assert response.status_code == 200
@@ -875,7 +1055,7 @@ class TestPortfolioAndPositions:
             ]
         }
         
-        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/positions")
 
             assert response.status_code == 200
@@ -901,7 +1081,7 @@ class TestPortfolioAndPositions:
             ]
         }
         
-        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
             response = client_with_db.get(
                 f"/api/bots/{test_bot.uuid}/positions?strategy_id={test_strategy.uuid}"
             )
@@ -913,7 +1093,7 @@ class TestPortfolioAndPositions:
     @pytest.mark.integration
     def test_get_bot_positions_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/positions when no snapshot exists."""
-        with patch('api.bots.load_bot_snapshot', return_value=None):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/positions")
 
             assert response.status_code == 200
@@ -929,10 +1109,11 @@ class TestPortfolioAndPositions:
             "scan_items": [
                 {"symbol": "RELIANCE", "price": 2520.0, "score": 8.5, "strategy_id": 1},
                 {"symbol": "TCS", "price": 3460.0, "score": 6.8, "strategy_id": 2},
-            ]
+            ],
+            "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/scan")
 
             assert response.status_code == 200
@@ -949,10 +1130,11 @@ class TestPortfolioAndPositions:
             "scan_items": [
                 {"symbol": "RELIANCE", "price": 2520.0, "strategy_id": test_strategy.id},
                 {"symbol": "TCS", "price": 3460.0, "strategy_id": 999},
-            ]
+            ],
+            "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots.load_bot_snapshot', return_value=snapshot):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot):
             response = client_with_db.get(
                 f"/api/bots/{test_bot.uuid}/scan?strategy_id={test_strategy.uuid}"
             )
@@ -964,7 +1146,7 @@ class TestPortfolioAndPositions:
     @pytest.mark.integration
     def test_get_bot_scan_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/scan when no snapshot exists."""
-        with patch('api.bots.load_bot_snapshot', return_value=None):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/scan")
 
             assert response.status_code == 200
@@ -998,10 +1180,11 @@ class TestPerformanceEndpoints:
                         "positions_count": 2,
                     }
                 }
-            }
+            },
+            "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots.load_bot_snapshot', return_value=snapshot), \
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot), \
              patch('trading.journal.get_journal') as mock_get_journal:
             
             mock_journal = MagicMock()
@@ -1020,7 +1203,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_get_bot_performance_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/performance when no snapshot exists."""
-        with patch('api.bots.load_bot_snapshot', return_value=None):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance")
 
             assert response.status_code == 200
@@ -1034,10 +1217,11 @@ class TestPerformanceEndpoints:
         """Test GET /api/bots/{bot_id}/performance with custom days parameter."""
         snapshot = {
             "portfolio": {"total_pnl": 5000.0},
-            "strategies": {}
+            "strategies": {},
+            "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots.load_bot_snapshot', return_value=snapshot), \
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot), \
              patch('trading.journal.get_journal') as mock_get_journal:
             
             mock_journal = MagicMock()
@@ -1064,10 +1248,11 @@ class TestPerformanceEndpoints:
                         "positions_count": 2,
                     }
                 }
-            }
+            },
+            "timestamp": datetime.now().isoformat(),
         }
         
-        with patch('api.bots.load_bot_snapshot', return_value=snapshot), \
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot), \
              patch('trading.journal.get_journal') as mock_get_journal:
             
             mock_journal = MagicMock()
@@ -1086,7 +1271,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_compare_strategy_performance_no_snapshot(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/performance/compare when no snapshot."""
-        with patch('api.bots.load_bot_snapshot', return_value=None):
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
             response = client_with_db.get(f"/api/bots/{test_bot.uuid}/performance/compare")
 
             assert response.status_code == 200
@@ -1216,7 +1401,7 @@ class TestErrorHandling:
     @pytest.mark.unit
     def test_database_unavailable(self, client_with_db):
         """Test endpoints when database is unavailable."""
-        with patch('api.bots._db_available', False):
+        with patch('api.bots_api.bot_status._db_available', False):
             response = client_with_db.get("/api/bots")
             assert response.status_code == 500
             assert "database" in response.json()["detail"].lower()
@@ -1365,3 +1550,378 @@ class TestErrorHandlingUnit:
         response = client_with_db.post("/api/bots", json=bot_data)
 
         assert response.status_code == 404
+
+
+class TestBotTradesFromDB:
+    """Test that trades endpoint reads from database."""
+
+    @pytest.mark.integration
+    def test_get_bot_trades_from_db(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import Trade
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        bot_data = {
+            "name": f"Trades DB Bot {uuid_module.uuid4()}",
+            "is_active": True,
+            "strategies": [{
+                "strategy_id": test_strategy.uuid,
+                "max_positions": 5,
+                "capital_allocation_pct": 0.50,
+            }],
+        }
+        create_resp = client_with_db.post("/api/bots", json=bot_data)
+        assert create_resp.status_code == 200
+        bot_uuid = create_resp.json()["uuid"]
+
+        trade = Trade(
+            user_id=test_user.id,
+            strategy_id=test_strategy.id,
+            strategy_name="ORB Conservative",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=50,
+            entry_price=2000.0,
+            exit_price=2100.0,
+            entry_time=datetime(2026, 3, 30, 10, 15, 0, tzinfo=IST),
+            exit_time=datetime(2026, 3, 30, 11, 30, 0, tzinfo=IST),
+            pnl=5000.0,
+            pnl_pct=2.5,
+            costs=50.0,
+            net_pnl=4950.0,
+            exit_reason="TP",
+            is_test=False,
+            source="live",
+        )
+        test_db.add(trade)
+        test_db.commit()
+
+        response = client_with_db.get(f"/api/bots/{bot_uuid}/trades")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "RELIANCE"
+        assert data["trades"][0]["pnl"] == 5000.0
+
+    @pytest.mark.integration
+    def test_get_bot_trades_filter_by_strategy_db(self, client_with_db, test_db, test_user):
+        from db.models import Trade, StrategyConfig, BotConfig, bot_strategies
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        strat1 = StrategyConfig(name=f"Strat A {uuid_module.uuid4()}", strategy_type="ORB", is_template=True, is_active=True, max_positions=5)
+        strat2 = StrategyConfig(name=f"Strat B {uuid_module.uuid4()}", strategy_type="ORB", is_template=True, is_active=True, max_positions=5)
+        test_db.add(strat1)
+        test_db.add(strat2)
+        test_db.flush()
+
+        bot = BotConfig(
+            name=f"Multi Strat DB Test {uuid_module.uuid4()}",
+            user_id=test_user.id,
+            is_active=True,
+            max_total_positions=10,
+            max_total_capital_pct=0.80,
+        )
+        test_db.add(bot)
+        test_db.flush()
+
+        test_db.execute(bot_strategies.insert().values(bot_id=bot.id, strategy_id=strat1.id, max_positions=5, capital_allocation_pct=0.40))
+        test_db.execute(bot_strategies.insert().values(bot_id=bot.id, strategy_id=strat2.id, max_positions=5, capital_allocation_pct=0.40))
+        test_db.commit()
+        test_db.refresh(bot)
+        test_db.refresh(strat1)
+        test_db.refresh(strat2)
+
+        strategies = [strat1, strat2]
+        for i, strat in enumerate(strategies):
+            trade = Trade(
+                user_id=test_user.id,
+                strategy_id=strat.id,
+                strategy_name=strat.name,
+                symbol=f"SYM{i}",
+                side="BUY",
+                quantity=10,
+                entry_price=1000.0,
+                exit_price=1100.0,
+                entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+                exit_time=datetime(2026, 3, 30, 11, 0, 0, tzinfo=IST),
+                pnl=1000.0,
+                pnl_pct=10.0,
+                is_test=False,
+                source="live",
+            )
+            test_db.add(trade)
+        test_db.commit()
+
+        response = client_with_db.get(
+            f"/api/bots/{bot.uuid}/trades?strategy_id={strategies[0].uuid}",
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "SYM0"
+
+    @pytest.mark.integration
+    def test_get_bot_trades_exclude_test_data_db(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import Trade
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        bot_data = {
+            "name": f"Exclude Test Bot {uuid_module.uuid4()}",
+            "is_active": True,
+            "strategies": [{
+                "strategy_id": test_strategy.uuid,
+                "max_positions": 5,
+                "capital_allocation_pct": 0.50,
+            }],
+        }
+        create_resp = client_with_db.post("/api/bots", json=bot_data)
+        assert create_resp.status_code == 200
+        bot_uuid = create_resp.json()["uuid"]
+
+        for is_test in [True, False]:
+            trade = Trade(
+                user_id=test_user.id,
+                strategy_id=test_strategy.id,
+                strategy_name="Test",
+                symbol="TEST" if is_test else "REAL",
+                side="BUY",
+                quantity=10,
+                entry_price=100.0,
+                exit_price=110.0,
+                entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+                exit_time=datetime(2026, 3, 30, 11, 0, 0, tzinfo=IST),
+                pnl=100.0,
+                pnl_pct=10.0,
+                is_test=is_test,
+                source="test" if is_test else "live",
+            )
+            test_db.add(trade)
+        test_db.commit()
+
+        response = client_with_db.get(f"/api/bots/{bot_uuid}/trades?include_test=false")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["trades"][0]["symbol"] == "REAL"
+
+
+class TestBotPositionsFromDB:
+    """Test positions endpoint DB fallback when snapshot unavailable."""
+
+    @pytest.mark.integration
+    def test_get_bot_positions_db_fallback(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import Position, BotConfig
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        bot_data = {
+            "name": f"Pos DB Bot {uuid_module.uuid4()}",
+            "is_active": True,
+            "strategies": [{
+                "strategy_id": test_strategy.uuid,
+                "max_positions": 5,
+                "capital_allocation_pct": 0.50,
+            }],
+        }
+        create_resp = client_with_db.post("/api/bots", json=bot_data)
+        assert create_resp.status_code == 200
+        bot_uuid = create_resp.json()["uuid"]
+
+        bot = test_db.query(BotConfig).filter(BotConfig.uuid == bot_uuid).first()
+
+        pos = Position(
+            user_id=test_user.id,
+            bot_id=bot.id,
+            strategy_id=test_strategy.id,
+            strategy_name="ORB",
+            symbol="RELIANCE",
+            side="BUY",
+            quantity=50,
+            entry_price=2000.0,
+            stop_loss=1900.0,
+            take_profit=2200.0,
+            entry_time=datetime(2026, 3, 30, 10, 15, 0, tzinfo=IST),
+            current_price=2050.0,
+            unrealized_pnl=2500.0,
+            unrealized_pnl_pct=1.25,
+        )
+        test_db.add(pos)
+        test_db.commit()
+
+        with patch('api.bots_api.bot_operations.get_bot_state', return_value=None):
+            response = client_with_db.get(f"/api/bots/{bot_uuid}/positions")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["positions"][0]["symbol"] == "RELIANCE"
+        assert data["positions"][0]["current_price"] == 2050.0
+
+
+class TestBotSummary:
+    """Tests for GET /api/bots/summary endpoint."""
+
+    def test_summary_empty(self, client_with_db):
+        response = client_with_db.get("/api/bots/summary")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_summary_shape(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import BotConfig, bot_strategies
+
+        bot = BotConfig(
+            name="Summary Test Bot",
+            user_id=test_user.id,
+            is_active=True,
+            max_total_positions=5,
+            max_total_capital_pct=0.50,
+        )
+        test_db.add(bot)
+        test_db.flush()
+        test_db.execute(
+            bot_strategies.insert().values(
+                bot_id=bot.id,
+                strategy_id=test_strategy.id,
+                max_positions=5,
+                capital_allocation_pct=0.50,
+            )
+        )
+        test_db.commit()
+        test_db.refresh(bot)
+
+        with patch('api.bots_api.bot_status.is_bot_running', return_value=(False, None)):
+            response = client_with_db.get("/api/bots/summary")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        bot_data = data[0]
+        assert bot_data["id"] == bot.uuid
+        assert bot_data["name"] == bot.name
+        assert bot_data["is_active"] is True
+        assert bot_data["running"] is False
+        assert bot_data["pid"] is None
+        assert bot_data["status"] == "STOPPED"
+        assert bot_data["position_count"] == 0
+        assert isinstance(bot_data["strategies"], list)
+        assert len(bot_data["strategies"]) == 1
+        strat = bot_data["strategies"][0]
+        assert "id" in strat
+        assert "name" in strat
+        assert "strategy_type" in strat
+
+    def test_summary_position_count(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import Position, BotConfig, bot_strategies
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+
+        bot = BotConfig(
+            name="Pos Count Bot",
+            user_id=test_user.id,
+            is_active=True,
+        )
+        test_db.add(bot)
+        test_db.flush()
+        test_db.execute(
+            bot_strategies.insert().values(
+                bot_id=bot.id,
+                strategy_id=test_strategy.id,
+                max_positions=5,
+                capital_allocation_pct=0.50,
+            )
+        )
+        test_db.commit()
+        test_db.refresh(bot)
+
+        for i in range(3):
+            pos = Position(
+                user_id=test_user.id,
+                bot_id=bot.id,
+                strategy_id=test_strategy.id,
+                strategy_name="ORB",
+                symbol=f"SYM{i}",
+                side="BUY",
+                quantity=10,
+                entry_price=100.0,
+                entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+            )
+            test_db.add(pos)
+
+        test_pos = Position(
+            user_id=test_user.id,
+            bot_id=bot.id,
+            strategy_id=test_strategy.id,
+            strategy_name="ORB",
+            symbol="TESTSYM",
+            side="BUY",
+            quantity=10,
+            entry_price=100.0,
+            entry_time=datetime(2026, 3, 30, 10, 0, 0, tzinfo=IST),
+            is_test=True,
+        )
+        test_db.add(test_pos)
+        test_db.commit()
+
+        with patch('api.bots_api.bot_status.is_bot_running', return_value=(False, None)):
+            response = client_with_db.get("/api/bots/summary")
+        assert response.status_code == 200
+        data = response.json()
+        assert data[0]["position_count"] == 3
+
+    def test_summary_running_pid(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import BotConfig, bot_strategies
+
+        bot = BotConfig(
+            name="Running Bot",
+            user_id=test_user.id,
+            is_active=True,
+        )
+        test_db.add(bot)
+        test_db.flush()
+        test_db.execute(
+            bot_strategies.insert().values(
+                bot_id=bot.id,
+                strategy_id=test_strategy.id,
+                max_positions=5,
+                capital_allocation_pct=0.50,
+            )
+        )
+        test_db.commit()
+        test_db.refresh(bot)
+
+        with patch('api.bots_api.bot_status.is_bot_running', return_value=(True, 12345)):
+            response = client_with_db.get("/api/bots/summary")
+        assert response.status_code == 200
+        data = response.json()
+        assert data[0]["running"] is True
+        assert data[0]["pid"] == 12345
+        assert data[0]["status"] == "RUNNING"
+
+    def test_summary_unknown_status(self, client_with_db, test_db, test_user, test_strategy):
+        from db.models import BotConfig, bot_strategies
+
+        bot = BotConfig(
+            name="Unknown Bot",
+            user_id=test_user.id,
+            is_active=True,
+        )
+        test_db.add(bot)
+        test_db.flush()
+        test_db.execute(
+            bot_strategies.insert().values(
+                bot_id=bot.id,
+                strategy_id=test_strategy.id,
+                max_positions=5,
+                capital_allocation_pct=0.50,
+            )
+        )
+        test_db.commit()
+        test_db.refresh(bot)
+
+        with patch('api.bots_api.bot_status.is_bot_running', return_value=(None, None)):
+            response = client_with_db.get("/api/bots/summary")
+        assert response.status_code == 200
+        data = response.json()
+        assert data[0]["running"] is False
+        assert data[0]["pid"] is None
+        assert data[0]["status"] == "UNKNOWN"

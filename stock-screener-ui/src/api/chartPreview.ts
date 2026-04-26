@@ -41,6 +41,7 @@ export interface ChartPreviewData {
   candles: PreviewCandle[];
   orb_zones: ORBZone[];
   pivot_levels: PivotLevel[];
+  high_52w?: number | null;
   timeframe: number;
   or_minutes?: number;
   total_candles: number;
@@ -90,8 +91,7 @@ export async function fetchChartPreview(
     const data: ChartPreviewData = await response.json();
 
     if (data.error) {
-      console.error("Chart preview error:", data.error);
-      return null;
+      return data;
     }
 
     // Cache the result

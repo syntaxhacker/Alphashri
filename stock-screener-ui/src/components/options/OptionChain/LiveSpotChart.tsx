@@ -58,7 +58,7 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
 
   return (
     <Group gap="xs" wrap="nowrap" className="live-spot-chart" data-testid="options-live-spot-chart">
-      <Box style={{ position: "relative" }} className="spot-chart-svg-container">
+      <Box pos="relative" className="spot-chart-svg-container">
         <svg width="200" height="40" style={{ display: "block" }} className="spot-chart-svg">
           <defs>
             <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">

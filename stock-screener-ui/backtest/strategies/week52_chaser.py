@@ -42,6 +42,59 @@ _project_root_dir = os.path.dirname(_ui_dir)
 if _project_root_dir not in sys.path:
     sys.path.insert(0, _project_root_dir)
 
+import config
+IST = config.IST
+
+from trading.week52_utils import calculate_52w_high
+
+
+def get_date_from_ns(ts_ns: int) -> datetime:
+    """Convert nanosecond timestamp to datetime."""
+    ts_sec = ts_ns / 1_000_000_000
+    return datetime.fromtimestamp(ts_sec, tz=timezone.utc)
+
+
+class Week52HighIndicator:
+    """
+    Backward-compatible wrapper around calculate_52w_high().
+    Kept for backward compatibility with existing tests.
+    """
+    def __init__(self, period: int = 252, min_periods: int = 100):
+        self.period = period
+        self.min_periods = min_periods
+        self._high_prices: List[float] = []
+        self._current_52w_high: Optional[float] = None
+        self._count = 0
+
+    def update(self, high_price: float) -> Optional[float]:
+        """Update indicator with new high price and return current 52W high."""
+        self._high_prices.append(high_price)
+
+        # Keep only the last 'period' high prices
+        if len(self._high_prices) > self.period:
+            self._high_prices.pop(0)
+
+        # Calculate 52-week high from previous periods only (shift by 1 to avoid look-ahead)
+        if len(self._high_prices) >= self.min_periods:
+            # Exclude current bar's high to avoid look-ahead bias
+            self._current_52w_high = calculate_52w_high(
+                self._high_prices, period=self.period, exclude_current=True
+            )
+        elif len(self._high_prices) > 1:
+            self._current_52w_high = calculate_52w_high(
+                self._high_prices, period=self.period, exclude_current=True
+            )
+
+        self._count += 1
+        return self._current_52w_high
+
+    @property
+    def value(self) -> Optional[float]:
+        return self._current_52w_high
+
+    def is_initialized(self) -> bool:
+        return self._count >= self.min_periods
+
 
 def calculate_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Average Directional Index (ADX) - Trend Strength Indicator."""
@@ -76,50 +129,7 @@ def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
 
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
-
     return rsi
-
-
-def get_date_from_ns(ts_ns: int) -> datetime:
-    """Convert nanosecond timestamp to datetime."""
-    ts_sec = ts_ns / 1_000_000_000
-    return datetime.fromtimestamp(ts_sec, tz=timezone.utc)
-
-
-class Week52HighIndicator:
-    """Track the 52-week (252 trading days) rolling high."""
-
-    def __init__(self, period: int = 252, min_periods: int = 100):
-        self.period = period
-        self.min_periods = min_periods
-        self._high_prices: List[float] = []
-        self._current_52w_high: Optional[float] = None
-        self._count = 0
-
-    def update(self, high_price: float) -> Optional[float]:
-        """Update indicator with new high price and return current 52W high."""
-        self._high_prices.append(high_price)
-
-        # Keep only the last 'period' high prices
-        if len(self._high_prices) > self.period:
-            self._high_prices.pop(0)
-
-        # Calculate 52-week high from previous periods only (shift by 1 to avoid look-ahead)
-        if len(self._high_prices) >= self.min_periods:
-            # Exclude current bar's high to avoid look-ahead bias
-            self._current_52w_high = max(self._high_prices[:-1])
-        elif len(self._high_prices) > 1:
-            self._current_52w_high = max(self._high_prices[:-1])
-
-        self._count += 1
-        return self._current_52w_high
-
-    @property
-    def value(self) -> Optional[float]:
-        return self._current_52w_high
-
-    def is_initialized(self) -> bool:
-        return self._count >= self.min_periods
 
 
 class Week52ChaserNautilusStrategy(Strategy):
@@ -141,8 +151,10 @@ class Week52ChaserNautilusStrategy(Strategy):
         self._enable_filters = config.enable_filters
         self._historical_df = config.historical_df
 
-        # 52W high indicator
-        self._high_52w = Week52HighIndicator(period=252, min_periods=20)
+        # 52W high tracking - use shared utility
+        self._high_prices: List[float] = []
+        self._current_52w_high: Optional[float] = None
+        self._min_periods: int = 20
 
         # State tracking
         self._instrument_id = config.instrument_id
@@ -185,11 +197,15 @@ class Week52ChaserNautilusStrategy(Strategy):
         close_price = float(bar.close)
         high_price = float(bar.high)
 
-        # Update 52W high indicator
-        high_52w = self._high_52w.update(high_price)
+        # Update highs list
+        self._high_prices.append(high_price)
+
+        # Calculate 52W high (exclude current bar to prevent look-ahead bias)
+        high_52w = calculate_52w_high(self._high_prices, period=252, exclude_current=True)
+        self._current_52w_high = high_52w
 
         # Wait for indicator to initialize
-        if not self._high_52w.is_initialized() or high_52w is None:
+        if len(self._high_prices) < self._min_periods or high_52w is None:
             return
 
         # Update cooldown counter
@@ -380,7 +396,8 @@ class Week52ChaserNautilusStrategy(Strategy):
         self._in_position = False
         self._trailing_stop_active = False
         self._current_entry_time = None
-        self._high_52w = Week52HighIndicator(period=252, min_periods=100)
+        self._high_prices = []  # Reset highs list
+        self._current_52w_high = None
 
 
 class Week52ChaserConfig(StrategyConfig, kw_only=True):
@@ -433,7 +450,7 @@ def run_single_stock_backtest(args):
             isin=None,
         )
 
-        today = datetime.now()
+        today = datetime.now(IST)
         to_date = today.strftime('%Y-%m-%d')
         fetch_days = max(days + 400, 500)
         from_date = (today - timedelta(days=fetch_days)).strftime('%Y-%m-%d')
@@ -515,19 +532,34 @@ def run_single_stock_backtest(args):
         engine.dispose()
 
         if not trades:
-            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None}
+            candle_data = {
+                'index': [idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10] for idx in df_for_backtest.index],
+                'open': df_for_backtest['open'].tolist(),
+                'high': df_for_backtest['high'].tolist(),
+                'low': df_for_backtest['low'].tolist(),
+                'close': df_for_backtest['close'].tolist(),
+                'volume': df_for_backtest['volume'].tolist() if 'volume' in df_for_backtest.columns else [0] * len(df_for_backtest),
+            }
+            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None, 'candles': candle_data}
 
-        # Filter trades to only those within the requested date range
         filtered_trades = []
         for t in trades:
             if t.get('entry_time'):
                 entry_dt = datetime.fromisoformat(t['entry_time'].replace('Z', '+00:00'))
-                if entry_dt.date() >= cutoff_date:
+                if entry_dt.astimezone(IST).date() >= cutoff_date:
                     filtered_trades.append(t)
         trades = filtered_trades
 
         if not trades:
-            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None}
+            candle_data = {
+                'index': [idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10] for idx in df_for_backtest.index],
+                'open': df_for_backtest['open'].tolist(),
+                'high': df_for_backtest['high'].tolist(),
+                'low': df_for_backtest['low'].tolist(),
+                'close': df_for_backtest['close'].tolist(),
+                'volume': df_for_backtest['volume'].tolist() if 'volume' in df_for_backtest.columns else [0] * len(df_for_backtest),
+            }
+            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None, 'candles': candle_data}
 
         gross_pnl = sum(t['gross_pnl'] for t in trades)
         total_costs = sum(t['trading_costs'] for t in trades) if include_costs else 0
@@ -709,6 +741,7 @@ class Week52ChaserStrategy(BaseStrategy):
         results = []
         chart_data = {}
         all_candles = {}
+        skipped_stocks = []
 
         from multiprocessing import Pool, cpu_count
         from db.models import get_shared_broker_token
@@ -730,30 +763,36 @@ class Week52ChaserStrategy(BaseStrategy):
                     completed += 1
                     if progress_callback:
                         progress_callback(completed, total, f"Completed {result['symbol']}...")
-                    if result['success'] and result.get('result'):
+                    if not result['success']:
+                        skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
+                        continue
+                    if result.get('candles'):
+                        all_candles[result['symbol']] = result['candles']
+                    if result.get('result'):
                         results.append(result['result'])
-                        if result.get('candles'):
-                            all_candles[result['symbol']] = result['candles']
-                        if result.get('trade_list'):
-                            chart_data[result['symbol']] = {
-                                'trades': result['trade_list'],
-                                'visuals': self.get_visuals(result['trade_list'], params)
-                            }
+                    if result.get('trade_list'):
+                        chart_data[result['symbol']] = {
+                            'trades': result['trade_list'],
+                            'visuals': self.get_visuals(result['trade_list'], params)
+                        }
         else:
             for args in worker_args:
                 completed += 1
                 result = run_single_stock_backtest(args)
                 if progress_callback:
                     progress_callback(completed, total, f"Completed {result['symbol']}...")
-                if result['success'] and result.get('result'):
+                if not result['success']:
+                    skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
+                    continue
+                if result.get('candles'):
+                    all_candles[result['symbol']] = result['candles']
+                if result.get('result'):
                     results.append(result['result'])
-                    if result.get('candles'):
-                        all_candles[result['symbol']] = result['candles']
-                    if result.get('trade_list'):
-                        chart_data[result['symbol']] = {
-                            'trades': result['trade_list'],
-                            'visuals': self.get_visuals(result['trade_list'], params)
-                        }
+                if result.get('trade_list'):
+                    chart_data[result['symbol']] = {
+                        'trades': result['trade_list'],
+                        'visuals': self.get_visuals(result['trade_list'], params)
+                    }
 
         total_gross = sum(r['gross_pnl'] for r in results)
         total_costs = sum(r['total_costs'] for r in results)
@@ -776,10 +815,11 @@ class Week52ChaserStrategy(BaseStrategy):
                 'net_pnl': round(total_net, 2),
                 'trades': total_trades,
                 'win_rate': round(total_win_rate, 1),
-                'stocks_tested': len(results),
+                'stocks_tested': len(results) + len(skipped_stocks),
             },
             'chart_data': chart_data,
             'candles': all_candles,
+            'skipped_stocks': skipped_stocks,
             'run_time': datetime.now().isoformat(),
         }
 

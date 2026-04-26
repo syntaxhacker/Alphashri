@@ -323,11 +323,6 @@ describe("highMomentum columns", () => {
     expectFormattedCell(fmt(columns, "perf_w", -1.0), "-1.0%", "red");
     expectFormattedCell(fmt(columns, "perf_w", 0), "0.0%", "red");
   });
-
-  test("volume_m handles null/undefined", () => {
-    expect(fmt(columns, "volume_m", null)).toBe("0.00");
-    expect(fmt(columns, "volume_m", undefined)).toBe("0.00");
-  });
 });
 
 describe("niftyMovers columns", () => {
@@ -366,11 +361,6 @@ describe("niftyMovers columns", () => {
     expectFormattedCell(fmt(columns, "day_change", 1.5), "+1.50%", "green");
     expectFormattedCell(fmt(columns, "day_change", -2.0), "-2.00%", "red");
   });
-
-  test("volume_m handles null/undefined", () => {
-    expect(fmt(columns, "volume_m", null)).toBe("0.00");
-    expect(fmt(columns, "volume_m", undefined)).toBe("0.00");
-  });
 });
 
 describe("buyerInterest columns", () => {
@@ -401,11 +391,6 @@ describe("buyerInterest columns", () => {
 
   test("recent_return_5d zero is red", () => {
     expectFormattedCell(fmt(columns, "recent_return_5d", 0), "0.0%", "red");
-  });
-
-  test("volume_m handles null/undefined", () => {
-    expect(fmt(columns, "volume_m", null)).toBe("0.00");
-    expect(fmt(columns, "volume_m", undefined)).toBe("0.00");
   });
 });
 
@@ -454,6 +439,16 @@ describe("common column structure", () => {
       const lastCol = cols[cols.length - 1];
       expect(lastCol.key).toBe("sector");
       expect(lastCol.type).toBe("string");
+    });
+  });
+
+  test("volume_m handles null/undefined in column sets that have it", () => {
+    allColumnSets.forEach((columns) => {
+      const volCol = columns.find((c) => c.key === "volume_m");
+      if (volCol?.format) {
+        expect(fmt(columns, "volume_m", null)).toBe("0.00");
+        expect(fmt(columns, "volume_m", undefined)).toBe("0.00");
+      }
     });
   });
 });

@@ -1,4 +1,4 @@
-import { Box, Group, ThemeIcon, UnstyledButton, Text, Tooltip } from "@mantine/core";
+import { Box, Flex, Group, ThemeIcon, UnstyledButton, Text, Tooltip } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import classes from "./NavbarLinksGroup.module.css";
 
@@ -8,6 +8,7 @@ interface NavbarLinksGroupProps {
   link: string;
   active: boolean;
   collapsed?: boolean;
+  onNavigate?: () => void;
 }
 
 export function NavbarLinksGroup({
@@ -16,12 +17,16 @@ export function NavbarLinksGroup({
   link,
   active,
   collapsed,
+  onNavigate,
 }: NavbarLinksGroupProps) {
   const navigate = useNavigate();
 
   const content = (
     <UnstyledButton
-      onClick={() => navigate(link)}
+      onClick={() => {
+        navigate(link);
+        onNavigate?.();
+      }}
       className={classes.control}
       data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-").replace("paper-trading", "paper").replace("sector-analysis", "sector")}`}
       data-active={active || undefined}
@@ -36,7 +41,7 @@ export function NavbarLinksGroup({
       }}
     >
       <Group justify={collapsed ? "center" : "space-between"} gap={4}>
-        <Box style={{ display: "flex", alignItems: "center" }}>
+        <Flex align="center">
           <ThemeIcon variant="light" size={26}>
             <Icon size={16} />
           </ThemeIcon>
@@ -45,7 +50,7 @@ export function NavbarLinksGroup({
               <Text fw={active ? 600 : 500}>{label}</Text>
             </Box>
           )}
-        </Box>
+        </Flex>
       </Group>
     </UnstyledButton>
   );

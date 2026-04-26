@@ -11,7 +11,7 @@ import type {
   NotifFilter,
   SortDirection,
 } from "../types";
-import { DEFAULT_AUTO_REFRESH_SECONDS } from "../constants";
+import { DEFAULT_AUTO_REFRESH_SECONDS } from "../config/constants";
 
 export const DEFAULT_SCREENER_DATA: ScreenerData = {
   approaching: [],
@@ -23,7 +23,7 @@ export const DEFAULT_SCREENER_DATA: ScreenerData = {
 };
 
 const { subscribe, notify: notifySubscribers } = createSubscriber();
-export { subscribe };
+export { subscribe, notifySubscribers };
 
 // Data state - initialize with empty structure to avoid null checks
 export let data: ScreenerData = { ...DEFAULT_SCREENER_DATA };
@@ -79,10 +79,12 @@ export function setAutoRefreshSeconds(seconds: number) {
 
 export function setSortColumn(column: string | null) {
   sortColumn = column;
+  notifySubscribers();
 }
 
 export function setSortDirection(direction: SortDirection) {
   sortDirection = direction;
+  notifySubscribers();
 }
 
 export function setScreenerOptions(options: ScreenerOption[]) {

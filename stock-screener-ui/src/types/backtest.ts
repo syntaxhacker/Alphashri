@@ -126,6 +126,11 @@ export interface SymbolChartData {
   trades: ChartTrade[];
   visuals?: {
     overlays: any[];
+    ema_series?: Array<{
+      label: string;
+      color: string;
+      data: number[];
+    }>;
   };
   date_range: {
     start: string;

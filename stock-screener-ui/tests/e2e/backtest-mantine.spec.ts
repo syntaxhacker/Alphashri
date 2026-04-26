@@ -1,11 +1,30 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-import { gotoBacktest, selectSymbolAndRun, waitForBacktestResult } from "./helpers/backtestHelpers";
+import {
+  gotoBacktest,
+  selectSymbolAndRun,
+  waitForBacktestResult,
+  mockBacktestStrategies,
+  mockSymbolSearch,
+  mockBacktestRun,
+  mockBacktestChart,
+  mockBacktestHistory,
+  selectSymbolFromMultiselect,
+  withTradeHistoryPanel,
+} from "./helpers/backtestHelpers";
 
 const mockBacktestResults = {
   results: [
     { symbol: "NETWEB", net_pnl: 5000, trades: 5, win_rate: 60, pf: 1.8, tp_exits: 3, sl_exits: 2 },
-    { symbol: "SBILIFE", net_pnl: 8200, trades: 7, win_rate: 71, pf: 2.2, tp_exits: 5, sl_exits: 2 },
+    {
+      symbol: "SBILIFE",
+      net_pnl: 8200,
+      trades: 7,
+      win_rate: 71,
+      pf: 2.2,
+      tp_exits: 5,
+      sl_exits: 2,
+    },
     {
       symbol: "RELIANCE",
       net_pnl: 15000,
@@ -131,12 +150,17 @@ const mockChartData = {
   total_trades: 1,
 };
 
-async function mockBacktestApi(page: Page) {
-  await page.route("**/api/backtest/strategies", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
+async function setupBacktest(page: Page) {
+  await selectSymbolAndRun(page);
+  await waitForBacktestResult(page, "results-summary");
+}
+
+test.describe("Backtest - Mantine Features", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupApiMocks(page);
+    await loginAsTestUser(page);
+    await mockBacktestStrategies(page, {
+      strategies: {
         strategies: [
           {
             id: "orb",
@@ -148,94 +172,20 @@ async function mockBacktestApi(page: Page) {
             ],
           },
         ],
-      }),
-    });
-  });
-
-  await page.route("**/api/strategies/variations", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify([
+      },
+      variations: [
         { id: "default-variation", name: "Default", strategy_type: "ORB", is_template: true },
-      ]),
+      ],
     });
-  });
-
-  await page.route("**/api/backtest/costs", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        costs: {
-          brokerage_pct: 0.0003,
-          min_brokerage: 20,
-          stt_pct: 0.00025,
-          exchange_pct: 0.0000297,
-          sebi_pct: 0.000001,
-          stamp_pct: 0.00003,
-          gst_pct: 0.18,
-        },
-      }),
+    await mockSymbolSearch(page);
+    await mockBacktestRun(page, {
+      results: mockBacktestResults.results,
+      totals: mockBacktestResults.totals,
+      run_time: "2024-01-01T00:00:00Z",
+      chart_data: { RELIANCE: mockChartData },
     });
-  });
-
-  await page.route(/\/api\/symbols\/search/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        results: [
-          { symbol: "RELIANCE", name: "Reliance Industries Ltd" },
-          { symbol: "INFY", name: "Infosys Ltd" },
-          { symbol: "TCS", name: "Tata Consultancy Services Ltd" },
-        ],
-        query: "RELIANCE",
-        total: 3,
-      }),
-    });
-  });
-
-  await page.route(/\/api\/backtest\/run/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        results: mockBacktestResults.results,
-        totals: mockBacktestResults.totals,
-        run_time: "2024-01-01T00:00:00Z",
-        chart_data: { RELIANCE: mockChartData },
-      }),
-    });
-  });
-
-  await page.route("**/api/backtest/chart/*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(mockChartData),
-    });
-  });
-
-  await page.route("**/api/backtest/history*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ history: [] }),
-    });
-  });
-}
-
-async function setupBacktest(page: Page) {
-  await selectSymbolAndRun(page);
-  await waitForBacktestResult(page, "results-summary");
-}
-
-test.describe("Backtest - Mantine Features", () => {
-  test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await mockBacktestApi(page);
+    await mockBacktestChart(page, mockChartData);
+    await mockBacktestHistory(page);
     await page.route("**/api/auth/me", async (route) => {
       await route.fulfill({
         status: 200,
@@ -286,14 +236,13 @@ test.describe("Backtest - Mantine Features", () => {
     test("should highlight trade row when clicked", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      if (await tradeHistoryPanel.isVisible()) {
+      await withTradeHistoryPanel(page, async () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.click();
           await expect(page.locator(".trade-row-highlighted")).toBeVisible({ timeout: 5000 });
         }
-      }
+      });
     });
   });
 
@@ -301,8 +250,7 @@ test.describe("Backtest - Mantine Features", () => {
     test("should highlight trade row with golden background when clicked", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      if (await tradeHistoryPanel.isVisible()) {
+      await withTradeHistoryPanel(page, async () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.click();
@@ -311,14 +259,13 @@ test.describe("Backtest - Mantine Features", () => {
             await firstTradeRow.evaluate((el) => el.classList.contains("trade-row-highlighted")),
           ).toBe(true);
         }
-      }
+      });
     });
 
     test("should remove highlight after timeout", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      if (await tradeHistoryPanel.isVisible()) {
+      await withTradeHistoryPanel(page, async () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.click();
@@ -329,7 +276,7 @@ test.describe("Backtest - Mantine Features", () => {
             await firstTradeRow.evaluate((el) => el.classList.contains("trade-row-highlighted")),
           ).toBe(false);
         }
-      }
+      });
     });
   });
 
@@ -415,16 +362,7 @@ test.describe("Backtest - Mantine Features", () => {
         });
       });
       await gotoBacktest(page);
-      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-      await symbolSelect.click({ force: true });
-      await page.keyboard.type("RELIANCE");
-      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
-        timeout: 5000,
-      });
-      const option = page.locator(".mantine-MultiSelect-option").first();
-      if (await option.isVisible()) {
-        await option.click();
-      }
+      await selectSymbolFromMultiselect(page, "RELIANCE");
       const runBtn = page.locator('[data-testid="run-backtest-btn"]');
       await runBtn.click();
       await expect(page.locator('[data-testid="backtest-error"]')).toBeVisible({ timeout: 5000 });
@@ -438,7 +376,9 @@ test.describe("Backtest - Mantine Features", () => {
       const firstRow = page.locator('[data-testid^="result-row-"]').first();
       await expect(firstRow).toBeVisible({ timeout: 5000 });
       await firstRow.click();
-      await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({
+        timeout: 15000,
+      });
       await expect(page.locator("text=Entry").first()).toBeVisible({ timeout: 5000 });
     });
   });
@@ -447,27 +387,25 @@ test.describe("Backtest - Mantine Features", () => {
     test("should sort trade history by time", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      if (await tradeHistoryPanel.isVisible()) {
+      await withTradeHistoryPanel(page, async () => {
         const timeHeader = page.locator('[data-testid="th-entry_time"]');
         if (await timeHeader.isVisible()) {
           await timeHeader.click();
           await page.waitForLoadState("networkidle");
         }
-      }
+      });
     });
 
     test("should sort trade history by P&L", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      if (await tradeHistoryPanel.isVisible()) {
+      await withTradeHistoryPanel(page, async () => {
         const pnlHeader = page.locator('[data-testid="th-net_pnl"]');
         if (await pnlHeader.isVisible()) {
           await pnlHeader.click();
           await page.waitForLoadState("networkidle");
         }
-      }
+      });
     });
   });
 
@@ -475,25 +413,25 @@ test.describe("Backtest - Mantine Features", () => {
     test("should display trade summary in history panel", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      if (await tradeHistoryPanel.isVisible()) {
+      await withTradeHistoryPanel(page, async () => {
         await expect(page.locator('[data-testid="trade-summary-pnl"]')).toBeVisible();
         await expect(page.locator('[data-testid="trade-summary-wr"]')).toBeVisible();
         await expect(page.locator('[data-testid="trade-summary-wins"]')).toBeVisible();
-      }
+      });
     });
 
     test("should close trade history panel", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-      if (await tradeHistoryPanel.isVisible()) {
+      await withTradeHistoryPanel(page, async () => {
         const closeBtn = page.locator('[data-testid="close-trade-history-btn"]');
         if (await closeBtn.isVisible()) {
           await closeBtn.click();
-          await expect(tradeHistoryPanel).not.toBeVisible({ timeout: 5000 });
+          await expect(page.locator('[data-testid="trade-history-panel"]')).not.toBeVisible({
+            timeout: 5000,
+          });
         }
-      }
+      });
     });
   });
 
@@ -560,62 +498,24 @@ test.describe("Backtest - Mantine Features", () => {
   test.describe("Symbol Chips", () => {
     test("should display symbol chips after adding symbols", async ({ page }) => {
       await gotoBacktest(page);
-
-      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-      await symbolSelect.click({ force: true });
-
-      await page.keyboard.type("RELIANCE", { delay: 50 });
-      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
-        timeout: 5000,
-      });
-      const option = page.locator(".mantine-MultiSelect-option").first();
-      if (await option.isVisible()) {
-        await option.click();
-      }
-
+      await selectSymbolFromMultiselect(page, "RELIANCE");
       const chip = page.locator('[data-testid="chip-RELIANCE"]');
       await expect(chip).toBeVisible({ timeout: 5000 });
     });
 
     test("should show clear all symbols button when symbols are selected", async ({ page }) => {
       await gotoBacktest(page);
-
-      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-      await symbolSelect.click({ force: true });
-
-      await page.keyboard.type("RELIANCE", { delay: 50 });
-      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
-        timeout: 5000,
-      });
-      const option = page.locator(".mantine-MultiSelect-option").first();
-      if (await option.isVisible()) {
-        await option.click();
-      }
-
+      await selectSymbolFromMultiselect(page, "RELIANCE");
       const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
       await expect(clearBtn).toBeVisible({ timeout: 5000 });
     });
 
     test("should clear all symbols when clear button clicked", async ({ page }) => {
       await gotoBacktest(page);
-
-      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-      await symbolSelect.click({ force: true });
-
-      await page.keyboard.type("RELIANCE", { delay: 50 });
-      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
-        timeout: 5000,
-      });
-      const option = page.locator(".mantine-MultiSelect-option").first();
-      if (await option.isVisible()) {
-        await option.click();
-      }
-
+      await selectSymbolFromMultiselect(page, "RELIANCE");
       await expect(page.locator('[data-testid="chip-RELIANCE"]')).toBeVisible({ timeout: 5000 });
-
       const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
       await clearBtn.click();
-
       await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({
         timeout: 5000,
       });
@@ -625,26 +525,12 @@ test.describe("Backtest - Mantine Features", () => {
 
     test("should remove individual symbol chip on close", async ({ page }) => {
       await gotoBacktest(page);
-
-      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-      await symbolSelect.click({ force: true });
-
-      await page.keyboard.type("RELIANCE", { delay: 50 });
-      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
-        timeout: 5000,
-      });
-      const option = page.locator(".mantine-MultiSelect-option").first();
-      if (await option.isVisible()) {
-        await option.click();
-      }
-
+      await selectSymbolFromMultiselect(page, "RELIANCE");
       await page.keyboard.press("Escape");
       await page.waitForTimeout(300);
       await expect(page.locator('[data-testid="chip-RELIANCE"]')).toBeVisible({ timeout: 5000 });
-
       const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
       await clearBtn.click();
-
       await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({
         timeout: 5000,
       });
@@ -654,23 +540,10 @@ test.describe("Backtest - Mantine Features", () => {
   test.describe("Run Menu", () => {
     test("should open run dropdown menu with options", async ({ page }) => {
       await gotoBacktest(page);
-
-      const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-      await symbolSelect.click({ force: true });
-
-      await page.keyboard.type("RELIANCE", { delay: 50 });
-      await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
-        timeout: 5000,
-      });
-      const option = page.locator(".mantine-MultiSelect-option").first();
-      if (await option.isVisible()) {
-        await option.click();
-      }
-
+      await selectSymbolFromMultiselect(page, "RELIANCE");
       const runMenuBtn = page.locator('[data-testid="run-menu-btn"]');
       await expect(runMenuBtn).toBeEnabled({ timeout: 5000 });
       await runMenuBtn.click();
-
       await expect(page.locator(".mantine-Menu-dropdown")).toBeVisible({ timeout: 5000 });
       await expect(page.getByText("Run Backtest")).toBeVisible();
       await expect(page.getByText("Run & Save to History")).toBeVisible();

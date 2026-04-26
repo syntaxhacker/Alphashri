@@ -40,10 +40,18 @@ from api.screener import (
 from api.symbols import _load_instruments, _instruments_cache, _instruments_loaded
 from api.news_routes import (
     news_poller_task, news_startup_prefetch,
-    _news_available, _llm_available,
-    fetch_news, fetch_article_content, NEWS_SOURCES, article_analyzer,
     news_ws_manager, sector_ws_manager,
 )
+from api.news.news_poller import _init_news_modules
+
+_news_available = False
+_llm_available = False
+fetch_news = None
+fetch_article_content = None
+NEWS_SOURCES = []
+article_analyzer = None
+
+_news_available, _llm_available, article_analyzer, fetch_news, fetch_article_content, NEWS_SOURCES = _init_news_modules()
 
 
 PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers"]
@@ -53,9 +61,8 @@ PREWARM_INTERVAL = 60
 async def screener_prewarm_task():
     while True:
         try:
-            now = datetime.now()
-            hour = now.hour
-            is_market_hours = 3 <= hour <= 10
+            hour = datetime.now(config.IST).hour
+            is_market_hours = 8 <= hour <= 16
             if is_market_hours:
                 from cache.redis_client import make_cache_key, cache_ttl, stale_while_revalidate
                 for screener_id in PREWARM_SCREENERS:
@@ -86,26 +93,45 @@ def _compute_screener(provider, mode, screener, profile_filters):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f'🚀 Alphashri API starting...')
-    from db.database import init_db
-    init_db()
-    print("✅ Database initialized")
-    _load_instruments()
-    from cache.redis_client import get_redis_client, is_cache_available, _load_stats_from_redis
-    get_redis_client()
-    if is_cache_available():
-        _load_stats_from_redis()
-        print("✅ Redis cache connected")
-    else:
-        print("⚠️ Redis unavailable — caching disabled")
-    news_poller = asyncio.create_task(news_poller_task())
-    print("📰 News poller started")
-    asyncio.create_task(news_startup_prefetch())
-    print("📰 News prefetch scheduled")
-    prewarm = asyncio.create_task(screener_prewarm_task())
-    print("🔄 Screener pre-warm started")
+    prewarm = None
+    news_poller = None
+    try:
+        from db.database import init_db
+        init_db()
+        print("✅ Database initialized")
+        _load_instruments()
+        from cache.redis_client import get_redis_client, is_cache_available, _load_stats_from_redis
+        get_redis_client()
+        if is_cache_available():
+            _load_stats_from_redis()
+            print("✅ Redis cache connected")
+        else:
+            print("⚠️ Redis unavailable — caching disabled")
+        import traceback
+        try:
+            news_poller = asyncio.create_task(news_poller_task())
+            print("📰 News poller started")
+        except Exception as e:
+            print(f"⚠️ News poller failed: {e} {traceback.format_exc()}")
+        try:
+            asyncio.create_task(news_startup_prefetch())
+            print("📰 News prefetch scheduled")
+        except Exception as e:
+            print(f"⚠️ News prefetch failed: {e}")
+        try:
+            prewarm = asyncio.create_task(screener_prewarm_task())
+            print("🔄 Screener pre-warm started")
+        except Exception as e:
+            print(f"⚠️ Screener prewarm failed: {e}")
+    except Exception as e:
+        import traceback
+        print(f"❌ Startup failed: {e}")
+        print(traceback.format_exc())
     yield
-    prewarm.cancel()
-    news_poller.cancel()
+    if prewarm:
+        prewarm.cancel()
+    if news_poller:
+        news_poller.cancel()
     print("📰 News poller stopped")
     from cache.redis_client import close_redis
     from db.database import engine
@@ -267,7 +293,7 @@ except Exception as e:
     print(f"⚠️ Could not load market ticker API: {e}")
 
 try:
-    from api.bots import router as bots_router
+    from api.bots_api import router as bots_router
     app.include_router(bots_router)
     print("✅ Bots API loaded at /api/bots")
 except Exception as e:
@@ -300,6 +326,13 @@ try:
     print("✅ News Charts API loaded at /api/news")
 except Exception as e:
     print(f"⚠️ Could not load news charts API: {e}")
+
+try:
+    from api.holidays import router as holidays_router
+    app.include_router(holidays_router)
+    print("✅ Holidays API loaded at /api/holidays")
+except Exception as e:
+    print(f"⚠️ Could not load holidays API: {e}")
 
 # ======
 # Router includes — new modules
@@ -339,6 +372,13 @@ try:
     print("✅ Admin API loaded at /api/admin")
 except Exception as e:
     print(f"⚠️ Could not load admin API: {e}")
+
+try:
+    from api.replay_api import router as replay_router
+    app.include_router(replay_router)
+    print("✅ Replay API loaded at /api/replay")
+except Exception as e:
+    print(f"⚠️ Could not load replay API: {e}")
 
 
 if __name__ == '__main__':

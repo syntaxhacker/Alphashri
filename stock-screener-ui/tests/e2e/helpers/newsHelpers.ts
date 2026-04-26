@@ -198,15 +198,18 @@ export async function setupNewsTest(page: Page) {
 
 export async function clickNewsToggle(page: Page) {
   const toggleBtn = page.locator('[data-testid="news-toggle-btn"]');
-  await toggleBtn.evaluate((el) => {
-    (el as HTMLElement).click();
-  });
+  await toggleBtn.click();
 }
 
 export async function openNewsPanel(page: Page) {
   await clickNewsToggle(page);
   const panel = page.locator('[data-testid="news-panel"]');
   await expect(panel).toHaveClass(/open/, { timeout: 15000 });
+}
+
+export async function openRootPage(page: Page) {
+  await page.goto("/");
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
 }
 
 export async function gotoNewsPage(page: Page) {

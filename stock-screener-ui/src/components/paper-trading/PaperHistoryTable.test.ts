@@ -1,78 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { formatNumber, formatTimeOnly, formatDateHeader } from "../../utils/ui-helpers";
+import dayjs from "dayjs";
+import { formatTimeOnly, formatDateHeader } from "../../utils/ui-helpers";
 import {
   getUniqueStrategies,
   getUniqueBots,
   filterByRange,
   groupTradesByDate,
-} from "./PaperHistoryTable";
-import type { PaperTrade } from "../../types/paperTrading";
-
-const mockTrade = (overrides: Partial<PaperTrade> = {}): PaperTrade => ({
-  trade_id: "trade-1",
-  symbol: "RELIANCE",
-  side: "BUY",
-  quantity: 100,
-  entry_price: 2500,
-  exit_price: 2600,
-  entry_time: "2026-03-20T09:30:00Z",
-  exit_time: "2026-03-20T14:30:00Z",
-  pnl: 10000,
-  pnl_pct: 4.0,
-  exit_reason: "TP",
-  costs: 50,
-  net_pnl: 9950,
-  sl_price: 2400,
-  tp_price: 2700,
-  peak_price: 2650,
-  low_price: 2480,
-  notes: "",
-  strategy_id: 1,
-  strategy_name: "ORB Strategy",
-  bot_id: null,
-  bot_name: null,
-  ...overrides,
-});
-
-describe("formatNumber", () => {
-  test("formats numbers below 1000 without suffix", () => {
-    expect(formatNumber(500)).toBe("500");
-    expect(formatNumber(999)).toBe("999");
-  });
-
-  test("formats thousands with K suffix", () => {
-    expect(formatNumber(1500)).toBe("1.5K");
-    expect(formatNumber(10000)).toBe("10.0K");
-    expect(formatNumber(99999)).toBe("100.0K");
-  });
-
-  test("formats lakhs with L suffix", () => {
-    expect(formatNumber(100000)).toBe("1.0L");
-    expect(formatNumber(150000)).toBe("1.5L");
-    expect(formatNumber(1000000)).toBe("10.0L");
-  });
-
-  test("handles negative numbers", () => {
-    expect(formatNumber(-1500)).toBe("-1.5K");
-    expect(formatNumber(-100000)).toBe("-1.0L");
-  });
-
-  test("handles zero", () => {
-    expect(formatNumber(0)).toBe("0");
-  });
-
-  test("returns 0 for undefined", () => {
-    expect(formatNumber(undefined)).toBe("0");
-  });
-
-  test("returns 0 for null", () => {
-    expect(formatNumber(null)).toBe("0");
-  });
-
-  test("returns 0 for NaN", () => {
-    expect(formatNumber(NaN)).toBe("0");
-  });
-});
+  getPeriodFromDateRange,
+} from "./tradeHistoryUtils";
+import { mockTrade } from "./testFixtures";
 
 describe("formatTimeOnly", () => {
   test("returns dash for empty string", () => {
@@ -100,31 +36,37 @@ describe("getUniqueStrategies", () => {
   });
 
   test("returns empty array when trades have no strategy_name", () => {
-    const trades = [mockTrade({ strategy_name: "" }), mockTrade({ strategy_name: "" })];
+    const trades = [
+      mockTrade({ strategy_name: "", strategy_id: 0 }),
+      mockTrade({ strategy_name: "", strategy_id: 0 }),
+    ];
     expect(getUniqueStrategies(trades)).toEqual([]);
   });
 
-  test("returns unique sorted strategy names", () => {
+  test("returns unique sorted strategies by id and name", () => {
     const trades = [
-      mockTrade({ strategy_name: "Breakout" }),
-      mockTrade({ strategy_name: "ORB" }),
-      mockTrade({ strategy_name: "Breakout" }),
+      mockTrade({ strategy_name: "Breakout", strategy_id: 2 }),
+      mockTrade({ strategy_name: "ORB", strategy_id: 1 }),
+      mockTrade({ strategy_name: "Breakout", strategy_id: 2 }),
     ];
     const result = getUniqueStrategies(trades);
-    expect(result).toEqual(["Breakout", "ORB"]);
+    expect(result).toEqual([
+      { id: 2, name: "Breakout" },
+      { id: 1, name: "ORB" },
+    ]);
   });
 
   test("handles single strategy", () => {
-    const trades = [mockTrade({ strategy_name: "ORB" })];
-    expect(getUniqueStrategies(trades)).toEqual(["ORB"]);
+    const trades = [mockTrade({ strategy_name: "ORB", strategy_id: 1 })];
+    expect(getUniqueStrategies(trades)).toEqual([{ id: 1, name: "ORB" }]);
   });
 
-  test("skips trades with null/undefined strategy_name", () => {
+  test("skips trades with falsy strategy_id", () => {
     const trades = [
-      mockTrade({ strategy_name: "ORB" }),
-      mockTrade({ strategy_name: undefined as any }),
+      mockTrade({ strategy_name: "ORB", strategy_id: 1 }),
+      mockTrade({ strategy_name: "Missing", strategy_id: 0 }),
     ];
-    expect(getUniqueStrategies(trades)).toEqual(["ORB"]);
+    expect(getUniqueStrategies(trades)).toEqual([{ id: 1, name: "ORB" }]);
   });
 });
 
@@ -267,5 +209,31 @@ describe("formatDateHeader", () => {
   test("includes weekday", () => {
     const result = formatDateHeader("2026-03-20");
     expect(result).toMatch(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
+  });
+});
+
+describe("getPeriodFromDateRange", () => {
+  test("returns 'all' when both dates are null", () => {
+    expect(getPeriodFromDateRange(null, null)).toBe("all");
+  });
+
+  test("returns 'today' when both dates equal today", () => {
+    const today = dayjs().format("YYYY-MM-DD");
+    expect(getPeriodFromDateRange(today, today)).toBe("today");
+  });
+
+  test("returns 'week' when fromDate is 7 days ago", () => {
+    const weekAgo = dayjs().subtract(7, "day").format("YYYY-MM-DD");
+    expect(getPeriodFromDateRange(weekAgo, null)).toBe("week");
+  });
+
+  test("returns 'month' when fromDate is 1 month ago", () => {
+    const monthAgo = dayjs().subtract(1, "month").format("YYYY-MM-DD");
+    expect(getPeriodFromDateRange(monthAgo, null)).toBe("month");
+  });
+
+  test("returns 'year' when fromDate is 1 year ago", () => {
+    const yearAgo = dayjs().subtract(1, "year").format("YYYY-MM-DD");
+    expect(getPeriodFromDateRange(yearAgo, null)).toBe("year");
   });
 });

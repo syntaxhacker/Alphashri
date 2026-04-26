@@ -57,6 +57,12 @@ kill_port "$UI_PORT"
 : > "$LOG_FILE"
 echo "Logging to: $LOG_FILE"
 
+VENV_DIR="$SCRIPT_DIR/.venv"
+if [[ -d "$VENV_DIR/bin" ]]; then
+  source "$VENV_DIR/bin/activate"
+  echo "Activated venv: $VENV_DIR"
+fi
+
 echo "Starting API on http://localhost:${API_PORT} ..."
 uvicorn api_server_fastapi:app \
   --host 127.0.0.1 \

@@ -2,6 +2,21 @@ import { Text, Group, useMantineColorScheme, useMantineTheme } from "@mantine/co
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { CompactPanel } from "../../common/compact";
+import {
+  TOOLTIP_DARK_BG,
+  TOOLTIP_LIGHT_BG,
+  TOOLTIP_DARK_BORDER,
+  TOOLTIP_LIGHT_BORDER,
+  TOOLTIP_DARK_TEXT,
+  TOOLTIP_LIGHT_TEXT,
+  AXIS_DARK_LINE,
+  AXIS_LIGHT_LINE,
+  AXIS_DARK_SPLIT,
+  AXIS_LIGHT_SPLIT,
+  INDICATOR_LINE,
+  IV_AREA_START,
+  IV_AREA_END,
+} from "../../../config/colors";
 
 interface IVSkewChartProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -29,9 +44,12 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
         const data = params[0];
         return `Strike: ${data.name}<br/>IV: ${data.value}%`;
       },
-      backgroundColor: isDark ? "#25262b" : "#fff",
-      borderColor: isDark ? "#373a40" : "#dee2e6",
-      textStyle: { color: isDark ? "#c1c2c5" : "#1f2937", fontSize: theme.fontSizes.sm },
+      backgroundColor: isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG,
+      borderColor: isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
+      textStyle: {
+        color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT,
+        fontSize: theme.fontSizes.sm,
+      },
     },
     grid: {
       top: 10,
@@ -43,12 +61,14 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
       type: "category",
       data: chartData.map((d) => d.strike),
       axisLabel: { color: "gray", fontSize: theme.fontSizes.sm },
-      axisLine: { lineStyle: { color: isDark ? "#373a40" : "#dee2e6" } },
+      axisLine: { lineStyle: { color: isDark ? AXIS_DARK_LINE : AXIS_LIGHT_LINE } },
     },
     yAxis: {
       type: "value",
       axisLabel: { color: "gray", fontSize: theme.fontSizes.sm, formatter: "{value}%" },
-      splitLine: { lineStyle: { color: isDark ? "#1a1b1e" : "#f1f3f5", type: "dashed" } },
+      splitLine: {
+        lineStyle: { color: isDark ? AXIS_DARK_SPLIT : AXIS_LIGHT_SPLIT, type: "dashed" },
+      },
     },
     series: [
       {
@@ -56,7 +76,7 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
         type: "line",
         smooth: true,
         symbol: "none",
-        lineStyle: { width: 3, color: "#228be6" },
+        lineStyle: { width: 3, color: INDICATOR_LINE },
         areaStyle: {
           color: {
             type: "linear",
@@ -65,8 +85,8 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: "rgba(34, 139, 230, 0.3)" },
-              { offset: 1, color: "rgba(34, 139, 230, 0)" },
+              { offset: 0, color: IV_AREA_START },
+              { offset: 1, color: IV_AREA_END },
             ],
           },
         },

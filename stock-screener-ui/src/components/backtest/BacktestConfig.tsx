@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import {
   Stack,
   Group,
@@ -8,24 +8,15 @@ import {
   Button,
   Text,
   Paper,
-  MultiSelect,
   Menu,
+  Box,
   Tooltip,
-  Badge,
-  ActionIcon,
   Divider,
 } from "@mantine/core";
-import { useDebouncedValue } from "@mantine/hooks";
-import {
-  IconPlayerPlay,
-  IconChevronDown,
-  IconChevronUp,
-  IconX,
-  IconRotate,
-  IconPlayerPause,
-} from "@tabler/icons-react";
-import type { Strategy, StrategyParam, StrategyVariation } from "../../types/backtest";
-import { searchSymbols } from "../../api/symbols";
+import { IconPlayerPlay, IconChevronDown, IconRotate, IconPlayerPause } from "@tabler/icons-react";
+import type { Strategy, StrategyVariation } from "../../types/backtest";
+import { ParamInput } from "./ParamInput";
+import { SymbolChips } from "./SymbolChips";
 
 interface BacktestConfigProps {
   strategies: Strategy[];
@@ -47,49 +38,6 @@ interface BacktestConfigProps {
   onSymbolsChange: (symbols: string[]) => void;
   onReset: () => void;
   onRun: () => void;
-}
-
-const MAX_VISIBLE_CHIPS = 5;
-
-function renderParamInput(param: StrategyParam, value: any, onChange: (value: any) => void) {
-  const testId = `param-${param.key}`;
-
-  if (param.type === "select") {
-    return (
-      <Select
-        data-testid={testId}
-        value={value ?? param.default}
-        onChange={(v) => v && onChange(v)}
-        data={(param.options || []).map((opt) => ({ value: opt, label: opt }))}
-        size="sm"
-        w={80}
-      />
-    );
-  }
-
-  if (param.type === "boolean") {
-    return (
-      <Checkbox
-        data-testid={testId}
-        checked={value ?? param.default}
-        onChange={(e) => onChange(e.currentTarget.checked)}
-        size="sm"
-      />
-    );
-  }
-
-  return (
-    <NumberInput
-      data-testid={testId}
-      value={value ?? param.default}
-      onChange={(v) => onChange(Number(v))}
-      min={param.min}
-      max={param.max}
-      step={param.step ?? 1}
-      size="sm"
-      w={70}
-    />
-  );
 }
 
 export function BacktestConfig({
@@ -115,30 +63,6 @@ export function BacktestConfig({
 }: BacktestConfigProps) {
   const strategy = strategies.find((s) => s.id === selectedStrategy);
   const selectedVariationData = variations.find((v) => v.id === selectedVariation);
-
-  const [symbolSearch, setSymbolSearch] = useState("");
-  const [symbolOptions, setSymbolOptions] = useState<{ value: string; label: string }[]>([]);
-  const [debouncedSearch] = useDebouncedValue(symbolSearch, 300);
-  const [symbolsExpanded, setSymbolsExpanded] = useState(false);
-
-  useEffect(() => {
-    if (debouncedSearch.trim().length < 1) {
-      return;
-    }
-
-    searchSymbols(debouncedSearch, 20)
-      .then((results) => {
-        setSymbolOptions(
-          results.map((r) => ({
-            value: r.symbol,
-            label: `${r.symbol} - ${r.name}`,
-          })),
-        );
-      })
-      .catch((err) => {
-        console.error("Failed to search symbols:", err);
-      });
-  }, [debouncedSearch]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -173,16 +97,6 @@ export function BacktestConfig({
     },
   ];
 
-  const visibleChips = symbolsExpanded
-    ? selectedSymbols
-    : selectedSymbols.slice(0, MAX_VISIBLE_CHIPS);
-  const hiddenCount = selectedSymbols.length - MAX_VISIBLE_CHIPS;
-  const hasOverflow = selectedSymbols.length > MAX_VISIBLE_CHIPS;
-
-  const handleRemoveSymbol = (symbol: string) => {
-    onSymbolsChange(selectedSymbols.filter((s) => s !== symbol));
-  };
-
   const handleRunAndSave = () => {
     onSaveToHistoryChange(true);
     onRun();
@@ -202,7 +116,7 @@ export function BacktestConfig({
           <Text size="sm" fw={500} w={70} pt={4}>
             Strategy
           </Text>
-          <div style={{ flex: 1 }}>
+          <Box flex={1}>
             <Select
               id="variation-select"
               className="config-variation-select"
@@ -220,7 +134,7 @@ export function BacktestConfig({
                 {selectedVariationData.description}
               </Text>
             )}
-          </div>
+          </Box>
         </Group>
 
         <Divider />
@@ -229,115 +143,35 @@ export function BacktestConfig({
           <Text size="sm" fw={500} w={70} pt={4}>
             Symbols
           </Text>
-          <div style={{ flex: 1 }}>
-            <Group gap={4}>
-              <MultiSelect
-                id="symbol-multiselect"
-                className="config-symbol-multiselect"
-                data={symbolOptions}
-                value={selectedSymbols}
-                onChange={onSymbolsChange}
-                searchable
-                searchValue={symbolSearch}
-                onSearchChange={setSymbolSearch}
-                clearable
-                hidePickedOptions
-                size="sm"
-                flex={1}
-                nothingFoundMessage="No symbols found"
-                maxDropdownHeight={200}
-                data-testid="symbol-multiselect"
-              />
-              {selectedSymbols.length > 0 && (
-                <Tooltip label="Clear all symbols">
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    color="gray"
-                    onClick={() => onSymbolsChange([])}
-                    data-testid="clear-symbols-btn"
-                  >
-                    <IconX size={14} />
-                  </ActionIcon>
-                </Tooltip>
-              )}
-            </Group>
-            {selectedSymbols.length > 0 && (
-              <div
-                className={`config-symbols-chips ${symbolsExpanded ? "expanded" : ""}`}
-                data-testid="symbol-chips"
-              >
-                {visibleChips.map((symbol) => (
-                  <Badge
-                    key={symbol}
-                    variant="outline"
-                    size="sm"
-                    className="symbol-chip"
-                    rightSection={
-                      <IconX
-                        size={10}
-                        style={{ cursor: "pointer" }}
-                        onClick={() => handleRemoveSymbol(symbol)}
-                      />
-                    }
-                    data-testid={`chip-${symbol}`}
-                  >
-                    {symbol}
-                  </Badge>
-                ))}
-                {hasOverflow && !symbolsExpanded && (
-                  <Badge
-                    variant="light"
-                    color="gray"
-                    size="sm"
-                    className="symbol-chip symbol-expand-toggle"
-                    onClick={() => setSymbolsExpanded(true)}
-                    style={{ cursor: "pointer" }}
-                    rightSection={<IconChevronDown size={10} />}
-                  >
-                    +{hiddenCount} more
-                  </Badge>
-                )}
-                {symbolsExpanded && hasOverflow && (
-                  <Badge
-                    variant="light"
-                    color="gray"
-                    size="sm"
-                    className="symbol-chip symbol-expand-toggle"
-                    onClick={() => setSymbolsExpanded(false)}
-                    style={{ cursor: "pointer" }}
-                    rightSection={<IconChevronUp size={10} />}
-                  >
-                    Less
-                  </Badge>
-                )}
-              </div>
-            )}
-          </div>
+          <Box flex={1}>
+            <SymbolChips selectedSymbols={selectedSymbols} onSymbolsChange={onSymbolsChange} />
+          </Box>
         </Group>
 
         <Divider />
 
-        <div>
+        <Box>
           {strategy && strategy.params.length > 0 ? (
             <Group gap="sm" align="flex-start">
               <Text size="sm" fw={500} w={70} pt={4}>
                 Params
               </Text>
-              <div className="config-params-row" style={{ flex: 1 }}>
+              <Box className="config-params-row" flex={1}>
                 {strategy.params.map((param) => (
                   <Tooltip key={param.key} label={param.label} withArrow>
                     <Group gap={4} align="center">
                       <Text size="xs" c="dimmed">
                         {param.label}
                       </Text>
-                      {renderParamInput(param, params[param.key], (value) =>
-                        onParamChange(param.key, value),
-                      )}
+                      <ParamInput
+                        param={param}
+                        value={params[param.key]}
+                        onChange={(value) => onParamChange(param.key, value)}
+                      />
                     </Group>
                   </Tooltip>
                 ))}
-              </div>
+              </Box>
             </Group>
           ) : (
             <Group gap="sm" align="center">
@@ -349,7 +183,7 @@ export function BacktestConfig({
               </Text>
             </Group>
           )}
-        </div>
+        </Box>
 
         <Divider />
 
@@ -418,6 +252,7 @@ export function BacktestConfig({
                   onClick={onRun}
                   disabled={isRunning || selectedSymbols.length === 0}
                   leftSection={<IconPlayerPlay size={14} />}
+                  data-testid="menu-run-backtest"
                 >
                   Run Backtest
                 </Menu.Item>
@@ -425,6 +260,7 @@ export function BacktestConfig({
                   onClick={handleRunAndSave}
                   disabled={isRunning || selectedSymbols.length === 0}
                   leftSection={<IconPlayerPlay size={14} />}
+                  data-testid="menu-run-save"
                 >
                   Run & Save to History
                 </Menu.Item>

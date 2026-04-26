@@ -22,6 +22,18 @@ erDiagram
         DateTime created_at
         DateTime updated_at
     }
+    botruntimestates {
+        Integer id PK
+        Integer bot_id FK
+        Integer user_id FK
+        Float cash
+        Float daily_pnl
+        Integer daily_trades
+        Float realized_pnl
+        String day_start
+        String scan_items
+        DateTime updated_at
+    }
     botstrategies {
         Integer bot_id PK
         Integer strategy_id PK
@@ -55,6 +67,13 @@ erDiagram
     llmruns {
         Integer id PK
     }
+    marketholidays {
+        Integer id PK
+        Date date
+        String description
+        String type
+        DateTime created_at
+    }
     newsarticles {
         Integer id PK
         String url
@@ -78,6 +97,11 @@ erDiagram
         Float match_confidence
         String match_method
     }
+    positions {
+        Integer id PK
+        Integer user_id FK
+        Integer bot_id FK
+    }
     sessions {
         String id PK
         Integer user_id FK
@@ -88,6 +112,26 @@ erDiagram
     strategyconfigs {
         Integer id PK
         Integer parent_id FK
+    }
+    strategyruntimestates {
+        Integer id PK
+        Integer bot_id FK
+        Integer strategy_id FK
+        Integer user_id FK
+        String status
+        Integer signals_generated
+        Integer trades_executed
+        DateTime last_scan_time
+        Float capital_used
+        Float available_capital
+        Integer positions_count
+        Float realized_pnl
+        DateTime updated_at
+    }
+    trades {
+        Integer id PK
+        Integer user_id FK
+        Integer bot_id FK
     }
     users {
         Integer id PK
@@ -104,12 +148,21 @@ erDiagram
 
     backtestresults ||--o{ users : "user_id"
     botconfigs ||--o{ users : "user_id"
+    botruntimestates ||--o{ botconfigs : "bot_id"
+    botruntimestates ||--o{ users : "user_id"
     botstrategies ||--o{ botconfigs : "bot_id"
     botstrategies ||--o{ strategyconfigs : "strategy_id"
     brokerconnections ||--o{ users : "user_id"
     newssymbolmentions ||--o{ newsarticles : "article_id"
+    positions ||--o{ users : "user_id"
+    positions ||--o{ botconfigs : "bot_id"
     sessions ||--o{ users : "user_id"
     strategyconfigs ||--o| strategyconfigs : "parent"
+    strategyruntimestates ||--o{ botconfigs : "bot_id"
+    strategyruntimestates ||--o{ strategyconfigs : "strategy_id"
+    strategyruntimestates ||--o{ users : "user_id"
+    trades ||--o{ users : "user_id"
+    trades ||--o{ botconfigs : "bot_id"
 ```
 
 ## Table Reference
@@ -153,6 +206,22 @@ erDiagram
 | updated_at | DateTime | Yes | - |
 | *(Index: `ix_bot_configs_user_id` on user_id)* | | | |
 | *(Unique: `uq_bot_name_per_user` on name, user_id)* | | | |
+
+### bot_runtime_states
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| bot_id | Integer | No | UNIQUE FK -> bot_configs.id |
+| user_id | Integer | No | FK -> users.id |
+| cash | Float | No | - |
+| daily_pnl | Float | No | - |
+| daily_trades | Integer | No | - |
+| realized_pnl | Float | No | - |
+| day_start | String | No | - |
+| scan_items | String | Yes | - |
+| updated_at | DateTime | No | - |
+| *(Index: `ix_bot_runtime_states_user_id` on user_id)* | | | |
 
 ### bot_strategies
 
@@ -221,6 +290,17 @@ erDiagram
 | *(Index: `ix_llm_runs_model` on model)* | | | |
 | *(Index: `ix_llm_runs_status` on status)* | | | |
 
+### market_holidays
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| date | Date | No | UNIQUE |
+| description | String | No | - |
+| type | String | No | - |
+| created_at | DateTime | Yes | - |
+| *(Unique: `uq_market_holiday_date` on date)* | | | |
+
 ### news_articles
 
 | Column | Type | Nullable | Key |
@@ -255,6 +335,39 @@ erDiagram
 | *(Index: `ix_news_symbol_mentions_article_id` on article_id)* | | | |
 | *(Index: `ix_news_symbol_mentions_instrument_key` on instrument_key)* | | | |
 | *(Index: `ix_news_symbol_mentions_trading_symbol` on trading_symbol)* | | | |
+
+### positions
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| uuid | String | No | UNIQUE |
+| user_id | Integer | No | FK -> users.id |
+| bot_id | Integer | No | FK -> bot_configs.id |
+| strategy_id | Integer | Yes | - |
+| strategy_name | String | No | - |
+| symbol | String | No | - |
+| side | String | No | - |
+| quantity | Integer | No | - |
+| entry_price | Float | No | - |
+| stop_loss | Float | Yes | - |
+| take_profit | Float | Yes | - |
+| entry_time | DateTime | No | - |
+| current_price | Float | Yes | - |
+| unrealized_pnl | Float | Yes | - |
+| unrealized_pnl_pct | Float | Yes | - |
+| is_test | Boolean | No | - |
+| created_at | DateTime | No | - |
+| updated_at | DateTime | No | - |
+| strategy_type | String | Yes | - |
+| peak_price | Float | Yes | - |
+| low_price | Float | Yes | - |
+| metadata_json | String | Yes | - |
+| *(Index: `ix_positions_bot_id` on bot_id)* | | | |
+| *(Index: `ix_positions_strategy_id` on strategy_id)* | | | |
+| *(Index: `ix_positions_symbol` on symbol)* | | | |
+| *(Index: `ix_positions_user_id` on user_id)* | | | |
+| *(Unique: `uq_bot_strategy_symbol` on bot_id, strategy_id, symbol)* | | | |
 
 ### sessions
 
@@ -305,6 +418,11 @@ erDiagram
 | ema_slow_period | Integer | Yes | - |
 | pivot_type | String | Yes | - |
 | breakout_buffer_pct | Float | Yes | - |
+| enable_shorts | Boolean | Yes | - |
+| eod_exit_hour | Integer | Yes | - |
+| eod_exit_minute | Integer | Yes | - |
+| min_rr_ratio | Float | Yes | - |
+| screener_profiles | String | Yes | - |
 | brokerage_pct | Float | Yes | - |
 | min_brokerage | Float | Yes | - |
 | stt_pct | Float | Yes | - |
@@ -314,6 +432,63 @@ erDiagram
 | gst_pct | Float | Yes | - |
 | created_at | DateTime | Yes | - |
 | updated_at | DateTime | Yes | - |
+
+### strategy_runtime_states
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| bot_id | Integer | No | FK -> bot_configs.id |
+| strategy_id | Integer | No | FK -> strategy_configs.id |
+| user_id | Integer | No | FK -> users.id |
+| status | String | No | - |
+| signals_generated | Integer | No | - |
+| trades_executed | Integer | No | - |
+| last_scan_time | DateTime | Yes | - |
+| capital_used | Float | No | - |
+| available_capital | Float | No | - |
+| positions_count | Integer | No | - |
+| realized_pnl | Float | No | - |
+| updated_at | DateTime | No | - |
+| *(Index: `ix_strategy_runtime_states_bot_id` on bot_id)* | | | |
+| *(Index: `ix_strategy_runtime_states_strategy_id` on strategy_id)* | | | |
+| *(Unique: `uq_bot_strategy_runtime` on bot_id, strategy_id)* | | | |
+
+### trades
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| uuid | String | No | UNIQUE |
+| user_id | Integer | No | FK -> users.id |
+| bot_id | Integer | Yes | FK -> bot_configs.id |
+| strategy_id | Integer | Yes | - |
+| strategy_name | String | No | - |
+| symbol | String | No | - |
+| side | String | No | - |
+| quantity | Integer | No | - |
+| entry_price | Float | No | - |
+| exit_price | Float | Yes | - |
+| entry_time | DateTime | No | - |
+| exit_time | DateTime | Yes | - |
+| stop_loss | Float | Yes | - |
+| take_profit | Float | Yes | - |
+| pnl | Float | Yes | - |
+| pnl_pct | Float | Yes | - |
+| costs | Float | Yes | - |
+| net_pnl | Float | Yes | - |
+| exit_reason | String | Yes | - |
+| notes | String | Yes | - |
+| reason | String | Yes | - |
+| peak_price | Float | Yes | - |
+| low_price | Float | Yes | - |
+| is_test | Boolean | No | - |
+| source | String | No | - |
+| created_at | DateTime | No | - |
+| *(Index: `ix_trades_bot_id` on bot_id)* | | | |
+| *(Index: `ix_trades_strategy_id` on strategy_id)* | | | |
+| *(Index: `ix_trades_symbol` on symbol)* | | | |
+| *(Index: `ix_trades_user_id` on user_id)* | | | |
 
 ### users
 

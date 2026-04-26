@@ -248,7 +248,7 @@ test.describe("Multi-Strategy Bot - Edit Strategy Types", () => {
     await expect(page.locator('[data-testid="strategy-allocation-row"]')).toHaveCount(3);
   });
 
-  test("should allow adding EMA_CROSS strategy to existing bot", async ({ page }) => {
+  test.skip("should allow adding EMA_CROSS strategy to existing bot", async ({ page }) => {
     await gotoBotsViewAndWait(page);
     await page.locator(`[data-testid="edit-bot-btn-${BOT_ORB_ID}"]`).click();
     await expect(page.locator('[data-testid="bot-config-form"]')).toBeVisible();

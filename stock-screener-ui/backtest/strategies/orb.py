@@ -15,6 +15,9 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
+import config
+IST = config.IST
+
 import pandas as pd
 
 from nautilus_trader.backtest.config import BacktestEngineConfig
@@ -40,12 +43,15 @@ _project_root_dir = os.path.dirname(_ui_dir)
 if _project_root_dir not in sys.path:
     sys.path.insert(0, _project_root_dir)
 
+# Import shared ORB utilities (single source of truth for OR calculations)
+from trading.orb_utils import calculate_or_levels as utils_calculate_or_levels
+
 
 def get_ist_time(ts_ns: int) -> tuple:
     """Convert nanosecond timestamp to IST time components."""
     ts_sec = ts_ns / 1_000_000_000
     dt_utc = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
-    dt_ist = dt_utc + timedelta(hours=5, minutes=30)
+    dt_ist = dt_utc.astimezone(IST)
     return dt_ist.hour, dt_ist.minute, dt_ist.date()
 
 
@@ -64,6 +70,7 @@ def run_single_stock_backtest(args):
         include_costs = bool(params.get('include_costs', True))
         enable_shorts = bool(params.get('enable_shorts', False))
         cooldown_bars = int(params.get('cooldown_bars', 3))
+        breakout_buffer_pct = float(params.get('breakout_buffer_pct', 0.3))
 
         venue = Venue("SIMULATED")
         instrument_id = InstrumentId.from_str(f"{symbol}.{venue}")
@@ -79,7 +86,7 @@ def run_single_stock_backtest(args):
             isin=None,
         )
 
-        today = datetime.now()
+        today = datetime.now(IST)
         to_date = today.strftime('%Y-%m-%d')
         from_date = (today - timedelta(days=days + 30)).strftime('%Y-%m-%d')
 
@@ -130,6 +137,7 @@ def run_single_stock_backtest(args):
             trade_size=trade_size,
             enable_shorts=enable_shorts,
             cooldown_bars=cooldown_bars,
+            breakout_buffer_pct=breakout_buffer_pct,
         )
 
         engine = BacktestEngine(config=BacktestEngineConfig(trader_id=TraderId("BACKTESTER-001")))
@@ -215,7 +223,8 @@ def run_single_stock_backtest(args):
 
 
 class ORBNautilusStrategy(Strategy):
-    """Simplified ORB implementation aligned with paper flow."""
+    """Simplified ORB implementation aligned with paper flow.
+    Uses shared OR calculation utility from trading.orb_utils."""
 
     def __init__(self, config: 'ORBConfig'):
         super().__init__(config)
@@ -227,11 +236,11 @@ class ORBNautilusStrategy(Strategy):
         self._trade_size = config.trade_size
         self._enable_shorts = config.enable_shorts
         self._cooldown_bars = config.cooldown_bars
+        self._breakout_buffer_pct = config.breakout_buffer_pct
 
         self._current_date = None
-        self._or_high = None
-        self._or_low = None
-        self._or_bars = 0
+        self._or_levels = None  # Dict from calculate_or_levels()
+        self._or_candles = []  # Collect OR candles for shared utility
         self._or_defined = False
         self._entry_price = None
         self._position_side = None
@@ -255,35 +264,40 @@ class ORBNautilusStrategy(Strategy):
         high_f = float(bar.high)
         low_f = float(bar.low)
         bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
-        bar_time_ist = bar_time + timedelta(hours=5, minutes=30)
+        bar_time_ist = bar_time.astimezone(IST)
 
         self._bar_number += 1
 
         if self._current_date != date:
             self._current_date = date
-            self._or_high = None
-            self._or_low = None
-            self._or_bars = 0
+            self._or_levels = None
+            self._or_candles = []
             self._or_defined = False
             self._last_exit_bar = None
 
         mkt_open = 9 * 60 + 15
         or_end = mkt_open + self._or_minutes
 
+        # Collect OR candles during OR period
         if cur_min < or_end:
-            if self._or_high is None:
-                self._or_high = high_f
-                self._or_low = low_f
-            else:
-                self._or_high = max(self._or_high, high_f)
-                self._or_low = min(self._or_low, low_f)
-            self._or_bars += 1
+            self._or_candles.append({
+                'time': bar_time_ist.isoformat(),
+                'open': float(bar.open),
+                'high': high_f,
+                'low': low_f,
+                'close': close_f,
+            })
             return
 
-        if not self._or_defined and self._or_bars > 0:
+        # OR period just ended - calculate OR levels using shared utility
+        if not self._or_defined and len(self._or_candles) > 0:
+            self._or_levels = utils_calculate_or_levels(
+                candles=self._or_candles,
+                or_minutes=self._or_minutes,
+            )
             self._or_defined = True
 
-        if not self._or_defined or self._or_high is None or self._or_low is None:
+        if not self._or_defined or self._or_levels is None:
             return
 
         # EOD safety exit
@@ -301,15 +315,18 @@ class ORBNautilusStrategy(Strategy):
         self._check_entry(close_f, bar_time_ist)
 
     def _check_entry(self, close_f: float, bar_time_ist: datetime):
-        if self._or_high is None or self._or_low is None:
+        if self._or_levels is None:
             return
 
         if self._last_exit_bar is not None and self._cooldown_bars > 0:
             if (self._bar_number - self._last_exit_bar) < self._cooldown_bars:
                 return
 
-        long_entry = close_f > self._or_high
-        short_entry = close_f < self._or_low
+        buffer = self._breakout_buffer_pct / 100
+        or_high = self._or_levels['or_high']
+        or_low = self._or_levels['or_low']
+        long_entry = close_f > or_high * (1 + buffer)
+        short_entry = close_f < or_low * (1 - buffer)
 
         if short_entry and self._enable_shorts:
             order = self.order_factory.market(
@@ -390,8 +407,8 @@ class ORBNautilusStrategy(Strategy):
             'exit_reason': reason,
             'hold_duration_minutes': hold_minutes,
             'date': self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None,
-            'or_high': self._or_high,
-            'or_low': self._or_low,
+            'or_high': self._or_levels['or_high'] if self._or_levels else None,
+            'or_low': self._or_levels['or_low'] if self._or_levels else None,
             'side': self._position_side,
             'peak_price': round(self._position_peak, 2) if self._position_peak else cur_price,
             'low_price': round(self._position_low, 2) if self._position_low else cur_price,
@@ -410,8 +427,8 @@ class ORBNautilusStrategy(Strategy):
 
     def on_reset(self):
         self._current_date = None
-        self._or_high = None
-        self._or_low = None
+        self._or_levels = None
+        self._or_candles = []
         self._or_defined = False
         self._position_side = None
         self._entry_price = None
@@ -427,6 +444,7 @@ class ORBConfig(StrategyConfig, kw_only=True):
     trade_size: int = 100
     enable_shorts: bool = False
     cooldown_bars: int = 3
+    breakout_buffer_pct: float = 0.3
 
 
 class ORBStrategy(BaseStrategy):
@@ -504,6 +522,15 @@ class ORBStrategy(BaseStrategy):
                 type='boolean',
                 default=False,
             ),
+            StrategyParam(
+                key='breakout_buffer_pct',
+                label='Breakout Buffer %',
+                type='number',
+                default=0.3,
+                min=0.0,
+                max=1.0,
+                step=0.05,
+            ),
         ]
 
     def validate_params(self, params: Dict) -> List[str]:
@@ -522,6 +549,7 @@ class ORBStrategy(BaseStrategy):
         results = []
         chart_data = {}
         all_candles = {}
+        skipped_stocks = []
 
         from multiprocessing import Pool, cpu_count
         from db.models import get_shared_broker_token
@@ -554,6 +582,8 @@ class ORBStrategy(BaseStrategy):
                                 'trades': result['trade_list'],
                                 'visuals': self.get_visuals(result['trade_list'], params)
                             }
+                    else:
+                        skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
         else:
             for args in worker_args:
                 completed += 1
@@ -571,6 +601,8 @@ class ORBStrategy(BaseStrategy):
                             'trades': result['trade_list'],
                             'visuals': self.get_visuals(result['trade_list'], params)
                         }
+                else:
+                    skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
 
         total_gross = sum(r['gross_pnl'] for r in results)
         total_costs = sum(r['total_costs'] for r in results)
@@ -593,10 +625,11 @@ class ORBStrategy(BaseStrategy):
                 'net_pnl': round(total_net, 2),
                 'trades': total_trades,
                 'win_rate': round(total_win_rate, 1),
-                'stocks_tested': len(results),
+                'stocks_tested': len(results) + len(skipped_stocks),
             },
             'chart_data': chart_data,
             'candles': all_candles,
+            'skipped_stocks': skipped_stocks,
             'run_time': datetime.now().isoformat(),
         }
 

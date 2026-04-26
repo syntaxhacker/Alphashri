@@ -16,6 +16,7 @@ from db.database import Base, engine
 from db.models import (
     User, UserSession, StrategyConfig, BotConfig, BacktestResult,
     BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument,
+    Trade, Position,
     bot_strategies,
 )
 

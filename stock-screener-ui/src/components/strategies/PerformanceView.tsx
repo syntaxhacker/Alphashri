@@ -1,4 +1,4 @@
-import { Table, Text, Group, Stack, Badge, Progress } from "@mantine/core";
+import { Table, Text, Group, Stack, Badge, Progress, Loader } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import type { PerformanceViewProps } from "./types";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
@@ -16,7 +16,7 @@ export function PerformanceView({
         testId="performance-loading-state"
         title={
           <Group gap="xs" wrap="nowrap">
-            <div className="spinner" data-testid="strategies-loading" />
+            <Loader size="sm" data-testid="strategies-loading" />
             <Text fw={600} size="sm">
               Loading performance
             </Text>
@@ -59,7 +59,6 @@ export function PerformanceView({
     return (
       <Table.Tr
         key={perf.strategy_id}
-        style={{ cursor: "pointer" }}
         onClick={() => onSelectStrategy(perf.strategy_id)}
         data-testid={`performance-row-${perf.strategy_id}`}
       >

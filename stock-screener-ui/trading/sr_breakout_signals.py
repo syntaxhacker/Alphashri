@@ -8,77 +8,44 @@ filter false breakouts.  Exit logic covers stop-loss, take-profit, and an EOD
 force exit at 15:15 IST.
 """
 
-from datetime import datetime
 from typing import Dict, Optional
 
 from trading.orb_signals import ORBSignal, SignalType
 from trading.base_signals import BaseSignalGenerator
+from trading.pivot_utils import calculate_pivot_points as _calculate_pivot_points
 
 
 class SRBreakoutSignalGenerator(BaseSignalGenerator):
 
     strategy_type = "SR_BREAKOUT"
-    FORCE_EXIT = (15, 15)
 
     def __init__(self, config: dict):
         self.sl_pct = config.get("sl_pct", 0.5)
         self.tp_pct = config.get("tp_pct", 1.5)
         self.pivot_type = config.get("pivot_type", "classic")
         self.breakout_buffer_pct = config.get("breakout_buffer_pct", 0.1)
-        super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
+        eod_hour = int(config.get("eod_exit_hour", 15))
+        eod_minute = int(config.get("eod_exit_minute", 15))
+        super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct,
+                         eod_exit_hour=eod_hour, eod_exit_minute=eod_minute)
 
     def calculate_pivot_points(
         self, prev_high: float, prev_low: float, prev_close: float
     ) -> dict:
-        if self.pivot_type == "classic":
-            pp = (prev_high + prev_low + prev_close) / 3
-            r1 = 2 * pp - prev_low
-            s1 = 2 * pp - prev_high
-            r2 = pp + (prev_high - prev_low)
-            s2 = pp - (prev_high - prev_low)
-            r3 = prev_high + 2 * (pp - prev_low)
-            s3 = prev_low - 2 * (prev_high - pp)
-        elif self.pivot_type == "fibonacci":
-            pp = (prev_high + prev_low + prev_close) / 3
-            hl = prev_high - prev_low
-            r1 = pp + 0.382 * hl
-            s1 = pp - 0.382 * hl
-            r2 = pp + 0.618 * hl
-            s2 = pp - 0.618 * hl
-            r3 = pp + hl
-            s3 = pp - hl
-        elif self.pivot_type == "camarilla":
-            pp = (prev_high + prev_low + prev_close) / 3
-            hl = prev_high - prev_low
-            r1 = prev_high + 0.0917 * hl
-            r2 = prev_high + 0.183 * hl
-            r3 = prev_high + 0.275 * hl
-            r4 = prev_high + 0.55 * hl
-            s1 = prev_low - 0.0917 * hl
-            s2 = prev_low - 0.183 * hl
-            s3 = prev_low - 0.275 * hl
-            s4 = prev_low - 0.55 * hl
-        else:
-            pp = (prev_high + prev_low + prev_close) / 3
-            r1 = 2 * pp - prev_low
-            s1 = 2 * pp - prev_high
-            r2 = pp + (prev_high - prev_low)
-            s2 = pp - (prev_high - prev_low)
-            r3 = prev_high + 2 * (pp - prev_low)
-            s3 = prev_low - 2 * (prev_high - pp)
-
+        """Calculate pivot points using shared utility from pivot_utils."""
+        result = _calculate_pivot_points(prev_high, prev_low, prev_close, self.pivot_type)
         points: Dict[str, float] = {
-            "PP": round(pp, 2),
-            "R1": round(r1, 2),
-            "R2": round(r2, 2),
-            "R3": round(r3, 2),
-            "S1": round(s1, 2),
-            "S2": round(s2, 2),
-            "S3": round(s3, 2),
+            "PP": round(result.pp, 2),
+            "R1": round(result.r1, 2),
+            "R2": round(result.r2, 2),
+            "R3": round(result.r3, 2),
+            "S1": round(result.s1, 2),
+            "S2": round(result.s2, 2),
+            "S3": round(result.s3, 2),
         }
         if self.pivot_type == "camarilla":
-            points["R4"] = round(r4, 2)
-            points["S4"] = round(s4, 2)
+            points["R4"] = round(result.r4, 2) if result.r4 else None
+            points["S4"] = round(result.s4, 2) if result.s4 else None
         return points
 
     def check_entry(
@@ -98,95 +65,30 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
 
         if current_price > r1 * (1 + buf):
             sl = current_price * (1 - self.sl_pct / 100)
-            tp = current_price * (1 + self.tp_pct / 100)
+            r2 = pivot_points.get("R2")
+            tp = r2 if r2 and r2 > current_price else current_price * (1 + self.tp_pct / 100)
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.LONG_ENTRY,
                 price=current_price,
                 stop_loss=round(sl, 2),
                 take_profit=round(tp, 2),
-                notes=f"Breakout above R1 ({r1:.2f}) with {self.breakout_buffer_pct}% buffer",
+                notes=f"Breakout above R1 ₹{r1:.2f} -> TP=R2 ₹{tp:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%" if r2 and r2 > current_price else f"Breakout above R1 ₹{r1:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%",
             )
 
         if current_price < s1 * (1 - buf):
             sl = current_price * (1 + self.sl_pct / 100)
-            tp = current_price * (1 - self.tp_pct / 100)
+            s2 = pivot_points.get("S2")
+            tp = s2 if s2 and s2 < current_price else current_price * (1 - self.tp_pct / 100)
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.SHORT_ENTRY,
                 price=current_price,
                 stop_loss=round(sl, 2),
                 take_profit=round(tp, 2),
-                notes=f"Breakdown below S1 ({s1:.2f}) with {self.breakout_buffer_pct}% buffer",
+                notes=f"Breakdown below S1 ₹{s1:.2f} -> TP=S2 ₹{tp:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%" if s2 and s2 < current_price else f"Breakdown below S1 ₹{s1:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%",
             )
 
         return None
 
-    def check_exit(
-        self,
-        symbol: str,
-        position_side: str,
-        entry_price: float,
-        stop_loss: float,
-        take_profit: float,
-        current_price: float,
-        **kwargs,
-    ) -> Optional[ORBSignal]:
-        now = kwargs.get("timestamp", datetime.now())
-        if isinstance(now, datetime):
-            hour, minute = now.hour, now.minute
-        else:
-            hour, minute = datetime.now().hour, datetime.now().minute
 
-        if hour > self.FORCE_EXIT[0] or (hour == self.FORCE_EXIT[0] and minute >= self.FORCE_EXIT[1]):
-            exit_type = SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT
-            return self.create_signal(
-                symbol=symbol,
-                signal_type=exit_type,
-                price=current_price,
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                notes="EOD force exit (15:15)",
-            )
-
-        if position_side == "BUY":
-            if current_price <= stop_loss:
-                return self.create_signal(
-                    symbol=symbol,
-                    signal_type=SignalType.LONG_EXIT,
-                    price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    notes="Stop loss hit",
-                )
-            if current_price >= take_profit:
-                return self.create_signal(
-                    symbol=symbol,
-                    signal_type=SignalType.LONG_EXIT,
-                    price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    notes="Take profit hit",
-                )
-
-        if position_side == "SELL":
-            if current_price >= stop_loss:
-                return self.create_signal(
-                    symbol=symbol,
-                    signal_type=SignalType.SHORT_EXIT,
-                    price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    notes="Stop loss hit",
-                )
-            if current_price <= take_profit:
-                return self.create_signal(
-                    symbol=symbol,
-                    signal_type=SignalType.SHORT_EXIT,
-                    price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    notes="Take profit hit",
-                )
-
-        return None

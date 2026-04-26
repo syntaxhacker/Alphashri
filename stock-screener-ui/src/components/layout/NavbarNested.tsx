@@ -1,5 +1,4 @@
 import {
-  IconRocket,
   IconChartLine,
   IconChartDots,
   IconBuildingFactory,
@@ -10,28 +9,30 @@ import {
   IconSun,
   IconMoon,
   IconChevronLeft,
-  IconChevronRight,
   IconNews,
   IconShield,
+  IconPlayerPlay,
 } from "@tabler/icons-react";
-import { Group, ScrollArea, Text, UnstyledButton, AppShell, Flex } from "@mantine/core";
+import { Box, Group, ScrollArea, AppShell, Stack, ActionIcon } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "../auth/AuthProvider2";
 import classes from "./NavbarNested.module.css";
 
 interface NavbarNestedProps {
   activePath: string;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  onMobileNavigate?: () => void;
 }
 
 const navItems = [
-  { label: "Screener", icon: IconRocket, link: "/" },
+  { label: "Screener", icon: IconChartLine, link: "/" },
   { label: "News", icon: IconNews, link: "/news" },
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },
   { label: "Paper Trading", icon: IconChartDots, link: "/paper" },
+  { label: "Replay", icon: IconPlayerPlay, link: "/replay" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },
   { label: "Bots", icon: IconRobot, link: "/bots" },
@@ -40,7 +41,12 @@ const navItems = [
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];
 
-export function NavbarNested({ activePath, collapsed, onToggleCollapse }: NavbarNestedProps) {
+export function NavbarNested({
+  activePath,
+  collapsed,
+  onToggleCollapse,
+  onMobileNavigate,
+}: NavbarNestedProps) {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const { user } = useAuth();
 
@@ -54,41 +60,13 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
       link={item.link}
       active={activePath === item.link}
       collapsed={collapsed}
+      onNavigate={onMobileNavigate}
       data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
     />
   ));
 
   return (
     <nav className={classes.navbar} data-testid="sidemenu" id="navbar-nested">
-      <AppShell.Section className={classes.header} id="navbar-header" data-testid="navbar-header">
-        <Flex
-          justify={collapsed ? "center" : "space-between"}
-          align="center"
-          direction={collapsed ? "column" : "row"}
-          gap={collapsed ? "xs" : 0}
-        >
-          {!collapsed ? (
-            <Text fw={700} size="lg" id="app-logo">
-              🚀 Alphashri
-            </Text>
-          ) : (
-            <Text fw={700} size="lg" id="app-logo-collapsed">
-              🚀
-            </Text>
-          )}
-          <Group gap="xs" id="navbar-controls">
-            {!collapsed && (
-              <UnstyledButton onClick={toggleColorScheme} data-testid="theme-toggle-btn">
-                {colorScheme === "dark" ? <IconSun size={20} /> : <IconMoon size={20} />}
-              </UnstyledButton>
-            )}
-            <UnstyledButton onClick={onToggleCollapse} data-testid="sidebar-collapse-toggle">
-              {collapsed ? <IconChevronRight size={20} /> : <IconChevronLeft size={20} />}
-            </UnstyledButton>
-          </Group>
-        </Flex>
-      </AppShell.Section>
-
       <AppShell.Section
         grow
         component={ScrollArea}
@@ -96,11 +74,37 @@ export function NavbarNested({ activePath, collapsed, onToggleCollapse }: Navbar
         id="navbar-links"
         data-testid="navbar-links"
       >
-        <div className={classes.linksInner}>{links}</div>
+        <Box className={classes.linksInner}>{links}</Box>
       </AppShell.Section>
 
       <AppShell.Section className={classes.footer} id="navbar-footer" data-testid="navbar-footer">
-        <UserButton collapsed={collapsed} />
+        <Stack gap="xs">
+          <Group justify="space-between" px="xs">
+            <UserButton collapsed={collapsed} />
+            <Group gap={4}>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={toggleColorScheme}
+                aria-label="Toggle color scheme"
+                data-testid="theme-toggle-btn"
+              >
+                {colorScheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
+              </ActionIcon>
+              {!collapsed && (
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  onClick={onToggleCollapse}
+                  aria-label="Toggle sidebar"
+                  data-testid="sidebar-collapse-toggle"
+                >
+                  <IconChevronLeft size={16} />
+                </ActionIcon>
+              )}
+            </Group>
+          </Group>
+        </Stack>
       </AppShell.Section>
     </nav>
   );

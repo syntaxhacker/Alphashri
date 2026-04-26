@@ -7,7 +7,11 @@
 
 import type { PreviewCandle, PivotLevel } from "../../api/chartPreview";
 import type { ORBZone } from "../../types/backtest";
-import { theme } from "../../theme";
+import { theme } from "../../config/theme";
+import { buildPivotSeries } from "../../utils/chartLineBuilders";
+import { formatTimeLabel } from "../../utils/chartTimeUtils";
+import { getCandleFromParams } from "../../utils/chartUtils";
+export { buildPivotSeries, formatTimeLabel };
 
 export type ChartSize = "preview" | "expanded" | "full";
 
@@ -16,8 +20,10 @@ export interface ChartRenderOptions {
   candles: PreviewCandle[];
   orb_zones?: ORBZone[];
   pivot_levels?: PivotLevel[];
+  high_52w?: number | null;
   size: ChartSize;
   showPivots?: boolean;
+  show52wHigh?: boolean;
   isDark?: boolean;
 }
 
@@ -30,8 +36,10 @@ export function buildChartOption(options: ChartRenderOptions): any {
     candles,
     orb_zones = [],
     pivot_levels = [],
+    high_52w = null,
     size,
     showPivots = false,
+    show52wHigh = true,
     isDark = true,
   } = options;
 
@@ -62,6 +70,9 @@ export function buildChartOption(options: ChartRenderOptions): any {
 
   // Build pivot lines (only if showPivots)
   const pivotSeries = showPivots ? buildPivotSeries(candles, pivot_levels) : [];
+
+  // Build 52-week high line (horizontal line across all candles)
+  const high52wData = show52wHigh && high_52w ? candles.map(() => high_52w) : [];
 
   // Base configuration
   const chartOption: any = {
@@ -168,6 +179,30 @@ export function buildChartOption(options: ChartRenderOptions): any {
       },
       // Pivot level series
       ...pivotSeries,
+      // 52-week high line
+      ...(show52wHigh && high_52w
+        ? [
+            {
+              id: "high-52w",
+              name: "52W High",
+              type: "line",
+              data: high52wData,
+              showSymbol: false,
+              silent: true,
+              z: 4,
+              lineStyle: {
+                color: "#FF9800", // Orange
+                width: isSmall ? 1 : 2,
+                type: "dotted",
+              },
+              tooltip: {
+                show: !isSmall,
+                formatter: () =>
+                  `<span style="color:#FF9800">52W High: ₹${high_52w.toFixed(2)}</span>`,
+              },
+            },
+          ]
+        : []),
     ],
   };
 
@@ -181,7 +216,13 @@ export function buildChartOption(options: ChartRenderOptions): any {
 
   if (!isSmall) {
     chartOption.legend = {
-      data: ["Price", "OR High", "OR Low", ...(showPivots ? ["R1", "PP", "S1"] : [])],
+      data: [
+        "Price",
+        "OR High",
+        "OR Low",
+        ...(show52wHigh && high_52w ? ["52W High"] : []),
+        ...(showPivots ? ["R1", "PP", "S1"] : []),
+      ],
       bottom: isFull ? 40 : 10,
       itemWidth: 14,
       itemHeight: 10,
@@ -246,112 +287,14 @@ export function buildORBLine(
 }
 
 /**
- * Build pivot level series for chart.
- */
-export function buildPivotSeries(candles: PreviewCandle[], pivot_levels: PivotLevel[]): any[] {
-  if (!pivot_levels || pivot_levels.length === 0) {
-    return [];
-  }
-
-  // Create date -> level maps
-  const r1Map = new Map<string, number>();
-  const s1Map = new Map<string, number>();
-  const ppMap = new Map<string, number>();
-
-  for (const level of pivot_levels) {
-    const key = level.date_raw || level.date;
-    r1Map.set(key, level.r1);
-    s1Map.set(key, level.s1);
-    ppMap.set(key, level.pp);
-  }
-
-  // Build sparse arrays
-  const r1Data = candles.map((c) => r1Map.get(c.date) ?? null);
-  const s1Data = candles.map((c) => s1Map.get(c.date) ?? null);
-  const ppData = candles.map((c) => ppMap.get(c.date) ?? null);
-
-  return [
-    {
-      id: "pivot-r1",
-      name: "R1",
-      type: "line",
-      data: r1Data,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 4,
-      lineStyle: { color: "#EF5350", width: 1, type: "dashed" },
-      tooltip: {
-        show: true,
-        formatter: (params: any) =>
-          params.value !== null
-            ? `<span style="color:#EF5350">R1: ₹${params.value.toFixed(2)}</span>`
-            : "",
-      },
-    },
-    {
-      id: "pivot-pp",
-      name: "PP",
-      type: "line",
-      data: ppData,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 4,
-      lineStyle: { color: "#AB47BC", width: 1, type: "dotted" },
-      tooltip: {
-        show: true,
-        formatter: (params: any) =>
-          params.value !== null
-            ? `<span style="color:#AB47BC">PP: ₹${params.value.toFixed(2)}</span>`
-            : "",
-      },
-    },
-    {
-      id: "pivot-s1",
-      name: "S1",
-      type: "line",
-      data: s1Data,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 4,
-      lineStyle: { color: "#26A69A", width: 1, type: "dashed" },
-      tooltip: {
-        show: true,
-        formatter: (params: any) =>
-          params.value !== null
-            ? `<span style="color:#26A69A">S1: ₹${params.value.toFixed(2)}</span>`
-            : "",
-      },
-    },
-  ];
-}
-
-/**
- * Format time label for x-axis.
- */
-export function formatTimeLabel(value: string): string {
-  if (!value || !value.includes("T")) return value;
-  const parts = value.split("T");
-  const timePart = parts[1] || "";
-  // Just show time for preview
-  return timePart.substring(0, 5);
-}
-
-/**
  * Format tooltip content.
  */
 export function formatTooltip(params: any, candles: PreviewCandle[], isDark: boolean): string {
-  const candle = params.find((p: any) => p.seriesType === "candlestick");
-  if (!candle) return "";
+  const result = getCandleFromParams(params, candles);
+  if (!result) return "";
 
-  const idx = candle.dataIndex;
-  const c = candles[idx];
-  if (!c) return "";
-
-  const change = c.open > 0 ? (((c.close - c.open) / c.open) * 100).toFixed(2) : "0";
-  const changeColor = c.close >= c.open ? "#00E676" : "#FF1744";
+  const c = result.candle;
+  const { change, changeColor } = result.change;
   const textColor = isDark ? "#e0e0e0" : "#333333";
   const fontFamily = theme.fontFamily;
   const fontSizes = theme.fontSizes;

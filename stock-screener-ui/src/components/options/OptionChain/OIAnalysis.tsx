@@ -12,8 +12,18 @@ import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { OptionAlerts } from "./OptionAlerts";
 import { IVSkewChart } from "./IVSkewChart";
-import { fontWeights } from "../../../theme";
+import { fontWeights } from "../../../config/theme";
 import { CompactPanel } from "../../common/compact";
+import {
+  TOOLTIP_DARK_BG,
+  TOOLTIP_LIGHT_BG,
+  TOOLTIP_DARK_BORDER,
+  TOOLTIP_LIGHT_BORDER,
+  TOOLTIP_DARK_TEXT,
+  TOOLTIP_LIGHT_TEXT,
+  OI_CALL,
+  OI_PUT,
+} from "../../../config/colors";
 
 interface OIAnalysisProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -68,9 +78,12 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },
-      backgroundColor: isDark ? "#25262b" : "#fff",
-      borderColor: isDark ? "#373a40" : "#dee2e6",
-      textStyle: { color: isDark ? "#c1c2c5" : "#1f2937", fontSize: theme.fontSizes.sm },
+      backgroundColor: isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG,
+      borderColor: isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
+      textStyle: {
+        color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT,
+        fontSize: theme.fontSizes.sm,
+      },
     },
     legend: {
       data: ["Call OI Chg", "Put OI Chg"],
@@ -103,7 +116,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         label: { show: false },
         emphasis: { focus: "series" },
         data: analysisData.chartData.map((d) => -Math.abs(d.ceChange)), // Negative for left side
-        itemStyle: { color: "#40c057", borderRadius: [2, 0, 0, 2] },
+        itemStyle: { color: OI_CALL, borderRadius: [2, 0, 0, 2] },
       },
       {
         name: "Put OI Chg",
@@ -112,7 +125,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         label: { show: false },
         emphasis: { focus: "series" },
         data: analysisData.chartData.map((d) => Math.abs(d.peChange)),
-        itemStyle: { color: "#fa5252", borderRadius: [0, 2, 2, 0] },
+        itemStyle: { color: OI_PUT, borderRadius: [0, 2, 2, 0] },
       },
     ],
   };
@@ -198,7 +211,8 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
           <CompactPanel
             className="oi-sentiment-panel"
             data-testid="options-oi-sentiment-panel"
-            style={{ borderLeft: "4px solid var(--mantine-color-blue-6)", flex: 1 }}
+            flex={1}
+            style={{ borderLeft: "4px solid var(--mantine-color-blue-6)" }}
           >
             <Group align="flex-start" wrap="nowrap">
               <Box>

@@ -43,6 +43,7 @@ from api.auth import (
     hash_password,
     create_access_token,
     create_refresh_token,
+    get_current_user,
     JWT_SECRET_KEY,
     JWT_ALGORITHM,
     ACCESS_TOKEN_EXPIRE_HOURS,
@@ -63,7 +64,7 @@ except ImportError:
 
 @pytest.fixture(scope="function")
 def test_engine():
-    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
+    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday
     
     engine = create_engine(
         "sqlite:///:memory:",
@@ -108,8 +109,36 @@ def db(test_engine) -> Generator[Session, None, None]:
 def client(db: Session) -> TestClient:
     def override_get_db_for_client():
         yield db
-    
+
     app.dependency_overrides[get_db] = override_get_db_for_client
+
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+def auth_client(db: Session) -> TestClient:
+    def override_get_db_for_client():
+        yield db
+
+    test_user = User(
+        email="test@example.com",
+        hashed_password=hash_password("TestPassword123!"),
+        display_name="Test User",
+        is_active=True,
+        id=1,
+    )
+    db.add(test_user)
+    db.commit()
+
+    def override_get_current_user():
+        return test_user
+
+    app.dependency_overrides[get_db] = override_get_db_for_client
+    app.dependency_overrides[get_current_user] = override_get_current_user
 
     try:
         with TestClient(app) as test_client:
@@ -1032,7 +1061,7 @@ def mock_load_all_trades(sample_journal_data: List[Dict[str, Any]], monkeypatch:
     def mock_load(user_id: int) -> List[Dict[str, Any]]:
         return sample_journal_data
 
-    monkeypatch.setattr("api.strategies._load_all_trades", mock_load)
+    monkeypatch.setattr("api.strat_api.strat_query._load_all_trades", mock_load)
     yield
 
 

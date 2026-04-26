@@ -10,7 +10,7 @@ import {
 import { IconRefresh } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
 
-export type ScreenerViewMode = "table" | "heatmap";
+type ScreenerViewMode = "table" | "heatmap";
 
 interface ScreenerHeaderProps {
   title: string;
@@ -125,7 +125,13 @@ export function ScreenerHeader({
               className="mode-select"
             />
           </Group>
-          <Group gap={6} align="center" className="view-group" data-testid="view-group">
+          <Group
+            gap={6}
+            align="center"
+            className="view-group"
+            data-testid="view-group"
+            hiddenFrom="sm"
+          >
             <Text size="xs" c="dimmed">
               View as
             </Text>

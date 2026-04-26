@@ -3,10 +3,10 @@
  */
 
 import type { ScreenerData, ScreenerOption } from "../types";
-import { API_URL, SCREENERS_URL } from "../constants";
+import { API_URL, SCREENERS_URL } from "../config/constants";
 import * as state from "../state";
 import { getBacktestState } from "../state/backtest";
-import { detectAddedSymbols } from "../runtime_utils";
+import { detectAddedSymbols } from "../utils/runtime_utils";
 import { pushNotification, markNewSymbols } from "../utils/notifications";
 import { abortPendingRequest, isAbortError } from "../hooks/useFetch";
 import { fetchWithAuth } from "../state/auth";
@@ -164,8 +164,16 @@ export async function loadScreeners() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
     state.setScreenerOptions(payload.screeners || []);
-    state.setActiveScreener(payload.default || "trending");
+    const defaultScreener = payload.default || "trending";
+    state.setActiveScreener(defaultScreener);
     state.setProfileMetaById(payload.meta_by_id || {});
+
+    // Set initial sort from default screener meta
+    const defaultMeta = payload.meta_by_id?.[defaultScreener];
+    if (defaultMeta?.default_sort?.column) {
+      state.setSortColumn(defaultMeta.default_sort.column);
+      state.setSortDirection(defaultMeta.default_sort.direction || "desc");
+    }
   } catch {
     state.setScreenerOptions(DEFAULT_SCREENER_OPTIONS);
     state.setActiveScreener("trending");
