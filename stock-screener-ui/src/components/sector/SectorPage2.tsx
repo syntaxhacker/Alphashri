@@ -229,12 +229,6 @@ function DashboardContent({
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
         <CompactPanel
-          style={{
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            minHeight: 0,
-          }}
           id="sector-treemap-container"
           data-testid="sector-treemap-container"
           padded={false}
@@ -251,6 +245,7 @@ function DashboardContent({
               )}
             </Group>
           }
+          scrollable
         >
           <Box px="sm" pb="sm" style={{ minHeight: 0, flex: 1 }}>
             <SectorTreemap sectors={data.sectors} />
@@ -258,16 +253,11 @@ function DashboardContent({
         </CompactPanel>
 
         <CompactPanel
-          style={{
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            minHeight: 0,
-          }}
           id="sector-table-container"
           data-testid="sector-table-container"
           padded={false}
           title={<Title order={4}>Sector Performance</Title>}
+          scrollable
         >
           <Box px="sm" pb="sm" flex={1} style={{ minHeight: 0 }}>
             <SectorTable sectors={data.sectors} />

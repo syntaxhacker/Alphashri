@@ -202,12 +202,9 @@ export function ScreenerPage({
             title={`Approaching (${sortedApproaching.length})`}
             description="Stocks nearing but have not yet touched the 52W high"
             testId="screener-approaching-section"
-            flex={1}
-            style={{ minHeight: 0 }}
+            scrollable
           >
-            <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
-              {renderStocksView(sortedApproaching, emptySet, "approaching")}
-            </Box>
+            {renderStocksView(sortedApproaching, emptySet, "approaching")}
           </CompactPanel>
         )}
 
@@ -217,16 +214,13 @@ export function ScreenerPage({
             title={`Touched (${sortedTouched.length})`}
             description="Stocks that have touched or broken out of the 52W high"
             testId="screener-touched-section"
-            flex={1}
-            style={{ minHeight: 0 }}
+            scrollable
           >
-            <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
-              {renderStocksView(
-                sortedTouched,
-                new Set(sortedTouched.map((s) => s.symbol)),
-                "touched",
-              )}
-            </Box>
+            {renderStocksView(
+              sortedTouched,
+              new Set(sortedTouched.map((s) => s.symbol)),
+              "touched",
+            )}
           </CompactPanel>
         )}
       </Stack>
