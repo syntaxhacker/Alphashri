@@ -1,5 +1,5 @@
 import { Table, Group, Text, ActionIcon, Badge, Anchor } from "@mantine/core";
-import { IconEdit, IconTrash } from "@tabler/icons-react";
+import { IconEdit, IconTrash, IconAlertCircle } from "@tabler/icons-react";
 import type { StrategiesListProps } from "./types";
 import { CompactPanel } from "../common/compact";
 import { DataTable } from "../common/DataTable";
@@ -148,6 +148,7 @@ export function StrategiesList({
       className="strategy-list-table-card"
       id="strategy-list"
       testId="strategy-list-table"
+      scrollable
     >
       <DataTable
         withTableBorder

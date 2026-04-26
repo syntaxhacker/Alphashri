@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerPage } from "./ScreenerPage";
 import { MantineProvider } from "@mantine/core";
 import * as state from "../../state";
-import type { Stock } from "../../types";
+
+const render = (ui: ReactElement, options?: any) =>
+  rtlRender(<MemoryRouter>{ui}</MemoryRouter>, options);
 
 // Mock child components to isolate ScreenerPage tests
 vi.mock("./ScreenerNav", () => ({

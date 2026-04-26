@@ -1,4 +1,4 @@
-import { Box, Group, Text, Stack, SimpleGrid, Title, Badge, ScrollArea } from "@mantine/core";
+import { Group, Text, Stack, SimpleGrid, Title, Badge, ScrollArea } from "@mantine/core";
 import { IconBellRinging, IconTrendingUp, IconClock } from "@tabler/icons-react";
 import { SectorTable } from "./SectorTable";
 import type { SectorResponse } from "../../types/sector";
@@ -98,10 +98,6 @@ export function DashboardContent({
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
         <CompactPanel
-          style={{
-            overflow: "hidden",
-            minHeight: 0,
-          }}
           id="sector-treemap-container"
           data-testid="sector-treemap-container"
           padded={false}
@@ -118,25 +114,19 @@ export function DashboardContent({
               )}
             </Group>
           }
+          scrollable
         >
-          <Box px="sm" pb="sm" flex={1} style={{ minHeight: 0 }}>
-            <SectorTreemap sectors={data.sectors} />
-          </Box>
+          <SectorTreemap sectors={data.sectors} />
         </CompactPanel>
 
         <CompactPanel
-          style={{
-            overflow: "hidden",
-            minHeight: 0,
-          }}
           id="sector-table-container"
           data-testid="sector-table-container"
           padded={false}
           title={<Title order={4}>Sector Performance</Title>}
+          scrollable
         >
-          <Box px="sm" pb="sm" flex={1} style={{ minHeight: 0 }}>
-            <SectorTable sectors={data.sectors} />
-          </Box>
+          <SectorTable sectors={data.sectors} />
         </CompactPanel>
 
         <AlertsAndMovers alerts={alerts} intervalMovers={intervalMovers} />
