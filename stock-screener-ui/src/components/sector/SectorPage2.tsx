@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import {
   Box,
   Group,
@@ -295,7 +296,27 @@ function processSectorResponse(
   }
 }
 
-function useSectorData() {
+interface SectorState {
+  data: SectorResponse | null;
+  setData: Dispatch<SetStateAction<SectorResponse | null>>;
+  loading: boolean;
+  setLoading: Dispatch<SetStateAction<boolean>>;
+  error: string | null;
+  setError: Dispatch<SetStateAction<string | null>>;
+  market: "india" | "america";
+  setMarket: Dispatch<SetStateAction<"india" | "america">>;
+  activeTab: string | null;
+  setActiveTab: Dispatch<SetStateAction<string | null>>;
+  alerts: SectorAlert[];
+  setAlerts: Dispatch<SetStateAction<SectorAlert[]>>;
+  intervalMovers: InternalStockMover[];
+  setIntervalMovers: Dispatch<SetStateAction<InternalStockMover[]>>;
+  prevSectorDataRef: MutableRefObject<Record<string, number>>;
+  prevStockDataRef: MutableRefObject<Record<string, number>>;
+  requestAbortRef: MutableRefObject<AbortController | null>;
+}
+
+function useSectorState(): SectorState {
   const [data, setData] = useState<SectorResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -305,90 +326,121 @@ function useSectorData() {
   const [intervalMovers, setIntervalMovers] = useState<InternalStockMover[]>([]);
   const prevSectorDataRef = useRef<Record<string, number>>({});
   const prevStockDataRef = useRef<Record<string, number>>({});
-  const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestAbortRef = useRef<AbortController | null>(null);
 
-  const loadData = useCallback(async (mkt: string, isInitial = false): Promise<boolean> => {
-    if (requestAbortRef.current) {
-      if (!isInitial) return false;
-      requestAbortRef.current.abort();
-    }
-    const controller = new AbortController();
-    requestAbortRef.current = controller;
-    if (isInitial) setLoading(true);
-    setError(null);
-    try {
-      const res = await fetchSectorPerformance(mkt, controller.signal);
-      if (controller.signal.aborted) {
-        return false;
+  return {
+    data,
+    setData,
+    loading,
+    setLoading,
+    error,
+    setError,
+    market,
+    setMarket,
+    activeTab,
+    setActiveTab,
+    alerts,
+    setAlerts,
+    intervalMovers,
+    setIntervalMovers,
+    prevSectorDataRef,
+    prevStockDataRef,
+    requestAbortRef,
+  };
+}
+
+function useSectorLoadData(state: SectorState) {
+  const {
+    market,
+    requestAbortRef,
+    setLoading,
+    setError,
+    setData,
+    setAlerts,
+    setIntervalMovers,
+    prevSectorDataRef,
+    prevStockDataRef,
+  } = state;
+
+  const loadData = useCallback(
+    async (mkt: string, isInitial = false): Promise<boolean> => {
+      if (requestAbortRef.current) {
+        if (!isInitial) return false;
+        requestAbortRef.current.abort();
       }
-      processSectorResponse(
-        res,
-        prevSectorDataRef.current,
-        prevStockDataRef.current,
-        setAlerts,
-        setIntervalMovers,
-      );
-      setData(res);
-      return true;
-    } catch (err) {
-      if (controller.signal.aborted) {
-        return false;
+      const controller = new AbortController();
+      requestAbortRef.current = controller;
+      if (isInitial) setLoading(true);
+      setError(null);
+      try {
+        const res = await fetchSectorPerformance(mkt, controller.signal);
+        if (controller.signal.aborted) return false;
+        processSectorResponse(
+          res,
+          prevSectorDataRef.current,
+          prevStockDataRef.current,
+          setAlerts,
+          setIntervalMovers,
+        );
+        setData(res);
+        return true;
+      } catch (err) {
+        if (controller.signal.aborted) return false;
+        setError(err instanceof Error ? err.message : "Failed to load sector data");
+        return true;
+      } finally {
+        if (requestAbortRef.current === controller) {
+          requestAbortRef.current = null;
+          setLoading(false);
+        }
       }
-      setError(err instanceof Error ? err.message : "Failed to load sector data");
-      return true;
-    } finally {
-      if (requestAbortRef.current === controller) {
-        requestAbortRef.current = null;
-        setLoading(false);
-      }
-    }
-  }, []);
+    },
+    [
+      setLoading,
+      setError,
+      setData,
+      setAlerts,
+      setIntervalMovers,
+      prevSectorDataRef,
+      prevStockDataRef,
+      requestAbortRef,
+      fetchSectorPerformance,
+      processSectorResponse,
+    ],
+  );
+
+  return loadData;
+}
+
+function useSectorPolling(
+  state: SectorState,
+  loadData: (mkt: string, isInitial?: boolean) => Promise<boolean>,
+) {
+  const { activeTab, market, setLoading, requestAbortRef } = state;
 
   useEffect(() => {
-    prevSectorDataRef.current = {};
-    prevStockDataRef.current = {};
-    setAlerts([]);
-    setIntervalMovers([]);
-    if (liveTimeoutRef.current) {
-      clearTimeout(liveTimeoutRef.current);
-      liveTimeoutRef.current = null;
-    }
-    requestAbortRef.current?.abort();
-
     if (activeTab !== "dashboard") {
       setLoading(false);
-      return () => {
-        if (liveTimeoutRef.current) {
-          clearTimeout(liveTimeoutRef.current);
-          liveTimeoutRef.current = null;
-        }
-        requestAbortRef.current?.abort();
-      };
+      return;
     }
 
     let cancelled = false;
     let fastPollCount = 0;
+    const liveTimeoutRef = { current: null as NodeJS.Timeout | null };
 
     const scheduleNextPoll = (delay: number) => {
-      if (cancelled) {
-        return;
-      }
+      if (cancelled) return;
       liveTimeoutRef.current = setTimeout(() => {
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
         void loadData(market).then((completed) => {
-          if (cancelled || !completed) {
-            return;
-          }
+          if (cancelled || !completed) return;
           fastPollCount += 1;
           scheduleNextPoll(fastPollCount < 2 ? 5000 : 60000);
         });
       }, delay);
     };
 
-    void loadData(market).then((completed) => {
+    void loadData(market, true).then((completed) => {
       if (!cancelled && completed) {
         scheduleNextPoll(5000);
       }
@@ -396,26 +448,17 @@ function useSectorData() {
 
     return () => {
       cancelled = true;
-      if (liveTimeoutRef.current) {
-        clearTimeout(liveTimeoutRef.current);
-        liveTimeoutRef.current = null;
-      }
+      if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
       requestAbortRef.current?.abort();
     };
-  }, [activeTab, market, loadData]);
+  }, [activeTab, market, loadData, setLoading, requestAbortRef]);
+}
 
-  return {
-    data,
-    loading,
-    error,
-    market,
-    setMarket,
-    activeTab,
-    setActiveTab,
-    alerts,
-    intervalMovers,
-    loadData,
-  };
+function useSectorData() {
+  const state = useSectorState();
+  const loadData = useSectorLoadData(state);
+  useSectorPolling(state, loadData);
+  return { ...state, loadData };
 }
 
 function SectorPageHeader({
