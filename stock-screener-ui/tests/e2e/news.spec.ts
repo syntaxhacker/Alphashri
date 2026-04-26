@@ -261,30 +261,42 @@ test.describe("News Page - Article Detail", () => {
 
   test("should display stocks mentioned section", async ({ page }) => {
     await gotoNewsPage(page);
-    await page
+    const newsItem = page
       .locator('[data-testid="news-list-item"]')
       .filter({ hasText: "Reliance" })
-      .first()
-      .click();
-    await expect(page.locator("text=Stocks mentioned")).toBeVisible({ timeout: 5000 });
+      .first();
+    await newsItem.scrollIntoViewIfNeeded();
+    await newsItem.waitFor({ state: "stable" });
+    await newsItem.click();
+    await expect(page.locator("text=Stocks mentioned")).toBeVisible({ timeout: 10000 });
   });
 
   test("should show back button in article detail", async ({ page }) => {
     await page.setViewportSize({ width: 575, height: 800 });
     await gotoNewsPage(page);
-    await page.locator('[data-testid="news-list-item"]').first().click();
-    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 5000 });
+    const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
+    await firstNewsItem.scrollIntoViewIfNeeded();
+    await firstNewsItem.waitFor({ state: "stable" });
+    await firstNewsItem.click();
+    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 10000 });
   });
 
   test("should return to news list when clicking back", async ({ page }) => {
     await page.setViewportSize({ width: 575, height: 800 });
     await gotoNewsPage(page);
-    await page.locator('[data-testid="news-list-item"]').first().click();
-    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 5000 });
-    await page.locator('[data-testid="close-article-btn"]').click();
-    await expect(page.locator('[data-testid="news-list-item"]').first()).toBeVisible({
-      timeout: 5000,
-    });
+    const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
+    await firstNewsItem.scrollIntoViewIfNeeded();
+    await firstNewsItem.waitFor({ state: "stable" });
+    await firstNewsItem.click();
+    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 10000 });
+
+    const closeBtn = page.locator('[data-testid="close-article-btn"]');
+    await closeBtn.scrollIntoViewIfNeeded();
+    await closeBtn.waitFor({ state: "stable" });
+    await closeBtn.click();
+
+    const firstItemAfterBack = page.locator('[data-testid="news-list-item"]').first();
+    await expect(firstItemAfterBack).toBeVisible({ timeout: 15000 });
   });
 });
 

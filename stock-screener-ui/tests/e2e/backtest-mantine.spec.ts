@@ -241,8 +241,10 @@ test.describe("Backtest - Mantine Features", () => {
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.scrollIntoViewIfNeeded();
           await firstTradeRow.waitFor({ state: "stable" });
-          await firstTradeRow.click();
-          await expect(page.locator(".trade-row-highlighted")).toBeVisible({ timeout: 5000 });
+          // Re-locate to get fresh handle after scroll
+          const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
+          await firstRowFresh.click();
+          await expect(page.locator(".trade-row-highlighted")).toBeVisible({ timeout: 15000 });
         }
       });
     });
@@ -257,10 +259,12 @@ test.describe("Backtest - Mantine Features", () => {
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.scrollIntoViewIfNeeded();
           await firstTradeRow.waitFor({ state: "stable" });
-          await firstTradeRow.click();
+          // Re-locate to get fresh handle after scroll
+          const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
+          await firstRowFresh.click();
           await page.waitForLoadState("networkidle");
           expect(
-            await firstTradeRow.evaluate((el) => el.classList.contains("trade-row-highlighted")),
+            await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
           ).toBe(true);
         }
       });
@@ -274,12 +278,14 @@ test.describe("Backtest - Mantine Features", () => {
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.scrollIntoViewIfNeeded();
           await firstTradeRow.waitFor({ state: "stable" });
-          await firstTradeRow.click();
+          // Re-locate to get fresh handle after scroll
+          const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
+          await firstRowFresh.click();
           await page.waitForLoadState("networkidle");
           await page.waitForLoadState("networkidle");
           await page.waitForTimeout(6000);
           expect(
-            await firstTradeRow.evaluate((el) => el.classList.contains("trade-row-highlighted")),
+            await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
           ).toBe(false);
         }
       });

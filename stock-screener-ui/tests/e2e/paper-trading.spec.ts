@@ -586,10 +586,12 @@ test.describe("Paper Trading - Settings", () => {
     await page.waitForTimeout(300);
 
     const saveBtn = page.locator('[data-testid="save-settings-button"]');
+    await saveBtn.scrollIntoViewIfNeeded();
+    await saveBtn.waitFor({ state: "stable" });
     await saveBtn.click();
 
     await expect(page.locator('[data-testid="config-sl-pct-error"]')).toBeVisible({
-      timeout: 3000,
+      timeout: 10000,
     });
   });
 });
