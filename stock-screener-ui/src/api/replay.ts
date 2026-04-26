@@ -3,8 +3,12 @@ import type { ReplayConfig, ReplayEvent } from "../types/replay";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
 export async function fetchReplaySymbols(): Promise<string[]> {
-  const data = await (await fetch(`${API_BASE}/api/replay/symbols`)).json();
-  return data.symbols;
+  const response = await fetch(`${API_BASE}/api/replay/symbols`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch symbols: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.symbols || [];
 }
 
 export function runReplay(

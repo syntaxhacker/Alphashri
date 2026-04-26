@@ -1,4 +1,5 @@
 import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
+import { DataTable } from "../common";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import {
   getPaperTradingState,
@@ -228,7 +229,7 @@ export function PositionsTableBody({
   };
 
   return (
-    <Table striped highlightOnHover styles={TABLE_STYLES}>
+    <DataTable styles={TABLE_STYLES} dataTestId="positions-table">
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Symbol</Table.Th>
@@ -254,7 +255,7 @@ export function PositionsTableBody({
           />
         ))}
       </Table.Tbody>
-    </Table>
+    </DataTable>
   );
 }
 
@@ -301,7 +302,7 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
       </Group>
       <ScrollArea flex={1} style={{ minHeight: 0 }}>
         <div style={{ overflowX: "auto" }}>
-          <Table striped highlightOnHover styles={TABLE_STYLES}>
+          <DataTable styles={TABLE_STYLES} dataTestId="scan-table">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Sym</Table.Th>
@@ -341,7 +342,7 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
                 </Table.Tr>
               ))}
             </Table.Tbody>
-          </Table>
+          </DataTable>
         </div>
       </ScrollArea>
     </Flex>
@@ -372,7 +373,7 @@ export function StrategySummaryFooter({
       <Text fw={600} size="xs" c="dimmed" tt="uppercase" mb={2}>
         Strategy Summary
       </Text>
-      <Table striped styles={TABLE_STYLES}>
+      <DataTable highlightOnHover={false} styles={TABLE_STYLES} dataTestId="strategy-summary-table">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Strategy</Table.Th>
@@ -399,7 +400,7 @@ export function StrategySummaryFooter({
             </Table.Tr>
           ))}
         </Table.Tbody>
-      </Table>
+      </DataTable>
     </Flex>
   );
 }

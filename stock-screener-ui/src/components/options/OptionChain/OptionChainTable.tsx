@@ -247,18 +247,9 @@ function OptionColumn({
                 />
               )}
 
-              <Stack
-                gap={0}
-                align="center"
-                w="100%" pos="relative" style={{ zIndex: 1 }}
-              >
+              <Stack gap={0} align="center" w="100%" pos="relative" style={{ zIndex: 1 }}>
                 <Group gap={4} wrap="nowrap" align="center" justify="center">
-                  <Text
-                    size="sm"
-                    fw={cell.fw}
-                    c={cell.c as any}
-                    ta="center" lh={1.05}
-                  >
+                  <Text size="sm" fw={cell.fw} c={cell.c as any} ta="center" lh={1.05}>
                     {cell.value}
                   </Text>
                   {cell.badge && (

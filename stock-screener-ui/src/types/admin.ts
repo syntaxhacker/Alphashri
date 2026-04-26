@@ -26,4 +26,5 @@ export interface Aggregate {
 export interface LLMStats {
   recent_runs: LLMRun[];
   aggregate: Aggregate;
+  error?: string;
 }

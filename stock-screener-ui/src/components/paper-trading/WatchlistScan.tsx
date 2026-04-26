@@ -4,7 +4,7 @@ import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTradin
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import { nearBreakoutPct, tableStyles as TABLE_STYLES } from "./PositionsHelpers";
-import { SideBadge } from "../common";
+import { DataTable, SideBadge } from "../common";
 import { ClickableSymbol } from "../common";
 
 interface WatchlistScanProps {
@@ -84,11 +84,17 @@ function WatchingRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: st
 
 function SkippedRow({
   item,
+  onSelect,
 }: {
   item: { symbol: string; strategies: string[]; reasons: string[] };
+  onSelect: (s: string) => void;
 }) {
   return (
-    <Table.Tr data-testid={`scan-skipped-${item.symbol}`}>
+    <Table.Tr
+      onClick={() => onSelect(item.symbol)}
+      style={{ cursor: "pointer" }}
+      data-testid={`scan-skipped-${item.symbol}`}
+    >
       <Table.Td>
         <Text fw={500} c="dimmed">
           <ClickableSymbol symbol={item.symbol} showPreview />
@@ -242,7 +248,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 No signals
               </Text>
             ) : (
-              <Table striped highlightOnHover styles={TABLE_STYLES}>
+              <DataTable styles={TABLE_STYLES} dataTestId="signals-table">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Sym</Table.Th>
@@ -263,7 +269,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                     />
                   ))}
                 </Table.Tbody>
-              </Table>
+              </DataTable>
             )}
           </Accordion.Panel>
         </Accordion.Item>
@@ -286,7 +292,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 None watching
               </Text>
             ) : (
-              <Table striped highlightOnHover styles={TABLE_STYLES}>
+              <DataTable styles={TABLE_STYLES} dataTestId="watching-table">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Sym</Table.Th>
@@ -307,7 +313,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                     />
                   ))}
                 </Table.Tbody>
-              </Table>
+              </DataTable>
             )}
           </Accordion.Panel>
         </Accordion.Item>
@@ -330,7 +336,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 None skipped
               </Text>
             ) : (
-              <Table striped highlightOnHover styles={TABLE_STYLES}>
+              <DataTable styles={TABLE_STYLES} dataTestId="skipped-table">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Sym</Table.Th>
@@ -341,10 +347,10 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 </Table.Thead>
                 <Table.Tbody>
                   {skipped.map((item) => (
-                    <SkippedRow key={item.symbol} item={item} />
+                    <SkippedRow key={item.symbol} item={item} onSelect={handleSelectSymbol} />
                   ))}
                 </Table.Tbody>
-              </Table>
+              </DataTable>
             )}
           </Accordion.Panel>
         </Accordion.Item>

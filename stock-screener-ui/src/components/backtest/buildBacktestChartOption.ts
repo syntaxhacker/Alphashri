@@ -4,12 +4,18 @@ import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
 import { getChartThemeColors, CANDLESTICK_ITEM_STYLE } from "../../utils/chartUtils";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import {
-  CHART_DARK_OVERLAY, CHART_LIGHT_OVERLAY,
+  CHART_DARK_OVERLAY,
+  CHART_LIGHT_OVERLAY,
   CHART_CROSSHAIR,
-  MARKER_BUY, MARKER_SELL, MARKER_STOP_LOSS, MARKER_CUSTOM, MARKER_MAX_HOLDING,
+  MARKER_BUY,
+  MARKER_SELL,
+  MARKER_STOP_LOSS,
+  MARKER_CUSTOM,
+  MARKER_MAX_HOLDING,
   MARKER_BORDER,
   PIVOT_S2,
-  POSITIVE, NEGATIVE,
+  POSITIVE,
+  NEGATIVE,
   MARKER_ENTRY,
   CHART_AVG_ENTRY,
   CHART_DARK_MUTED,

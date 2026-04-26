@@ -94,12 +94,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       </Group>
 
       {alerts.length === 0 ? (
-        <Box
-          py="lg"
-          ta="center"
-          className="alerts-empty-state"
-          data-testid="options-alerts-empty"
-        >
+        <Box py="lg" ta="center" className="alerts-empty-state" data-testid="options-alerts-empty">
           <Text size="sm" c="dimmed">
             Waiting for unusual activity patterns...
           </Text>

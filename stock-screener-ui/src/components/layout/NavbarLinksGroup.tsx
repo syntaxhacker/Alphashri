@@ -23,7 +23,10 @@ export function NavbarLinksGroup({
 
   const content = (
     <UnstyledButton
-      onClick={() => { navigate(link); onNavigate?.(); }}
+      onClick={() => {
+        navigate(link);
+        onNavigate?.();
+      }}
       className={classes.control}
       data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-").replace("paper-trading", "paper").replace("sector-analysis", "sector")}`}
       data-active={active || undefined}

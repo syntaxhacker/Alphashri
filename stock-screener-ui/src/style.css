@@ -1155,12 +1155,20 @@ textarea {
 
 .performance-summary-card.positive {
   border-color: rgba(var(--mantine-color-teal-4-rgb), 0.18);
-  background: linear-gradient(135deg, rgba(var(--mantine-color-teal-4-rgb), 0.08) 0%, var(--mantine-color-dark-7) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--mantine-color-teal-4-rgb), 0.08) 0%,
+    var(--mantine-color-dark-7) 100%
+  );
 }
 
 .performance-summary-card.negative {
   border-color: rgba(var(--mantine-color-red-4-rgb), 0.18);
-  background: linear-gradient(135deg, rgba(var(--mantine-color-red-4-rgb), 0.08) 0%, var(--mantine-color-dark-7) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--mantine-color-red-4-rgb), 0.08) 0%,
+    var(--mantine-color-dark-7) 100%
+  );
 }
 
 .performance-table {
@@ -1198,11 +1206,19 @@ textarea {
 }
 
 .bar-fill.positive {
-  background: linear-gradient(90deg, rgba(var(--mantine-color-teal-4-rgb), 0.15) 0%, var(--mantine-color-teal-4) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(var(--mantine-color-teal-4-rgb), 0.15) 0%,
+    var(--mantine-color-teal-4) 100%
+  );
 }
 
 .bar-fill.negative {
-  background: linear-gradient(90deg, rgba(var(--mantine-color-red-4-rgb), 0.15) 0%, var(--mantine-color-red-4) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(var(--mantine-color-red-4-rgb), 0.15) 0%,
+    var(--mantine-color-red-4) 100%
+  );
 }
 
 .performance-row.clickable:hover {

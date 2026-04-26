@@ -1,30 +1,18 @@
 import { test, expect } from "@playwright/test";
 import {
-  setupApiMocks,
-  loginAsTestUser,
-  setupPaperTradingMocks,
-  setupMultiStrategyBotMocks,
-} from "../mocks/apiResponses";
-import {
   navigateToPaperTrading,
   navigateToPaperTradingWithBot,
+  setupPaperTradingTestMocks,
 } from "../helpers/paperTradingHelpers";
+import { setupApiMocks, loginAsTestUser, setupPaperTradingMocks } from "../mocks/apiResponses";
+import { TEST_BOT_UUID, setupBotApiMocks } from "./helpers/botHelpers";
+import { generateCandles } from "./helpers/chartHelpers";
 
-const TEST_BOT_UUID = "550e8400-e29b-41d4-a716-446655440000";
-
-// Shared beforeEach for paper trading tests
-async function setupPaperTradingTest(page: import("@playwright/test").Page) {
-  await setupApiMocks(page);
-  await loginAsTestUser(page);
-  await setupPaperTradingMocks(page);
-  await setupMultiStrategyBotMocks(page);
-}
-
-test.describe.configure({ mode: "serial" });
+const TEST_DATE = "2026-04-24";
 
 test.describe("Paper Trading - Strategy Tabs", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
   test("@smoke should display paper trading view with tabs", async ({ page }) => {
     await navigateToPaperTrading(page);
@@ -119,7 +107,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
 test.describe("Paper Trading - API Polling", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should call bots API on load", async ({ page }) => {
@@ -168,7 +156,7 @@ test.describe("Paper Trading - API Polling", () => {
 
 test.describe("Paper Trading - Bot Controls", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should update UI immediately after starting a bot", async ({ page }) => {
@@ -259,7 +247,7 @@ test.describe("Paper Trading - Bot Controls", () => {
 
 test.describe("Paper Trading - Strategy Tabs", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should show all positions in 'All' tab", async ({ page }) => {
@@ -276,7 +264,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
 test.describe("Paper Trading - Watchlist Scan", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
 
     await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
       await route.fulfill({
@@ -439,7 +427,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
 
 test.describe("Paper Trading - Position Actions", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should show close button for each position", async ({ page }) => {
@@ -477,49 +465,356 @@ test.describe("Paper Trading - Position Actions", () => {
 
     await page.waitForTimeout(500);
   });
-});
 
-test.describe("Paper Trading - Settings Tab", () => {
-  test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
-  });
+  test("should close all positions via API", async ({ page }) => {
+    let closeAllApiCalled = false;
 
-  test("should display settings panel when clicking settings tab", async ({ page }) => {
-    await navigateToPaperTrading(page);
-
-    const settingsTab = page.locator('[data-testid="tab-settings"]');
-    await settingsTab.click();
-
-    await expect(page.locator('[data-testid="paper-settings-panel"]')).toBeVisible({
-      timeout: 10000,
+    await page.route(`**/api/bots/${TEST_BOT_UUID}/close-all`, async (route) => {
+      closeAllApiCalled = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          message: "All positions closed",
+          closed: 2,
+        }),
+      });
     });
-  });
 
-  test("should show strategy selector in settings", async ({ page }) => {
-    await navigateToPaperTrading(page);
-
-    const settingsTab = page.locator('[data-testid="tab-settings"]');
-    await settingsTab.click();
-
-    const strategySelector = page.locator('[data-testid="strategy-selector"]');
-    await expect(strategySelector).toBeVisible({ timeout: 10000 });
-  });
-});
-
-test.describe("Paper Trading - Chart Toggles", () => {
-  test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
-  });
-
-  test("should display chart panel exists", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    const rightPanel = page.locator('[data-testid="paper-right-panel"]');
-    await expect(rightPanel).toBeVisible();
+    page.on("dialog", async (dialog) => {
+      await dialog.accept();
+    });
+
+    const closeAllBtn = page.locator('[data-testid="close-all-positions"]');
+    await closeAllBtn.click();
+
+    await page.waitForTimeout(1000);
+
+    expect(closeAllApiCalled).toBe(true);
   });
 });
 
-// Helper function to navigate to paper trading settings
+test.describe("Paper Trading - Settings", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTestMocks(page);
+  });
+
+  test("should update ORB sl_pct and save", async ({ page }) => {
+    await navigateToPaperTradingSettings(page);
+
+    await page.route(`**/api/bots/${TEST_BOT_UUID}/config`, async (route) => {
+      const request = route.request();
+      const postData = JSON.parse(request.postData() || "{}");
+
+      if (request.method() === "PUT" && postData.strategy_configs) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Config updated", config: postData }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    const slPctInput = page.locator('[data-testid="config-sl-pct"]');
+    await slPctInput.fill("1.5");
+
+    await page.waitForTimeout(300);
+
+    const saveBtn = page.locator('[data-testid="save-settings-button"]');
+    await expect(saveBtn).toBeEnabled();
+    await saveBtn.click();
+
+    await page.waitForTimeout(500);
+  });
+
+  test("should update Risk risk_per_trade", async ({ page }) => {
+    await navigateToPaperTradingSettings(page);
+
+    await page.route(`**/api/bots/${TEST_BOT_UUID}/config`, async (route) => {
+      const request = route.request();
+      const postData = JSON.parse(request.postData() || "{}");
+
+      if (request.method() === "PUT") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Config updated", config: postData }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    const riskInput = page.locator('[data-testid="config-risk-per-trade"]');
+    await riskInput.fill("2.0");
+
+    await page.waitForTimeout(300);
+
+    const saveBtn = page.locator('[data-testid="save-settings-button"]');
+    await expect(saveBtn).toBeEnabled();
+    await saveBtn.click();
+
+    await page.waitForTimeout(500);
+  });
+
+  test("should reset settings to defaults", async ({ page }) => {
+    await navigateToPaperTradingSettings(page);
+
+    page.on("dialog", async (dialog) => {
+      await dialog.accept();
+    });
+
+    const resetBtn = page.locator('[data-testid="reset-settings-button"]');
+    await resetBtn.click();
+
+    await page.waitForTimeout(500);
+
+    const slPctInput = page.locator('[data-testid="config-sl-pct"]');
+    await expect(slPctInput).toHaveValue("0.4");
+  });
+
+  test("should show validation error for invalid sl_pct", async ({ page }) => {
+    await navigateToPaperTradingSettings(page);
+
+    const slPctInput = page.locator('[data-testid="config-sl-pct"]');
+    await slPctInput.fill("-1");
+
+    await page.waitForTimeout(300);
+
+    const saveBtn = page.locator('[data-testid="save-settings-button"]');
+    await saveBtn.click();
+
+    await expect(page.locator('[data-testid="config-sl-pct-error"]')).toBeVisible({
+      timeout: 3000,
+    });
+  });
+});
+
+test.describe("Paper Trading - Portfolio Card", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupPaperTradingTestMocks(page);
+  });
+
+  test("should display portfolio value and cash", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const portfolioCard = page.locator('[data-testid="portfolio-card"]');
+    await expect(portfolioCard).toBeVisible({ timeout: 10000 });
+    await expect(portfolioCard).toContainText("Total Value");
+    await expect(portfolioCard).toContainText("Cash");
+  });
+
+  test("should display strategy summaries section exists", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const portfolioCard = page.locator('[data-testid="portfolio-card"]');
+    await expect(portfolioCard).toBeVisible({ timeout: 10000 });
+  });
+
+  test("should display daily loss bar section exists", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const portfolioCard = page.locator('[data-testid="portfolio-card"]');
+    await expect(portfolioCard).toBeVisible({ timeout: 10000 });
+  });
+
+  test("should display portfolio with PnL", async ({ page }) => {
+    await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
+
+    const portfolioCard = page.locator('[data-testid="portfolio-card"]');
+    await expect(portfolioCard).toBeVisible({ timeout: 10000 });
+    await expect(portfolioCard).toContainText("Day P&L");
+  });
+});
+
+test.describe("Paper Trading - Chart Controls", () => {
+  const BOT_ID = "550e8400-e29b-41d4-a716-446655440000";
+  const SYMBOL = "TCS";
+
+  const mockChartData = {
+    symbol: SYMBOL,
+    date: TEST_DATE,
+    candles: generateCandles(10, 3750),
+    orb_levels: {
+      or_high: 3760,
+      or_low: 3745,
+      or_open: 3745,
+      or_range: 20,
+      or_range_pct: 0.53,
+      or_minutes: 15,
+    },
+    week52_levels: {
+      high_52w: 3850,
+      low_52w: 3200,
+      distance_to_high_pct: 1.6,
+      distance_to_low_pct: 17.2,
+      near_high: false,
+    },
+    pivot_levels: {
+      r2: 3820,
+      r1: 3795,
+      pp: 3765,
+      s1: 3735,
+      s2: 3705,
+    },
+    trades: [],
+    current_position: null,
+    ema_series: {
+      ema_fast: { label: "EMA 9", color: "#10ac84", data: Array(10).fill(null) },
+      ema_slow: { label: "EMA 21", color: "#f59f00", data: Array(10).fill(null) },
+    },
+  };
+
+  async function setupChartMocks(page: import("@playwright/test").Page) {
+    await page.route(/localhost:8765\/api\/paper\/chart\//, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockChartData),
+      });
+    });
+  }
+
+  async function navigateToChartAndSelectSymbol(page: import("@playwright/test").Page) {
+    await setupApiMocks(page);
+    await loginAsTestUser(page);
+    await setupPaperTradingMocks(page);
+    await setupBotApiMocks(page, {
+      botId: BOT_ID,
+      positions: [
+        {
+          id: 1,
+          symbol: SYMBOL,
+          side: "BUY",
+          quantity: 10,
+          entry_price: 3750,
+          current_price: 3800,
+          pnl: 500,
+          pnl_pct: 1.33,
+          strategy_name: "ORB Conservative",
+          strategy_id: 1,
+          stop_loss: 3700,
+          take_profit: 3900,
+          entry_time: "2026-04-24T09:30:00",
+        },
+      ],
+    });
+    await setupChartMocks(page);
+
+    await page.goto("/paper", { timeout: 30000 });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
+      timeout: 20000,
+    });
+
+    await page.waitForSelector('[data-testid^="bot-card-"]', { state: "visible", timeout: 10000 });
+    await page.locator('[data-testid^="bot-card-"]').first().click();
+
+    await page.getByTestId("tab-live").click();
+    await page.waitForLoadState("networkidle");
+
+    const positionRow = page.locator(`[data-testid="position-row-${SYMBOL}"]`);
+    await expect(positionRow).toBeVisible({ timeout: 10000 });
+    await positionRow.click();
+    await expect(page.locator('[data-testid="paper-chart-container"]')).toBeVisible({
+      timeout: 10000,
+    });
+  }
+
+  test("should render all chart control switches", async ({ page }) => {
+    await navigateToChartAndSelectSymbol(page);
+
+    await expect(page.getByTestId("intraday-switch")).toBeVisible();
+    await expect(page.getByTestId("show-all-trades-switch")).toBeVisible();
+    await expect(page.getByTestId("show-orb-lines")).toBeVisible();
+    await expect(page.getByTestId("show-pivot-lines")).toBeVisible();
+    await expect(page.getByTestId("show-52w-lines")).toBeVisible();
+    await expect(page.getByTestId("show-ema-lines")).toBeVisible();
+  });
+
+  test("should toggle intraday mode", async ({ page }) => {
+    await navigateToChartAndSelectSymbol(page);
+
+    await page.getByTestId("intraday-switch").click();
+    await page.waitForTimeout(500);
+
+    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+  });
+
+  test("should toggle EMA lines", async ({ page }) => {
+    await navigateToChartAndSelectSymbol(page);
+
+    const emaSwitch = page.getByTestId("show-ema-lines");
+    await expect(emaSwitch).toBeVisible();
+    await emaSwitch.click();
+    await page.waitForTimeout(200);
+
+    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+  });
+
+  test("should toggle ORB lines", async ({ page }) => {
+    await navigateToChartAndSelectSymbol(page);
+
+    const orbSwitch = page.getByTestId("show-orb-lines");
+    await expect(orbSwitch).toBeVisible();
+    await orbSwitch.click();
+    await page.waitForTimeout(200);
+
+    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+  });
+
+  test("should toggle 52W high line", async ({ page }) => {
+    await navigateToChartAndSelectSymbol(page);
+
+    const w52Switch = page.getByTestId("show-52w-lines");
+    await expect(w52Switch).toBeVisible();
+    await w52Switch.click();
+    await page.waitForTimeout(200);
+
+    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+  });
+
+  test("should toggle SL/TP markers via All trades switch", async ({ page }) => {
+    await navigateToChartAndSelectSymbol(page);
+
+    const allTradesSwitch = page.getByTestId("show-all-trades-switch");
+    await expect(allTradesSwitch).toBeVisible();
+    await allTradesSwitch.click();
+    await page.waitForTimeout(200);
+
+    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+  });
+
+  test("should switch timeframe", async ({ page }) => {
+    await navigateToChartAndSelectSymbol(page);
+
+    const timeframeSelect = page.getByTestId("paper-chart-timeframe");
+    await expect(timeframeSelect).toBeVisible();
+
+    await timeframeSelect.click();
+    await page.waitForTimeout(300);
+
+    await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(100);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(500);
+
+    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+  });
+
+  test("should show chart header with symbol and date", async ({ page }) => {
+    await navigateToChartAndSelectSymbol(page);
+
+    const header = page.getByTestId("paper-chart-header");
+    await expect(header).toBeVisible();
+    await expect(header).toContainText(SYMBOL);
+  });
+});
+
 async function navigateToPaperTradingSettings(page: import("@playwright/test").Page) {
   await page.goto("/paper", { timeout: 30000 });
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
@@ -538,47 +833,38 @@ async function navigateToPaperTradingSettings(page: import("@playwright/test").P
 
 test.describe("Paper Trading - Settings Panel Sections", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should display all settings section headers", async ({ page }) => {
     await navigateToPaperTradingSettings(page);
 
-    // Verify section headers are visible
-    await expect(page.locator("text=ORB Settings")).toBeVisible();
-    await expect(page.locator("text=Risk Management")).toBeVisible();
-    await expect(page.locator("text=Runner Settings")).toBeVisible();
-    await expect(page.locator("text=Trading Costs")).toBeVisible();
+    await expect(page.locator('[data-testid="orb-section-header"]')).toBeVisible();
+    await expect(page.locator('[data-testid="risk-section-header"]')).toBeVisible();
+    await expect(page.locator('[data-testid="runner-section-header"]')).toBeVisible();
+    await expect(page.locator('[data-testid="costs-section-header"]')).toBeVisible();
   });
 
   test.describe("TradingCostsSection", () => {
     test.beforeEach(async ({ page }) => {
-      await setupPaperTradingTest(page);
+      await setupPaperTradingTestMocks(page);
     });
 
     test("should display TradingCostsSection fields", async ({ page }) => {
       await navigateToPaperTradingSettings(page);
 
-      // Verify brokerage field exists
       await expect(page.locator('[data-testid="config-brokerage"]')).toBeVisible();
-      // Verify min-brokerage field exists
       await expect(page.locator('[data-testid="config-min-brokerage"]')).toBeVisible();
-      // Verify STT field exists
       await expect(page.locator('[data-testid="config-stt"]')).toBeVisible();
-      // Verify exchange field exists
       await expect(page.locator('[data-testid="config-exchange"]')).toBeVisible();
-      // Verify sebi field exists
       await expect(page.locator('[data-testid="config-sebi"]')).toBeVisible();
-      // Verify stamp field exists
       await expect(page.locator('[data-testid="config-stamp"]')).toBeVisible();
-      // Verify GST field exists
       await expect(page.locator('[data-testid="config-gst"]')).toBeVisible();
     });
 
     test("should display TradingCostsSection field labels", async ({ page }) => {
       await navigateToPaperTradingSettings(page);
 
-      // Verify field labels are visible inside costs section
       const costsSection = page.locator("#costs-section");
       await expect(costsSection.locator('label:has-text("Brokerage %")')).toBeVisible();
       await expect(costsSection.locator('label:has-text("Min Brokerage")')).toBeVisible();
@@ -592,28 +878,22 @@ test.describe("Paper Trading - Settings Panel Sections", () => {
 
   test.describe("RiskManagementSection", () => {
     test.beforeEach(async ({ page }) => {
-      await setupPaperTradingTest(page);
+      await setupPaperTradingTestMocks(page);
     });
 
     test("should display RiskManagementSection fields", async ({ page }) => {
       await navigateToPaperTradingSettings(page);
 
-      // Verify max-positions field exists
       await expect(page.locator('[data-testid="config-max-positions"]')).toBeVisible();
-      // Verify capital-per-trade field exists
       await expect(page.locator('[data-testid="config-capital-per-trade"]')).toBeVisible();
-      // Verify daily-loss field exists
       await expect(page.locator('[data-testid="config-daily-loss"]')).toBeVisible();
-      // Verify max-exposure field exists
       await expect(page.locator('[data-testid="config-max-exposure"]')).toBeVisible();
-      // Verify risk-per-trade field exists
       await expect(page.locator('[data-testid="config-risk-per-trade"]')).toBeVisible();
     });
 
     test("should display RiskManagementSection field labels", async ({ page }) => {
       await navigateToPaperTradingSettings(page);
 
-      // Verify field labels are visible inside risk section
       const riskSection = page.locator("#risk-section");
       await expect(riskSection.locator('label:has-text("Max Positions")')).toBeVisible();
       await expect(riskSection.locator('label:has-text("Capital/Trade %")')).toBeVisible();
@@ -625,28 +905,22 @@ test.describe("Paper Trading - Settings Panel Sections", () => {
 
   test.describe("OrbSettingsSection", () => {
     test.beforeEach(async ({ page }) => {
-      await setupPaperTradingTest(page);
+      await setupPaperTradingTestMocks(page);
     });
 
     test("should display OrbSettingsSection fields", async ({ page }) => {
       await navigateToPaperTradingSettings(page);
 
-      // Verify OR minutes field exists
       await expect(page.locator('[data-testid="config-or-minutes"]')).toBeVisible();
-      // Verify SL% field exists
       await expect(page.locator('[data-testid="config-sl-pct"]')).toBeVisible();
-      // Verify TP% field exists
       await expect(page.locator('[data-testid="config-tp-pct"]')).toBeVisible();
-      // Verify min OR range field exists
       await expect(page.locator('[data-testid="config-min-or-range"]')).toBeVisible();
-      // Verify max OR range field exists
       await expect(page.locator('[data-testid="config-max-or-range"]')).toBeVisible();
     });
 
     test("should display OrbSettingsSection field labels", async ({ page }) => {
       await navigateToPaperTradingSettings(page);
 
-      // Verify field labels are visible inside ORB section
       const orbSection = page.locator("#orb-section");
       await expect(orbSection.locator('label:has-text("OR Minutes")')).toBeVisible();
       await expect(orbSection.locator('label:has-text("Stop Loss %")')).toBeVisible();
@@ -658,22 +932,19 @@ test.describe("Paper Trading - Settings Panel Sections", () => {
 
   test.describe("RunnerSettingsSection", () => {
     test.beforeEach(async ({ page }) => {
-      await setupPaperTradingTest(page);
+      await setupPaperTradingTestMocks(page);
     });
 
     test("should display RunnerSettingsSection fields", async ({ page }) => {
       await navigateToPaperTradingSettings(page);
 
-      // Verify cooldown field exists
       await expect(page.locator('[data-testid="config-cooldown"]')).toBeVisible();
-      // Verify max-distance field exists
       await expect(page.locator('[data-testid="config-max-distance"]')).toBeVisible();
     });
 
     test("should display RunnerSettingsSection field labels", async ({ page }) => {
       await navigateToPaperTradingSettings(page);
 
-      // Verify field labels are visible inside runner section
       const runnerSection = page.locator("#runner-section");
       await expect(runnerSection.locator('label:has-text("Cooldown (min)")')).toBeVisible();
       await expect(runnerSection.locator('label:has-text("Max Distance from OR %")')).toBeVisible();

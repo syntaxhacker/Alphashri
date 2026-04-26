@@ -80,7 +80,10 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
       axisPointer: { type: "shadow" },
       backgroundColor: isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG,
       borderColor: isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
-      textStyle: { color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT, fontSize: theme.fontSizes.sm },
+      textStyle: {
+        color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT,
+        fontSize: theme.fontSizes.sm,
+      },
     },
     legend: {
       data: ["Call OI Chg", "Put OI Chg"],
@@ -208,7 +211,8 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
           <CompactPanel
             className="oi-sentiment-panel"
             data-testid="options-oi-sentiment-panel"
-            flex={1} style={{ borderLeft: "4px solid var(--mantine-color-blue-6)" }}
+            flex={1}
+            style={{ borderLeft: "4px solid var(--mantine-color-blue-6)" }}
           >
             <Group align="flex-start" wrap="nowrap">
               <Box>

@@ -8,11 +8,7 @@ export interface InlineLoaderProps {
   size?: string;
 }
 
-export function InlineLoader({
-  "data-testid": testId,
-  className,
-  size = "sm",
-}: InlineLoaderProps) {
+export function InlineLoader({ "data-testid": testId, className, size = "sm" }: InlineLoaderProps) {
   return (
     <Group justify="center" py="xl" data-testid={testId} className={className}>
       <Loader size={size} />

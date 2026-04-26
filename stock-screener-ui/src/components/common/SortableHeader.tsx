@@ -28,6 +28,8 @@ export function SortableHeader({
     <Table.Th
       onClick={() => sortable && onSort(columnKey)}
       data-testid={testId || `sort-header-${columnKey}`}
+      data-sorted={isActive ? "true" : "false"}
+      data-direction={sortDirection}
     >
       <Group gap={4} wrap="nowrap">
         <Text size="sm" fw={500}>

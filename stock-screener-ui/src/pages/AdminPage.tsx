@@ -40,11 +40,7 @@ function LoadingState() {
 function ErrorState({ error }: { error: string }) {
   return (
     <Box data-testid="admin-page" h="100%" style={{ overflow: "hidden" }}>
-      <CompactPanel
-        title="Unable to load stats"
-        description={error}
-        c="red.6"
-      />
+      <CompactPanel title="Unable to load stats" description={error} c="red.6" />
     </Box>
   );
 }
@@ -93,10 +89,7 @@ function AdminContent({
             </Text>
           )}
           <ModelBreakdown models={aggregate.models_used} />
-          <CompactPanel
-            title="Recent Runs"
-            flex={1} style={{ minHeight: 0 }}
-          >
+          <CompactPanel title="Recent Runs" flex={1} style={{ minHeight: 0 }}>
             <ScrollArea flex={1}>
               <RecentRunsTable runs={recent_runs} />
             </ScrollArea>
@@ -122,6 +115,9 @@ export default function AdminPage() {
       }
       const data = await response.json();
       setStats(data);
+      if (data.error) {
+        setError(data.error);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load stats");
     } finally {

@@ -92,12 +92,7 @@ export function SymbolChips({
               variant="outline"
               size="sm"
               className="symbol-chip"
-              rightSection={
-                <IconX
-                  size={10}
-                  onClick={() => handleRemoveSymbol(symbol)}
-                />
-              }
+              rightSection={<IconX size={10} onClick={() => handleRemoveSymbol(symbol)} />}
               data-testid={`chip-${symbol}`}
             >
               {symbol}

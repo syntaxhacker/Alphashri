@@ -151,7 +151,7 @@ function renderTradeRow(trade: any): string {
   const pnlClass = getPnLTextColor(trade.net_pnl);
   const sideClass = trade.side === "BUY" ? "side-long" : "side-short";
   const sideIcon = trade.side === "BUY" ? "▲" : "▼";
-  const time = formatTimeOnly(trade.exit_time);
+  const _time = formatTimeOnly(trade.exit_time);
 
   return `
     <tr class="trade-row ${trade.net_pnl >= 0 ? "trade-win" : "trade-loss"}">
@@ -166,8 +166,6 @@ function renderTradeRow(trade: any): string {
     </tr>
   `;
 }
-
-
 
 function renderSummaryCard(
   label: string,
