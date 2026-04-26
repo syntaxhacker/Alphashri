@@ -284,3 +284,5 @@ Before committing:
 | `fireEvent.click()` doesn't trigger React state | Use `userEvent.click()` from `@testing-library/user-event` |
 | Mutable module state leaks between tests | Reset state in `beforeEach` / `afterEach` |
 | E2E text selector breaks on i18n | Always use `data-testid` in E2E tests |
+| **Playwright `click({ force: true })` doesn't trigger React `onClick`** | **Use `page.evaluate(() => element.dispatchEvent(new MouseEvent('click')))` for React components** |
+| **Transient highlight class removed by setTimeout** | **Check for CSS class immediately after click, not with `toBeVisible({ timeout })`** |

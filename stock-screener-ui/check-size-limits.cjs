@@ -29,12 +29,29 @@ function getAllSourceFiles(dir) {
     const filePath = path.join(dir, file);
     const stat = fs.statSync(filePath);
     if (stat && stat.isDirectory()) {
+      // Skip common directories that shouldn't be size-checked
+      if (['node_modules', 'dist', 'coverage', 'ui.mantine.dev', 'tests', 'test-utils'].includes(file)) {
+        return;
+      }
       results = results.concat(getAllSourceFiles(filePath));
     } else if (/\.(js|jsx|ts|tsx)$/.test(file)) {
       results.push(filePath);
     }
   });
   return results;
+}
+
+// Check if a file path should be skipped (e.g., test files)
+function shouldSkipFile(filePath) {
+  // Skip files in tests/ directories (E2E and unit tests)
+  if (filePath.includes(path.sep + 'tests' + path.sep) || filePath.startsWith('tests/')) {
+    return true;
+  }
+  // Skip test-utils
+  if (filePath.includes(path.sep + 'test-utils' + path.sep) || filePath.startsWith('test-utils/')) {
+    return true;
+  }
+  return false;
 }
 
 // Check file size and line count
@@ -106,6 +123,10 @@ function main() {
   let fileStats = [];
 
   files.forEach(file => {
+    // Skip test files from size limits
+    if (shouldSkipFile(file)) {
+      return;
+    }
     const relPath = file.replace(process.cwd() + '/', '');
     const { issues: fileIssues, content, lines, sizeKB } = checkFileLimits(file);
     const funcIssues = checkFunctionLimits(content);

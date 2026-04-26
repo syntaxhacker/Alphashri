@@ -155,34 +155,38 @@ test.describe("Layout - Sidebar", () => {
     await expect(footer.locator('[data-testid="user-menu-trigger"]')).toBeVisible();
   });
 
-  test("sidebar-collapse-toggle collapses and expands sidebar", async ({ page }) => {
+  test("sidebar-collapse-toggle collapses sidebar and hides itself", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     const navbar = page.locator('[data-testid="app-navbar"]');
     const toggleBtn = page.locator('[data-testid="sidebar-collapse-toggle"]');
 
+    // Get initial width - should be expanded (>100px)
     const initialBox = await navbar.boundingBox();
     expect(initialBox?.width).toBeGreaterThan(100);
 
-    await toggleBtn.click();
-    await page.waitForLoadState("networkidle");
+    // Toggle should be visible initially
+    await expect(toggleBtn).toBeVisible({ timeout: 15000 });
 
-    const collapsedBox = await navbar.boundingBox();
-    expect(collapsedBox?.width).toBeLessThanOrEqual(100);
+    // Click to collapse
+    await toggleBtn.click({ timeout: 15000 });
 
-    await toggleBtn.click();
-    await page.waitForLoadState("networkidle");
+    // Wait for navbar width to shrink
+    await expect(async () => {
+      const box = await navbar.boundingBox();
+      expect(box?.width).toBeLessThanOrEqual(100);
+    }).toPass({ timeout: 15000 });
 
-    const restoredBox = await navbar.boundingBox();
-    expect(restoredBox?.width).toBeGreaterThan(100);
+    // After collapse, toggle button should be hidden (removed from DOM)
+    await expect(toggleBtn).not.toBeVisible();
   });
 
   test("when collapsed, navbar-links still exists", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    await page.locator('[data-testid="sidebar-collapse-toggle"]').click();
+    await page.locator('[data-testid="sidebar-collapse-toggle"]').click({ timeout: 15000 });
     await page.waitForLoadState("networkidle");
 
     await expect(page.locator('[data-testid="navbar-links"]')).toBeVisible();

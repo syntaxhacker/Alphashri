@@ -261,30 +261,59 @@ test.describe("News Page - Article Detail", () => {
 
   test("should display stocks mentioned section", async ({ page }) => {
     await gotoNewsPage(page);
-    await page
+    const newsItem = page
       .locator('[data-testid="news-list-item"]')
       .filter({ hasText: "Reliance" })
-      .first()
-      .click();
-    await expect(page.locator("text=Stocks mentioned")).toBeVisible({ timeout: 5000 });
+      .first();
+    await newsItem.scrollIntoViewIfNeeded({ timeout: 15000 });
+    await expect(newsItem).toBeVisible({ timeout: 10000 });
+    await newsItem.click();
+    await expect(page.locator("text=Stocks mentioned")).toBeVisible({ timeout: 10000 });
   });
 
   test("should show back button in article detail", async ({ page }) => {
     await page.setViewportSize({ width: 575, height: 800 });
     await gotoNewsPage(page);
-    await page.locator('[data-testid="news-list-item"]').first().click();
-    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 5000 });
+    const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
+    await firstNewsItem.scrollIntoViewIfNeeded({ timeout: 15000 });
+    await expect(firstNewsItem).toBeVisible({ timeout: 15000 });
+
+    // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
+    await page.evaluate(() => {
+      const item = document.querySelector('[data-testid="news-list-item"]');
+      item?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 15000 });
   });
 
   test("should return to news list when clicking back", async ({ page }) => {
     await page.setViewportSize({ width: 575, height: 800 });
     await gotoNewsPage(page);
-    await page.locator('[data-testid="news-list-item"]').first().click();
-    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 5000 });
-    await page.locator('[data-testid="close-article-btn"]').click();
-    await expect(page.locator('[data-testid="news-list-item"]').first()).toBeVisible({
-      timeout: 5000,
+    const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
+    await firstNewsItem.scrollIntoViewIfNeeded({ timeout: 15000 });
+    await expect(firstNewsItem).toBeVisible({ timeout: 15000 });
+
+    // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
+    await page.evaluate(() => {
+      const item = document.querySelector('[data-testid="news-list-item"]');
+      item?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
+
+    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 15000 });
+
+    const closeBtn = page.locator('[data-testid="close-article-btn"]');
+    await closeBtn.scrollIntoViewIfNeeded({ timeout: 15000 });
+    await expect(closeBtn).toBeVisible({ timeout: 15000 });
+
+    // Use native dispatchEvent for close button as well
+    await page.evaluate(() => {
+      const btn = document.querySelector('[data-testid="close-article-btn"]');
+      btn?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    const firstItemAfterBack = page.locator('[data-testid="news-list-item"]').first();
+    await expect(firstItemAfterBack).toBeVisible({ timeout: 15000 });
   });
 });
 

@@ -104,7 +104,9 @@ function useTradeSortHandlers() {
 
 function highlightTradeRow(tradeIndex: number) {
   const row = document.querySelector(`[data-trade-number="${tradeIndex + 1}"]`) as HTMLElement;
-  if (!row) return;
+  if (!row) {
+    return;
+  }
   document
     .querySelectorAll(".trade-row-highlighted")
     .forEach((el) => el.classList.remove("trade-row-highlighted"));

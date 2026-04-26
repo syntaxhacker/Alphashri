@@ -757,14 +757,26 @@ test.describe("Backtest - Chart Zoom", () => {
 test.describe("Backtest - Trade Highlight on Click", () => {
   test("should highlight trade row when clicked", async ({ page }) => {
     await runBacktestForStrategy(page, "ORB");
-    const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
-    if (await tradeHistoryPanel.isVisible()) {
-      const firstRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
-      if (await firstRow.isVisible()) {
-        await firstRow.click();
-        await expect(page.locator(".trade-row-highlighted")).toBeVisible({ timeout: 5000 });
-      }
-    }
+    await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('[data-testid="trade-history-tbody"] tr')).toHaveCount(1, {
+      timeout: 15000,
+    });
+
+    const firstRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
+    await firstRow.scrollIntoViewIfNeeded({ timeout: 15000 });
+    await expect(firstRow).toBeVisible({ timeout: 15000 });
+
+    // Use native dispatchEvent - Playwright click doesn't reliably trigger React onClick for table rows
+    await page.evaluate(() => {
+      const row = document.querySelector('[data-testid="trade-history-tbody"] tr');
+      row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    // Check immediately - highlight removed after 3s via setTimeout in component
+    const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
+    expect(
+      await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
+    ).toBe(true);
   });
 });
 

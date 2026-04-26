@@ -270,7 +270,9 @@ export function TradeHistoryTable({
               return (
                 <Table.Tr
                   key={originalIndex}
-                  onClick={() => onRowClick(originalIndex)}
+                  onClick={() => {
+                    onRowClick(originalIndex);
+                  }}
                   data-trade-number={tradeNumber}
                   title="Click to zoom to this trade"
                   bg={t.net_pnl >= 0 ? undefined : TINT_LOSS_ROW}
