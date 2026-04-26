@@ -105,7 +105,11 @@ export function ScreenerPage({
   const emptySet = new Set<string>();
   const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
 
-  const renderStocksView = (stocks: Stock[], touchedSymbols: Set<string>) => {
+  const renderStocksView = (
+    stocks: Stock[],
+    touchedSymbols: Set<string>,
+    section: "approaching" | "touched",
+  ) => {
     if (viewMode === "heatmap") {
       return (
         <ScreenerHeatmap
@@ -114,6 +118,7 @@ export function ScreenerPage({
           touchedSymbols={touchedSymbols}
           onSymbolClick={onSymbolClick}
           onSymbolHover={onSymbolHover}
+          data-testid={`screener-heatmap-${section}`}
         />
       );
     }
@@ -129,6 +134,7 @@ export function ScreenerPage({
         onSymbolClick={onSymbolClick}
         onSymbolHover={onSymbolHover}
         screenerType={activeScreener}
+        data-testid={`screener-table-${section}`}
       />
     );
   };
@@ -200,7 +206,7 @@ export function ScreenerPage({
             style={{ minHeight: 0 }}
           >
             <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
-              {renderStocksView(sortedApproaching, emptySet)}
+              {renderStocksView(sortedApproaching, emptySet, "approaching")}
             </Box>
           </CompactPanel>
         )}
@@ -215,7 +221,11 @@ export function ScreenerPage({
             style={{ minHeight: 0 }}
           >
             <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
-              {renderStocksView(sortedTouched, new Set(sortedTouched.map((s) => s.symbol)))}
+              {renderStocksView(
+                sortedTouched,
+                new Set(sortedTouched.map((s) => s.symbol)),
+                "touched",
+              )}
             </Box>
           </CompactPanel>
         )}

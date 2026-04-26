@@ -38,6 +38,8 @@ export function ScreenerTable({
           key={column.key}
           onClick={() => onSortChange(column.key)}
           data-testid={`sort-header-${column.key}`}
+          data-sorted={sortColumn === column.key ? "true" : "false"}
+          data-direction={sortDirection}
           className={`screener-table-header-cell sortable ${sortColumn === column.key ? "sorted" : ""}`}
           id={`header-${column.key}`}
         >

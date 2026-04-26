@@ -127,6 +127,52 @@ describe("PositionsHelpers", () => {
       const result = nearBreakoutPct(item);
       expect(result).toBeGreaterThan(0);
     });
+
+    it("returns 9999 for Infinity or very large values", () => {
+      const item1: PaperScanItem = {
+        symbol: "TCS",
+        status: "READY",
+        price: 0,
+        or_high: 0,
+        or_low: 0,
+      };
+      expect(nearBreakoutPct(item1)).toBe(9999);
+
+      const item2: PaperScanItem = {
+        symbol: "TCS",
+        status: "READY",
+        price: Infinity,
+        or_high: 0,
+        or_low: 0,
+      };
+      expect(nearBreakoutPct(item2)).toBe(9999);
+    });
+
+    it("uses 52W high when ORB levels are missing and calculates correct percentage", () => {
+      const item: PaperScanItem = {
+        symbol: "TCS",
+        status: "READY",
+        price: 4500,
+        high_52w: 5000,
+      };
+
+      const result = nearBreakoutPct(item);
+      expect(result).toBe(10);
+    });
+
+    it("calculates percentage with price 0 and valid ORB levels", () => {
+      const item: PaperScanItem = {
+        symbol: "TCS",
+        status: "READY",
+        price: 0,
+        or_high: 100,
+        or_low: 90,
+      };
+
+      const result = nearBreakoutPct(item);
+      expect(result).not.toBe(9999);
+      expect(result).toBe(100);
+    });
   });
 
   describe("formatNear", () => {
@@ -232,6 +278,89 @@ describe("PositionsHelpers", () => {
       expect(result.size).toBe(0);
     });
 
+    it("groups same symbol from different strategies separately", () => {
+      const positions: PaperPosition[] = [
+        {
+          symbol: "RELIANCE",
+          strategy_id: 1,
+          order_id: "1",
+          side: "LONG",
+          quantity: 10,
+          entry_price: 2800,
+          current_price: 2900,
+          pnl: 1000,
+          pnl_pct: 3.57,
+          stop_loss: 2750,
+          take_profit: 3000,
+          entry_time: new Date().toISOString(),
+          margin_used: 28000,
+        },
+        {
+          symbol: "RELIANCE",
+          strategy_id: 2,
+          order_id: "2",
+          side: "LONG",
+          quantity: 15,
+          entry_price: 2850,
+          current_price: 2950,
+          pnl: 1500,
+          pnl_pct: 3.51,
+          stop_loss: 2800,
+          take_profit: 3100,
+          entry_time: new Date().toISOString(),
+          margin_used: 42750,
+        },
+      ];
+
+      const result = groupPositionsByStrategy(positions);
+
+      expect(result.size).toBe(2);
+      expect(result.get(1)?.length).toBe(1);
+      expect(result.get(2)?.length).toBe(1);
+      expect(result.get(1)?.[0].symbol).toBe("RELIANCE");
+      expect(result.get(2)?.[0].symbol).toBe("RELIANCE");
+    });
+
+    it("groups same symbol from same strategy together", () => {
+      const positions: PaperPosition[] = [
+        {
+          symbol: "RELIANCE",
+          strategy_id: 1,
+          order_id: "1",
+          side: "LONG",
+          quantity: 10,
+          entry_price: 2800,
+          current_price: 2900,
+          pnl: 1000,
+          pnl_pct: 3.57,
+          stop_loss: 2750,
+          take_profit: 3000,
+          entry_time: new Date().toISOString(),
+          margin_used: 28000,
+        },
+        {
+          symbol: "RELIANCE",
+          strategy_id: 1,
+          order_id: "2",
+          side: "SHORT",
+          quantity: 15,
+          entry_price: 2850,
+          current_price: 2800,
+          pnl: 750,
+          pnl_pct: 1.75,
+          stop_loss: 2900,
+          take_profit: 2700,
+          entry_time: new Date().toISOString(),
+          margin_used: 42750,
+        },
+      ];
+
+      const result = groupPositionsByStrategy(positions);
+
+      expect(result.size).toBe(1);
+      expect(result.get(1)?.length).toBe(2);
+    });
+
     it("groups positions with null strategy_id under key 0", () => {
       const positions: PaperPosition[] = [
         {
@@ -322,6 +451,32 @@ describe("PositionsHelpers", () => {
           stop_loss: 3950,
           take_profit: 4100,
           entry_time: new Date().toISOString(),
+        },
+      ];
+
+      const result = calcStrategySummary(positions);
+
+      expect(result.totalPnl).toBe(0);
+      expect(result.marginUsed).toBe(0);
+      expect(result.count).toBe(1);
+    });
+
+    it("handles positions with null pnl or undefined margin_used", () => {
+      const positions: PaperPosition[] = [
+        {
+          symbol: "TCS",
+          strategy_id: 1,
+          order_id: "1",
+          side: "LONG",
+          quantity: 10,
+          entry_price: 4000,
+          current_price: 4100,
+          pnl: null as any,
+          pnl_pct: 2.5,
+          stop_loss: 3950,
+          take_profit: 4100,
+          entry_time: new Date().toISOString(),
+          margin_used: undefined as any,
         },
       ];
 

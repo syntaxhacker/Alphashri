@@ -239,16 +239,36 @@ function SettingsContent({
           )}
         </Stack>
 
-        <Divider label="ORB Settings" labelPosition="left" className="paper-settings-divider" />
+        <Divider
+          label="ORB Settings"
+          labelPosition="left"
+          className="paper-settings-divider"
+          data-testid="orb-section-header"
+        />
         <OrbSettingsSection config={strategyConfig} onChange={handleConfigValue} />
 
-        <Divider label="Risk Management" labelPosition="left" className="paper-settings-divider" />
+        <Divider
+          label="Risk Management"
+          labelPosition="left"
+          className="paper-settings-divider"
+          data-testid="risk-section-header"
+        />
         <RiskManagementSection config={strategyConfig} onChange={handleConfigValue} />
 
-        <Divider label="Runner Settings" labelPosition="left" className="paper-settings-divider" />
+        <Divider
+          label="Runner Settings"
+          labelPosition="left"
+          className="paper-settings-divider"
+          data-testid="runner-section-header"
+        />
         <RunnerSettingsSection config={strategyConfig} onChange={handleConfigValue} />
 
-        <Divider label="Trading Costs" labelPosition="left" className="paper-settings-divider" />
+        <Divider
+          label="Trading Costs"
+          labelPosition="left"
+          className="paper-settings-divider"
+          data-testid="costs-section-header"
+        />
         <TradingCostsSection config={strategyConfig} onChange={handleConfigValue} />
 
         <SettingsActions

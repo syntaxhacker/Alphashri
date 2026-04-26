@@ -12,7 +12,7 @@ export function buildOverlays(
   const series: any[] = [];
 
   function mapLevelValues(overlay: UnifiedOverlay) {
-    if (!overlay.levels.length) return null;
+    if (!overlay.levels.length) return candleSource.map(() => null);
     const hasDates = overlay.levels.some((l) => l.date);
     return candleSource.map((c) => {
       if (hasDates) {

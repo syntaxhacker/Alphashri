@@ -115,6 +115,9 @@ export default function AdminPage() {
       }
       const data = await response.json();
       setStats(data);
+      if (data.error) {
+        setError(data.error);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load stats");
     } finally {

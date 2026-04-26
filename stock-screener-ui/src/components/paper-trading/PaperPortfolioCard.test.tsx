@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
 import { PaperPortfolioCard, type Portfolio, type StrategySummary } from "./PaperPortfolioCard";
+import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 afterEach(() => {
   cleanup();
@@ -27,10 +26,6 @@ const mockStrategySummary = (overrides: Partial<StrategySummary> = {}): Strategy
   positions: 0,
   ...overrides,
 });
-
-const renderWithMantine = (ui: React.ReactElement) => {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-};
 
 describe("PaperPortfolioCard", () => {
   describe("null/loading state", () => {

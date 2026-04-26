@@ -1,32 +1,18 @@
 import { test, expect } from "@playwright/test";
 import {
-  setupApiMocks,
-  loginAsTestUser,
-  setupPaperTradingMocks,
-  setupMultiStrategyBotMocks,
-} from "../mocks/apiResponses";
-import {
   navigateToPaperTrading,
   navigateToPaperTradingWithBot,
+  setupPaperTradingTestMocks,
 } from "../helpers/paperTradingHelpers";
+import { setupApiMocks, loginAsTestUser, setupPaperTradingMocks } from "../mocks/apiResponses";
 import { TEST_BOT_UUID, setupBotApiMocks } from "./helpers/botHelpers";
 import { generateCandles } from "./helpers/chartHelpers";
 
 const TEST_DATE = "2026-04-24";
 
-// Shared beforeEach for paper trading tests
-async function setupPaperTradingTest(page: import("@playwright/test").Page) {
-  await setupApiMocks(page);
-  await loginAsTestUser(page);
-  await setupPaperTradingMocks(page);
-  await setupMultiStrategyBotMocks(page);
-}
-
-test.describe.configure({ mode: "serial" });
-
 test.describe("Paper Trading - Strategy Tabs", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
   test("@smoke should display paper trading view with tabs", async ({ page }) => {
     await navigateToPaperTrading(page);
@@ -121,7 +107,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
 test.describe("Paper Trading - API Polling", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should call bots API on load", async ({ page }) => {
@@ -170,7 +156,7 @@ test.describe("Paper Trading - API Polling", () => {
 
 test.describe("Paper Trading - Bot Controls", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should update UI immediately after starting a bot", async ({ page }) => {
@@ -261,7 +247,7 @@ test.describe("Paper Trading - Bot Controls", () => {
 
 test.describe("Paper Trading - Strategy Tabs", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should show all positions in 'All' tab", async ({ page }) => {
@@ -278,7 +264,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
 test.describe("Paper Trading - Watchlist Scan", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
 
     await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
       await route.fulfill({
@@ -441,7 +427,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
 
 test.describe("Paper Trading - Position Actions", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should show close button for each position", async ({ page }) => {
@@ -512,7 +498,7 @@ test.describe("Paper Trading - Position Actions", () => {
 
 test.describe("Paper Trading - Settings", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should update ORB sl_pct and save", async ({ page }) => {
@@ -602,13 +588,15 @@ test.describe("Paper Trading - Settings", () => {
     const saveBtn = page.locator('[data-testid="save-settings-button"]');
     await saveBtn.click();
 
-    await expect(page.locator("text=must be greater than 0")).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('[data-testid="config-sl-pct-error"]')).toBeVisible({
+      timeout: 3000,
+    });
   });
 });
 
 test.describe("Paper Trading - Portfolio Card", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should display portfolio value and cash", async ({ page }) => {
@@ -845,21 +833,21 @@ async function navigateToPaperTradingSettings(page: import("@playwright/test").P
 
 test.describe("Paper Trading - Settings Panel Sections", () => {
   test.beforeEach(async ({ page }) => {
-    await setupPaperTradingTest(page);
+    await setupPaperTradingTestMocks(page);
   });
 
   test("should display all settings section headers", async ({ page }) => {
     await navigateToPaperTradingSettings(page);
 
-    await expect(page.locator("text=ORB Settings")).toBeVisible();
-    await expect(page.locator("text=Risk Management")).toBeVisible();
-    await expect(page.locator("text=Runner Settings")).toBeVisible();
-    await expect(page.locator("text=Trading Costs")).toBeVisible();
+    await expect(page.locator('[data-testid="orb-section-header"]')).toBeVisible();
+    await expect(page.locator('[data-testid="risk-section-header"]')).toBeVisible();
+    await expect(page.locator('[data-testid="runner-section-header"]')).toBeVisible();
+    await expect(page.locator('[data-testid="costs-section-header"]')).toBeVisible();
   });
 
   test.describe("TradingCostsSection", () => {
     test.beforeEach(async ({ page }) => {
-      await setupPaperTradingTest(page);
+      await setupPaperTradingTestMocks(page);
     });
 
     test("should display TradingCostsSection fields", async ({ page }) => {
@@ -890,7 +878,7 @@ test.describe("Paper Trading - Settings Panel Sections", () => {
 
   test.describe("RiskManagementSection", () => {
     test.beforeEach(async ({ page }) => {
-      await setupPaperTradingTest(page);
+      await setupPaperTradingTestMocks(page);
     });
 
     test("should display RiskManagementSection fields", async ({ page }) => {
@@ -917,7 +905,7 @@ test.describe("Paper Trading - Settings Panel Sections", () => {
 
   test.describe("OrbSettingsSection", () => {
     test.beforeEach(async ({ page }) => {
-      await setupPaperTradingTest(page);
+      await setupPaperTradingTestMocks(page);
     });
 
     test("should display OrbSettingsSection fields", async ({ page }) => {
@@ -944,7 +932,7 @@ test.describe("Paper Trading - Settings Panel Sections", () => {
 
   test.describe("RunnerSettingsSection", () => {
     test.beforeEach(async ({ page }) => {
-      await setupPaperTradingTest(page);
+      await setupPaperTradingTestMocks(page);
     });
 
     test("should display RunnerSettingsSection fields", async ({ page }) => {
