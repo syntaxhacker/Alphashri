@@ -229,10 +229,9 @@ function renderStrategyAllocationRow(
   `;
 }
 
-// Initialize config form handlers
-export function initConfigHandlers() {
-  let strategyRowIndex = 0;
+// ============ Close Modal Handler ============
 
+function setupCloseModalHandler() {
   (window as any).closeBotConfigModal = () => {
     const state = getBotsState();
     if (state.showCreateModal) {
@@ -241,20 +240,27 @@ export function initConfigHandlers() {
       closeEditModal();
     }
   };
+}
 
+// ============ Add Strategy Handler ============
+
+function setupAddStrategyHandler(
+  container: HTMLElement,
+  selectableStrategies: AvailableStrategy[],
+  getNextIndex: () => number,
+) {
   (window as any).addStrategyAllocation = () => {
-    const state = getBotsState();
-    const selectableStrategies = state.availableStrategies.filter((s) => !s.is_template);
-    const container = document.getElementById("strategy-allocations");
-    if (!container) return;
-
+    const currentIndex = getNextIndex();
     const newRow = document.createElement("div");
-    newRow.innerHTML = renderStrategyAllocationRow(null, strategyRowIndex, selectableStrategies);
+    newRow.innerHTML = renderStrategyAllocationRow(null, currentIndex, selectableStrategies);
     container.appendChild(newRow.firstElementChild!);
-    strategyRowIndex++;
     (window as any).updateAllocationSummary();
   };
+}
 
+// ============ Remove Strategy Handler ============
+
+function setupRemoveStrategyHandler() {
   (window as any).removeStrategyAllocation = (index: number) => {
     const row = document.querySelector(`.strategy-allocation-row[data-index="${index}"]`);
     if (row) {
@@ -262,7 +268,11 @@ export function initConfigHandlers() {
       (window as any).updateAllocationSummary();
     }
   };
+}
 
+// ============ Allocation Summary Handler ============
+
+function setupAllocationSummaryHandler() {
   (window as any).updateAllocationSummary = () => {
     const rows = document.querySelectorAll(".strategy-allocation-row");
     let total = 0;
@@ -289,50 +299,77 @@ export function initConfigHandlers() {
       }
     }
   };
+}
 
+// ============ Save Bot Config Handler ============
+
+function collectStrategyAllocations(formData: FormData): StrategyAllocation[] {
+  const strategies: StrategyAllocation[] = [];
+  const rows = document.querySelectorAll(".strategy-allocation-row");
+
+  rows.forEach((row) => {
+    const index = row.getAttribute("data-index");
+    const strategyId = formData.get(`strategy_id_${index}`);
+    const allocation = formData.get(`allocation_${index}`);
+    const maxPositions = formData.get(`max_positions_${index}`);
+
+    if (strategyId && allocation) {
+      strategies.push({
+        strategy_id: strategyId as string,
+        capital_allocation_pct: parseFloat(allocation as string) / 100,
+        max_positions: parseInt(maxPositions as string) || 3,
+      });
+    }
+  });
+
+  return strategies;
+}
+
+function buildBotConfigData(formData: FormData, botId?: string | null) {
+  return {
+    name: formData.get("name") as string,
+    is_active: formData.has("is_active"),
+    max_total_positions: parseInt(formData.get("max_total_positions") as string) || 10,
+    max_total_capital_pct:
+      (parseFloat(formData.get("max_total_capital_pct") as string) || 80) / 100,
+    strategies: collectStrategyAllocations(formData),
+  };
+}
+
+function setupSaveBotConfigHandler() {
   (window as any).saveBotConfig = async (event: Event) => {
     event.preventDefault();
 
     const form = event.target as HTMLFormElement;
     const formData = new FormData(form);
-    const botId = formData.get("bot_id") as string;
+    const botId = formData.get("bot_id");
 
-    // Collect strategy allocations
-    const strategies: StrategyAllocation[] = [];
-    const rows = document.querySelectorAll(".strategy-allocation-row");
-
-    rows.forEach((row) => {
-      const index = row.getAttribute("data-index");
-      const strategyId = formData.get(`strategy_id_${index}`);
-      const allocation = formData.get(`allocation_${index}`);
-      const maxPositions = formData.get(`max_positions_${index}`);
-
-      if (strategyId && allocation) {
-        strategies.push({
-          strategy_id: strategyId as string,
-          capital_allocation_pct: parseFloat(allocation as string) / 100,
-          max_positions: parseInt(maxPositions as string) || 3,
-        });
-      }
-    });
-
-    const data = {
-      name: formData.get("name") as string,
-      is_active: formData.has("is_active"),
-      max_total_positions: parseInt(formData.get("max_total_positions") as string) || 10,
-      max_total_capital_pct:
-        (parseFloat(formData.get("max_total_capital_pct") as string) || 80) / 100,
-      strategies,
-    };
+    const data = buildBotConfigData(formData, botId as string);
 
     if (botId) {
-      // Update existing bot
-      await updateBotAction(botId, data);
+      await updateBotAction(botId as string, data);
     } else {
-      // Create new bot
       await createBotAction(data);
     }
   };
+}
+
+// ============ Initialize Config Form Handlers ============
+
+let strategyRowIndex = 0;
+
+export function initConfigHandlers() {
+  const state = getBotsState();
+  const selectableStrategies = state.availableStrategies.filter((s) => !s.is_template);
+  const container = document.getElementById("strategy-allocations");
+
+  if (!container) return;
+
+  setupCloseModalHandler();
+  setupAddStrategyHandler(container, selectableStrategies, () => strategyRowIndex++);
+  setupRemoveStrategyHandler();
+  setupAllocationSummaryHandler();
+  setupSaveBotConfigHandler();
 
   // Initialize allocation summary on load
   setTimeout(() => {

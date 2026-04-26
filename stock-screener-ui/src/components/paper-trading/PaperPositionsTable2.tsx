@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Tabs, Badge, Text, Group, Flex, ScrollArea, Button, Tooltip } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import { getPaperTradingState, setSelectedStrategyTab, subscribe } from "../../state/paperTrading";
-import type { PaperPosition } from "../../types/paperTrading";
+import type { PaperPosition, PaperTradingState, PaperBotSnapshot } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { closeAllPositions, refreshBotLiveData } from "../../api/paperTrading";
@@ -13,6 +13,50 @@ import {
   calcStrategySummary,
 } from "./PositionsHelpers";
 import { WatchlistScan } from "./WatchlistScan";
+
+interface UsePositionsDerivedDataReturn {
+  sortedPositions: PaperPosition[];
+  strategyGroups: Map<number, PaperPosition[]>;
+  isMultiStrategy: boolean;
+  activeTab: string;
+  filteredPositions: PaperPosition[];
+}
+
+function usePositionsDerivedData(): UsePositionsDerivedDataReturn {
+  useStoreSubscription(subscribe);
+
+  const state = getPaperTradingState();
+  const { positions, selectedStrategyTab } = state;
+
+  const sortedPositions = useMemo(
+    () =>
+      [...positions].sort(
+        (a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime(),
+      ),
+    [positions],
+  );
+
+  const strategyGroups = useMemo(
+    () => groupPositionsByStrategy(sortedPositions),
+    [sortedPositions],
+  );
+
+  const isMultiStrategy = useMemo(() => strategyGroups.size > 1, [strategyGroups]);
+
+  const activeTab = useMemo(() => selectedStrategyTab || "all", [selectedStrategyTab]);
+
+  const filteredPositions = useMemo(
+    () =>
+      activeTab === "all"
+        ? sortedPositions
+        : (strategyGroups.get(Number(activeTab)) || []).sort(
+            (a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime(),
+          ),
+    [activeTab, sortedPositions, strategyGroups],
+  );
+
+  return { sortedPositions, strategyGroups, isMultiStrategy, activeTab, filteredPositions };
+}
 
 function EmptyPositions() {
   return (
@@ -29,6 +73,87 @@ function EmptyPositions() {
       <Text size="sm" fw={500} c="dimmed">
         No open positions
       </Text>
+    </Flex>
+  );
+}
+
+function LoadingState() {
+  return (
+    <Flex
+      justify="center"
+      py="lg"
+      data-testid="positions-panel"
+      className="paper-positions-panel"
+      id="positions-panel"
+    >
+      <Text size="xs" c="dimmed">
+        Loading positions...
+      </Text>
+    </Flex>
+  );
+}
+
+function EmptyOrLoadingState() {
+  return (
+    <Flex
+      justify="center"
+      py="lg"
+      data-testid="positions-panel"
+      className="paper-positions-panel"
+      id="positions-panel"
+    >
+      <EmptyPositions />
+    </Flex>
+  );
+}
+
+function PositionsContent({
+  positions,
+  selectedSymbol,
+  strategyGroups,
+  isMultiStrategy,
+  activeTab,
+  filteredPositions,
+}: {
+  positions: PaperPosition[];
+  selectedSymbol: string | null;
+  strategyGroups: Map<number, PaperPosition[]>;
+  isMultiStrategy: boolean;
+  activeTab: string;
+  filteredPositions: PaperPosition[];
+}) {
+  return (
+    <Flex direction="column" flex={1} style={{ minHeight: 0 }}>
+      <Group
+        justify="space-between"
+        py={2}
+        className="paper-positions-header"
+        id="positions-header"
+      >
+        <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+          Positions ({positions.length})
+        </Text>
+        <Group gap="xs">
+          <CloseAllButton positions={positions} />
+          <Badge color="red" variant="light" size="xs">
+            LIVE
+          </Badge>
+        </Group>
+      </Group>
+
+      {isMultiStrategy && (
+        <StrategyTabs activeTab={activeTab} strategyGroups={strategyGroups} positions={positions} />
+      )}
+
+      <ScrollArea flex={1} style={{ minHeight: 0 }}>
+        <div style={{ overflowX: "auto" }} data-testid="positions-table-container">
+          <PositionsTableBody positions={filteredPositions} selectedSymbol={selectedSymbol} />
+        </div>
+      </ScrollArea>
+
+      {isMultiStrategy && activeTab === "all" && (
+        <StrategySummaryFooter strategyGroups={strategyGroups} />
+      )}
     </Flex>
   );
 }
@@ -132,61 +257,19 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
 }
 
 export function PaperPositionsTable() {
-  useStoreSubscription(subscribe);
-
   const state = getPaperTradingState();
-  const { positions, selectedSymbol, selectedStrategyTab, botSnapshot, isLoading } = state;
+  const { positions, selectedSymbol, botSnapshot, isLoading } = state;
 
-  const sortedPositions = useMemo(
-    () =>
-      [...positions].sort(
-        (a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime(),
-      ),
-    [positions],
-  );
-  const strategyGroups = useMemo(
-    () => groupPositionsByStrategy(sortedPositions),
-    [sortedPositions],
-  );
-  const isMultiStrategy = strategyGroups.size > 1;
-  const activeTab = selectedStrategyTab || "all";
+  const { strategyGroups, isMultiStrategy, activeTab, filteredPositions } =
+    usePositionsDerivedData();
 
   if (isLoading && positions.length === 0) {
-    return (
-      <Flex
-        justify="center"
-        py="lg"
-        data-testid="positions-panel"
-        className="paper-positions-panel"
-        id="positions-panel"
-      >
-        <Text size="xs" c="dimmed">
-          Loading positions...
-        </Text>
-      </Flex>
-    );
+    return <LoadingState />;
   }
 
   if (positions.length === 0 && !botSnapshot) {
-    return (
-      <Flex
-        justify="center"
-        py="lg"
-        data-testid="positions-panel"
-        className="paper-positions-panel"
-        id="positions-panel"
-      >
-        <EmptyPositions />
-      </Flex>
-    );
+    return <EmptyOrLoadingState />;
   }
-
-  const filteredPositions =
-    activeTab === "all"
-      ? sortedPositions
-      : (strategyGroups.get(Number(activeTab)) || []).sort(
-          (a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime(),
-        );
 
   return (
     <Flex
@@ -200,42 +283,14 @@ export function PaperPositionsTable() {
       <WatchlistScan snapshot={botSnapshot} selectedSymbol={selectedSymbol} />
 
       {positions.length > 0 && (
-        <Flex direction="column" flex={1} style={{ minHeight: 0 }}>
-          <Group
-            justify="space-between"
-            py={2}
-            className="paper-positions-header"
-            id="positions-header"
-          >
-            <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-              Positions ({positions.length})
-            </Text>
-            <Group gap="xs">
-              {positions.length > 0 && <CloseAllButton positions={positions} />}
-              <Badge color="red" variant="light" size="xs">
-                LIVE
-              </Badge>
-            </Group>
-          </Group>
-
-          {isMultiStrategy && (
-            <StrategyTabs
-              activeTab={activeTab}
-              strategyGroups={strategyGroups}
-              positions={positions}
-            />
-          )}
-
-          <ScrollArea flex={1} style={{ minHeight: 0 }}>
-            <div style={{ overflowX: "auto" }} data-testid="positions-table-container">
-              <PositionsTableBody positions={filteredPositions} selectedSymbol={selectedSymbol} />
-            </div>
-          </ScrollArea>
-
-          {isMultiStrategy && activeTab === "all" && (
-            <StrategySummaryFooter strategyGroups={strategyGroups} />
-          )}
-        </Flex>
+        <PositionsContent
+          positions={positions}
+          selectedSymbol={selectedSymbol}
+          strategyGroups={strategyGroups}
+          isMultiStrategy={isMultiStrategy}
+          activeTab={activeTab}
+          filteredPositions={filteredPositions}
+        />
       )}
 
       {positions.length === 0 && <EmptyPositions />}

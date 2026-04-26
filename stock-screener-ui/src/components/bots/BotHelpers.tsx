@@ -10,11 +10,24 @@ import {
   ActionIcon,
   Box,
 } from "@mantine/core";
-import { IconRefresh } from "@tabler/icons-react";
-import type { BotTrade, BotPosition, PortfolioSummary, StrategyStatus } from "../../types/bots";
+import {
+  IconRefresh,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconEye,
+  IconEdit,
+  IconTrash,
+} from "@tabler/icons-react";
+import type {
+  BotTrade,
+  BotPosition,
+  PortfolioSummary,
+  StrategyStatus,
+  BotConfig,
+} from "../../types/bots";
 import { formatNumber as formatNumberShared, getPnLTextColor } from "../../utils/ui-helpers";
-import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
-import { TINT_TEST_TRADE } from "../../config/colors";
+import { SideBadge, ExitReasonBadge, StatusBadge } from "../common/BadgeComponents";
+import { TINT_TEST_TRADE, BOT_RUNNING, BOT_STOPPED } from "../../config/colors";
 
 export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
   const pnlColor = getPnLTextColor(portfolio.total_pnl);
@@ -285,5 +298,183 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
         </Table>
       </Box>
     </Card>
+  );
+}
+
+interface BotActionButtonsProps {
+  bot: BotConfig;
+  onView: (bot: BotConfig) => void;
+  onStart: (botId: string) => Promise<void>;
+  onStop: (botId: string) => Promise<void>;
+  onEdit: (bot: BotConfig) => void;
+  onDelete: (botId: string) => Promise<void>;
+}
+
+export function BotActionButtons({
+  bot,
+  onView,
+  onStart,
+  onStop,
+  onEdit,
+  onDelete,
+}: BotActionButtonsProps) {
+  return (
+    <Group gap="xs">
+      <ActionIcon
+        variant="subtle"
+        color="blue"
+        onClick={() => onView(bot)}
+        title="View Status"
+        data-testid={`view-bot-status-btn-${bot.id}`}
+      >
+        <IconEye size={16} />
+      </ActionIcon>
+      {bot.running ? (
+        <ActionIcon
+          variant="subtle"
+          color="orange"
+          onClick={() => onStop(bot.id)}
+          title="Stop Bot"
+          data-testid={`stop-bot-btn-${bot.id}`}
+        >
+          <IconPlayerStop size={16} />
+        </ActionIcon>
+      ) : (
+        <ActionIcon
+          variant="subtle"
+          color="green"
+          onClick={() => onStart(bot.id)}
+          disabled={!bot.is_active}
+          title="Start Bot"
+          data-testid={`start-bot-btn-${bot.id}`}
+        >
+          <IconPlayerPlay size={16} />
+        </ActionIcon>
+      )}
+      <ActionIcon
+        variant="subtle"
+        color="blue"
+        onClick={() => onEdit(bot)}
+        title="Edit Bot"
+        data-testid={`edit-bot-btn-${bot.id}`}
+      >
+        <IconEdit size={16} />
+      </ActionIcon>
+      <ActionIcon
+        variant="subtle"
+        color="red"
+        onClick={() => onDelete(bot.id)}
+        disabled={bot.running}
+        title="Delete Bot"
+        data-testid={`delete-bot-btn-${bot.id}`}
+      >
+        <IconTrash size={16} />
+      </ActionIcon>
+    </Group>
+  );
+}
+
+interface BotSummaryCellProps {
+  bot: BotConfig;
+}
+
+export function BotSummaryCell({ bot }: BotSummaryCellProps) {
+  return (
+    <Stack gap={4}>
+      <Text size="sm">{bot.strategies.length} strategies</Text>
+      <Group gap="xs" wrap="wrap">
+        {bot.strategies.map((s) => (
+          <Badge key={s.id} size="sm" variant="light">
+            {s.strategy_type}
+          </Badge>
+        ))}
+      </Group>
+      {bot.strategies.map((s) => (
+        <Text key={`name-${s.id}`} size="xs" c="dimmed">
+          {s.name}
+        </Text>
+      ))}
+    </Stack>
+  );
+}
+
+export function getBotRowStyle(isSelected: boolean, bot: BotConfig): React.CSSProperties {
+  return {
+    backgroundColor: isSelected ? BOT_SELECTED_BG : undefined,
+  };
+}
+
+export function getBotIndicatorColor(running: boolean): string {
+  return running ? BOT_RUNNING : BOT_STOPPED;
+}
+
+interface BotRowProps {
+  bot: BotConfig;
+  isSelected: boolean;
+  onView: (bot: BotConfig) => void;
+  onStart: (botId: string) => Promise<void>;
+  onStop: (botId: string) => Promise<void>;
+  onEdit: (bot: BotConfig) => void;
+  onDelete: (botId: string) => Promise<void>;
+}
+
+export function BotRow({
+  bot,
+  isSelected,
+  onView,
+  onStart,
+  onStop,
+  onEdit,
+  onDelete,
+}: BotRowProps) {
+  return (
+    <Table.Tr
+      key={bot.id}
+      style={getBotRowStyle(isSelected, bot)}
+      data-testid={`bot-row-${bot.id}`}
+      className="bot-row"
+    >
+      <Table.Td>
+        <Group gap="xs">
+          <Box
+            w={8}
+            h={8}
+            style={{
+              borderRadius: "50%",
+              backgroundColor: getBotIndicatorColor(bot.running),
+            }}
+          />
+          <Text fw={500}>{bot.name}</Text>
+          {!bot.is_active && (
+            <Badge color="gray" size="sm" variant="light">
+              Inactive
+            </Badge>
+          )}
+        </Group>
+      </Table.Td>
+      <Table.Td>
+        <StatusBadge
+          running={bot.running}
+          pid={bot.pid ?? undefined}
+          statusUnknown={bot.status === "UNKNOWN"}
+          data-testid={`bot-status-${bot.id}`}
+        />
+      </Table.Td>
+      <Table.Td>
+        <BotSummaryCell bot={bot} />
+      </Table.Td>
+      <Table.Td>{bot.max_total_positions}</Table.Td>
+      <Table.Td>{(bot.max_total_capital_pct * 100).toFixed(0)}%</Table.Td>
+      <Table.Td>
+        <BotActionButtons
+          bot={bot}
+          onView={onView}
+          onStart={onStart}
+          onStop={onStop}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      </Table.Td>
+    </Table.Tr>
   );
 }
