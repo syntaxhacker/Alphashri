@@ -165,24 +165,27 @@ test.describe("Layout - Sidebar", () => {
     const initialBox = await navbar.boundingBox();
     expect(initialBox?.width).toBeGreaterThan(100);
 
-    // First collapse - locate fresh toggle, wait for stability, click, wait for width change
+    // First collapse - locate fresh toggle, wait for visibility, click, wait for width change
     let toggleBtn = page.locator('[data-testid="sidebar-collapse-toggle"]');
     await toggleBtn.scrollIntoViewIfNeeded();
-    await toggleBtn.waitFor({ state: "stable" });
+    await expect(toggleBtn).toBeVisible({ timeout: 10000 });
     await toggleBtn.click();
-    // Wait for navbar width to shrink
-    await expect(navbar).toHaveBoundingBox({ width: { max: 100 } }, { timeout: 10000 });
+    // Wait for navbar width to shrink (poll until condition)
+    await expect(async () => {
+      const box = await navbar.boundingBox();
+      expect(box?.width).toBeLessThanOrEqual(100);
+    }).toPass({ timeout: 10000 });
 
     // Expand - re-locate toggle after re-render
     toggleBtn = page.locator('[data-testid="sidebar-collapse-toggle"]');
     await toggleBtn.scrollIntoViewIfNeeded();
-    await toggleBtn.waitFor({ state: "stable" });
+    await expect(toggleBtn).toBeVisible({ timeout: 10000 });
     await toggleBtn.click();
     // Wait for navbar width to restore
-    await expect(navbar).toHaveBoundingBox({ width: { min: 100 } }, { timeout: 10000 });
-
-    const restoredBox = await navbar.boundingBox();
-    expect(restoredBox?.width).toBeGreaterThan(100);
+    await expect(async () => {
+      const box = await navbar.boundingBox();
+      expect(box?.width).toBeGreaterThan(100);
+    }).toPass({ timeout: 10000 });
   });
 
   test("when collapsed, navbar-links still exists", async ({ page }) => {

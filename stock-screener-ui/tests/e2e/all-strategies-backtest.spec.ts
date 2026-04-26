@@ -759,11 +759,11 @@ test.describe("Backtest - Trade Highlight on Click", () => {
     await runBacktestForStrategy(page, "ORB");
     const tradeHistoryPanel = page.locator('[data-testid="trade-history-panel"]');
     if (await tradeHistoryPanel.isVisible()) {
-      // Re-locate fresh before each action to avoid stale element references
       const firstRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
       if (await firstRow.isVisible()) {
         await firstRow.scrollIntoViewIfNeeded();
-        await firstRow.waitFor({ state: "stable" });
+        // Wait for row to be visible and stable after scroll
+        await expect(firstRow).toBeVisible({ timeout: 10000 });
         // Re-locate after scroll to ensure fresh handle
         const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
         await firstRowFresh.click();

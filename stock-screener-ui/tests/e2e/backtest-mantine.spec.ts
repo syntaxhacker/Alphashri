@@ -240,7 +240,8 @@ test.describe("Backtest - Mantine Features", () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.scrollIntoViewIfNeeded();
-          await firstTradeRow.waitFor({ state: "stable" });
+          // Wait for row to be visible and stable after scroll
+          await expect(firstTradeRow).toBeVisible({ timeout: 10000 });
           // Re-locate to get fresh handle after scroll
           const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
           await firstRowFresh.click();
@@ -258,7 +259,8 @@ test.describe("Backtest - Mantine Features", () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.scrollIntoViewIfNeeded();
-          await firstTradeRow.waitFor({ state: "stable" });
+          // Wait for row to be visible and stable after scroll
+          await expect(firstTradeRow).toBeVisible({ timeout: 10000 });
           // Re-locate to get fresh handle after scroll
           const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
           await firstRowFresh.click();
@@ -277,7 +279,8 @@ test.describe("Backtest - Mantine Features", () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
           await firstTradeRow.scrollIntoViewIfNeeded();
-          await firstTradeRow.waitFor({ state: "stable" });
+          // Wait for row to be visible and stable after scroll
+          await expect(firstTradeRow).toBeVisible({ timeout: 10000 });
           // Re-locate to get fresh handle after scroll
           const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
           await firstRowFresh.click();

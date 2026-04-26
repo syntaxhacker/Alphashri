@@ -266,7 +266,7 @@ test.describe("News Page - Article Detail", () => {
       .filter({ hasText: "Reliance" })
       .first();
     await newsItem.scrollIntoViewIfNeeded();
-    await newsItem.waitFor({ state: "stable" });
+    await expect(newsItem).toBeVisible({ timeout: 10000 });
     await newsItem.click();
     await expect(page.locator("text=Stocks mentioned")).toBeVisible({ timeout: 10000 });
   });
@@ -276,7 +276,7 @@ test.describe("News Page - Article Detail", () => {
     await gotoNewsPage(page);
     const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
     await firstNewsItem.scrollIntoViewIfNeeded();
-    await firstNewsItem.waitFor({ state: "stable" });
+    await expect(firstNewsItem).toBeVisible({ timeout: 10000 });
     await firstNewsItem.click();
     await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 10000 });
   });
@@ -286,13 +286,13 @@ test.describe("News Page - Article Detail", () => {
     await gotoNewsPage(page);
     const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
     await firstNewsItem.scrollIntoViewIfNeeded();
-    await firstNewsItem.waitFor({ state: "stable" });
+    await expect(firstNewsItem).toBeVisible({ timeout: 10000 });
     await firstNewsItem.click();
     await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 10000 });
 
     const closeBtn = page.locator('[data-testid="close-article-btn"]');
     await closeBtn.scrollIntoViewIfNeeded();
-    await closeBtn.waitFor({ state: "stable" });
+    await expect(closeBtn).toBeVisible({ timeout: 10000 });
     await closeBtn.click();
 
     const firstItemAfterBack = page.locator('[data-testid="news-list-item"]').first();
