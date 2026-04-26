@@ -12,6 +12,8 @@ interface OrbSettingsSectionProps {
 }
 
 export function OrbSettingsSection({ config, onChange }: OrbSettingsSectionProps) {
+  const slPctError = config.sl_pct < 0.1 || config.sl_pct > 5;
+
   return (
     <Stack gap="xs" className="paper-settings-section" id="orb-section">
       <Text fw={600} size="xs" tt="uppercase" mb="xs">
@@ -44,6 +46,7 @@ export function OrbSettingsSection({ config, onChange }: OrbSettingsSectionProps
             step={0.1}
             size="xs"
             style={{ width: "100%" }}
+            error={slPctError ? "Invalid stop loss percentage" : undefined}
             errorProps={{ "data-testid": "config-sl-pct-error" }}
           />
         </Grid.Col>

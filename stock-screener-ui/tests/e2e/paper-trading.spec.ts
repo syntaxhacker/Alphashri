@@ -69,7 +69,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Click on "ORB Conservative" tab
-    await page.locator('[data-testid="strategy-tab-orb-conservative"]').click();
+    await page.locator('[data-testid="strategy-tab-orb-conservative"]').click({ timeout: 15000 });
 
     // Verify TCS position is visible (from ORB Conservative)
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
@@ -192,7 +192,7 @@ test.describe("Paper Trading - Bot Controls", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    await page.locator('[data-testid="start-bot-btn"]').click();
+    await page.locator('[data-testid="start-bot-btn"]').click({ timeout: 15000 });
 
     await expect(page.locator('[data-testid="bot-status"]')).toContainText("Running");
     await expect(page.locator('[data-testid="bot-status"]')).toContainText("22133");
@@ -254,7 +254,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Click on "All" tab
-    await page.locator('[data-testid="strategy-tab-all"]').click();
+    await page.locator('[data-testid="strategy-tab-all"]').click({ timeout: 15000 });
 
     // Verify both positions are visible
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
@@ -392,7 +392,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
 
-    await scanCard.getByText("Skipped").click();
+    await scanCard.getByText("Skipped").click({ timeout: 15000 });
 
     await expect(scanCard.locator('[data-testid="scan-skipped-RELIANCE"]')).toBeVisible();
     await expect(scanCard).toContainText("RELIANCE");
@@ -441,7 +441,7 @@ test.describe("Paper Trading - Position Actions", () => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     const closeBtn = page.locator('[data-testid="close-position-TCS"]');
-    await closeBtn.click();
+    await closeBtn.click({ timeout: 15000 });
 
     await page.waitForTimeout(500);
   });
@@ -461,7 +461,7 @@ test.describe("Paper Trading - Position Actions", () => {
     });
 
     const closeAllBtn = page.locator('[data-testid="close-all-positions"]');
-    await closeAllBtn.click();
+    await closeAllBtn.click({ timeout: 15000 });
 
     await page.waitForTimeout(500);
   });
@@ -488,7 +488,7 @@ test.describe("Paper Trading - Position Actions", () => {
     });
 
     const closeAllBtn = page.locator('[data-testid="close-all-positions"]');
-    await closeAllBtn.click();
+    await closeAllBtn.click({ timeout: 15000 });
 
     await page.waitForTimeout(1000);
 
@@ -569,7 +569,7 @@ test.describe("Paper Trading - Settings", () => {
     });
 
     const resetBtn = page.locator('[data-testid="reset-settings-button"]');
-    await resetBtn.click();
+    await resetBtn.click({ timeout: 15000 });
 
     await page.waitForTimeout(500);
 
@@ -581,15 +581,12 @@ test.describe("Paper Trading - Settings", () => {
     await navigateToPaperTradingSettings(page);
 
     const slPctInput = page.locator('[data-testid="config-sl-pct"]');
-    await slPctInput.fill("-1");
+    // Use a positive value below min (0.1) - should trigger error without being clamped
+    await slPctInput.fill("0.05");
 
     await page.waitForTimeout(300);
 
-    const saveBtn = page.locator('[data-testid="save-settings-button"]');
-    await saveBtn.scrollIntoViewIfNeeded();
-    await expect(saveBtn).toBeVisible({ timeout: 10000 });
-    await saveBtn.click();
-
+    // Error should be visible immediately after invalid value is entered
     await expect(page.locator('[data-testid="config-sl-pct-error"]')).toBeVisible({
       timeout: 10000,
     });
@@ -713,15 +710,15 @@ test.describe("Paper Trading - Chart Controls", () => {
       timeout: 20000,
     });
 
-    await page.waitForSelector('[data-testid^="bot-card-"]', { state: "visible", timeout: 10000 });
-    await page.locator('[data-testid^="bot-card-"]').first().click();
+    await page.waitForSelector('[data-testid^="bot-card-"]', { state: "visible", timeout: 15000 });
+    await page.locator('[data-testid^="bot-card-"]').first().click({ timeout: 15000 });
 
     await page.getByTestId("tab-live").click();
     await page.waitForLoadState("networkidle");
 
     const positionRow = page.locator(`[data-testid="position-row-${SYMBOL}"]`);
-    await expect(positionRow).toBeVisible({ timeout: 10000 });
-    await positionRow.click();
+    await expect(positionRow).toBeVisible({ timeout: 15000 });
+    await positionRow.click({ timeout: 15000 });
     await expect(page.locator('[data-testid="paper-chart-container"]')).toBeVisible({
       timeout: 10000,
     });

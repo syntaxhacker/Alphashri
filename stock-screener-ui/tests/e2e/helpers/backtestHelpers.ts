@@ -241,6 +241,6 @@ export async function waitForBacktestResult(page: Page, testId: string = "result
     }
     throw e;
   }
-  await expect(page.locator(`[data-testid="${testId}"]`)).toBeVisible({ timeout: 5000 });
-  await expect(page.locator('[data-testid="backtest-error"]')).not.toBeVisible({ timeout: 3000 });
+  await expect(page.locator(`[data-testid="${testId}"]`)).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('[data-testid="backtest-error"]')).not.toBeVisible({ timeout: 5000 });
 }

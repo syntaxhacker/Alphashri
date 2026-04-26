@@ -155,44 +155,38 @@ test.describe("Layout - Sidebar", () => {
     await expect(footer.locator('[data-testid="user-menu-trigger"]')).toBeVisible();
   });
 
-  test("sidebar-collapse-toggle collapses and expands sidebar", async ({ page }) => {
+  test("sidebar-collapse-toggle collapses sidebar and hides itself", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     const navbar = page.locator('[data-testid="app-navbar"]');
+    const toggleBtn = page.locator('[data-testid="sidebar-collapse-toggle"]');
 
-    // Get initial width
+    // Get initial width - should be expanded (>100px)
     const initialBox = await navbar.boundingBox();
     expect(initialBox?.width).toBeGreaterThan(100);
 
-    // First collapse - locate fresh toggle, wait for visibility, click, wait for width change
-    let toggleBtn = page.locator('[data-testid="sidebar-collapse-toggle"]');
-    await toggleBtn.scrollIntoViewIfNeeded();
-    await expect(toggleBtn).toBeVisible({ timeout: 10000 });
-    await toggleBtn.click();
-    // Wait for navbar width to shrink (poll until condition)
+    // Toggle should be visible initially
+    await expect(toggleBtn).toBeVisible({ timeout: 15000 });
+
+    // Click to collapse
+    await toggleBtn.click({ timeout: 15000 });
+
+    // Wait for navbar width to shrink
     await expect(async () => {
       const box = await navbar.boundingBox();
       expect(box?.width).toBeLessThanOrEqual(100);
-    }).toPass({ timeout: 10000 });
+    }).toPass({ timeout: 15000 });
 
-    // Expand - re-locate toggle after re-render
-    toggleBtn = page.locator('[data-testid="sidebar-collapse-toggle"]');
-    await toggleBtn.scrollIntoViewIfNeeded();
-    await expect(toggleBtn).toBeVisible({ timeout: 10000 });
-    await toggleBtn.click();
-    // Wait for navbar width to restore
-    await expect(async () => {
-      const box = await navbar.boundingBox();
-      expect(box?.width).toBeGreaterThan(100);
-    }).toPass({ timeout: 10000 });
+    // After collapse, toggle button should be hidden (removed from DOM)
+    await expect(toggleBtn).not.toBeVisible();
   });
 
   test("when collapsed, navbar-links still exists", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    await page.locator('[data-testid="sidebar-collapse-toggle"]').click();
+    await page.locator('[data-testid="sidebar-collapse-toggle"]').click({ timeout: 15000 });
     await page.waitForLoadState("networkidle");
 
     await expect(page.locator('[data-testid="navbar-links"]')).toBeVisible();

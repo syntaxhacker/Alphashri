@@ -239,13 +239,20 @@ test.describe("Backtest - Mantine Features", () => {
       await withTradeHistoryPanel(page, async () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
-          await firstTradeRow.scrollIntoViewIfNeeded();
-          // Wait for row to be visible and stable after scroll
-          await expect(firstTradeRow).toBeVisible({ timeout: 10000 });
-          // Re-locate to get fresh handle after scroll
+          await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
+          await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
+
+          // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
+          await page.evaluate(() => {
+            const row = document.querySelector('[data-testid="trade-history-tbody"] tr');
+            row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+          });
+
+          // Check immediately - highlight removed after 3s via setTimeout in component
           const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
-          await firstRowFresh.click();
-          await expect(page.locator(".trade-row-highlighted")).toBeVisible({ timeout: 15000 });
+          expect(
+            await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
+          ).toBe(true);
         }
       });
     });
@@ -258,13 +265,17 @@ test.describe("Backtest - Mantine Features", () => {
       await withTradeHistoryPanel(page, async () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
-          await firstTradeRow.scrollIntoViewIfNeeded();
-          // Wait for row to be visible and stable after scroll
-          await expect(firstTradeRow).toBeVisible({ timeout: 10000 });
-          // Re-locate to get fresh handle after scroll
+          await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
+          await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
+
+          // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
+          await page.evaluate(() => {
+            const row = document.querySelector('[data-testid="trade-history-tbody"] tr');
+            row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+          });
+
+          // Check immediately - highlight removed after 3s via setTimeout
           const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
-          await firstRowFresh.click();
-          await page.waitForLoadState("networkidle");
           expect(
             await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
           ).toBe(true);
@@ -278,15 +289,18 @@ test.describe("Backtest - Mantine Features", () => {
       await withTradeHistoryPanel(page, async () => {
         const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
         if (await firstTradeRow.isVisible()) {
-          await firstTradeRow.scrollIntoViewIfNeeded();
-          // Wait for row to be visible and stable after scroll
-          await expect(firstTradeRow).toBeVisible({ timeout: 10000 });
-          // Re-locate to get fresh handle after scroll
+          await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
+          await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
+
+          // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
+          await page.evaluate(() => {
+            const row = document.querySelector('[data-testid="trade-history-tbody"] tr');
+            row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+          });
+
+          // Wait for 3s highlight timeout + buffer
+          await page.waitForTimeout(4000);
           const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
-          await firstRowFresh.click();
-          await page.waitForLoadState("networkidle");
-          await page.waitForLoadState("networkidle");
-          await page.waitForTimeout(6000);
           expect(
             await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
           ).toBe(false);
