@@ -1,100 +1,57 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { fetchSectorPerformance } from "../../api/sector";
-import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
-import { detectSectorAlerts, detectIntervalMovers } from "./sectorUtils";
-import type { SectorAlert, InternalStockMover } from "./sectorUtils";
+import { useState, useCallback } from "react";
+import type { SectorResponse, SectorAlert, InternalStockMover } from "./sectorUtils";
 
-function processSectorResponse(
-  response: SectorResponse,
-  prevSectorData: Record<string, number>,
-  prevStockData: Record<string, number>,
-  setAlerts: React.Dispatch<React.SetStateAction<SectorAlert[]>>,
-  setIntervalMovers: React.Dispatch<React.SetStateAction<InternalStockMover[]>>,
-) {
-  const sectors = response.sectors ?? [];
-  const newAlerts = detectSectorAlerts(sectors, prevSectorData);
-  sectors.forEach((item: SectorItem) => {
-    prevSectorData[item.sector] = item.avg_change;
-  });
-  if (newAlerts.length > 0) {
-    setAlerts((prev) => [...newAlerts, ...prev].slice(0, 10));
-  }
-  const stockMovers = response.top_stock_movers ?? [];
-  const newIntervalMovers = detectIntervalMovers(stockMovers, prevStockData);
-  stockMovers.forEach((item: StockMover) => {
-    prevStockData[item.symbol] = item.change;
-  });
-  if (newIntervalMovers.length > 0) {
-    setIntervalMovers(newIntervalMovers.slice(0, 10));
-  }
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+
+interface UseSectorDataReturn {
+  market: "india" | "america";
+  setMarket: (m: "india" | "america") => void;
+  activeTab: string | null;
+  setActiveTab: (t: string | null) => void;
+  data: SectorResponse | null;
+  loading: boolean;
+  error: string | null;
+  loadData: (market: string) => Promise<void>;
+  alerts: SectorAlert[];
+  intervalMovers: InternalStockMover[];
 }
 
-export function useSectorData() {
-  const [data, setData] = useState<SectorResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function useSectorData(): UseSectorDataReturn {
   const [market, setMarket] = useState<"india" | "america">("india");
   const [activeTab, setActiveTab] = useState<string | null>("dashboard");
+  const [data, setData] = useState<SectorResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<SectorAlert[]>([]);
   const [intervalMovers, setIntervalMovers] = useState<InternalStockMover[]>([]);
-  const prevSectorDataRef = useRef<Record<string, number>>({});
-  const prevStockDataRef = useRef<Record<string, number>>({});
-  const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadData = useCallback(async (mkt: string) => {
+  const loadData = useCallback(async (m: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchSectorPerformance(mkt);
-      processSectorResponse(
-        res,
-        prevSectorDataRef.current,
-        prevStockDataRef.current,
-        setAlerts,
-        setIntervalMovers,
-      );
-      setData(res);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load sector data");
+      const res = await fetch(`${API_BASE}/sector/data?market=${m}`);
+      if (!res.ok) throw new Error("Failed to fetch sector data");
+      const json = await res.json();
+      setData(json.data);
+      setAlerts(json.alerts || []);
+      setIntervalMovers(json.interval_movers || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to fetch sector data");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    prevSectorDataRef.current = {};
-    prevStockDataRef.current = {};
-    setAlerts([]);
-    setIntervalMovers([]);
-    loadData(market);
-    if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
-    let liveCount = 0;
-    const fast = setInterval(() => {
-      liveCount++;
-      loadData(market);
-      if (liveCount >= 5) {
-        clearInterval(fast);
-        liveTimeoutRef.current = null;
-      }
-    }, 1000);
-    const slow = setInterval(() => loadData(market), 60000);
-    return () => {
-      clearInterval(fast);
-      clearInterval(slow);
-      if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
-    };
-  }, [market, loadData]);
-
   return {
-    data,
-    loading,
-    error,
     market,
     setMarket,
     activeTab,
     setActiveTab,
+    data,
+    loading,
+    error,
+    loadData,
     alerts,
     intervalMovers,
-    loadData,
   };
 }

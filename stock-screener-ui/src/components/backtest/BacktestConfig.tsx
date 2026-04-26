@@ -252,6 +252,7 @@ export function BacktestConfig({
                   onClick={onRun}
                   disabled={isRunning || selectedSymbols.length === 0}
                   leftSection={<IconPlayerPlay size={14} />}
+                  data-testid="menu-run-backtest"
                 >
                   Run Backtest
                 </Menu.Item>
@@ -259,6 +260,7 @@ export function BacktestConfig({
                   onClick={handleRunAndSave}
                   disabled={isRunning || selectedSymbols.length === 0}
                   leftSection={<IconPlayerPlay size={14} />}
+                  data-testid="menu-run-save"
                 >
                   Run & Save to History
                 </Menu.Item>

@@ -9,8 +9,11 @@ import { API_BASE } from "./config";
 
 const SECTOR_API_BASE = `${API_BASE}/api/sector`;
 
-export async function fetchSectorPerformance(market: string = "india"): Promise<SectorResponse> {
-  const response = await fetchWithAuth(`${SECTOR_API_BASE}?market=${market}`);
+export async function fetchSectorPerformance(
+  market: string = "india",
+  signal?: AbortSignal,
+): Promise<SectorResponse> {
+  const response = await fetchWithAuth(`${SECTOR_API_BASE}?market=${market}`, { signal });
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || "Failed to fetch sector performance");

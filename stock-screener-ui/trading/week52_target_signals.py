@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 
 from trading.orb_signals import ORBSignal, SignalType
 from trading.base_signals import BaseSignalGenerator
+from trading.week52_utils import calculate_52w_high
 
 
 class Week52TargetSignalGenerator(BaseSignalGenerator):
@@ -35,13 +36,18 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         high_52w = market_data.get("high_52w")
         daily_highs: List[float] = market_data.get("daily_highs", [])
 
-        if current_price is None or high_52w is None:
+        if current_price is None:
             return None
 
-        calculated_high = high_52w
+        # Calculate 52W high from daily highs if available, otherwise use high_52w from market data
+        calculated_high = None
         if daily_highs:
-            window = daily_highs[-252:]
-            calculated_high = max(window)
+            calculated_high = calculate_52w_high(daily_highs)
+        elif high_52w is not None:
+            calculated_high = high_52w
+
+        if calculated_high is None:
+            return None
 
         entry_threshold = calculated_high * (1 - self.entry_threshold_pct / 100)
 
@@ -50,7 +56,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
 
         stop_loss = round(current_price * (1 - self.sl_pct / 100), 2)
         # TP intentionally unreachable; exits managed entirely by trailing stop.
-        take_profit = round(current_price * 10, 2)
+        take_profit = round(current_price * 2, 2)
 
         return self.create_signal(
             symbol=symbol,
@@ -59,8 +65,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
             stop_loss=stop_loss,
             take_profit=take_profit,
             or_high=round(calculated_high, 2),
-            notes=f"52W Target entry: price={current_price:.2f}, 52W high={calculated_high:.2f}, "
-                  f"within {self.entry_threshold_pct}% threshold",
+            notes=f"52W Target: ₹{current_price:.2f} within {self.entry_threshold_pct}% of 52W high ₹{calculated_high:.2f} | SL {self.sl_pct}% trail {self.trailing_stop_pct}%",
         )
 
     def check_exit(
@@ -101,11 +106,12 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         if exit_reason is None:
             return None
 
+        pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
         return self.create_signal(
             symbol=symbol,
             signal_type=SignalType.LONG_EXIT,
             price=round(current_price, 2),
             stop_loss=stop_loss,
             take_profit=take_profit,
-            notes=f"52W Target exit: {exit_reason}",
+            notes=f"52W Target exit: {exit_reason} (PnL: {pnl_pct:+.2f}%)",
         )

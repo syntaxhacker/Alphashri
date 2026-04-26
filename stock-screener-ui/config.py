@@ -10,11 +10,10 @@ IST = timezone(timedelta(hours=5, minutes=30))
 BASE_DIR = Path(__file__).parent.absolute()
 
 # Load environment variables from .env.local if it exists
-for env_name in ['.env.local', '.env.dev']:
+for env_name in ['.env.local', '.env.dev', '.env']:
     env_file = BASE_DIR / env_name
     if env_file.exists():
-        load_dotenv(env_file)
-        break
+        load_dotenv(env_file, override=False)
 
 # --- Server Config ---
 PORT = int(os.getenv("PORT", 8765))

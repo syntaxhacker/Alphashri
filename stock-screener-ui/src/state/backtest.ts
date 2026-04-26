@@ -217,6 +217,7 @@ export function setParam(key: string, value: number | string | boolean) {
   state = {
     ...state,
     params: { ...state.params, [key]: value },
+    selectedVariation: null,
   };
   notify();
 }
@@ -225,6 +226,15 @@ export function setParams(params: Record<string, number | string | boolean>) {
   state = {
     ...state,
     params: { ...params },
+    selectedVariation: null,
+  };
+  notify();
+}
+
+export function setParamsKeepVariation(params: Record<string, number | string | boolean>) {
+  state = {
+    ...state,
+    params: { ...state.params, ...params },
   };
   notify();
 }

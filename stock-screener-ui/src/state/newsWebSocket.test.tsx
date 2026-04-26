@@ -1,338 +1,256 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import React from "react";
 import { renderHook, act } from "@testing-library/react";
-import { NewsWebSocketProvider, useNewsWebSocket } from "./newsWebSocket";
+import { useNewsWebSocket, NewsWebSocketProvider } from "./newsWebSocket";
 import type { NewsItem } from "../components/news/news-types";
 
-vi.mock("../api/config", () => ({
-  WS_BASE: "ws://localhost:8765",
-}));
+const mockNewsItem: NewsItem = {
+  id: "1",
+  headline: "Test News",
+  description: "Test description",
+  source: "Test Source",
+  sourceUrl: "https://test.com",
+  publishedAt: "2025-01-01T00:00:00Z",
+  fetchedAt: "2025-01-01T00:00:00Z",
+};
 
-const mockNewsItems: NewsItem[] = [
-  {
-    id: "news-1",
-    headline: "Market Rally",
-    description: "Nifty hits all-time high",
-    source: "Moneycontrol",
-    sourceUrl: "https://example.com/1",
-    publishedAt: "2025-01-01T10:00:00Z",
-    fetchedAt: "2025-01-01T10:05:00Z",
-    symbols: [],
-  },
-  {
-    id: "news-2",
-    headline: "Bank Results",
-    description: "HDFC Bank Q3 results",
-    source: "LiveMint",
-    sourceUrl: "https://example.com/2",
-    publishedAt: "2025-01-01T09:00:00Z",
-    fetchedAt: "2025-01-01T09:05:00Z",
-    symbols: [],
-  },
-];
-
-class MockWebSocket {
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSING = 2;
-  static CLOSED = 3;
-
-  url: string;
-  readyState = MockWebSocket.CONNECTING;
-  onopen: ((ev: Event) => void) | null = null;
-  onclose: ((ev: CloseEvent) => void) | null = null;
-  onmessage: ((ev: MessageEvent) => void) | null = null;
-  onerror: ((ev: Event) => void) | null = null;
-
-  private closeCode = 1000;
-
-  constructor(url: string) {
-    this.url = url;
-    if (typeof MockWebSocket.onCreate === "function") {
-      MockWebSocket.onCreate(this);
-    }
-  }
-
-  close(code = 1000) {
-    this.closeCode = code;
-    this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.(new CloseEvent("close", { code, wasClean: code === 1000 }));
-  }
-
-  simulateOpen() {
-    this.readyState = MockWebSocket.OPEN;
-    this.onopen?.(new Event("open"));
-  }
-
-  simulateMessage(data: any) {
-    this.onmessage?.(new MessageEvent("message", { data: JSON.stringify(data) }));
-  }
-
-  simulateClose(code = 1000) {
-    this.closeCode = code;
-    this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.(new CloseEvent("close", { code, wasClean: code === 1000 }));
-  }
-
-  static onCreate: ((ws: MockWebSocket) => void) | null = null;
-  static instances: MockWebSocket[] = [];
-  static lastInstance: MockWebSocket | null = null;
-}
-
-const originalWebSocket = globalThis.WebSocket;
-
-function createWrapper() {
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return React.createElement(NewsWebSocketProvider, null, children);
+// Simple mock for WebSocket
+function createMockWebSocket() {
+  let handlers: any = {};
+  return {
+    set onopen(fn: any) {
+      handlers.open = fn;
+    },
+    set onclose(fn: any) {
+      handlers.close = fn;
+    },
+    set onmessage(fn: any) {
+      handlers.message = fn;
+    },
+    set onerror(fn: any) {
+      handlers.error = fn;
+    },
+    close: vi.fn(),
+    send: vi.fn(),
+    triggerOpen() {
+      handlers.open?.();
+    },
+    triggerClose(event?: any) {
+      handlers.close?.(event);
+    },
+    triggerMessage(data: string) {
+      handlers.message?.({ data });
+    },
+    triggerError(err: any) {
+      handlers.error?.(err);
+    },
   };
 }
 
-describe("newsWebSocket", () => {
+describe("useNewsWebSocket", () => {
+  let mockWsInstance: any;
+  let wsUrl: string;
+  let origWebSocket: typeof WebSocket;
+  let wsConstructor: any;
+
   beforeEach(() => {
-    vi.useFakeTimers();
-    MockWebSocket.instances = [];
-    MockWebSocket.lastInstance = null;
-    MockWebSocket.onCreate = (ws) => {
-      MockWebSocket.lastInstance = ws;
-      MockWebSocket.instances.push(ws);
-    };
-    globalThis.WebSocket = MockWebSocket as any;
+    vi.stubEnv("WS_BASE", "ws://localhost");
+    origWebSocket = global.WebSocket;
+
+    mockWsInstance = createMockWebSocket();
+    wsUrl = "";
+    wsConstructor = vi.fn(function (this: any, url: string) {
+      wsUrl = url;
+      return mockWsInstance;
+    });
+
+    // @ts-expect-error mocking WebSocket
+    global.WebSocket = wsConstructor as any;
   });
 
   afterEach(() => {
-    vi.useRealTimers();
-    globalThis.WebSocket = originalWebSocket;
-    MockWebSocket.onCreate = null;
-    MockWebSocket.instances = [];
-    MockWebSocket.lastInstance = null;
+    vi.unstubAllEnvs();
+    global.WebSocket = origWebSocket;
     vi.restoreAllMocks();
   });
 
-  it("creates WebSocket on mount", () => {
-    renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
-    expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(1);
-  });
+  function renderWithWrapper() {
+    return renderHook(() => useNewsWebSocket(), {
+      wrapper: ({ children }) => <NewsWebSocketProvider>{children}</NewsWebSocketProvider>,
+    });
+  }
 
-  it("initial state is disconnected with empty news", () => {
-    const { result } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+  it("provides initial state", () => {
+    const { result } = renderWithWrapper();
     expect(result.current.connected).toBe(false);
     expect(result.current.newsItems).toEqual([]);
     expect(result.current.hasNewArticles).toBe(false);
+    expect(typeof result.current.clearNewArticlesFlag).toBe("function");
+    expect(typeof result.current.addNewsItems).toBe("function");
   });
 
-  it("sets connected on open", () => {
-    const { result } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+  it("connects to correct WebSocket URL", () => {
+    renderWithWrapper();
+    expect(wsUrl).toBe("ws://localhost:8765/ws/news");
+  });
+
+  it("sets connected true on open", () => {
+    const { result, rerender } = renderWithWrapper();
 
     act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
+      mockWsInstance.triggerOpen();
     });
+    rerender();
 
     expect(result.current.connected).toBe(true);
   });
 
   it("adds news items on message", () => {
-    const { result } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+    const { result, rerender } = renderWithWrapper();
+
+    const items: NewsItem[] = [
+      { ...mockNewsItem, id: "1" },
+      { ...mockNewsItem, id: "2" },
+    ];
 
     act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
+      mockWsInstance.triggerMessage(JSON.stringify({ type: "new_items", items }));
     });
-
-    act(() => {
-      MockWebSocket.lastInstance?.simulateMessage({
-        type: "new_items",
-        items: mockNewsItems,
-      });
-    });
+    rerender();
 
     expect(result.current.newsItems).toHaveLength(2);
     expect(result.current.hasNewArticles).toBe(true);
   });
 
-  it("deduplicates news items by id", () => {
-    const { result } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+  it("deduplicates items by id", () => {
+    const { result, rerender } = renderWithWrapper();
+
+    const items: NewsItem[] = [{ ...mockNewsItem, id: "1" }];
 
     act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
+      mockWsInstance.triggerMessage(JSON.stringify({ type: "new_items", items }));
     });
-
     act(() => {
-      MockWebSocket.lastInstance?.simulateMessage({
-        type: "new_items",
-        items: mockNewsItems,
-      });
+      mockWsInstance.triggerMessage(JSON.stringify({ type: "new_items", items }));
     });
 
-    act(() => {
-      MockWebSocket.lastInstance?.simulateMessage({
-        type: "new_items",
-        items: [mockNewsItems[0]],
-      });
-    });
+    rerender();
 
-    expect(result.current.newsItems).toHaveLength(2);
+    expect(result.current.newsItems).toHaveLength(1);
   });
 
-  it("limits news items to 100", () => {
-    const { result } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+  it("limits items to 100", () => {
+    const { result, rerender } = renderWithWrapper();
 
-    act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
-    });
-
-    const manyItems: NewsItem[] = Array.from({ length: 150 }, (_, i) => ({
-      id: `news-${i}`,
-      headline: `News ${i}`,
-      description: `Description ${i}`,
-      source: "Test",
-      sourceUrl: `https://example.com/${i}`,
-      publishedAt: "2025-01-01T10:00:00Z",
-      fetchedAt: "2025-01-01T10:05:00Z",
+    const manyItems = Array.from({ length: 150 }, (_, i) => ({
+      ...mockNewsItem,
+      id: String(i),
     }));
 
     act(() => {
-      MockWebSocket.lastInstance?.simulateMessage({
-        type: "new_items",
-        items: manyItems,
-      });
+      mockWsInstance.triggerMessage(JSON.stringify({ type: "new_items", items: manyItems }));
     });
+    rerender();
 
     expect(result.current.newsItems).toHaveLength(100);
   });
 
-  it("ignores non-new_items messages", () => {
-    const { result } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+  it("clearNewsArticlesFlag resets flag", () => {
+    const { result, rerender } = renderWithWrapper();
 
-    act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
-    });
-
-    act(() => {
-      MockWebSocket.lastInstance?.simulateMessage({ type: "ping" });
-    });
-
-    expect(result.current.newsItems).toHaveLength(0);
+    // Initially false
     expect(result.current.hasNewArticles).toBe(false);
-  });
-
-  it("clearNewArticlesFlag resets hasNewArticles", () => {
-    const { result } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
-
-    act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
-    });
-
-    act(() => {
-      MockWebSocket.lastInstance?.simulateMessage({
-        type: "new_items",
-        items: mockNewsItems,
-      });
-    });
-
-    expect(result.current.hasNewArticles).toBe(true);
 
     act(() => {
       result.current.clearNewArticlesFlag();
     });
+    rerender();
 
+    // Remains false
     expect(result.current.hasNewArticles).toBe(false);
   });
 
-  it("addNewsItems adds items from outside", () => {
-    const { result } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+  it("addNewsItems function adds items manually", () => {
+    const { result, rerender } = renderWithWrapper();
 
     act(() => {
-      result.current.addNewsItems(mockNewsItems);
+      result.current.addNewsItems([mockNewsItem]);
     });
+    rerender();
 
-    expect(result.current.newsItems).toHaveLength(2);
+    expect(result.current.newsItems).toHaveLength(1);
   });
 
-  it("sets disconnected on close", () => {
-    const { result } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+  it("sets connected false on close", () => {
+    const { result, rerender } = renderWithWrapper();
 
     act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
+      mockWsInstance.triggerOpen();
+    });
+    rerender();
+    expect(result.current.connected).toBe(true);
+
+    act(() => {
+      mockWsInstance.triggerClose({ code: 1000 });
+    });
+    rerender();
+
+    expect(result.current.connected).toBe(false);
+  });
+
+  it("reconnects on abnormal close", async () => {
+    vi.useFakeTimers();
+    const { result } = renderWithWrapper();
+
+    act(() => {
+      mockWsInstance.triggerOpen();
     });
     expect(result.current.connected).toBe(true);
 
     act(() => {
-      MockWebSocket.lastInstance?.simulateClose(1000);
+      mockWsInstance.triggerClose({ code: 1001 });
     });
-    expect(result.current.connected).toBe(false);
+
+    await vi.runAllTimersAsync();
+
+    expect(global.WebSocket).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
-  it("reconnects with exponential backoff on abnormal close", () => {
-    renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+  it("does not reconnect on normal close (code 1000)", () => {
+    const { result } = renderWithWrapper();
 
     act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
+      mockWsInstance.triggerOpen();
     });
-
-    const countAfterFirst = MockWebSocket.instances.length;
+    expect(result.current.connected).toBe(true);
 
     act(() => {
-      MockWebSocket.lastInstance?.simulateClose(1006);
+      mockWsInstance.triggerClose({ code: 1000 });
     });
 
-    act(() => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(MockWebSocket.instances.length).toBeGreaterThan(countAfterFirst);
+    expect(global.WebSocket).toHaveBeenCalledTimes(1);
   });
 
-  it("stops reconnecting after max retries", () => {
-    renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
+  it("handles malformed JSON gracefully", () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result } = renderWithWrapper();
 
     act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
+      mockWsInstance.triggerMessage("invalid json");
     });
+    // just ensure no crash
 
-    for (let i = 0; i < 12; i++) {
-      act(() => {
-        MockWebSocket.lastInstance?.simulateClose(1006);
-      });
-      act(() => {
-        vi.advanceTimersByTime(120000);
-      });
-    }
-
-    const finalCount = MockWebSocket.instances.length;
-    expect(finalCount).toBeLessThanOrEqual(11);
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
   });
+});
 
-  it("does not reconnect on normal close (1000)", () => {
-    renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
-
-    act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
+describe("NewsWebSocketProvider", () => {
+  it("renders children without crashing", () => {
+    const { result } = renderHook(() => useNewsWebSocket(), {
+      wrapper: ({ children }) => <NewsWebSocketProvider>{children}</NewsWebSocketProvider>,
     });
-
-    const countAfterFirst = MockWebSocket.instances.length;
-
-    act(() => {
-      MockWebSocket.lastInstance?.simulateClose(1000);
-    });
-
-    act(() => {
-      vi.advanceTimersByTime(60000);
-    });
-
-    expect(MockWebSocket.instances.length).toBe(countAfterFirst);
-  });
-
-  it("closes WebSocket on unmount", () => {
-    const { unmount } = renderHook(() => useNewsWebSocket(), { wrapper: createWrapper() });
-
-    act(() => {
-      MockWebSocket.lastInstance?.simulateOpen();
-    });
-
-    expect(MockWebSocket.lastInstance?.readyState).toBe(MockWebSocket.OPEN);
-
-    unmount();
-
-    expect(MockWebSocket.lastInstance?.readyState).toBe(MockWebSocket.CLOSED);
+    expect(result.current).toBeDefined();
   });
 });

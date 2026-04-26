@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
 
+import config
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Query
 from api.auth import get_current_user
@@ -74,8 +75,8 @@ async def get_chart_for_symbol(
     instrument_key = mapping.instrument_key
     encoded_key = urllib.parse.quote(instrument_key, safe='')
     
-    to_date = datetime.now().strftime("%Y-%m-%d")
-    from_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    to_date = datetime.now(config.IST).strftime("%Y-%m-%d")
+    from_date = (datetime.now(config.IST) - timedelta(days=days)).strftime("%Y-%m-%d")
     
     url = f"{UPSTOX_BASE_URL}/historical-candle/{encoded_key}/days/1/{to_date}/{from_date}"
     

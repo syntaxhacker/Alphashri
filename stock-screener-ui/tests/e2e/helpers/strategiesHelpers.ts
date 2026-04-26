@@ -27,6 +27,6 @@ export async function openCreateStrategyDialog(page: Page) {
 export async function openEditStrategyDialog(page: Page) {
   await switchToStrategiesTab(page, "All Strategies");
   await expect(page.getByTestId("strategy-list-table")).toBeVisible();
-  await page.getByTestId("edit-strategy-btn").first().click();
+  await page.locator('[data-testid^="edit-strategy-btn-"]').first().click();
   await expect(page.getByRole("dialog")).toBeVisible();
 }

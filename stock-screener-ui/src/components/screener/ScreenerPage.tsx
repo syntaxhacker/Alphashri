@@ -1,6 +1,6 @@
 import { Stack, Box, Button, Text, Group } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ScreenerNav } from "./ScreenerNav";
 import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerTable } from "./ScreenerTable";
@@ -11,6 +11,7 @@ import { getColumnsForScreener } from "./columns";
 import type { Stock } from "../../types";
 import { useTableSort } from "../../hooks/useTableSort";
 import { CompactPage, CompactPanel } from "../common/compact";
+import * as state from "../../state";
 
 interface ScreenerPageProps {
   screenerOptions: Array<{ id: string; label: string; description?: string }>;
@@ -57,15 +58,32 @@ export function ScreenerPage({
   onSymbolHover,
   error,
 }: ScreenerPageProps) {
-  const {
-    sortColumn,
-    sortDirection,
-    handleSort: handleSortChange,
-    getSortedData,
-  } = useTableSort<Stock>({
-    initialColumn: "score",
-    initialDirection: "desc",
+  const { getSortedData } = useTableSort<Stock>({
+    sortColumn: state.sortColumn,
+    sortDirection: state.sortDirection,
   });
+
+  const sortColumn = state.sortColumn;
+  const sortDirection = state.sortDirection;
+
+  const handleSortChange = (column: string) => {
+    if (state.sortColumn === column) {
+      state.setSortDirection(state.sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      state.setSortColumn(column);
+      state.setSortDirection("desc");
+    }
+  };
+
+  // Reset sort when screener changes to its prescribed default
+  useEffect(() => {
+    const meta = state.profileMetaById[activeScreener];
+    if (meta?.default_sort?.column) {
+      state.setSortColumn(meta.default_sort.column);
+      state.setSortDirection(meta.default_sort.direction || "desc");
+    }
+  }, [activeScreener]);
+
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
 
   const sortedApproaching = useMemo(
@@ -87,7 +105,11 @@ export function ScreenerPage({
   const emptySet = new Set<string>();
   const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
 
-  const renderStocksView = (stocks: Stock[], touchedSymbols: Set<string>) => {
+  const renderStocksView = (
+    stocks: Stock[],
+    touchedSymbols: Set<string>,
+    section: "approaching" | "touched",
+  ) => {
     if (viewMode === "heatmap") {
       return (
         <ScreenerHeatmap
@@ -96,6 +118,7 @@ export function ScreenerPage({
           touchedSymbols={touchedSymbols}
           onSymbolClick={onSymbolClick}
           onSymbolHover={onSymbolHover}
+          data-testid={`screener-heatmap-${section}`}
         />
       );
     }
@@ -111,6 +134,7 @@ export function ScreenerPage({
         onSymbolClick={onSymbolClick}
         onSymbolHover={onSymbolHover}
         screenerType={activeScreener}
+        data-testid={`screener-table-${section}`}
       />
     );
   };
@@ -163,11 +187,11 @@ export function ScreenerPage({
     return (
       <Stack
         gap="sm"
+        h="100%"
+        w="100%"
+        miw={0}
+        flex={1}
         style={{
-          height: "100%",
-          width: "100%",
-          minWidth: 0,
-          flex: 1,
           minHeight: 0,
           overflow: "hidden",
         }}
@@ -178,10 +202,11 @@ export function ScreenerPage({
             title={`Approaching (${sortedApproaching.length})`}
             description="Stocks nearing but have not yet touched the 52W high"
             testId="screener-approaching-section"
-            style={{ flex: 1, minHeight: 0 }}
+            flex={1}
+            style={{ minHeight: 0 }}
           >
-            <Box style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-              {renderStocksView(sortedApproaching, emptySet)}
+            <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
+              {renderStocksView(sortedApproaching, emptySet, "approaching")}
             </Box>
           </CompactPanel>
         )}
@@ -192,10 +217,15 @@ export function ScreenerPage({
             title={`Touched (${sortedTouched.length})`}
             description="Stocks that have touched or broken out of the 52W high"
             testId="screener-touched-section"
-            style={{ flex: 1, minHeight: 0 }}
+            flex={1}
+            style={{ minHeight: 0 }}
           >
-            <Box style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-              {renderStocksView(sortedTouched, new Set(sortedTouched.map((s) => s.symbol)))}
+            <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
+              {renderStocksView(
+                sortedTouched,
+                new Set(sortedTouched.map((s) => s.symbol)),
+                "touched",
+              )}
             </Box>
           </CompactPanel>
         )}

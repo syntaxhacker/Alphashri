@@ -35,6 +35,7 @@ import {
   triggerPaperTradingRerender,
   setPaperTradingView,
   deleteTradeAction,
+  updateTradeNotesAction,
 } from "./paperTrading";
 import type {
   PaperPosition,
@@ -49,6 +50,7 @@ import type {
 
 vi.mock("../api/paperTrading", () => ({
   deleteTrade: vi.fn(),
+  updateTradeNotes: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -96,8 +98,8 @@ function createMockTrade(overrides: Partial<PaperTrade> = {}): PaperTrade {
     exit_reason: "TP",
     costs: 20,
     net_pnl: 980,
-    sl_price: 2450,
-    tp_price: 2650,
+    stop_loss: 2450,
+    take_profit: 2650,
     peak_price: 2650,
     low_price: 2490,
     notes: "",
@@ -121,8 +123,8 @@ describe("paperTrading state", () => {
     expect(state.performanceSummary).toBeNull();
     expect(state.symbolPerformance).toEqual([]);
     expect(state.filterDate).toBeNull();
-    expect(state.filterFromDate).toBeNull();
-    expect(state.filterToDate).toBeNull();
+    expect(state.filterFromDate).toBe(new Date().toISOString().split("T")[0]);
+    expect(state.filterToDate).toBe(new Date().toISOString().split("T")[0]);
     expect(state.filterSymbol).toBeNull();
     expect(state.filterStrategy).toBeNull();
     expect(state.filterBot).toBeNull();
@@ -303,8 +305,8 @@ describe("filter setters", () => {
   });
 
   it("setFilterStrategy updates filterStrategy", () => {
-    setFilterStrategy("ORB");
-    expect(getPaperTradingState().filterStrategy).toBe("ORB");
+    setFilterStrategy(5);
+    expect(getPaperTradingState().filterStrategy).toBe(5);
   });
 
   it("setFilterBot updates filterBot", () => {
@@ -602,5 +604,61 @@ describe("deleteTradeAction", () => {
     const result = await deleteTradeAction("t-1");
     expect(result).toBe(false);
     expect(getPaperTradingState().error).toBe("Failed to delete trade");
+  });
+});
+
+describe("updateTradeNotesAction", () => {
+  it("updates trade in state with new notes and reason", async () => {
+    const { updateTradeNotes } = await import("../api/paperTrading");
+    vi.mocked(updateTradeNotes).mockResolvedValue({
+      ...createMockTrade({ trade_id: "t-1", notes: "new notes", reason: "new reason" }),
+    });
+
+    setTrades([createMockTrade({ trade_id: "t-1", notes: "", reason: "" })]);
+    const result = await updateTradeNotesAction("t-1", "new notes", "new reason");
+    expect(result).toBe(true);
+    const trade = getPaperTradingState().trades.find((t) => t.trade_id === "t-1");
+    expect(trade?.notes).toBe("new notes");
+    expect(trade?.reason).toBe("new reason");
+  });
+
+  it("handles error gracefully", async () => {
+    const { updateTradeNotes } = await import("../api/paperTrading");
+    vi.mocked(updateTradeNotes).mockRejectedValue(new Error("Update failed"));
+
+    setTrades([createMockTrade({ trade_id: "t-1", notes: "old", reason: "old" })]);
+    const result = await updateTradeNotesAction("t-1", "new", "new");
+    expect(result).toBe(false);
+    expect(getPaperTradingState().error).toBe("Update failed");
+    expect(getPaperTradingState().isLoading).toBe(false);
+    expect(getPaperTradingState().trades[0].notes).toBe("old");
+  });
+
+  it("handles trade not found in local state", async () => {
+    const { updateTradeNotes } = await import("../api/paperTrading");
+    vi.mocked(updateTradeNotes).mockResolvedValue({
+      ...createMockTrade({ trade_id: "t-missing" }),
+    });
+
+    setTrades([createMockTrade({ trade_id: "t-1" })]);
+    const result = await updateTradeNotesAction("t-missing", "notes", "reason");
+    expect(result).toBe(true);
+    expect(getPaperTradingState().trades).toHaveLength(1);
+    expect(getPaperTradingState().trades[0].trade_id).toBe("t-1");
+  });
+
+  it("merges backend response fields", async () => {
+    const { updateTradeNotes } = await import("../api/paperTrading");
+    vi.mocked(updateTradeNotes).mockResolvedValue({
+      ...createMockTrade({ trade_id: "t-1", notes: "from server", reason: "server reason" }),
+    });
+
+    setTrades([
+      createMockTrade({ trade_id: "t-1", notes: "client notes", reason: "client reason" }),
+    ]);
+    await updateTradeNotesAction("t-1", "client notes", "client reason");
+    const trade = getPaperTradingState().trades.find((t) => t.trade_id === "t-1");
+    expect(trade?.notes).toBe("from server");
+    expect(trade?.reason).toBe("server reason");
   });
 });

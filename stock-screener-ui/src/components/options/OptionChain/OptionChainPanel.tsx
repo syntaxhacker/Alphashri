@@ -8,7 +8,6 @@ import {
   Tabs,
   Button,
   Tooltip as MantineTooltip,
-  useMantineTheme,
 } from "@mantine/core";
 import {
   IconRefresh,
@@ -18,7 +17,6 @@ import {
   IconHelpCircle,
   IconClock,
 } from "@tabler/icons-react";
-import { fontWeights } from "../../../config/theme";
 import { useDisclosure } from "@mantine/hooks";
 import dayjs from "dayjs";
 import { OptionChainHeader } from "./OptionChainHeader";
@@ -64,7 +62,6 @@ export function OptionChainPanel({
   timestamp,
   summary,
 }: OptionChainPanelProps) {
-  const theme = useMantineTheme();
   const [guideOpened, { open, close }] = useDisclosure(false);
 
   return (
@@ -190,8 +187,6 @@ export function OptionChainPanel({
           id="chain-view-tabs"
           className="chain-view-tabs"
           defaultValue="table"
-          variant="pills"
-          styles={{ tab: { fontSize: theme.fontSizes.sm, fontWeight: fontWeights.semibold } }}
           data-testid="chain-view-tabs"
         >
           <Tabs.List

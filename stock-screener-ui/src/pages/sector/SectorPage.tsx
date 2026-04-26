@@ -4,6 +4,7 @@ import {
   Text,
   Button,
   Stack,
+  Flex,
   Tabs,
   Loader,
   SegmentedControl,
@@ -43,7 +44,13 @@ function ErrorPanel({ error, onRetry }: { error: string; onRetry: () => void }) 
     <CompactPanel
       title="Error"
       action={
-        <Button variant="light" color="red" size="sm" onClick={onRetry} data-testid="sector-retry-btn">
+        <Button
+          variant="light"
+          color="red"
+          size="sm"
+          onClick={onRetry}
+          data-testid="sector-retry-btn"
+        >
           Retry
         </Button>
       }
@@ -162,38 +169,45 @@ function SectorTabContent({
 export function SectorPage() {
   const state = useSectorData();
   return (
-    <Stack
-      gap="sm"
-      style={{ height: "100%", overflow: "hidden" }}
-      data-testid="sector-analysis-view"
-    >
+    <Stack gap="sm" h="100%" style={{ overflow: "hidden" }} data-testid="sector-analysis-view">
       <SectorPageHeader
         market={state.market}
         setMarket={state.setMarket}
         loading={state.loading}
         onRefresh={() => state.loadData(state.market)}
       />
-      <Box
+      <Flex
+        direction="column"
         id="sector-page"
         className="sector-page"
         flex={1}
-        style={{ display: "flex", flexDirection: "column", minHeight: 0 }}
+        style={{ minHeight: 0 }}
       >
         <Tabs value={state.activeTab} onChange={state.setActiveTab}>
           <Tabs.List>
-            <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />} data-testid="sector-tab-dashboard">
+            <Tabs.Tab
+              value="dashboard"
+              leftSection={<IconChartBar size={14} />}
+              data-testid="sector-tab-dashboard"
+            >
               Live Dashboard
             </Tabs.Tab>
-            <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />} data-testid="sector-tab-historical">
+            <Tabs.Tab
+              value="historical"
+              leftSection={<IconBuildingFactory size={14} />}
+              data-testid="sector-tab-historical"
+            >
               Historical Cycles
             </Tabs.Tab>
           </Tabs.List>
         </Tabs>
         <Box
           flex={1}
+          py={0}
+          px="md"
+          pb="md"
           style={{
             minHeight: 0,
-            padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)",
             overflow: "auto",
           }}
         >
@@ -208,7 +222,7 @@ export function SectorPage() {
             loadData={state.loadData}
           />
         </Box>
-      </Box>
+      </Flex>
     </Stack>
   );
 }

@@ -46,7 +46,10 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
       },
       backgroundColor: isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG,
       borderColor: isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
-      textStyle: { color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT, fontSize: theme.fontSizes.sm },
+      textStyle: {
+        color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT,
+        fontSize: theme.fontSizes.sm,
+      },
     },
     grid: {
       top: 10,
@@ -63,7 +66,9 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
     yAxis: {
       type: "value",
       axisLabel: { color: "gray", fontSize: theme.fontSizes.sm, formatter: "{value}%" },
-      splitLine: { lineStyle: { color: isDark ? AXIS_DARK_SPLIT : AXIS_LIGHT_SPLIT, type: "dashed" } },
+      splitLine: {
+        lineStyle: { color: isDark ? AXIS_DARK_SPLIT : AXIS_LIGHT_SPLIT, type: "dashed" },
+      },
     },
     series: [
       {

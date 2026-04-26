@@ -70,6 +70,22 @@ describe("formatNumber", () => {
     expect(formatNumber(-1500)).toBe("-1.5K");
     expect(formatNumber(-100000)).toBe("-1.0L");
   });
+
+  test("handles zero", () => {
+    expect(formatNumber(0)).toBe("0");
+  });
+
+  test("returns 0 for undefined", () => {
+    expect(formatNumber(undefined)).toBe("0");
+  });
+
+  test("returns 0 for null", () => {
+    expect(formatNumber(null)).toBe("0");
+  });
+
+  test("returns 0 for NaN", () => {
+    expect(formatNumber(NaN)).toBe("0");
+  });
 });
 
 describe("formatCurrencyCompact", () => {

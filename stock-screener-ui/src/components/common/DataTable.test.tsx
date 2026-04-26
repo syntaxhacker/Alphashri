@@ -86,4 +86,18 @@ describe("DataTable", () => {
     expect(props.verticalSpacing).toBe("md");
     expect(props.horizontalSpacing).toBe("md");
   });
+
+  it("passes through styles (Styles API)", () => {
+    const tableStyles = {
+      thead: { position: "sticky" as const, top: 0 },
+      th: { padding: "4px 6px", fontSize: "11px" },
+      td: { padding: "3px 6px", fontSize: "12px" },
+    };
+    render(<DataTable styles={tableStyles}>Content</DataTable>);
+    const props = getLastTableProps();
+    expect(props.styles).toBe(tableStyles);
+    expect(props.styles.thead.position).toBe("sticky");
+    expect(props.styles.th.fontSize).toBe("11px");
+    expect(props.styles.td.fontSize).toBe("12px");
+  });
 });

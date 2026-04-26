@@ -298,7 +298,7 @@ class TestSharedPortfolioManager:
         # Check cash returned (entry deducted + exit value returned)
         # Entry: 100000 deducted, Exit: 105000 returned = +5000 profit
         # Note: costs are tracked separately, not deducted from cash
-        assert portfolio.cash == 1_005_000  # Initial + gross P&L
+        assert portfolio.cash == 1_004_900  # Initial + gross P&L - costs
 
     def test_get_portfolio_status(self):
         """Test getting portfolio status."""

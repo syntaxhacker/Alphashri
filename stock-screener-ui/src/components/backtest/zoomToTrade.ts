@@ -2,10 +2,15 @@ import type { SymbolChartData } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { normalizeTime } from "../../utils/ui-helpers";
 import {
-  MARKER_TP, MARKER_SL, MARKER_EOD,
+  MARKER_TP,
+  MARKER_SL,
+  MARKER_EOD,
   MARKER_BORDER,
-  CHART_AVG_ENTRY, CHART_TRADE_EXIT, CHART_DARK_DROPDOWN,
-  INDICATOR_BLUE_A, INDICATOR_BLUE_B,
+  CHART_AVG_ENTRY,
+  CHART_TRADE_EXIT,
+  CHART_DARK_DROPDOWN,
+  INDICATOR_BLUE_A,
+  INDICATOR_BLUE_B,
 } from "../../config/colors";
 
 export const chartInstances = new Map<string, any>();
@@ -199,18 +204,18 @@ function buildLevelSeries(
       silent: true,
       z: 6,
       lineStyle: { color: INDICATOR_BLUE_A, width: 2, type: "dashed" },
-        tooltip: { show: false },
-      },
-      {
-        id: "selected-or-low",
-        name: "Selected Level Low",
-        type: "line",
-        data: levelLowData,
-        showSymbol: false,
-        connectNulls: false,
-        silent: true,
-        z: 6,
-        lineStyle: { color: INDICATOR_BLUE_B, width: 2, type: "dashed" },
+      tooltip: { show: false },
+    },
+    {
+      id: "selected-or-low",
+      name: "Selected Level Low",
+      type: "line",
+      data: levelLowData,
+      showSymbol: false,
+      connectNulls: false,
+      silent: true,
+      z: 6,
+      lineStyle: { color: INDICATOR_BLUE_B, width: 2, type: "dashed" },
       tooltip: { show: false },
     },
   ];

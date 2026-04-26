@@ -38,7 +38,7 @@ The Exponential Moving Average applies more weight to recent prices, making it m
 ```
 multiplier = 2 / (period + 1)
 
-EMA_0 = closes[0]                        # first value seeded with first close
+EMA_0 = SMA(closes[0:period])   # seed with SMA of first 'period' values
 EMA_t = close_t * multiplier + EMA_{t-1} * (1 - multiplier)
 ```
 
@@ -49,11 +49,11 @@ Given closes: `[100, 102, 105, 103, 108]`
 ```
 multiplier = 2 / (3 + 1) = 0.5
 
-EMA_0 = 100.00
-EMA_1 = 102 * 0.5 + 100 * 0.5 = 51.0 + 50.0 = 101.00
-EMA_2 = 105 * 0.5 + 101 * 0.5 = 52.5 + 50.5 = 103.00
-EMA_3 = 103 * 0.5 + 103 * 0.5 = 51.5 + 51.5 = 103.00
-EMA_4 = 108 * 0.5 + 103 * 0.5 = 54.0 + 51.5 = 105.50
+EMA_0 = None     # not enough data (need 2 bars before period=3 seed)
+EMA_1 = None     # not enough data (need 1 bar before period=3 seed)
+EMA_2 = SMA(100, 102, 105) = (100 + 102 + 105) / 3 = 102.3333   # SMA seed
+EMA_3 = 103 * 0.5 + 102.3333 * 0.5 = 51.5 + 51.1667 = 102.6667
+EMA_4 = 108 * 0.5 + 102.6667 * 0.5 = 54.0 + 51.3333 = 105.3333
 ```
 
 The EMA reacts faster to the jump at close[4] (108) than an SMA would, because the multiplier weights the latest price at 50%.
@@ -350,23 +350,23 @@ flowchart TB
         API --> Runner2["run() → parallel Pool"]
         Runner2 --> Single["run_single_stock_backtest()"]
         Single --> Config["EMACrossConfig<br/>(StrategyConfig)"]
-        Single --> Naut["EMACrossNautilusStrategy<br/>(NautilusTrader Strategy)"]
+        Single --> Naut["EMACrossNautilusStrategy<br/>(NautilusTrader)"]
         Naut --> Engine["BacktestEngine<br/>(NautilusTrader)"]
         Naut --> Costs["calculate_trading_costs()"]
     end
 
-    subgraph Shared["Shared Logic"]
-        EMA["calculate_ema()<br/>multiplier = 2/(period+1)"]
+    subgraph Shared["Shared Logic - Single Source of Truth"]
+        EMA["calculate_ema()<br/>trading/ema_utils.py<br/>seed = SMA(first 'period' values)"]
         Cross["Crossover Detection<br/>bullish: fast_prev <= slow_prev AND fast_curr > slow_curr<br/>bearish: fast_prev >= slow_prev AND fast_curr < slow_curr"]
         Risk["Risk Management<br/>SL / TP / EOD 14:45 / Cooldown"]
     end
 
-    Gen -.-> EMA
-    Naut -.-> EMA
-    Gen -.-> Cross
-    Naut -.-> Cross
-    Gen -.-> Risk
-    Naut -.-> Risk
+    Gen -..-> EMA
+    Naut -..-> EMA
+    Gen -..-> Cross
+    Naut -..-> Cross
+    Gen -..-> Risk
+    Naut -..-> Risk
 
     subgraph Data["Data Sources"]
         Upstox["Upstox API<br/>Historical + Intraday candles"]
@@ -384,6 +384,7 @@ flowchart TB
 
 | File | Purpose |
 |------|---------|
+| `trading/ema_utils.py` | **Single source of truth** for EMA calculation - used by both paper trading and backtest |
 | `trading/ema_cross_signals.py` | Live signal generator — `EMACrossSignalGenerator` with `check_entry()` and `check_exit()` |
 | `trading/base_signals.py` | Base class `BaseSignalGenerator` providing `create_signal()` and SL/TP defaults |
 | `trading/orb_signals.py` | Shared `SignalType` enum and `ORBSignal` model |

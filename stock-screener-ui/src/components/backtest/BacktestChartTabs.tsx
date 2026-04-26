@@ -1,6 +1,7 @@
-import { Tabs, Select, Group, Text, Box } from "@mantine/core";
+import { Tabs, Select, Group, Text, Box, Center } from "@mantine/core";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
+import type { MarketHoliday } from "../../types/holidays";
 
 export interface BacktestChartTabsProps {
   symbols: string[];
@@ -11,6 +12,9 @@ export interface BacktestChartTabsProps {
   chartDataMap: Map<string, SymbolChartData>;
   chartLoading?: boolean;
   onTradeClick?: (tradeId: number) => void;
+  holidays?: MarketHoliday[];
+  selectedTf: string | null;
+  onTfChange: (tf: string | null) => void;
 }
 
 const ZOOM_OPTIONS = [
@@ -18,6 +22,19 @@ const ZOOM_OPTIONS = [
   { value: "30d", label: "30D" },
   { value: "7d", label: "7D" },
   { value: "1d", label: "1D" },
+];
+
+const TF_OPTIONS = [
+  { value: "", label: "Native" },
+  { value: "1", label: "1m" },
+  { value: "5", label: "5m" },
+  { value: "15", label: "15m" },
+  { value: "30", label: "30m" },
+  { value: "60", label: "1H" },
+  { value: "240", label: "4H" },
+  { value: "1440", label: "1D" },
+  { value: "10080", label: "1W" },
+  { value: "43200", label: "1M" },
 ];
 
 export function BacktestChartTabs({
@@ -29,24 +46,22 @@ export function BacktestChartTabs({
   chartDataMap,
   chartLoading,
   onTradeClick,
+  holidays,
+  selectedTf,
+  onTfChange,
 }: BacktestChartTabsProps) {
   if (symbols.length === 0) {
     return (
-      <Box
+      <Center
         id="chart-container"
         className="backtest-chart-tabs backtest-chart-empty"
         data-testid="chart-container"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: 400,
-          backgroundColor: "var(--mantine-color-body)",
-          borderRadius: "var(--mantine-radius-md)",
-        }}
+        h={400}
+        bg="var(--mantine-color-body)"
+        styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
-      </Box>
+      </Center>
     );
   }
 
@@ -76,16 +91,27 @@ export function BacktestChartTabs({
             </Tabs.List>
           </Tabs>
 
-          <Select
-            id="chart-zoom-select"
-            className="chart-zoom-select"
-            value={zoomValue}
-            onChange={(value) => value && onZoomChange(value)}
-            data={ZOOM_OPTIONS}
-            data-testid="chart-zoom-select"
-            w={100}
-            size="sm"
-          />
+          <Group gap="xs">
+            <Select
+              data-testid="chart-tf-select"
+              value={selectedTf}
+              onChange={(value) => onTfChange(value)}
+              data={TF_OPTIONS}
+              w={80}
+              size="sm"
+              clearable
+            />
+            <Select
+              id="chart-zoom-select"
+              className="chart-zoom-select"
+              value={zoomValue}
+              onChange={(value) => value && onZoomChange(value)}
+              data={ZOOM_OPTIONS}
+              data-testid="chart-zoom-select"
+              w={80}
+              size="sm"
+            />
+          </Group>
         </Group>
       </Box>
 
@@ -100,21 +126,17 @@ export function BacktestChartTabs({
             chartData={currentChartData}
             isLoading={chartLoading && !currentChartData}
             onTradeClick={onTradeClick}
+            holidays={holidays}
           />
         ) : (
-          <Box
+          <Center
             data-testid="chart-placeholder"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              backgroundColor: "var(--mantine-color-body)",
-              borderRadius: "var(--mantine-radius-md)",
-            }}
+            h="100%"
+            bg="var(--mantine-color-body)"
+            styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
           >
             <Text c="dimmed">Select a symbol</Text>
-          </Box>
+          </Center>
         )}
       </Box>
     </Box>

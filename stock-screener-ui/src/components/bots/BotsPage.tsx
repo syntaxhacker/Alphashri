@@ -1,16 +1,6 @@
 import { useEffect, useCallback, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import {
-  Box,
-  Tabs,
-  Button,
-  Group,
-  Stack,
-  Text,
-  Badge,
-  ActionIcon,
-  Table,
-} from "@mantine/core";
+import { Box, Tabs, Button, Group, Stack, Text, Badge, ActionIcon, Table } from "@mantine/core";
 import {
   IconRobot,
   IconChartLine,
@@ -136,9 +126,9 @@ export function BotsPage() {
                 <Table.Td>
                   <Group gap="xs">
                     <Box
+                      w={8}
+                      h={8}
                       style={{
-                        width: 8,
-                        height: 8,
                         borderRadius: "50%",
                         backgroundColor: bot.running ? BOT_RUNNING : BOT_STOPPED,
                       }}
@@ -154,7 +144,8 @@ export function BotsPage() {
                 <Table.Td>
                   <StatusBadge
                     running={bot.running}
-                    pid={bot.pid}
+                    pid={bot.pid ?? undefined}
+                    statusUnknown={bot.status === "UNKNOWN"}
                     data-testid={`bot-status-${bot.id}`}
                   />
                 </Table.Td>
@@ -257,13 +248,11 @@ export function BotsPage() {
         </Button>
       }
     >
-      <Box
+      <Stack
         id="bots-page"
         className="bots-page"
+        h="100%"
         style={{
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
           overflow: "hidden",
         }}
         data-testid="bots-view"
@@ -316,7 +305,7 @@ export function BotsPage() {
             renderBotsList()
           )}
         </Box>
-      </Box>
+      </Stack>
 
       <BotConfigModal
         opened={state.showCreateModal || state.showEditModal}

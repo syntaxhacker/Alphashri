@@ -64,15 +64,6 @@ async def run_backtest(
                    "Please set UPSTOX_API_KEY and UPSTOX_API_SECRET in your environment."
         )
 
-    from db.models import get_shared_broker_token
-    token_data = get_shared_broker_token('upstox')
-    if not token_data or not token_data.get('access_token'):
-        raise HTTPException(
-            status_code=503,
-            detail="No active Upstox broker connection found. "
-                   "Please connect your broker in Settings > Broker Connection."
-        )
-
     from cache.redis_client import cache_get, cache_set, is_cache_available
     from backtest.api import build_backtest_cache_key
 
@@ -172,7 +163,8 @@ async def run_backtest(
             if symbol in candles and trades_data.get('trades'):
                 full_chart_data[symbol] = build_chart_data_for_symbol(
                     symbol, candles[symbol], trades_data['trades'], or_minutes,
-                    include_52w_line=include_52w_line
+                    include_52w_line=include_52w_line,
+                    visuals=chart_data_raw[symbol].get('visuals')
                 )
 
         response['candles'] = candles
@@ -182,7 +174,13 @@ async def run_backtest(
 
 
 @router.get("/chart/{symbol}")
-async def get_chart_data(symbol: str):
+async def get_chart_data(
+    symbol: str,
+    tf: Optional[str] = Query(None, description="Timeframe: 1,5,15,30,60,240,1440,10080,43200 (minutes)"),
+):
+    import pandas as pd
+    from datetime import datetime, timedelta
+    import config as app_config
     from backtest.chart_data import build_chart_data_for_symbol
 
     if symbol not in _backtest_handler.backtest_cache.get('candles', {}):
@@ -192,17 +190,73 @@ async def get_chart_data(symbol: str):
         raise HTTPException(status_code=404, detail=f'No trade data for {symbol}')
 
     try:
-        candles_df = _backtest_handler.backtest_cache['candles'][symbol]
+        native_candles_df = _backtest_handler.backtest_cache['candles'][symbol]
         trades = _backtest_handler.backtest_cache['chart_data'][symbol]['trades']
-        config = _backtest_handler.backtest_cache.get('config', {})
-        or_minutes = config.get('params', {}).get('or_minutes', 45)
-        strategy = config.get('strategy', '')
+        cached_visuals = _backtest_handler.backtest_cache['chart_data'][symbol].get('visuals')
+        bt_config = _backtest_handler.backtest_cache.get('config', {})
+        or_minutes = bt_config.get('params', {}).get('or_minutes', 45)
+        strategy = bt_config.get('strategy', '')
 
         include_52w_line = strategy == '52w_chaser'
 
+        if tf is not None:
+            tf_minutes = int(tf)
+
+            if isinstance(native_candles_df, dict):
+                dates = native_candles_df.get('index', [])
+                if not dates:
+                    candles_df = native_candles_df
+                    date_range_start = None
+                else:
+                    parsed = pd.to_datetime(dates)
+                    date_range_start = parsed.min()
+                    date_range_end = parsed.max()
+            else:
+                if isinstance(native_candles_df.index, pd.DatetimeIndex):
+                    date_range_start = native_candles_df.index.min()
+                    date_range_end = native_candles_df.index.max()
+                else:
+                    date_range_start = pd.to_datetime(native_candles_df.index).min()
+                    date_range_end = pd.to_datetime(native_candles_df.index).max()
+
+            if date_range_start is not None:
+                from_date = (date_range_start - timedelta(days=2)).strftime('%Y-%m-%d')
+                to_date = (date_range_end + timedelta(days=2)).strftime('%Y-%m-%d')
+
+                from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+                upstox_api = UpstoxAPI(
+                    api_key=app_config.UPSTOX_API_KEY or "",
+                    api_secret=app_config.UPSTOX_API_SECRET or "",
+                    quiet=True,
+                )
+
+                sym = symbol.upper()
+                tf_map = {1: ('minutes', 1), 5: ('minutes', 5), 15: ('minutes', 15), 30: ('minutes', 30), 60: ('hours', 1), 240: ('hours', 4), 1440: ('days', 1), 10080: ('weeks', 1), 43200: ('months', 1)}
+                unit, interval = tf_map.get(tf_minutes, ('minutes', 1))
+
+                if tf_minutes <= 60 and date_range_end.date() == datetime.now(app_config.IST).date():
+                    df_tf = upstox_api.fetch_intraday_data_v3(sym, interval=str(interval))
+                else:
+                    df_tf = upstox_api.fetch_historical_data_v3(
+                        sym, unit=unit, interval=interval,
+                        to_date=to_date, from_date=from_date,
+                    )
+
+                if df_tf is not None and not df_tf.empty:
+                    if df_tf.index.tz is not None:
+                        df_tf.index = df_tf.index.tz_convert('Asia/Kolkata').tz_localize(None)
+                    candles_df = df_tf
+                else:
+                    candles_df = native_candles_df
+            else:
+                candles_df = native_candles_df
+        else:
+            candles_df = native_candles_df
+
         chart_data = build_chart_data_for_symbol(
             symbol, candles_df, trades, or_minutes,
-            include_52w_line=include_52w_line
+            include_52w_line=include_52w_line,
+            visuals=cached_visuals
         )
         return _sanitize_for_json(chart_data)
     except Exception as e:

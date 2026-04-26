@@ -119,7 +119,7 @@ export function DashboardContent({
             </Group>
           }
         >
-          <Box px="sm" pb="sm" style={{ minHeight: 0, flex: 1 }}>
+          <Box px="sm" pb="sm" flex={1} style={{ minHeight: 0 }}>
             <SectorTreemap sectors={data.sectors} />
           </Box>
         </CompactPanel>

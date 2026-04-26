@@ -8,7 +8,6 @@ import {
   Group,
   Stack,
   Badge,
-  Box,
   Loader,
   Alert,
   Divider,
@@ -89,12 +88,13 @@ function usePaperSettingsData() {
 function SettingsLoadingState() {
   return (
     <Card
-      padding="md"
-      radius="md"
+      padding="sm"
+      radius="xs"
       withBorder
       data-testid="settings-panel"
       className="paper-settings"
       id="paper-settings"
+      style={{ width: "100%" }}
     >
       <Group justify="center" gap="sm">
         <Loader size="sm" />
@@ -112,6 +112,7 @@ function SettingsErrorState({ error }: { error: string }) {
       data-testid="settings-panel"
       className="paper-settings paper-settings-error"
       id="paper-settings"
+      style={{ width: "100%" }}
     >
       <Alert
         icon={<IconAlertCircle size={16} />}
@@ -163,6 +164,7 @@ function SettingsContent({
       data-testid="settings-panel"
       className="paper-settings"
       id="paper-settings"
+      style={{ width: "100%" }}
     >
       {configError && (
         <Alert
@@ -177,15 +179,15 @@ function SettingsContent({
         </Alert>
       )}
 
-      <Group justify="space-between" mb="md" className="paper-settings-header" id="settings-header">
-        <Box>
-          <Text fw={600} size="lg">
+      <Group justify="space-between" mb="sm" className="paper-settings-header" id="settings-header">
+        <div>
+          <Text fw={600} size="md">
             Strategy Configuration
           </Text>
-          <Text size="sm" c="dimmed">
+          <Text size="xs" c="dimmed">
             {strategyConfig.name} ({strategyConfig.strategy_type})
           </Text>
-        </Box>
+        </div>
         {configDirty && (
           <Badge color="yellow" variant="light">
             Unsaved Changes
@@ -193,19 +195,12 @@ function SettingsContent({
         )}
       </Group>
 
-      <Stack gap="sm" className="paper-settings-content" id="settings-content">
-        <Card
-          padding="sm"
-          radius="sm"
-          withBorder
-          variant="default"
-          className="paper-settings-section"
-          id="strategy-section"
-        >
-          <Text fw={500} size="sm" mb="xs">
+      <Stack gap="xs" className="paper-settings-content" id="settings-content">
+        <Stack gap="xs" className="paper-settings-section" id="strategy-section">
+          <Text fw={600} size="xs" tt="uppercase">
             Active Strategy
           </Text>
-          <Group gap="sm" align="flex-end">
+          <Group gap="xs" align="flex-end">
             <Select
               data-testid="strategy-selector"
               placeholder="Select strategy"
@@ -222,12 +217,15 @@ function SettingsContent({
                 label: s.is_default ? `${s.name} (Default)` : s.name,
               }))}
               disabled={strategiesLoading || configLoading}
-              flex={1}
-              size="sm"
+              style={{
+                width: 240,
+                flex: "0 0 auto",
+              }}
+              size="xs"
             />
             <Button
               variant="light"
-              size="sm"
+              size="xs"
               disabled={strategiesLoading || configLoading}
               data-testid="manage-strategies-button"
             >
@@ -235,22 +233,42 @@ function SettingsContent({
             </Button>
           </Group>
           {strategyConfig.description && (
-            <Text size="sm" c="dimmed" mt="xs">
+            <Text size="xs" c="dimmed">
               {strategyConfig.description}
             </Text>
           )}
-        </Card>
+        </Stack>
 
-        <Divider label="ORB Settings" labelPosition="left" className="paper-settings-divider" />
+        <Divider
+          label="ORB Settings"
+          labelPosition="left"
+          className="paper-settings-divider"
+          data-testid="orb-section-header"
+        />
         <OrbSettingsSection config={strategyConfig} onChange={handleConfigValue} />
 
-        <Divider label="Risk Management" labelPosition="left" className="paper-settings-divider" />
+        <Divider
+          label="Risk Management"
+          labelPosition="left"
+          className="paper-settings-divider"
+          data-testid="risk-section-header"
+        />
         <RiskManagementSection config={strategyConfig} onChange={handleConfigValue} />
 
-        <Divider label="Runner Settings" labelPosition="left" className="paper-settings-divider" />
+        <Divider
+          label="Runner Settings"
+          labelPosition="left"
+          className="paper-settings-divider"
+          data-testid="runner-section-header"
+        />
         <RunnerSettingsSection config={strategyConfig} onChange={handleConfigValue} />
 
-        <Divider label="Trading Costs" labelPosition="left" className="paper-settings-divider" />
+        <Divider
+          label="Trading Costs"
+          labelPosition="left"
+          className="paper-settings-divider"
+          data-testid="costs-section-header"
+        />
         <TradingCostsSection config={strategyConfig} onChange={handleConfigValue} />
 
         <SettingsActions

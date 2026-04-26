@@ -1,4 +1,11 @@
-import { POSITIVE, NEGATIVE, MARKER_TP, MARKER_SL, MARKER_EOD, EXIT_DEFAULT } from "../config/colors";
+import {
+  POSITIVE,
+  NEGATIVE,
+  MARKER_TP,
+  MARKER_SL,
+  MARKER_EOD,
+  EXIT_DEFAULT,
+} from "../config/colors";
 
 export function formatCurrency(amount: number | undefined | null, precision: number = 0): string {
   if (amount === undefined || amount === null || isNaN(amount)) return "0";
@@ -63,6 +70,13 @@ function extractDateTimeParts(isoStr: string) {
   return { datePart, timePart };
 }
 
+function parseDateParts(isoStr: string): { d: number; m: number; timePart: string } | null {
+  const { datePart, timePart } = extractDateTimeParts(isoStr);
+  if (!datePart) return null;
+  const [_year, month, day] = datePart.split("-");
+  return { d: parseInt(day), m: parseInt(month) - 1, timePart };
+}
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -71,19 +85,13 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  */
 export function formatDateTimeHuman(isoStr: string): string {
   if (!isoStr) return "-";
-
   try {
-    const { datePart, timePart } = extractDateTimeParts(isoStr);
-    if (!datePart) return "-";
-
-    const [_year, month, day] = datePart.split("-");
-    const d = parseInt(day);
-    const m = parseInt(month) - 1;
-
-    const date = new Date(parseInt(_year), m, d);
+    const parsed = parseDateParts(isoStr);
+    if (!parsed) return "-";
+    const { d, m, timePart } = parsed;
+    const date = new Date(new Date().getFullYear(), m, d);
     const dayName = DAYS[date.getDay()];
     const monthName = MONTHS[m];
-
     return `${d}${getOrdinalSuffix(d)} ${dayName} ${monthName} ${timePart || ""}`;
   } catch {
     return "-";
@@ -95,15 +103,10 @@ export function formatDateTimeHuman(isoStr: string): string {
  */
 export function formatDateTimeCompact(isoStr: string): string {
   if (!isoStr) return "-";
-
   try {
-    const { datePart, timePart } = extractDateTimeParts(isoStr);
-    if (!datePart) return "-";
-
-    const [_year, month, day] = datePart.split("-");
-    const d = parseInt(day);
-    const m = parseInt(month) - 1;
-
+    const parsed = parseDateParts(isoStr);
+    if (!parsed) return "-";
+    const { d, m, timePart } = parsed;
     return `${d}${getOrdinalSuffix(d)} ${MONTHS[m]} ${timePart || ""}`;
   } catch {
     return "-";
@@ -408,4 +411,20 @@ export function formatTimeAgo(isoString: string): string {
   } catch {
     return "";
   }
+}
+
+export function getStrategyTypeFromName(name: string | undefined | null): string | null {
+  if (!name) return null;
+  const upper = name.toUpperCase();
+  if (upper.includes("ORB")) return "ORB";
+  if (upper.includes("S/R BREAKOUT") || upper.includes("SR BREAKOUT")) return "SR_BREAKOUT";
+  if (upper.includes("EMA CROSS")) return "EMA_CROSS";
+  if (upper.includes("52W")) return "52W_CHASER";
+  return null;
+}
+
+export function parseTimeToHHMM(isoTime: string): string {
+  if (isoTime.includes("T")) return isoTime.split("T")[1].substring(0, 5);
+  if (isoTime.includes(" ")) return isoTime.split(" ")[1].substring(0, 5);
+  return isoTime.substring(0, 5);
 }

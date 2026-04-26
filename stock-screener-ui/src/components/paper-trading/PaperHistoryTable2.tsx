@@ -19,12 +19,16 @@ import { getNextSortDirection } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { DayGroup } from "./DayGroup";
 
-export function getUniqueStrategies(trades: PaperTrade[]): string[] {
-  const strategies = new Set<string>();
+export function getUniqueStrategies(trades: PaperTrade[]): { id: number; name: string }[] {
+  const map = new Map<number, string>();
   for (const trade of trades) {
-    if (trade.strategy_name) strategies.add(trade.strategy_name);
+    if (trade.strategy_id && trade.strategy_name) {
+      map.set(trade.strategy_id, trade.strategy_name);
+    }
   }
-  return Array.from(strategies).sort();
+  return Array.from(map.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function getUniqueBots(trades: PaperTrade[]): Array<{ id: string; name: string }> {
@@ -161,7 +165,7 @@ function HistoryFilters({
   state,
 }: {
   bots: Array<{ id: string; name: string }>;
-  strategies: string[];
+  strategies: { id: number; name: string }[];
   state: ReturnType<typeof getPaperTradingState>;
 }) {
   const { handleQuickFilter, getCurrentPeriod } = useQuickFilter();
@@ -190,10 +194,10 @@ function HistoryFilters({
                 placeholder="All Strategies"
                 data={[
                   { value: "", label: "All Strategies" },
-                  ...strategies.map((s) => ({ value: s, label: s })),
+                  ...strategies.map((s) => ({ value: String(s.id), label: s.name })),
                 ]}
-                value={state.filterStrategy || ""}
-                onChange={(v) => setFilterStrategy(v)}
+                value={state.filterStrategy != null ? String(state.filterStrategy) : ""}
+                onChange={(v) => setFilterStrategy(v ? Number(v) : null)}
                 style={{ width: 160 }}
                 size="xs"
                 data-testid="strategy-filter-select"
@@ -265,21 +269,21 @@ function HistoryList({
         </Flex>
       ) : (
         sortedDates.map((date) => (
-            <DayGroup
-              key={date}
-              date={date}
-              trades={tradesByDate[date]}
-              selectedSymbol={state.selectedSymbol}
-              selectedTradeId={state.selectedTradeId}
-              onSelectSymbol={handleSelectSymbol}
-              onDeleteTrade={deleteTradeAction}
-              expanded={expandedDays[date] !== false}
-              onToggle={() => toggleDay(date)}
-              tableStyles={TABLE_STYLES}
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSort={onSort}
-            />
+          <DayGroup
+            key={date}
+            date={date}
+            trades={tradesByDate[date]}
+            selectedSymbol={state.selectedSymbol}
+            selectedTradeId={state.selectedTradeId}
+            onSelectSymbol={handleSelectSymbol}
+            onDeleteTrade={deleteTradeAction}
+            expanded={expandedDays[date] !== false}
+            onToggle={() => toggleDay(date)}
+            tableStyles={TABLE_STYLES}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSort={onSort}
+          />
         ))
       )}
     </ScrollArea>
@@ -293,8 +297,7 @@ function useFilteredTrades() {
     if (state.filterSymbol) trades = trades.filter((t) => t.symbol === state.filterSymbol);
     if (state.filterFromDate || state.filterToDate)
       trades = filterByRange(trades, state.filterFromDate, state.filterToDate);
-    if (state.filterStrategy)
-      trades = trades.filter((t) => t.strategy_name === state.filterStrategy);
+    if (state.filterStrategy) trades = trades.filter((t) => t.strategy_id === state.filterStrategy);
     if (state.filterBot) trades = trades.filter((t) => t.bot_id === state.filterBot);
     return trades;
   }, [
@@ -328,14 +331,26 @@ export function PaperHistoryTable() {
     setSortDirection(nextDir);
   };
 
-  const handleSelectSymbol = async (symbol: string, exitTime?: string, tradeId?: string, strategyName?: string) => {
+  const handleSelectSymbol = async (
+    symbol: string,
+    exitTime?: string,
+    tradeId?: string,
+    strategyType?: string,
+    strategyId?: number,
+  ) => {
     setSelectedSymbol(symbol);
-    if (tradeId) setSelectedTradeId(tradeId, strategyName);
+    if (tradeId) setSelectedTradeId(tradeId, strategyType, strategyId);
     const sameSymbolCount = filteredTrades.filter((t) => t.symbol === symbol).length;
     if (sameSymbolCount > 1) setShowAllTrades(true);
     const currentState = getPaperTradingState();
     const date = exitTime ? exitTime.split("T")[0] : dayjs().format("YYYY-MM-DD");
-    await fetchPaperChart(symbol, date, currentState.chartTimeframe);
+    await fetchPaperChart(
+      symbol,
+      date,
+      currentState.chartTimeframe,
+      strategyId,
+      currentState.intradayOnly,
+    );
   };
 
   const toggleDay = (date: string) => setExpandedDays((prev) => ({ ...prev, [date]: !prev[date] }));

@@ -31,21 +31,28 @@ import type { NewsItem, NewsSymbol, ArticleResponse } from "./news-types";
 import { AUTO_REFRESH_INTERVALS } from "./NewsLocalStorage";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 
-function ArticleSymbols({ symbols, onSymbolClick }: {
+function ArticleSymbols({
+  symbols,
+  onSymbolClick,
+}: {
   symbols: NewsSymbol[];
   onSymbolClick: (s: NewsSymbol) => void;
 }) {
   if (!symbols || symbols.length === 0) return null;
   return (
     <Box data-testid="news-article-symbols">
-      <Text size="sm" c="dimmed" mb="xs">Stocks mentioned:</Text>
+      <Text size="sm" c="dimmed" mb="xs">
+        Stocks mentioned:
+      </Text>
       <Group gap="xs">
         {symbols.map((symbol, idx) => (
           <Tooltip
             key={idx}
-            label={symbol.instrument_key
-              ? `View ${symbol.trading_symbol} chart`
-              : `Open ${symbol.code} on Moneycontrol`}
+            label={
+              symbol.instrument_key
+                ? `View ${symbol.trading_symbol} chart`
+                : `Open ${symbol.code} on Moneycontrol`
+            }
           >
             <Badge
               variant="light"
@@ -54,9 +61,7 @@ function ArticleSymbols({ symbols, onSymbolClick }: {
               data-testid={`news-symbol-${symbol.code}`}
             >
               {symbol.name || symbol.code}
-              {symbol.instrument_key && (
-                <IconChartLine size={12} style={{ marginLeft: 4 }} />
-              )}
+              {symbol.instrument_key && <IconChartLine size={12} style={{ marginLeft: 4 }} />}
             </Badge>
           </Tooltip>
         ))}
@@ -86,7 +91,9 @@ function ArticleBody({
     return (
       <Stack gap="sm">
         {content.description.split("\n\n").map((para, idx) => (
-          <Text key={idx} size="sm">{para}</Text>
+          <Text key={idx} size="sm">
+            {para}
+          </Text>
         ))}
       </Stack>
     );
@@ -98,7 +105,11 @@ function ArticleBody({
       </Alert>
     );
   }
-  return <Text c="dimmed" ta="center" py="xl">Unable to load article content.</Text>;
+  return (
+    <Text c="dimmed" ta="center" py="xl">
+      Unable to load article content.
+    </Text>
+  );
 }
 
 export function ArticleView({
@@ -156,12 +167,7 @@ export function ArticleView({
           <ArticleBody content={content} loading={loading} error={error} />
 
           {article.sourceUrl && (
-            <Anchor
-              href={article.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              size="sm"
-            >
+            <Anchor href={article.sourceUrl} target="_blank" rel="noopener noreferrer" size="sm">
               <Group gap={4}>
                 Open Original <IconExternalLink size={12} />
               </Group>
@@ -173,7 +179,11 @@ export function ArticleView({
   );
 }
 
-function NewsItemCard({ item, isUnread, onClick }: {
+function NewsItemCard({
+  item,
+  isUnread,
+  onClick,
+}: {
   item: NewsItem;
   isUnread: boolean;
   onClick: (item: NewsItem) => void;
@@ -185,13 +195,14 @@ function NewsItemCard({ item, isUnread, onClick }: {
       style={{
         borderLeft: isUnread ? "3px solid var(--mantine-color-blue-6)" : undefined,
       }}
-      onClick={(e) => { e.stopPropagation(); onClick(item); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(item);
+      }}
       data-testid="news-item"
     >
       <Group gap="xs" wrap="nowrap">
-        {isUnread && (
-          <Box w={5} h={5} bg="blue" style={{ borderRadius: "50%", flexShrink: 0 }} />
-        )}
+        {isUnread && <Box w={5} h={5} bg="blue" style={{ borderRadius: "50%", flexShrink: 0 }} />}
         <Text
           size="xs"
           fw={isUnread ? 500 : 400}
@@ -209,7 +220,14 @@ function NewsItemCard({ item, isUnread, onClick }: {
   );
 }
 
-function NewsSourceGroup({ source, items, isExpanded, readIds, onToggle, onItemClick }: {
+function NewsSourceGroup({
+  source,
+  items,
+  isExpanded,
+  readIds,
+  onToggle,
+  onItemClick,
+}: {
   source: string;
   items: NewsItem[];
   isExpanded: boolean;
@@ -230,8 +248,12 @@ function NewsSourceGroup({ source, items, isExpanded, readIds, onToggle, onItemC
         data-testid={`news-source-group-${source}`}
       >
         {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-        <Text size="sm" fw={600} tt="uppercase">{source}</Text>
-        <Badge size="xs" variant="light" color="gray">{items.length}</Badge>
+        <Text size="sm" fw={600} tt="uppercase">
+          {source}
+        </Text>
+        <Badge size="xs" variant="light" color="gray">
+          {items.length}
+        </Badge>
       </Group>
 
       <Collapse in={isExpanded}>
@@ -309,12 +331,7 @@ export function NewsFilterControls({
       />
 
       {unreadCount > 0 && (
-        <Badge
-          variant="light"
-          color="blue"
-          onClick={onMarkAllRead}
-          data-testid="news-unread-badge"
-        >
+        <Badge variant="light" color="blue" onClick={onMarkAllRead} data-testid="news-unread-badge">
           {unreadCount} unread
         </Badge>
       )}
@@ -355,12 +372,16 @@ export function NewsListContent({
   }
   if (error) {
     return (
-      <Text c="red" ta="center" py="xl" data-testid="news-error">{error}</Text>
+      <Text c="red" ta="center" py="xl" data-testid="news-error">
+        {error}
+      </Text>
     );
   }
   if (newsItems.length === 0) {
     return (
-      <Text c="dimmed" ta="center" py="xl" data-testid="news-empty">No news available</Text>
+      <Text c="dimmed" ta="center" py="xl" data-testid="news-empty">
+        No news available
+      </Text>
     );
   }
   return (
@@ -412,11 +433,7 @@ export function NewsListHeader({
           )}
           {isRefreshing && <Loader size="sm" />}
         </Group>
-        <CloseButton
-          onClick={onClose}
-          className="news-close-btn"
-          data-testid="news-close-btn"
-        />
+        <CloseButton onClick={onClose} className="news-close-btn" data-testid="news-close-btn" />
       </Group>
     </Paper>
   );
