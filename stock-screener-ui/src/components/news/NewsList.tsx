@@ -96,7 +96,6 @@ export function NewsList({
                   gap="xs"
                   p="xs"
                   style={{
-                    cursor: "pointer",
                     borderRadius: "var(--mantine-radius-sm)",
                     backgroundColor: "var(--mantine-color-default-hover)",
                   }}
@@ -104,7 +103,7 @@ export function NewsList({
                   data-testid={`news-source-group-${source}`}
                 >
                   {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-                  <Text size="sm" fw={600} style={{ textTransform: "uppercase" }}>
+                  <Text size="sm" fw={600} tt="uppercase">
                     {source}
                   </Text>
                   <Badge size="xs" variant="light" color="gray">
@@ -120,7 +119,6 @@ export function NewsList({
                         padding="xs"
                         withBorder
                         style={{
-                          cursor: "pointer",
                           backgroundColor:
                             selectedArticle?.id === item.id
                               ? "var(--mantine-color-blue-light)"
@@ -144,7 +142,7 @@ export function NewsList({
                             size="xs"
                             fw={selectedArticle?.id === item.id ? 600 : 500}
                             lineClamp={2}
-                            style={{ flex: 1 }}
+                            flex={1}
                           >
                             {item.headline}
                           </Text>

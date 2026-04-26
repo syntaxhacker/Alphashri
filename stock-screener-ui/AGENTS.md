@@ -212,6 +212,7 @@ print('pd.Timestamp' in inspect.getsource(get_paper_chart))
 - Frontend: vitest, files co-located as `*.test.ts` / `*.test.tsx`
 - Backend: pytest, files in `stock-screener-ui/tests/`
 - Run both before committing
+- **Read `TEST_RULES.md`** before writing or modifying any test — covers assertion conventions, mock patterns, accordion interaction, data-testid naming, and coverage requirements
 
 ## Committing
 - Never commit unless asked

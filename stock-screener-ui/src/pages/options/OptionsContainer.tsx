@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Box } from "@mantine/core";
 import { useOptionsState } from "../../hooks/useOptionsState";
 import { OptionsPage } from "../../components/options/OptionsPage";
 
@@ -7,13 +8,14 @@ export function OptionsContainer() {
   const [activeTab, setActiveTab] = useState<string>("chain");
 
   return (
-    <div
+    <Box
       id="options-container"
       className="options-container"
-      style={{ height: "100%", overflow: "hidden" }}
+      h="100%"
+      style={{ overflow: "hidden" }}
       data-testid="options-container"
     >
       <OptionsPage activeTab={activeTab} setActiveTab={setActiveTab} {...options} />
-    </div>
+    </Box>
   );
 }

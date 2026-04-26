@@ -247,18 +247,9 @@ function OptionColumn({
                 />
               )}
 
-              <Stack
-                gap={0}
-                align="center"
-                style={{ zIndex: 1, width: "100%", position: "relative" }}
-              >
+              <Stack gap={0} align="center" w="100%" pos="relative" style={{ zIndex: 1 }}>
                 <Group gap={4} wrap="nowrap" align="center" justify="center">
-                  <Text
-                    size="sm"
-                    fw={cell.fw}
-                    c={cell.c as any}
-                    style={{ textAlign: "center", lineHeight: 1.05 }}
-                  >
+                  <Text size="sm" fw={cell.fw} c={cell.c as any} ta="center" lh={1.05}>
                     {cell.value}
                   </Text>
                   {cell.badge && (
@@ -361,13 +352,13 @@ function OptionChainTableInner({
 
       <ScrollArea
         className="chain-table-scrollarea"
-        style={{ flex: 1 }}
+        flex={1}
         type="hover"
         scrollbars="y"
         viewportRef={viewportRef}
         data-testid="options-chain-table-scrollarea"
       >
-        <Box className="chain-table-body" style={{ minWidth: 800, paddingBottom: 150 }}>
+        <Box className="chain-table-body" miw={800} pb={150}>
           {strikeMatrix.map(({ strike, ce, pe }) => {
             const isATM = spotPrice && Math.abs(strike - spotPrice) < 25;
             const isHovered = hoveredStrike === strike;

@@ -1,3 +1,5 @@
+import { PIVOT_R1, PIVOT_PP, PIVOT_S1 } from "../config/colors";
+
 export function buildPivotSeries(
   candles: Array<{ date: string }>,
   pivot_levels: Array<{ date: string; date_raw: string; pp: number; r1: number; s1: number }>,
@@ -31,12 +33,12 @@ export function buildPivotSeries(
       connectNulls: false,
       silent: true,
       z: 4,
-      lineStyle: { color: "#EF5350", width: 1, type: "dashed" },
+      lineStyle: { color: PIVOT_R1, width: 1, type: "dashed" },
       tooltip: {
         show: true,
         formatter: (params: any) =>
           params.value !== null
-            ? `<span style="color:#EF5350">R1: ₹${params.value.toFixed(2)}</span>`
+            ? `<span style="color:${PIVOT_R1}">R1: ₹${params.value.toFixed(2)}</span>`
             : "",
       },
     },
@@ -49,12 +51,12 @@ export function buildPivotSeries(
       connectNulls: false,
       silent: true,
       z: 4,
-      lineStyle: { color: "#AB47BC", width: 1, type: "dotted" },
+      lineStyle: { color: PIVOT_PP, width: 1, type: "dotted" },
       tooltip: {
         show: true,
         formatter: (params: any) =>
           params.value !== null
-            ? `<span style="color:#AB47BC">PP: ₹${params.value.toFixed(2)}</span>`
+            ? `<span style="color:${PIVOT_PP}">PP: ₹${params.value.toFixed(2)}</span>`
             : "",
       },
     },
@@ -67,12 +69,12 @@ export function buildPivotSeries(
       connectNulls: false,
       silent: true,
       z: 4,
-      lineStyle: { color: "#26A69A", width: 1, type: "dashed" },
+      lineStyle: { color: PIVOT_S1, width: 1, type: "dashed" },
       tooltip: {
         show: true,
         formatter: (params: any) =>
           params.value !== null
-            ? `<span style="color:#26A69A">S1: ₹${params.value.toFixed(2)}</span>`
+            ? `<span style="color:${PIVOT_S1}">S1: ₹${params.value.toFixed(2)}</span>`
             : "",
       },
     },

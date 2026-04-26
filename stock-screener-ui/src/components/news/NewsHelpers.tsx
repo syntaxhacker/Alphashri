@@ -57,7 +57,6 @@ function ArticleSymbols({
             <Badge
               variant="light"
               color={symbol.instrument_key ? "blue" : "gray"}
-              style={{ cursor: "pointer" }}
               onClick={() => onSymbolClick(symbol)}
               data-testid={`news-symbol-${symbol.code}`}
             >
@@ -194,7 +193,6 @@ function NewsItemCard({
       padding="xs"
       className={`news-item-card ${isUnread ? "unread" : ""}`}
       style={{
-        cursor: "pointer",
         borderLeft: isUnread ? "3px solid var(--mantine-color-blue-6)" : undefined,
       }}
       onClick={(e) => {
@@ -210,7 +208,7 @@ function NewsItemCard({
           fw={isUnread ? 500 : 400}
           lineClamp={1}
           className="news-item-headline"
-          style={{ flex: 1 }}
+          flex={1}
         >
           {item.headline}
         </Text>
@@ -243,7 +241,6 @@ function NewsSourceGroup({
         gap="xs"
         p="xs"
         style={{
-          cursor: "pointer",
           borderRadius: "var(--mantine-radius-sm)",
           backgroundColor: "var(--mantine-color-default-hover)",
         }}
@@ -305,7 +302,7 @@ export function NewsFilterControls({
         value={selectedSource}
         onChange={(v) => v && onSourceChange(v)}
         data={sourceData}
-        style={{ flex: 1 }}
+        flex={1}
         className="news-source-select"
         data-testid="news-source-select"
       />
@@ -334,13 +331,7 @@ export function NewsFilterControls({
       />
 
       {unreadCount > 0 && (
-        <Badge
-          variant="light"
-          color="blue"
-          style={{ cursor: "pointer" }}
-          onClick={onMarkAllRead}
-          data-testid="news-unread-badge"
-        >
+        <Badge variant="light" color="blue" onClick={onMarkAllRead} data-testid="news-unread-badge">
           {unreadCount} unread
         </Badge>
       )}

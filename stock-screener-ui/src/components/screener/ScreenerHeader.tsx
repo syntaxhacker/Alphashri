@@ -125,7 +125,13 @@ export function ScreenerHeader({
               className="mode-select"
             />
           </Group>
-          <Group gap={6} align="center" className="view-group" data-testid="view-group">
+          <Group
+            gap={6}
+            align="center"
+            className="view-group"
+            data-testid="view-group"
+            hiddenFrom="sm"
+          >
             <Text size="xs" c="dimmed">
               View as
             </Text>

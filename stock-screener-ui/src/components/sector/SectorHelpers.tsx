@@ -1,6 +1,15 @@
 import { Box, Stack, Text, Group, Badge, useMantineColorScheme } from "@mantine/core";
 import type { SectorItem, StockMover } from "../../types/sector";
 import { formatPercentage } from "../../utils/ui-helpers";
+import {
+  SECTOR_STRONG_GREEN,
+  SECTOR_GREEN,
+  SECTOR_LIGHT_GREEN,
+  SECTOR_NEUTRAL,
+  SECTOR_LIGHT_RED,
+  SECTOR_RED,
+  SECTOR_STRONG_RED,
+} from "../../config/colors";
 
 export interface SectorAlert {
   timestamp: string;
@@ -70,13 +79,13 @@ export function buildTreemapData(sectors: SectorItem[]) {
 }
 
 const HEAT_COLORS = {
-  strongGreen: "#166534",
-  mildGreen: "#1f7a4a",
-  faintGreen: "#2b5f46",
-  neutral: "#2a3441",
-  faintRed: "#7a2e2e",
-  mildRed: "#991b1b",
-  strongRed: "#7f1d1d",
+  strongGreen: SECTOR_STRONG_GREEN,
+  mildGreen: SECTOR_GREEN,
+  faintGreen: SECTOR_LIGHT_GREEN,
+  neutral: SECTOR_NEUTRAL,
+  faintRed: SECTOR_LIGHT_RED,
+  mildRed: SECTOR_RED,
+  strongRed: SECTOR_STRONG_RED,
 } as const;
 
 function getSectorColor(avgChange: number): string {

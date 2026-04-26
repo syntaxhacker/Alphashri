@@ -44,6 +44,7 @@ export function OrbSettingsSection({ config, onChange }: OrbSettingsSectionProps
             step={0.1}
             size="xs"
             style={{ width: "100%" }}
+            errorProps={{ "data-testid": "config-sl-pct-error" }}
           />
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>

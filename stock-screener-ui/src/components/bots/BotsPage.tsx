@@ -34,8 +34,9 @@ import type { BotConfig, BotsView } from "../../types/bots";
 import { BotConfigModal } from "./BotConfigModal2";
 import { BotStatusPanel } from "./BotStatusPanel2";
 import { CompactPage, CompactPanel } from "../common/compact";
-import { LoadingState, ErrorAlert, EmptyCompact } from "../common/states";
+import { InlineLoader, ErrorAlert, EmptyCompact } from "../common/states";
 import { StatusBadge } from "../common/BadgeComponents";
+import { BOT_RUNNING, BOT_STOPPED, BOT_SELECTED_BG } from "../../config/colors";
 
 export function BotsPage() {
   const [currentView, setCurrentViewState] = useState<BotsView>("list");
@@ -118,18 +119,18 @@ export function BotsPage() {
             {state.bots.map((bot) => (
               <Table.Tr
                 key={bot.id}
-                bg={state.selectedBot?.id === bot.id ? "rgba(34, 139, 230, 0.1)" : undefined}
+                bg={state.selectedBot?.id === bot.id ? BOT_SELECTED_BG : undefined}
                 data-testid={`bot-row-${bot.id}`}
                 className="bot-row"
               >
                 <Table.Td>
                   <Group gap="xs">
                     <Box
+                      w={8}
+                      h={8}
                       style={{
-                        width: 8,
-                        height: 8,
                         borderRadius: "50%",
-                        backgroundColor: bot.running ? "#51cf66" : "#868e96",
+                        backgroundColor: bot.running ? BOT_RUNNING : BOT_STOPPED,
                       }}
                     />
                     <Text fw={500}>{bot.name}</Text>
@@ -247,13 +248,11 @@ export function BotsPage() {
         </Button>
       }
     >
-      <Box
+      <Stack
         id="bots-page"
         className="bots-page"
+        h="100%"
         style={{
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
           overflow: "hidden",
         }}
         data-testid="bots-view"
@@ -292,7 +291,7 @@ export function BotsPage() {
         <Box flex={1} style={{ minHeight: 0, overflowY: "auto" }}>
           {isLoading ? (
             <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
-              <LoadingState message="Loading..." size="lg" />
+              <InlineLoader size="lg" />
             </Stack>
           ) : currentView === "status" && state.selectedBot ? (
             <BotStatusPanel
@@ -306,7 +305,7 @@ export function BotsPage() {
             renderBotsList()
           )}
         </Box>
-      </Box>
+      </Stack>
 
       <BotConfigModal
         opened={state.showCreateModal || state.showEditModal}

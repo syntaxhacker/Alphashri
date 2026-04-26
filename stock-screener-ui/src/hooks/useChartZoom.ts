@@ -11,7 +11,7 @@ interface UseChartZoomReturn {
   zoomToTradeByIndex: (startIdx: number, endIdx: number, total: number) => void;
 }
 
-function computeZoomRange(
+export function computeZoomRange(
   startIdx: number,
   endIdx: number,
   total: number,
@@ -28,7 +28,7 @@ function computeZoomRange(
   return { start, end };
 }
 
-function dispatchZoom(chart: any, startIdx: number, endIdx: number, total: number) {
+export function dispatchZoom(chart: any, startIdx: number, endIdx: number, total: number) {
   const { start, end } = computeZoomRange(startIdx, endIdx, total);
   const startPct = (start / total) * 100;
   const endPct = ((end + 1) / total) * 100;

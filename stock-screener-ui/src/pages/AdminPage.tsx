@@ -20,7 +20,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
 function LoadingState() {
   return (
-    <Box data-testid="admin-page" style={{ height: "100%", overflow: "hidden" }}>
+    <Box data-testid="admin-page" h="100%" style={{ overflow: "hidden" }}>
       <CompactPanel
         padded
         title={
@@ -39,12 +39,8 @@ function LoadingState() {
 
 function ErrorState({ error }: { error: string }) {
   return (
-    <Box data-testid="admin-page" style={{ height: "100%", overflow: "hidden" }}>
-      <CompactPanel
-        title="Unable to load stats"
-        description={error}
-        style={{ color: "var(--mantine-color-red-6)" }}
-      />
+    <Box data-testid="admin-page" h="100%" style={{ overflow: "hidden" }}>
+      <CompactPanel title="Unable to load stats" description={error} c="red.6" />
     </Box>
   );
 }
@@ -62,7 +58,7 @@ function AdminContent({
 }) {
   const { recent_runs, aggregate } = stats;
   return (
-    <Box data-testid="admin-page" style={{ height: "100%", overflow: "hidden" }}>
+    <Box data-testid="admin-page" h="100%" style={{ overflow: "hidden" }}>
       <CompactPage
         title="LLM Admin Dashboard"
         description="Recent model usage, response time, and cost telemetry."
@@ -77,7 +73,7 @@ function AdminContent({
           </ActionIcon>
         }
       >
-        <Stack gap="sm" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Stack gap="sm" flex={1} style={{ minHeight: 0 }}>
           <CompactStatGrid>
             <CompactStat label="Total Runs" value={aggregate.total_runs} />
             <CompactStat label="Total Tokens" value={aggregate.total_tokens.toLocaleString()} />
@@ -93,10 +89,7 @@ function AdminContent({
             </Text>
           )}
           <ModelBreakdown models={aggregate.models_used} />
-          <CompactPanel
-            title="Recent Runs"
-            style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
-          >
+          <CompactPanel title="Recent Runs" flex={1} style={{ minHeight: 0 }}>
             <ScrollArea flex={1}>
               <RecentRunsTable runs={recent_runs} />
             </ScrollArea>
@@ -122,6 +115,9 @@ export default function AdminPage() {
       }
       const data = await response.json();
       setStats(data);
+      if (data.error) {
+        setError(data.error);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load stats");
     } finally {

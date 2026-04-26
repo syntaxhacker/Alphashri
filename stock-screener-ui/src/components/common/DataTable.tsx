@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Table } from "@mantine/core";
 
 interface DataTableProps {
@@ -13,7 +13,10 @@ interface DataTableProps {
   className?: string;
   id?: string;
   dataTestId?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
+  styles?: Partial<
+    Record<"table" | "thead" | "tbody" | "tfoot" | "tr" | "th" | "td" | "caption", CSSProperties>
+  >;
 }
 
 export function DataTable({
@@ -29,6 +32,7 @@ export function DataTable({
   id,
   dataTestId,
   style,
+  styles,
 }: DataTableProps) {
   return (
     <Table
@@ -43,6 +47,7 @@ export function DataTable({
       id={id}
       data-testid={dataTestId}
       style={style}
+      styles={styles}
     >
       {children}
     </Table>

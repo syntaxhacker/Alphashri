@@ -78,29 +78,14 @@ export async function navigateToPaperTradingWithBot(
  * Verify tabs are visible
  */
 export async function verifyPaperTradingTabs(page: Page): Promise<void> {
-  await expect(page.locator('button:has-text("LivePositions")')).toBeVisible();
-  await expect(page.locator('button:has-text("Trade History")')).toBeVisible();
-  await expect(page.locator('button:has-text("Settings")')).toBeVisible();
+  await expect(page.locator('[data-testid="tab-live"]')).toBeVisible();
+  await expect(page.locator('[data-testid="trade-history-tab"]')).toBeVisible();
+  await expect(page.locator('[data-testid="tab-settings"]')).toBeVisible();
 }
 
 /**
- * Click on a tab in Paper Trading view
- */
-export async function clickPaperTradingTab(page: Page, tabName: string): Promise<void> {
-  const _tab = page.locator(`button:has-text("${tabName}")`);
-  await page.waitForTimeout(300);
-}
-
-/**
- * Get bot selector dropdown
+ * Get bot selector cards
  */
 export function getBotSelector(page: Page) {
   return page.locator('[data-testid^="bot-card-"]');
-}
-
-/**
- * Get portfolio card
- */
-export function getPortfolioCard(page: Page) {
-  return page.locator(".portfolio-card");
 }

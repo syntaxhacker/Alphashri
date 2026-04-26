@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMediaQuery } from "@mantine/hooks";
-import { Box, ScrollArea, Modal } from "@mantine/core";
+import { Box, Stack, Flex, ScrollArea, Modal } from "@mantine/core";
 import type { NewsItem, NewsSymbol, ArticleResponse } from "../components/news/news-types";
 import { fetchArticle } from "../api/news";
 import { useNewsSourceGroups, getSourceOptions } from "../components/news/useNewsSourceGroups";
@@ -94,31 +94,25 @@ function NewsPageDesktop({
   articleDetailProps: React.ComponentProps<typeof ArticleDetail>;
 }) {
   return (
-    <Box
-      data-testid="news-page"
-      className="news-page"
-      style={{ display: "flex", height: "100%", overflow: "hidden" }}
-    >
-      <Box
+    <Flex data-testid="news-page" className="news-page" h="100%" style={{ overflow: "hidden" }}>
+      <Stack
+        w="35%"
+        miw={300}
         style={{
-          width: "35%",
-          minWidth: 300,
           borderRight: "1px solid var(--mantine-color-default-border)",
-          display: "flex",
-          flexDirection: "column",
           overflow: "hidden",
         }}
       >
         <ScrollArea h="100%" offsetScrollbars p="sm">
           <NewsList {...newsListProps} />
         </ScrollArea>
-      </Box>
-      <Box style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      </Stack>
+      <Stack flex={1} style={{ overflow: "hidden" }}>
         <ScrollArea h="100%" offsetScrollbars p="sm">
           <ArticleDetail {...articleDetailProps} />
         </ScrollArea>
-      </Box>
-    </Box>
+      </Stack>
+    </Flex>
   );
 }
 

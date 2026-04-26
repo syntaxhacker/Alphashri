@@ -1,3 +1,4 @@
+import { Box } from "@mantine/core";
 import { useAppDispatch, useAppSelector } from "../../state/store/hooks";
 import { removeNotification } from "../../state/store/notificationsSlice";
 import { NotificationItem } from "./Notification";
@@ -15,7 +16,7 @@ export function NotificationContainer() {
   }
 
   return (
-    <div
+    <Box
       className="toast-container"
       role="region"
       aria-label="Notifications"
@@ -29,6 +30,6 @@ export function NotificationContainer() {
           onDismiss={handleDismiss}
         />
       ))}
-    </div>
+    </Box>
   );
 }

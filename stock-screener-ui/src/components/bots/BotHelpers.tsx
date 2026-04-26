@@ -14,6 +14,7 @@ import { IconRefresh } from "@tabler/icons-react";
 import type { BotTrade, BotPosition, PortfolioSummary, StrategyStatus } from "../../types/bots";
 import { formatNumber as formatNumberShared, getPnLTextColor } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
+import { TINT_TEST_TRADE } from "../../config/colors";
 
 export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
   const pnlColor = getPnLTextColor(portfolio.total_pnl);
@@ -240,7 +241,7 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
               const netPnlColor = getPnLTextColor(t.net_pnl);
 
               return (
-                <Table.Tr key={idx} bg={t.is_test ? "rgba(255, 193, 7, 0.1)" : undefined}>
+                <Table.Tr key={idx} bg={t.is_test ? TINT_TEST_TRADE : undefined}>
                   <Table.Td>
                     <Group gap="xs">
                       <Text size="sm">{t.strategy_name}</Text>
