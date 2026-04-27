@@ -30,8 +30,10 @@ from api_server_fastapi import (
     _passes_profile_filters,
     _build_rationale,
     _to_float,
+    _enrich_with_touch_history,
 )
 import trending_upside
+from db.models import Stock52WeekTouch
 
 
 @pytest.fixture
@@ -751,3 +753,287 @@ class TestScreenerSWR:
         response = client.get("/api/screener")
         data = response.json()
         assert response.headers['x-cache'] == data['cache_status']
+
+
+class Test52WeekTouchEnrichment:
+    """Tests for _enrich_with_touch_history backend enrichment."""
+
+    @pytest.fixture(autouse=True)
+    def patch_session_local(self, db, monkeypatch):
+        """Patch SessionLocal to use test database."""
+        from sqlalchemy.orm import sessionmaker
+        TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+        monkeypatch.setattr('api_server_fastapi.SessionLocal', TestSessionLocal)
+
+    def test_enrich_adds_last_touched_fields_when_no_history(self, db):
+        """Test that last_touched fields are None when no history exists."""
+        # Arrange: stock without any touch history
+        data = {
+            'approaching': [
+                {
+                    'symbol': 'ADANIGREEN',
+                    'score': 41,
+                    'tv_price': 1240.0,
+                    'upstox_price': 1238.0,
+                    'high_52w': 1257.35,
+                    'to_52w_high': 1.4,
+                    'touched_52w': False,
+                }
+            ],
+            'touched': [],
+        }
+
+        # Act
+        _enrich_with_touch_history(data, 'trending')
+
+        # Assert
+        stock = data['approaching'][0]
+        assert stock['last_touched'] is None
+        assert stock['last_touched_price'] is None
+        assert stock['touched_52w'] is False
+        assert len(data['touched']) == 0
+
+    def test_stock_moved_to_touched_if_recent_touch(self, db):
+        """Test that stocks with recent touches are moved to touched bucket."""
+        from datetime import datetime, timedelta
+
+        # Arrange: stock that didn't touch today but has a touch 2 days ago
+        touch_date = datetime.now() - timedelta(days=2)
+        record = Stock52WeekTouch(
+            symbol="ADANIGREEN",
+            touched_date=touch_date,
+            touched_price=1255.0,
+            is_high=True,
+            is_current_52w_high=False,
+        )
+        db.add(record)
+        db.commit()
+
+        data = {
+            'approaching': [
+                {
+                    'symbol': 'ADANIGREEN',
+                    'score': 41,
+                    'tv_price': 1240.0,
+                    'upstox_price': 1238.0,
+                    'high_52w': 1257.35,
+                    'to_52w_high': 1.4,
+                    'touched_52w': False,
+                }
+            ],
+            'touched': [],
+        }
+
+        # Act
+        _enrich_with_touch_history(data, 'trending')
+
+        # Assert: stock moved to touched, touched_52w set to True
+        assert len(data['approaching']) == 0
+        assert len(data['touched']) == 1
+        stock = data['touched'][0]
+        assert stock['symbol'] == 'ADANIGREEN'
+        assert stock['touched_52w'] is True
+        assert stock['last_touched'] is not None
+        assert stock['last_touched_price'] == 1255.0
+
+    def test_stock_stays_in_touched_if_already_touched_today(self, db):
+        """Test that stocks already touched today stay in touched."""
+        from datetime import datetime
+
+        # Arrange: stock touched today
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        record = Stock52WeekTouch(
+            symbol="RELIANCE",
+            touched_date=today,
+            touched_price=2500.0,
+            is_high=True,
+            is_current_52w_high=True,
+        )
+        db.add(record)
+        db.commit()
+
+        data = {
+            'approaching': [],
+            'touched': [
+                {
+                    'symbol': 'RELIANCE',
+                    'score': 85,
+                    'tv_price': 2450.0,
+                    'upstox_price': 2451.0,
+                    'high_52w': 2600.0,
+                    'to_52w_high': -5.76,
+                    'touched_52w': True,
+                }
+            ],
+        }
+
+        # Act
+        _enrich_with_touch_history(data, 'trending')
+
+        # Assert: stays in touched
+        assert len(data['approaching']) == 0
+        assert len(data['touched']) == 1
+        stock = data['touched'][0]
+        assert stock['touched_52w'] is True
+        assert stock['last_touched_price'] == 2500.0
+
+    def test_multiple_stocks_enriched_correctly(self, db):
+        """Test enrichment with multiple stocks with mixed touch history."""
+        from datetime import datetime, timedelta
+
+        # Setup: stocks with different touch patterns
+        two_days_ago = datetime.now() - timedelta(days=2)
+        three_days_ago = datetime.now() - timedelta(days=3)
+
+        records = [
+            Stock52WeekTouch(
+                symbol="ADANIGREEN",
+                touched_date=two_days_ago,
+                touched_price=1255.0,
+                is_high=True,
+            ),
+            Stock52WeekTouch(
+                symbol="RELIANCE",
+                touched_date=three_days_ago,
+                touched_price=2500.0,
+                is_high=True,
+            ),
+        ]
+        db.add_all(records)
+        db.commit()
+
+        data = {
+            'approaching': [
+                {
+                    'symbol': 'ADANIGREEN',
+                    'score': 41,
+                    'tv_price': 1240.0,
+                    'upstox_price': 1238.0,
+                    'high_52w': 1257.35,
+                    'to_52w_high': 1.4,
+                    'touched_52w': False,
+                },
+                {
+                    'symbol': 'RELIANCE',
+                    'score': 85,
+                    'tv_price': 2450.0,
+                    'upstox_price': 2451.0,
+                    'high_52w': 2600.0,
+                    'to_52w_high': -5.76,
+                    'touched_52w': False,
+                },
+                {
+                    'symbol': 'TCS',
+                    'score': 75,
+                    'tv_price': 3800.0,
+                    'upstox_price': 3801.0,
+                    'high_52w': 3900.0,
+                    'to_52w_high': -2.5,
+                    'touched_52w': False,
+                },
+            ],
+            'touched': [],
+        }
+
+        # Act
+        _enrich_with_touch_history(data, 'trending')
+
+        # Assert: ADANIGREEN and RELIANCE moved to touched, TCS stays approaching
+        assert len(data['approaching']) == 1
+        assert len(data['touched']) == 2
+
+        touched_symbols = {s['symbol'] for s in data['touched']}
+        assert 'ADANIGREEN' in touched_symbols
+        assert 'RELIANCE' in touched_symbols
+
+        approaching_symbols = {s['symbol'] for s in data['approaching']}
+        assert 'TCS' in approaching_symbols
+
+    def test_lookback_window_respects_7_days(self, db):
+        """Test that touches older than 7 days are not considered recent for bucket placement."""
+        from datetime import datetime, timedelta
+
+        # Arrange: touch from 8 days ago (outside lookback)
+        old_date = datetime.now() - timedelta(days=8)
+        record = Stock52WeekTouch(
+            symbol="ADANIGREEN",
+            touched_date=old_date,
+            touched_price=1255.0,
+            is_high=True,
+        )
+        db.add(record)
+        db.commit()
+
+        data = {
+            'approaching': [
+                {
+                    'symbol': 'ADANIGREEN',
+                    'score': 41,
+                    'tv_price': 1240.0,
+                    'upstox_price': 1238.0,
+                    'high_52w': 1257.35,
+                    'to_52w_high': 1.4,
+                    'touched_52w': False,
+                }
+            ],
+            'touched': [],
+        }
+
+        # Act
+        _enrich_with_touch_history(data, 'trending')
+
+        # Assert: stock stays in approaching (old touch not recent enough to move)
+        assert len(data['approaching']) == 1
+        assert len(data['touched']) == 0
+        stock = data['approaching'][0]
+        assert stock['touched_52w'] is False
+        # But last_touched should still be populated (most recent ever)
+        assert stock['last_touched'] is not None
+        assert stock['last_touched_price'] == 1255.0
+
+    def test_last_touched_uses_most_recent_per_symbol(self, db):
+        """Test that only the most recent touch per symbol is used."""
+        from datetime import datetime, timedelta
+
+        # Arrange: multiple touches for same symbol, different dates
+        old_date = datetime.now() - timedelta(days=5)
+        newer_date = datetime.now() - timedelta(days=1)
+
+        records = [
+            Stock52WeekTouch(
+                symbol="ADANIGREEN",
+                touched_date=old_date,
+                touched_price=1240.0,
+                is_high=True,
+            ),
+            Stock52WeekTouch(
+                symbol="ADANIGREEN",
+                touched_date=newer_date,
+                touched_price=1255.0,
+                is_high=True,
+            ),
+        ]
+        db.add_all(records)
+        db.commit()
+
+        data = {
+            'approaching': [
+                {
+                    'symbol': 'ADANIGREEN',
+                    'score': 41,
+                    'tv_price': 1240.0,
+                    'upstox_price': 1238.0,
+                    'high_52w': 1257.35,
+                    'to_52w_high': 1.4,
+                    'touched_52w': False,
+                }
+            ],
+            'touched': [],
+        }
+
+        # Act
+        _enrich_with_touch_history(data, 'trending')
+
+        # Assert: uses the most recent (newer_date) touch
+        stock = data['touched'][0]
+        assert stock['last_touched_price'] == 1255.0

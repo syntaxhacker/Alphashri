@@ -1,4 +1,6 @@
 import { describe, expect, test } from "vitest";
+import React from "react";
+import { Tooltip, Text } from "@mantine/core";
 import { getMarketOpenGapColumns } from "./marketOpenGap";
 import { getTrendingColumns } from "./trending";
 import { getRsiReversalColumns } from "./rsiReversal";
@@ -170,9 +172,36 @@ describe("trending columns", () => {
     });
   });
 
-  test("touched_52w badge formats true/false", () => {
-    expect(fmt(columns, "touched_52w", true)).toBe("Yes");
+  test("touched_52w formats false as No", () => {
     expect(fmt(columns, "touched_52w", false)).toBe("No");
+  });
+
+  test("touched_52w formats true without last_touched as Yes", () => {
+    expect(fmt(columns, "touched_52w", true)).toBe("Yes");
+  });
+
+  test("touched_52w formats true with last_touched as Yes (time ago)", () => {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const stockWithLastTouched = {
+      ...mockStock,
+      last_touched: twoDaysAgo,
+    };
+    const result = fmt(columns, "touched_52w", true, stockWithLastTouched);
+
+    // Result is a Tooltip element containing a Text element
+    expect(result).toBeDefined();
+    const tooltip = result as React.ReactElement;
+    expect(tooltip.type).toBe(Tooltip);
+    expect(tooltip.props.label).toContain("Touched on");
+    expect(tooltip.props.label).toContain("2d ago");
+
+    // Check the Text child - its children may be an array due to JSX interpolation
+    const textChild = tooltip.props.children as React.ReactElement;
+    expect(textChild.type).toBe(Text);
+    const textChildren = textChild.props.children;
+    const text = Array.isArray(textChildren) ? textChildren.join('') : textChildren;
+    expect(text).toContain("Yes");
+    expect(text).toContain("2d ago");
   });
 
   test("tv_price formats with rupee symbol", () => {

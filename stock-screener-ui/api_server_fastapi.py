@@ -37,6 +37,8 @@ from api.screener import (
     PROFILES_WITH_52W_BUCKETS, _profile_meta, _passes_profile_filters,
     _build_rationale, _to_float,
 )
+from db.database import SessionLocal
+from db.models import Stock52WeekTouch
 from api.symbols import _load_instruments, _instruments_cache, _instruments_loaded
 from api.news_routes import (
     news_poller_task, news_startup_prefetch,
@@ -83,10 +85,139 @@ async def screener_prewarm_task():
         except Exception:
             await asyncio.sleep(PREWARM_INTERVAL)
 
+def _enrich_with_touch_history(data, screener):
+    """Enrich screener results with historical 52w touch information.
+
+    Queries the database for the most recent 52w high touch for each symbol
+    and updates the stock data with last_touched info. Also adjusts
+    touched_52w and moves stocks from approaching to touched if they
+    touched within the recent window (7 calendar days ~= 5 trading days).
+    """
+    from datetime import timedelta
+
+    # Collect all symbols
+    approaching = data.get('approaching', [])
+    touched = data.get('touched', [])
+    all_stocks = approaching + touched
+    if not all_stocks:
+        return
+
+    symbols = [s['symbol'] for s in all_stocks if s.get('symbol')]
+    if not symbols:
+        return
+
+    # Look back 7 calendar days to cover ~5 trading days
+    cutoff_date = datetime.now() - timedelta(days=7)
+
+    touch_map = {}
+    try:
+        db = SessionLocal()
+        try:
+            # Get the most recent touch per symbol within the lookback window
+            recent_touches = (
+                db.query(Stock52WeekTouch)
+                .filter(
+                    Stock52WeekTouch.symbol.in_(symbols),
+                    Stock52WeekTouch.touched_date >= cutoff_date,
+                    Stock52WeekTouch.is_high == True,
+                )
+                .order_by(Stock52WeekTouch.symbol, Stock52WeekTouch.touched_date.desc())
+                .all()
+            )
+            # Keep only the most recent per symbol
+            for touch in recent_touches:
+                if touch.symbol not in touch_map:
+                    touch_map[touch.symbol] = touch
+        finally:
+            db.close()
+    except Exception:
+        # DB not available or query failed — skip enrichment
+        pass
+
+    # Build a map of symbol -> last_touched info for ALL symbols
+    # (including those without recent touches)
+    last_touched_info = {}
+    try:
+        db = SessionLocal()
+        try:
+            # Get the single most recent touch EVER for each symbol
+            from sqlalchemy import func
+            subq = (
+                db.query(
+                    Stock52WeekTouch.symbol,
+                    func.max(Stock52WeekTouch.touched_date).label('max_date')
+                )
+                .filter(Stock52WeekTouch.symbol.in_(symbols))
+                .group_by(Stock52WeekTouch.symbol)
+                .subquery()
+            )
+            latest_touches = (
+                db.query(Stock52WeekTouch)
+                .join(subq,
+                      (Stock52WeekTouch.symbol == subq.c.symbol) &
+                      (Stock52WeekTouch.touched_date == subq.c.max_date))
+                .all()
+            )
+            for touch in latest_touches:
+                last_touched_info[touch.symbol] = {
+                    'date': touch.touched_date,
+                    'price': touch.touched_price,
+                }
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    # Process: build new approaching/touched lists based on enriched data
+    new_approaching = []
+    new_touched = []
+    moved_count = 0
+
+    for stock in all_stocks:
+        symbol = stock.get('symbol')
+        touch = touch_map.get(symbol)
+        last_info = last_touched_info.get(symbol)
+
+        # Add last_touched fields to the stock dict
+        if last_info:
+            stock['last_touched'] = last_info['date'].isoformat()
+            stock['last_touched_price'] = last_info['price']
+        else:
+            stock['last_touched'] = None
+            stock['last_touched_price'] = None
+
+        # Determine if stock should be in touched bucket
+        # Criteria: either touched today (original logic) OR touched recently (historical)
+        was_touched_today = stock.get('touched_52w', False)
+        touched_recently = touch is not None
+
+        if was_touched_today or touched_recently:
+            # Should be in touched bucket
+            stock['touched_52w'] = True
+            if not was_touched_today:
+                moved_count += 1
+            new_touched.append(stock)
+        else:
+            # Remains in approaching
+            new_touched.append(stock) if False else None  # keep in approaching
+            new_approaching.append(stock)
+
+    # Replace the lists
+    data['approaching'] = new_approaching
+    data['touched'] = new_touched
+
+    # Update summary if any stocks were moved
+    if moved_count > 0:
+        data['_debug_moved_by_history'] = moved_count
+
 
 def _compute_screener(provider, mode, screener, profile_filters):
     data = fetch_screener_data(provider, mode, screener, profile_filters)
     data['applied_profile_filters'] = profile_filters
+
+    # Enrich with historical 52w touch data
+    _enrich_with_touch_history(data, screener)
+
     return _sanitize_for_json(data)
 
 
