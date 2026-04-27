@@ -32,7 +32,7 @@ def upgrade() -> None:
         sa.UniqueConstraint('symbol', 'touched_date', name='uq_symbol_touched_date'),
     )
     op.create_index('ix_stock_52week_touches_symbol_touched_date',
-                     'stock_52week_touches', ['symbol', 'touched_date'], unique=True)
+                     'stock_52week_touches', ['symbol', 'touched_date'])
 
 
 def downgrade() -> None:
