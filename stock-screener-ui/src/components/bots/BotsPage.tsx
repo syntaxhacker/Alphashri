@@ -279,30 +279,32 @@ export function BotsPage() {
   const handleDeleteBot = useDeleteBotHandler();
 
   return (
-    <CompactPage
-      title="Bots"
-      description="Manage bot configurations, live status, and execution controls."
-      actions={
-        <Button
-          leftSection={<IconPlus size={16} />}
-          onClick={openCreateModal}
-          data-testid="create-bot-btn"
-        >
-          New Bot
-        </Button>
-      }
-    >
-      {renderPageContent({
-        currentView,
-        handleViewChange,
-        handleStartBot,
-        handleStopBot,
-        handleViewStatus,
-        handleClearError,
-        handleEditBot,
-        handleDeleteBot,
-      })}
-      <BotsConfigModal />
-    </CompactPage>
+    <div data-testid="bots-view">
+      <CompactPage
+        title="Bots"
+        description="Manage bot configurations, live status, and execution controls."
+        actions={
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={openCreateModal}
+            data-testid="create-bot-btn"
+          >
+            New Bot
+          </Button>
+        }
+      >
+        {renderPageContent({
+          currentView,
+          handleViewChange,
+          handleStartBot,
+          handleStopBot,
+          handleViewStatus,
+          handleClearError,
+          handleEditBot,
+          handleDeleteBot,
+        })}
+        <BotsConfigModal />
+      </CompactPage>
+    </div>
   );
 }
