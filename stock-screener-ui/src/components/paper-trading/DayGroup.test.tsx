@@ -20,11 +20,11 @@ vi.mock("../../api/paperTrading", () => ({
 }));
 vi.mock("../../utils/ui-helpers", () => ({
   formatNumber: (n: number) => `${n}`,
-  formatTimeOnly: (t: string) => "09:30",
-  formatDateHeader: (d: string) => "Apr 24, 2026",
+  formatTimeOnly: (_t: string) => "09:30",
+  formatDateHeader: (_d: string) => "Apr 24, 2026",
   formatDuration: (m: number) => `${m}m`,
   getPnLTextColor: (value: number) => (value >= 0 ? "green" : "red"),
-  sortByField: (arr: any[], key: string, dir: "asc" | "desc") => arr,
+  sortByField: (arr: any[], _key: string, _dir: "asc" | "desc") => arr,
   getStrategyTypeFromName: (name: string) => (name === "ORB Conservative" ? "orb" : undefined),
 }));
 import { DayGroup } from "./DayGroup";
@@ -35,12 +35,12 @@ import { TestWrapper } from "../../test/test-utils";
 // Note: MantineProvider is provided by TestWrapper wrapper, so we only mock individual components
 vi.mock("@mantine/core", () => {
   // Grid with nested Grid.Col
-  const Grid = ({ children, gutter, grow, ...props }: any) => (
+  const Grid = ({ children, grow, ...props }: any) => (
     <div
       data-testid={props["data-testid"]}
       {...props}
       style={{
-        ...(props.style || {}),
+        ...props.style,
         ...(grow
           ? {
               flexGrow: 1,
@@ -58,7 +58,7 @@ vi.mock("@mantine/core", () => {
   );
 
   // Table with nested subcomponents
-  const Table = ({ children, striped, highlightOnHover, styles, ...props }: any) => (
+  const Table = ({ children, styles, ...props }: any) => (
     <table data-testid={props["data-testid"]} style={styles}>
       {children}
     </table>

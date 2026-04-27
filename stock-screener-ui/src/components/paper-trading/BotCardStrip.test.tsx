@@ -24,10 +24,9 @@ describe("BotCardStrip", () => {
   });
 
   it("renders nothing visible when bots array is empty", () => {
-    const { container } = render(
-      <BotCardStrip bots={[]} selectedBotId={null} onSelect={vi.fn()} />,
-      { wrapper: TestWrapper },
-    );
+    render(<BotCardStrip bots={[]} selectedBotId={null} onSelect={vi.fn()} />, {
+      wrapper: TestWrapper,
+    });
     expect(screen.queryByTestId(/^bot-card-/)).toBeNull();
   });
 

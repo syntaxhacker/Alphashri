@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Tabs, Badge, Text, Group, Flex, ScrollArea, Button, Tooltip } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import { getPaperTradingState, setSelectedStrategyTab, subscribe } from "../../state/paperTrading";
-import type { PaperPosition, PaperTradingState, PaperBotSnapshot } from "../../types/paperTrading";
+import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { closeAllPositions, refreshBotLiveData } from "../../api/paperTrading";

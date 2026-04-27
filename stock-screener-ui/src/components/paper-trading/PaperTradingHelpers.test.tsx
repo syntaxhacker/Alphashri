@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderHook, act } from "@testing-library/react";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
@@ -110,7 +110,7 @@ vi.mock("../../api/botControlApi", () => ({
 // Mock child components to simplify component tests
 // ============================================================
 vi.mock("../../components/paper-trading/BotCardStrip", () => ({
-  BotCardStrip: ({ bots, selectedBotId }: any) => (
+  BotCardStrip: ({ bots }: any) => (
     <div data-testid="bot-card-strip">
       {bots.map((b: any) => (
         <div key={b.id} data-testid={`bot-card-${b.id}`}>
@@ -146,7 +146,7 @@ vi.mock("@mantine/core", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    Select: ({ data, value, onChange, "data-testid": testId, clearable, ...rest }: any) => (
+    Select: ({ data, value, onChange, "data-testid": testId, ...rest }: any) => (
       <select
         data-testid={testId}
         value={value || ""}
@@ -782,7 +782,7 @@ describe("HistoryFilters", () => {
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    const symbolSelect = screen.getByTestId("filter-symbol");
+    expect(screen.getByTestId("filter-symbol")).toBeInTheDocument();
     expect(screen.getByText("All")).toBeInTheDocument();
     expect(screen.queryAllByRole("option")).toHaveLength(1);
   });

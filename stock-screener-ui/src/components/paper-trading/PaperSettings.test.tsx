@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { TestWrapper } from "../../test/test-utils";
@@ -184,12 +184,8 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
 // ============================================================
 // Import mocked modules for direct mock reference in tests
 // ============================================================
-import { getPaperTradingState, subscribe } from "../../state/paperTrading";
-import {
-  fetchStrategyConfig,
-  updateStrategyConfig,
-  resetStrategyConfig,
-} from "../../api/paperTrading";
+import { getPaperTradingState } from "../../state/paperTrading";
+import { fetchStrategyConfig } from "../../api/paperTrading";
 import { listStrategies } from "../../api/strategies";
 
 // ============================================================
