@@ -199,7 +199,7 @@ describe("trending columns", () => {
     const textChild = tooltip.props.children as React.ReactElement;
     expect(textChild.type).toBe(Text);
     const textChildren = textChild.props.children;
-    const text = Array.isArray(textChildren) ? textChildren.join('') : textChildren;
+    const text = Array.isArray(textChildren) ? textChildren.join("") : textChildren;
     expect(text).toContain("Yes");
     expect(text).toContain("2d ago");
   });

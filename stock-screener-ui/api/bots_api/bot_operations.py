@@ -78,16 +78,18 @@ def _get_sync_functions():
                         "total_positions": 0,
                         "trades_count": 0,
                     },
+                    "watchlist": [],
                     "positions": [],
                     "strategies": {},
                     "timestamp": datetime.now().isoformat(),
                 }
             return {
                 "bot_id": bot.uuid,
-                "portfolio": state['portfolio'],
-                "positions": state['positions'],
-                "strategies": state['strategies'],
-                "timestamp": state['timestamp'],
+                "portfolio": state["portfolio"],
+                "watchlist": state.get("watchlist", []),
+                "positions": state["positions"],
+                "strategies": state["strategies"],
+                "timestamp": state["timestamp"],
             }
 
         _sync_get_bot_portfolio = _sync_get_bot_portfolio

@@ -98,6 +98,12 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
             scan_items = json.loads(bot_runtime.scan_items)
         except Exception:
             pass
+    watchlist = []
+    if bot_runtime and getattr(bot_runtime, 'watchlist', None):
+        try:
+            watchlist = json.loads(bot_runtime.watchlist)
+        except Exception:
+            pass
     if not scan_items:
         try:
             client = get_redis_client()
@@ -118,6 +124,7 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
         'bot_id': bot.id,
         'bot_name': bot.name,
         'running': True,
+        'watchlist': watchlist,
         'portfolio': {
             'initial_capital': initial_capital,
             'cash': cash,

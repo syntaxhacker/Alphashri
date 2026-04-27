@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { render, type RenderResult } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { MemoryRouter } from "react-router-dom";
+import { vi } from "vitest";
 import { AuthProvider, type User } from "../components/auth/AuthProvider2";
 import { useAuth } from "../components/auth/AuthProvider2";
 

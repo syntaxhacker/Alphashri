@@ -530,6 +530,7 @@ describe("refreshBotLiveData", () => {
       .mockResolvedValueOnce({
         json: async () => ({
           portfolio: { total_value: 100000, initial_capital: 100000 },
+          watchlist: ["RELIANCE", "INFY"],
         }),
       })
       .mockResolvedValueOnce({
@@ -551,6 +552,7 @@ describe("refreshBotLiveData", () => {
     expect(setBotSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         timestamp: expect.any(String),
+        watchlist: ["RELIANCE", "INFY"],
         open_positions: ["TATASTEEL"],
         scan_items: [{ symbol: "INFY" }],
       }),

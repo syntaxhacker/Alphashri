@@ -11,7 +11,7 @@ export interface Stock {
   perf_w: number;
   sector: string;
   touched_52w: boolean;
-  last_touched?: string | null;  // ISO date string of last 52w touch
+  last_touched?: string | null; // ISO date string of last 52w touch
   last_touched_price?: number | null;
   day_change?: number;
   rsi?: number;

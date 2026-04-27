@@ -39,6 +39,7 @@ class BotResponse(BaseModel):
     running: bool = False
     pid: Optional[int] = None
     error: Optional[str] = None
+    watchlist: List[str] = []
 
 
 class BotStatusResponse(BaseModel):

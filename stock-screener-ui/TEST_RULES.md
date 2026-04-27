@@ -9,8 +9,8 @@
 - `bun test` — all vitest tests
 - `bun test -- --run <file>` — single file (no watch)
 - `bun test -- --run src/components/paper-trading/` — directory
-- `npx vitest run --dir src` — alternative direct invocation
-- `npx playwright test` — E2E tests (requires dev server running)
+- `bunx vitest run --dir src` — alternative direct invocation
+- `bunx playwright test` — E2E tests (requires dev server running)
 
 ## File Conventions
 
