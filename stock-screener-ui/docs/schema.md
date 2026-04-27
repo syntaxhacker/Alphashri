@@ -405,6 +405,7 @@ erDiagram
 | is_current_52w_high | Boolean | No | - |
 | created_at | DateTime | No | - |
 | *(Index: `ix_stock_52week_touches_symbol` on symbol)* | | | |
+| *(Index: `ix_stock_52week_touches_symbol_touched_date` on symbol, touched_date)* | | | |
 | *(Index: `ix_stock_52week_touches_touched_date` on touched_date)* | | | |
 | *(Unique: `uq_symbol_touched_date` on symbol, touched_date)* | | | |
 

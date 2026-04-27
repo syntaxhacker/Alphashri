@@ -1,7 +1,7 @@
 """Model for tracking when stocks touch 52-week highs/lows."""
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, UniqueConstraint, Index
 from sqlalchemy.sql import func
 
 from .base import Base
@@ -18,16 +18,17 @@ class Stock52WeekTouch(Base):
     __tablename__ = "stock_52week_touches"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid = Column(String(36), nullable=True, unique=True, index=True, default=lambda: str(uuid.uuid4()))
+    uuid = Column(String(36), nullable=True, unique=True, default=lambda: str(uuid.uuid4()))
     symbol = Column(String(32), nullable=False, index=True)
-    touched_date = Column(DateTime, nullable=False, index=True)  # The date when touch occurred
-    touched_price = Column(Float, nullable=False)  # Price at touch
-    is_high = Column(Boolean, default=True, nullable=False)  # True=52w high, False=52w low
-    is_current_52w_high = Column(Boolean, default=False, nullable=False)  # Is still the 52w high record
+    touched_date = Column(DateTime, nullable=False, index=True)
+    touched_price = Column(Float, nullable=False)
+    is_high = Column(Boolean, default=True, nullable=False)
+    is_current_52w_high = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     __table_args__ = (
         UniqueConstraint('symbol', 'touched_date', name='uq_symbol_touched_date'),
+        Index('ix_stock_52week_touches_symbol_touched_date', 'symbol', 'touched_date'),
     )
 
     def __repr__(self):
