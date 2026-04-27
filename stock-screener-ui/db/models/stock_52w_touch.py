@@ -18,7 +18,7 @@ class Stock52WeekTouch(Base):
     __tablename__ = "stock_52week_touches"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid = Column(String(36), unique=True, index=True, default=lambda: str(uuid.uuid4()))
+    uuid = Column(String(36), nullable=True, unique=True, index=True, default=lambda: str(uuid.uuid4()))
     symbol = Column(String(32), nullable=False, index=True)
     touched_date = Column(DateTime, nullable=False, index=True)  # The date when touch occurred
     touched_price = Column(Float, nullable=False)  # Price at touch

@@ -21,7 +21,7 @@ def upgrade() -> None:
     op.create_table(
         'stock_52week_touches',
         sa.Column('id', sa.Integer(), nullable=False, autoincrement=True),
-        sa.Column('uuid', sa.String(length=36), nullable=False),
+        sa.Column('uuid', sa.String(length=36), nullable=True),
         sa.Column('symbol', sa.String(length=32), nullable=False, index=True),
         sa.Column('touched_date', sa.DateTime(), nullable=False, index=True),
         sa.Column('touched_price', sa.Float(), nullable=False),
