@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, render, act, cleanup } from "@testing-library/react";
+import { renderHook, act, cleanup } from "@testing-library/react";
 import { useECharts } from "./useECharts";
 
 // Shared mock instance reference

@@ -29,7 +29,6 @@ import {
   setPositions,
   setBotSnapshot,
   setLoading,
-  setError,
 } from "../state/paperTrading";
 import { fetchTrades as mockFetchTrades, refreshLiveData } from "./paperTrading";
 import {

@@ -63,14 +63,7 @@ import NewsPanel2 from "./NewsPanel2";
 import { useNewsWebSocket } from "../../state/newsWebSocket";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
 import { useNewsSourceGroups } from "./useNewsSourceGroups";
-import {
-  getReadIds,
-  saveReadIds,
-  getStoredLastSeenId,
-  saveLastSeenId,
-  getStoredAutoRefresh,
-  saveAutoRefresh,
-} from "./NewsLocalStorage";
+import { saveAutoRefresh } from "./NewsLocalStorage";
 
 const mockNewsItems = [
   {

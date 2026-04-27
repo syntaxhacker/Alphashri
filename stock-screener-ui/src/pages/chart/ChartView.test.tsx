@@ -455,7 +455,6 @@ describe("ChartView", () => {
   });
 
   it("changes timeframe when selector changes", async () => {
-    const user = userEvent.setup();
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
 
@@ -468,11 +467,6 @@ describe("ChartView", () => {
     await waitFor(() => {
       expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 45);
     });
-
-    // After initial load, simulate timeframe change
-    // This would require accessing setTimeframe which is internal
-    // We can confirm re-fetch on timeframe change by checking mock call count increase
-    // But easier: we can test that the component re-renders
   });
 
   it("renders orb minutes selector", async () => {

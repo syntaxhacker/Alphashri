@@ -4,7 +4,6 @@
 
 import { MantineProvider } from "@mantine/core";
 import { render, RenderResult } from "@testing-library/react";
-import type { ReactNode } from "react";
 
 /**
  * Standard wrapper for tests that need Mantine UI context

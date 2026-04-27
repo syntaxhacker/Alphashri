@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { SectorPage } from "./SectorPage";
@@ -8,7 +8,6 @@ import { useSectorData } from "../../components/sector/useSectorData";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
-// Mock the hook
 vi.mock("../../components/sector/useSectorData", () => ({
   useSectorData: vi.fn(() => ({
     market: "india",

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { BacktestResultsTable } from "./BacktestResultsTable";
 import type { BacktestResult } from "../../types/backtest";

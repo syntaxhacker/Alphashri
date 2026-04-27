@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MantineProvider } from "@mantine/core";
 import { ParamInput } from "./ParamInput";
 import type { StrategyParam } from "../../types/backtest";

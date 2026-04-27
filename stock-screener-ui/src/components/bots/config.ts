@@ -325,7 +325,7 @@ function collectStrategyAllocations(formData: FormData): StrategyAllocation[] {
   return strategies;
 }
 
-function buildBotConfigData(formData: FormData, botId?: string | null) {
+function buildBotConfigData(formData: FormData, _botId?: string | null) {
   return {
     name: formData.get("name") as string,
     is_active: formData.has("is_active"),

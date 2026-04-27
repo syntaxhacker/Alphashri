@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Tabs, Button, Group, Stack, Text, Table } from "@mantine/core";
+import { Box, Tabs, Button, Stack, Table } from "@mantine/core";
 import { IconRobot, IconChartLine, IconPlus } from "@tabler/icons-react";
 import {
   getBotsState,
@@ -26,14 +26,7 @@ import { BotConfigModal } from "./BotConfigModal2";
 import { BotStatusPanel } from "./BotStatusPanel2";
 import { CompactPage, CompactPanel } from "../common/compact";
 import { InlineLoader, ErrorAlert, EmptyCompact } from "../common/states";
-import { StatusBadge } from "../common/BadgeComponents";
-import {
-  BotActionButtons,
-  BotSummaryCell,
-  BotRow,
-  getBotRowStyle,
-  getBotIndicatorColor,
-} from "./BotHelpers";
+import { BotRow } from "./BotHelpers";
 
 function useViewChangeHandler() {
   return useCallback((view: string | null) => {
@@ -268,7 +261,7 @@ function BotsConfigModal() {
 }
 
 export function BotsPage() {
-  const [currentView, setCurrentView] = useState<BotsView>("list");
+  const [currentView] = useState<BotsView>("list");
 
   useStoreSubscription(subscribe);
 

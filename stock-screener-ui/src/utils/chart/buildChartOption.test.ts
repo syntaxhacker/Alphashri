@@ -202,9 +202,7 @@ describe("buildChartOption", () => {
 
   describe("holiday gap integration", () => {
     it("uses extendedTimeData when holidays present", () => {
-      const mockExtend = vi.fn().mockReturnValue(["-"]);
-      // Redo with actual implementation to test holiday path
-      // This would require more sophisticated mocking to fully test
+      const _mockExtend = vi.fn().mockReturnValue(["-"]);
     });
   });
 
@@ -246,7 +244,7 @@ describe("buildChartOption", () => {
     });
 
     it("does not add live position when times is empty", () => {
-      const input = createMockInput({
+      const _input = createMockInput({
         livePosition: {
           entry_price: 100,
           entry_time: "",

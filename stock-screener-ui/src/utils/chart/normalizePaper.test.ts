@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { normalizePaper } from "./normalizePaper";
-import type { ChartInput } from "./types";
 
 describe("normalizePaper", () => {
   const mockPaperData = {

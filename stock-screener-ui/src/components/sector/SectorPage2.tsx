@@ -351,7 +351,6 @@ function useSectorState(): SectorState {
 
 function useSectorLoadData(state: SectorState) {
   const {
-    market,
     requestAbortRef,
     setLoading,
     setError,

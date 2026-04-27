@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useNewsWebSocket, NewsWebSocketProvider } from "./newsWebSocket";
-import type { NewsItem } from "../components/news/news-types";
 
 const mockNewsItem: NewsItem = {
   id: "1",
@@ -234,7 +233,7 @@ describe("useNewsWebSocket", () => {
 
   it("handles malformed JSON gracefully", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { result } = renderWithWrapper();
+    renderWithWrapper();
 
     act(() => {
       mockWsInstance.triggerMessage("invalid json");
