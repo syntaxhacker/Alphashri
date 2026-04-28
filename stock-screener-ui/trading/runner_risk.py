@@ -108,8 +108,19 @@ class RunnerRiskMixin:
             if len(closes) >= 200:
                 ma200 = sum(closes[-200:]) / 200
 
+            current_price = closes[-1]
+            try:
+                intraday = fetcher.upstox_api.fetch_intraday_data_v3(
+                    symbol=symbol, interval='1'
+                )
+            except Exception:
+                intraday = None
+
+            if intraday is not None and not intraday.empty:
+                current_price = float(intraday['close'].iloc[-1])
+
             return {
-                'current_price': closes[-1],
+                'current_price': current_price,
                 'high_52w': high_52w,
                 'daily_highs': highs,
                 'daily_closes': closes,

@@ -437,7 +437,6 @@ async def get_paper_chart(
         if strategy_id:
             try:
                 from db.models.bot import StrategyConfig
-                from db.database import SessionLocal
                 with SessionLocal() as db:
                     cfg = db.query(StrategyConfig).filter(StrategyConfig.id == strategy_id).first()
                     if cfg:
