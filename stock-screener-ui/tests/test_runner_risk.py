@@ -450,6 +450,16 @@ class TestFetchEMAData:
         result = runner.fetch_ema_data("RELIANCE", ema_fast_period=9, ema_slow_period=21)
         assert result is None
 
+    def test_returns_none_when_data_barely_insufficient(self):
+        """With exactly ema_slow_period rows (not ema_slow_period+2), should return None."""
+        mock_fetcher = MagicMock()
+        import pandas as pd
+        df = pd.DataFrame({'close': [100.0] * 21})
+        mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = df
+        runner = MockRunner(data_fetcher=mock_fetcher)
+        result = runner.fetch_ema_data("RELIANCE", ema_fast_period=9, ema_slow_period=21)
+        assert result is None
+
     def test_computes_ema_correctly(self):
         """Test that EMA values are computed correctly using price series."""
         mock_fetcher = MagicMock()

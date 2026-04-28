@@ -347,7 +347,7 @@ assert result['current_price'] == expected_live_price
 |---|---------|---------------|--------|
 | 26 | `build_trade_log_entry` | Remove exit_price field | ✅ CAUGHT |
 
-### 11. `tests/test_runner_risk.py` (28 tests) — Added Apr 28
+### 11. `tests/test_runner_risk.py` (33 tests) — Added Apr 28
 
 | # | Function | Mutation Tested | Status |
 |---|---------|---------------|--------|
@@ -355,8 +355,58 @@ assert result['current_price'] == expected_live_price
 | 28 | `fetch_daily_data` | Remove `not intraday.empty` check | ✅ CAUGHT |
 | 29 | `fetch_daily_data` | Remove `is not None` check | ✅ CAUGHT (code restructured*) |
 | 30 | `fetch_daily_data` | Remove try/except (propagate error) | ✅ CAUGHT |
+| 31 | `fetch_previous_day_data` | Use `iloc[-1]` instead of `iloc[-2]` for prev_row | ✅ CAUGHT |
+| 32 | `fetch_previous_day_data` | Remove `len(df) < 2` check | ✅ CAUGHT (code restructured*) |
+| 33 | `fetch_ema_data` | Loosen sufficient-data check (remove `+2`) | ✅ CAUGHT |
 
-\* Mutation #29 was originally caught by `except Exception: pass` (defense-in-depth). To make it a proper kill, the try/except was narrowed to only wrap the API fetch call, leaving the `None`/empty checks outside. Now removing `is not None` crashes on `None.empty` with no rescue handler.
+\* Mutations #29, #32 originally survived via defense-in-depth — the `except Exception` block rescued the broken code path. Fixed by narrowing try/except to only wrap API fetch calls, leaving data validations outside.
+
+### 12. `tests/test_shared_portfolio_metadata.py` (8 tests) — Added Apr 28
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 34 | `open_position` | Remove cash deduction | ✅ CAUGHT |
+| 35 | `open_position` | Remove strategy allocation update | ✅ CAUGHT |
+| 36 | `close_position` | Invert BUY P&L formula | ✅ CAUGHT |
+| 37 | `close_position` | Remove position deletion | ✅ CAUGHT |
+
+### 13. `tests/test_portfolio_state.py` (?? tests) — Added Apr 28
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 38 | `restore_position` | Remove capital_used update | ✅ CAUGHT |
+
+### 14. `tests/test_signal_generators.py` (updated) — Added Apr 28
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 39 | `SRBreakout.check_entry` | Remove breakout buffer check | ✅ CAUGHT |
+| 40 | `SRBreakout.check_entry` | Remove R2 fallback for TP | ✅ CAUGHT |
+| 41 | `Week52Chaser.check_exit` | Remove trailing stop activation | ✅ CAUGHT |
+| 42 | `Week52Chaser.check_exit` | Remove max_holding_days check | ✅ CAUGHT |
+| 43 | `Week52Target.check_exit` | Remove trailing stop check | ✅ CAUGHT |
+| 44 | `Week52Target.check_exit` | Remove max_holding_days check | ✅ CAUGHT |
+
+### 15. `tests/test_global_risk_manager.py` (?? tests) — Added Apr 28
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 45 | `validate_trade` | Skip `apply_risk_reward_to_result` (RR check) | ✅ CAUGHT |
+| 46 | `validate_trade` | Skip `can_trade` call (capacity check) | ✅ CAUGHT |
+
+### 16. `tests/test_replay_phase2.py` (updated) — Added Apr 28
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 47 | `execute_signal` | Remove validation['valid'] check (skip rejection) | ✅ CAUGHT |
+| 48 | `execute_signal` | Remove `entry_price` from persist dict | ✅ CAUGHT |
+
+### 17. `tests/test_monitor_positions.py` (updated) — Added Apr 28
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 49 | `monitor_positions` | Remove SL/TP exit conditions for BUY | ✅ CAUGHT |
+| 50 | `monitor_positions` | Remove signal_generator exit fallback | ✅ CAUGHT |
 
 ---
 
@@ -364,10 +414,10 @@ assert result['current_price'] == expected_live_price
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ CAUGHT | 22 | 73% |
-| ✅ FIXED (after weak test) | 6 | 20% |
-| ⚠️ NOT CAUGHT (acceptable) | 2 | 7% |
-| **TOTAL** | **30** | **100%** |
+| ✅ CAUGHT | 42 | 84% |
+| ✅ FIXED (after weak test) | 6 | 12% |
+| ⚠️ NOT CAUGHT (acceptable) | 2 | 4% |
+| **TOTAL** | **50** | **100%** |
 
 ---
 

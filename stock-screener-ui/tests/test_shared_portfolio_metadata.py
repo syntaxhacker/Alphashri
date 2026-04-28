@@ -43,6 +43,45 @@ class TestSharedPositionMetadata:
         assert pos.metadata["highest_price_since_entry"] == 2520.0
         assert len(pos.metadata) == 5
 
+    def test_open_position_deducts_cash_and_updates_strategy(self):
+        pm = SharedPortfolioManager(initial_capital=100000)
+        pm.set_strategy_allocation(1, "ORB", 0.5, 5)
+        cash_before = pm.cash
+        alloc_before = pm.strategy_allocations[1].capital_used
+
+        pos = pm.open_position(
+            strategy_id=1, strategy_name="ORB", symbol="TEST",
+            side=OrderSide.BUY, quantity=50, entry_price=200.0,
+            stop_loss=195.0, take_profit=210.0,
+        )
+        assert pos is not None
+        trade_value = 50 * 200.0
+        assert pm.cash == cash_before - trade_value
+        assert pm.strategy_allocations[1].capital_used == alloc_before + trade_value
+        assert pm.strategy_allocations[1].positions_count == 1
+        assert f"1_TEST" in pm.positions
+
+    def test_close_position_computes_pnl_and_removes_position(self):
+        pm = SharedPortfolioManager(initial_capital=100000)
+        pm.set_strategy_allocation(1, "ORB", 0.5, 5)
+        pm.open_position(
+            strategy_id=1, strategy_name="ORB", symbol="TEST",
+            side=OrderSide.BUY, quantity=10, entry_price=100.0,
+            stop_loss=95.0, take_profit=110.0,
+        )
+
+        trade = pm.close_position(
+            strategy_id=1, symbol="TEST", exit_price=110.0,
+            exit_reason="TP", costs=5.0,
+        )
+        assert trade is not None
+        assert trade.pnl == (110.0 - 100.0) * 10  # 100
+        assert trade.pnl_pct == (110.0 - 100.0) / 100.0 * 100  # 10%
+        assert trade.costs == 5.0
+        assert trade.net_pnl == 100.0 - 5.0
+        assert f"1_TEST" not in pm.positions
+        assert pm.daily_trades == 1
+
     def test_restore_position_preserves_metadata(self):
         pm = SharedPortfolioManager(initial_capital=500000)
         pm.set_strategy_allocation(1, "52W_TARGET", 0.5, 5)

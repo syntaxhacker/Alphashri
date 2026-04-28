@@ -104,6 +104,18 @@ class TestSRBreakoutSignalGenerator:
         signal = self.gen.check_entry("TEST", {"current_price": r1, "pivot_points": pivots})
         assert signal is None
 
+    def test_check_entry_no_signal_with_buffer_not_exceeded(self):
+        """Price above R1 but within buffer should NOT trigger entry."""
+        gen = SRBreakoutSignalGenerator(config={"breakout_buffer_pct": 0.5})
+        pivots = gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
+        r1 = pivots["R1"]
+        buf = gen.breakout_buffer_pct / 100
+        price_between_r1_and_buffer = r1 * (1 + buf * 0.5)
+        signal = gen.check_entry("TEST", {
+            "current_price": price_between_r1_and_buffer, "pivot_points": pivots,
+        })
+        assert signal is None, "Should not trigger when price is within buffer"
+
     def test_check_entry_missing_data(self):
         assert self.gen.check_entry("TEST", {}) is None
         assert self.gen.check_entry("TEST", {"current_price": 100}) is None
@@ -287,6 +299,28 @@ class TestWeek52ChaserSignalGenerator:
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
         assert "TRAILING_STOP" in signal.notes
+
+    def test_check_exit_trailing_stop_activates_on_52w_cross(self):
+        """Trailing stop should activate when price crosses entry_52w_high,
+        then trigger exit when price drops below trailing stop price."""
+        entry_52w_high = 105.0
+        highest = 110.0
+        trailing_stop_pct = 3.0
+        # Price above 52W high should activate trailing, then drop below triggers exit
+        trailing_stop_price = highest * (1 - trailing_stop_pct / 100)
+        signal = self.gen.check_exit(
+            "TEST", "BUY", entry_price=100, stop_loss=95,
+            take_profit=999, current_price=trailing_stop_price - 1,
+            enable_trailing_stop=True, trailing_active=False,
+            entry_52w_high=entry_52w_high,
+            highest_price_since_entry=highest,
+            trailing_stop_pct=trailing_stop_pct,
+        )
+        assert signal is not None
+        assert signal.signal_type == SignalType.LONG_EXIT
+        assert "TRAILING_STOP" in signal.notes
+        # Verify TP was NOT triggered (current_price is below take_profit, so trailing is the reason)
+        assert "TP" not in signal.notes
 
     def test_check_exit_trailing_stop_not_active(self):
         signal = self.gen.check_exit(
