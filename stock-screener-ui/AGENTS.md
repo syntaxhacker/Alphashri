@@ -217,13 +217,8 @@ print('pd.Timestamp' in inspect.getsource(get_paper_chart))
 ## Mutation Testing
 - Purpose: verify tests actually catch bugs by deliberately introducing one change at a time and checking tests fail
 - Reference: `MUTATION_TESTING.md` (novice-to-advanced guide)
-- When to do: after fixing a bug, writing a new critical function, or refactoring
-- How to run manually:
-  ```bash
-  source .venv/bin/activate && python tests/test_mutation_runner_risk.py
-  ```
-- **Rule**: every critical function (data fetching, risk calc, portfolio ops) must have its edge cases covered by mutation tests
-- **No mutations may survive** in the final commit — survivors must be either code-restructured to eliminate defense-in-depth gaps or explicitly documented as acceptable equivalent mutants
+- Use when writing critical functions or fixing bugs — manually flip a condition, remove a line, run tests, confirm they fail
+- Not automated in CI; run ad-hoc when you want extra confidence in a specific function
 - Coverage tracked in `MUTATION_TESTING.md` — update when adding new mutation tests
 
 ## Committing
