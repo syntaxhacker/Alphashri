@@ -520,6 +520,9 @@ class TestTradeMarkers:
         mock_journal.trades = [sample_journal_trade]
         mock_api = MagicMock()
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
+        today = "2026-04-28"
+        sample_journal_trade.exit_time = f"{today}T11:00:00+05:30"
+        sample_journal_trade.entry_time = f"{today}T10:00:00+05:30"
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
              patch("api.paper.endpoints.save_cached_candles"), \
@@ -530,7 +533,7 @@ class TestTradeMarkers:
             response = client.get("/api/paper/chart/RELIANCE?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
-        # Trades from journal fallback
+        assert "trades" in data, f"Response keys: {list(data.keys())}"
         assert len(data["trades"]) >= 1
 
 
