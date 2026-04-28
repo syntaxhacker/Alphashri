@@ -505,7 +505,7 @@ class TestTradeMarkers:
              patch("api.paper.endpoints._get_symbol_trades_from_db", return_value=[sample_journal_trade]), \
              patch("api.paper_trading._load_fresh_bot_snapshot", return_value=None), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper.endpoints.get_journal", return_value=mock_journal):
             response = client.get("/api/paper/chart/RELIANCE?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -529,7 +529,8 @@ class TestTradeMarkers:
              patch("api.paper.endpoints._get_symbol_trades_from_db", return_value=[]), \
              patch("api.paper_trading._load_fresh_bot_snapshot", return_value=None), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper.endpoints.get_journal", return_value=mock_journal), \
+             patch("pathlib.Path.exists", return_value=False):
             response = client.get("/api/paper/chart/RELIANCE?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
