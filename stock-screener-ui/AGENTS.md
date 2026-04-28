@@ -214,6 +214,16 @@ print('pd.Timestamp' in inspect.getsource(get_paper_chart))
 - Run both before committing
 - **Read `TEST_RULES.md`** before writing or modifying any test — covers assertion conventions, mock patterns, accordion interaction, data-testid naming, and coverage requirements
 
+### Backend Test Gotchas
+- **`@patch` decorator ordering**: When using `@patch` as a decorator on test methods, mock arguments are injected **before** pytest fixtures. Order is bottom-to-top for decorators, left-to-right for args:
+  ```python
+  @patch('module.b')  # mock_b — second arg
+  @patch('module.a')  # mock_a — first arg
+  def test_foo(self, mock_a, mock_b, client, db):  # mocks first, then fixtures
+      ...
+  ```
+  Getting this wrong causes `fixture 'mock_X' not found` errors.
+
 ## Mutation Testing
 - Purpose: verify tests actually catch bugs by deliberately introducing one change at a time and checking tests fail
 - Reference: `MUTATION_TESTING.md` (novice-to-advanced guide)
