@@ -286,3 +286,76 @@ Before committing:
 | E2E text selector breaks on i18n | Always use `data-testid` in E2E tests |
 | **Playwright `click({ force: true })` doesn't trigger React `onClick`** | **Use `page.evaluate(() => element.dispatchEvent(new MouseEvent('click')))` for React components** |
 | **Transient highlight class removed by setTimeout** | **Check for CSS class immediately after click, not with `toBeVisible({ timeout })`** |
+
+## Mutation Testing (Backend/Scientific Tests)
+
+Mutation testing verifies that tests actually catch bugs by introducing controlled faults into the code and confirming tests fail.
+
+### When to Use
+- For high-value backend endpoints (portfolio, trading, risk calculations)
+- Critical utility functions (position sizing, P&L, cache TTL)
+- Complex branching logic (DB-first with journal fallback, resampling)
+
+### How to Mutate
+
+#### 1. Identify the behavior the test checks
+Read the source code and find exactly what the test verifies (e.g., "ORB high > low", "pivot r1 > pp > s1")
+
+#### 2. Make ONE targeted mutation
+```python
+# Example: Flip max() to min() in ORB calculation
+or_high = max(c['high'] for c in or_candles)  # Original
+or_high = min(c['high'] for c in or_candles)  # Mutation
+```
+
+#### 3. Run the test and verify it FAILS
+```bash
+pytest tests/api/test_paper_chart_extended.py::TestORBLevels::test_orb_levels_present -x -q
+# Should FAIL with mutation, PASS without
+```
+
+#### 4. Revert the mutation immediately
+Always revert after testing — mutations are for verification only.
+
+### Common Mutation Patterns
+
+| Category | Mutation | Example |
+|----------|----------|---------|
+| **Comparisons** | Flip `>=` to `>` | `age >= max_age_seconds` → `age > max_age_seconds` |
+| **Formulas** | Invert calculation | `(exit - entry) * qty` → `(entry - exit) * qty` |
+| **Logic** | Remove condition | Comment out TTL check |
+| **Returns** | Wrong value | Return `0` instead of calculated value |
+| **Branches** | Skip fallback | Remove Redis fallback block |
+
+### Weak Test Indicators
+
+A test is weak if it passes after mutation. Fix it by:
+
+1. **Adding invariants**:
+   ```python
+   # Before: assert orb["or_high"] >= orb["or_low"]
+   # After: assert orb["or_high"] > orb["or_low"]  # Must be strictly greater
+   ```
+
+2. **Comparing outputs**:
+   ```python
+   # Check BUY vs SELL produce same result
+   assert result_buy['risk_pct'] == result_sell['risk_pct']
+   ```
+
+3. **Verifying calls**:
+   ```python
+   assert mock_save.called, "save_cached_candles must be called"
+   ```
+
+4. **Testing boundaries**:
+   ```python
+   # Use inputs that trigger edge cases
+   min_trade_value_bump: trade_value = 20000 (below min)
+   ```
+
+### Test Coverage Metrics
+
+- **Mutation Score**: % of mutations caught (target: 80%+)
+- **Coverage Gaps**: Functions with zero tests
+- **Edge Cases**: Boundary values, null, infinity, empty collections |
