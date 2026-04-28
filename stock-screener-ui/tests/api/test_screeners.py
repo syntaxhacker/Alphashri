@@ -324,30 +324,6 @@ class TestScreenerDataRetrieval:
         assert 'approaching' in result
         assert 'profile_meta' in result
 
-    @pytest.mark.skip(reason="fetch_screener_data does not support symbols filter")
-    @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
-    @patch.object(trending_upside, 'fetch_trending_stocks')
-    def test_fetch_screener_data_with_symbol_filter(
-        self, mock_fetch, mock_api, mock_trending_stocks
-    ):
-        """Test fetching screener data with symbol filter."""
-        mock_fetch.return_value = mock_trending_stocks
-        mock_api.side_effect = ValueError('No credentials')
-
-        result = fetch_screener_data(
-            provider='upstox',
-            mode='intraday',
-            screener='trending',
-            symbols=['RELIANCE', 'TCS']
-        )
-
-        # Should only return data for filtered symbols
-        all_symbols = [s['symbol'] for s in result['approaching']] + \
-                      [s['symbol'] for s in result['touched']]
-
-        assert all(s in ['RELIANCE', 'TCS'] for s in all_symbols)
-
-
 class TestProfileFilters:
     """Test profile filter application."""
 
@@ -550,50 +526,6 @@ class TestRationaleBuilder:
         assert '52W gap +3.50%' in rationale
         assert '5D +2.0%' in rationale
         assert 'PerfW +4.0%' in rationale
-
-
-class TestScreenerSorting:
-    """Test default sorting for different screener profiles."""
-
-    @pytest.mark.skip(reason="fetch_screener_data does not sort results; order depends on parallel execution")
-    @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
-    @patch.object(trending_upside, 'fetch_trending_stocks')
-    def test_default_sort_trending(self, mock_fetch, mock_api, mock_trending_stocks):
-        """Test default sorting for trending profile (by score desc)."""
-        mock_fetch.return_value = mock_trending_stocks
-        mock_api.side_effect = ValueError('No credentials')
-
-        result = fetch_screener_data(
-            provider='upstox',
-            mode='intraday',
-            screener='trending'
-        )
-
-        approaching = result['approaching']
-        if len(approaching) > 1:
-            # Check sorted by score descending
-            scores = [s.get('score', 0) for s in approaching]
-            assert scores == sorted(scores, reverse=True)
-
-    @pytest.mark.skip(reason="fetch_screener_data does not sort results; order depends on parallel execution")
-    @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
-    @patch.object(trending_upside, 'fetch_trending_stocks')
-    def test_default_sort_market_open_gap(self, mock_fetch, mock_api, mock_trending_stocks):
-        """Test default sorting for market_open_gap profile (by gap_pct desc)."""
-        mock_fetch.return_value = mock_trending_stocks
-        mock_api.side_effect = ValueError('No credentials')
-
-        result = fetch_screener_data(
-            provider='upstox',
-            mode='intraday',
-            screener='market_open_gap'
-        )
-
-        approaching = result['approaching']
-        if len(approaching) > 1:
-            # Check sorted by gap_pct descending
-            gaps = [abs(s.get('gap_pct', 0)) for s in approaching]
-            assert gaps == sorted(gaps, reverse=True)
 
 
 class TestScreenerDataStructure:
