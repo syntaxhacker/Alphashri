@@ -290,6 +290,88 @@ class TestFetchDailyData:
         captured = capsys.readouterr()
         assert "Error fetching daily data for RELIANCE" in captured.out or "Error fetching daily data for RELIANCE" in captured.err
 
+    # --- Intraday price override tests ---
+
+    def test_overrides_current_price_with_intraday_data(self, simple_daily_df):
+        """When intraday 1-min data is available, current_price should use the latest intraday close."""
+        import pandas as pd
+        mock_fetcher = MagicMock()
+        mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = simple_daily_df
+
+        intraday_df = pd.DataFrame({'close': [150.0, 151.5, 152.75]})
+        mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = intraday_df
+
+        runner = MockRunner(data_fetcher=mock_fetcher, to_date=date.today())
+        result = runner.fetch_daily_data("RELIANCE")
+
+        assert result is not None
+        assert result['current_price'] == 152.75  # latest intraday close
+        # Daily fields should still be from daily data
+        assert result['high_52w'] == simple_daily_df['high'].max()
+        assert result['ma50'] == 0.0
+
+    def test_falls_back_to_daily_close_when_intraday_is_none(self, simple_daily_df):
+        """When intraday fetch returns None, current_price should use daily close."""
+        mock_fetcher = MagicMock()
+        mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = simple_daily_df
+        mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = None
+
+        runner = MockRunner(data_fetcher=mock_fetcher, to_date=date.today())
+        result = runner.fetch_daily_data("RELIANCE")
+
+        assert result is not None
+        expected = simple_daily_df['close'].iloc[-1]
+        assert result['current_price'] == expected
+
+    def test_falls_back_to_daily_close_when_intraday_empty(self, simple_daily_df):
+        """When intraday fetch returns empty DataFrame, current_price should use daily close."""
+        import pandas as pd
+        mock_fetcher = MagicMock()
+        mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = simple_daily_df
+
+        empty_df = pd.DataFrame()
+        mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = empty_df
+
+        runner = MockRunner(data_fetcher=mock_fetcher, to_date=date.today())
+        result = runner.fetch_daily_data("RELIANCE")
+
+        assert result is not None
+        expected = simple_daily_df['close'].iloc[-1]
+        assert result['current_price'] == expected
+
+    def test_falls_back_to_daily_close_when_intraday_raises_exception(self, simple_daily_df):
+        """When intraday fetch raises an exception, current_price should fall back silently."""
+        mock_fetcher = MagicMock()
+        mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = simple_daily_df
+        mock_fetcher.upstox_api.fetch_intraday_data_v3.side_effect = Exception("Intraday API error")
+
+        runner = MockRunner(data_fetcher=mock_fetcher, to_date=date.today())
+        result = runner.fetch_daily_data("RELIANCE")
+
+        assert result is not None
+        expected = simple_daily_df['close'].iloc[-1]
+        assert result['current_price'] == expected
+
+    def test_intraday_override_preserves_daily_fields(self, simple_daily_df):
+        """Intraday price override should not affect other daily data fields."""
+        import pandas as pd
+        mock_fetcher = MagicMock()
+        mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = simple_daily_df
+        mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = pd.DataFrame({'close': [999.0]})
+
+        runner = MockRunner(data_fetcher=mock_fetcher, to_date=date.today())
+        result = runner.fetch_daily_data("RELIANCE")
+
+        assert result is not None
+        assert result['current_price'] == 999.0
+        assert result['high_52w'] == simple_daily_df['high'].max()
+        assert result['daily_highs'] == simple_daily_df['high'].tolist()
+        assert result['daily_closes'] == simple_daily_df['close'].tolist()
+        assert result['volume'] == simple_daily_df['volume'].iloc[-1]
+        assert result['prev_high'] == simple_daily_df['high'].iloc[-2]
+        assert result['prev_low'] == simple_daily_df['low'].iloc[-2]
+        assert result['prev_close'] == simple_daily_df['close'].iloc[-2]
+
 
 class TestFetchPreviousDayData:
     """Tests for fetch_previous_day_data method."""
@@ -363,6 +445,16 @@ class TestFetchEMAData:
         # Provide a DataFrame with only 5 rows, but need at least ema_slow_period+2 = 23
         import pandas as pd
         df = pd.DataFrame({'close': [100]*5})
+        mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = df
+        runner = MockRunner(data_fetcher=mock_fetcher)
+        result = runner.fetch_ema_data("RELIANCE", ema_fast_period=9, ema_slow_period=21)
+        assert result is None
+
+    def test_returns_none_when_data_barely_insufficient(self):
+        """With exactly ema_slow_period rows (not ema_slow_period+2), should return None."""
+        mock_fetcher = MagicMock()
+        import pandas as pd
+        df = pd.DataFrame({'close': [100.0] * 21})
         mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = df
         runner = MockRunner(data_fetcher=mock_fetcher)
         result = runner.fetch_ema_data("RELIANCE", ema_fast_period=9, ema_slow_period=21)

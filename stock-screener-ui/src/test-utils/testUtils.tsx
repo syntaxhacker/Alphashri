@@ -2,8 +2,8 @@ import { type ReactNode } from "react";
 import { render, type RenderResult } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { MemoryRouter } from "react-router-dom";
+import { vi } from "vitest";
 import { AuthProvider, type User } from "../components/auth/AuthProvider2";
-import { useAuth } from "../components/auth/AuthProvider2";
 
 // Mock Auth Provider data
 let mockUser: User | null = null;
@@ -28,7 +28,7 @@ vi.mock("../components/auth/AuthProvider2", () => {
       register: vi.fn(),
       logout: vi.fn(),
       getAccessToken: vi.fn(() => "mock-token"),
-      fetchWithAuth: vi.fn(async (url: string) => {
+      fetchWithAuth: vi.fn(async (_url: string) => {
         return {
           ok: true,
           json: async () => ({}),

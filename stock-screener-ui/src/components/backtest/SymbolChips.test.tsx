@@ -11,8 +11,6 @@ vi.mock("../../api/symbols", () => ({
   searchSymbols: vi.fn(),
 }));
 
-import { searchSymbols } from "../../api/symbols";
-
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <MantineProvider>{children}</MantineProvider>;
 }

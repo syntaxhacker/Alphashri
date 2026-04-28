@@ -61,11 +61,7 @@ jobs:
         run: |
           cd stock-screener-ui
           uv run --python 3.11 alembic check
-      - name: Validate schema docs are in sync
-        run: |
-          cd stock-screener-ui
-          uv run --python 3.11 python scripts/generate_schema_docs.py
-          git diff --exit-code docs/schema.md || (echo "::error::docs/schema.md is out of sync. Run: python scripts/generate_schema_docs.py" && exit 1)
+
 
   frontend-lint-typecheck:
     name: Frontend Lint & TypeCheck

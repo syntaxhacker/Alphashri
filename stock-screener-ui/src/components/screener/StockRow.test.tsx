@@ -44,13 +44,13 @@ vi.mock("@mantine/core", () => {
         </div>
       );
     },
-    Anchor: ({ children, component, ...props }: any) => <a {...props}>{children}</a>,
+    Anchor: ({ children, ..._props }: any) => <a {..._props}>{children}</a>,
     ActionIcon: ({ children, onClick, "data-testid": dataTestId, ...props }: any) => (
       <button type="button" onClick={onClick} data-testid={dataTestId} {...props}>
         {children}
       </button>
     ),
-    CopyButton: ({ value, children }: any) => {
+    CopyButton: ({ value: _value, children }: any) => {
       const copy = vi.fn().mockImplementation(async () => {});
       return children({ copied: false, copy });
     },

@@ -13,7 +13,6 @@ import {
   SegmentedControl,
   Title,
   Badge,
-  Table,
   ScrollArea,
 } from "@mantine/core";
 import {
@@ -25,10 +24,11 @@ import {
   IconClock,
 } from "@tabler/icons-react";
 import { SectorTable } from "./SectorTable";
+import { IntervalMoversTable } from "./IntervalMoversTable";
 import { fetchSectorPerformance } from "../../api/sector";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
-import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
+import { formatPercentage } from "../../utils/ui-helpers";
 import { detectSectorAlerts, detectIntervalMovers, SectorTreemap } from "./SectorHelpers";
 import type { SectorAlert, InternalStockMover } from "./SectorHelpers";
 
@@ -63,44 +63,6 @@ function AlertsList({ alerts }: { alerts: SectorAlert[] }) {
         </Paper>
       ))}
     </Stack>
-  );
-}
-
-function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }) {
-  if (movers.length === 0) {
-    return (
-      <Text size="sm" c="dimmed" ta="center" py="xl">
-        Collecting baseline for interval moves...
-      </Text>
-    );
-  }
-
-  return (
-    <Table striped highlightOnHover>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Stock</Table.Th>
-          <Table.Th align="right">Prev</Table.Th>
-          <Table.Th align="right">Now</Table.Th>
-          <Table.Th align="right">&Delta;</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {movers.map((mover) => (
-          <Table.Tr key={mover.symbol}>
-            <Table.Td fw={600}>{mover.symbol}</Table.Td>
-            <Table.Td align="right">{mover.prev_change.toFixed(2)}%</Table.Td>
-            <Table.Td align="right">{mover.change.toFixed(2)}%</Table.Td>
-            <Table.Td align="right">
-              <Text c={getPnLTextColor(mover.delta)} fw={700}>
-                {mover.delta > 0 ? "+" : ""}
-                {mover.delta.toFixed(2)}%
-              </Text>
-            </Table.Td>
-          </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
   );
 }
 
@@ -161,7 +123,9 @@ function LoadingPanel() {
       }
       description="Loading live sector breadth and movers."
       style={{ minHeight: 400 }}
-    />
+    >
+      <Box flex={1} style={{ minHeight: 0 }} />
+    </CompactPanel>
   );
 }
 
@@ -175,13 +139,17 @@ function ErrorPanel({ error, onRetry }: { error: string; onRetry: () => void }) 
           Retry
         </Button>
       }
-    />
+    >
+      <Box flex={1} />
+    </CompactPanel>
   );
 }
 
 function EmptyPanel() {
   return (
-    <CompactPanel title="No sector data" description="No sector data available for this market." />
+    <CompactPanel title="No sector data" description="No sector data available for this market.">
+      <Box flex={1} />
+    </CompactPanel>
   );
 }
 
@@ -351,7 +319,6 @@ function useSectorState(): SectorState {
 
 function useSectorLoadData(state: SectorState) {
   const {
-    market,
     requestAbortRef,
     setLoading,
     setError,
@@ -426,7 +393,7 @@ function useSectorPolling(
 
     let cancelled = false;
     let fastPollCount = 0;
-    const liveTimeoutRef = { current: null as NodeJS.Timeout | null };
+    const liveTimeoutRef = { current: null as ReturnType<typeof setTimeout> | null };
 
     const scheduleNextPoll = (delay: number) => {
       if (cancelled) return;

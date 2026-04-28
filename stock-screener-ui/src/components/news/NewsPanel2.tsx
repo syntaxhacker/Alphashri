@@ -16,6 +16,10 @@ import {
 } from "./NewsLocalStorage";
 import { ArticleView, NewsFilterControls, NewsListContent, NewsListHeader } from "./NewsHelpers";
 
+// =============================================================================
+// Custom Hooks
+// =============================================================================
+
 function useLocalNews(
   wsNewsItems: NewsItem[],
   addNewsItems: (items: NewsItem[]) => void,
@@ -100,7 +104,10 @@ function useArticleReader(readIds: Set<string>) {
   };
 }
 
-function useAutoRefresh(loadNews: (isAutoRefresh: boolean) => void, autoRefreshMs: string) {
+function useAutoRefresh(
+  loadNews: (isAutoRefresh: boolean) => Promise<void>,
+  autoRefreshMs: string,
+) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -128,44 +135,12 @@ function useAutoRefresh(loadNews: (isAutoRefresh: boolean) => void, autoRefreshM
   return isRefreshing;
 }
 
-export default function NewsPanel2() {
-  const navigate = useNavigate();
-  const {
-    connected: wsConnected,
-    newsItems: wsNewsItems,
-    hasNewArticles,
-    clearNewArticlesFlag,
-    addNewsItems,
-  } = useNewsWebSocket();
+// -----------------------------------------------------------------------------
+// NewsPanel2-specific custom hooks (extracted from oversized component)
+// -----------------------------------------------------------------------------
 
-  const [isOpen, setIsOpen] = useState(false);
+function useNewsSources() {
   const [sources, setSources] = useState<NewsSource[]>([]);
-  const [selectedSource, setSelectedSource] = useState("all");
-
-  const [readIds, setReadIds] = useState<Set<string>>(getReadIds);
-  const [lastSeenId, setLastSeenId] = useState<string | null>(getStoredLastSeenId);
-  const [autoRefreshMs, setAutoRefreshMs] = useState<string>(getStoredAutoRefresh);
-
-  const { newsItems, loading, error, loadNews } = useLocalNews(
-    wsNewsItems,
-    addNewsItems,
-    selectedSource,
-    isOpen,
-  );
-  const {
-    selectedArticle,
-    articleContent,
-    articleLoading,
-    articleError,
-    handleArticleClick,
-    handleBack,
-  } = useArticleReader(readIds);
-  const isRefreshing = useAutoRefresh(loadNews, autoRefreshMs);
-
-  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } =
-    useNewsSourceGroups({ newsItems, autoExpandCount: 2 });
-
-  const unreadCount = newsItems.filter((item) => !readIds.has(item.id)).length;
 
   useEffect(() => {
     fetchNewsSources()
@@ -175,9 +150,26 @@ export default function NewsPanel2() {
       });
   }, []);
 
-  useEffect(() => {
-    if (isOpen) clearNewArticlesFlag();
-  }, [isOpen, clearNewArticlesFlag]);
+  const sourceData = getSourceOptions(sources);
+  return { sources, sourceData };
+}
+
+function useReadManagement(newsItems: NewsItem[]) {
+  const [readIds, setReadIds] = useState<Set<string>>(getReadIds);
+  const unreadCount = newsItems.filter((item) => !readIds.has(item.id)).length;
+
+  const handleMarkAllRead = useCallback(() => {
+    const newReadIds = new Set(readIds);
+    newsItems.forEach((item) => newReadIds.add(item.id));
+    setReadIds(newReadIds);
+    saveReadIds(newReadIds);
+  }, [newsItems, readIds]);
+
+  return { readIds, setReadIds, unreadCount, handleMarkAllRead };
+}
+
+function useNewsTracking(isOpen: boolean, newsItems: NewsItem[]) {
+  const [lastSeenId, setLastSeenId] = useState<string | null>(getStoredLastSeenId);
 
   useEffect(() => {
     if (isOpen && newsItems.length > 0 && newsItems[0].id !== lastSeenId) {
@@ -187,130 +179,324 @@ export default function NewsPanel2() {
     }
   }, [isOpen, newsItems, lastSeenId]);
 
-  const handleClose = () => {
+  return lastSeenId;
+}
+
+// -----------------------------------------------------------------------------
+// Sub-components (extracted from NewsPanel2 JSX)
+// -----------------------------------------------------------------------------
+
+function NewsPanelToggle({
+  hasNewArticles,
+  unreadCount,
+  isOpen,
+  onToggle,
+}: {
+  hasNewArticles: boolean;
+  unreadCount: number;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Indicator
+      color={hasNewArticles ? "green" : "red"}
+      size={16}
+      label={unreadCount > 99 ? "99+" : unreadCount}
+      disabled={unreadCount === 0 || isOpen}
+      offset={4}
+      className={hasNewArticles ? "news-badge-pulse" : undefined}
+    >
+      <Button
+        variant="filled"
+        color="blue"
+        size="sm"
+        onClick={onToggle}
+        data-testid="news-toggle-btn"
+        title="Open news panel"
+        leftSection={<IconNews size={16} />}
+      >
+        NEWS
+      </Button>
+    </Indicator>
+  );
+}
+
+function NewsPanelOverlay({ onClose }: { onClose: () => void }) {
+  return (
+    <Overlay
+      color="dark"
+      backgroundOpacity={0.5}
+      onClick={onClose}
+      zIndex={100}
+      data-testid="news-overlay"
+      className="news-overlay"
+    />
+  );
+}
+
+function NewsPanelBody({
+  selectedArticle,
+  articleContent,
+  articleLoading,
+  articleError,
+  handleBack,
+  handleClose,
+  handleSymbolClick,
+  wsConnected,
+  isRefreshing,
+  sourceData,
+  selectedSource,
+  setSelectedSource,
+  autoRefreshMs,
+  loading,
+  error,
+  unreadCount,
+  loadNews,
+  setAutoRefreshMs,
+  handleMarkAllRead,
+  newsItems,
+  sourceNames,
+  groupedNewsItems,
+  expandedSources,
+  readIds,
+  toggleSourceExpanded,
+  handleArticleClick,
+}: {
+  selectedArticle: NewsItem | null;
+  articleContent: ArticleResponse | null;
+  articleLoading: boolean;
+  articleError: string | null;
+  handleBack: () => void;
+  handleClose: () => void;
+  handleSymbolClick: (symbol: NewsSymbol) => void;
+  wsConnected: boolean;
+  isRefreshing: boolean;
+  sourceData: { value: string; label: string }[];
+  selectedSource: string;
+  setSelectedSource: (source: string) => void;
+  autoRefreshMs: string;
+  loading: boolean;
+  error: string | null;
+  unreadCount: number;
+  loadNews: () => Promise<void>;
+  setAutoRefreshMs: (ms: string) => void;
+  handleMarkAllRead: () => void;
+  newsItems: NewsItem[];
+  sourceNames: string[];
+  groupedNewsItems: Record<string, NewsItem[]>;
+  expandedSources: Set<string>;
+  readIds: Set<string>;
+  toggleSourceExpanded: (source: string) => void;
+  handleArticleClick: (item: NewsItem) => void;
+}) {
+  return selectedArticle ? (
+    <ArticleView
+      article={selectedArticle}
+      content={articleContent}
+      loading={articleLoading}
+      error={articleError}
+      onBack={handleBack}
+      onClose={handleClose}
+      onSymbolClick={handleSymbolClick}
+    />
+  ) : (
+    <Stack gap={0} h="100%" className="news-list-view" data-testid="news-list-view">
+      <NewsListHeader wsConnected={wsConnected} isRefreshing={isRefreshing} onClose={handleClose} />
+
+      <Paper withBorder p="sm" id="news-panel-controls" data-testid="news-panel-controls">
+        <NewsFilterControls
+          sourceData={sourceData}
+          selectedSource={selectedSource}
+          autoRefreshMs={autoRefreshMs}
+          loading={loading}
+          isRefreshing={isRefreshing}
+          unreadCount={unreadCount}
+          onSourceChange={setSelectedSource}
+          onRefresh={() => loadNews()}
+          onAutoRefreshChange={setAutoRefreshMs}
+          onMarkAllRead={handleMarkAllRead}
+        />
+
+        <ScrollArea flex={1} className="news-items-container">
+          <NewsListContent
+            loading={loading}
+            error={error}
+            newsItems={newsItems}
+            selectedSource={selectedSource}
+            sourceNames={sourceNames}
+            groupedNewsItems={groupedNewsItems}
+            expandedSources={expandedSources}
+            readIds={readIds}
+            onToggleSource={toggleSourceExpanded}
+            onArticleClick={handleArticleClick}
+          />
+        </ScrollArea>
+      </Paper>
+    </Stack>
+  );
+}
+
+function NewsPanelContainer({ isOpen, children }: { isOpen: boolean; children: React.ReactNode }) {
+  return (
+    <Box
+      pos="fixed"
+      top={0}
+      right={isOpen ? 0 : -400}
+      w={400}
+      h="100vh"
+      bg="var(--mantine-color-body)"
+      className={`news-panel ${isOpen ? "open" : ""}`}
+      id="news-panel"
+      style={{
+        zIndex: 200,
+        transition: "right 0.3s ease",
+        borderLeft: "1px solid var(--mantine-color-default-border)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+      data-testid="news-panel"
+    >
+      {children}
+    </Box>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Composite hook for NewsPanel2 (combines all panel-specific state)
+// -----------------------------------------------------------------------------
+
+function useNewsPanelHandlers(
+  isOpen: boolean,
+  setIsOpen: (v: boolean) => void,
+  articleReader: ReturnType<typeof useArticleReader>,
+  clearNewArticlesFlag: () => void,
+  navigate: (path: string) => void,
+) {
+  const handleClose = useCallback(() => {
     setIsOpen(false);
-    handleBack();
-  };
+    articleReader.handleBack();
+  }, [articleReader.handleBack, setIsOpen]);
 
-  const handleSymbolClick = (symbol: NewsSymbol) => {
-    if (symbol.instrument_key && symbol.trading_symbol) {
-      navigate(`/chart/${symbol.trading_symbol}`);
-    } else if (symbol.url) {
-      window.open(symbol.url, "_blank", "noopener,noreferrer");
-    }
-  };
+  const handleSymbolClick = useCallback(
+    (symbol: NewsSymbol) => {
+      if (symbol.instrument_key && symbol.trading_symbol) {
+        navigate(`/chart/${symbol.trading_symbol}`);
+      } else if (symbol.url) {
+        window.open(symbol.url, "_blank", "noopener,noreferrer");
+      }
+    },
+    [navigate],
+  );
 
-  const handleMarkAllRead = () => {
-    const newReadIds = new Set(readIds);
-    newsItems.forEach((item) => newReadIds.add(item.id));
-    setReadIds(newReadIds);
-    saveReadIds(newReadIds);
-  };
+  useEffect(() => {
+    if (isOpen) clearNewArticlesFlag();
+  }, [isOpen, clearNewArticlesFlag]);
 
-  const sourceData = getSourceOptions(sources);
+  return { handleClose, handleSymbolClick };
+}
+
+function useNewsPanel() {
+  const navigate = useNavigate();
+  const {
+    connected: wsConnected,
+    newsItems: wsNewsItems,
+    hasNewArticles,
+    clearNewArticlesFlag,
+    addNewsItems,
+  } = useNewsWebSocket();
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedSource, setSelectedSource] = useState("all");
+  const [autoRefreshMs, setAutoRefreshMs] = useState<string>(getStoredAutoRefresh);
+  const { sourceData } = useNewsSources();
+  const { newsItems, loading, error, loadNews } = useLocalNews(
+    wsNewsItems,
+    addNewsItems,
+    selectedSource,
+    isOpen,
+  );
+  const readMgmt = useReadManagement(newsItems);
+  const articleReader = useArticleReader(readMgmt.readIds);
+  const isRefreshing = useAutoRefresh(loadNews, autoRefreshMs);
+  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } =
+    useNewsSourceGroups({ newsItems, autoExpandCount: 2 });
+  useNewsTracking(isOpen, newsItems);
+  const { handleClose, handleSymbolClick } = useNewsPanelHandlers(
+    isOpen,
+    setIsOpen,
+    articleReader,
+    clearNewArticlesFlag,
+    navigate,
+  );
+  return {
+    isOpen,
+    setIsOpen,
+    selectedSource,
+    setSelectedSource,
+    autoRefreshMs,
+    setAutoRefreshMs,
+    newsItems,
+    loading,
+    error,
+    loadNews,
+    ...readMgmt,
+    ...articleReader,
+    isRefreshing,
+    groupedNewsItems,
+    sourceNames,
+    expandedSources,
+    toggleSourceExpanded,
+    wsConnected,
+    hasNewArticles,
+    sourceData,
+    handleClose,
+    handleSymbolClick,
+  };
+}
+
+export default function NewsPanel2() {
+  const panel = useNewsPanel();
 
   return (
     <>
-      <Indicator
-        color={hasNewArticles ? "green" : "red"}
-        size={16}
-        label={unreadCount > 99 ? "99+" : unreadCount}
-        disabled={unreadCount === 0 || isOpen}
-        offset={4}
-        className={hasNewArticles ? "news-badge-pulse" : undefined}
-      >
-        <Button
-          variant="filled"
-          color="blue"
-          size="sm"
-          onClick={() => setIsOpen(!isOpen)}
-          data-testid="news-toggle-btn"
-          title="Open news panel"
-          leftSection={<IconNews size={16} />}
-        >
-          NEWS
-        </Button>
-      </Indicator>
+      <NewsPanelToggle
+        hasNewArticles={panel.hasNewArticles}
+        unreadCount={panel.unreadCount}
+        isOpen={panel.isOpen}
+        onToggle={() => panel.setIsOpen(!panel.isOpen)}
+      />
 
-      {isOpen && (
-        <Overlay
-          color="dark"
-          backgroundOpacity={0.5}
-          onClick={handleClose}
-          zIndex={100}
-          data-testid="news-overlay"
-          className="news-overlay"
+      {panel.isOpen && <NewsPanelOverlay onClose={panel.handleClose} />}
+
+      <NewsPanelContainer isOpen={panel.isOpen}>
+        <NewsPanelBody
+          selectedArticle={panel.selectedArticle}
+          articleContent={panel.articleContent}
+          articleLoading={panel.articleLoading}
+          articleError={panel.articleError}
+          handleBack={panel.handleBack}
+          handleClose={panel.handleClose}
+          handleSymbolClick={panel.handleSymbolClick}
+          wsConnected={panel.wsConnected}
+          isRefreshing={panel.isRefreshing}
+          sourceData={panel.sourceData}
+          selectedSource={panel.selectedSource}
+          setSelectedSource={panel.setSelectedSource}
+          autoRefreshMs={panel.autoRefreshMs}
+          loading={panel.loading}
+          error={panel.error}
+          unreadCount={panel.unreadCount}
+          loadNews={panel.loadNews}
+          setAutoRefreshMs={panel.setAutoRefreshMs}
+          handleMarkAllRead={panel.handleMarkAllRead}
+          newsItems={panel.newsItems}
+          sourceNames={panel.sourceNames}
+          groupedNewsItems={panel.groupedNewsItems}
+          expandedSources={panel.expandedSources}
+          readIds={panel.readIds}
+          toggleSourceExpanded={panel.toggleSourceExpanded}
+          handleArticleClick={panel.handleArticleClick}
         />
-      )}
-
-      <Box
-        pos="fixed"
-        top={0}
-        right={isOpen ? 0 : -400}
-        w={400}
-        h="100vh"
-        bg="var(--mantine-color-body)"
-        className={`news-panel ${isOpen ? "open" : ""}`}
-        id="news-panel"
-        style={{
-          zIndex: 200,
-          transition: "right 0.3s ease",
-          borderLeft: "1px solid var(--mantine-color-default-border)",
-          display: "flex",
-          flexDirection: "column",
-        }}
-        data-testid="news-panel"
-      >
-        {selectedArticle ? (
-          <ArticleView
-            article={selectedArticle}
-            content={articleContent}
-            loading={articleLoading}
-            error={articleError}
-            onBack={handleBack}
-            onClose={handleClose}
-            onSymbolClick={handleSymbolClick}
-          />
-        ) : (
-          <Stack gap={0} h="100%" className="news-list-view" data-testid="news-list-view">
-            <NewsListHeader
-              wsConnected={wsConnected}
-              isRefreshing={isRefreshing}
-              onClose={handleClose}
-            />
-
-            <Paper withBorder p="sm" id="news-panel-controls" data-testid="news-panel-controls">
-              <NewsFilterControls
-                sourceData={sourceData}
-                selectedSource={selectedSource}
-                autoRefreshMs={autoRefreshMs}
-                loading={loading}
-                isRefreshing={isRefreshing}
-                unreadCount={unreadCount}
-                onSourceChange={setSelectedSource}
-                onRefresh={() => loadNews()}
-                onAutoRefreshChange={setAutoRefreshMs}
-                onMarkAllRead={handleMarkAllRead}
-              />
-
-              <ScrollArea flex={1} className="news-items-container">
-                <NewsListContent
-                  loading={loading}
-                  error={error}
-                  newsItems={newsItems}
-                  selectedSource={selectedSource}
-                  sourceNames={sourceNames}
-                  groupedNewsItems={groupedNewsItems}
-                  expandedSources={expandedSources}
-                  readIds={readIds}
-                  onToggleSource={toggleSourceExpanded}
-                  onArticleClick={handleArticleClick}
-                />
-              </ScrollArea>
-            </Paper>
-          </Stack>
-        )}
-      </Box>
+      </NewsPanelContainer>
     </>
   );
 }

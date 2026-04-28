@@ -38,7 +38,7 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
               opacity: bot.is_active ? 1 : 0.5,
             }}
             onClick={() => {
-              if (bot.is_active) onSelect(bot.id);
+              if (bot.is_active && !isSelected) onSelect(bot.id);
             }}
           >
             <Stack gap={2}>

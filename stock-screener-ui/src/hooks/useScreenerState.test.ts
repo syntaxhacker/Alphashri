@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 import { useScreenerState } from "./useScreenerState";
 import * as state from "../state";
 import { fetchData, loadScreeners, setupAutoRefresh } from "../api";
@@ -41,9 +41,7 @@ vi.mock("react-router-dom", () => ({
 describe("useScreenerState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useStoreSubscription as any).mockImplementation((subscribe: any) => {
-      // no-op
-    });
+    (useStoreSubscription as any).mockImplementation((_subscribe: any) => {});
   });
 
   afterEach(() => {

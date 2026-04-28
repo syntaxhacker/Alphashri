@@ -1,5 +1,6 @@
 import type { ColumnDef } from "./index";
-import { getPnLTextColor, formatPercentage } from "../../../utils/ui-helpers";
+import { getPnLTextColor, formatPercentage, formatTimeAgo } from "../../../utils/ui-helpers";
+import { Tooltip, Text } from "@mantine/core";
 
 export const symbolCol: ColumnDef = {
   key: "symbol",
@@ -53,7 +54,26 @@ export const touched52wCol: ColumnDef = {
   label: "Touched",
   type: "badge",
   sortable: true,
-  format: (value: boolean) => (value ? "Yes" : "No"),
+  format: (value: boolean, stock: any) => {
+    if (!value) return "No";
+    const lastTouched = stock?.last_touched;
+    if (lastTouched) {
+      const timeAgo = formatTimeAgo(lastTouched);
+      const fullDate = new Date(lastTouched).toLocaleDateString("en-US", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      return (
+        <Tooltip label={`Touched on ${fullDate} (${timeAgo})`}>
+          <Text span fw={500} c="blue">
+            Yes ({timeAgo})
+          </Text>
+        </Tooltip>
+      );
+    }
+    return "Yes";
+  },
 };
 
 function pctFormat(value: number) {

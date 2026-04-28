@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { normalizeBacktest } from "./normalizeBacktest";
-import type { ChartInput, UnifiedTrade } from "./types";
 
 describe("normalizeBacktest", () => {
   const mockHolidays = [

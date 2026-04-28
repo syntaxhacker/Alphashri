@@ -175,12 +175,6 @@ describe("runReplay", () => {
 
   it("handles malformed SSE events gracefully", async () => {
     const mockConfig = { symbols: ["TATASTEEL"] };
-    // Mix of valid and invalid events
-    const mockChunks = [
-      'data: {"type":"progress"}\n\n', // incomplete JSON - missing field
-      'data: {"type":"progress"}\n\ninvalid\n',
-      'data: {"type":"complete"}\n\n',
-    ];
     const mockResponse = createMockSSEResponse([{ type: "complete" }]);
     (global.fetch as any).mockResolvedValue(mockResponse);
 
@@ -198,12 +192,8 @@ describe("runReplay", () => {
     const mockResponse = createMockSSEResponse([{ type: "complete" }]);
     (global.fetch as any).mockResolvedValue(mockResponse);
 
-    const controller = new AbortController();
-    const signal = controller.signal;
+    new AbortController(); // Just verify abort controller can be created
 
-    // Override runReplay to pass signal (need to check if it does)
-    // For this test, we'd need to modify the code to accept signal, but the current code doesn't.
-    // Instead we'll just verify controller abort works
     const onEvent = vi.fn();
     const cancel = runReplay(mockConfig, onEvent, vi.fn(), vi.fn());
 

@@ -43,12 +43,15 @@ function getAllSourceFiles(dir) {
 
 // Check if a file path should be skipped (e.g., test files)
 function shouldSkipFile(filePath) {
-  // Skip files in tests/ directories (E2E and unit tests)
-  if (filePath.includes(path.sep + 'tests' + path.sep) || filePath.startsWith('tests/')) {
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  
+  if (normalizedPath.includes('/tests/') || normalizedPath.includes('/tests/') || normalizedPath.startsWith('tests/')) {
     return true;
   }
-  // Skip test-utils
-  if (filePath.includes(path.sep + 'test-utils' + path.sep) || filePath.startsWith('test-utils/')) {
+  if (normalizedPath.includes('/test-utils/') || normalizedPath.startsWith('test-utils/')) {
+    return true;
+  }
+  if (/\.test\.(ts|tsx|js|jsx)$/.test(normalizedPath)) {
     return true;
   }
   return false;
@@ -112,7 +115,7 @@ function main() {
   let files;
   
   if (args.length > 0) {
-    files = args.filter(f => /\.(js|jsx|ts|tsx)$/.test(f) && fs.existsSync(f));
+    files = args.filter(f => /\.(js|jsx|ts|tsx)$/.test(f) && fs.existsSync(f) && !shouldSkipFile(f));
   } else {
     files = getAllSourceFiles(SRC_DIR);
   }

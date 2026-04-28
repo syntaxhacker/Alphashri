@@ -46,7 +46,7 @@ class TestAdminLLMStats:
 
     @patch('api.news_routes._llm_available', True)
     @patch('api.news_routes.article_analyzer')
-    def test_get_llm_stats_success(self, client, admin_auth_headers, mock_analyzer):
+    def test_get_llm_stats_success(self, mock_analyzer, client, admin_auth_headers):
         """Test successful retrieval of LLM statistics."""
         mock_analyzer.get_llm_stats.return_value = [
             {
@@ -70,15 +70,15 @@ class TestAdminLLMStats:
         response = client.get("/api/admin/llm-stats", headers=admin_auth_headers)
         assert response.status_code == 200
         data = response.json()
-        assert "stats" in data
+        assert "aggregate" in data
         assert "recent_runs" in data
         assert "fetched_at" in data
-        assert data["stats"]["total_runs"] == 1
+        assert data["aggregate"]["total_runs"] == 1
         mock_analyzer.get_llm_stats.assert_called_once_with(limit=100)
 
     @patch('api.news_routes._llm_available', True)
     @patch('api.news_routes.article_analyzer')
-    def test_get_llm_stats_custom_limit(self, client, admin_auth_headers, mock_analyzer):
+    def test_get_llm_stats_custom_limit(self, mock_analyzer, client, admin_auth_headers):
         """Test that custom limit parameter is passed correctly."""
         mock_analyzer.get_llm_stats.return_value = []
         mock_analyzer.get_llm_aggregate_stats.return_value = {}
@@ -107,7 +107,7 @@ class TestAdminLLMStats:
 
     @patch('api.news_routes._llm_available', True)
     @patch('api.news_routes.article_analyzer')
-    def test_get_llm_stats_exception(self, client, admin_auth_headers, mock_analyzer):
+    def test_get_llm_stats_exception(self, mock_analyzer, client, admin_auth_headers):
         """Test 500 when analyzer raises exception."""
         mock_analyzer.get_llm_stats.side_effect = Exception("Database error")
         response = client.get("/api/admin/llm-stats", headers=admin_auth_headers)
@@ -122,7 +122,7 @@ class TestAdminCacheStats:
     """Tests for GET/POST /api/admin/cache-stats"""
 
     @patch('cache.redis_client.get_cache_stats')
-    def test_get_cache_stats_success(self, client, admin_auth_headers, mock_get_cache_stats):
+    def test_get_cache_stats_success(self, mock_get_cache_stats, client, admin_auth_headers):
         """Test successful retrieval of cache statistics."""
         mock_get_cache_stats.return_value = {"hits": 150, "misses": 15, "hit_rate": 0.909}
         response = client.get("/api/admin/cache-stats", headers=admin_auth_headers)
@@ -141,14 +141,14 @@ class TestAdminCacheStats:
         assert response.status_code == 401
 
     @patch('cache.redis_client.get_cache_stats')
-    def test_get_cache_stats_exception(self, client, admin_auth_headers, mock_get_cache_stats):
+    def test_get_cache_stats_exception(self, mock_get_cache_stats, client, admin_auth_headers):
         """Test 500 when Redis raises exception."""
         mock_get_cache_stats.side_effect = Exception("Redis connection error")
         response = client.get("/api/admin/cache-stats", headers=admin_auth_headers)
         assert response.status_code == 500
 
     @patch('cache.redis_client.reset_stats')
-    def test_reset_cache_stats_success(self, client, admin_auth_headers, mock_reset_stats):
+    def test_reset_cache_stats_success(self, mock_reset_stats, client, admin_auth_headers):
         """Test resetting cache statistics."""
         response = client.post("/api/admin/cache-stats/reset", headers=admin_auth_headers)
         assert response.status_code == 200
@@ -175,7 +175,7 @@ class TestAdminCacheKeys:
     """Tests for GET /api/admin/cache-keys"""
 
     @patch('cache.redis_client.get_cache_keys')
-    def test_get_cache_keys_success_default(self, client, admin_auth_headers, mock_get_keys):
+    def test_get_cache_keys_success_default(self, mock_get_keys, client, admin_auth_headers):
         """Test retrieving cache keys with default parameters."""
         mock_get_keys.return_value = ["key1", "key2"]
         response = client.get("/api/admin/cache-keys", headers=admin_auth_headers)
@@ -186,7 +186,7 @@ class TestAdminCacheKeys:
         mock_get_keys.assert_called_with(prefix=None, top=20)
 
     @patch('cache.redis_client.get_cache_keys')
-    def test_get_cache_keys_with_params(self, client, admin_auth_headers, mock_get_keys):
+    def test_get_cache_keys_with_params(self, mock_get_keys, client, admin_auth_headers):
         """Test retrieving cache keys with custom prefix and top."""
         mock_get_keys.return_value = ["backtest:1", "backtest:2"]
         response = client.get("/api/admin/cache-keys?prefix=backtest&top=10", headers=admin_auth_headers)
@@ -204,7 +204,7 @@ class TestAdminCacheKeys:
         assert response.status_code == 401
 
     @patch('cache.redis_client.get_cache_keys')
-    def test_get_cache_keys_exception(self, client, admin_auth_headers, mock_get_keys):
+    def test_get_cache_keys_exception(self, mock_get_keys, client, admin_auth_headers):
         """Test 500 when Redis raises exception."""
         mock_get_keys.side_effect = Exception("Redis error")
         response = client.get("/api/admin/cache-keys", headers=admin_auth_headers)
@@ -218,7 +218,7 @@ class TestAdminCacheInvalidateBacktest:
     """Tests for DELETE /api/cache/backtest and /api/cache/backtest/{strategy_id}"""
 
     @patch('cache.redis_client.invalidate_backtest_cache')
-    def test_invalidate_all_backtest_cache(self, client, admin_auth_headers, mock_invalidate):
+    def test_invalidate_all_backtest_cache(self, mock_invalidate, client, admin_auth_headers):
         """Test invalidating all backtest cache entries for a user."""
         mock_invalidate.return_value = 5
         response = client.delete("/api/cache/backtest?user_id=1", headers=admin_auth_headers)
@@ -229,7 +229,7 @@ class TestAdminCacheInvalidateBacktest:
         mock_invalidate.assert_called_once_with(1)
 
     @patch('cache.redis_client.invalidate_backtest_cache')
-    def test_invalidate_strategy_backtest_cache(self, client, admin_auth_headers, mock_invalidate):
+    def test_invalidate_strategy_backtest_cache(self, mock_invalidate, client, admin_auth_headers):
         """Test invalidating backtest cache for specific strategy."""
         mock_invalidate.return_value = 3
         response = client.delete("/api/cache/backtest/ABC123?user_id=2", headers=admin_auth_headers)
@@ -249,7 +249,7 @@ class TestAdminCacheInvalidateBacktest:
         assert response.status_code == 401
 
     @patch('cache.redis_client.invalidate_backtest_cache')
-    def test_invalidate_backtest_exception(self, client, admin_auth_headers, mock_invalidate):
+    def test_invalidate_backtest_exception(self, mock_invalidate, client, admin_auth_headers):
         """Test 500 when Redis raises exception."""
         mock_invalidate.side_effect = Exception("Redis error")
         response = client.delete("/api/cache/backtest?user_id=1", headers=admin_auth_headers)
@@ -263,7 +263,7 @@ class TestAdminCacheInvalidateNews:
     """Tests for DELETE /api/cache/news"""
 
     @patch('cache.redis_client.invalidate_news_cache')
-    def test_invalidate_news_cache(self, client, admin_auth_headers, mock_invalidate):
+    def test_invalidate_news_cache(self, mock_invalidate, client, admin_auth_headers):
         """Test invalidating news cache."""
         mock_invalidate.return_value = 7
         response = client.delete("/api/cache/news", headers=admin_auth_headers)
@@ -284,7 +284,7 @@ class TestAdminCacheInvalidateNews:
         assert response.status_code == 401
 
     @patch('cache.redis_client.invalidate_news_cache')
-    def test_invalidate_news_exception(self, client, admin_auth_headers, mock_invalidate):
+    def test_invalidate_news_exception(self, mock_invalidate, client, admin_auth_headers):
         """Test 500 when Redis raises exception."""
         mock_invalidate.side_effect = Exception("Redis error")
         response = client.delete("/api/cache/news", headers=admin_auth_headers)
@@ -298,7 +298,7 @@ class TestAdminCacheInvalidateScreener:
     """Tests for DELETE /api/cache/screener"""
 
     @patch('cache.redis_client.invalidate_screener_cache')
-    def test_invalidate_screener_cache(self, client, admin_auth_headers, mock_invalidate):
+    def test_invalidate_screener_cache(self, mock_invalidate, client, admin_auth_headers):
         """Test invalidating screener cache."""
         mock_invalidate.return_value = 4
         response = client.delete("/api/cache/screener", headers=admin_auth_headers)
@@ -319,7 +319,7 @@ class TestAdminCacheInvalidateScreener:
         assert response.status_code == 401
 
     @patch('cache.redis_client.invalidate_screener_cache')
-    def test_invalidate_screener_exception(self, client, admin_auth_headers, mock_invalidate):
+    def test_invalidate_screener_exception(self, mock_invalidate, client, admin_auth_headers):
         """Test 500 when Redis raises exception."""
         mock_invalidate.side_effect = Exception("Redis error")
         response = client.delete("/api/cache/screener", headers=admin_auth_headers)

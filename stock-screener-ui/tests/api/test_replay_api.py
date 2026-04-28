@@ -21,7 +21,7 @@ class TestReplayAPI:
 
     @patch('trading.runner_core.MultiStrategyRunner')
     @patch('api.replay_api._get_dynamic_watchlist')
-    def test_run_replay_success(self, client, mock_get_watchlist, mock_runner_class):
+    def test_run_replay_success(self, mock_get_watchlist, mock_runner_class, client):
         """Test successful replay execution and SSE streaming."""
         mock_get_watchlist.return_value = ['RELIANCE', 'TCS', 'INFY']
 
@@ -98,7 +98,7 @@ class TestReplayAPI:
 
     @patch('trading.runner_core.MultiStrategyRunner')
     @patch('api.replay_api._get_dynamic_watchlist')
-    def test_run_replay_with_bot_uuid(self, client, mock_get_watchlist, mock_runner_class):
+    def test_run_replay_with_bot_uuid(self, mock_get_watchlist, mock_runner_class, client):
         """Test that bot_uuid uses _load_bot_config_by_uuid."""
         mock_get_watchlist.return_value = ['RELIANCE']
         mock_bot_config = MagicMock()
@@ -120,7 +120,7 @@ class TestReplayAPI:
 
     @patch('trading.runner_core.MultiStrategyRunner')
     @patch('api.replay_api._get_dynamic_watchlist')
-    def test_run_replay_error_handling(self, client, mock_get_watchlist, mock_runner_class):
+    def test_run_replay_error_handling(self, mock_get_watchlist, mock_runner_class, client):
         """Test that exceptions during replay are sent as error events."""
         mock_get_watchlist.return_value = ['RELIANCE']
         mock_bot_config = MagicMock()
@@ -157,7 +157,7 @@ class TestReplayAPI:
 
     @patch('trading.runner_core.MultiStrategyRunner')
     @patch('api.replay_api._get_dynamic_watchlist')
-    def test_run_replay_watchlist_used_when_no_symbols(self, client, mock_get_watchlist, mock_runner_class):
+    def test_run_replay_watchlist_used_when_no_symbols(self, mock_get_watchlist, mock_runner_class, client):
         """Test that dynamic watchlist is used when symbols not provided."""
         mock_get_watchlist.return_value = ['DEFAULT1', 'DEFAULT2']
         mock_bot_config = MagicMock()
@@ -173,7 +173,7 @@ class TestReplayAPI:
 
     @patch('trading.runner_core.MultiStrategyRunner')
     @patch('api.replay_api._get_dynamic_watchlist')
-    def test_run_replay_specific_symbols(self, client, mock_get_watchlist, mock_runner_class):
+    def test_run_replay_specific_symbols(self, mock_get_watchlist, mock_runner_class, client):
         """Test that provided symbols are used directly."""
         mock_get_watchlist.return_value = ['DEFAULT']  # not used
         mock_bot_config = MagicMock()

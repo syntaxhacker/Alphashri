@@ -212,6 +212,7 @@ class BotRuntimeState(Base):
     daily_trades = Column(Integer, nullable=False, default=0)
     realized_pnl = Column(Float, nullable=False, default=0.0)
     day_start = Column(String(10), nullable=False, default="")
+    watchlist = Column(String(50000), nullable=True, default="")
     scan_items = Column(String(50000), nullable=True, default="")
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

@@ -1,14 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as indexModule from "./index";
-import type {
-  ScreenerData,
-  ScreenerOption,
-  ProfileMeta,
-  ChangeNotification,
-  NotifFilter,
-  SortDirection,
-} from "../types";
+import type { ScreenerData, ScreenerOption, ProfileMeta, ChangeNotification } from "../types";
 
 // Track unsubscribe functions for cleanup
 let unsubscribes: (() => void)[] = [];
