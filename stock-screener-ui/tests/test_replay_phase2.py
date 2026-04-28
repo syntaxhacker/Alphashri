@@ -477,6 +477,7 @@ class TestExecuteSignalReplay:
         runner._persist_position_to_db = fake_persist
 
         sr = _make_strategy_runner()
+        sr.signal_generator.is_eod_exit_time.return_value = False
         runner.strategies = {1: sr}
 
         signal = _make_signal("RELIANCE", 1005.0)
