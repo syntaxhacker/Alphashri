@@ -1,6 +1,17 @@
 import { describe, expect, test } from "vitest";
 import type { PaperChartData, PaperPosition } from "../../types/paperTrading";
 
+function buildChartLegendItems(orbLabel: string | undefined, hasWeek52: boolean) {
+  const items = [
+    { color: "#00FFFF", label: "Entry", shape: "square" as const },
+    { color: "#FFFF00", label: "TP", shape: "circle" as const },
+    { color: "#FF00FF", label: "SL", shape: "circle" as const },
+  ];
+  if (orbLabel) items.push({ color: "#2196F3", label: orbLabel, shape: "square" as const });
+  if (hasWeek52) items.push({ color: "#E91E63", label: "52W High", shape: "square" as const });
+  return items;
+}
+
 const mockChartData = (overrides: Partial<PaperChartData> = {}): PaperChartData => ({
   symbol: "RELIANCE",
   date: "2026-04-24",
@@ -302,35 +313,16 @@ describe("PaperChart state logic", () => {
     expect(sideIcon).toBe("▼");
   });
 
-  test("ChartLegend items include ORB when orbLabel provided", () => {
-    const orbLabel = "ORB (30m)";
-    const hasWeek52 = true;
-
-    const items = [
-      { color: "#00FFFF", label: "Entry", shape: "square" as const },
-      { color: "#FFFF00", label: "TP", shape: "circle" as const },
-      { color: "#FF00FF", label: "SL", shape: "circle" as const },
-    ];
-    if (orbLabel) items.push({ color: "#2196F3", label: orbLabel, shape: "square" as const });
-    if (hasWeek52) items.push({ color: "#E91E63", label: "52W High", shape: "square" as const });
-
-    expect(items.length).toBe(5);
-    expect(items[3].label).toBe("ORB (30m)");
-    expect(items[4].label).toBe("52W High");
-  });
-
-  test("ChartLegend items without optional levels", () => {
-    const orbLabel = undefined;
-    const hasWeek52 = false;
-
-    const items = [
-      { color: "#00FFFF", label: "Entry", shape: "square" as const },
-      { color: "#FFFF00", label: "TP", shape: "circle" as const },
-      { color: "#FF00FF", label: "SL", shape: "circle" as const },
-    ];
-    if (orbLabel) items.push({ color: "#2196F3", label: orbLabel, shape: "square" as const });
-    if (hasWeek52) items.push({ color: "#E91E63", label: "52W High", shape: "square" as const });
-
-    expect(items.length).toBe(3);
-  });
+  test.each([
+    ["ORB (30m)", true, 5, "ORB (30m)", "52W High"],
+    [undefined, false, 3, undefined, undefined],
+  ])(
+    "ChartLegend items (orbLabel=%s, hasWeek52=%s)",
+    (orbLabel, hasWeek52, expectedLength, expectedOrb, expected52w) => {
+      const items = buildChartLegendItems(orbLabel, hasWeek52);
+      expect(items.length).toBe(expectedLength);
+      if (expectedOrb) expect(items[3].label).toBe(expectedOrb);
+      if (expected52w) expect(items[4].label).toBe(expected52w);
+    },
+  );
 });

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, test } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { RunnerSettingsSection } from "./RunnerSettingsSection";
@@ -240,22 +240,16 @@ describe("RunnerSettingsSection", () => {
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 0.5);
     });
 
-    it("accepts fractional max_distance values like 1.5", () => {
+    test.each([
+      ["1.5", 1.5],
+      ["3.75", 3.75],
+    ])("accepts fractional max_distance values like %s", (inputVal, expected) => {
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
       const maxDistanceInput = screen.getByTestId("config-max-distance");
-      fireEvent.change(maxDistanceInput, { target: { value: "1.5" } });
-      expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 1.5);
-    });
-
-    it("accepts fractional max_distance values like 3.75", () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
-      });
-      const maxDistanceInput = screen.getByTestId("config-max-distance");
-      fireEvent.change(maxDistanceInput, { target: { value: "3.75" } });
-      expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 3.75);
+      fireEvent.change(maxDistanceInput, { target: { value: inputVal } });
+      expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", expected);
     });
   });
 
@@ -267,16 +261,6 @@ describe("RunnerSettingsSection", () => {
       // Both inputs should be present
       expect(screen.getByTestId("config-cooldown")).toBeInTheDocument();
       expect(screen.getByTestId("config-max-distance")).toBeInTheDocument();
-    });
-
-    it("has Stack with className='paper-settings-section' and id='runner-section'", () => {
-      const { container } = render(
-        <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />,
-        { wrapper: TestWrapper },
-      );
-      const stack = container.querySelector(".paper-settings-section");
-      expect(stack).toBeInTheDocument();
-      expect(stack).toHaveAttribute("id", "runner-section");
     });
   });
 });

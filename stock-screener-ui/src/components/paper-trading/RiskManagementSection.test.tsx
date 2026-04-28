@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, test } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { TestWrapper } from "../../test/test-utils";
@@ -71,6 +71,27 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
 });
+
+function testInputChange(
+  description: string,
+  testId: string,
+  configKey: keyof StrategyConfig,
+  inputValue: string,
+  expectedResult: number,
+  conversion = 1,
+) {
+  test(description, () => {
+    const onChange = vi.fn();
+    render(
+      <TestWrapper>
+        <RiskManagementSection config={mockConfig} onChange={onChange} />
+      </TestWrapper>,
+    );
+    const input = screen.getByTestId(testId) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: inputValue } });
+    expect(onChange).toHaveBeenCalledWith(configKey, expectedResult / conversion);
+  });
+}
 
 describe("RiskManagementSection", () => {
   describe("renders all inputs", () => {
@@ -150,103 +171,59 @@ describe("RiskManagementSection", () => {
   });
 
   describe("onChange calls with correct converted values", () => {
-    it("calls onChange with key and Number(v) for Max Positions (no conversion)", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      const input = screen.getByTestId("config-max-positions");
-      fireEvent.change(input, { target: { value: "7" } });
-
-      expect(onChange).toHaveBeenCalledWith("max_positions", 7);
-    });
-
-    it("calls onChange with key and Number(v) / 100 for Capital/Trade %", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      const input = screen.getByTestId("config-capital-per-trade");
-      fireEvent.change(input, { target: { value: "15" } });
-
-      expect(onChange).toHaveBeenCalledWith("max_capital_per_trade_pct", 0.15);
-    });
-
-    it("calls onChange with key and Number(v) / 100 for Daily Loss %", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      const input = screen.getByTestId("config-daily-loss");
-      fireEvent.change(input, { target: { value: "5" } });
-
-      expect(onChange).toHaveBeenCalledWith("max_daily_loss_pct", 0.05);
-    });
-
-    it("calls onChange with key and Number(v) / 100 for Max Exposure %", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      const input = screen.getByTestId("config-max-exposure");
-      fireEvent.change(input, { target: { value: "80" } });
-
-      expect(onChange).toHaveBeenCalledWith("max_total_exposure_pct", 0.8);
-    });
-
-    it("calls onChange with key and Number(v) / 100 for Risk/Trade %", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      const input = screen.getByTestId("config-risk-per-trade");
-      fireEvent.change(input, { target: { value: "2" } });
-
-      expect(onChange).toHaveBeenCalledWith("risk_per_trade_pct", 0.02);
-    });
-
-    it("calls onChange with Number(v) for Min Trade Value (no conversion)", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      const input = screen.getByTestId("config-min-trade");
-      fireEvent.change(input, { target: { value: "15000" } });
-
-      expect(onChange).toHaveBeenCalledWith("min_trade_value", 15000);
-    });
-
-    it("calls onChange with Number(v) for Max Trade Value (no conversion)", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      const input = screen.getByTestId("config-max-trade");
-      fireEvent.change(input, { target: { value: "200000" } });
-
-      expect(onChange).toHaveBeenCalledWith("max_trade_value", 200000);
-    });
+    testInputChange(
+      "calls onChange with key and Number(v) for Max Positions (no conversion)",
+      "config-max-positions",
+      "max_positions",
+      "7",
+      7,
+    );
+    testInputChange(
+      "calls onChange with key and Number(v) / 100 for Capital/Trade %",
+      "config-capital-per-trade",
+      "max_capital_per_trade_pct",
+      "15",
+      15,
+      100,
+    );
+    testInputChange(
+      "calls onChange with key and Number(v) / 100 for Daily Loss %",
+      "config-daily-loss",
+      "max_daily_loss_pct",
+      "5",
+      5,
+      100,
+    );
+    testInputChange(
+      "calls onChange with key and Number(v) / 100 for Max Exposure %",
+      "config-max-exposure",
+      "max_total_exposure_pct",
+      "80",
+      80,
+      100,
+    );
+    testInputChange(
+      "calls onChange with key and Number(v) / 100 for Risk/Trade %",
+      "config-risk-per-trade",
+      "risk_per_trade_pct",
+      "2",
+      2,
+      100,
+    );
+    testInputChange(
+      "calls onChange with Number(v) for Min Trade Value (no conversion)",
+      "config-min-trade",
+      "min_trade_value",
+      "15000",
+      15000,
+    );
+    testInputChange(
+      "calls onChange with Number(v) for Max Trade Value (no conversion)",
+      "config-max-trade",
+      "max_trade_value",
+      "200000",
+      200000,
+    );
   });
 
   describe("percentage conversion edge cases", () => {
@@ -284,21 +261,7 @@ describe("RiskManagementSection", () => {
 
       expect(screen.getByTestId("config-risk-per-trade")).toHaveValue("0.5");
     });
-
-    it("converts percentage input 15 in Capital/Trade to decimal 0.15", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      fireEvent.change(screen.getByTestId("config-capital-per-trade"), {
-        target: { value: "15" },
-      });
-
-      expect(onChange).toHaveBeenCalledWith("max_capital_per_trade_pct", 0.15);
-    });
+    // "converts percentage input 15 in Capital/Trade to decimal 0.15" already covered by testInputChange above
   });
 
   // Min/max/step props are verified in the component code:
@@ -394,64 +357,31 @@ describe("RiskManagementSection", () => {
   });
 
   describe("decimal precision handling", () => {
-    it("handles decimal percentage inputs correctly (e.g. 2.5%)", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      fireEvent.change(screen.getByTestId("config-risk-per-trade"), {
-        target: { value: "2.5" },
-      });
-
-      expect(onChange).toHaveBeenCalledWith("risk_per_trade_pct", 0.025);
-    });
-
-    it("converts large percentage to correct decimal", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      fireEvent.change(screen.getByTestId("config-daily-loss"), {
-        target: { value: "10" },
-      });
-
-      expect(onChange).toHaveBeenCalledWith("max_daily_loss_pct", 0.1);
-    });
+    testInputChange(
+      "handles decimal percentage inputs correctly (e.g. 2.5%)",
+      "config-risk-per-trade",
+      "risk_per_trade_pct",
+      "2.5",
+      2.5,
+      100,
+    );
+    // Note: "converts large percentage to correct decimal" already covered by testInputChange above (value 10 → 0.1)
   });
 
   describe("trade value inputs", () => {
-    it("Min Trade Value accepts valid values within range", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      const input = screen.getByTestId("config-min-trade");
-      fireEvent.change(input, { target: { value: "25000" } });
-
-      expect(onChange).toHaveBeenCalledWith("min_trade_value", 25000);
-    });
-
-    it("Max Trade Value accepts valid values within range", () => {
-      const onChange = vi.fn();
-      render(
-        <TestWrapper>
-          <RiskManagementSection config={mockConfig} onChange={onChange} />
-        </TestWrapper>,
-      );
-
-      const input = screen.getByTestId("config-max-trade");
-      fireEvent.change(input, { target: { value: "300000" } });
-
-      expect(onChange).toHaveBeenCalledWith("max_trade_value", 300000);
-    });
+    testInputChange(
+      "Min Trade Value accepts valid values within range",
+      "config-min-trade",
+      "min_trade_value",
+      "25000",
+      25000,
+    );
+    testInputChange(
+      "Max Trade Value accepts valid values within range",
+      "config-max-trade",
+      "max_trade_value",
+      "300000",
+      300000,
+    );
   });
 });
