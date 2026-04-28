@@ -1,6 +1,6 @@
 import type { Preview } from "@storybook/react-vite";
 import { MantineProvider } from "@mantine/core";
-import { theme } from "../src/theme";
+import { theme } from "../src/config/theme";
 import "@mantine/core/styles.css";
 import "../src/style.css";
 
