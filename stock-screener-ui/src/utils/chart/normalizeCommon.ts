@@ -22,14 +22,21 @@ interface RawTrade {
 }
 
 export function mapCandles(candles: RawCandle[]): UnifiedCandle[] {
-  return candles.map((c) => ({
-    time: c.time,
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close,
-    volume: c.volume,
-  }));
+  return candles.map((c) => {
+    const clean = c.time.replace(/[+]\d{2}:\d{2}$|Z$/, "");
+    const [datePart, timePart] = clean.split("T");
+    const hhmm = timePart?.split(":").slice(0, 2).join(":") || c.time.substring(0, 5);
+    return {
+      time: c.time,
+      date: datePart || undefined,
+      time_str: hhmm,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      volume: c.volume,
+    };
+  });
 }
 
 export function mapTrades(

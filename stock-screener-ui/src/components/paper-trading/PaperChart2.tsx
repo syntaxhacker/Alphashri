@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   Box,
@@ -9,7 +9,10 @@ import {
   Flex,
   useMantineColorScheme,
   Switch,
+  SegmentedControl,
 } from "@mantine/core";
+import dayjs from "dayjs";
+import { TradingDatePicker } from "../common/TradingDatePicker";
 import {
   getPaperTradingState,
   setChartTimeframe,
@@ -154,35 +157,110 @@ function ChartEmptyState({
 }
 
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+
+  const handlePreset = useCallback(
+    (label: string, days: number) => {
+      setActivePreset(label);
+      const from = dayjs().subtract(days, "day").format("YYYY-MM-DD");
+      if (state.selectedSymbol && state.chartData?.date) {
+        fetchPaperChart(
+          state.selectedSymbol,
+          state.chartData.date,
+          state.chartTimeframe,
+          state.selectedStrategyId,
+          state.intradayOnly,
+          from,
+        );
+      }
+    },
+    [
+      state.selectedSymbol,
+      state.chartData?.date,
+      state.chartTimeframe,
+      state.selectedStrategyId,
+      state.intradayOnly,
+    ],
+  );
+
+  const handleCustomDate = useCallback(
+    (date: string) => {
+      setActivePreset(null);
+      if (state.selectedSymbol && state.chartData?.date && date) {
+        fetchPaperChart(
+          state.selectedSymbol,
+          state.chartData.date,
+          state.chartTimeframe,
+          state.selectedStrategyId,
+          state.intradayOnly,
+          date,
+        );
+      }
+    },
+    [
+      state.selectedSymbol,
+      state.chartData?.date,
+      state.chartTimeframe,
+      state.selectedStrategyId,
+      state.intradayOnly,
+    ],
+  );
+
   const handleTimeframeChange = useCallback(
     async (value: string | null) => {
       if (!value) return;
       setChartTimeframe(value);
-      if (state.selectedSymbol && state.chartData?.date)
+      if (state.selectedSymbol && state.chartData?.date) {
+        const from = activePreset
+          ? dayjs()
+              .subtract(PRESET_DAYS[activePreset] ?? 7, "day")
+              .format("YYYY-MM-DD")
+          : undefined;
         await fetchPaperChart(
           state.selectedSymbol,
           state.chartData.date,
           value,
           state.selectedStrategyId,
           state.intradayOnly,
+          from,
         );
+      }
     },
-    [state.selectedSymbol, state.chartData?.date, state.intradayOnly, state.selectedStrategyId],
+    [
+      state.selectedSymbol,
+      state.chartData?.date,
+      state.intradayOnly,
+      state.selectedStrategyId,
+      activePreset,
+    ],
   );
 
   const handleIntradayToggle = useCallback(
     async (checked: boolean) => {
       setIntradayOnly(checked);
-      if (state.selectedSymbol && state.chartData?.date)
+      if (state.selectedSymbol && state.chartData?.date) {
+        const from = activePreset
+          ? dayjs()
+              .subtract(PRESET_DAYS[activePreset] ?? 7, "day")
+              .format("YYYY-MM-DD")
+          : undefined;
         await fetchPaperChart(
           state.selectedSymbol,
           state.chartData.date,
           state.chartTimeframe,
           state.selectedStrategyId,
           checked,
+          from,
         );
+      }
     },
-    [state.selectedSymbol, state.chartData?.date, state.chartTimeframe, state.selectedStrategyId],
+    [
+      state.selectedSymbol,
+      state.chartData?.date,
+      state.chartTimeframe,
+      state.selectedStrategyId,
+      activePreset,
+    ],
   );
 
   return (
@@ -192,31 +270,56 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       id="chart-header"
       p="sm"
       pb={0}
-      justify="space-between"
-      align="center"
-      wrap="wrap"
-      gap="sm"
+      direction="column"
+      gap={6}
       style={{ flex: "0 0 auto" }}
     >
-      <Group gap="sm">
-        <Text fw={600} size="lg">
-          {state.chartData?.symbol} - {state.chartData?.date}
-          {state.chartData?.actual_date && state.chartData.actual_date !== state.chartData.date && (
-            <Text span size="xs" c="dimmed" ml={4}>
-              (Showing {formatDateRange(state.chartData.actual_date)})
-            </Text>
-          )}
-        </Text>
-        <Select
-          data-testid="paper-chart-timeframe"
-          size="sm"
-          value={state.chartTimeframe}
-          onChange={handleTimeframeChange}
-          data={TIMEFRAME_OPTIONS}
-          styles={{ input: { width: 70, height: 28 } }}
-        />
-      </Group>
-      <Group gap="sm">
+      <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
+        <Group gap="sm">
+          <Text fw={600} size="lg">
+            {state.chartData?.symbol} - {state.chartData?.date}
+            {state.chartData?.actual_date &&
+              state.chartData.actual_date !== state.chartData.date && (
+                <Text span size="xs" c="dimmed" ml={4}>
+                  ({formatDateRange(state.chartData.actual_date)})
+                </Text>
+              )}
+          </Text>
+          <Select
+            data-testid="paper-chart-timeframe"
+            size="xs"
+            value={state.chartTimeframe}
+            onChange={handleTimeframeChange}
+            data={TIMEFRAME_OPTIONS}
+            styles={{ input: { width: 72 } }}
+          />
+        </Group>
+        <Group gap={6}>
+          <SegmentedControl
+            size="xs"
+            value={activePreset ?? ""}
+            onChange={(v) => {
+              const found = PRESETS.find((p) => p.label === v);
+              if (found) handlePreset(found.label, found.days);
+            }}
+            data={[
+              { value: "1W", label: "1W" },
+              { value: "1M", label: "1M" },
+              { value: "3M", label: "3M" },
+              { value: "6M", label: "6M" },
+              { value: "1Y", label: "1Y" },
+            ]}
+          />
+          <TradingDatePicker
+            value=""
+            onChange={(v) => handleCustomDate(v)}
+            w={130}
+            placeholder="Custom"
+            size="xs"
+          />
+        </Group>
+      </Flex>
+      <Group gap="xs">
         <Switch
           size="xs"
           label="Intraday"
@@ -231,6 +334,9 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           onChange={(e) => setShowAllTrades(e.currentTarget.checked)}
           data-testid="show-all-trades-switch"
         />
+        <Badge size="sm" variant="outline" color="gray" style={{ opacity: 0.5 }}>
+          |
+        </Badge>
         <Switch
           size="xs"
           label="ORB"
@@ -270,6 +376,18 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
     </Flex>
   );
 }
+
+const PRESETS = [
+  { label: "1W", days: 7 },
+  { label: "1M", days: 30 },
+  { label: "3M", days: 90 },
+  { label: "6M", days: 180 },
+  { label: "1Y", days: 365 },
+];
+
+const PRESET_DAYS: Record<string, number> = Object.fromEntries(
+  PRESETS.map((p) => [p.label, p.days]),
+);
 
 function getEmptyState(
   state: ReturnType<typeof getPaperTradingState>,

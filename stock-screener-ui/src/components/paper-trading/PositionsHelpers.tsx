@@ -1,12 +1,12 @@
 import { useRef, useState, useEffect } from "react";
 import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
+import dayjs from "dayjs";
 import { DataTable } from "../common";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
 import {
   getPaperTradingState,
   setSelectedSymbol,
   setSelectedTradeId,
-  setShowAllTrades,
 } from "../../state/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import {
@@ -197,6 +197,7 @@ function PositionRow({
     strategyName?: string,
     strategyType?: string,
     strategyId?: number,
+    entryTime?: string,
   ) => void;
   onClose: (symbol: string, price: number) => void;
 }) {
@@ -212,6 +213,7 @@ function PositionRow({
           pos.strategy_name,
           pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined),
           pos.strategy_id,
+          pos.entry_time,
         )
       }
       style={{ cursor: "pointer" }}
@@ -227,6 +229,7 @@ function PositionRow({
               pos.strategy_name,
               pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined),
               pos.strategy_id,
+              pos.entry_time,
             )
           }
         />
@@ -294,18 +297,22 @@ export function PositionsTableBody({
     _strategyName?: string,
     _strategyType?: string,
     strategyId?: number,
+    entryTime?: string,
   ) => {
     setSelectedSymbol(symbol);
-    // Use sentinel "-1" so normalizePaper produces highlightedTradeId=-1
-    // which never matches any real trade id → no trade markers, only livePosition
     setSelectedTradeId("-1");
+    const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
+    const fromDate = entryDate
+      ? dayjs(entryDate).subtract(7, "day").format("YYYY-MM-DD")
+      : undefined;
     const state = getPaperTradingState();
     await fetchPaperChart(
       symbol,
-      undefined,
+      entryDate,
       state.chartTimeframe,
       strategyId ?? state.selectedStrategyId,
       state.intradayOnly,
+      fromDate,
     );
   };
 

@@ -17,15 +17,19 @@ describe("mapCandles", () => {
       close: 105,
       volume: 1000,
     });
-    expect(result[0].date).toBeUndefined();
-    expect(result[0].time_str).toBeUndefined();
+    expect(result[0].date).toBe("2025-01-15");
+    expect(result[0].time_str).toBe("09:30");
   });
 
-  it("preserves all fields exactly", () => {
-    const rawCandles = [{ time: "test", open: 1, high: 2, low: 3, close: 4, volume: 5 }];
+  it("extracts date and time_str from ISO timestamp", () => {
+    const rawCandles = [
+      { time: "2025-01-15T09:30:00", open: 1, high: 2, low: 3, close: 4, volume: 5 },
+    ];
     const result = mapCandles(rawCandles);
     expect(result[0]).toEqual({
-      time: "test",
+      time: "2025-01-15T09:30:00",
+      date: "2025-01-15",
+      time_str: "09:30",
       open: 1,
       high: 2,
       low: 3,

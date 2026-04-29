@@ -221,12 +221,14 @@ export async function fetchPaperChart(
   timeframe?: string,
   strategyId?: number | null,
   intradayOnly?: boolean,
+  fromDate?: string,
 ): Promise<PaperChartData | null> {
   setChartLoading(true);
 
   try {
     const params = new URLSearchParams();
     if (date) params.append("date", date);
+    if (fromDate) params.append("from_date", fromDate);
     if (timeframe) params.append("timeframe", timeframe);
     if (strategyId) params.append("strategy_id", String(strategyId));
     if (intradayOnly) params.append("intraday_only", "true");
