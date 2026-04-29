@@ -130,14 +130,6 @@ export function buildTradeMarkers(
   const hasHighlight = highlightedTradeId != null;
   const filtered =
     hasHighlight && !showAllTrades ? trades.filter((t) => t.id === highlightedTradeId) : trades;
-  console.log("[buildTradeMarkers]", {
-    highlightedTradeId,
-    showAllTrades,
-    hasHighlight,
-    totalTrades: trades.length,
-    filteredCount: filtered.length,
-    filteredIds: filtered.map((t) => t.id),
-  });
 
   const entryMarkers: any[] = [];
   const exitMarkersByConfig: Map<string, any[]> = new Map();

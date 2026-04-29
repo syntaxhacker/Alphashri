@@ -291,21 +291,15 @@ export function PositionsTableBody({
   const handleSelect = async (
     symbol: string,
     _tradeId?: string,
-    strategyName?: string,
-    strategyType?: string,
+    _strategyName?: string,
+    _strategyType?: string,
     strategyId?: number,
   ) => {
-    console.log("[PositionRow] clicked", { symbol, strategyName, strategyType, strategyId });
     setSelectedSymbol(symbol);
-    // Use sentinel "-1" so normalizePaper produces highlightedTradeId=-1.
-    // In buildTradeMarkers, -1 != null = true, and t.id === -1 never matches
-    // any real trade, so filtered = [] → no trade markers, only livePosition.
-    setSelectedTradeId("-1", strategyType ?? null, strategyId ?? null);
+    // Use sentinel "-1" so normalizePaper produces highlightedTradeId=-1
+    // which never matches any real trade id → no trade markers, only livePosition
+    setSelectedTradeId("-1");
     const state = getPaperTradingState();
-    console.log("[PositionRow] after select", {
-      selectedTradeId: state.selectedTradeId,
-      showAllTrades: state.showAllTrades,
-    });
     await fetchPaperChart(
       symbol,
       undefined,
