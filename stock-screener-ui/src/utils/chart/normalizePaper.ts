@@ -136,6 +136,14 @@ export function normalizePaper(
     };
   }
 
+  const highlightedTradeId = selectedTradeId ? parseInt(selectedTradeId, 10) : null;
+  console.log("[normalizePaper]", {
+    hasSelectedTradeId: !!selectedTradeId,
+    rawSelectedTradeId: selectedTradeId,
+    highlightedTradeId,
+    showAllTrades,
+    tradeCount: trades.length,
+  });
   return {
     candles,
     trades,
@@ -147,7 +155,7 @@ export function normalizePaper(
     showVolume: true,
     showDataZoomSlider: false,
     showLegend: false,
-    highlightedTradeId: selectedTradeId ? parseInt(selectedTradeId, 10) : null,
+    highlightedTradeId,
     showAllTrades,
     isDark,
   };

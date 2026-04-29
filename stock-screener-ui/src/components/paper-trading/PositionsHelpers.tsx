@@ -291,15 +291,21 @@ export function PositionsTableBody({
   const handleSelect = async (
     symbol: string,
     _tradeId?: string,
-    _strategyName?: string,
-    _strategyType?: string,
+    strategyName?: string,
+    strategyType?: string,
     strategyId?: number,
   ) => {
+    console.log("[PositionRow] clicked", { symbol, strategyName, strategyType, strategyId });
     setSelectedSymbol(symbol);
-    // Reset trade highlight — positions use order_id (UUID), not a numeric trade ID
-    // The chart's livePosition marker shows the open position automatically
-    setSelectedTradeId(null);
+    // Use sentinel "-1" so normalizePaper produces highlightedTradeId=-1.
+    // In buildTradeMarkers, -1 != null = true, and t.id === -1 never matches
+    // any real trade, so filtered = [] → no trade markers, only livePosition.
+    setSelectedTradeId("-1", strategyType ?? null, strategyId ?? null);
     const state = getPaperTradingState();
+    console.log("[PositionRow] after select", {
+      selectedTradeId: state.selectedTradeId,
+      showAllTrades: state.showAllTrades,
+    });
     await fetchPaperChart(
       symbol,
       undefined,
