@@ -653,19 +653,26 @@ async def get_paper_chart(
 
         if not current_position:
             try:
-                from db.database import SessionLocal
                 from db.models import Position
 
                 db = SessionLocal()
                 try:
-                    db_pos = (
-                        db.query(Position)
-                        .filter(
-                            Position.user_id == user.id,
-                            Position.symbol == symbol.upper(),
-                        )
-                        .first()
+                    q = db.query(Position).filter(
+                        Position.user_id == user.id,
+                        Position.symbol == symbol.upper(),
                     )
+                    if strategy_id:
+                        q = q.filter(Position.strategy_id == strategy_id)
+                    db_pos = q.first()
+                    if not db_pos and strategy_id:
+                        db_pos = (
+                            db.query(Position)
+                            .filter(
+                                Position.user_id == user.id,
+                                Position.symbol == symbol.upper(),
+                            )
+                            .first()
+                        )
                     if db_pos:
                         entry_time = db_pos.entry_time
                         if entry_time and hasattr(entry_time, "isoformat"):
@@ -684,10 +691,12 @@ async def get_paper_chart(
                             "pnl": db_pos.unrealized_pnl or 0,
                             "pnl_pct": db_pos.unrealized_pnl_pct or 0,
                         }
+                except Exception as e:
+                    console.print(f"[red]Position query error: {e}[/red]")
                 finally:
                     db.close()
-            except Exception:
-                pass
+            except Exception as e:
+                console.print(f"[red]Position DB error: {e}[/red]")
 
         return {
             "symbol": symbol.upper(),

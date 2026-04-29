@@ -159,6 +159,16 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
 
   const legend = buildLegend(allSeriesNames, input.showLegend, colors.mutedColor);
 
+  if (liveMarkLines.length > 0 && input.candles.length > 0) {
+    const prices = input.candles.flatMap((c) => [c.open, c.high, c.low, c.close]);
+    const minData = Math.min(...prices);
+    const maxData = Math.max(...prices);
+    const range = maxData - minData;
+    const margin = range * 2;
+    liveMarkLines = liveMarkLines.filter(
+      (l) => l.yAxis > minData - margin && l.yAxis < maxData + margin,
+    );
+  }
   if (liveMarkLines.length > 0 && series.series.length > 0) {
     const candleSeries = series.series[0];
     if (!candleSeries.markLine) {
