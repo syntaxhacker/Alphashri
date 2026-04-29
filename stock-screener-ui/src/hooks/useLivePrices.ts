@@ -86,9 +86,7 @@ export function useLivePrices() {
                       ts: data.ts,
                     },
                   };
-                  listenersRef.current.forEach((fn) =>
-                    fn(pricesRef.current),
-                  );
+                  listenersRef.current.forEach((fn) => fn(pricesRef.current));
                 }
               } catch {
                 // skip malformed

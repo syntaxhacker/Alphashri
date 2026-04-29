@@ -1,9 +1,6 @@
 import { useEffect } from "react";
 import { useLivePrices } from "../../hooks/useLivePrices";
-import {
-  getPaperTradingState,
-  setPositions,
-} from "../../state/paperTrading";
+import { getPaperTradingState, setPositions } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 
 export function LivePriceUpdater() {

@@ -1,8 +1,5 @@
 import { test, expect } from "@playwright/test";
-import {
-  navigateToPaperTrading,
-  setupPaperTradingTestMocks,
-} from "../helpers/paperTradingHelpers";
+import { navigateToPaperTrading, setupPaperTradingTestMocks } from "../helpers/paperTradingHelpers";
 
 test.describe("Live Price Streaming", () => {
   test.beforeEach(async ({ page }) => {

@@ -222,8 +222,9 @@ export async function fetchPaperChart(
   strategyId?: number | null,
   intradayOnly?: boolean,
   fromDate?: string,
+  silent?: boolean,
 ): Promise<PaperChartData | null> {
-  setChartLoading(true);
+  if (!silent) setChartLoading(true);
 
   try {
     const params = new URLSearchParams();
@@ -241,9 +242,8 @@ export async function fetchPaperChart(
 
     if (data.error) {
       console.error("Chart data error:", data.error);
-      // Clear chart data to show error state instead of stale data
-      setChartData(null);
-      setChartLoading(false);
+      if (!silent) setChartData(null);
+      else setChartLoading(false);
       return null;
     }
 
@@ -251,9 +251,8 @@ export async function fetchPaperChart(
     return data;
   } catch (error) {
     console.error("Failed to fetch chart data:", error);
-    // Clear chart data on error
-    setChartData(null);
-    setChartLoading(false);
+    if (!silent) setChartData(null);
+    else setChartLoading(false);
     return null;
   }
 }

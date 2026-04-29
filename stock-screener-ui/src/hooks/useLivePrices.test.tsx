@@ -124,9 +124,7 @@ describe("useLivePrices", () => {
       async start(controller) {
         controller.enqueue(encoder.encode("data: not-json\n\n"));
         controller.enqueue(
-          encoder.encode(
-            'event: price\ndata: {"type":"price","symbol":"RELIANCE","ltp":100}\n\n',
-          ),
+          encoder.encode('event: price\ndata: {"type":"price","symbol":"RELIANCE","ltp":100}\n\n'),
         );
         controller.close();
       },

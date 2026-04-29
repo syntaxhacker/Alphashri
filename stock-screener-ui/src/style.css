@@ -8,13 +8,21 @@
 
 /* Live price flash animations */
 @keyframes flash-up {
-  0% { background-color: rgba(64, 192, 87, 0.35); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: rgba(64, 192, 87, 0.35);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 @keyframes flash-down {
-  0% { background-color: rgba(255, 77, 77, 0.35); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: rgba(255, 77, 77, 0.35);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 .price-flash-up {
