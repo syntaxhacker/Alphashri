@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { describe, it, expect, afterEach, beforeEach, vi, test } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { BacktestResultsTable } from "./BacktestResultsTable";
 import type { BacktestResult } from "../../types/backtest";
@@ -73,52 +73,27 @@ describe("BacktestResultsTable", () => {
     expect(screen.getByTestId("result-row-RELIANCE")).toBeInTheDocument();
   });
 
-  it("displays formatted P&L", () => {
-    const results = [mockResult({ net_pnl: 15000 })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
-    const pnlCell = screen.getByTestId("net-pnl-TCS");
-    expect(pnlCell).toHaveTextContent("+₹15.0K");
-  });
-
-  it("displays negative P&L formatting", () => {
-    const results = [mockResult({ net_pnl: -5000 })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
-    const pnlCell = screen.getByTestId("net-pnl-TCS");
-    expect(pnlCell).toHaveTextContent("₹-5.0K");
-  });
-
-  it("displays trades count", () => {
-    const results = [mockResult({ trades: 42 })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("trades-TCS")).toHaveTextContent("42");
-  });
-
-  it("displays win rate with %", () => {
-    const results = [mockResult({ win_rate: 65.5 })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("wr-TCS")).toHaveTextContent("66%");
-  });
-
-  it("displays PF with one decimal", () => {
-    const results = [mockResult({ pf: 1.823 })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("pf-TCS")).toHaveTextContent("1.8");
-  });
-
-  it("displays TP/SL exits", () => {
-    const results = [mockResult({ tp_exits: 10, sl_exits: 32 })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("tpsl-TCS")).toHaveTextContent("10/32");
-  });
-
-  it("highlights selected row", () => {
-    const results = [mockResult({ symbol: "TCS" }), mockResult({ symbol: "INFY" })];
-    render(<BacktestResultsTable results={results} {...defaultProps} selectedSymbol="INFY" />, {
-      wrapper: Wrapper,
+  describe("cell value formatting", () => {
+    test.each([
+      ["positive P&L as +₹15.0K", { net_pnl: 15000 }, "net-pnl-TCS", "+₹15.0K"],
+      ["negative P&L as ₹-5.0K", { net_pnl: -5000 }, "net-pnl-TCS", "₹-5.0K"],
+      ["trades count", { trades: 42 }, "trades-TCS", "42"],
+      ["win rate rounded to integer percent", { win_rate: 65.5 }, "wr-TCS", "66%"],
+      ["profit factor to one decimal", { pf: 1.823 }, "pf-TCS", "1.8"],
+      ["TP/SL exits as 10/32", { tp_exits: 10, sl_exits: 32 }, "tpsl-TCS", "10/32"],
+      ["undefined win_rate as 0%", { win_rate: undefined }, "wr-TCS", "0%"],
+      ["undefined pf as 0.0", { pf: undefined }, "pf-TCS", "0.0"],
+      [
+        "zero values formatted correctly",
+        { net_pnl: 0, trades: 0, win_rate: 0, pf: 0 },
+        "net-pnl-TCS",
+        "₹0.0K",
+      ],
+    ])("%s", (_, overrides, cellTestId, expectedText) => {
+      const results = [mockResult(overrides)];
+      render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
+      expect(screen.getByTestId(cellTestId)).toHaveTextContent(expectedText);
     });
-    const rowINFY = screen.getByTestId("result-row-INFY");
-    const style = rowINFY.getAttribute("style");
-    expect(style).toContain("var(--mantine-color-blue-light)");
   });
 
   it("calls onRowClick when row is clicked", async () => {

@@ -64,7 +64,7 @@ except ImportError:
 
 @pytest.fixture(scope="function")
 def test_engine():
-    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday
+    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday, Stock52WeekTouch
     
     engine = create_engine(
         "sqlite:///:memory:",

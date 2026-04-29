@@ -4,8 +4,6 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerTable } from "./ScreenerTable";
 import { MantineProvider } from "@mantine/core";
-import { DataTable } from "../common/DataTable";
-import { SortableHeader } from "../common/SortableHeader";
 import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
 

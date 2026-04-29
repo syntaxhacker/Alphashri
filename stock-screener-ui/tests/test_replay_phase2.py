@@ -441,6 +441,56 @@ class TestExecuteSignalReplay:
         result = runner.execute_signal(999, signal)
         assert result is False
 
+    @patch("trading.telegram_notifier.send_trade_entry")
+    @patch("trading.telegram_notifier.send_signal_rejected")
+    def test_live_mode_persists_position_with_entry_price(self, mock_rejected, mock_entry):
+        """In live mode, execute_signal persists entry_price to DB."""
+        from trading.runner_core import MultiStrategyRunner
+
+        runner = MultiStrategyRunner.create_for_replay(bot_config=_make_bot_config())
+
+        runner.replay_mode = False
+        runner.test_mode = False
+
+        mock_portfolio = MagicMock()
+        mock_portfolio.get_portfolio_status.return_value = {
+            "initial_capital": 1_000_000, "cash": 1_000_000,
+            "total_positions": 0, "capital_used": 0, "daily_pnl": 0,
+        }
+        mock_portfolio.get_strategy_status.return_value = {
+            "positions_count": 0, "capital_used": 0,
+        }
+        mock_portfolio.get_symbol_exposure.return_value = 0
+        mock_position = MagicMock()
+        mock_position.strategy_id = 1
+        mock_position.symbol = "RELIANCE"
+        mock_portfolio.open_position.return_value = mock_position
+        runner.portfolio = mock_portfolio
+
+        mock_risk = MagicMock()
+        mock_risk.validate_trade.return_value = {"valid": True, "shares": 10}
+        runner.risk_manager = mock_risk
+
+        persist_calls = []
+        def fake_persist(data, action=None):
+            persist_calls.append(data)
+        runner._persist_position_to_db = fake_persist
+
+        sr = _make_strategy_runner()
+        sr.signal_generator.is_eod_exit_time.return_value = False
+        runner.strategies = {1: sr}
+
+        signal = _make_signal("RELIANCE", 1005.0)
+        result = runner.execute_signal(1, signal)
+
+        assert result is True
+        assert len(persist_calls) == 1
+        assert "entry_price" in persist_calls[0]
+        assert persist_calls[0]["entry_price"] == 1005.0
+        assert persist_calls[0]["symbol"] == "RELIANCE"
+        assert persist_calls[0]["quantity"] == 10
+        assert persist_calls[0]["strategy_id"] == 1
+
 
 # ============================================================================
 # monitor_positions Replay Tests

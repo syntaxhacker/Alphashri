@@ -18,7 +18,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('bot_runtime_states', sa.Column('scan_items', sa.String(length=50000), nullable=True, server_default=''))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {col["name"] for col in inspector.get_columns("bot_runtime_states")}
+    if "scan_items" not in columns:
+        op.add_column(
+            'bot_runtime_states',
+            sa.Column('scan_items', sa.String(length=50000), nullable=True, server_default=''),
+        )
 
 
 def downgrade() -> None:

@@ -1,16 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
 import { TradingCostsSection } from "./TradingCostsSection";
 import type { StrategyConfig } from "../../types/strategies";
+import { TestWrapper } from "../../test/test-utils";
 import "@testing-library/jest-dom/vitest";
 
 afterEach(cleanup);
-
-function Wrapper({ children }: { children: React.ReactNode }) {
-  return <MantineProvider>{children}</MantineProvider>;
-}
 
 function mockConfig(overrides: Partial<StrategyConfig> = {}): StrategyConfig {
   return {
@@ -85,7 +81,7 @@ describe("TradingCostsSection", () => {
   };
 
   it("renders section with testid", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     expect(screen.getByTestId("config-brokerage")).toBeInTheDocument();
     expect(screen.getByTestId("config-min-brokerage")).toBeInTheDocument();
     expect(screen.getByTestId("config-stt")).toBeInTheDocument();
@@ -96,7 +92,7 @@ describe("TradingCostsSection", () => {
   });
 
   it("displays initial costs values as percentages", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     // brokerage_pct: 0.001 => 0.1%
     expect(screen.getByTestId("config-brokerage")).toHaveValue("0.1");
     // stt_pct: 0.001 => 0.1%
@@ -112,61 +108,61 @@ describe("TradingCostsSection", () => {
   });
 
   it("displays min_brokerage as is", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     expect(screen.getByTestId("config-min-brokerage")).toHaveValue("20");
   });
 
   it("calls onChange with key and converted value for brokerage", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-brokerage");
     fireEvent.change(input, { target: { value: "0.2" } });
     expect(mockOnChange).toHaveBeenCalledWith("brokerage_pct", 0.002); // 0.2/100
   });
 
   it("calls onChange for min_brokerage", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-min-brokerage");
     fireEvent.change(input, { target: { value: "50" } });
     expect(mockOnChange).toHaveBeenCalledWith("min_brokerage", 50);
   });
 
   it("calls onChange for stt", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-stt");
     fireEvent.change(input, { target: { value: "0.05" } });
     expect(mockOnChange).toHaveBeenCalledWith("stt_pct", 0.0005);
   });
 
   it("calls onChange for exchange", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-exchange");
     fireEvent.change(input, { target: { value: "0.02" } });
     expect(mockOnChange).toHaveBeenCalledWith("exchange_pct", 0.0002);
   });
 
   it("calls onChange for sebi", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-sebi");
     fireEvent.change(input, { target: { value: "0.015" } });
     expect(mockOnChange).toHaveBeenCalledWith("sebi_pct", 0.00015);
   });
 
   it("calls onChange for stamp", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-stamp");
     fireEvent.change(input, { target: { value: "0.02" } });
     expect(mockOnChange).toHaveBeenCalledWith("stamp_pct", 0.0002);
   });
 
   it("calls onChange for gst", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-gst");
     fireEvent.change(input, { target: { value: "20" } });
     expect(mockOnChange).toHaveBeenCalledWith("gst_pct", 0.2); // 20/100
   });
 
   it("renders labels correctly", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     expect(screen.getByText("Brokerage %")).toBeInTheDocument();
     expect(screen.getByText("Min Brokerage")).toBeInTheDocument();
     expect(screen.getByText("STT %")).toBeInTheDocument();
@@ -177,7 +173,7 @@ describe("TradingCostsSection", () => {
   });
 
   it("renders descriptions", () => {
-    render(<TradingCostsSection {...defaultProps} />, { wrapper: Wrapper });
+    render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     expect(screen.getByText("Brokerage percentage")).toBeInTheDocument();
     expect(screen.getByText("Minimum brokerage (₹)")).toBeInTheDocument();
     expect(screen.getByText("Securities transaction tax")).toBeInTheDocument();
@@ -197,7 +193,9 @@ describe("TradingCostsSection", () => {
       stamp_pct: 0,
       gst_pct: 0,
     });
-    render(<TradingCostsSection config={config} onChange={mockOnChange} />, { wrapper: Wrapper });
+    render(<TradingCostsSection config={config} onChange={mockOnChange} />, {
+      wrapper: TestWrapper,
+    });
     expect(screen.getByTestId("config-brokerage")).toHaveValue("0");
     expect(screen.getByTestId("config-min-brokerage")).toHaveValue("0");
     expect(screen.getByTestId("config-stt")).toHaveValue("0");
@@ -209,7 +207,9 @@ describe("TradingCostsSection", () => {
       brokerage_pct: 0.0005, // 0.05%
       exchange_pct: 0.00005, // 0.005%
     });
-    render(<TradingCostsSection config={config} onChange={mockOnChange} />, { wrapper: Wrapper });
+    render(<TradingCostsSection config={config} onChange={mockOnChange} />, {
+      wrapper: TestWrapper,
+    });
     expect(screen.getByTestId("config-brokerage")).toHaveValue("0.05");
     expect(screen.getByTestId("config-exchange")).toHaveValue("0.005");
   });

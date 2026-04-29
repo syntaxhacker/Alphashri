@@ -108,8 +108,19 @@ class RunnerRiskMixin:
             if len(closes) >= 200:
                 ma200 = sum(closes[-200:]) / 200
 
+            current_price = closes[-1]
+            try:
+                intraday = fetcher.upstox_api.fetch_intraday_data_v3(
+                    symbol=symbol, interval='1'
+                )
+            except Exception:
+                intraday = None
+
+            if intraday is not None and not intraday.empty:
+                current_price = float(intraday['close'].iloc[-1])
+
             return {
-                'current_price': closes[-1],
+                'current_price': current_price,
                 'high_52w': high_52w,
                 'daily_highs': highs,
                 'daily_closes': closes,
@@ -130,15 +141,15 @@ class RunnerRiskMixin:
 
     def fetch_previous_day_data(self, symbol: str) -> Optional[dict]:
         """Fetch previous day's HLC for pivot point calculation."""
+        fetcher = self._get_data_fetcher()
+        if not fetcher:
+            return None
+
+        from datetime import timedelta as td
+        to_date = self._get_to_date().strftime('%Y-%m-%d')
+        from_date = (self._get_to_date() - td(days=10)).strftime('%Y-%m-%d')
+
         try:
-            fetcher = self._get_data_fetcher()
-            if not fetcher:
-                return None
-
-            from datetime import timedelta as td
-            to_date = self._get_to_date().strftime('%Y-%m-%d')
-            from_date = (self._get_to_date() - td(days=10)).strftime('%Y-%m-%d')
-
             df = fetcher.upstox_api.fetch_historical_data_v3(
                 symbol=symbol,
                 unit='days',
@@ -146,70 +157,68 @@ class RunnerRiskMixin:
                 to_date=to_date,
                 from_date=from_date,
             )
-
-            if df is None or df.empty or len(df) < 2:
-                return None
-
-            prev_row = df.iloc[-2]
-            current_price = df.iloc[-1]['close']
-
-            return {
-                'current_price': current_price,
-                'prev_high': prev_row['high'],
-                'prev_low': prev_row['low'],
-                'prev_close': prev_row['close'],
-            }
-
         except Exception as e:
             from rich.console import Console
             console = Console()
             console.print(f"[dim red]Error fetching prev day data for {symbol}: {e}[/dim red]")
             return None
 
+        if df is None or df.empty or len(df) < 2:
+            return None
+
+        prev_row = df.iloc[-2]
+        current_price = df.iloc[-1]['close']
+
+        return {
+            'current_price': current_price,
+            'prev_high': prev_row['high'],
+            'prev_low': prev_row['low'],
+            'prev_close': prev_row['close'],
+        }
+
     def fetch_ema_data(self, symbol: str, ema_fast_period: int = 9, ema_slow_period: int = 21) -> Optional[dict]:
         """Fetch intraday data and compute EMA crossover state for a symbol."""
         from trading.ema_utils import calculate_ema
 
-        try:
-            fetcher = self._get_data_fetcher()
-            if not fetcher:
-                return None
+        fetcher = self._get_data_fetcher()
+        if not fetcher:
+            return None
 
+        try:
             df = fetcher.upstox_api.fetch_intraday_data_v3(
                 symbol=symbol,
                 interval='5',
             )
-
-            if df is None or df.empty:
-                return None
-
-            closes = df['close'].tolist()
-            if len(closes) < ema_slow_period + 2:
-                return None
-
-            ema_fast = calculate_ema(closes, ema_fast_period, return_full=True)
-            ema_slow = calculate_ema(closes, ema_slow_period, return_full=True)
-
-            if len(ema_fast) < 2 or len(ema_slow) < 2:
-                return None
-
-            current_price = closes[-1]
-            ema_fast_current = ema_fast[-1]
-            ema_fast_prev = ema_fast[-2]
-            ema_slow_current = ema_slow[-1]
-            ema_slow_prev = ema_slow[-2]
-
-            return {
-                'current_price': current_price,
-                'ema_fast_current': round(ema_fast_current, 2),
-                'ema_fast_prev': round(ema_fast_prev, 2),
-                'ema_slow_current': round(ema_slow_current, 2),
-                'ema_slow_prev': round(ema_slow_prev, 2),
-                'closes': closes,
-            }
-
         except Exception as e:
             from rich.console import Console
             console = Console()
             console.print(f"[dim red]Error fetching EMA data for {symbol}: {e}[/dim red]")
             return None
+
+        if df is None or df.empty:
+            return None
+
+        closes = df['close'].tolist()
+        if len(closes) < ema_slow_period + 2:
+            return None
+
+        ema_fast = calculate_ema(closes, ema_fast_period, return_full=True)
+        ema_slow = calculate_ema(closes, ema_slow_period, return_full=True)
+
+        if len(ema_fast) < 2 or len(ema_slow) < 2:
+            return None
+
+        current_price = closes[-1]
+        ema_fast_current = ema_fast[-1]
+        ema_fast_prev = ema_fast[-2]
+        ema_slow_current = ema_slow[-1]
+        ema_slow_prev = ema_slow[-2]
+
+        return {
+            'current_price': current_price,
+            'ema_fast_current': round(ema_fast_current, 2),
+            'ema_fast_prev': round(ema_fast_prev, 2),
+            'ema_slow_current': round(ema_slow_current, 2),
+            'ema_slow_prev': round(ema_slow_prev, 2),
+            'closes': closes,
+        }

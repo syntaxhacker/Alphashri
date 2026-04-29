@@ -47,7 +47,7 @@ const mockSnapshotWithAll: PaperBotSnapshot = {
   scan_items: [
     {
       symbol: "RELIANCE",
-      status: "signal",
+      status: "signal" as const,
       side: "LONG",
       price: 2520,
       or_high: 2525,
@@ -58,7 +58,7 @@ const mockSnapshotWithAll: PaperBotSnapshot = {
     },
     {
       symbol: "TCS",
-      status: "watching",
+      status: "watching" as const,
       side: "LONG",
       price: 3850,
       high_52w: 3900,
@@ -68,7 +68,7 @@ const mockSnapshotWithAll: PaperBotSnapshot = {
     },
     {
       symbol: "INFY",
-      status: "skipped",
+      status: "skipped" as const,
       price: 4500,
       reason: "Low volume",
       strategy_name: "ORB Strategy",
@@ -77,6 +77,12 @@ const mockSnapshotWithAll: PaperBotSnapshot = {
   ],
   signals: [{ symbol: "RELIANCE", side: "LONG", price: 2520, notes: "ORB breakout" }],
 };
+
+const SECTIONS = [
+  { section: "signals", label: "Signals", testidPrefix: "watchlist-scan-signals" },
+  { section: "watching", label: "Watching", testidPrefix: "watchlist-scan-watching" },
+  { section: "skipped", label: "Skipped", testidPrefix: "watchlist-scan-skipped" },
+] as const;
 
 describe("WatchlistScan", () => {
   beforeEach(() => {
@@ -111,73 +117,45 @@ describe("WatchlistScan", () => {
   });
 
   describe("renders sections", () => {
-    test("renders signals section", () => {
+    test.each(SECTIONS)("renders $label section", ({ section: _section, label, testidPrefix }) => {
       r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-
-      expect(screen.getByTestId("watchlist-scan-signals")).toBeInTheDocument();
-      expect(screen.getByText("Signals")).toBeInTheDocument();
-    });
-
-    test("renders watching section", () => {
-      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-      expect(screen.getByTestId("watchlist-scan-watching")).toBeInTheDocument();
-      expect(screen.getByText("Watching")).toBeInTheDocument();
-    });
-
-    test("renders skipped section", () => {
-      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-      expect(screen.getByTestId("watchlist-scan-skipped")).toBeInTheDocument();
-      expect(screen.getByText("Skipped")).toBeInTheDocument();
+      expect(screen.getByTestId(testidPrefix)).toBeInTheDocument();
+      expect(screen.getByText(label)).toBeInTheDocument();
     });
   });
 
   describe("DataTable data-testid attributes", () => {
-    test("signals table has data-testid from DataTable", () => {
-      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-      expect(screen.getByTestId("signals-table")).toBeInTheDocument();
-    });
-
-    test("watching table has data-testid from DataTable", () => {
-      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-      expect(screen.getByTestId("watching-table")).toBeInTheDocument();
-    });
-
-    test("skipped table has data-testid from DataTable", () => {
-      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-      expect(screen.getByTestId("skipped-table")).toBeInTheDocument();
-    });
+    test.each(SECTIONS)(
+      "$label table has data-testid from DataTable",
+      ({ section, label: _label }) => {
+        r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
+        expect(screen.getByTestId(`${section}-table`)).toBeInTheDocument();
+      },
+    );
   });
 
   describe("row click handlers", () => {
-    test("clicking signal row calls setSelectedSymbol", async () => {
+    async function clickScanRow(symbol: string, status: "signal" | "watching" | "skipped") {
       const user = userEvent.setup();
-      const { setSelectedSymbol } = await import("../../state/paperTrading");
+      if (status === "skipped") {
+        await user.click(
+          within(screen.getByTestId(`watchlist-scan-${status}`)).getByRole("button"),
+        );
+      }
+      await user.click(screen.getByTestId(`scan-${status}-${symbol}`));
+      return user;
+    }
 
+    test.each([
+      { symbol: "RELIANCE", status: "signal" as const },
+      { symbol: "TCS", status: "watching" as const },
+      { symbol: "INFY", status: "skipped" as const },
+    ])("clicking $status row calls setSelectedSymbol for $symbol", async ({ symbol, status }) => {
       r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-      await user.click(screen.getByTestId("scan-signal-RELIANCE"));
-
-      expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
-    });
-
-    test("clicking watching row calls setSelectedSymbol", async () => {
-      const user = userEvent.setup();
-      const { setSelectedSymbol } = await import("../../state/paperTrading");
-
-      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-      await user.click(screen.getByTestId("scan-watching-TCS"));
-
-      expect(setSelectedSymbol).toHaveBeenCalledWith("TCS");
-    });
-
-    test("clicking skipped row calls setSelectedSymbol", async () => {
-      const user = userEvent.setup();
-      const { setSelectedSymbol } = await import("../../state/paperTrading");
-
-      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-      await user.click(within(screen.getByTestId("watchlist-scan-skipped")).getByRole("button"));
-      await user.click(screen.getByTestId("scan-skipped-INFY"));
-
-      expect(setSelectedSymbol).toHaveBeenCalledWith("INFY");
+      await clickScanRow(symbol, status);
+      expect((await import("../../state/paperTrading")).setSelectedSymbol).toHaveBeenCalledWith(
+        symbol,
+      );
     });
   });
 
@@ -188,19 +166,14 @@ describe("WatchlistScan", () => {
         .querySelector('button[data-accordion-control="true"]') as HTMLElement;
     }
 
-    test("signals accordion starts expanded by default", () => {
-      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-
-      expect(accordionControl("signals")).toHaveAttribute("aria-expanded", "true");
-      expect(screen.getByTestId("signals-table")).toBeInTheDocument();
-    });
-
-    test("watching accordion starts expanded by default", () => {
-      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-
-      expect(accordionControl("watching")).toHaveAttribute("aria-expanded", "true");
-      expect(screen.getByTestId("watching-table")).toBeInTheDocument();
-    });
+    test.each(["signals", "watching"])(
+      "$section accordion starts expanded by default",
+      (section) => {
+        r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
+        expect(accordionControl(section)).toHaveAttribute("aria-expanded", "true");
+        expect(screen.getByTestId(`${section}-table`)).toBeInTheDocument();
+      },
+    );
 
     test("skipped accordion starts collapsed", async () => {
       const user = userEvent.setup();
@@ -319,33 +292,22 @@ describe("handleSelectSymbol with fetchPaperChart", () => {
 });
 
 describe("skipped row merged items", () => {
-  test('skipped row with empty strategies shows "?" and reason shows "-"', async () => {
-    const user = userEvent.setup();
-    const snapshot: PaperBotSnapshot = {
-      ...mockSnapshotWithAll,
-      scan_items: [
+  const skippedTestCases = [
+    {
+      name: 'empty strategies shows "?" and reason shows "-"',
+      scanItems: [
         {
           symbol: "HDFC",
           status: "skipped" as const,
           price: 4200,
         } as PaperScanItem,
       ],
-    };
-
-    r(<WatchlistScan snapshot={snapshot} selectedSymbol={null} />);
-    await user.click(within(screen.getByTestId("watchlist-scan-skipped")).getByRole("button"));
-
-    expect(screen.getByTestId("scan-skipped-HDFC")).toBeInTheDocument();
-    const cells = within(screen.getByTestId("scan-skipped-HDFC")).getAllByRole("cell");
-    expect(cells[2]).toHaveTextContent("?");
-    expect(cells[3]).toHaveTextContent("-");
-  });
-
-  test('skipped row with undefined strategy_name defaults to "?"', async () => {
-    const user = userEvent.setup();
-    const snapshot: PaperBotSnapshot = {
-      ...mockSnapshotWithAll,
-      scan_items: [
+      expectedCell2: "?",
+      expectedCell3: "-",
+    },
+    {
+      name: 'undefined strategy_name defaults to "?"',
+      scanItems: [
         {
           symbol: "HDFC",
           status: "skipped" as const,
@@ -353,22 +315,12 @@ describe("skipped row merged items", () => {
           reason: "Low volume",
         } as PaperScanItem,
       ],
-    };
-
-    r(<WatchlistScan snapshot={snapshot} selectedSymbol={null} />);
-    await user.click(within(screen.getByTestId("watchlist-scan-skipped")).getByRole("button"));
-
-    const cells = within(screen.getByTestId("scan-skipped-HDFC")).getAllByRole("cell");
-    expect(cells[2]).toHaveTextContent("?");
-  });
-
-  test("multiple skipped items for same symbol merge strategies and reasons", async () => {
-    const user = userEvent.setup();
-    const multiSkipSnapshot: PaperBotSnapshot = {
-      timestamp: "2026-03-20T09:30:00Z",
-      watchlist: ["ABC"],
-      open_positions: [],
-      scan_items: [
+      expectedCell2: "?",
+      expectedCell3: undefined,
+    },
+    {
+      name: "multiple skipped items for same symbol merge strategies and reasons",
+      scanItems: [
         {
           symbol: "ABC",
           status: "skipped" as const,
@@ -386,15 +338,27 @@ describe("skipped row merged items", () => {
           strategy_id: 2,
         },
       ],
-      signals: [],
+      expectedCell2: "ORB Strategy, SR Breakout",
+      expectedCell3: "Low volume",
+    },
+  ];
+
+  test.each(skippedTestCases)("$name", async ({ scanItems, expectedCell2, expectedCell3 }) => {
+    const user = userEvent.setup();
+    const snapshot: PaperBotSnapshot = {
+      ...mockSnapshotWithAll,
+      scan_items: scanItems,
     };
 
-    r(<WatchlistScan snapshot={multiSkipSnapshot} selectedSymbol={null} />);
+    r(<WatchlistScan snapshot={snapshot} selectedSymbol={null} />);
+    const symbol = scanItems[0].symbol;
     await user.click(within(screen.getByTestId("watchlist-scan-skipped")).getByRole("button"));
 
-    expect(screen.getByTestId("scan-skipped-ABC")).toBeInTheDocument();
-    const cells = within(screen.getByTestId("scan-skipped-ABC")).getAllByRole("cell");
-    expect(cells[2]).toHaveTextContent("ORB Strategy, SR Breakout");
-    expect(cells[3]).toHaveTextContent("Low volume");
+    expect(screen.getByTestId(`scan-skipped-${symbol}`)).toBeInTheDocument();
+    const cells = within(screen.getByTestId(`scan-skipped-${symbol}`)).getAllByRole("cell");
+    expect(cells[2]).toHaveTextContent(expectedCell2);
+    if (expectedCell3 !== undefined) {
+      expect(cells[3]).toHaveTextContent(expectedCell3);
+    }
   });
 });

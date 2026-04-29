@@ -1,16 +1,11 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as replayModule from "./replay";
 import type {
-  ReplayConfig,
-  ReplayTrade,
-  ReplayOpenPosition,
-  ReplayORLevels,
   ReplayPivotLevels,
   Replay52WLevel,
   ReplayEMAData,
   ReplayCandle,
-  ReplayChartOptions,
   ReplaySummary,
   ReplayProgress,
 } from "../types/replay";

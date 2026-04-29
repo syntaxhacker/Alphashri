@@ -38,6 +38,16 @@ def _make_position(symbol, side, strategy_id, strategy_name, entry=100, sl=98, t
     )
 
 
+def _pos_to_dict(pos):
+    """Convert SharedPosition to dict matching get_all_positions() output."""
+    from trading.risk_utils import position_to_dict
+    return position_to_dict(pos, extra_fields={
+        'strategy_type': pos.strategy_type,
+        'peak_price': pos.peak_price,
+        'metadata': pos.metadata,
+    })
+
+
 def _make_signal_generator(returns_eod=False, returns_sl=False):
     from trading.orb_signals import ORBSignal, SignalType
     gen = Mock()
@@ -133,9 +143,9 @@ class TestMonitorPositionsEODExit:
         pos = _make_position("TEST", OrderSide.BUY, 1, "ORB Test")
         portfolio = Mock()
         portfolio.positions = {"1_TEST": pos}
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.update_prices = Mock()
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.get_portfolio_status.return_value = {"initial_capital": 1_000_000, "daily_pnl": 0}
 
         mixin = _build_mixin(portfolio, {1: _make_runner(1, "ORB", gen)})
@@ -150,9 +160,9 @@ class TestMonitorPositionsEODExit:
         pos = _make_position("TEST", OrderSide.BUY, 2, "SR Breakout")
         portfolio = Mock()
         portfolio.positions = {"2_TEST": pos}
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.update_prices = Mock()
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.get_portfolio_status.return_value = {"initial_capital": 1_000_000, "daily_pnl": 0}
 
         mixin = _build_mixin(portfolio, {2: _make_runner(2, "SR_BREAKOUT", gen)})
@@ -165,9 +175,9 @@ class TestMonitorPositionsEODExit:
         pos = _make_position("TEST", OrderSide.SELL, 3, "EMA Cross", sl=102, tp=98)
         portfolio = Mock()
         portfolio.positions = {"3_TEST": pos}
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.update_prices = Mock()
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.get_portfolio_status.return_value = {"initial_capital": 1_000_000, "daily_pnl": 0}
 
         mixin = _build_mixin(portfolio, {3: _make_runner(3, "EMA_CROSS", gen)})
@@ -181,9 +191,9 @@ class TestMonitorPositionsEODExit:
         pos = _make_position("TEST", OrderSide.BUY, 4, "52W Chaser")
         portfolio = Mock()
         portfolio.positions = {"4_TEST": pos}
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.update_prices = Mock()
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.get_portfolio_status.return_value = {"initial_capital": 1_000_000, "daily_pnl": 0}
 
         mixin = _build_mixin(portfolio, {4: _make_runner(4, "52W_CHASER", gen)})
@@ -196,9 +206,9 @@ class TestMonitorPositionsEODExit:
         pos = _make_position("TEST", OrderSide.BUY, 5, "52W Target")
         portfolio = Mock()
         portfolio.positions = {"5_TEST": pos}
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.update_prices = Mock()
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.get_portfolio_status.return_value = {"initial_capital": 1_000_000, "daily_pnl": 0}
 
         mixin = _build_mixin(portfolio, {5: _make_runner(5, "52W_TARGET", gen)})
@@ -211,9 +221,9 @@ class TestMonitorPositionsEODExit:
         pos = _make_position("TEST", OrderSide.BUY, 1, "ORB Test")
         portfolio = Mock()
         portfolio.positions = {"1_TEST": pos}
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.update_prices = Mock()
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.get_portfolio_status.return_value = {"initial_capital": 1_000_000, "daily_pnl": 0}
         portfolio.close_position = Mock(return_value=Mock(trade_id="t1"))
 
@@ -227,9 +237,9 @@ class TestMonitorPositionsEODExit:
         pos = _make_position("TEST", OrderSide.BUY, 1, "ORB Test")
         portfolio = Mock()
         portfolio.positions = {"1_TEST": pos}
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.update_prices = Mock()
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.get_portfolio_status.return_value = {"initial_capital": 1_000_000, "daily_pnl": 0}
 
         runner = StrategyRunner(
@@ -245,9 +255,9 @@ class TestMonitorPositionsEODExit:
         pos = _make_position("TEST", OrderSide.BUY, 1, "ORB Test")
         portfolio = Mock()
         portfolio.positions = {"1_TEST": pos}
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.update_prices = Mock()
-        portfolio.get_all_positions.return_value = [pos]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos)]
         portfolio.get_portfolio_status.return_value = {"initial_capital": 1_000_000, "daily_pnl": 0}
         portfolio.close_position = Mock(return_value=Mock(trade_id="t1"))
 
@@ -268,7 +278,7 @@ class TestMonitorPositionsEODExit:
         pos2 = _make_position("RELIANCE", OrderSide.SELL, 2, "SR Breakout", sl=102, tp=98)
         portfolio = Mock()
         portfolio.positions = {"1_TCS": pos1, "2_RELIANCE": pos2}
-        portfolio.get_all_positions.return_value = [pos1, pos2]
+        portfolio.get_all_positions.return_value = [_pos_to_dict(pos1), _pos_to_dict(pos2)]
         portfolio.update_prices = Mock()
         portfolio.get_portfolio_status.return_value = {"initial_capital": 1_000_000, "daily_pnl": 0}
         portfolio.close_position = Mock(return_value=Mock(trade_id="t1"))

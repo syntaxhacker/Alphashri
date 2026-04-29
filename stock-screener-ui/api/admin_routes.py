@@ -46,8 +46,11 @@ async def get_cache_stats_endpoint(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    from cache.redis_client import get_cache_stats
-    return get_cache_stats()
+    try:
+        from cache.redis_client import get_cache_stats
+        return get_cache_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/admin/cache-stats/reset")
@@ -57,9 +60,12 @@ async def reset_cache_stats_endpoint(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    from cache.redis_client import reset_stats
-    reset_stats()
-    return {"status": "ok", "message": "Cache stats reset"}
+    try:
+        from cache.redis_client import reset_stats
+        reset_stats()
+        return {"status": "ok", "message": "Cache stats reset"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/admin/cache-keys")
@@ -71,8 +77,11 @@ async def get_cache_keys_endpoint(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    from cache.redis_client import get_cache_keys
-    return {"keys": get_cache_keys(prefix=prefix, top=top)}
+    try:
+        from cache.redis_client import get_cache_keys
+        return {"keys": get_cache_keys(prefix=prefix, top=top)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/api/cache/backtest")
@@ -83,9 +92,12 @@ async def invalidate_all_backtest_cache(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    from cache.redis_client import invalidate_backtest_cache
-    deleted = invalidate_backtest_cache(user_id)
-    return {"deleted": deleted, "message": f"Invalidated {deleted} backtest cache entries"}
+    try:
+        from cache.redis_client import invalidate_backtest_cache
+        deleted = invalidate_backtest_cache(user_id)
+        return {"deleted": deleted, "message": f"Invalidated {deleted} backtest cache entries"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/api/cache/backtest/{strategy_id}")
@@ -97,9 +109,12 @@ async def invalidate_strategy_backtest_cache(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    from cache.redis_client import invalidate_backtest_cache
-    deleted = invalidate_backtest_cache(user_id, strategy_id)
-    return {"deleted": deleted, "message": f"Invalidated {deleted} backtest cache entries for strategy {strategy_id}"}
+    try:
+        from cache.redis_client import invalidate_backtest_cache
+        deleted = invalidate_backtest_cache(user_id, strategy_id)
+        return {"deleted": deleted, "message": f"Invalidated {deleted} backtest cache entries for strategy {strategy_id}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/api/cache/news")
@@ -109,9 +124,12 @@ async def invalidate_news_cache_endpoint(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    from cache.redis_client import invalidate_news_cache
-    deleted = invalidate_news_cache()
-    return {"deleted": deleted, "message": f"Invalidated {deleted} news cache entries"}
+    try:
+        from cache.redis_client import invalidate_news_cache
+        deleted = invalidate_news_cache()
+        return {"deleted": deleted, "message": f"Invalidated {deleted} news cache entries"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/api/cache/screener")
@@ -121,6 +139,9 @@ async def invalidate_screener_cache_endpoint(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    from cache.redis_client import invalidate_screener_cache
-    deleted = invalidate_screener_cache()
-    return {"deleted": deleted, "message": f"Invalidated {deleted} screener cache entries"}
+    try:
+        from cache.redis_client import invalidate_screener_cache
+        deleted = invalidate_screener_cache()
+        return {"deleted": deleted, "message": f"Invalidated {deleted} screener cache entries"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

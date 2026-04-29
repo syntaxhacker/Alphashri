@@ -24,7 +24,7 @@ vi.mock("@mantine/core", async (importOriginal) => {
         ))}
       </select>
     ),
-    SegmentedControl: ({ value, onChange, data, "data-testid": testId, ...rest }: any) => {
+    SegmentedControl: ({ value, onChange, data, "data-testid": testId, ..._rest }: any) => {
       // For the view mode toggle, assign test IDs: view-table, view-heatmap
       const getOptionTestId = (optValue: string) => {
         return testId === "screener-view-toggle" ? `view-${optValue}` : `segmented-${optValue}`;

@@ -163,6 +163,45 @@ function r(jsx: React.ReactElement) {
   return renderWithMantine(jsx);
 }
 
+function rWithPosition(
+  positionOverrides: Partial<PaperPosition> = {},
+  stateOverrides: Partial<PaperTradingState> = {},
+) {
+  const pos = mockPosition({
+    symbol: "RELIANCE",
+    side: "BUY",
+    ...positionOverrides,
+  });
+  setState({
+    positions: [pos],
+    botSnapshot: null,
+    ...stateOverrides,
+  });
+  r(<PaperPositionsTable />);
+  return pos;
+}
+
+function rWithCloseAllEnabled(positionOverrides: Partial<PaperPosition> = {}) {
+  return rWithPosition(
+    { current_price: 2550, ...positionOverrides },
+    {
+      availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }],
+    },
+  );
+}
+
+function rWithTwoPositions(
+  pos1Overrides: Partial<PaperPosition>,
+  pos2Overrides: Partial<PaperPosition>,
+  stateOverrides: Partial<PaperTradingState> = {},
+) {
+  const pos1 = mockPosition({ symbol: "RELIANCE", side: "BUY", ...pos1Overrides });
+  const pos2 = mockPosition({ symbol: "INFY", side: "BUY", ...pos2Overrides });
+  setState({ positions: [pos1, pos2], botSnapshot: null, ...stateOverrides });
+  r(<PaperPositionsTable />);
+  return { pos1, pos2 };
+}
+
 describe("PaperPositionsTable", () => {
   beforeEach(() => {
     resetState();
@@ -198,10 +237,7 @@ describe("PaperPositionsTable", () => {
 
   describe("Single position display", () => {
     test("renders single position with symbol, entry/exit prices, P&L", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY", pnl: 5000, pnl_pct: 2.0 });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
       expect(screen.getByText("RELIANCE")).toBeTruthy();
       expect(screen.getByText("₹2500.00")).toBeTruthy();
       expect(screen.getByText("₹2550.00")).toBeTruthy();
@@ -209,40 +245,28 @@ describe("PaperPositionsTable", () => {
     });
 
     test("renders close button for each position row", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition();
       const closeBtn = screen.getByTestId("close-position-RELIANCE");
       expect(closeBtn).toBeTruthy();
     });
 
     test("position row click triggers symbol selection", async () => {
       const user = userEvent.setup();
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition();
       await user.click(screen.getByText("RELIANCE"));
     });
   });
 
   describe("BUY and SELL badges", () => {
     test("shows BUY badge for BUY side", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition();
       const badge = screen.getByTestId("side-badge-RELIANCE");
       expect(badge).toBeTruthy();
       expect(badge.textContent).toContain("BUY");
     });
 
     test("shows SELL badge for SELL side", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "SELL", pnl: -500, pnl_pct: -1.0 });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition({ side: "SELL", pnl: -500, pnl_pct: -1.0 });
       const badge = screen.getByTestId("side-badge-RELIANCE");
       expect(badge).toBeTruthy();
       expect(badge.textContent).toContain("SELL");
@@ -251,19 +275,13 @@ describe("PaperPositionsTable", () => {
 
   describe("P&L text color", () => {
     test("positive P&L rendered", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", pnl: 5000, pnl_pct: 2.0 });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
       const row = screen.getByTestId("position-row-RELIANCE");
       expect(row.textContent).toMatch(/₹5\.0K/);
     });
 
     test("negative P&L rendered", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", pnl: -500, pnl_pct: -0.2 });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition({ pnl: -500, pnl_pct: -0.2 });
       const row = screen.getByTestId("position-row-RELIANCE");
       expect(row.textContent).toMatch(/₹-500/);
     });
@@ -271,112 +289,55 @@ describe("PaperPositionsTable", () => {
 
   describe("Multiple positions grouped by strategy (isMultiStrategy)", () => {
     test("renders positions without strategy tabs when single strategy", () => {
-      const pos1 = mockPosition({
-        symbol: "RELIANCE",
-        side: "BUY",
-        strategy_id: 1,
-        strategy_name: "ORB Strategy",
-      });
-      const pos2 = mockPosition({
-        symbol: "TCS",
-        side: "BUY",
-        strategy_id: 1,
-        strategy_name: "ORB Strategy",
-        order_id: "ord-2",
-      });
-      setState({ positions: [pos1, pos2], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Strategy" },
+        {
+          symbol: "TCS",
+          side: "BUY",
+          strategy_id: 1,
+          strategy_name: "ORB Strategy",
+          order_id: "ord-2",
+        },
+      );
       expect(screen.getByText("RELIANCE")).toBeTruthy();
       expect(screen.getByText("TCS")).toBeTruthy();
       expect(screen.queryByTestId("strategy-tabs")).toBeFalsy();
     });
 
     test("renders strategy tabs when multiple strategies", () => {
-      const pos1 = mockPosition({
-        symbol: "RELIANCE",
-        side: "BUY",
-        strategy_id: 1,
-        strategy_name: "ORB Strategy",
-      });
-      const pos2 = mockPosition({
-        symbol: "INFY",
-        side: "BUY",
-        strategy_id: 2,
-        strategy_name: "SR Breakout",
-      });
-      setState({ positions: [pos1, pos2], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Strategy" },
+        { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout" },
+      );
       expect(screen.getByTestId("strategy-tabs")).toBeTruthy();
       expect(screen.getByTestId("strategy-tab-all")).toBeTruthy();
     });
 
     test("strategy tab shows count and P&L", () => {
-      const pos1 = mockPosition({
-        symbol: "RELIANCE",
-        side: "BUY",
-        strategy_id: 1,
-        strategy_name: "ORB Strategy",
-        pnl: 5000,
-      });
-      const pos2 = mockPosition({
-        symbol: "INFY",
-        side: "BUY",
-        strategy_id: 2,
-        strategy_name: "SR Breakout",
-        pnl: 3000,
-      });
-      setState({ positions: [pos1, pos2], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Strategy", pnl: 5000 },
+        { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout", pnl: 3000 },
+      );
       const allTab = screen.getByTestId("strategy-tab-all");
       expect(within(allTab).getByText("2")).toBeTruthy();
       expect(within(allTab).getByText(/₹8\.0K/)).toBeTruthy();
     });
 
     test("clicking strategy tab filters positions", async () => {
-      const pos1 = mockPosition({
-        symbol: "RELIANCE",
-        side: "BUY",
-        strategy_id: 1,
-        strategy_name: "ORB Strategy",
-      });
-      const pos2 = mockPosition({
-        symbol: "INFY",
-        side: "BUY",
-        strategy_id: 2,
-        strategy_name: "SR Breakout",
-      });
-      setState({
-        positions: [pos1, pos2],
-        botSnapshot: null,
-        selectedStrategyTab: "1",
-      });
-      r(<PaperPositionsTable />);
-
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Strategy" },
+        { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout" },
+        { selectedStrategyTab: "1" },
+      );
       expect(screen.getByText("RELIANCE")).toBeTruthy();
       expect(screen.queryByText("INFY")).toBeFalsy();
     });
 
     test("strategy summary footer visible with multi-strategy all tab", () => {
-      const pos1 = mockPosition({
-        symbol: "RELIANCE",
-        side: "BUY",
-        strategy_id: 1,
-        strategy_name: "ORB Strategy",
-        pnl: 5000,
-      });
-      const pos2 = mockPosition({
-        symbol: "INFY",
-        side: "BUY",
-        strategy_id: 2,
-        strategy_name: "SR Breakout",
-        pnl: 3000,
-      });
-      setState({ positions: [pos1, pos2], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Strategy", pnl: 5000 },
+        { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout", pnl: 3000 },
+      );
       expect(screen.getByTestId("strategy-summary-footer")).toBeTruthy();
     });
   });
@@ -441,20 +402,14 @@ describe("PaperPositionsTable", () => {
     });
 
     test("WatchlistScan shows skipped section when skipped items exist", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: mockBotSnapshot });
-      r(<PaperPositionsTable />);
-
+      rWithPosition({}, { botSnapshot: mockBotSnapshot });
       expect(screen.getByText("Skipped")).toBeInTheDocument();
       expect(screen.getByTestId("scan-skipped-INFY")).toBeInTheDocument();
     });
 
     test("clicking skipped row selects symbol", async () => {
       const user = userEvent.setup();
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: mockBotSnapshot });
-      r(<PaperPositionsTable />);
-
+      rWithPosition({}, { botSnapshot: mockBotSnapshot });
       await user.click(within(screen.getByTestId("watchlist-scan-skipped")).getByRole("button"));
       const { setSelectedSymbol } = await import("../../state/paperTrading");
       await user.click(screen.getByTestId("scan-skipped-INFY"));
@@ -463,10 +418,7 @@ describe("PaperPositionsTable", () => {
 
     test("clicking signal row selects symbol", async () => {
       const user = userEvent.setup();
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: mockBotSnapshotSignalsOnly });
-      r(<PaperPositionsTable />);
-
+      rWithPosition({}, { botSnapshot: mockBotSnapshotSignalsOnly });
       const { setSelectedSymbol } = await import("../../state/paperTrading");
       await user.click(screen.getByTestId("scan-signal-RELIANCE"));
       expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
@@ -482,64 +434,35 @@ describe("PaperPositionsTable", () => {
 
   describe("Positions table container and header", () => {
     test("positions table container renders", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition();
       expect(screen.getByTestId("positions-table-container")).toBeTruthy();
     });
 
     test("positions header shows count", () => {
-      const pos1 = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      const pos2 = mockPosition({ symbol: "TCS", side: "BUY" });
-      setState({ positions: [pos1, pos2], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithTwoPositions({}, {});
       expect(screen.getByText("Positions (2)")).toBeTruthy();
     });
 
     test("LIVE badge renders in header", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition();
       expect(screen.getByText("LIVE")).toBeTruthy();
     });
 
     test("positions panel data-testid present", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition();
       expect(screen.getByTestId("positions-panel")).toBeTruthy();
     });
 
     test("positions table has data-testid from DataTable", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithPosition();
       expect(screen.getByTestId("positions-table")).toBeInTheDocument();
     });
 
     test("strategy summary table has data-testid when multi-strategy", () => {
-      const pos1 = mockPosition({
-        symbol: "RELIANCE",
-        side: "BUY",
-        strategy_id: 1,
-        strategy_name: "ORB Strategy",
-        pnl: 5000,
-      });
-      const pos2 = mockPosition({
-        symbol: "INFY",
-        side: "BUY",
-        strategy_id: 2,
-        strategy_name: "SR Breakout",
-        pnl: 3000,
-      });
-      setState({ positions: [pos1, pos2], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Strategy", pnl: 5000 },
+        { symbol: "INFY", strategy_id: 2, strategy_name: "SR Breakout", pnl: 3000 },
+      );
       expect(screen.getByTestId("strategy-summary-table")).toBeInTheDocument();
     });
   });
@@ -547,24 +470,12 @@ describe("PaperPositionsTable", () => {
   describe("Strategy tabs with various strategy names", () => {
     test("tabs normalize strategy name for testid", async () => {
       const user = userEvent.setup();
-      const pos1 = mockPosition({
-        symbol: "RELIANCE",
-        side: "BUY",
-        strategy_id: 1,
-        strategy_name: "ORB Conservative",
-      });
-      const pos2 = mockPosition({
-        symbol: "TCS",
-        side: "BUY",
-        strategy_id: 2,
-        strategy_name: "SR Breakout",
-      });
-      setState({ positions: [pos1, pos2], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Conservative" },
+        { symbol: "TCS", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout" },
+      );
       expect(screen.getByTestId("strategy-tab-orb-conservative")).toBeTruthy();
       expect(screen.getByTestId("strategy-tab-sr-breakout")).toBeTruthy();
-
       await user.click(screen.getByTestId("strategy-tab-sr-breakout"));
       expect(screen.getByText("TCS")).toBeTruthy();
     });
@@ -583,7 +494,6 @@ describe("PaperPositionsTable", () => {
         intradayOnly: true,
       });
       r(<PaperPositionsTable />);
-
       await user.click(screen.getByTestId("scan-signal-RELIANCE"));
       expect(fetchPaperChart).toHaveBeenCalledWith("RELIANCE", undefined, "15min", 5, true);
     });
@@ -591,13 +501,7 @@ describe("PaperPositionsTable", () => {
     test("handleSelectSymbol works for watching rows too", async () => {
       const user = userEvent.setup();
       const { setSelectedSymbol } = await import("../../state/paperTrading");
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({
-        positions: [pos],
-        botSnapshot: mockBotSnapshot,
-      });
-      r(<PaperPositionsTable />);
-
+      rWithPosition({}, { botSnapshot: mockBotSnapshot });
       await user.click(screen.getByTestId("scan-watching-TCS"));
       expect(setSelectedSymbol).toHaveBeenCalledWith("TCS");
     });
@@ -611,13 +515,7 @@ describe("PaperPositionsTable", () => {
       const confirmMock = vi.fn(() => true);
       window.confirm = confirmMock as unknown as typeof window.confirm;
 
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY", current_price: 2550 });
-      setState({
-        positions: [pos],
-        botSnapshot: null,
-        availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }],
-      });
-      r(<PaperPositionsTable />);
+      rWithCloseAllEnabled();
 
       expect(screen.queryByText("Closing...")).not.toBeInTheDocument();
       await user.click(screen.getByTestId("close-all-positions"));
@@ -633,13 +531,7 @@ describe("PaperPositionsTable", () => {
       const alertMock = vi.fn();
       window.alert = alertMock as unknown as typeof window.alert;
 
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY", current_price: 2550 });
-      setState({
-        positions: [pos],
-        botSnapshot: null,
-        availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }],
-      });
-      r(<PaperPositionsTable />);
+      rWithCloseAllEnabled();
 
       await user.click(screen.getByTestId("close-all-positions"));
       await waitFor(() => {

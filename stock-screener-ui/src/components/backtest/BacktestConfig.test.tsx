@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { BacktestConfig } from "./BacktestConfig";
-import type { Strategy, StrategyVariation, StrategyParam } from "../../types/backtest";
+import type { Strategy, StrategyVariation } from "../../types/backtest";
 import "@testing-library/jest-dom/vitest";
 
 afterEach(cleanup);

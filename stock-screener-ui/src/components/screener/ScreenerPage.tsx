@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Stack, Box } from "@mantine/core";
 import * as state from "../../state";
-import { useTableSort } from "../../hooks/useTableSort";
 import { CompactPage } from "../common/compact";
 import { ScreenerNav } from "./ScreenerNav";
 import { ScreenerHeader } from "./ScreenerHeader";

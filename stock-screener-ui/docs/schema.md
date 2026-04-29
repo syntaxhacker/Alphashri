@@ -31,6 +31,7 @@ erDiagram
         Integer daily_trades
         Float realized_pnl
         String day_start
+        String watchlist
         String scan_items
         DateTime updated_at
     }
@@ -108,6 +109,16 @@ erDiagram
         DateTime created_at
         DateTime expires_at
         Boolean revoked
+    }
+    stock52weektouches {
+        Integer id PK
+        String uuid
+        String symbol
+        DateTime touched_date
+        Float touched_price
+        Boolean is_high
+        Boolean is_current_52w_high
+        DateTime created_at
     }
     strategyconfigs {
         Integer id PK
@@ -219,6 +230,7 @@ erDiagram
 | daily_trades | Integer | No | - |
 | realized_pnl | Float | No | - |
 | day_start | String | No | - |
+| watchlist | String | Yes | - |
 | scan_items | String | Yes | - |
 | updated_at | DateTime | No | - |
 | *(Index: `ix_bot_runtime_states_user_id` on user_id)* | | | |
@@ -379,6 +391,23 @@ erDiagram
 | expires_at | DateTime | No | - |
 | revoked | Boolean | Yes | - |
 | *(Index: `ix_sessions_user_id` on user_id)* | | | |
+
+### stock_52week_touches
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| uuid | String | Yes | UNIQUE |
+| symbol | String | No | - |
+| touched_date | DateTime | No | - |
+| touched_price | Float | No | - |
+| is_high | Boolean | No | - |
+| is_current_52w_high | Boolean | No | - |
+| created_at | DateTime | No | - |
+| *(Index: `ix_stock_52week_touches_symbol` on symbol)* | | | |
+| *(Index: `ix_stock_52week_touches_symbol_touched_date` on symbol, touched_date)* | | | |
+| *(Index: `ix_stock_52week_touches_touched_date` on touched_date)* | | | |
+| *(Unique: `uq_symbol_touched_date` on symbol, touched_date)* | | | |
 
 ### strategy_configs
 

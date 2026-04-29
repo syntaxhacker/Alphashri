@@ -99,22 +99,6 @@ class TestApiProfiles(unittest.TestCase):
         syms = [r['symbol'] for r in data['approaching']]
         self.assertEqual(syms, ['ABC'])
 
-    @unittest.skip("Function _should_use_cached_data not implemented in api_server_fastapi")
-    def test_cache_match_depends_on_profile_filters(self):
-        now = api_server.datetime.now()
-        cache_data = {
-            'provider': 'upstox',
-            'mode': 'historical',
-            'screener': 'market_open_gap',
-            'applied_profile_filters': {'min_gap_pct': '1.0'}
-        }
-        self.assertTrue(
-            api_server._should_use_cached_data(cache_data, now, 'upstox', 'historical', 'market_open_gap', {'min_gap_pct': '1.0'})
-        )
-        self.assertFalse(
-            api_server._should_use_cached_data(cache_data, now, 'upstox', 'historical', 'market_open_gap', {'min_gap_pct': '2.0'})
-        )
-
     def test_rationale_formats_by_profile(self):
         row = {
             'gap_pct': 1.2,

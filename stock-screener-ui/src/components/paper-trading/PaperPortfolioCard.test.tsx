@@ -9,6 +9,20 @@ afterEach(() => {
   cleanup();
 });
 
+const renderWithPortfolio = (
+  overrides: Partial<Portfolio> = {},
+  extras: { isMultiStrategy?: boolean; strategySummaries?: StrategySummary[] } = {},
+) => {
+  const portfolio = mockPortfolio(overrides);
+  return renderWithMantine(
+    <PaperPortfolioCard
+      portfolio={portfolio}
+      isMultiStrategy={extras.isMultiStrategy ?? false}
+      strategySummaries={extras.strategySummaries ?? []}
+    />,
+  );
+};
+
 const mockPortfolio = (overrides: Partial<Portfolio> = {}): Portfolio => ({
   total_value: 100000,
   cash: 50000,
@@ -44,86 +58,59 @@ describe("PaperPortfolioCard", () => {
     });
   });
 
-  describe("positive P&L", () => {
-    test("shows + prefix for positive day_pnl", () => {
-      const portfolio = mockPortfolio({ day_pnl: 5000 });
-      renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(screen.getByText(/\+₹5,000/)).toBeInTheDocument();
-    });
-  });
-
-  describe("negative P&L", () => {
-    test("shows negative value for negative day_pnl", () => {
-      const portfolio = mockPortfolio({ day_pnl: -5000 });
-      renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(screen.getByText(/₹-5,000/)).toBeInTheDocument();
-    });
-
-    test("does not show + prefix for negative P&L", () => {
-      const portfolio = mockPortfolio({ day_pnl: -5000 });
-      const { container } = renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(container.textContent).not.toMatch(/\+₹5,000/);
-    });
-  });
-
-  describe("zero P&L", () => {
-    test("displays zero P&L without prefix", () => {
-      const portfolio = mockPortfolio({ day_pnl: 0 });
-      renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(screen.getByText(/₹0/)).toBeInTheDocument();
+  describe("P&L formatting", () => {
+    test.each([
+      { name: "positive P&L shows + prefix", day_pnl: 5000, expected: /\+₹5,000/ },
+      {
+        name: "negative P&L shows no + prefix",
+        day_pnl: -5000,
+        expected: /₹-5,000/,
+        notExpected: /\+₹5,000/,
+      },
+      { name: "zero P&L shows 0 without prefix", day_pnl: 0, expected: /₹0/ },
+      { name: "large P&L formats with commas", day_pnl: 100000, expected: /\+₹1,00,000/ },
+    ])("$name", ({ day_pnl, expected, notExpected }) => {
+      const result = renderWithPortfolio({ day_pnl });
+      if (notExpected) {
+        expect(result.container.textContent).not.toMatch(notExpected);
+      }
+      expect(screen.getByText(expected)).toBeInTheDocument();
     });
   });
 
   describe("daily loss bar - conditional display", () => {
-    test("shows progress bar when max_daily_loss_pct > 0 and day_pnl < 0", () => {
-      const portfolio = mockPortfolio({
+    test.each([
+      {
+        name: "shows when max_daily_loss_pct > 0 and day_pnl < 0",
         day_pnl: -2000,
         max_daily_loss_pct: 1.0,
-      });
-      renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(screen.getByTestId("daily-loss-progress")).toBeInTheDocument();
-    });
-
-    test("hides progress bar when day_pnl is positive", () => {
-      const portfolio = mockPortfolio({
+        expected: true,
+      },
+      {
+        name: "hides when day_pnl is positive",
         day_pnl: 2000,
         max_daily_loss_pct: 1.0,
-      });
-      const { queryByTestId } = renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(queryByTestId("daily-loss-progress")).not.toBeInTheDocument();
-    });
-
-    test("hides progress bar when max_daily_loss_pct is 0", () => {
-      const portfolio = mockPortfolio({
+        expected: false,
+      },
+      {
+        name: "hides when max_daily_loss_pct is 0",
         day_pnl: -2000,
         max_daily_loss_pct: 0,
-      });
-      const { queryByTestId } = renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(queryByTestId("daily-loss-progress")).not.toBeInTheDocument();
-    });
-
-    test("hides progress bar when max_daily_loss_pct is undefined", () => {
-      const portfolio = mockPortfolio({
+        expected: false,
+      },
+      {
+        name: "hides when max_daily_loss_pct is undefined",
         day_pnl: -2000,
-      });
-      const { queryByTestId } = renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(queryByTestId("daily-loss-progress")).not.toBeInTheDocument();
+        max_daily_loss_pct: undefined,
+        expected: false,
+      },
+    ])("$name", ({ day_pnl, max_daily_loss_pct, expected }) => {
+      const result = renderWithPortfolio({ day_pnl, max_daily_loss_pct });
+      if (expected) {
+        expect(screen.getByTestId("daily-loss-progress")).toBeInTheDocument();
+      } else {
+        expect(result.queryByTestId("daily-loss-progress")).not.toBeInTheDocument();
+      }
     });
   });
 
@@ -245,37 +232,11 @@ describe("PaperPortfolioCard", () => {
     });
   });
 
-  describe("all portfolio value labels", () => {
-    test("displays Total Value label", () => {
-      const portfolio = mockPortfolio();
-      renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(screen.getByText(/Total Value/)).toBeInTheDocument();
-    });
-
-    test("displays Cash label", () => {
-      const portfolio = mockPortfolio();
-      renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(screen.getByText(/Cash/)).toBeInTheDocument();
-    });
-
-    test("displays Margin Used label", () => {
-      const portfolio = mockPortfolio();
-      renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(screen.getByText(/Margin Used/)).toBeInTheDocument();
-    });
-
-    test("displays Day P&L label", () => {
-      const portfolio = mockPortfolio();
-      renderWithMantine(
-        <PaperPortfolioCard portfolio={portfolio} isMultiStrategy={false} strategySummaries={[]} />,
-      );
-      expect(screen.getByText(/Day P&L/)).toBeInTheDocument();
+  describe("portfolio labels", () => {
+    const labels = ["Total Value", "Cash", "Margin Used", "Day P&L"];
+    test.each(labels)("displays $label", (label) => {
+      renderWithPortfolio();
+      expect(screen.getByText(new RegExp(label))).toBeInTheDocument();
     });
   });
 });

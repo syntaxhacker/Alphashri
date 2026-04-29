@@ -752,6 +752,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 bot_state.daily_trades = portfolio.get('daily_trades', 0)
                 bot_state.realized_pnl = portfolio.get('realized_pnl', 0.0)
                 bot_state.day_start = self.portfolio.day_start.isoformat() if hasattr(self.portfolio, 'day_start') and self.portfolio.day_start else ""
+                bot_state.watchlist = _json.dumps(self.watchlist or [])
                 db.flush()
 
                 for strategy_id, runner in self.strategies.items():
