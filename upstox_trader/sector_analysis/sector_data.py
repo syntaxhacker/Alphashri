@@ -23,6 +23,7 @@ try:
     import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from config import UPSTOX_CONFIG
+    from config_and_utils.upstox_auth import UpstoxAuthHandler, TOKEN_FILE
     UPSTOX_AVAILABLE = True
 except ImportError:
     UPSTOX_AVAILABLE = False
@@ -119,6 +120,22 @@ class SectorDataFetcher:
         console.print(f"[green]✅ Found {len(sector_groups)} sectors with {sum(len(v) for v in sector_groups.values())} stocks[/green]")
         return sector_groups
     
+    def _get_upstox_token(self) -> str:
+        token = ""
+        try:
+            auth = UpstoxAuthHandler(
+                UPSTOX_CONFIG.get("api_key", ""),
+                UPSTOX_CONFIG.get("api_secret", ""),
+                quiet=True,
+            )
+            if auth.load_token():
+                token = auth.access_token or ""
+        except Exception:
+            pass
+        if not token:
+            token = UPSTOX_CONFIG.get("access_token", "")
+        return token
+
     def fetch_historical_data_upstox(self, symbol: str, days: int = 365) -> pd.DataFrame:
         """Fetch historical data from Upstox V3 API"""
         if not UPSTOX_AVAILABLE:
@@ -134,10 +151,15 @@ class SectorDataFetcher:
                 console.print(f"[red]❌ No instrument key found for {symbol}[/red]")
                 return pd.DataFrame()
             
+            access_token = self._get_upstox_token()
+            if not access_token:
+                console.print(f"[red]❌ No Upstox access token available for {symbol}[/red]")
+                return pd.DataFrame()
+            
             url = f"https://api.upstox.com/v3/historical-candle/{instrument_key}/days/1/{to_date}/{from_date}"
             headers = {
                 "Accept": "application/json",
-                "Authorization": f"Bearer {UPSTOX_CONFIG.get('access_token', '')}"
+                "Authorization": f"Bearer {access_token}"
             }
             
             response = requests.get(url, headers=headers)

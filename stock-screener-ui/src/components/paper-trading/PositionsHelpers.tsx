@@ -1,3 +1,4 @@
+import { useRef, useState, useEffect } from "react";
 import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
 import { DataTable } from "../common";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
@@ -99,6 +100,91 @@ const TABLE_STYLES = {
 
 export { TABLE_STYLES as tableStyles };
 
+function PriceDisplay({ price, prevPrice }: { price: number; prevPrice: number }) {
+  const [flash, setFlash] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (price !== prevPrice && prevPrice > 0) {
+      const direction = price > prevPrice ? "up" : "down";
+      setFlash(direction);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setFlash(null), 600);
+    }
+  }, [price, prevPrice]);
+
+  return (
+    <span
+      className={
+        flash === "up" ? "price-flash-up" : flash === "down" ? "price-flash-down" : undefined
+      }
+      style={{ display: "inline-block", padding: "0 2px" }}
+      onAnimationEnd={() => setFlash(null)}
+    >
+      ₹{price.toFixed(2)}
+    </span>
+  );
+}
+
+function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlPct: number }) {
+  const [flash, setFlash] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const prevRef = useRef(pnl);
+  useEffect(() => {
+    if (pnl !== prevRef.current) {
+      const direction = pnl > prevRef.current ? "up" : "down";
+      setFlash(direction);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setFlash(null), 600);
+      prevRef.current = pnl;
+    }
+  }, [pnl]);
+
+  const pnlClass = getPnLTextColor(pnl);
+  const pnlSign = pnl >= 0 ? "+" : "";
+
+  return (
+    <Text
+      c={pnlClass}
+      fw={600}
+      className={
+        flash === "up" ? "price-flash-up" : flash === "down" ? "price-flash-down" : undefined
+      }
+      onAnimationEnd={() => setFlash(null)}
+      style={{ display: "inline" }}
+    >
+      {pnlSign}₹{formatNumber(pnl)}
+      <Text span c="dimmed" fs="italic" size="sm">
+        {" "}
+        ({pnlSign}
+        {pnlPct.toFixed(2)}%)
+      </Text>
+    </Text>
+  );
+}
+
+function usePrevPrice(price: number) {
+  const ref = useRef(price);
+  const prev = ref.current;
+  useEffect(() => {
+    ref.current = price;
+  }, [price]);
+  return prev;
+}
+
 function PositionRow({
   pos,
   onSelect,
@@ -114,8 +200,7 @@ function PositionRow({
   ) => void;
   onClose: (symbol: string, price: number) => void;
 }) {
-  const pnlClass = getPnLTextColor(pos.pnl ?? 0);
-  const pnlSign = (pos.pnl ?? 0) >= 0 ? "+" : "";
+  const prevPrice = usePrevPrice(pos.current_price);
 
   return (
     <Table.Tr
@@ -151,16 +236,11 @@ function PositionRow({
       </Table.Td>
       <Table.Td>{pos.quantity}</Table.Td>
       <Table.Td>₹{(pos.entry_price ?? 0).toFixed(2)}</Table.Td>
-      <Table.Td>₹{(pos.current_price ?? 1).toFixed(2)}</Table.Td>
       <Table.Td>
-        <Text c={pnlClass} fw={600}>
-          {pnlSign}₹{formatNumber(pos.pnl)}
-          <Text span c="dimmed" fs="italic" size="sm">
-            {" "}
-            ({pnlSign}
-            {(pos.pnl_pct ?? 0).toFixed(2)}%)
-          </Text>
-        </Text>
+        <PriceDisplay price={pos.current_price ?? 1} prevPrice={prevPrice} />
+      </Table.Td>
+      <Table.Td>
+        <PnLDisplay pnl={pos.pnl ?? 0} pnlPct={pos.pnl_pct ?? 0} />
       </Table.Td>
       <Table.Td>₹{(pos.stop_loss ?? 0).toFixed(2)}</Table.Td>
       <Table.Td>₹{(pos.take_profit ?? 0).toFixed(2)}</Table.Td>

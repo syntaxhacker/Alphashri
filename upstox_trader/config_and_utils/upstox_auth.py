@@ -57,31 +57,46 @@ class UpstoxAuthHandler:
         if not self.quiet:
             print("🔐 Upstox Authentication Handler Initialized")
 
+    def _load_token_from_db(self) -> bool:
+        """Try loading token from DB (broker_connections table) first."""
+        try:
+            from db.models import get_shared_broker_token
+            token_data = get_shared_broker_token("upstox")
+            if token_data and token_data.get("access_token"):
+                self.access_token = token_data["access_token"]
+                if not self.quiet:
+                    print("✅ Access token loaded from DB (broker_connections)")
+                return True
+        except Exception:
+            pass
+        return False
+
     def load_token(self) -> bool:
-        """Load access token from the local file if it exists and is valid."""
+        """Load access token: DB -> file (in that order)."""
+        if self._load_token_from_db():
+            return True
+
         if TOKEN_FILE.exists():
             try:
                 with open(TOKEN_FILE, 'r') as f:
                     token_data = json.load(f)
 
                 token_time = datetime.fromisoformat(token_data.get('timestamp', '1970-01-01'))
-                # Token is valid for 24 hours, but check at 23 hours to be safe
                 if datetime.now() - token_time < timedelta(hours=23):
                     self.access_token = token_data.get('access_token')
                     if not self.quiet:
                         age_hours = (datetime.now() - token_time).total_seconds() / 3600
-                        print(f"✅ Access token loaded (age: {age_hours:.1f}h)")
+                        print(f"✅ Access token loaded from file (age: {age_hours:.1f}h)")
                     return True
                 else:
                     if not self.quiet:
-                        print("🟡 Access token expired (>23h old)")
-                    # Don't delete yet - let validation confirm it's actually invalid
+                        print("🟡 File token expired (>23h old)")
             except (json.JSONDecodeError, KeyError) as e:
                 if not self.quiet:
                     print(f"⚠️ Could not read token file: {e}")
         else:
             if not self.quiet:
-                print(f"🔑 No token file found at {TOKEN_FILE}")
+                print(f"🔑 No token file at {TOKEN_FILE}")
 
         return False
 

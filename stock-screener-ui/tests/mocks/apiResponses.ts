@@ -614,6 +614,36 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
     });
   });
 
+  // Mock live price SSE stream
+  await page.route("**/api/paper/live/stream", async (route) => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        controller.enqueue(encoder.encode("event: connected\ndata: {}\n\n"));
+        controller.enqueue(
+          encoder.encode(
+            'event: price\ndata: {"type":"price","instrument_key":"NSE_EQ|INE002A01018","symbol":"RELIANCE","ltp":1417.4,"ltq":"1"}\n\n',
+          ),
+        );
+        controller.enqueue(
+          encoder.encode(
+            'event: price\ndata: {"type":"price","instrument_key":"NSE_EQ|INE467B01029","symbol":"TCS","ltp":2485.1,"ltq":"1"}\n\n',
+          ),
+        );
+      },
+    });
+
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+      body: stream as any,
+    });
+  });
+
   // Mock GET config endpoint
   await page.route("**/api/paper/config**", async (route) => {
     const config = getConfigForPage(page);

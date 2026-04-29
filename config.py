@@ -50,7 +50,6 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 UPSTOX_CONFIG = {
     "api_key": UPSTOX_API_KEY or "",
     "api_secret": UPSTOX_API_SECRET or "",
-    "access_token": UPSTOX_ACCESS_TOKEN or "",
 }
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "local")

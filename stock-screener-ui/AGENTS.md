@@ -59,6 +59,20 @@ src/
 - Components: `src/components/replay/` — page-level feature, uses SSE from `api/replay_api.py`
 - Cache: `experiments/data/replay_cache/{date}/{symbol}.pkl` (gitignored)
 
+## Live Price Streaming (SSE)
+- **Backend**: `api/paper/live_stream.py` — `GET /api/paper/live/stream`
+  - Reads open positions from DB → resolves instrument keys via `instruments` table (fallback to JSON file)
+  - Connects to Upstox `MarketDataStreamerV3` WebSocket (`wss://api.upstox.com/v3/feed/market-data-feed`)
+  - Mode: `ltpc` (LTP + close price only, max 5000 instrument keys per connection)
+  - Streams `event: price` with `{symbol, ltp, ltq, instrument_key, ts}` via SSE
+  - Uses `threading.Queue` bridge between WS thread and async SSE generator
+  - 30s heartbeat if no data; auto-cleanup on client disconnect
+- **Frontend**: `src/hooks/useLivePrices.ts` — `fetch` + `ReadableStream` (supports auth headers, unlike `EventSource`)
+  - `<LivePriceUpdater />` component in `PaperTradingView2.tsx` subscribes to live prices
+  - On each tick, updates `current_price` + recalculates P&L for matching positions via `setPositions()`
+  - Falls back to 20s polling on disconnect/error
+- **Price vs Polling**: WebSocket delivers first tick in ~30ms vs REST ~174ms. Live ticks stream at ~4/sec during market hours.
+
 ## CSS
 - Legacy hardcoded CSS in `style.css` is being migrated to Mantine — prefer `var(--mantine-color-*)` vars
 - Remove dead CSS classes when removing old components (verify with grep before deleting)
@@ -111,7 +125,24 @@ src/
 ## Market Data Auth
 - **Market data endpoints** (`/api/chart/preview`, `/api/paper/chart`, `/api/backtest/run`) use `UpstoxAPI` with `UPSTOX_API_KEY`/`UPSTOX_API_SECRET` — **no OAuth broker token needed**
 - **Options + broker endpoints** (`/api/options/*`, `/api/brokers/*`) require OAuth access token via `get_shared_broker_token('upstox')` — user must connect broker in Settings
+- **Live price streaming** (`/api/paper/live/stream`) also requires OAuth access token (uses `MarketDataStreamerV3` SDK)
 - Never gate market data behind broker OAuth check
+
+## Upstox Token Storage (DB-first)
+- **Primary**: `broker_connections` table via `get_shared_broker_token('upstox')` (post-OAuth)  
+- **Fallback 1**: `.upstox_token.json` file in project root 
+- **Fallback 2**: `UPSTOX_ACCESS_TOKEN` env var
+- `upstox_auth.py`'s `UpstoxAuthHandler.load_token()` checks DB → file. `save_token()` still writes to file for backward compat.
+- `UPSTOX_CONFIG` dict in root `config.py` only has `api_key`/`api_secret` (removed `access_token`)
+- Stale file-only patterns fixed: `sector_data.py` uses `UpstoxAuthHandler`, `upstox_auth_refresh.py` checks DB first
+
+## Benchmark
+- `scripts/benchmark_upstox_data.py` — benchmarks REST LTP V3 vs WebSocket V3 MarketDataStreamerV3
+- Usage: `source .venv/bin/activate && python scripts/benchmark_upstox_data.py`
+- Token resolution: DB → file → env var (loads dotenv from `.env`)
+- Loads 15 liquid NSE_EQ symbols from 56MB instruments JSON
+- REST: tests 1-symbol and 15-symbol batch (5 iterations each, reports avg/min/max)
+- WS: connects `MarketDataStreamerV3` in `ltpc` mode, collects 15s of ticks, reports first-tick latency + tick cadence
 
 ## Chart Cache
 - `api/paper/chart_cache.py` — pickle-based disk cache at `experiments/data/chart_cache/{date}/{symbol}.pkl`

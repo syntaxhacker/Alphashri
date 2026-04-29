@@ -393,6 +393,11 @@ async def get_screener_data(
 try:
     from api.paper_trading import router as paper_trading_router
     app.include_router(paper_trading_router)
+
+    from api.paper.live_stream import router as live_stream_router
+    app.include_router(live_stream_router)
+    print("✅ Paper trading live stream loaded at /api/paper/live/stream")
+
     print("✅ Paper trading API loaded at /api/paper")
 except Exception as e:
     print(f"⚠️ Could not load paper trading API: {e}")

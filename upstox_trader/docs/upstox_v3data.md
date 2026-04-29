@@ -457,6 +457,160 @@ def fetch_historical_data_safe(symbol, days=365):
 
 ---
 
+## WebSocket V3 Market Data Feed
+
+### Overview
+The Upstox WebSocket V3 feed provides real-time market data streaming using Protobuf encoding. The `upstox-python-sdk` (v2.17+) handles Protobuf encoding/decoding internally via `MarketDataStreamerV3`.
+
+### Endpoint
+```
+wss://api.upstox.com/v3/feed/market-data-feed
+```
+Requires `Authorization: Bearer <access_token>` header.
+
+### Connection Limits
+| Mode | Individual Limit | Combined Limit |
+|------|-----------------|----------------|
+| LTPC | 5000 keys | 2000 keys |
+| Option Greeks | 3000 keys | 2000 keys |
+| Full | 2000 keys | 1500 keys |
+| Full D30 (Plus) | 50 keys | 1500 keys |
+
+### Supported Modes
+| Mode | Description |
+|------|-------------|
+| `ltpc` | LTP + close price + last traded quantity |
+| `option_greeks` | Greeks (delta, gamma, theta, vega, rho) |
+| `full` | LTPC + 5-level depth + OHLC (1d, I1, I30) + Greeks |
+| `full_d30` | LTPC + 30-level depth + OHLC + Greeks (Upstox Plus) |
+
+### Python SDK Usage (Recommended)
+```python
+import upstox_client
+
+configuration = upstox_client.Configuration()
+configuration.access_token = "<access_token>"
+client = upstox_client.ApiClient(configuration)
+
+streamer = upstox_client.MarketDataStreamerV3(
+    client,
+    ["NSE_EQ|INE002A01018", "NSE_EQ|INE467B01029"],
+    mode="ltpc",
+)
+
+def on_message(data):
+    print(data)  # Dict (Protobuf decoded internally)
+    
+def on_open():
+    streamer.subscribe(["NSE_INDEX|Nifty 50"], "ltpc")
+
+streamer.on("message", on_message)
+streamer.on("open", on_open)
+streamer.connect()
+```
+
+### Subscription Message Format
+Sent as **binary** (not text) via WebSocket:
+```json
+{
+  "guid": "<uuid>",
+  "method": "sub",
+  "data": {
+    "mode": "ltpc",
+    "instrumentKeys": ["NSE_EQ|INE002A01018"]
+  }
+}
+```
+
+### Response Flow
+1. **Market info** (first tick) — segment statuses (`NORMAL_OPEN`, `CLOSED`, etc.)
+2. **Snapshot** (second tick) — current data snapshot for all subscribed keys
+3. **Live ticks** (subsequent) — real-time updates (LTP changes only)
+
+### LTPC Response Format
+```json
+{
+  "type": "live_feed",
+  "feeds": {
+    "NSE_EQ|INE002A01018": {
+      "ltpc": {
+        "ltp": 1417.4,
+        "ltt": "1777449588319",
+        "ltq": "1",
+        "cp": 1420.0
+      }
+    }
+  },
+  "currentTs": "1777449588319"
+}
+```
+
+### Full Mode Response Includes
+- `ltpc` — same as LTPC mode
+- `marketLevel.bidAskQuote` — 5 levels of bid/ask
+- `marketOHLC.ohlc` — 1d, I1 (1-min), I30 (30-min) candles
+- `optionGreeks` — delta, gamma, theta, vega, rho
+- `atp` — average traded price
+- `vtt` — volume traded today
+- `oi` — open interest
+
+### Key Differences: V3 vs Older WebSocket
+| Feature | V3 (MarketDataStreamerV3) | Older (MarketDataStreamer) |
+|---------|--------------------------|---------------------------|
+| Subscription msg | Binary (Protobuf) | Binary (Protobuf) |
+| Response | Binary → decoded to dict | Binary → decoded |
+| SDK class | `MarketDataStreamerV3` | `MarketDataStreamer` |
+| Max keys (ltpc) | 5000 | 100 |
+| Auto-reconnect | Built-in | Manual |
+| Protobuf file | `MarketDataFeedV3.proto` | `MarketDataFeed.proto` |
+
+### Streamer Functions API
+| Method | Description |
+|--------|-------------|
+| `connect()` | Establish WebSocket connection |
+| `subscribe(keys, mode)` | Subscribe to instrument keys |
+| `unsubscribe(keys)` | Unsubscribe instrument keys |
+| `change_mode(keys, mode)` | Change subscription mode |
+| `disconnect()` | Close connection |
+| `auto_reconnect(enable, interval, retry_count)` | Configure auto-reconnect |
+
+### Events
+| Event | Description |
+|-------|-------------|
+| `open` | Connection established |
+| `message` | Market data update (decoded dict) |
+| `error` | Error occurred |
+| `close` | Connection closed |
+| `reconnecting` | Reconnect attempt initiated |
+| `autoReconnectStopped` | Auto-reconnect exhausted |
+
+### Benchmark: REST vs WebSocket V3
+```
+REST  1 symbol:    173.85ms avg
+REST  15 symbols:  174.99ms avg
+WS    first tick:   30.3ms      (5.7x faster)
+WS    ticks/sec:     4.2        (~238ms avg interval)
+```
+
+### Live Price SSE Architecture
+```
+Frontend (ReadableStream)
+    ↑ SSE (event: price)
+Backend FastAPI (api/paper/live_stream.py)
+    ↑ threading.Queue bridge
+MarketDataStreamerV3 (WS thread)
+    ↑ wss://api.upstox.com/v3/feed/market-data-feed
+Upstox Exchange Feeds
+```
+
+### Official Resources
+- **V3 Market Data Feed**: https://upstox.com/developer/api-documentation/v3/get-market-data-feed
+- **Authorize URL V3**: https://upstox.com/developer/api-documentation/get-market-data-feed-authorize-v3
+- **Streamer Functions**: https://upstox.com/developer/api-documentation/streamer-function
+- **WebSocket Implementation**: https://upstox.com/developer/api-documentation/websocket-implementation
+- **SDK Python**: `pip install upstox-python-sdk`
+
+
 ## Summary
 
 **✅ For 365-day backtests**: Use `15min` or `daily` timeframes
