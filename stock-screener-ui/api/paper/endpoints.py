@@ -321,8 +321,8 @@ async def get_paper_chart(
                         fetched_at_tf = True
                         save_cached_candles(sym, date, df_tf, timeframe)
                         return df_tf, False
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[chart] DB position fetch error: {e}", flush=True)
                 
                 # Fallback to resampling from 1min if direct fetch fails
 
@@ -650,6 +650,44 @@ async def get_paper_chart(
                     "margin_used": pos.margin_used,
                     "order_id": pos.order_id,
                 }
+
+        if not current_position:
+            try:
+                from db.database import SessionLocal
+                from db.models import Position
+
+                db = SessionLocal()
+                try:
+                    db_pos = (
+                        db.query(Position)
+                        .filter(
+                            Position.user_id == user.id,
+                            Position.symbol == symbol.upper(),
+                        )
+                        .first()
+                    )
+                    if db_pos:
+                        entry_time = db_pos.entry_time
+                        if entry_time and hasattr(entry_time, "isoformat"):
+                            entry_time_str = entry_time.isoformat()
+                        else:
+                            entry_time_str = str(entry_time) if entry_time else ""
+                        current_position = {
+                            "symbol": db_pos.symbol,
+                            "side": db_pos.side,
+                            "quantity": db_pos.quantity,
+                            "entry_price": db_pos.entry_price,
+                            "current_price": db_pos.current_price or db_pos.entry_price,
+                            "entry_time": entry_time_str,
+                            "stop_loss": db_pos.stop_loss or 0,
+                            "take_profit": db_pos.take_profit or 0,
+                            "pnl": db_pos.unrealized_pnl or 0,
+                            "pnl_pct": db_pos.unrealized_pnl_pct or 0,
+                        }
+                finally:
+                    db.close()
+            except Exception:
+                pass
 
         return {
             "symbol": symbol.upper(),

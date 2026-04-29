@@ -9,11 +9,7 @@ UI_HOST="${UI_HOST:-127.0.0.1}"
 UI_PORT="${UI_PORT:-5173}"
 LOG_FILE="${LOG_FILE:-/tmp/alphashri.log}"
 
-# Authentication setting (set REQUIRE_AUTH=true for production)
-# Development: REQUIRE_AUTH=false (allows API access without login)
-# Production: REQUIRE_AUTH=true (requires valid JWT token for all protected endpoints)
-REQUIRE_AUTH="${REQUIRE_AUTH:-false}"
-export REQUIRE_AUTH
+
 
 kill_port() {
   local port=$1
