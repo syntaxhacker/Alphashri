@@ -290,20 +290,21 @@ export function PositionsTableBody({
 
   const handleSelect = async (
     symbol: string,
-    tradeId?: string,
-    strategyName?: string,
-    strategyType?: string,
+    _tradeId?: string,
+    _strategyName?: string,
+    _strategyType?: string,
     strategyId?: number,
   ) => {
     setSelectedSymbol(symbol);
-    if (tradeId) setSelectedTradeId(tradeId, strategyType, strategyId);
-    setShowAllTrades(true);
+    // Reset trade highlight — positions use order_id (UUID), not a numeric trade ID
+    // The chart's livePosition marker shows the open position automatically
+    setSelectedTradeId(null);
     const state = getPaperTradingState();
     await fetchPaperChart(
       symbol,
       undefined,
       state.chartTimeframe,
-      state.selectedStrategyId,
+      strategyId ?? state.selectedStrategyId,
       state.intradayOnly,
     );
   };
