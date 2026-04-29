@@ -35,6 +35,12 @@ vi.mock("../../hooks/useThemeColors", () => ({
   }),
 }));
 
+// Mock useMarketTickerEnabled
+const mockSetShowMarketTicker = vi.fn();
+vi.mock("../../hooks/useMarketTickerEnabled", () => ({
+  useMarketTickerEnabled: () => [false, mockSetShowMarketTicker],
+}));
+
 // Wrapper with Router + Mantine
 function renderWithRouter(ui: React.ReactElement) {
   return renderWithMantine(<BrowserRouter>{ui}</BrowserRouter>);
@@ -48,6 +54,7 @@ describe("SettingsPage", () => {
     mockGetBrokerStatus.mockReset();
     mockConnectUpstox.mockReset();
     mockDisconnectUpstox.mockReset();
+    mockSetShowMarketTicker.mockReset();
   });
 
   afterEach(() => {
@@ -241,5 +248,41 @@ describe("SettingsPage", () => {
     });
 
     setIntervalSpy.mockRestore();
+  });
+
+  it("renders market ticker toggle section", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Market Ticker")).toBeInTheDocument();
+    });
+  });
+
+  it("shows market ticker toggle unchecked by default", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      const toggle = screen.getByRole("switch");
+      expect(toggle).not.toBeChecked();
+    });
+  });
+
+  it("updates market ticker preference when toggle is changed", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("switch")).toBeInTheDocument();
+    });
+
+    const toggle = screen.getByRole("switch");
+    toggle.click();
+
+    expect(mockSetShowMarketTicker).toHaveBeenCalledWith(true);
   });
 });
