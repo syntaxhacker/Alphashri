@@ -28,8 +28,8 @@ class StrategyConfigData:
 
     # ORB Strategy Parameters
     or_minutes: int = 45
-    sl_pct: float = 0.4
-    tp_pct: float = 1.2
+    sl_pct: float = 1.0
+    tp_pct: float = 1.5
     min_or_range_pct: float = 0.5
     max_or_range_pct: float = 3.0
 

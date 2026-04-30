@@ -39,6 +39,7 @@ interface DayGroupProps {
     tradeId?: string,
     strategyType?: string,
     strategyId?: number,
+    entryTime?: string,
   ) => void;
   onDeleteTrade: (tradeId: string) => void;
   expanded: boolean;
@@ -243,6 +244,7 @@ function TradeRow({
             trade.trade_id,
             trade.strategy_type || (getStrategyTypeFromName(trade.strategy_name) ?? undefined),
             trade.strategy_id,
+            trade.entry_time,
           )
         }
         className={isSelected ? "trade-row-highlighted" : undefined}

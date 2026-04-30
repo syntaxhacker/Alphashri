@@ -16,6 +16,7 @@ export async function navigateToBotsView(page: Page): Promise<void> {
 export async function gotoBotsView(page: Page): Promise<void> {
   await page.goto("/bots");
   await page.waitForSelector('[data-testid="bots-view"]', { timeout: 10000 });
+  await page.waitForTimeout(2000); // Wait for bots to load
 }
 
 export async function expectBotsViewVisible(page: Page): Promise<void> {

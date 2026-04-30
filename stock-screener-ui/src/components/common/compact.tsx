@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, CSSProperties } from "react";
 import {
   Card,
   Group,
@@ -11,6 +11,18 @@ import {
   type PaperProps,
   type StackProps,
 } from "@mantine/core";
+
+const SCROLLABLE_PANEL_STYLE: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  minHeight: 0,
+};
+
+const SCROLL_CONTAINER_STYLE: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflow: "auto",
+};
 
 interface CompactPageProps extends StackProps {
   title?: ReactNode;
@@ -68,6 +80,7 @@ interface CompactPanelProps extends PaperProps {
   padded?: boolean;
   testId?: string;
   id?: string;
+  scrollable?: boolean;
 }
 
 export function CompactPanel({
@@ -78,18 +91,18 @@ export function CompactPanel({
   padded = true,
   testId,
   style,
+  scrollable = false,
   ...paperProps
 }: CompactPanelProps) {
+  const panelStyle: CSSProperties = scrollable ? { ...SCROLLABLE_PANEL_STYLE, ...style } : style;
+
   return (
     <Paper
       radius="xs"
       p={padded ? "sm" : 0}
       shadow="none"
       bg="light-dark(var(--mantine-color-white), var(--mantine-color-dark-7))"
-      style={{
-        overflow: "hidden",
-        ...style,
-      }}
+      style={panelStyle}
       data-testid={testId}
       {...paperProps}
     >
@@ -114,7 +127,7 @@ export function CompactPanel({
           {action}
         </Group>
       )}
-      {children}
+      {scrollable ? <Box style={SCROLL_CONTAINER_STYLE}>{children}</Box> : children}
     </Paper>
   );
 }

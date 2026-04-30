@@ -63,8 +63,8 @@ def run_single_stock_backtest(args):
         from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
 
         or_minutes = int(params.get('or_minutes', 45))
-        sl_pct = float(params.get('stop_loss_pct', 0.4))
-        tp_pct = float(params.get('take_profit_pct', 1.2))
+        sl_pct = float(params.get('sl_pct', 1.0))
+        tp_pct = float(params.get('tp_pct', 1.5))
         trade_size = int(params.get('trade_size', 100))
         timeframe = int(params.get('timeframe', '5'))
         include_costs = bool(params.get('include_costs', True))
@@ -439,8 +439,8 @@ class ORBConfig(StrategyConfig, kw_only=True):
     instrument_id: InstrumentId
     bar_type: BarType
     or_minutes: int = 45
-    sl_pct: float = 0.4
-    tp_pct: float = 1.2
+    sl_pct: float = 1.0
+    tp_pct: float = 1.5
     trade_size: int = 100
     enable_shorts: bool = False
     cooldown_bars: int = 3
@@ -481,12 +481,12 @@ class ORBStrategy(BaseStrategy):
                 options=['1', '5', '15'],
             ),
             StrategyParam(
-                key='stop_loss_pct',
+                key='sl_pct',
                 label='Stop Loss %',
                 type='number',
-                default=0.4,
+                default=1.0,
                 min=0.1,
-                max=2.0,
+                max=5.0,
                 step=0.1,
             ),
             StrategyParam(
@@ -538,7 +538,7 @@ class ORBStrategy(BaseStrategy):
 
         if int(params.get('or_minutes', 45)) < 15:
             errors.append("OR Period must be at least 15 minutes")
-        if float(params.get('stop_loss_pct', 0.4)) >= float(params.get('take_profit_pct', 1.2)):
+        if float(params.get('sl_pct', 1.0)) >= float(params.get('tp_pct', 1.5)):
             errors.append("Stop Loss must be less than Take Profit")
         if str(params.get('timeframe', '5')) not in {'1', '5', '15'}:
             errors.append("Timeframe must be one of 1, 5, 15")

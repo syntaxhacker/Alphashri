@@ -136,6 +136,7 @@ export function normalizePaper(
     };
   }
 
+  const highlightedTradeId = selectedTradeId ? parseInt(selectedTradeId, 10) : null;
   return {
     candles,
     trades,
@@ -147,7 +148,7 @@ export function normalizePaper(
     showVolume: true,
     showDataZoomSlider: false,
     showLegend: false,
-    highlightedTradeId: selectedTradeId ? parseInt(selectedTradeId, 10) : null,
+    highlightedTradeId,
     showAllTrades,
     isDark,
   };

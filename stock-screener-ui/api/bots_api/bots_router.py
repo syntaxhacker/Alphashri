@@ -1,4 +1,5 @@
 import asyncio
+import json
 import signal
 import sys
 import os
@@ -18,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 try:
     from db.database import SessionLocal, get_db
-    from db.models import BotConfig, StrategyConfig, bot_strategies, User
+    from db.models import BotConfig, BotRuntimeState, StrategyConfig, bot_strategies, User
     _db_available = True
 except ImportError:
     _db_available = False
@@ -208,6 +209,14 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
                     'max_positions': row.max_positions,
                     'capital_allocation_pct': row.capital_allocation_pct,
                 })
+
+        watchlist = []
+        bot_runtime = db.query(BotRuntimeState).filter(BotRuntimeState.bot_id == bot.id).first()
+        if bot_runtime and getattr(bot_runtime, "watchlist", None):
+            try:
+                watchlist = json.loads(bot_runtime.watchlist)
+            except Exception:
+                watchlist = []
     finally:
         if should_close:
             db.close()
@@ -227,6 +236,7 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
         running=running,
         pid=pid if pid else None,
         error="Redis unavailable — status may be inaccurate" if status_unknown else None,
+        watchlist=watchlist,
     )
 
 

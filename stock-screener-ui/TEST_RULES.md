@@ -9,8 +9,8 @@
 - `bun test` — all vitest tests
 - `bun test -- --run <file>` — single file (no watch)
 - `bun test -- --run src/components/paper-trading/` — directory
-- `npx vitest run --dir src` — alternative direct invocation
-- `npx playwright test` — E2E tests (requires dev server running)
+- `bunx vitest run --dir src` — alternative direct invocation
+- `bunx playwright test` — E2E tests (requires dev server running)
 
 ## File Conventions
 
@@ -167,6 +167,211 @@ vi.mock("@mantine/core", async (importOriginal) => {
 - Preserve `data-testid` props so tests can still query elements
 - For `SegmentedControl`/`RadioGroup`, expose `data-testid` on individual options if needed
 
+## Chart Data Test Patterns
+
+### Never store large candle arrays as JSON/inline data
+Generate candle data programmatically instead. This keeps tests readable and avoids bloated mock files.
+
+### Programmatic candle generation
+
+Create a shared helper in `tests/helpers/` that both unit and E2E tests can use:
+
+```typescript
+// tests/helpers/chartTestHelpers.ts
+import dayjs from "dayjs";
+
+export function round(n: number, decimals: number): number {
+  return Math.round(n * Math.pow(10, decimals)) / Math.pow(10, decimals);
+}
+
+export function generateCandles(
+  symbol: string,
+  fromDate: string,
+  toDate: string,
+  intervalMin: number = 5,
+): CandleData[] {
+  const candles: CandleData[] = [];
+  let price = 2500;
+  let current = dayjs(fromDate);
+  const end = dayjs(toDate);
+
+  while (current.isBefore(end) || current.isSame(end, "day")) {
+    const open = price;
+    const close = open + (Math.random() - 0.48) * 10;
+    const high = Math.max(open, close) + Math.random() * 5;
+    const low = Math.min(open, close) - Math.random() * 5;
+    candles.push({
+      time: current.format("YYYY-MM-DDTHH:mm:ss"),
+      open: round(open, 2),
+      high: round(high, 2),
+      low: round(low, 2),
+      close: round(close, 2),
+      volume: Math.floor(100000 + Math.random() * 500000),
+    });
+    price = close;
+    current = current.add(intervalMin, "minute");
+  }
+  return candles;
+}
+
+export function mockPosition(overrides?: Partial<PaperPosition>): PaperPosition {
+  return {
+    symbol: "NESTLEIND",
+    side: "BUY",
+    quantity: 100,
+    entry_price: 1437.70,
+    current_price: 1467.50,
+    entry_time: "2026-04-28T09:30:00",
+    stop_loss: 1416.13,
+    take_profit: 2875.40,
+    pnl: 2980,
+    pnl_pct: 2.07,
+    margin_used: 143770,
+    order_id: "ord-1",
+    strategy_id: 1,
+    strategy_name: "ORB Strategy",
+    ...overrides,
+  };
+}
+```
+
+### Scenario presets
+
+Export named scenarios for common test situations. Each scenario is a function that returns a full mock response:
+
+```typescript
+// tests/helpers/chartTestHelpers.ts
+export const CHART_SCENARIOS = {
+  oneDayNoPosition: () => ({
+    symbol: "RELIANCE",
+    date: "2026-04-29",
+    candles: generateCandles("RELIANCE", "2026-04-29", "2026-04-29"),
+    trades: [],
+    current_position: null,
+    orb_levels: null,
+    week52_levels: null,
+    pivot_levels: null,
+  }),
+
+  multiDayWithPosition: () => ({
+    symbol: "NESTLEIND",
+    date: "2026-04-28",
+    candles: generateCandles("NESTLEIND", "2026-04-21", "2026-04-28"),
+    trades: [
+      {
+        trade_id: "t1",
+        symbol: "NESTLEIND",
+        side: "BUY",
+        entry_price: 1437.70,
+        exit_price: 1467.50,
+        entry_time: "2026-04-28T09:30:00",
+        exit_time: "2026-04-28T15:00:00",
+        quantity: 100,
+        pnl: 2980,
+        net_pnl: 2900,
+        costs: 80,
+        exit_reason: "TP",
+        strategy_id: 1,
+        strategy_name: "ORB Strategy",
+      },
+    ],
+    current_position: {
+      symbol: "NESTLEIND",
+      side: "BUY",
+      quantity: 100,
+      entry_price: 1437.70,
+      current_price: 1467.50,
+      entry_time: "2026-04-28T09:30:00",
+      stop_loss: 1416.13,
+      take_profit: 2875.40,
+      pnl: 2980,
+      pnl_pct: 2.07,
+      margin_used: 143770,
+      order_id: "ord-1",
+      strategy_id: 1,
+      strategy_name: "ORB Strategy",
+    },
+    orb_levels: null,
+    week52_levels: null,
+    pivot_levels: null,
+  }),
+
+  tradeWithStopLossHit: () => ({
+    symbol: "TATASTEEL",
+    date: "2026-04-28",
+    candles: generateCandles("TATASTEEL", "2026-04-28", "2026-04-28"),
+    trades: [
+      {
+        trade_id: "t2",
+        symbol: "TATASTEEL",
+        side: "BUY",
+        entry_price: 180,
+        exit_price: 175,
+        entry_time: "2026-04-28T09:30:00",
+        exit_time: "2026-04-28T11:00:00",
+        quantity: 500,
+        pnl: -2500,
+        net_pnl: -2550,
+        costs: 50,
+        exit_reason: "SL",
+        strategy_id: 2,
+        strategy_name: "52W Chaser",
+      },
+    ],
+    current_position: null,
+    orb_levels: null,
+    week52_levels: { high_52w: 220, low_52w: 140, distance_to_high_pct: 18.2, distance_to_low_pct: 28.6, near_high: false },
+    pivot_levels: null,
+  }),
+};
+```
+
+### Using scenarios in unit tests
+
+```typescript
+import { CHART_SCENARIOS, generateCandles } from "../helpers/chartTestHelpers";
+
+test("chart shows entry marker for current position", () => {
+  const mock = CHART_SCENARIOS.multiDayWithPosition();
+  const input = normalizePaper(mock, false);
+  expect(input.livePosition).toBeDefined();
+  expect(input.livePosition!.entry_price).toBe(1437.70);
+});
+```
+
+### Using scenarios in E2E tests
+
+```typescript
+import { CHART_SCENARIOS } from "../helpers/chartTestHelpers";
+
+test("click position row shows chart with date range", async ({ page }) => {
+  await page.route("**/api/paper/chart/NESTLEIND*", async (route) => {
+    await route.fulfill({ json: CHART_SCENARIOS.multiDayWithPosition() });
+  });
+
+  await navigateToPaperTrading(page);
+  await page.click('[data-testid="position-row-NESTLEIND"]');
+  await expect(page.locator('[data-testid="paper-chart-header"]')).toBeVisible();
+});
+```
+
+### When to add a new scenario
+
+Add a new named scenario when any of these differ from existing ones:
+- **Date span** (single day vs multi-day vs across weekends)
+- **Position state** (open vs closed, entry within/outside visible range)
+- **Trade outcome** (TP hit, SL hit, still open, force-closed)
+- **Overlay data** (ORB/Pivot/52W levels present or absent)
+- **Empty states** (no candles, no trades, no position)
+
+### Key principle
+
+Share the same helper functions (`generateCandles`, `mockPosition`, `CHART_SCENARIOS`) between:
+- **Unit tests** (vitest in `src/`) — fast, no browser
+- **E2E tests** (Playwright in `tests/e2e/`) — full page flow
+
+This ensures the same test data is used everywhere, making failures consistent and reproducible.
+
 ## Assertion Rules
 
 ### DO: Use `toBeInTheDocument()` for DOM presence
@@ -286,3 +491,76 @@ Before committing:
 | E2E text selector breaks on i18n | Always use `data-testid` in E2E tests |
 | **Playwright `click({ force: true })` doesn't trigger React `onClick`** | **Use `page.evaluate(() => element.dispatchEvent(new MouseEvent('click')))` for React components** |
 | **Transient highlight class removed by setTimeout** | **Check for CSS class immediately after click, not with `toBeVisible({ timeout })`** |
+
+## Mutation Testing (Backend/Scientific Tests)
+
+Mutation testing verifies that tests actually catch bugs by introducing controlled faults into the code and confirming tests fail.
+
+### When to Use
+- For high-value backend endpoints (portfolio, trading, risk calculations)
+- Critical utility functions (position sizing, P&L, cache TTL)
+- Complex branching logic (DB-first with journal fallback, resampling)
+
+### How to Mutate
+
+#### 1. Identify the behavior the test checks
+Read the source code and find exactly what the test verifies (e.g., "ORB high > low", "pivot r1 > pp > s1")
+
+#### 2. Make ONE targeted mutation
+```python
+# Example: Flip max() to min() in ORB calculation
+or_high = max(c['high'] for c in or_candles)  # Original
+or_high = min(c['high'] for c in or_candles)  # Mutation
+```
+
+#### 3. Run the test and verify it FAILS
+```bash
+pytest tests/api/test_paper_chart_extended.py::TestORBLevels::test_orb_levels_present -x -q
+# Should FAIL with mutation, PASS without
+```
+
+#### 4. Revert the mutation immediately
+Always revert after testing — mutations are for verification only.
+
+### Common Mutation Patterns
+
+| Category | Mutation | Example |
+|----------|----------|---------|
+| **Comparisons** | Flip `>=` to `>` | `age >= max_age_seconds` → `age > max_age_seconds` |
+| **Formulas** | Invert calculation | `(exit - entry) * qty` → `(entry - exit) * qty` |
+| **Logic** | Remove condition | Comment out TTL check |
+| **Returns** | Wrong value | Return `0` instead of calculated value |
+| **Branches** | Skip fallback | Remove Redis fallback block |
+
+### Weak Test Indicators
+
+A test is weak if it passes after mutation. Fix it by:
+
+1. **Adding invariants**:
+   ```python
+   # Before: assert orb["or_high"] >= orb["or_low"]
+   # After: assert orb["or_high"] > orb["or_low"]  # Must be strictly greater
+   ```
+
+2. **Comparing outputs**:
+   ```python
+   # Check BUY vs SELL produce same result
+   assert result_buy['risk_pct'] == result_sell['risk_pct']
+   ```
+
+3. **Verifying calls**:
+   ```python
+   assert mock_save.called, "save_cached_candles must be called"
+   ```
+
+4. **Testing boundaries**:
+   ```python
+   # Use inputs that trigger edge cases
+   min_trade_value_bump: trade_value = 20000 (below min)
+   ```
+
+### Test Coverage Metrics
+
+- **Mutation Score**: % of mutations caught (target: 80%+)
+- **Coverage Gaps**: Functions with zero tests
+- **Edge Cases**: Boundary values, null, infinity, empty collections |

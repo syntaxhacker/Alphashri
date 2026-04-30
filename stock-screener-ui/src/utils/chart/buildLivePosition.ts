@@ -22,16 +22,20 @@ export function buildLivePositionMarker(pos: UnifiedLivePosition, candleIdx: num
 }
 
 export function buildLivePositionMarkLines(pos: UnifiedLivePosition): MarkLineData[] {
-  return [
-    {
+  const lines: MarkLineData[] = [];
+  if (pos.stop_loss && pos.stop_loss > 0) {
+    lines.push({
       yAxis: pos.stop_loss,
       lineStyle: { color: "#FF00FF", type: "dashed", width: 2 },
       label: { position: "insideEndTop", formatter: `SL ${pos.stop_loss}` },
-    },
-    {
+    });
+  }
+  if (pos.take_profit && pos.take_profit > 0) {
+    lines.push({
       yAxis: pos.take_profit,
       lineStyle: { color: "#FFFF00", type: "dashed", width: 2 },
       label: { position: "insideEndTop", formatter: `TP ${pos.take_profit}` },
-    },
-  ];
+    });
+  }
+  return lines;
 }

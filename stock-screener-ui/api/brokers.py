@@ -41,6 +41,11 @@ def _get_upstox_token_from_file() -> Optional[dict]:
 
 
 def _get_upstox_token_from_env() -> Optional[dict]:
+    """DEPRECATED: Environment variable fallback for local development only.
+
+    This is deprecated and should not be used for production flows.
+    OAuth tokens should be stored in the database via the OAuth flow.
+    """
     token = config.UPSTOX_ACCESS_TOKEN
     if token:
         return {"access_token": token, "token_timestamp": None}
@@ -49,21 +54,18 @@ def _get_upstox_token_from_env() -> Optional[dict]:
 
 def _get_token_status() -> dict:
     """Get broker token status.
-    
-    Note: Upstox tokens expire at 3:30 AM the following day, not 24h from creation.
-    We use 24h as a safe approximation for UI display.
+
+    Checks DB first, then .upstox_token.json file.
+    Environment variable is NOT checked to ensure disconnect properly clears state
+    and prevent stale tokens from being used after OAuth disconnect.
     """
     token_data = _get_upstox_token_from_db()
     source = "database"
-    
+
     if not token_data:
         token_data = _get_upstox_token_from_file()
         source = "file"
-    
-    if not token_data:
-        token_data = _get_upstox_token_from_env()
-        source = "env"
-    
+
     if not token_data or not token_data.get("access_token"):
         return {"connected": False, "broker": "upstox", "expires_in_hours": None, "expires_at": None, "source": None}
     
@@ -212,14 +214,18 @@ async def upstox_callback(code: str = Query(...)):
 @router.post("/upstox/disconnect")
 async def upstox_disconnect(user: User = Depends(get_current_user)):
     """
-    Clears stored token from DB and any local files.
+    Clears stored token from DB and any local files/environment.
     """
     delete_broker_token("upstox", user_id=None)
-    
+
     if TOKEN_FILE.exists():
         try:
             TOKEN_FILE.unlink()
         except Exception:
             pass
-    
+
+    # Clear env var and config cache to ensure status check returns disconnected
+    os.environ.pop("UPSTOX_ACCESS_TOKEN", None)
+    config.UPSTOX_ACCESS_TOKEN = None
+
     return {"success": True}

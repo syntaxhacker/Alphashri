@@ -274,6 +274,10 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
     }
 
     if (portfolioData) {
+      const watchlist = Array.isArray(portfolioData.watchlist)
+        ? portfolioData.watchlist
+        : Array.from(new Set(scanItems.map((item: any) => item?.symbol).filter(Boolean)));
+
       // Convert bot positions to paper positions format
       const paperPositions = positions.map((p: any) => ({
         symbol: p.symbol,
@@ -297,7 +301,7 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
       // Convert scan items to bot snapshot format
       setBotSnapshot({
         timestamp: new Date().toISOString(),
-        watchlist: [],
+        watchlist,
         open_positions: positions.map((p: any) => p.symbol),
         scan_items: scanItems,
         signals: [],

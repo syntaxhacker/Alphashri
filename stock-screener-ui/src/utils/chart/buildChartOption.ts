@@ -130,17 +130,21 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
   let liveMarkLines: any[] = [];
   if (input.livePosition && times.length > 0) {
     let liveCandleIdx = -1;
-    const liveTime = input.livePosition.entry_time
-      ? parseTimeToHHMM(input.livePosition.entry_time)
-      : "";
+    const entryTime = input.livePosition.entry_time || "";
+    const liveTime = entryTime ? parseTimeToHHMM(entryTime) : "";
     if (liveTime) {
-      for (let i = 0; i < times.length; i++) {
-        if (times[i] >= liveTime) {
-          liveCandleIdx = i;
-          break;
+      const searchTime = hasMultipleDays
+        ? `${entryTime.split("T")[0]?.split(" ")[0] || ""} ${liveTime}`
+        : liveTime;
+      if (searchTime) {
+        for (let i = 0; i < times.length; i++) {
+          if (times[i] >= searchTime) {
+            liveCandleIdx = i;
+            break;
+          }
         }
+        if (liveCandleIdx < 0 && times.length > 0) liveCandleIdx = times.length - 1;
       }
-      if (liveCandleIdx < 0 && times.length > 0) liveCandleIdx = times.length - 1;
     }
     if (liveCandleIdx >= 0) {
       liveSeries = buildLivePositionMarker(input.livePosition, liveCandleIdx);
@@ -169,6 +173,34 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
       };
     } else {
       candleSeries.markLine.data.push(...liveMarkLines);
+    }
+  }
+
+  const markLineValues = liveMarkLines.map((l) => l.yAxis).filter(Boolean);
+  if (markLineValues.length > 0 && input.candles.length > 0) {
+    const prices = input.candles.flatMap((c: any) => [c.open, c.high, c.low, c.close]);
+    const dataMin = Math.min(...prices);
+    const dataMax = Math.max(...prices);
+    const dataRange = dataMax - dataMin;
+
+    const valuesBelowMax = markLineValues.filter((v) => v <= dataMax);
+    const valuesAboveMin = markLineValues.filter((v) => v >= dataMin);
+    const closestLow = valuesBelowMax.length > 0 ? Math.min(...valuesBelowMax) : undefined;
+    const closestHigh = valuesAboveMin.length > 0 ? Math.max(...valuesAboveMin) : undefined;
+
+    const yMin =
+      closestLow != null && closestLow < dataMin && dataMin - closestLow < dataRange * 0.5
+        ? closestLow - dataRange * 0.05
+        : undefined;
+    const yMax =
+      closestHigh != null && closestHigh > dataMax && closestHigh - dataMax < dataRange * 0.5
+        ? closestHigh + dataRange * 0.05
+        : undefined;
+
+    if ((yMin != null || yMax != null) && grid.yAxes && grid.yAxes.length > 0) {
+      const priceAxis = grid.yAxes[0];
+      if (yMin != null) priceAxis.min = yMin;
+      if (yMax != null) priceAxis.max = yMax;
     }
   }
 

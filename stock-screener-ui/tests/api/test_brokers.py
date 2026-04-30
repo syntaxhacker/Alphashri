@@ -94,7 +94,7 @@ class TestGetBrokerStatus:
     def test_status_fallback_to_file_token(self, client: TestClient, db: Session, tmp_path: Path):
         """Test: Falls back to file token when DB has no token."""
         delete_broker_token("upstox", user_id=None)
-        
+
         with patch("api.brokers.TOKEN_FILE", tmp_path / ".upstox_token.json"):
             token_data = {
                 "access_token": "file_token_123",
@@ -110,18 +110,19 @@ class TestGetBrokerStatus:
             assert data["connected"] is True
             assert data["source"] == "file"
 
-    def test_status_fallback_to_env_token(self, client: TestClient, db: Session, tmp_path: Path, monkeypatch):
-        """Test: Falls back to env token when no DB or file token."""
+    def test_status_does_not_fallback_to_env_token(self, client: TestClient, db: Session, tmp_path: Path, monkeypatch):
+        """Test: Does NOT fall back to env token after disconnect - only DB and file are checked."""
         delete_broker_token("upstox", user_id=None)
-        
+
+        # Even with env var set, should return disconnected
         with patch("api.brokers.TOKEN_FILE", tmp_path / ".upstox_token.json"):
             with patch("api.brokers.config.UPSTOX_ACCESS_TOKEN", "env_token_123"):
                 response = client.get("/api/brokers/status")
 
                 assert response.status_code == 200
                 data = response.json()
-                assert data["connected"] is True
-                assert data["source"] == "env"
+                assert data["connected"] is False
+                assert data["broker"] == "upstox"
 
     def test_status_returns_correct_expiry_calculation(self, client: TestClient, db: Session):
         """Test: Expiry time is calculated correctly (expires at 3:30 AM next day)."""

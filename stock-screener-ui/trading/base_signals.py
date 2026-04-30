@@ -20,7 +20,7 @@ class BaseSignalGenerator(ABC):
 
     strategy_type: str
 
-    def __init__(self, sl_pct: float = 0.4, tp_pct: float = 1.2,
+    def __init__(self, sl_pct: float = 1.0, tp_pct: float = 1.5,
                  eod_exit_hour: int = 14, eod_exit_minute: int = 45):
         self.sl_pct = sl_pct
         self.tp_pct = tp_pct

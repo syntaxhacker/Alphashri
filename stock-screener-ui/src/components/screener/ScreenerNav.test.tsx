@@ -11,7 +11,7 @@ vi.mock("@mantine/core", async () => {
   const actual = await vi.importActual("@mantine/core");
   return {
     ...actual,
-    Tooltip: ({ label, children, ...props }: any) => (
+    Tooltip: ({ label, children, ..._rest }: any) => (
       <div data-testid="tooltip-wrapper" data-label={label}>
         {children}
         <span data-testid="tooltip-content">{label}</span>

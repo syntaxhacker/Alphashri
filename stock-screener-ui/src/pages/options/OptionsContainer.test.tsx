@@ -28,7 +28,7 @@ vi.mock("../../hooks/useOptionsState", () => ({
 }));
 
 vi.mock("../../components/options/OptionsPage", () => ({
-  OptionsPage: ({ activeTab, setActiveTab, ...props }: any) => (
+  OptionsPage: ({ activeTab, setActiveTab: _setActiveTab, ...props }: any) => (
     <div data-testid="options-page" data-active-tab={activeTab}>
       OptionsPage - {Object.keys(props).length} props
     </div>

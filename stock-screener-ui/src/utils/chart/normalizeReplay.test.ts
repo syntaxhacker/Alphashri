@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { normalizeReplay } from "./normalizeReplay";
-import type { ChartInput } from "./types";
 
 describe("normalizeReplay", () => {
   const mockCandles = [

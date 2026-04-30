@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useChartZoom, computeZoomRange, dispatchZoom } from "./useChartZoom";
-import { parseTimeToHHMM } from "../utils/ui-helpers";
 
 // Mock parseTimeToHHMM
 vi.mock("../utils/ui-helpers", () => ({

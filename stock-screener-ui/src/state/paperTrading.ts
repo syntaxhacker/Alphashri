@@ -47,10 +47,10 @@ export const initialPaperTradingState: PaperTradingState = {
   showPivotLines: false,
   show52wLines: false,
   showEmaLines: false,
-  intradayOnly: false,
   chartData: null,
   chartLoading: false,
   chartTimeframe: "5min",
+  chartFromDate: null,
 
   isLoading: false,
   error: null,
@@ -208,11 +208,6 @@ export function setShowEmaLines(show: boolean) {
   notify();
 }
 
-export function setIntradayOnly(intraday: boolean) {
-  state = { ...state, intradayOnly: intraday };
-  notify();
-}
-
 export function setSelectedStrategyTab(strategy: string | null) {
   state = { ...state, selectedStrategyTab: strategy };
   notify();
@@ -230,6 +225,11 @@ export function setChartLoading(loading: boolean) {
 
 export function setChartTimeframe(timeframe: string) {
   state = { ...state, chartTimeframe: timeframe };
+  notify();
+}
+
+export function setChartFromDate(fromDate: string | null) {
+  state = { ...state, chartFromDate: fromDate };
   notify();
 }
 

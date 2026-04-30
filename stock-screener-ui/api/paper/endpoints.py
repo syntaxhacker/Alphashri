@@ -211,6 +211,7 @@ def _fetch_candles_at_tf(upstox_api, symbol: str, timeframe: str, from_date: str
 async def get_paper_chart(
     symbol: str,
     date: Optional[str] = None,
+    from_date: Optional[str] = None,
     timeframe: str = "5min",
     intraday_only: bool = False,
     strategy_id: Optional[int] = None,
@@ -306,53 +307,64 @@ async def get_paper_chart(
 
             # For longer TFs, try direct fetch first, fallback to resampling
             if timeframe in direct_tf_timeframes:
-                cached_df, cached = get_cached_candles(sym, date, timeframe)
+                cached_df, cached = get_cached_candles(sym, date, timeframe, from_date)
                 if cached_df is not None and not cached_df.empty:
                     fetched_at_tf = True
                     return cached_df, True
                 
-                # Try direct fetch at requested timeframe
                 try:
                     df_tf = _fetch_candles_at_tf(
                         upstox_api, sym, timeframe, 
-                        from_date=None, to_date=date
+                        from_date=from_date, to_date=date,
                     )
                     if df_tf is not None and not df_tf.empty:
                         fetched_at_tf = True
-                        save_cached_candles(sym, date, df_tf, timeframe)
+                        save_cached_candles(sym, date, df_tf, timeframe, from_date)
                         return df_tf, False
-                except Exception:
-                    pass
-                
-                # Fallback to resampling from 1min if direct fetch fails
+                except Exception as e:
+                    print(f"[chart] Direct TF fetch error: {e}", flush=True)
 
             if timeframe == '1day':
-                cached_df, cached = get_cached_candles(sym, date, timeframe)
+                cached_df, cached = get_cached_candles(sym, date, timeframe, from_date)
                 if cached_df is not None:
                     return cached_df, True
-                from_date = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=10)).strftime('%Y-%m-%d')
+                lookback = from_date or (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=10)).strftime('%Y-%m-%d')
                 df_1m = upstox_api.fetch_historical_data_v3(
                     sym, unit='days', interval=1,
-                    to_date=date, from_date=from_date,
+                    to_date=date, from_date=lookback,
                 )
-                df_1m = _filter_to_date_or_recent(df_1m, date)
-                save_cached_candles(sym, date, df_1m, timeframe)
+                if not from_date:
+                    df_1m = _filter_to_date_or_recent(df_1m, date)
+                save_cached_candles(sym, date, df_1m, timeframe, from_date)
                 return df_1m, False
 
-            cached_df, cached = get_cached_candles(sym, date)
+            cached_df, cached = get_cached_candles(sym, date, from_date=from_date)
             if cached_df is not None:
                 return cached_df, True
+
+            if from_date:
+                df_1m = upstox_api.fetch_historical_data_v3(
+                    sym, unit='minutes', interval=1, to_date=date, from_date=from_date,
+                )
+                if date == today:
+                    df_today = upstox_api.fetch_intraday_data_v3(sym, interval='1')
+                    if df_today is not None and not df_today.empty:
+                        if df_1m is not None and not df_1m.empty:
+                            df_1m = pd.concat([df_1m, df_today])
+                        else:
+                            df_1m = df_today
+                if df_1m is not None and not df_1m.empty:
+                    df_1m = df_1m[~df_1m.index.duplicated(keep='last')].sort_index()
+                    save_cached_candles(sym, date, df_1m, from_date=from_date)
+                return df_1m, False
 
             if date == today:
                 # Try intraday first, but on weekends it may return None
                 df_1m = upstox_api.fetch_intraday_data_v3(sym, interval='1')
                 if df_1m is None or df_1m.empty:
-                    # Fallback to historical - returns data up to to_date (works on weekends)
                     df_1m = upstox_api.fetch_historical_data_v3(
                         sym, unit='minutes', interval=1, to_date=date,
                     )
-                    # Don't filter - just use whatever the API returns
-                    # On weekends, API returns last available trading day
                 if df_1m is not None and not df_1m.empty:
                     save_cached_candles(sym, date, df_1m)
                 return df_1m, False
@@ -436,8 +448,6 @@ async def get_paper_chart(
         or_minutes = 45
         if strategy_id:
             try:
-                from db.models.bot import StrategyConfig
-                from db.database import SessionLocal
                 with SessionLocal() as db:
                     cfg = db.query(StrategyConfig).filter(StrategyConfig.id == strategy_id).first()
                     if cfg:
@@ -652,6 +662,53 @@ async def get_paper_chart(
                     "margin_used": pos.margin_used,
                     "order_id": pos.order_id,
                 }
+
+        if not current_position:
+            try:
+                from db.models import Position
+
+                db = SessionLocal()
+                try:
+                    q = db.query(Position).filter(
+                        Position.user_id == user.id,
+                        Position.symbol == symbol.upper(),
+                    )
+                    if strategy_id:
+                        q = q.filter(Position.strategy_id == strategy_id)
+                    db_pos = q.first()
+                    if not db_pos and strategy_id:
+                        db_pos = (
+                            db.query(Position)
+                            .filter(
+                                Position.user_id == user.id,
+                                Position.symbol == symbol.upper(),
+                            )
+                            .first()
+                        )
+                    if db_pos:
+                        entry_time = db_pos.entry_time
+                        if entry_time and hasattr(entry_time, "isoformat"):
+                            entry_time_str = entry_time.isoformat()
+                        else:
+                            entry_time_str = str(entry_time) if entry_time else ""
+                        current_position = {
+                            "symbol": db_pos.symbol,
+                            "side": db_pos.side,
+                            "quantity": db_pos.quantity,
+                            "entry_price": db_pos.entry_price,
+                            "current_price": db_pos.current_price or db_pos.entry_price,
+                            "entry_time": entry_time_str,
+                            "stop_loss": db_pos.stop_loss or 0,
+                            "take_profit": db_pos.take_profit or 0,
+                            "pnl": db_pos.unrealized_pnl or 0,
+                            "pnl_pct": db_pos.unrealized_pnl_pct or 0,
+                        }
+                except Exception as e:
+                    console.print(f"[red]Position query error: {e}[/red]")
+                finally:
+                    db.close()
+            except Exception as e:
+                console.print(f"[red]Position DB error: {e}[/red]")
 
         return {
             "symbol": symbol.upper(),

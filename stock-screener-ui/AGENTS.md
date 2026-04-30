@@ -59,6 +59,20 @@ src/
 - Components: `src/components/replay/` — page-level feature, uses SSE from `api/replay_api.py`
 - Cache: `experiments/data/replay_cache/{date}/{symbol}.pkl` (gitignored)
 
+## Live Price Streaming (SSE)
+- **Backend**: `api/paper/live_stream.py` — `GET /api/paper/live/stream`
+  - Reads open positions from DB → resolves instrument keys via `instruments` table (fallback to JSON file)
+  - Connects to Upstox `MarketDataStreamerV3` WebSocket (`wss://api.upstox.com/v3/feed/market-data-feed`)
+  - Mode: `ltpc` (LTP + close price only, max 5000 instrument keys per connection)
+  - Streams `event: price` with `{symbol, ltp, ltq, instrument_key, ts}` via SSE
+  - Uses `threading.Queue` bridge between WS thread and async SSE generator
+  - 30s heartbeat if no data; auto-cleanup on client disconnect
+- **Frontend**: `src/hooks/useLivePrices.ts` — `fetch` + `ReadableStream` (supports auth headers, unlike `EventSource`)
+  - `<LivePriceUpdater />` component in `PaperTradingView2.tsx` subscribes to live prices
+  - On each tick, updates `current_price` + recalculates P&L for matching positions via `setPositions()`
+  - Falls back to 20s polling on disconnect/error
+- **Price vs Polling**: WebSocket delivers first tick in ~30ms vs REST ~174ms. Live ticks stream at ~4/sec during market hours.
+
 ## CSS
 - Legacy hardcoded CSS in `style.css` is being migrated to Mantine — prefer `var(--mantine-color-*)` vars
 - Remove dead CSS classes when removing old components (verify with grep before deleting)
@@ -78,8 +92,17 @@ src/
 ## Strategy Config Pipeline
 - **DB Model** (`db/models/bot.py:StrategyConfig`) → **Dataclass** (`trading/config_loader.py:StrategyConfigData`) → **Dict** (`runner.config`) → **SignalGenerator** / **RiskManager**
 - All strategy params flow through this pipeline. Adding a new param requires touching all 4 layers + API models + CRUD + migration.
-- `base_signals.py` is the abstract base for all signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, and `is_eod_exit_time()`.
-- Each signal generator reads its own params from `config` dict in `__init__()` — no hardcoded values in signal generators.
+- `base_signals.py` is the abstract base for most signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, and `is_eod_exit_time()`. Each subclass overrides before `super().__init__()`.
+- **ORB** is standalone (does not extend BaseSignalGenerator). SL/TP passed as constructor args from `StrategyRunner`.
+- Each strategy has its own per-generator SL/TP defaults. Config overrides via `runner.config['sl_pct']`:
+  - ORB: `sl_pct=1.0, tp_pct=1.5`
+  - SR_BREAKOUT: `sl_pct=0.5, tp_pct=1.5` (TP dynamically set to R2 pivot if available)
+  - 52W_CHASER: `sl_pct=3.0, tp_pct=5.0`
+  - 52W_TARGET: `sl_pct=2.0, tp_pct=0.0` (TP intentionally unreachable, exits via trailing stop)
+  - EMA_CROSS: `sl_pct=0.5, tp_pct=1.5`
+- **StrategyRunner.ORB** passes individual params (not config dict): `self.config['sl_pct']`. All other strategies pass the full dict.
+- **DB model defaults** (`sl_pct=1.0, tp_pct=1.5`) apply when creating a new StrategyConfig row via API without explicit values.
+- **`CompletedTrade`** now carries `sl_price`/`tp_price` from the position (fix: `portfolio_core.py:close_position()` sets them). Previously always stored 0.0.
 - **Risk params**: `min_rr_ratio`, `risk_per_trade_pct`, `max_capital_per_trade_pct` flow from `runner.config` → `global_risk_manager.validate_trade()`.
 - **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `min_rr_ratio=1.5`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
 - **Hardcoded values audit** (all strategy-specific values are now configurable):
@@ -111,7 +134,24 @@ src/
 ## Market Data Auth
 - **Market data endpoints** (`/api/chart/preview`, `/api/paper/chart`, `/api/backtest/run`) use `UpstoxAPI` with `UPSTOX_API_KEY`/`UPSTOX_API_SECRET` — **no OAuth broker token needed**
 - **Options + broker endpoints** (`/api/options/*`, `/api/brokers/*`) require OAuth access token via `get_shared_broker_token('upstox')` — user must connect broker in Settings
+- **Live price streaming** (`/api/paper/live/stream`) also requires OAuth access token (uses `MarketDataStreamerV3` SDK)
 - Never gate market data behind broker OAuth check
+
+## Upstox Token Storage (DB-first)
+- **Primary**: `broker_connections` table via `get_shared_broker_token('upstox')` (post-OAuth)  
+- **Fallback 1**: `.upstox_token.json` file in project root 
+- **Fallback 2**: `UPSTOX_ACCESS_TOKEN` env var
+- `upstox_auth.py`'s `UpstoxAuthHandler.load_token()` checks DB → file. `save_token()` still writes to file for backward compat.
+- `UPSTOX_CONFIG` dict in root `config.py` only has `api_key`/`api_secret` (removed `access_token`)
+- Stale file-only patterns fixed: `sector_data.py` uses `UpstoxAuthHandler`, `upstox_auth_refresh.py` checks DB first
+
+## Benchmark
+- `scripts/benchmark_upstox_data.py` — benchmarks REST LTP V3 vs WebSocket V3 MarketDataStreamerV3
+- Usage: `source .venv/bin/activate && python scripts/benchmark_upstox_data.py`
+- Token resolution: DB → file → env var (loads dotenv from `.env`)
+- Loads 15 liquid NSE_EQ symbols from 56MB instruments JSON
+- REST: tests 1-symbol and 15-symbol batch (5 iterations each, reports avg/min/max)
+- WS: connects `MarketDataStreamerV3` in `ltpc` mode, collects 15s of ticks, reports first-tick latency + tick cadence
 
 ## Chart Cache
 - `api/paper/chart_cache.py` — pickle-based disk cache at `experiments/data/chart_cache/{date}/{symbol}.pkl`
@@ -127,7 +167,7 @@ src/
 - `runner_signals.py:453` stores `signal.notes` in `position.metadata['entry_reason']`
 - On trade close, `position.metadata['entry_reason']` → `CompletedTrade.reason` → `_persist_trade_to_db` → `Trade.reason` column
 - Exit notes include PnL% and price level: "Stop loss hit ₹1340.00 (PnL: -0.40%)"
-- `CompletedTrade` has `reason`, `peak_price`, `low_price` fields — propagated from `SharedPosition` in `portfolio_core.py:close_position()`
+- `CompletedTrade` has `reason`, `peak_price`, `low_price`, `sl_price`, `tp_price` fields — propagated from `SharedPosition` in `portfolio_core.py:close_position()`
 - `signal.notes` can be `None` — always use `signal.notes or ''` when assigning to scan items
 
 ## Paper Trading UI Defaults
@@ -213,6 +253,23 @@ print('pd.Timestamp' in inspect.getsource(get_paper_chart))
 - Backend: pytest, files in `stock-screener-ui/tests/`
 - Run both before committing
 - **Read `TEST_RULES.md`** before writing or modifying any test — covers assertion conventions, mock patterns, accordion interaction, data-testid naming, and coverage requirements
+
+### Backend Test Gotchas
+- **`@patch` decorator ordering**: When using `@patch` as a decorator on test methods, mock arguments are injected **before** pytest fixtures. Order is bottom-to-top for decorators, left-to-right for args:
+  ```python
+  @patch('module.b')  # mock_b — second arg
+  @patch('module.a')  # mock_a — first arg
+  def test_foo(self, mock_a, mock_b, client, db):  # mocks first, then fixtures
+      ...
+  ```
+  Getting this wrong causes `fixture 'mock_X' not found` errors.
+
+## Mutation Testing
+- Purpose: verify tests actually catch bugs by deliberately introducing one change at a time and checking tests fail
+- Reference: `MUTATION_TESTING.md` (novice-to-advanced guide)
+- Use when writing critical functions or fixing bugs — manually flip a condition, remove a line, run tests, confirm they fail
+- Not automated in CI; run ad-hoc when you want extra confidence in a specific function
+- Coverage tracked in `MUTATION_TESTING.md` — update when adding new mutation tests
 
 ## Committing
 - Never commit unless asked

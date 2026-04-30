@@ -152,6 +152,7 @@ export function PerformanceView({
         testId="performance-table-card"
         title="Strategy Performance"
         description="Click a row to inspect the strategy's trade history"
+        scrollable
       >
         <DataTable
           withTableBorder

@@ -17,15 +17,19 @@ describe("mapCandles", () => {
       close: 105,
       volume: 1000,
     });
-    expect(result[0].date).toBeUndefined();
-    expect(result[0].time_str).toBeUndefined();
+    expect(result[0].date).toBe("2025-01-15");
+    expect(result[0].time_str).toBe("09:30");
   });
 
-  it("preserves all fields exactly", () => {
-    const rawCandles = [{ time: "test", open: 1, high: 2, low: 3, close: 4, volume: 5 }];
+  it("extracts date and time_str from ISO timestamp", () => {
+    const rawCandles = [
+      { time: "2025-01-15T09:30:00", open: 1, high: 2, low: 3, close: 4, volume: 5 },
+    ];
     const result = mapCandles(rawCandles);
     expect(result[0]).toEqual({
-      time: "test",
+      time: "2025-01-15T09:30:00",
+      date: "2025-01-15",
+      time_str: "09:30",
       open: 1,
       high: 2,
       low: 3,
@@ -75,7 +79,7 @@ describe("mapTrades", () => {
   ];
 
   it("maps raw trades to UnifiedTrade format with custom id function", () => {
-    const result = mapTrades(rawTrades, (t, idx) => idx + 1);
+    const result = mapTrades(rawTrades, (_t, idx) => idx + 1);
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({
       id: 1,
@@ -93,13 +97,13 @@ describe("mapTrades", () => {
   });
 
   it("maps side to BUY|SELL union type", () => {
-    const result = mapTrades(rawTrades, (t) => 1);
+    const result = mapTrades(rawTrades, (_t) => 1);
     expect(result[0].side).toBe("BUY");
     expect(result[1].side).toBe("SELL");
   });
 
   it("renames net_pnl to pnl", () => {
-    const result = mapTrades(rawTrades, (t) => 1);
+    const result = mapTrades(rawTrades, (_t) => 1);
     expect(result[0]).toHaveProperty("pnl");
     expect(result[0]).not.toHaveProperty("net_pnl");
     expect(result[0].pnl).toBe(10);
@@ -107,7 +111,7 @@ describe("mapTrades", () => {
 
   it("maps costs field correctly", () => {
     const raw = [{ ...rawTrades[0], costs: 5 } as any];
-    const result = mapTrades(raw, (t) => 1);
+    const result = mapTrades(raw, (_t) => 1);
     expect(result[0].costs).toBe(5);
   });
 
@@ -122,19 +126,19 @@ describe("mapTrades", () => {
         net_pnl: 10,
       } as any,
     ];
-    const result = mapTrades(raw, (t) => 1);
+    const result = mapTrades(raw, (_t) => 1);
     expect(result[0].exit_price).toBeUndefined();
     expect(result[0].exit_time).toBeUndefined();
     expect(result[0].costs).toBeUndefined();
   });
 
   it("handles empty array", () => {
-    const result = mapTrades([], (t) => 1);
+    const result = mapTrades([], (_t) => 1);
     expect(result).toEqual([]);
   });
 
   it("calls getId function with trade and index", () => {
-    const getId = vi.fn((t, idx) => idx);
+    const getId = vi.fn((_t, idx) => idx);
     mapTrades(rawTrades, getId);
     expect(getId).toHaveBeenCalledTimes(2);
     expect(getId).toHaveBeenNthCalledWith(1, rawTrades[0], 0);
@@ -142,7 +146,7 @@ describe("mapTrades", () => {
   });
 
   it("creates new array (immutability)", () => {
-    const result = mapTrades(rawTrades, (t) => 1);
+    const result = mapTrades(rawTrades, (_t) => 1);
     expect(result).not.toBe(rawTrades);
   });
 });

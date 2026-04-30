@@ -36,11 +36,20 @@ except ImportError as e:
     sys.exit(1)
 
 def check_token_status():
-    """Check if we have a valid token already"""
+    """Check if we have a valid token already (DB -> file)"""
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'stock-screener-ui'))
+        from db.models import get_shared_broker_token
+        token_data = get_shared_broker_token("upstox")
+        if token_data and token_data.get("access_token"):
+            return True, "Token found in DB (broker_connections)"
+    except Exception:
+        pass
+
     token_file = Path.home() / ".upstox_token.json"
     
     if not token_file.exists():
-        return False, "No token file found"
+        return False, "No token found in DB or file"
     
     try:
         with open(token_file, 'r') as f:
@@ -51,9 +60,9 @@ def check_token_status():
         
         if time_diff < timedelta(hours=23):
             hours_remaining = 23 - time_diff.total_seconds() / 3600
-            return True, f"Token valid for {hours_remaining:.1f} more hours"
+            return True, f"File token valid for {hours_remaining:.1f} more hours"
         else:
-            return False, "Token expired"
+            return False, "File token expired"
             
     except (json.JSONDecodeError, KeyError) as e:
         return False, f"Token file corrupted: {e}"

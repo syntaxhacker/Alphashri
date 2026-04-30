@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { openCreateModal, closeCreateModal, openEditModal, closeEditModal } from "./modalActions";
 import type { StrategyConfig } from "../../types/strategies";
-import { state as strategiesState, notify } from "../strategies";
+import { state as strategiesState } from "../strategies";
 import * as strategiesModule from "../strategies";
 
 // Helper to reset state

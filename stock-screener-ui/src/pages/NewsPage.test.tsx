@@ -120,8 +120,6 @@ describe("NewsPage", () => {
     cleanup();
   });
 
-  const mockNavigate = vi.fn();
-
   it("renders news page on desktop", () => {
     renderWithMantine(<NewsPage />);
     expect(screen.getByTestId("news-page")).toBeInTheDocument();

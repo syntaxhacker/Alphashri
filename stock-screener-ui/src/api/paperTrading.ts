@@ -22,6 +22,7 @@ import {
   setSymbolPerformance,
   setChartData,
   setChartLoading,
+  setChartFromDate,
   setError,
   setLoading,
   setBotSnapshot,
@@ -220,16 +221,17 @@ export async function fetchPaperChart(
   date?: string,
   timeframe?: string,
   strategyId?: number | null,
-  intradayOnly?: boolean,
+  fromDate?: string,
+  silent?: boolean,
 ): Promise<PaperChartData | null> {
-  setChartLoading(true);
+  if (!silent) setChartLoading(true);
 
   try {
     const params = new URLSearchParams();
     if (date) params.append("date", date);
+    if (fromDate) params.append("from_date", fromDate);
     if (timeframe) params.append("timeframe", timeframe);
     if (strategyId) params.append("strategy_id", String(strategyId));
-    if (intradayOnly) params.append("intraday_only", "true");
     const queryString = params.toString();
     const url = queryString
       ? `${API_BASE}/api/paper/chart/${symbol}?${queryString}`
@@ -239,19 +241,18 @@ export async function fetchPaperChart(
 
     if (data.error) {
       console.error("Chart data error:", data.error);
-      // Clear chart data to show error state instead of stale data
-      setChartData(null);
-      setChartLoading(false);
+      if (!silent) setChartData(null);
+      else setChartLoading(false);
       return null;
     }
 
     setChartData(data);
+    setChartFromDate(fromDate ?? null);
     return data;
   } catch (error) {
     console.error("Failed to fetch chart data:", error);
-    // Clear chart data on error
-    setChartData(null);
-    setChartLoading(false);
+    if (!silent) setChartData(null);
+    else setChartLoading(false);
     return null;
   }
 }
