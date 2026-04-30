@@ -1,9 +1,10 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { Box, Tabs, Button, Stack, Table } from "@mantine/core";
 import { IconRobot, IconChartLine, IconPlus } from "@tabler/icons-react";
 import {
   getBotsState,
+  getCurrentView,
   subscribe,
   loadBotStatus,
   loadBotTrades,
@@ -255,9 +256,8 @@ function BotsConfigModal() {
 }
 
 export function BotsPage() {
-  const [currentView] = useState<BotsView>("list");
-
   useStoreSubscription(subscribe);
+  const currentView = getCurrentView();
 
   useEffect(() => {
     initBotsState();
