@@ -495,7 +495,7 @@ describe("PaperPositionsTable", () => {
       });
       r(<PaperPositionsTable />);
       await user.click(screen.getByTestId("scan-signal-RELIANCE"));
-      expect(fetchPaperChart).toHaveBeenCalledWith("RELIANCE", undefined, "15min", 5, true);
+      expect(fetchPaperChart).toHaveBeenCalledWith("RELIANCE", undefined, "15min", 5);
     });
 
     test("handleSelectSymbol works for watching rows too", async () => {
