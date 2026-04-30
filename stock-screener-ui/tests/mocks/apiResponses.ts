@@ -549,6 +549,7 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
     localStorage.setItem("alphashri_token", "test_access_token_12345");
     localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
     localStorage.setItem("alphashri_user", JSON.stringify(user));
+    localStorage.setItem("alphashri_show_market_ticker", "true");
   }, testUser);
 
   await page.route("**/api/auth/me", async (route) => {
