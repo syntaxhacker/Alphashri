@@ -195,6 +195,8 @@ class SharedPortfolioManager:
             reason=position.metadata.get('entry_reason', '') if hasattr(position, 'metadata') else '',
             peak_price=position.peak_price,
             low_price=position.low_price if position.low_price != float('inf') else 0.0,
+            sl_price=position.stop_loss or 0.0,
+            tp_price=position.take_profit or 0.0,
         )
 
         exit_value = exit_price * position.quantity

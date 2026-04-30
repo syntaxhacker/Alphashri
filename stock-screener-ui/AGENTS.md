@@ -92,8 +92,17 @@ src/
 ## Strategy Config Pipeline
 - **DB Model** (`db/models/bot.py:StrategyConfig`) → **Dataclass** (`trading/config_loader.py:StrategyConfigData`) → **Dict** (`runner.config`) → **SignalGenerator** / **RiskManager**
 - All strategy params flow through this pipeline. Adding a new param requires touching all 4 layers + API models + CRUD + migration.
-- `base_signals.py` is the abstract base for all signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, and `is_eod_exit_time()`.
-- Each signal generator reads its own params from `config` dict in `__init__()` — no hardcoded values in signal generators.
+- `base_signals.py` is the abstract base for most signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, and `is_eod_exit_time()`. Each subclass overrides before `super().__init__()`.
+- **ORB** is standalone (does not extend BaseSignalGenerator). SL/TP passed as constructor args from `StrategyRunner`.
+- Each strategy has its own per-generator SL/TP defaults. Config overrides via `runner.config['sl_pct']`:
+  - ORB: `sl_pct=1.0, tp_pct=1.5`
+  - SR_BREAKOUT: `sl_pct=0.5, tp_pct=1.5` (TP dynamically set to R2 pivot if available)
+  - 52W_CHASER: `sl_pct=3.0, tp_pct=5.0`
+  - 52W_TARGET: `sl_pct=2.0, tp_pct=0.0` (TP intentionally unreachable, exits via trailing stop)
+  - EMA_CROSS: `sl_pct=0.5, tp_pct=1.5`
+- **StrategyRunner.ORB** passes individual params (not config dict): `self.config['sl_pct']`. All other strategies pass the full dict.
+- **DB model defaults** (`sl_pct=1.0, tp_pct=1.5`) apply when creating a new StrategyConfig row via API without explicit values.
+- **`CompletedTrade`** now carries `sl_price`/`tp_price` from the position (fix: `portfolio_core.py:close_position()` sets them). Previously always stored 0.0.
 - **Risk params**: `min_rr_ratio`, `risk_per_trade_pct`, `max_capital_per_trade_pct` flow from `runner.config` → `global_risk_manager.validate_trade()`.
 - **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `min_rr_ratio=1.5`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
 - **Hardcoded values audit** (all strategy-specific values are now configurable):
@@ -158,7 +167,7 @@ src/
 - `runner_signals.py:453` stores `signal.notes` in `position.metadata['entry_reason']`
 - On trade close, `position.metadata['entry_reason']` → `CompletedTrade.reason` → `_persist_trade_to_db` → `Trade.reason` column
 - Exit notes include PnL% and price level: "Stop loss hit ₹1340.00 (PnL: -0.40%)"
-- `CompletedTrade` has `reason`, `peak_price`, `low_price` fields — propagated from `SharedPosition` in `portfolio_core.py:close_position()`
+- `CompletedTrade` has `reason`, `peak_price`, `low_price`, `sl_price`, `tp_price` fields — propagated from `SharedPosition` in `portfolio_core.py:close_position()`
 - `signal.notes` can be `None` — always use `signal.notes or ''` when assigning to scan items
 
 ## Paper Trading UI Defaults

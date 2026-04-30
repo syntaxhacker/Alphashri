@@ -167,6 +167,211 @@ vi.mock("@mantine/core", async (importOriginal) => {
 - Preserve `data-testid` props so tests can still query elements
 - For `SegmentedControl`/`RadioGroup`, expose `data-testid` on individual options if needed
 
+## Chart Data Test Patterns
+
+### Never store large candle arrays as JSON/inline data
+Generate candle data programmatically instead. This keeps tests readable and avoids bloated mock files.
+
+### Programmatic candle generation
+
+Create a shared helper in `tests/helpers/` that both unit and E2E tests can use:
+
+```typescript
+// tests/helpers/chartTestHelpers.ts
+import dayjs from "dayjs";
+
+export function round(n: number, decimals: number): number {
+  return Math.round(n * Math.pow(10, decimals)) / Math.pow(10, decimals);
+}
+
+export function generateCandles(
+  symbol: string,
+  fromDate: string,
+  toDate: string,
+  intervalMin: number = 5,
+): CandleData[] {
+  const candles: CandleData[] = [];
+  let price = 2500;
+  let current = dayjs(fromDate);
+  const end = dayjs(toDate);
+
+  while (current.isBefore(end) || current.isSame(end, "day")) {
+    const open = price;
+    const close = open + (Math.random() - 0.48) * 10;
+    const high = Math.max(open, close) + Math.random() * 5;
+    const low = Math.min(open, close) - Math.random() * 5;
+    candles.push({
+      time: current.format("YYYY-MM-DDTHH:mm:ss"),
+      open: round(open, 2),
+      high: round(high, 2),
+      low: round(low, 2),
+      close: round(close, 2),
+      volume: Math.floor(100000 + Math.random() * 500000),
+    });
+    price = close;
+    current = current.add(intervalMin, "minute");
+  }
+  return candles;
+}
+
+export function mockPosition(overrides?: Partial<PaperPosition>): PaperPosition {
+  return {
+    symbol: "NESTLEIND",
+    side: "BUY",
+    quantity: 100,
+    entry_price: 1437.70,
+    current_price: 1467.50,
+    entry_time: "2026-04-28T09:30:00",
+    stop_loss: 1416.13,
+    take_profit: 2875.40,
+    pnl: 2980,
+    pnl_pct: 2.07,
+    margin_used: 143770,
+    order_id: "ord-1",
+    strategy_id: 1,
+    strategy_name: "ORB Strategy",
+    ...overrides,
+  };
+}
+```
+
+### Scenario presets
+
+Export named scenarios for common test situations. Each scenario is a function that returns a full mock response:
+
+```typescript
+// tests/helpers/chartTestHelpers.ts
+export const CHART_SCENARIOS = {
+  oneDayNoPosition: () => ({
+    symbol: "RELIANCE",
+    date: "2026-04-29",
+    candles: generateCandles("RELIANCE", "2026-04-29", "2026-04-29"),
+    trades: [],
+    current_position: null,
+    orb_levels: null,
+    week52_levels: null,
+    pivot_levels: null,
+  }),
+
+  multiDayWithPosition: () => ({
+    symbol: "NESTLEIND",
+    date: "2026-04-28",
+    candles: generateCandles("NESTLEIND", "2026-04-21", "2026-04-28"),
+    trades: [
+      {
+        trade_id: "t1",
+        symbol: "NESTLEIND",
+        side: "BUY",
+        entry_price: 1437.70,
+        exit_price: 1467.50,
+        entry_time: "2026-04-28T09:30:00",
+        exit_time: "2026-04-28T15:00:00",
+        quantity: 100,
+        pnl: 2980,
+        net_pnl: 2900,
+        costs: 80,
+        exit_reason: "TP",
+        strategy_id: 1,
+        strategy_name: "ORB Strategy",
+      },
+    ],
+    current_position: {
+      symbol: "NESTLEIND",
+      side: "BUY",
+      quantity: 100,
+      entry_price: 1437.70,
+      current_price: 1467.50,
+      entry_time: "2026-04-28T09:30:00",
+      stop_loss: 1416.13,
+      take_profit: 2875.40,
+      pnl: 2980,
+      pnl_pct: 2.07,
+      margin_used: 143770,
+      order_id: "ord-1",
+      strategy_id: 1,
+      strategy_name: "ORB Strategy",
+    },
+    orb_levels: null,
+    week52_levels: null,
+    pivot_levels: null,
+  }),
+
+  tradeWithStopLossHit: () => ({
+    symbol: "TATASTEEL",
+    date: "2026-04-28",
+    candles: generateCandles("TATASTEEL", "2026-04-28", "2026-04-28"),
+    trades: [
+      {
+        trade_id: "t2",
+        symbol: "TATASTEEL",
+        side: "BUY",
+        entry_price: 180,
+        exit_price: 175,
+        entry_time: "2026-04-28T09:30:00",
+        exit_time: "2026-04-28T11:00:00",
+        quantity: 500,
+        pnl: -2500,
+        net_pnl: -2550,
+        costs: 50,
+        exit_reason: "SL",
+        strategy_id: 2,
+        strategy_name: "52W Chaser",
+      },
+    ],
+    current_position: null,
+    orb_levels: null,
+    week52_levels: { high_52w: 220, low_52w: 140, distance_to_high_pct: 18.2, distance_to_low_pct: 28.6, near_high: false },
+    pivot_levels: null,
+  }),
+};
+```
+
+### Using scenarios in unit tests
+
+```typescript
+import { CHART_SCENARIOS, generateCandles } from "../helpers/chartTestHelpers";
+
+test("chart shows entry marker for current position", () => {
+  const mock = CHART_SCENARIOS.multiDayWithPosition();
+  const input = normalizePaper(mock, false);
+  expect(input.livePosition).toBeDefined();
+  expect(input.livePosition!.entry_price).toBe(1437.70);
+});
+```
+
+### Using scenarios in E2E tests
+
+```typescript
+import { CHART_SCENARIOS } from "../helpers/chartTestHelpers";
+
+test("click position row shows chart with date range", async ({ page }) => {
+  await page.route("**/api/paper/chart/NESTLEIND*", async (route) => {
+    await route.fulfill({ json: CHART_SCENARIOS.multiDayWithPosition() });
+  });
+
+  await navigateToPaperTrading(page);
+  await page.click('[data-testid="position-row-NESTLEIND"]');
+  await expect(page.locator('[data-testid="paper-chart-header"]')).toBeVisible();
+});
+```
+
+### When to add a new scenario
+
+Add a new named scenario when any of these differ from existing ones:
+- **Date span** (single day vs multi-day vs across weekends)
+- **Position state** (open vs closed, entry within/outside visible range)
+- **Trade outcome** (TP hit, SL hit, still open, force-closed)
+- **Overlay data** (ORB/Pivot/52W levels present or absent)
+- **Empty states** (no candles, no trades, no position)
+
+### Key principle
+
+Share the same helper functions (`generateCandles`, `mockPosition`, `CHART_SCENARIOS`) between:
+- **Unit tests** (vitest in `src/`) — fast, no browser
+- **E2E tests** (Playwright in `tests/e2e/`) — full page flow
+
+This ensures the same test data is used everywhere, making failures consistent and reproducible.
+
 ## Assertion Rules
 
 ### DO: Use `toBeInTheDocument()` for DOM presence

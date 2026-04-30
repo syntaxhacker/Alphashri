@@ -649,10 +649,10 @@ class RunnerSignalsMixin:
                         'net_pnl': trade.net_pnl,
                         'exit_reason': trade.exit_reason,
                         'reason': trade.reason,
-                        'stop_loss': trade.sl_price if hasattr(trade, 'sl_price') else 0.0,
-                        'take_profit': trade.tp_price if hasattr(trade, 'tp_price') else 0.0,
-                        'peak_price': trade.peak_price if hasattr(trade, 'peak_price') else 0.0,
-                        'low_price': trade.low_price if hasattr(trade, 'low_price') else 0.0,
+                        'stop_loss': trade.sl_price,
+                        'take_profit': trade.tp_price,
+                        'peak_price': trade.peak_price,
+                        'low_price': trade.low_price,
                     })
 
                     send_trade_exit(
