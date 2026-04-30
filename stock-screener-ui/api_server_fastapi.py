@@ -516,6 +516,13 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load replay API: {e}")
 
+try:
+    from api.correlation import router as correlation_router
+    app.include_router(correlation_router)
+    print("✅ Correlation API loaded at /api/correlation")
+except Exception as e:
+    print(f"⚠️ Could not load correlation API: {e}")
+
 
 if __name__ == '__main__':
     port = config.PORT

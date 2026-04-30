@@ -958,6 +958,69 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 }
 
+// Correlation API mocks
+export const mockCorrelationResponse = {
+  matrix: [
+    [1.0, 0.85, 0.32],
+    [0.85, 1.0, 0.12],
+    [0.32, 0.12, 1.0],
+  ],
+  symbols: ["TCS", "INFY", "RELIANCE"],
+  normalized: {
+    TCS: [
+      { timestamp: "2026-04-01T00:00:00", value: 0 },
+      { timestamp: "2026-04-02T00:00:00", value: 1.2 },
+      { timestamp: "2026-04-03T00:00:00", value: -0.5 },
+    ],
+    INFY: [
+      { timestamp: "2026-04-01T00:00:00", value: 0 },
+      { timestamp: "2026-04-02T00:00:00", value: 0.9 },
+      { timestamp: "2026-04-03T00:00:00", value: -0.3 },
+    ],
+    RELIANCE: [
+      { timestamp: "2026-04-01T00:00:00", value: 0 },
+      { timestamp: "2026-04-02T00:00:00", value: -0.2 },
+      { timestamp: "2026-04-03T00:00:00", value: 0.5 },
+    ],
+  },
+  meta: {
+    start_date: "2026-04-01T00:00:00",
+    end_date: "2026-04-03T00:00:00",
+    data_points: 3,
+  },
+  cached: false,
+};
+
+export async function setupCorrelationMocks(page: import("@playwright/test").Page) {
+  await page.route("**/api/correlation/**", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockCorrelationResponse),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  await page.route("**/api/symbols/search**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        results: [
+          { symbol: "TCS", name: "Tata Consultancy Services" },
+          { symbol: "INFY", name: "Infosys" },
+          { symbol: "RELIANCE", name: "Reliance Industries" },
+        ],
+        query: "t",
+        total: 3,
+      }),
+    });
+  });
+}
+
 // Options API mocks
 export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   // Mock underlyings
