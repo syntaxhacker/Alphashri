@@ -35,9 +35,19 @@ vi.mock("../../hooks/useThemeColors", () => ({
   }),
 }));
 
+// Mock useMarketTickerEnabled with controllable value
+let mockMarketTickerEnabled = true;
+const mockSetMarketTickerEnabled = vi.fn();
+
+vi.mock("../../hooks/useMarketTickerEnabled", () => ({
+  useMarketTickerEnabled: () => [mockMarketTickerEnabled, mockSetMarketTickerEnabled],
+}));
+
 describe("MarketTicker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mock to enabled by default
+    mockMarketTickerEnabled = true;
     setupBrowserMocks();
   });
 
@@ -97,7 +107,10 @@ describe("MarketTicker", () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("market-ticker"));
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("market-ticker"),
+      { priority: "low" }
+    );
   });
 
   it("displays ticker items after loading", async () => {
@@ -313,5 +326,46 @@ describe("MarketTicker", () => {
       expect(screen.getByTestId("ticker-gcf")).toBeInTheDocument();
       expect(screen.getByTestId("ticker-sif")).toBeInTheDocument();
     });
+  });
+
+  it("polls every 5 minutes", async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockTickerData,
+    });
+
+    render(
+      <MantineProvider>
+        <MarketTicker />
+      </MantineProvider>,
+    );
+
+    // Wait for initial fetch
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    // Verify setInterval was called with 300000 ms (5 minutes)
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 300000);
+
+    setIntervalSpy.mockRestore();
+  });
+
+  it("returns null when disabled", () => {
+    // Set mock to disabled
+    mockMarketTickerEnabled = false;
+
+    render(
+      <MantineProvider>
+        <MarketTicker />
+      </MantineProvider>,
+    );
+
+    // Market ticker container should not be in the document
+    expect(screen.queryByTestId("market-ticker")).not.toBeInTheDocument();
+    // Fetch should not be called when disabled
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
