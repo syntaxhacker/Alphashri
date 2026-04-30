@@ -337,11 +337,16 @@ export function PaperHistoryTable() {
     tradeId?: string,
     strategyType?: string,
     strategyId?: number,
+    entryTime?: string,
   ) => {
     setSelectedSymbol(symbol);
     if (tradeId) setSelectedTradeId(tradeId, strategyType, strategyId);
     const sameSymbolCount = filteredTrades.filter((t) => t.symbol === symbol).length;
     if (sameSymbolCount > 1) setShowAllTrades(true);
+    const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
+    const fromDate = entryDate
+      ? dayjs(entryDate).subtract(7, "day").format("YYYY-MM-DD")
+      : undefined;
     const currentState = getPaperTradingState();
     const date = exitTime ? exitTime.split("T")[0] : dayjs().format("YYYY-MM-DD");
     await fetchPaperChart(
@@ -349,7 +354,7 @@ export function PaperHistoryTable() {
       date,
       currentState.chartTimeframe,
       strategyId,
-      currentState.intradayOnly,
+      fromDate,
     );
   };
 

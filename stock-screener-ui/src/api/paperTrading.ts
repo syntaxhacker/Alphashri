@@ -22,6 +22,7 @@ import {
   setSymbolPerformance,
   setChartData,
   setChartLoading,
+  setChartFromDate,
   setError,
   setLoading,
   setBotSnapshot,
@@ -220,7 +221,6 @@ export async function fetchPaperChart(
   date?: string,
   timeframe?: string,
   strategyId?: number | null,
-  intradayOnly?: boolean,
   fromDate?: string,
   silent?: boolean,
 ): Promise<PaperChartData | null> {
@@ -232,7 +232,6 @@ export async function fetchPaperChart(
     if (fromDate) params.append("from_date", fromDate);
     if (timeframe) params.append("timeframe", timeframe);
     if (strategyId) params.append("strategy_id", String(strategyId));
-    if (intradayOnly) params.append("intraday_only", "true");
     const queryString = params.toString();
     const url = queryString
       ? `${API_BASE}/api/paper/chart/${symbol}?${queryString}`
@@ -248,6 +247,7 @@ export async function fetchPaperChart(
     }
 
     setChartData(data);
+    setChartFromDate(fromDate ?? null);
     return data;
   } catch (error) {
     console.error("Failed to fetch chart data:", error);

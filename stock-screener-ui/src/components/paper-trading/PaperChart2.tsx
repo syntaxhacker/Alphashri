@@ -1,17 +1,17 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Text, Group, Select, Flex, useMantineColorScheme, Checkbox, Badge } from "@mantine/core";
+import { Box, Text, Group, Select, Flex, useMantineColorScheme, Checkbox, Badge, LoadingOverlay } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import dayjs from "dayjs";
 import {
   getPaperTradingState,
   setChartTimeframe,
+  setChartFromDate,
   setShowAllTrades,
   setShowOrbLines,
   setShowPivotLines,
   setShow52wLines,
   setShowEmaLines,
-  setIntradayOnly,
   subscribe,
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
@@ -149,6 +149,14 @@ function ChartEmptyState({
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
   const [range, setRange] = useState<[Date | null, Date | null]>([null, null]);
 
+  useEffect(() => {
+    if (state.chartFromDate && state.chartData?.date) {
+      setRange([new Date(state.chartFromDate), new Date(state.chartData.date)]);
+    } else if (!state.chartFromDate && state.chartData?.date && range[0] === null && range[1] === null) {
+      // Initial load with no from_date — keep range null (no override)
+    }
+  }, [state.chartFromDate, state.chartData?.date]);
+
   const chartDate = range[1]
     ? dayjs(range[1]).format("YYYY-MM-DD")
     : state.chartData?.date;
@@ -157,21 +165,14 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
   const handleRangeChange = useCallback(
     (r: [Date | null, Date | null]) => {
       setRange(r);
+      setChartFromDate(null);
       const fd = r[0] ? dayjs(r[0]).format("YYYY-MM-DD") : undefined;
       const cd = r[1] ? dayjs(r[1]).format("YYYY-MM-DD") : state.chartData?.date;
       if (state.selectedSymbol && cd) {
-        fetchPaperChart(
-          state.selectedSymbol,
-          cd,
-          state.chartTimeframe,
-          state.selectedStrategyId,
-          state.intradayOnly,
-          fd,
-          true,
-        );
+        fetchPaperChart(state.selectedSymbol, cd, state.chartTimeframe, state.selectedStrategyId, fd, true);
       }
     },
-    [state.selectedSymbol, state.chartData?.date, state.chartTimeframe, state.selectedStrategyId, state.intradayOnly],
+    [state.selectedSymbol, state.chartData?.date, state.chartTimeframe, state.selectedStrategyId],
   );
 
   const handleTimeframeChange = useCallback(
@@ -179,36 +180,10 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       if (!value) return;
       setChartTimeframe(value);
       if (state.selectedSymbol && chartDate) {
-        await fetchPaperChart(
-          state.selectedSymbol,
-          chartDate,
-          value,
-          state.selectedStrategyId,
-          state.intradayOnly,
-          fromDate,
-          true,
-        );
+        await fetchPaperChart(state.selectedSymbol, chartDate, value, state.selectedStrategyId, fromDate, true);
       }
     },
-    [state.selectedSymbol, chartDate, state.intradayOnly, state.selectedStrategyId, fromDate],
-  );
-
-  const handleIntradayToggle = useCallback(
-    async (checked: boolean) => {
-      setIntradayOnly(checked);
-      if (state.selectedSymbol && chartDate) {
-        await fetchPaperChart(
-          state.selectedSymbol,
-          chartDate,
-          state.chartTimeframe,
-          state.selectedStrategyId,
-          checked,
-          fromDate,
-          true,
-        );
-      }
-    },
-    [state.selectedSymbol, chartDate, state.chartTimeframe, state.selectedStrategyId, fromDate],
+    [state.selectedSymbol, chartDate, state.selectedStrategyId, fromDate],
   );
 
   return (
@@ -259,13 +234,6 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         </Group>
       </Flex>
       <Group gap="md">
-        <Checkbox
-          size="xs"
-          label="Intraday only"
-          checked={state.intradayOnly}
-          onChange={(e) => handleIntradayToggle(e.currentTarget.checked)}
-          data-testid="intraday-checkbox"
-        />
         <Checkbox
           size="xs"
           label="All trades"
@@ -393,13 +361,16 @@ export function PaperChart() {
       style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
     >
       <ChartHeader state={state} />
-      {chartInput ? (
-        <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
-      ) : (
-        <ChartEmptyState className="paper-chart-loading" icon="⏳">
-          <Text c="dimmed">{state.chartLoading ? `Loading ${state.selectedSymbol} chart...` : 'No data'}</Text>
-        </ChartEmptyState>
-      )}
+      <Box style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+        <LoadingOverlay visible={state.chartLoading && !!state.chartData} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
+        {chartInput ? (
+          <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
+        ) : (
+          <ChartEmptyState className="paper-chart-loading" icon="⏳">
+            <Text c="dimmed">{state.chartLoading ? `Loading ${state.selectedSymbol} chart...` : 'No data'}</Text>
+          </ChartEmptyState>
+        )}
+      </Box>
       {state.chartData && (
         <ChartLegend
           orbLabel={

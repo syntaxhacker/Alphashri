@@ -311,7 +311,6 @@ export function PositionsTableBody({
       entryDate,
       state.chartTimeframe,
       strategyId ?? state.selectedStrategyId,
-      state.intradayOnly,
       fromDate,
     );
   };
@@ -358,7 +357,6 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
       undefined,
       currentState.chartTimeframe,
       currentState.selectedStrategyId,
-      currentState.intradayOnly,
     );
   };
 
