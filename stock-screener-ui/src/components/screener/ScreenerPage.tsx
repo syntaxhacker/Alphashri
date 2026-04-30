@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { Stack, Box } from "@mantine/core";
+import { Stack, Box, Tabs } from "@mantine/core";
+import { IconTable, IconChartDots } from "@tabler/icons-react";
 import * as state from "../../state";
 import { CompactPage } from "../common/compact";
 import { ScreenerNav } from "./ScreenerNav";
 import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerContent } from "./ScreenerContent";
+import { CorrelationTab } from "./CorrelationTab";
 import type { Stock } from "../../types";
 
 interface ScreenerPageProps {
@@ -73,6 +75,7 @@ export function ScreenerPage({
   error,
 }: ScreenerPageProps) {
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
+  const [activeTab, setActiveTab] = useState<string>("screener");
 
   const { sortColumn, sortDirection, handleSortChange } = useScreenerSort(activeScreener);
 
@@ -87,25 +90,39 @@ export function ScreenerPage({
       >
         <Box flex="0 0 auto" className="screener-controls" data-testid="screener-controls">
           <Stack gap="sm">
-            <ScreenerNav
-              options={screenerOptions}
-              activeScreener={activeScreener}
-              onChange={onScreenerChange}
-            />
-            <ScreenerHeader
-              title={title}
-              status={status}
-              isLoading={isLoading}
-              autoRefreshSeconds={autoRefreshSeconds}
-              provider={provider}
-              mode={mode}
-              onRefresh={onRefresh}
-              onAutoRefreshChange={onAutoRefreshChange}
-              onProviderChange={onProviderChange}
-              onModeChange={onModeChange}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-            />
+            <Tabs value={activeTab} onChange={(v) => v && setActiveTab(v)}>
+              <Tabs.List>
+                <Tabs.Tab value="screener" leftSection={<IconTable size={16} />} data-testid="tab-screener">
+                  Screener
+                </Tabs.Tab>
+                <Tabs.Tab value="correlation" leftSection={<IconChartDots size={16} />} data-testid="tab-correlation">
+                  Correlation
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs>
+            {activeTab === "screener" && (
+              <>
+                <ScreenerNav
+                  options={screenerOptions}
+                  activeScreener={activeScreener}
+                  onChange={onScreenerChange}
+                />
+                <ScreenerHeader
+                  title={title}
+                  status={status}
+                  isLoading={isLoading}
+                  autoRefreshSeconds={autoRefreshSeconds}
+                  provider={provider}
+                  mode={mode}
+                  onRefresh={onRefresh}
+                  onAutoRefreshChange={onAutoRefreshChange}
+                  onProviderChange={onProviderChange}
+                  onModeChange={onModeChange}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                />
+              </>
+            )}
           </Stack>
         </Box>
         <Box
@@ -115,21 +132,25 @@ export function ScreenerPage({
           style={{ minHeight: 0 }}
           data-testid="screener-content"
         >
-          <ScreenerContent
-            approachingStocks={approachingStocks}
-            touchedStocks={touchedStocks}
-            sortColumn={sortColumn}
-            sortDirection={sortDirection}
-            handleSortChange={handleSortChange}
-            isLoading={isLoading}
-            error={error}
-            totalStocks={approachingStocks.length + touchedStocks.length}
-            onRefresh={onRefresh}
-            onSymbolClick={onSymbolClick}
-            onSymbolHover={onSymbolHover}
-            activeScreener={activeScreener}
-            viewMode={viewMode}
-          />
+          {activeTab === "correlation" ? (
+            <CorrelationTab />
+          ) : (
+            <ScreenerContent
+              approachingStocks={approachingStocks}
+              touchedStocks={touchedStocks}
+              sortColumn={sortColumn}
+              sortDirection={sortDirection}
+              handleSortChange={handleSortChange}
+              isLoading={isLoading}
+              error={error}
+              totalStocks={approachingStocks.length + touchedStocks.length}
+              onRefresh={onRefresh}
+              onSymbolClick={onSymbolClick}
+              onSymbolHover={onSymbolHover}
+              activeScreener={activeScreener}
+              viewMode={viewMode}
+            />
+          )}
         </Box>
       </Stack>
     </CompactPage>

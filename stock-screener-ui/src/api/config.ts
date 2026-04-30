@@ -23,4 +23,5 @@ export const API_ENDPOINTS = {
   SYMBOLS: `${API_BASE}/api/symbols`,
   MARKET_TICKER: `${API_BASE}/api/market-ticker`,
   CHART_PREVIEW: `${API_BASE}/api/chart/preview`,
+  CORRELATION: `${API_BASE}/api/correlation/`,
 };
