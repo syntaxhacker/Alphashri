@@ -26,6 +26,12 @@ router = APIRouter(prefix="/api/paper/live", tags=["Paper Trading Live"])
 
 
 def _get_upstox_token() -> Optional[str]:
+    """Get Upstox access token.
+
+    Checks DB first (OAuth token), then .upstox_token.json file.
+    Environment variable is NOT checked to avoid using expired manual tokens
+    after disconnect.
+    """
     try:
         from db.models import get_shared_broker_token
         token_data = get_shared_broker_token("upstox")
@@ -44,9 +50,6 @@ def _get_upstox_token() -> Optional[str]:
         except (json.JSONDecodeError, KeyError):
             pass
 
-    token = os.getenv("UPSTOX_ACCESS_TOKEN") or config.UPSTOX_ACCESS_TOKEN
-    if token:
-        return token
     return None
 
 
