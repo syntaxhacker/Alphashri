@@ -477,6 +477,22 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       body: JSON.stringify(mockTrendingResponse),
     });
   });
+
+  // Mock market ticker endpoint
+  await page.route("**/api/market-ticker", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        tickers: {
+          "NIFTY 50": { price: 22450.3, change: 125.5, change_percent: 0.56 },
+          "NIFTY BANK": { price: 47890.15, change: -45.2, change_percent: -0.09 },
+          SENSEX: { price: 73890.5, change: 210.3, change_percent: 0.29 },
+        },
+        last_updated: new Date().toISOString(),
+      }),
+    });
+  });
 }
 
 // Mock strategy config

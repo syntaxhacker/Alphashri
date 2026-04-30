@@ -216,7 +216,7 @@ test.describe("Chart Preview - Timeframe Switching", () => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await gotoChart(page, "RELIANCE");
     await expectChartVisible(page);
-    await expect(page.locator("label:has-text('Timeframe')")).toBeVisible();
+    await expect(page.locator('[data-testid="chart-timeframe-select"]')).toBeVisible();
   });
 
   test("should refresh chart data when timeframe changes", async ({ page }) => {
