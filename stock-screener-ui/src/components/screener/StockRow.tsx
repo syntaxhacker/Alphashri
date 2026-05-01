@@ -1,4 +1,14 @@
-import { Table, Anchor, Badge, Tooltip, Group, Text, ActionIcon, CopyButton, Checkbox } from "@mantine/core";
+import {
+  Table,
+  Anchor,
+  Badge,
+  Tooltip,
+  Group,
+  Text,
+  ActionIcon,
+  CopyButton,
+  Checkbox,
+} from "@mantine/core";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { Stock } from "../../types";
 import type { ColumnDef, FormattedCell } from "./columns";
