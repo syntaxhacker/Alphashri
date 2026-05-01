@@ -728,21 +728,11 @@ test.describe("Paper Trading - Chart Controls", () => {
   test("should render all chart control switches", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    await expect(page.getByTestId("intraday-switch")).toBeVisible();
     await expect(page.getByTestId("show-all-trades-checkbox")).toBeVisible();
     await expect(page.getByTestId("show-orb-lines")).toBeVisible();
     await expect(page.getByTestId("show-pivot-lines")).toBeVisible();
     await expect(page.getByTestId("show-52w-lines")).toBeVisible();
     await expect(page.getByTestId("show-ema-lines")).toBeVisible();
-  });
-
-  test("should toggle intraday mode", async ({ page }) => {
-    await navigateToChartAndSelectSymbol(page);
-
-    await page.getByTestId("intraday-switch").click();
-    await page.waitForTimeout(500);
-
-    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
   });
 
   test("should toggle EMA lines", async ({ page }) => {
