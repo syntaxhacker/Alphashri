@@ -19,8 +19,10 @@ export function CorrelationMatrix({ matrix, symbols, isLoading }: CorrelationMat
     const n = symbols.length;
     const heatmapData: [number, number, number][] = [];
     for (let i = 0; i < n; i++) {
+      const row = matrix[i];
+      if (!row) continue;
       for (let j = 0; j < n; j++) {
-        heatmapData.push([j, i, Math.round(matrix[i][j] * 100) / 100]);
+        heatmapData.push([j, i, Math.round(row[j] * 100) / 100]);
       }
     }
 
@@ -40,7 +42,7 @@ export function CorrelationMatrix({ matrix, symbols, isLoading }: CorrelationMat
       yAxis: {
         type: "category" as const,
         data: symbols,
-        axisLabel: { fontSize: 11, color: "#fff" },
+        axisLabel: { fontSize: 13, color: "#fff", fontWeight: 600 },
         axisLine: { lineStyle: { color: "#555" } },
       },
       visualMap: {
@@ -53,7 +55,7 @@ export function CorrelationMatrix({ matrix, symbols, isLoading }: CorrelationMat
         inRange: {
           color: ["#2166ac", "#67a9cf", "#d1e5f0", "#f7f7f7", "#fddbc7", "#ef8a62", "#b2182b"],
         },
-        textStyle: { color: "#fff", fontSize: 10 },
+        textStyle: { color: "#fff", fontSize: 11 },
       },
       series: [
         {
@@ -61,8 +63,8 @@ export function CorrelationMatrix({ matrix, symbols, isLoading }: CorrelationMat
           data: heatmapData,
           label: {
             show: true,
-            fontSize: 11,
-            fontWeight: 600,
+            fontSize: 14,
+            fontWeight: 700,
             formatter: (p: any) => p.data[2].toFixed(2),
             color: (p: any) => (Math.abs(p.data[2]) > 0.55 ? "#fff" : "#222"),
           },
@@ -74,7 +76,7 @@ export function CorrelationMatrix({ matrix, symbols, isLoading }: CorrelationMat
     });
   }, [hasData, matrix, symbols, setChartOption]);
 
-  const minHeight = hasData ? Math.max(300, symbols.length * 40 + 120) : 300;
+  const minHeight = hasData ? Math.max(300, symbols.length * 50 + 120) : 300;
 
   return (
     <Box pos="relative" style={{ minHeight }}>

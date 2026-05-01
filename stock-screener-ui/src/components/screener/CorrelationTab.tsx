@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Stack,
   Group,
@@ -52,9 +53,32 @@ function formatDateRange(iso: string): string {
 
 export function CorrelationTab() {
   useStoreSubscription(subscribe);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchData, setSearchData] = useState<SymbolResult[]>([]);
-  const [localSymbols, setLocalSymbols] = useState<string[]>(symbols);
+  const [localSymbols, setLocalSymbols] = useState<string[]>(
+    () => searchParams.get("symbols")?.split(",").filter(Boolean) || symbols,
+  );
+
+  useEffect(() => {
+    const syms = searchParams.get("symbols");
+    const tf = searchParams.get("timeframe") as "daily" | "intraday" | null;
+    const p = searchParams.get("period");
+
+    if (syms) {
+      const parts = syms.split(",").filter(Boolean);
+      if (parts.length >= 2) {
+        setSymbols(parts);
+        setLocalSymbols(parts);
+        if (tf) setTimeframe(tf);
+        if (p) {
+          setPeriod(parseInt(p, 10));
+          setPeriodUnit(tf === "intraday" ? "minutes" : "days");
+        }
+        fetchCorrelationData();
+      }
+    }
+  }, []);
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query || query.length < 2) {
@@ -91,7 +115,13 @@ export function CorrelationTab() {
   const handleCalculate = useCallback(() => {
     setSymbols(localSymbols);
     fetchCorrelationData();
-  }, [localSymbols]);
+    setSearchParams((prev) => {
+      prev.set("symbols", localSymbols.join(","));
+      prev.set("timeframe", timeframe);
+      prev.set("period", period.toString());
+      return prev;
+    }, { replace: true });
+  }, [localSymbols, timeframe, period, setSearchParams]);
 
   const periods = timeframe === "daily" ? DAILY_PERIODS : INTRADAY_PERIODS;
   const currentPeriod = timeframe === "daily" ? period.toString() : period.toString();
@@ -157,12 +187,12 @@ export function CorrelationTab() {
         </Stack>
       </CompactPanel>
 
-      <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
-        <CompactPanel title="Correlation Matrix" scrollable>
+      <Stack gap="sm" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+        <CompactPanel title="Correlation Matrix">
           <CorrelationMatrix matrix={matrix || []} symbols={symbols} isLoading={isLoading} />
         </CompactPanel>
 
-        <CompactPanel title="Normalized Price Chart" scrollable>
+        <CompactPanel title="Normalized Price Chart">
           <CorrelationChart
             normalized={normalized || {}}
             symbols={symbols}

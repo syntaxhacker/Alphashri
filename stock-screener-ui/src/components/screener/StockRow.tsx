@@ -1,9 +1,10 @@
-import { Table, Anchor, Badge, Tooltip, Group, Text, ActionIcon, CopyButton } from "@mantine/core";
+import { Table, Anchor, Badge, Tooltip, Group, Text, ActionIcon, CopyButton, Checkbox } from "@mantine/core";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { Stock } from "../../types";
 import type { ColumnDef, FormattedCell } from "./columns";
 import { getValueColor, getScoreColor } from "../../utils/ui-helpers";
 import { usePreviewChart } from "../common/PreviewChartProvider";
+import { toggleSymbolSelection, selectedSymbols } from "../../state";
 
 interface StockRowProps {
   stock: Stock;
@@ -150,6 +151,15 @@ export function StockRow({
       className={`stock-row ${isTouched ? "touched" : "approaching"}`}
       data-testid={`stock-row-${stock.symbol}`}
     >
+      <Table.Td style={{ width: 40 }} data-testid={`sel-cell-${stock.symbol}`}>
+        <Checkbox
+          size="xs"
+          checked={selectedSymbols.includes(stock.symbol)}
+          onChange={() => toggleSymbolSelection(stock.symbol)}
+          data-testid={`sel-checkbox-${stock.symbol}`}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </Table.Td>
       {columns.map((column) => (
         <Table.Td
           key={column.key}
