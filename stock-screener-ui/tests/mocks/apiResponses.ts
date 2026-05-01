@@ -612,15 +612,6 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       }),
     });
   });
-
-  // Mock news WebSocket URL - intercept before real connection attempt
-  await page.route("**/api/news/**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ articles: [], last_updated: new Date().toISOString() }),
-    });
-  });
 }
 
 // Mock strategy config

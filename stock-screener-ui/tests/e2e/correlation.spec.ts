@@ -8,16 +8,7 @@ test.describe("Correlation - UI", () => {
     consoleErrors.length = 0;
     page.on("console", (msg) => {
       if (msg.type() === "error" || msg.type() === "warning") {
-        const text = msg.text();
-        if (
-          text.includes("ws/news") ||
-          text.includes("WebSocket") ||
-          text.includes("ERR_CONNECTION_REFUSED") ||
-          text.includes("Failed to fetch news")
-        ) {
-          return;
-        }
-        consoleErrors.push(text);
+        consoleErrors.push(msg.text());
       }
     });
     await setupApiMocks(page);
