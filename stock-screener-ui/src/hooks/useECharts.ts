@@ -27,7 +27,7 @@ export function useECharts(options: UseEChartsOptions): UseEChartsReturn {
     if (!echartsLib) return;
 
     if (!chartInstance.current) {
-      chartInstance.current = echartsLib.init(chartRef.current, isDarkRef.current ? "dark" : null);
+      chartInstance.current = echartsLib.init(chartRef.current, null);
       if (onChartClickRef.current) {
         chartInstance.current.on("click", onChartClickRef.current);
       }

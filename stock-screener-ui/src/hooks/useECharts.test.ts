@@ -64,7 +64,7 @@ describe("useECharts", () => {
     expect(mockEcharts.init).toHaveBeenCalledWith(mockDiv, null);
   });
 
-  it("initializes chart with dark theme when isDark is true", () => {
+  it("initializes chart without theme (colors handled in options)", () => {
     const { result } = renderHook(() => useECharts({ isDark: true }));
 
     const mockDiv = document.createElement("div");
@@ -76,7 +76,7 @@ describe("useECharts", () => {
       result.current.setChartOption({ series: [] });
     });
 
-    expect(mockEcharts.init).toHaveBeenCalledWith(mockDiv, "dark");
+    expect(mockEcharts.init).toHaveBeenCalledWith(mockDiv, null);
   });
 
   it("registers click handler when onChartClick provided", () => {
