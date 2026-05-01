@@ -41,7 +41,10 @@ describe("CorrelationMatrix", () => {
   });
 
   test("renders chart container with valid data", () => {
-    const matrix = [[1.0, 0.75], [0.75, 1.0]];
+    const matrix = [
+      [1.0, 0.75],
+      [0.75, 1.0],
+    ];
     const symbols = ["RELIANCE", "TCS"];
 
     r(<CorrelationMatrix matrix={matrix} symbols={symbols} />);

@@ -80,18 +80,26 @@ export function CorrelationMatrix({ matrix, symbols, isLoading }: CorrelationMat
 
   return (
     <Box pos="relative" style={{ minHeight }}>
-      <Box data-testid="correlation-matrix" ref={chartRef} style={{ minHeight, opacity: hasData ? 1 : 0 }} />
+      <Box
+        data-testid="correlation-matrix"
+        ref={chartRef}
+        style={{ minHeight, opacity: hasData ? 1 : 0 }}
+      />
       {isLoading && (
         <Flex pos="absolute" inset={0} justify="center" align="center" style={{ zIndex: 1 }}>
           <Stack align="center" gap="xs">
             <Loader size="sm" />
-            <Text size="sm" c="dimmed">Loading correlation data...</Text>
+            <Text size="sm" c="dimmed">
+              Loading correlation data...
+            </Text>
           </Stack>
         </Flex>
       )}
       {!isLoading && !hasData && (
         <Flex pos="absolute" inset={0} justify="center" align="center">
-          <Text size="sm" c="dimmed">No correlation data available</Text>
+          <Text size="sm" c="dimmed">
+            No correlation data available
+          </Text>
         </Flex>
       )}
     </Box>

@@ -7,28 +7,36 @@ fi
 
 echo "Running pre-commit checks..."
 
-STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.py$')
-if [ ! -z "$STAGED_PY" ]; then
-  echo "Removing debug print statements from Python files..."
-  cd stock-screener-ui
-  STAGED_PY_REL=$(echo "$STAGED_PY" | sed 's|^stock-screener-ui/||')
-  echo "$STAGED_PY_REL" | xargs -r python remove-debug-prints.py
-  echo "$STAGED_PY" | xargs -r git add --
-  cd ..
+# Allow skipping sections via env vars for faster re-runs:
+#   SKIP_PYTHON=1 git commit ...   (skip Python tests)
+#   SKIP_UI=1 git commit ...       (skip frontend tests)
+#   SKIP_TESTS=1 git commit ...    (skip both)
 
-  echo "Running Python unit tests..."
-  cd stock-screener-ui
-  # Use the venv's pytest directly (nautilus_trader installed there)
-  .venv/bin/pytest -m unit -q --tb=short
-  PY_EXIT=$?
-  if [ $PY_EXIT -ne 0 ]; then
-    echo "❌ Python unit tests failed! Commit aborted."
-    exit 1
+if [ "$SKIP_PYTHON" != "1" ] && [ "$SKIP_TESTS" != "1" ]; then
+  STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.py$')
+  if [ ! -z "$STAGED_PY" ]; then
+    echo "Removing debug print statements from Python files..."
+    cd stock-screener-ui
+    STAGED_PY_REL=$(echo "$STAGED_PY" | sed 's|^stock-screener-ui/||')
+    echo "$STAGED_PY_REL" | xargs -r python remove-debug-prints.py
+    echo "$STAGED_PY" | xargs -r git add --
+    cd ..
+
+    echo "Running Python unit tests..."
+    cd stock-screener-ui
+    .venv/bin/pytest -m unit -q --tb=short
+    PY_EXIT=$?
+    if [ $PY_EXIT -ne 0 ]; then
+      echo "❌ Python unit tests failed! Commit aborted."
+      exit 1
+    fi
+    echo "✅ Python unit tests passed."
+    cd ..
+  else
+    echo "No Python files staged, skipping Python tests."
   fi
-  echo "✅ Python unit tests passed."
-  cd ..
 else
-  echo "No Python files staged, skipping Python tests."
+  echo "⏭️  Skipping Python tests (SKIP_PYTHON=1)."
 fi
 
 STAGED_PY_MODELS=$(git diff --cached --name-only --diff-filter=ACM | grep -E 'stock-screener-ui/db/models/.*\.py$')
@@ -78,15 +86,19 @@ else
   cd ..
 fi
 
-cd stock-screener-ui
-echo "Running frontend unit tests..."
-bun run test
-if [ $? -ne 0 ]; then
-  echo "❌ Frontend unit tests failed! Commit aborted."
-  exit 1
+if [ "$SKIP_UI" != "1" ] && [ "$SKIP_TESTS" != "1" ]; then
+  cd stock-screener-ui
+  echo "Running frontend unit tests..."
+  bun run test
+  if [ $? -ne 0 ]; then
+    echo "❌ Frontend unit tests failed! Commit aborted."
+    exit 1
+  fi
+  echo "✅ Frontend unit tests passed."
+  cd ..
+else
+  echo "⏭️  Skipping frontend tests (SKIP_UI=1)."
 fi
-echo "✅ Frontend unit tests passed."
-cd ..
 
 echo "All checks passed!"
 exit 0
