@@ -22,9 +22,11 @@ import {
   IconBellRinging,
   IconTrendingUp,
   IconClock,
+  IconNetwork,
 } from "@tabler/icons-react";
 import { SectorTable } from "./SectorTable";
 import { IntervalMoversTable } from "./IntervalMoversTable";
+import { SectorCorrelationTab } from "./SectorCorrelationTab";
 import { fetchSectorPerformance } from "../../api/sector";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
@@ -494,6 +496,9 @@ function SectorTabContent({
   intervalMovers: InternalStockMover[];
   loadData: (m: string, isInitial?: boolean) => Promise<boolean>;
 }) {
+  if (activeTab === "correlation") {
+    return <SectorCorrelationTab />;
+  }
   if (activeTab !== "dashboard") {
     return (
       <Box
@@ -546,6 +551,9 @@ export function SectorPage() {
           <Tabs.List>
             <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
               Live Dashboard
+            </Tabs.Tab>
+            <Tabs.Tab value="correlation" leftSection={<IconNetwork size={14} />}>
+              Sector Correlation
             </Tabs.Tab>
             <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
               Historical Cycles

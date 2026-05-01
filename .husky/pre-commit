@@ -9,6 +9,13 @@ echo "Running pre-commit checks..."
 
 STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.py$')
 if [ ! -z "$STAGED_PY" ]; then
+  echo "Removing debug print statements from Python files..."
+  cd stock-screener-ui
+  STAGED_PY_REL=$(echo "$STAGED_PY" | sed 's|^stock-screener-ui/||')
+  echo "$STAGED_PY_REL" | xargs -r python remove-debug-prints.py
+  echo "$STAGED_PY" | xargs -r git add --
+  cd ..
+
   echo "Running Python unit tests..."
   cd stock-screener-ui
   # Use the venv's pytest directly (nautilus_trader installed there)

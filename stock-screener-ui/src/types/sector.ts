@@ -27,6 +27,25 @@ export interface SectorResponse {
   market: string;
 }
 
+// Sector Correlation types
+export interface SectorCorrelationSector {
+  name: string;
+  beta_vs_index: number;
+  relative_strength_5d: number;
+  relative_strength_1m: number;
+  relative_strength_3m: number;
+  rank_current: number;
+  rank_change_1m: number;
+}
+
+export interface SectorCorrelationResponse {
+  sectors: SectorCorrelationSector[];
+  correlation_matrix: number[][];
+  sector_names: string[];
+  last_updated: string;
+  cached?: boolean;
+}
+
 export interface SectorState {
   data: SectorResponse | null;
   loading: boolean;
