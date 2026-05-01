@@ -99,7 +99,7 @@ export function CorrelationHeatmap({
       tooltip: {
         position: "top" as const,
         formatter: (p: any) =>
-          `${symbols[p.data[1]]} × ${symbols[p.data[0]]}<br/>Correlation: ${(p.data[2] * 100).toFixed(1)}%`,
+          `${symbols[p.data.value[1]]} × ${symbols[p.data.value[0]]}<br/>Correlation: ${(p.data.value[2] * 100).toFixed(1)}%`,
       },
       grid: { left: 100, right: 80, top: 10, bottom: 100 },
       xAxis: {
