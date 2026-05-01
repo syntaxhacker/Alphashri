@@ -3,17 +3,24 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
-import { CorrelationMatrix } from "./CorrelationMatrix";
+import React from "react";
 
-vi.mock("../../hooks/useECharts", () => {
-  const mockRef = { current: document.createElement("div") };
-  return {
-    useECharts: () => ({
-      chartRef: mockRef,
-      setChartOption: vi.fn(),
-    }),
-  };
-});
+vi.mock("../common/CorrelationHeatmap", () => ({
+  CorrelationHeatmap: (props: any) => {
+    const hasData =
+      props.matrix && props.matrix.length > 0 && props.symbols && props.symbols.length > 0;
+    return React.createElement(
+      "div",
+      { "data-testid": props.testId },
+      props.isLoading && React.createElement("span", null, "Loading correlation data..."),
+      !props.isLoading &&
+        !hasData &&
+        React.createElement("span", null, "No correlation data available"),
+    );
+  },
+}));
+
+import { CorrelationMatrix } from "./CorrelationMatrix";
 
 function r(jsx: React.ReactElement) {
   return render(jsx, { wrapper: ({ children }) => <MantineProvider>{children}</MantineProvider> });
