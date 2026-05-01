@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Box, Stack } from "@mantine/core";
+import { Box, Stack, Switch, Text } from "@mantine/core";
 import { useSearchParams } from "react-router-dom";
 import { BrokerConnectionCard } from "../../components/settings/BrokerConnectionCard";
 import {
@@ -11,12 +11,14 @@ import {
 import { useAppDispatch } from "../../state/store/hooks";
 import { addNotification } from "../../state/store/notificationsSlice";
 import { CompactPage } from "../../components/common/compact";
+import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
 
 export function SettingsPage() {
   const [status, setStatus] = useState<BrokerStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const dispatch = useAppDispatch();
+  const [showMarketTicker, setShowMarketTicker] = useMarketTickerEnabled();
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -99,6 +101,20 @@ export function SettingsPage() {
             onDisconnect={handleDisconnect}
             onRefresh={fetchStatus}
           />
+
+          <Box>
+            <Text size="sm" fw={500}>
+              Market Ticker
+            </Text>
+            <Text size="xs" c="dimmed" mb="xs">
+              Show live indices and commodities in the header (Nifty, Gold, USD/INR, etc.)
+            </Text>
+            <Switch
+              size="sm"
+              checked={showMarketTicker}
+              onChange={(e) => setShowMarketTicker(e.currentTarget.checked)}
+            />
+          </Box>
         </Stack>
       </CompactPage>
     </Box>

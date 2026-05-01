@@ -1,9 +1,10 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { Box, Tabs, Button, Stack, Table } from "@mantine/core";
 import { IconRobot, IconChartLine, IconPlus } from "@tabler/icons-react";
 import {
   getBotsState,
+  getCurrentView,
   subscribe,
   loadBotStatus,
   loadBotTrades,
@@ -206,13 +207,7 @@ function renderPageContent({
   }
 
   return (
-    <Stack
-      id="bots-page"
-      className="bots-page"
-      h="100%"
-      style={{ overflow: "hidden" }}
-      data-testid="bots-view"
-    >
+    <Stack id="bots-page" className="bots-page" h="100%" style={{ overflow: "hidden" }}>
       <BotsPageTabs currentView={currentView} onViewChange={handleViewChange} />
       <Box flex={1} style={{ minHeight: 0, overflowY: "auto" }}>
         {isLoading ? (
@@ -261,9 +256,8 @@ function BotsConfigModal() {
 }
 
 export function BotsPage() {
-  const [currentView] = useState<BotsView>("list");
-
   useStoreSubscription(subscribe);
+  const currentView = getCurrentView();
 
   useEffect(() => {
     initBotsState();

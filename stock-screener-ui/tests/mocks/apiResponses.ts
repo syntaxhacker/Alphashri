@@ -477,6 +477,22 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       body: JSON.stringify(mockTrendingResponse),
     });
   });
+
+  // Mock market ticker endpoint
+  await page.route("**/api/market-ticker", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        tickers: {
+          "NIFTY 50": { price: 22450.3, change: 125.5, change_percent: 0.56 },
+          "NIFTY BANK": { price: 47890.15, change: -45.2, change_percent: -0.09 },
+          SENSEX: { price: 73890.5, change: 210.3, change_percent: 0.29 },
+        },
+        last_updated: new Date().toISOString(),
+      }),
+    });
+  });
 }
 
 // Mock strategy config
@@ -533,6 +549,7 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
     localStorage.setItem("alphashri_token", "test_access_token_12345");
     localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
     localStorage.setItem("alphashri_user", JSON.stringify(user));
+    localStorage.setItem("alphashri_show_market_ticker", "true");
   }, testUser);
 
   await page.route("**/api/auth/me", async (route) => {

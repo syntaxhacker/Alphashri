@@ -27,7 +27,7 @@ import type {
 } from "../../types/bots";
 import { formatNumber as formatNumberShared, getPnLTextColor } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge, StatusBadge } from "../common/BadgeComponents";
-import { TINT_TEST_TRADE, BOT_RUNNING, BOT_STOPPED } from "../../config/colors";
+import { TINT_TEST_TRADE, BOT_RUNNING, BOT_STOPPED, BOT_SELECTED_BG } from "../../config/colors";
 
 export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
   const pnlColor = getPnLTextColor(portfolio.total_pnl);

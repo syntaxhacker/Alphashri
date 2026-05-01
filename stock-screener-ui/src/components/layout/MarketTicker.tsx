@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Box, Group, Text, Badge, Skeleton } from "@mantine/core";
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
 import { useThemeColors } from "../../hooks/useThemeColors";
+import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
 
 export interface MarketTickerItem {
   symbol: string;
@@ -22,7 +23,7 @@ export interface MarketTickerData {
 import { API_ENDPOINTS } from "../../api/config";
 
 const MARKET_TICKER_API = API_ENDPOINTS.MARKET_TICKER;
-const POLL_INTERVAL_MS = 30000;
+const POLL_INTERVAL_MS = 300000; // 5 minutes
 
 const PRIORITY_ORDER = ["^NSEI", "^NSEBANK", "GC=F", "SI=F", "CL=F", "USDINR=X"];
 
@@ -170,12 +171,18 @@ function TickerErrorState({ background }: { background: string }) {
 }
 
 export function MarketTicker() {
+  const [enabled] = useMarketTickerEnabled();
   const [data, setData] = useState<MarketTickerData | null>(null);
   const { background } = useThemeColors();
 
+  // If disabled, render nothing
+  if (!enabled) {
+    return null;
+  }
+
   const fetchTicker = useCallback(async () => {
     try {
-      const response = await fetch(MARKET_TICKER_API);
+      const response = await fetch(MARKET_TICKER_API, { priority: "low" });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
