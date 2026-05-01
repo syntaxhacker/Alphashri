@@ -491,40 +491,6 @@ Before committing:
 | E2E text selector breaks on i18n | Always use `data-testid` in E2E tests |
 | **Playwright `click({ force: true })` doesn't trigger React `onClick`** | **Use `page.evaluate(() => element.dispatchEvent(new MouseEvent('click')))` for React components** |
 | **Transient highlight class removed by setTimeout** | **Check for CSS class immediately after click, not with `toBeVisible({ timeout })`** |
-| **News WebSocket fails in CI (ws://localhost:8765/ws/news)** | **Filter in beforeEach — see Infrastructure Error Filtering section below** |
-
-## Infrastructure Error Filtering
-
-Some components (e.g., News/WebSocket) fail silently in CI because required infrastructure isn't available. **Filter these known errors** in test `beforeEach` instead of skipping the whole test.
-
-### Pattern
-```typescript
-test.beforeEach(async ({ page }) => {
-  consoleErrors.length = 0;
-  page.on("console", (msg) => {
-    if (msg.type() === "error" || msg.type() === "warning") {
-      const text = msg.text();
-      // Ignore known infrastructure errors that don't indicate bugs
-      if (
-        text.includes("ws/") ||
-        text.includes("WebSocket") ||
-        text.includes("ERR_CONNECTION_REFUSED") ||
-        text.includes("Failed to fetch news")
-      ) {
-        return;
-      }
-      consoleErrors.push(text);
-    }
-  });
-  // ... rest of setup
-});
-```
-
-### Common Errors to Filter
-| Error Pattern | Cause | Filter |
-|--------------|-------|--------|
-| `ws://localhost:8765/ws/news` | WebSocket server not running in CI | Filter by `ws/news`, `WebSocket`, `ERR_CONNECTION_REFUSED` |
-| `Failed to fetch news` | News API not available | Filter by `news`, `Failed to fetch` |
 
 ## Mutation Testing (Backend/Scientific Tests)
 
