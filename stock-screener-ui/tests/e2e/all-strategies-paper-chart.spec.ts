@@ -105,7 +105,8 @@ async function navigateAndClickPosition(page: Page, symbol: string = "TCS") {
   await firstBotCard.click();
 
   await page.getByTestId("tab-live").click();
-  await page.waitForLoadState("networkidle");
+  // networkidle times out due to SSE live-price stream; wait for target element instead
+  await page.waitForSelector('[data-testid^="position-row-"]', { timeout: 15000 });
 
   const positionRow = page.locator(`[data-testid="position-row-${symbol}"]`);
   await expect(positionRow).toBeVisible({ timeout: 10000 });
@@ -309,7 +310,7 @@ test.describe("Paper Chart - Timeframe Switching", () => {
       livePosition: createLivePosition(),
     });
     await navigateAndClickPosition(page, "TCS");
-    await expect(page.locator('[data-testid="show-all-trades-switch"]')).toBeVisible({
+    await expect(page.locator('[data-testid="show-all-trades-checkbox"]')).toBeVisible({
       timeout: 10000,
     });
   });
