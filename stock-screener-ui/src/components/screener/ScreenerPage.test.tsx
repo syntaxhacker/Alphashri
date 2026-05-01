@@ -141,6 +141,20 @@ vi.mock("../../state", () => ({
   sortColumn: null,
   sortDirection: "desc",
   profileMetaById: {},
+  selectedSymbols: [] as string[],
+  toggleSymbolSelection: vi.fn(),
+  setSelectedSymbols: vi.fn(),
+  clearSelectedSymbols: vi.fn(),
+  subscribe: vi.fn(() => vi.fn()),
+}));
+
+vi.mock("../../state/correlation", () => ({
+  setSymbols: vi.fn(),
+  setTimeframe: vi.fn(),
+  setPeriod: vi.fn(),
+  setPeriodUnit: vi.fn(),
+  fetchCorrelationData: vi.fn(),
+  clearSelectedSymbols: vi.fn(),
 }));
 
 const mockStock: Stock = {

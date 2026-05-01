@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Stack, Box, Tabs } from "@mantine/core";
 import { IconTable, IconChartDots } from "@tabler/icons-react";
 import * as state from "../../state";
@@ -7,6 +8,8 @@ import { ScreenerNav } from "./ScreenerNav";
 import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerContent } from "./ScreenerContent";
 import { CorrelationTab } from "./CorrelationTab";
+import { SelectionBar } from "./SelectionBar";
+import { setSymbols, setTimeframe, setPeriod, setPeriodUnit, fetchCorrelationData } from "../../state/correlation";
 import type { Stock } from "../../types";
 
 interface ScreenerPageProps {
@@ -75,9 +78,33 @@ export function ScreenerPage({
   error,
 }: ScreenerPageProps) {
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
-  const [activeTab, setActiveTab] = useState<string>("screener");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "screener";
+
+  const setActiveTab = (tab: string) => {
+    setSearchParams((prev) => {
+      if (tab === "screener") {
+        prev.delete("tab");
+      } else {
+        prev.set("tab", tab);
+      }
+      return prev;
+    }, { replace: true });
+  };
 
   const { sortColumn, sortDirection, handleSortChange } = useScreenerSort(activeScreener);
+
+  const handleCompare = useCallback(() => {
+    const syms = state.selectedSymbols;
+    if (syms.length < 2) return;
+    setSymbols(syms);
+    setTimeframe("daily");
+    setPeriod(90);
+    setPeriodUnit("days");
+    fetchCorrelationData();
+    state.clearSelectedSymbols();
+    setSearchParams({ tab: "correlation", symbols: syms.join(","), timeframe: "daily", period: "90" }, { replace: true });
+  }, [setSearchParams]);
 
   return (
     <CompactPage>
@@ -129,28 +156,31 @@ export function ScreenerPage({
           flex={1}
           id="screener-content"
           className="screener-content"
-          style={{ minHeight: 0 }}
+          style={{ minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
           data-testid="screener-content"
         >
-          {activeTab === "correlation" ? (
-            <CorrelationTab />
-          ) : (
-            <ScreenerContent
-              approachingStocks={approachingStocks}
-              touchedStocks={touchedStocks}
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              handleSortChange={handleSortChange}
-              isLoading={isLoading}
-              error={error}
-              totalStocks={approachingStocks.length + touchedStocks.length}
-              onRefresh={onRefresh}
-              onSymbolClick={onSymbolClick}
-              onSymbolHover={onSymbolHover}
-              activeScreener={activeScreener}
-              viewMode={viewMode}
-            />
-          )}
+          <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+            {activeTab === "correlation" ? (
+              <CorrelationTab />
+            ) : (
+              <ScreenerContent
+                approachingStocks={approachingStocks}
+                touchedStocks={touchedStocks}
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                handleSortChange={handleSortChange}
+                isLoading={isLoading}
+                error={error}
+                totalStocks={approachingStocks.length + touchedStocks.length}
+                onRefresh={onRefresh}
+                onSymbolClick={onSymbolClick}
+                onSymbolHover={onSymbolHover}
+                activeScreener={activeScreener}
+                viewMode={viewMode}
+              />
+            )}
+          </Box>
+          {activeTab === "screener" && <SelectionBar onCompare={handleCompare} />}
         </Box>
       </Stack>
     </CompactPage>

@@ -44,7 +44,7 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
     setChartOption({
       tooltip: {
         trigger: "axis" as const,
-        axisPointer: { type: "cross" as const },
+        axisPointer: { type: "cross", snap: true },
         formatter: (params: any[]) => {
           if (!params || params.length === 0) return "";
           const ts = params[0].axisValue;
@@ -52,7 +52,7 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
           params.forEach((p: any) => {
             html += `<div style="display:flex;justify-content:space-between;gap:12px">
               <span style="color:${p.color}">● ${p.seriesName}</span>
-              <span>${p.value !== null ? `${p.value.toFixed(2)}%` : "N/A"}</span>
+              <span>${p.value !== null ? `${Number(p.value).toFixed(2)}%` : "N/A"}</span>
             </div>`;
           });
           return html;
@@ -95,7 +95,6 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
       <Box
         data-testid="correlation-chart"
         ref={chartRef}
-        flex={1}
         style={{ minHeight: 300, opacity: hasData ? 1 : 0 }}
       />
       {isLoading && (

@@ -129,3 +129,26 @@ export function setNotifFilter(filter: NotifFilter) {
 export function setRecentAddedSymbols(symbols: Record<string, number>) {
   recentAddedSymbols = symbols;
 }
+
+// Row selection state
+export let selectedSymbols: string[] = [];
+
+export function toggleSymbolSelection(symbol: string) {
+  const idx = selectedSymbols.indexOf(symbol);
+  if (idx >= 0) {
+    selectedSymbols = [...selectedSymbols.slice(0, idx), ...selectedSymbols.slice(idx + 1)];
+  } else {
+    selectedSymbols = [...selectedSymbols, symbol];
+  }
+  notifySubscribers();
+}
+
+export function setSelectedSymbols(symbols: string[]) {
+  selectedSymbols = symbols;
+  notifySubscribers();
+}
+
+export function clearSelectedSymbols() {
+  selectedSymbols = [];
+  notifySubscribers();
+}
