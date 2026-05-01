@@ -9,7 +9,13 @@ import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerContent } from "./ScreenerContent";
 import { CorrelationTab } from "./CorrelationTab";
 import { SelectionBar } from "./SelectionBar";
-import { setSymbols, setTimeframe, setPeriod, setPeriodUnit, fetchCorrelationData } from "../../state/correlation";
+import {
+  setSymbols,
+  setTimeframe,
+  setPeriod,
+  setPeriodUnit,
+  fetchCorrelationData,
+} from "../../state/correlation";
 import type { Stock } from "../../types";
 
 interface ScreenerPageProps {
@@ -82,14 +88,17 @@ export function ScreenerPage({
   const activeTab = searchParams.get("tab") || "screener";
 
   const setActiveTab = (tab: string) => {
-    setSearchParams((prev) => {
-      if (tab === "screener") {
-        prev.delete("tab");
-      } else {
-        prev.set("tab", tab);
-      }
-      return prev;
-    }, { replace: true });
+    setSearchParams(
+      (prev) => {
+        if (tab === "screener") {
+          prev.delete("tab");
+        } else {
+          prev.set("tab", tab);
+        }
+        return prev;
+      },
+      { replace: true },
+    );
   };
 
   const { sortColumn, sortDirection, handleSortChange } = useScreenerSort(activeScreener);
@@ -103,7 +112,10 @@ export function ScreenerPage({
     setPeriodUnit("days");
     fetchCorrelationData();
     state.clearSelectedSymbols();
-    setSearchParams({ tab: "correlation", symbols: syms.join(","), timeframe: "daily", period: "90" }, { replace: true });
+    setSearchParams(
+      { tab: "correlation", symbols: syms.join(","), timeframe: "daily", period: "90" },
+      { replace: true },
+    );
   }, [setSearchParams]);
 
   return (
@@ -119,10 +131,18 @@ export function ScreenerPage({
           <Stack gap="sm">
             <Tabs value={activeTab} onChange={(v) => v && setActiveTab(v)}>
               <Tabs.List>
-                <Tabs.Tab value="screener" leftSection={<IconTable size={16} />} data-testid="tab-screener">
+                <Tabs.Tab
+                  value="screener"
+                  leftSection={<IconTable size={16} />}
+                  data-testid="tab-screener"
+                >
                   Screener
                 </Tabs.Tab>
-                <Tabs.Tab value="correlation" leftSection={<IconChartDots size={16} />} data-testid="tab-correlation">
+                <Tabs.Tab
+                  value="correlation"
+                  leftSection={<IconChartDots size={16} />}
+                  data-testid="tab-correlation"
+                >
                   Correlation
                 </Tabs.Tab>
               </Tabs.List>

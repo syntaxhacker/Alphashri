@@ -31,9 +31,7 @@ export interface CorrelationResponse {
   meta: CorrelationMeta;
 }
 
-export async function fetchCorrelation(
-  params: CorrelationRequest,
-): Promise<CorrelationResponse> {
+export async function fetchCorrelation(params: CorrelationRequest): Promise<CorrelationResponse> {
   const response = await fetchWithAuth(API_ENDPOINTS.CORRELATION, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

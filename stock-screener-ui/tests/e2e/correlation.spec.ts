@@ -53,7 +53,9 @@ test.describe("Correlation - UI", () => {
 
     await page.locator('[data-testid="tab-correlation"]').click();
 
-    const timeframeControl = page.locator('[data-testid="correlation-tab"] .mantine-SegmentedControl');
+    const timeframeControl = page.locator(
+      '[data-testid="correlation-tab"] .mantine-SegmentedControl',
+    );
     await expect(timeframeControl).toBeVisible();
 
     const periodSelect = page.locator('[data-testid="correlation-tab"] .mantine-Select');
@@ -115,7 +117,9 @@ test.describe("Correlation - UI", () => {
     await expect(calcBtn).toBeEnabled();
     await calcBtn.click();
 
-    await expect(page.locator('[data-testid="correlation-matrix"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="correlation-matrix"]')).toBeVisible({
+      timeout: 10000,
+    });
     await expect(page.locator('[data-testid="correlation-chart"]')).toBeVisible({ timeout: 10000 });
   });
 

@@ -10,8 +10,16 @@ interface CorrelationChartProps {
 }
 
 const COLORS = [
-  "#5470c6", "#91cc75", "#fac858", "#ee6666", "#73c0de",
-  "#3ba272", "#fc8452", "#9a60b4", "#ea7ccc", "#5470c6",
+  "#5470c6",
+  "#91cc75",
+  "#fac858",
+  "#ee6666",
+  "#73c0de",
+  "#3ba272",
+  "#fc8452",
+  "#9a60b4",
+  "#ea7ccc",
+  "#5470c6",
 ];
 
 export function CorrelationChart({ normalized, symbols, isLoading }: CorrelationChartProps) {
@@ -101,13 +109,17 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
         <Flex pos="absolute" inset={0} justify="center" align="center" style={{ zIndex: 1 }}>
           <Stack align="center" gap="xs">
             <Loader size="sm" />
-            <Text size="sm" c="dimmed">Loading chart data...</Text>
+            <Text size="sm" c="dimmed">
+              Loading chart data...
+            </Text>
           </Stack>
         </Flex>
       )}
       {!isLoading && !hasData && (
         <Flex pos="absolute" inset={0} justify="center" align="center">
-          <Text size="sm" c="dimmed">No chart data available</Text>
+          <Text size="sm" c="dimmed">
+            No chart data available
+          </Text>
         </Flex>
       )}
     </Box>

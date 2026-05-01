@@ -40,7 +40,12 @@ describe("correlation state", () => {
     });
 
     test("does not add duplicate symbols", async () => {
-      const { addSymbol, symbols: _symbols2, notify: _notify, setSymbols } = await import("./correlation");
+      const {
+        addSymbol,
+        symbols: _symbols2,
+        notify: _notify,
+        setSymbols,
+      } = await import("./correlation");
       setSymbols(["RELIANCE"]);
       const _initialLength2 = _symbols2.length;
       addSymbol("RELIANCE");
@@ -58,7 +63,12 @@ describe("correlation state", () => {
 
   describe("removeSymbol", () => {
     test("removes a symbol and calls notify", async () => {
-      const { removeSymbol, setSymbols, symbols: _symbols3, notify } = await import("./correlation");
+      const {
+        removeSymbol,
+        setSymbols,
+        symbols: _symbols3,
+        notify,
+      } = await import("./correlation");
       setSymbols(["RELIANCE", "TCS"]);
       vi.clearAllMocks();
       removeSymbol("RELIANCE");
@@ -114,7 +124,10 @@ describe("correlation state", () => {
     test("sets matrix, normalized, meta and calls notify", async () => {
       const { setCorrelationData, notify } = await import("./correlation");
       const data = {
-        matrix: [[1, 0.5], [0.5, 1]],
+        matrix: [
+          [1, 0.5],
+          [0.5, 1],
+        ],
         normalized: {
           RELIANCE: [{ timestamp: "2024-01-01", value: 100 }],
           TCS: [{ timestamp: "2024-01-01", value: 100 }],
@@ -130,7 +143,10 @@ describe("correlation state", () => {
     test("calls fetchCorrelation and sets data on success", async () => {
       const { fetchCorrelation } = await import("../api/correlation");
       vi.mocked(fetchCorrelation).mockResolvedValue({
-        matrix: [[1, 0.5], [0.5, 1]],
+        matrix: [
+          [1, 0.5],
+          [0.5, 1],
+        ],
         symbols: ["RELIANCE", "TCS"],
         normalized: {
           RELIANCE: [{ timestamp: "2024-01-01", value: 100 }],
@@ -139,8 +155,14 @@ describe("correlation state", () => {
         meta: { start_date: "2024-01-01", end_date: "2024-01-31", data_points: 20 },
       });
 
-      const { fetchCorrelationData, setSymbols, setTimeframe, setPeriod, setPeriodUnit, notify: _notify1 } =
-        await import("./correlation");
+      const {
+        fetchCorrelationData,
+        setSymbols,
+        setTimeframe,
+        setPeriod,
+        setPeriodUnit,
+        notify: _notify1,
+      } = await import("./correlation");
 
       setSymbols(["RELIANCE", "TCS"]);
       setTimeframe("daily");
@@ -162,8 +184,14 @@ describe("correlation state", () => {
       const { fetchCorrelation } = await import("../api/correlation");
       vi.mocked(fetchCorrelation).mockRejectedValue(new Error("Network error"));
 
-      const { fetchCorrelationData, setSymbols, setTimeframe, setPeriod, setPeriodUnit, notify: _notify2 } =
-        await import("./correlation");
+      const {
+        fetchCorrelationData,
+        setSymbols,
+        setTimeframe,
+        setPeriod,
+        setPeriodUnit,
+        notify: _notify2,
+      } = await import("./correlation");
 
       setSymbols(["RELIANCE"]);
       setTimeframe("daily");
@@ -184,8 +212,14 @@ describe("correlation state", () => {
       });
       vi.mocked(fetchCorrelation).mockReturnValue(promise as any);
 
-      const { fetchCorrelationData, setSymbols, setTimeframe, setPeriod, setPeriodUnit, notify: _notify3 } =
-        await import("./correlation");
+      const {
+        fetchCorrelationData,
+        setSymbols,
+        setTimeframe,
+        setPeriod,
+        setPeriodUnit,
+        notify: _notify3,
+      } = await import("./correlation");
 
       setSymbols(["RELIANCE"]);
       setTimeframe("daily");
