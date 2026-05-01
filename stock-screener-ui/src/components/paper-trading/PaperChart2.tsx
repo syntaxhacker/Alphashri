@@ -1,24 +1,17 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import {
-  Box,
-  Text,
-  Group,
-  Badge,
-  Select,
-  Flex,
-  useMantineColorScheme,
-  Switch,
-} from "@mantine/core";
+import { Box, Text, Group, Select, Flex, useMantineColorScheme, Checkbox, Badge, LoadingOverlay } from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
+import dayjs from "dayjs";
 import {
   getPaperTradingState,
   setChartTimeframe,
+  setChartFromDate,
   setShowAllTrades,
   setShowOrbLines,
   setShowPivotLines,
   setShow52wLines,
   setShowEmaLines,
-  setIntradayOnly,
   subscribe,
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
@@ -154,35 +147,43 @@ function ChartEmptyState({
 }
 
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
+  const [range, setRange] = useState<[Date | null, Date | null]>([null, null]);
+
+  useEffect(() => {
+    if (state.chartFromDate && state.chartData?.date) {
+      setRange([new Date(state.chartFromDate), new Date(state.chartData.date)]);
+    } else if (!state.chartFromDate && state.chartData?.date && range[0] === null && range[1] === null) {
+      // Initial load with no from_date — keep range null (no override)
+    }
+  }, [state.chartFromDate, state.chartData?.date]);
+
+  const chartDate = range[1]
+    ? dayjs(range[1]).format("YYYY-MM-DD")
+    : state.chartData?.date;
+  const fromDate = range[0] ? dayjs(range[0]).format("YYYY-MM-DD") : undefined;
+
+  const handleRangeChange = useCallback(
+    (r: [Date | null, Date | null]) => {
+      setRange(r);
+      setChartFromDate(null);
+      const fd = r[0] ? dayjs(r[0]).format("YYYY-MM-DD") : undefined;
+      const cd = r[1] ? dayjs(r[1]).format("YYYY-MM-DD") : state.chartData?.date;
+      if (state.selectedSymbol && cd) {
+        fetchPaperChart(state.selectedSymbol, cd, state.chartTimeframe, state.selectedStrategyId, fd, true);
+      }
+    },
+    [state.selectedSymbol, state.chartData?.date, state.chartTimeframe, state.selectedStrategyId],
+  );
+
   const handleTimeframeChange = useCallback(
     async (value: string | null) => {
       if (!value) return;
       setChartTimeframe(value);
-      if (state.selectedSymbol && state.chartData?.date)
-        await fetchPaperChart(
-          state.selectedSymbol,
-          state.chartData.date,
-          value,
-          state.selectedStrategyId,
-          state.intradayOnly,
-        );
+      if (state.selectedSymbol && chartDate) {
+        await fetchPaperChart(state.selectedSymbol, chartDate, value, state.selectedStrategyId, fromDate, true);
+      }
     },
-    [state.selectedSymbol, state.chartData?.date, state.intradayOnly, state.selectedStrategyId],
-  );
-
-  const handleIntradayToggle = useCallback(
-    async (checked: boolean) => {
-      setIntradayOnly(checked);
-      if (state.selectedSymbol && state.chartData?.date)
-        await fetchPaperChart(
-          state.selectedSymbol,
-          state.chartData.date,
-          state.chartTimeframe,
-          state.selectedStrategyId,
-          checked,
-        );
-    },
-    [state.selectedSymbol, state.chartData?.date, state.chartTimeframe, state.selectedStrategyId],
+    [state.selectedSymbol, chartDate, state.selectedStrategyId, fromDate],
   );
 
   return (
@@ -192,75 +193,87 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       id="chart-header"
       p="sm"
       pb={0}
-      justify="space-between"
-      align="center"
-      wrap="wrap"
-      gap="sm"
+      direction="column"
+      gap={6}
       style={{ flex: "0 0 auto" }}
     >
-      <Group gap="sm">
-        <Text fw={600} size="lg">
-          {state.chartData?.symbol} - {state.chartData?.date}
-          {state.chartData?.actual_date && state.chartData.actual_date !== state.chartData.date && (
-            <Text span size="xs" c="dimmed" ml={4}>
-              (Showing {formatDateRange(state.chartData.actual_date)})
-            </Text>
-          )}
-        </Text>
-        <Select
-          data-testid="paper-chart-timeframe"
-          size="sm"
-          value={state.chartTimeframe}
-          onChange={handleTimeframeChange}
-          data={TIMEFRAME_OPTIONS}
-          styles={{ input: { width: 70, height: 28 } }}
-        />
-      </Group>
-      <Group gap="sm">
-        <Switch
-          size="xs"
-          label="Intraday"
-          checked={state.intradayOnly}
-          onChange={(e) => handleIntradayToggle(e.currentTarget.checked)}
-          data-testid="intraday-switch"
-        />
-        <Switch
+      <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
+        <Group gap="sm">
+          <Text fw={600} size="lg">
+            {state.chartData?.symbol} - {state.chartData?.date}
+            {state.chartData?.actual_date && state.chartData.actual_date !== state.chartData.date && (
+              <Text span size="xs" c="dimmed" ml={4}>
+                ({formatDateRange(state.chartData.actual_date)})
+              </Text>
+            )}
+          </Text>
+          <Select
+            data-testid="paper-chart-timeframe"
+            size="xs"
+            value={state.chartTimeframe}
+            onChange={handleTimeframeChange}
+            data={TIMEFRAME_OPTIONS}
+            styles={{ input: { width: 72 } }}
+          />
+          <DatePickerInput
+            type="range"
+            size="xs"
+            clearable
+            w={280}
+            placeholder="Select date range"
+            valueFormat="MMM D, YYYY"
+            value={range}
+            onChange={handleRangeChange}
+            presets={[
+              { value: [dayjs().subtract(7, "day").toDate(), dayjs().toDate()], label: "Last 7 days" },
+              { value: [dayjs().subtract(30, "day").toDate(), dayjs().toDate()], label: "Last 30 days" },
+              { value: [dayjs().subtract(90, "day").toDate(), dayjs().toDate()], label: "Last 3 months" },
+              { value: [dayjs().startOf("year").toDate(), dayjs().toDate()], label: "Year to date" },
+            ]}
+          />
+        </Group>
+      </Flex>
+      <Group gap="md">
+        <Checkbox
           size="xs"
           label="All trades"
           checked={state.showAllTrades}
           onChange={(e) => setShowAllTrades(e.currentTarget.checked)}
-          data-testid="show-all-trades-switch"
+          data-testid="show-all-trades-checkbox"
         />
-        <Switch
+        <Text span c="dimmed" size="xs">
+          |
+        </Text>
+        <Checkbox
           size="xs"
           label="ORB"
           checked={state.showOrbLines}
           onChange={(e) => setShowOrbLines(e.currentTarget.checked)}
-          styles={{ label: { color: "#2196F3" } }}
+          color="blue"
           data-testid="show-orb-lines"
         />
-        <Switch
+        <Checkbox
           size="xs"
           label="Pivot"
           checked={state.showPivotLines}
           onChange={(e) => setShowPivotLines(e.currentTarget.checked)}
-          styles={{ label: { color: "#AB47BC" } }}
+          color="violet"
           data-testid="show-pivot-lines"
         />
-        <Switch
+        <Checkbox
           size="xs"
           label="52W"
           checked={state.show52wLines}
           onChange={(e) => setShow52wLines(e.currentTarget.checked)}
-          styles={{ label: { color: "#E91063" } }}
+          color="pink"
           data-testid="show-52w-lines"
         />
-        <Switch
+        <Checkbox
           size="xs"
           label="EMA"
           checked={state.showEmaLines}
           onChange={(e) => setShowEmaLines(e.currentTarget.checked)}
-          styles={{ label: { color: "#10ac84" } }}
+          color="teal"
           data-testid="show-ema-lines"
         />
         {state.chartData?.current_position && (
@@ -326,7 +339,7 @@ export function PaperChart() {
   ]);
 
   const emptyState = getEmptyState(state);
-  if (emptyState) {
+  if (emptyState && !state.chartData) {
     return (
       <ChartEmptyState className={emptyState.className} icon={emptyState.icon}>
         <Text c="dimmed">{emptyState.text}</Text>
@@ -348,15 +361,26 @@ export function PaperChart() {
       style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
     >
       <ChartHeader state={state} />
-      {chartInput && <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />}
-      <ChartLegend
-        orbLabel={
-          state.chartData?.orb_levels
-            ? `ORB (${state.chartData.orb_levels.or_minutes}m)`
-            : undefined
-        }
-        hasWeek52={!!state.chartData?.week52_levels}
-      />
+      <Box style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+        <LoadingOverlay visible={state.chartLoading && !!state.chartData} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
+        {chartInput ? (
+          <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
+        ) : (
+          <ChartEmptyState className="paper-chart-loading" icon="⏳">
+            <Text c="dimmed">{state.chartLoading ? `Loading ${state.selectedSymbol} chart...` : 'No data'}</Text>
+          </ChartEmptyState>
+        )}
+      </Box>
+      {state.chartData && (
+        <ChartLegend
+          orbLabel={
+            state.chartData?.orb_levels
+              ? `ORB (${state.chartData.orb_levels.or_minutes}m)`
+              : undefined
+          }
+          hasWeek52={!!state.chartData?.week52_levels}
+        />
+      )}
     </CompactPanel>
   );
 }

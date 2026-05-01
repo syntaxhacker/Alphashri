@@ -25,6 +25,7 @@ graph TB
         OptionsAPI["/api/options<br/>Options Chain"]
         BotsAPI["/api/bots<br/>Bot Management"]
         BrokersAPI["/api/brokers<br/>Broker Connect"]
+        LiveStream["/api/paper/live/stream<br/>SSE Live Prices"]
         AdminAPI["/api/admin<br/>Admin / Cache Stats"]
         WebSocket["WebSocket<br/>Real-time Updates"]
     end
@@ -65,7 +66,7 @@ graph TB
 
     Browser -->|"HTTP/WS"| Frontend
     CLI -->|"HTTP"| API
-    Frontend -->|"REST API<br/>+ WebSocket"| API
+    Frontend -->|"REST API<br/>+ WebSocket (News)<br/>+ SSE (Live Prices)"| API
     Router -->|"Route Changes"| WebSocket
 
     AuthAPI --> SQLAlchemy
@@ -80,6 +81,8 @@ graph TB
     NewsAPI --> Redis
     PaperAPI --> PaperTrader
     PaperAPI --> RiskMgr
+    LiveStream --> Upstox
+    LiveStream -->|"SSE Price Stream"| Frontend
     OptionsAPI --> Upstox
     BotsAPI --> MultiStrategy
     BrokersAPI --> Upstox

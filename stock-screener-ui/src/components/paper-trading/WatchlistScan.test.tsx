@@ -255,7 +255,7 @@ describe("handleSelectSymbol with fetchPaperChart", () => {
     r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
     await user.click(screen.getByTestId("scan-signal-RELIANCE"));
 
-    expect(fetchPaperChart).toHaveBeenCalledWith("RELIANCE", undefined, "5min", null, false);
+    expect(fetchPaperChart).toHaveBeenCalledWith("RELIANCE", undefined, "5min", null);
   });
 
   test("fetchPaperChart rejection does not prevent setSelectedSymbol", async () => {
@@ -273,7 +273,7 @@ describe("handleSelectSymbol with fetchPaperChart", () => {
     expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
   });
 
-  test("handleSelectSymbol calls fetchPaperChart with current timeframe/intraday", async () => {
+  test("handleSelectSymbol calls fetchPaperChart with current timeframe", async () => {
     const user = userEvent.setup();
     const { fetchPaperChart } = await import("../../api/paperTrading");
     const { getPaperTradingState } = await import("../../state/paperTrading");
@@ -281,13 +281,12 @@ describe("handleSelectSymbol with fetchPaperChart", () => {
     (getPaperTradingState as ReturnType<typeof vi.fn>).mockReturnValue({
       chartTimeframe: "15min",
       selectedStrategyId: null,
-      intradayOnly: true,
     });
 
     r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
     await user.click(screen.getByTestId("scan-signal-RELIANCE"));
 
-    expect(fetchPaperChart).toHaveBeenCalledWith("RELIANCE", undefined, "15min", null, true);
+    expect(fetchPaperChart).toHaveBeenCalledWith("RELIANCE", undefined, "15min", null);
   });
 });
 

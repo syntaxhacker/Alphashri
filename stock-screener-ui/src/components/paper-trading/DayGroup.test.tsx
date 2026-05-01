@@ -922,6 +922,7 @@ describe("Interactions", () => {
       "trade-1",
       "orb",
       1,
+      "2026-04-24T09:30:00Z",
     );
   });
   it("strategyType derived from trade.strategy_type when present", () => {
@@ -938,6 +939,7 @@ describe("Interactions", () => {
       "trade-1",
       "custom_type",
       1,
+      expect.any(String),
     );
   });
   it("strategyType falls back to getStrategyTypeFromName when strategy_type is undefined", () => {
@@ -955,6 +957,7 @@ describe("Interactions", () => {
       "trade-1",
       "orb",
       1,
+      expect.any(String),
     );
   });
   it("delete click calls onDeleteTrade with stopPropagation", () => {

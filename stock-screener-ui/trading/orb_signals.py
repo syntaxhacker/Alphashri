@@ -114,10 +114,9 @@ class ORBSignalGenerator:
             self.enable_shorts = config.enable_shorts
             self.FORCE_EXIT = (config.eod_exit_hour, config.eod_exit_minute)
         else:
-            # Fall back to hardcoded defaults
             self.or_minutes = or_minutes if or_minutes is not None else 45
-            self.sl_pct = sl_pct if sl_pct is not None else 0.4
-            self.tp_pct = tp_pct if tp_pct is not None else 1.2
+            self.sl_pct = sl_pct if sl_pct is not None else 1.0
+            self.tp_pct = tp_pct if tp_pct is not None else 1.5
             self.min_or_range_pct = min_or_range_pct if min_or_range_pct is not None else 0.5
             self.max_or_range_pct = max_or_range_pct if max_or_range_pct is not None else 3.0
             self.breakout_buffer_pct = breakout_buffer_pct if breakout_buffer_pct is not None else 0.3
@@ -399,8 +398,8 @@ def create_entry_signal(
     price: float,
     or_high: float,
     or_low: float,
-    sl_pct: float = 0.4,
-    tp_pct: float = 1.2,
+    sl_pct: float = 1.0,
+    tp_pct: float = 1.5,
     side: str = "LONG",
 ) -> ORBSignal:
     """

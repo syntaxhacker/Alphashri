@@ -139,30 +139,28 @@ def get_instrument_key(underlying: str) -> str:
 
 
 def get_upstox_token() -> str:
-    """Get Upstox access token from DB, file, or env (in that order)."""
-    # 1. Check database first
+    """Get Upstox access token from DB or token file.
+
+    Environment variable fallback is intentionally not used to ensure
+    disconnect properly clears the connection state. Tokens should be
+    managed via the OAuth flow (stored in DB).
+    """
+    # 1. Check database first (OAuth tokens)
     token_data = get_shared_broker_token("upstox")
     if token_data and token_data.get("access_token"):
         return token_data["access_token"]
-    
-    # 2. Check token file
+
+    # 2. Check token file (legacy fallback)
     if TOKEN_FILE.exists():
         try:
             with open(TOKEN_FILE, "r") as f:
                 token_data = json.load(f)
             token = token_data.get("access_token")
             if token:
-                token_time = datetime.fromisoformat(token_data.get("timestamp", "1970-01-01"))
-                if datetime.now() - token_time < timedelta(hours=23):
-                    return token
+                return token
         except (json.JSONDecodeError, KeyError):
             pass
-    
-    # 3. Check environment variable
-    token = os.getenv("UPSTOX_ACCESS_TOKEN")
-    if token:
-        return token
-    
+
     raise HTTPException(
         status_code=401,
         detail="Upstox access token not configured. Go to Settings to connect your Upstox account."

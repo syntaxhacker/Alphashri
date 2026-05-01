@@ -234,10 +234,10 @@ export interface PaperTradingState {
   showPivotLines: boolean;
   show52wLines: boolean;
   showEmaLines: boolean;
-  intradayOnly: boolean;
   chartData: PaperChartData | null;
   chartLoading: boolean;
   chartTimeframe: string;
+  chartFromDate: string | null;
 
   // Loading states
   isLoading: boolean;

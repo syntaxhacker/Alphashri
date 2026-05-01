@@ -29,6 +29,7 @@ import {
   FiltersBar,
   PaperTradingTabs,
 } from "./PaperTradingHelpers";
+import { LivePriceUpdater } from "./LivePriceUpdater";
 
 function useLoadInitialData(
   activeBotId: string | null,
@@ -281,6 +282,7 @@ export function PaperTradingView() {
       style={{ overflow: "hidden" }}
       data-testid="paper-trading-view"
     >
+      <LivePriceUpdater />
       {state.error && <ErrorAlert message={state.error} onClose={handleClearError} />}
 
       <HeaderSection

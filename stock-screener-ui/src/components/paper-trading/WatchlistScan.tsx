@@ -131,7 +131,6 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
       undefined,
       currentState.chartTimeframe,
       currentState.selectedStrategyId,
-      currentState.intradayOnly,
     );
   };
 

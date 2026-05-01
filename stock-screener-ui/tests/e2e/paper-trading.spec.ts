@@ -714,7 +714,8 @@ test.describe("Paper Trading - Chart Controls", () => {
     await page.locator('[data-testid^="bot-card-"]').first().click({ timeout: 15000 });
 
     await page.getByTestId("tab-live").click();
-    await page.waitForLoadState("networkidle");
+    // networkidle times out due to SSE live-price stream; wait for target element instead
+    await page.waitForSelector('[data-testid^="position-row-"]', { timeout: 15000 });
 
     const positionRow = page.locator(`[data-testid="position-row-${SYMBOL}"]`);
     await expect(positionRow).toBeVisible({ timeout: 15000 });
@@ -727,21 +728,11 @@ test.describe("Paper Trading - Chart Controls", () => {
   test("should render all chart control switches", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    await expect(page.getByTestId("intraday-switch")).toBeVisible();
-    await expect(page.getByTestId("show-all-trades-switch")).toBeVisible();
+    await expect(page.getByTestId("show-all-trades-checkbox")).toBeVisible();
     await expect(page.getByTestId("show-orb-lines")).toBeVisible();
     await expect(page.getByTestId("show-pivot-lines")).toBeVisible();
     await expect(page.getByTestId("show-52w-lines")).toBeVisible();
     await expect(page.getByTestId("show-ema-lines")).toBeVisible();
-  });
-
-  test("should toggle intraday mode", async ({ page }) => {
-    await navigateToChartAndSelectSymbol(page);
-
-    await page.getByTestId("intraday-switch").click();
-    await page.waitForTimeout(500);
-
-    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
   });
 
   test("should toggle EMA lines", async ({ page }) => {
@@ -780,7 +771,7 @@ test.describe("Paper Trading - Chart Controls", () => {
   test("should toggle SL/TP markers via All trades switch", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    const allTradesSwitch = page.getByTestId("show-all-trades-switch");
+    const allTradesSwitch = page.getByTestId("show-all-trades-checkbox");
     await expect(allTradesSwitch).toBeVisible();
     await allTradesSwitch.click();
     await page.waitForTimeout(200);

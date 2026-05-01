@@ -41,8 +41,8 @@ class StrategyConfig(Base):
     description = Column(String, nullable=True)
 
     or_minutes = Column(Integer, default=45)
-    sl_pct = Column(Float, default=0.4)
-    tp_pct = Column(Float, default=1.2)
+    sl_pct = Column(Float, default=1.0)
+    tp_pct = Column(Float, default=1.5)
     min_or_range_pct = Column(Float, default=0.5)
     max_or_range_pct = Column(Float, default=3.0)
 

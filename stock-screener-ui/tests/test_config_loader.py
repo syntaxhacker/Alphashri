@@ -73,8 +73,8 @@ class TestStrategyConfigDataDefaults:
         config = StrategyConfigData()
         
         assert config.or_minutes == 45
-        assert config.sl_pct == 0.4
-        assert config.tp_pct == 1.2
+        assert config.sl_pct == 1.0
+        assert config.tp_pct == 1.5
         assert config.min_or_range_pct == 0.5
         assert config.max_or_range_pct == 3.0
         assert config.breakout_buffer_pct == 0.3
