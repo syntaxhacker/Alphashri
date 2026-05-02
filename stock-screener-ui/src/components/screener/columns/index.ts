@@ -5,6 +5,7 @@ import { getMarketOpenGapColumns } from "./marketOpenGap";
 import { getRsiReversalColumns } from "./rsiReversal";
 import { getNiftyMoversColumns } from "./niftyMovers";
 import { getHighMomentumColumns } from "./highMomentum";
+import { getNear52wBreakoutColumns } from "./near52wBreakout";
 
 export interface FormattedCell {
   value: string;
@@ -25,6 +26,8 @@ export function getColumnsForScreener(screenerId: string): ColumnDef[] {
   switch (screenerId) {
     case "trending":
       return getTrendingColumns();
+    case "near_52w_breakout":
+      return getNear52wBreakoutColumns();
     case "buyer_interest_enhanced":
       return getBuyerInterestColumns();
     case "market_open_gap":

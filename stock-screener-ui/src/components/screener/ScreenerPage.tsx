@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Stack, Box, Tabs } from "@mantine/core";
-import { IconTable, IconChartDots } from "@tabler/icons-react";
+import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
 import * as state from "../../state";
 import { CompactPage } from "../common/compact";
 import { ScreenerNav } from "./ScreenerNav";
@@ -9,6 +9,8 @@ import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerContent } from "./ScreenerContent";
 import { CorrelationTab } from "./CorrelationTab";
 import { SelectionBar } from "./SelectionBar";
+import { ScreenerSidePanel } from "./ScreenerSidePanel";
+import { ScreenerConfigView } from "./ScreenerConfigView";
 import {
   setSymbols,
   setTimeframe,
@@ -145,6 +147,13 @@ export function ScreenerPage({
                 >
                   Correlation
                 </Tabs.Tab>
+                <Tabs.Tab
+                  value="config"
+                  leftSection={<IconSettings size={16} />}
+                  data-testid="tab-config"
+                >
+                  Config
+                </Tabs.Tab>
               </Tabs.List>
             </Tabs>
             {activeTab === "screener" && (
@@ -176,31 +185,47 @@ export function ScreenerPage({
           flex={1}
           id="screener-content"
           className="screener-content"
-          style={{ minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
+          style={{ minHeight: 0, display: "flex", overflow: "hidden" }}
           data-testid="screener-content"
         >
-          <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-            {activeTab === "correlation" ? (
-              <CorrelationTab />
-            ) : (
-              <ScreenerContent
-                approachingStocks={approachingStocks}
-                touchedStocks={touchedStocks}
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                handleSortChange={handleSortChange}
-                isLoading={isLoading}
-                error={error}
-                totalStocks={approachingStocks.length + touchedStocks.length}
-                onRefresh={onRefresh}
-                onSymbolClick={onSymbolClick}
-                onSymbolHover={onSymbolHover}
-                activeScreener={activeScreener}
-                viewMode={viewMode}
-              />
-            )}
+          {activeTab === "screener" && (
+            <ScreenerSidePanel
+              activeScreener={activeScreener}
+              screenerOptions={screenerOptions}
+              sortColumn={sortColumn}
+              sortDirection={sortDirection}
+            />
+          )}
+          <Box style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+              {activeTab === "config" ? (
+                <ScreenerConfigView
+                  screenerOptions={screenerOptions}
+                  activeScreener={activeScreener}
+                  onScreenerChange={onScreenerChange}
+                />
+              ) : activeTab === "correlation" ? (
+                <CorrelationTab />
+              ) : (
+                <ScreenerContent
+                  approachingStocks={approachingStocks}
+                  touchedStocks={touchedStocks}
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  handleSortChange={handleSortChange}
+                  isLoading={isLoading}
+                  error={error}
+                  totalStocks={approachingStocks.length + touchedStocks.length}
+                  onRefresh={onRefresh}
+                  onSymbolClick={onSymbolClick}
+                  onSymbolHover={onSymbolHover}
+                  activeScreener={activeScreener}
+                  viewMode={viewMode}
+                />
+              )}
+            </Box>
+            {activeTab === "screener" && <SelectionBar onCompare={handleCompare} />}
           </Box>
-          {activeTab === "screener" && <SelectionBar onCompare={handleCompare} />}
         </Box>
       </Stack>
     </CompactPage>

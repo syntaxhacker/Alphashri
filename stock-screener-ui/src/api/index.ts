@@ -112,14 +112,24 @@ export async function fetchData(
     state.setData({ ...state.DEFAULT_SCREENER_DATA });
   }
 
+  // Build filter params
+  const filters = state.profileFilters;
+  const filterParams = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      filterParams.append(key, String(value));
+    }
+  });
+  const filterString = filterParams.toString();
+
   const prevData = state.data;
   renderCallback();
 
   let wasAborted = false;
   try {
-    const res = await fetchWithAuth(
-      `${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}`,
-      {
+    const baseUrl = `${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}`;
+    const url = filterString ? `${baseUrl}&${filterString}` : baseUrl;
+    const res = await fetchWithAuth(url, {
         signal: abortController.signal,
       },
     );

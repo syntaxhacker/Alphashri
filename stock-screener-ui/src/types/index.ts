@@ -42,11 +42,12 @@ export interface SummaryItem {
 export interface ProfileFilter {
   key: string;
   label: string;
-  type: "number" | "select";
+  type: "number" | "select" | "range";
   min?: number;
   max?: number;
   step?: number;
   default?: number | string;
+  rangeDefault?: [number, number];
   options?: string[];
 }
 
@@ -72,6 +73,11 @@ export interface ScreenerOption {
   id: string;
   label: string;
   description?: string;
+  indicators?: string[];
+  columns?: string[];
+  filters?: ProfileFilter[];
+  default_sort?: { column: string; direction: SortDirection };
+  section_labels?: { primary: string; secondary: string };
 }
 
 export interface ChangeNotification {
