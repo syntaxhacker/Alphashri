@@ -4,7 +4,6 @@ import {
   Text,
   Badge,
   Group,
-  Table,
   Box,
   Button,
   ScrollArea,
@@ -72,58 +71,6 @@ const DEFAULT_FILTERS: Record<string, ProfileFilter> = {
     default: "bullish",
   },
   Momentum: { key: "momentum", label: "Momentum", type: "number", min: -100, default: 0, step: 1 },
-};
-
-const FILTER_KEY_LABELS: Record<string, string> = {
-  min_rsi: "RSI",
-  max_rsi: "RSI",
-  min_adx: "ADX",
-  max_adx: "ADX",
-  min_atr_pct: "ATR",
-  max_atr_pct: "ATR",
-  min_volume_m: "Vol",
-  max_volume_m: "Vol",
-  min_stoch_k: "Stoch",
-  max_stoch_k: "Stoch",
-  min_gap_pct: "Gap",
-  max_gap_pct: "Gap",
-  max_52w_gap: "52W",
-  min_52w_gap: "52W",
-  min_score: "Score",
-  max_score: "Score",
-  min_vol_surge: "VSurge",
-  max_vol_surge: "VSurge",
-  min_wick_pct: "Wick",
-  max_wick_pct: "Wick",
-  min_interest_score: "Interest",
-  max_interest_score: "Interest",
-  min_impact: "Impact",
-  max_impact: "Impact",
-  min_cap_b: "MCap",
-  max_cap_b: "MCap",
-  trend: "Trend",
-  direction: "Dir",
-  lookback_minutes: "Lookback",
-  min_move_pct: "Move%",
-};
-
-const getFilterBadges = (filters: Record<string, any>): JSX.Element[] => {
-  const badges: JSX.Element[] = [];
-  if (!filters || typeof filters !== "object" || Array.isArray(filters)) return badges;
-  for (const [key, value] of Object.entries(filters)) {
-    if (value === null || value === undefined) continue;
-    const label = FILTER_KEY_LABELS[key] || key.replace("min_", "").replace("max_", "");
-    const prefix = key.startsWith("min_") ? "≥" : key.startsWith("max_") ? "≤" : ":";
-    const displayVal = typeof value === "object" ? JSON.stringify(value) : String(value);
-    badges.push(
-      <Badge key={key} size="xs" variant="filled" color="red">
-        {label}
-        {prefix}
-        {displayVal}
-      </Badge>,
-    );
-  }
-  return badges;
 };
 
 interface Props {
@@ -431,23 +378,6 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   const updateFilterValue = (key: string, value: number | string) => {
     const newFilters = form.filters.map((f) => (f.key === key ? { ...f, default: value } : f));
     setForm({ ...form, filters: newFilters });
-  };
-
-  const formatCell = (key: string, value: any) => {
-    if (value === null || value === undefined) return "-";
-    if (key === "tv_price" || key === "upstox_price") return `₹${value.toFixed(2)}`;
-    if (
-      key === "to_52w_high" ||
-      key === "recent_return_5d" ||
-      key === "perf_w" ||
-      key === "day_change"
-    ) {
-      return `${value > 0 ? "+" : ""}${Number(value).toFixed(2)}%`;
-    }
-    if (key === "rsi" || key === "adx" || key === "atr_pct") return Number(value).toFixed(1);
-    if (key === "volume_m" || key === "volume_surge") return Number(value).toFixed(2);
-    if (key === "touched_52w") return value ? "Yes" : "No";
-    return String(value);
   };
 
   const renderFilterInput = (filter: ProfileFilter) => {
