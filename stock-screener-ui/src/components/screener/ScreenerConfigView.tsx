@@ -1,5 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Stack, Text, Badge, Group, Table, Box, Button, ScrollArea, Divider, Modal, TextInput, Checkbox, Select, NumberInput, ActionIcon, Slider } from "@mantine/core";
+import {
+  Stack,
+  Text,
+  Badge,
+  Group,
+  Table,
+  Box,
+  Button,
+  ScrollArea,
+  Divider,
+  Modal,
+  TextInput,
+  Checkbox,
+  Select,
+  NumberInput,
+  ActionIcon,
+} from "@mantine/core";
 import type { ScreenerOption, Stock, ProfileFilter, ColumnDef } from "../../types";
 import { ScreenerTable } from "./ScreenerTable";
 import { SelectionBar } from "./SelectionBar";
@@ -30,28 +46,63 @@ const DEFAULT_FILTERS: Record<string, ProfileFilter> = {
   RSI: { key: "rsi", label: "RSI", type: "number", min: 0, max: 100, default: 50, step: 1 },
   ADX: { key: "adx", label: "ADX", type: "number", min: 0, max: 100, default: 20, step: 1 },
   Volume: { key: "volume_m", label: "Volume (M)", type: "number", min: 0, default: 1, step: 0.1 },
-  "52W Gap %": { key: "to_52w_high", label: "52W Gap %", type: "number", min: -100, default: 10, step: 1 },
-  Stochastic: { key: "stochastic", label: "Stochastic", type: "number", min: 0, max: 100, default: 20, step: 1 },
+  "52W Gap %": {
+    key: "to_52w_high",
+    label: "52W Gap %",
+    type: "number",
+    min: -100,
+    default: 10,
+    step: 1,
+  },
+  Stochastic: {
+    key: "stochastic",
+    label: "Stochastic",
+    type: "number",
+    min: 0,
+    max: 100,
+    default: 20,
+    step: 1,
+  },
   ATR: { key: "atr_pct", label: "ATR %", type: "number", min: 0, default: 2, step: 0.1 },
-  MACD: { key: "macd", label: "MACD", type: "select", options: ["bullish", "bearish", "neutral"], default: "bullish" },
+  MACD: {
+    key: "macd",
+    label: "MACD",
+    type: "select",
+    options: ["bullish", "bearish", "neutral"],
+    default: "bullish",
+  },
   Momentum: { key: "momentum", label: "Momentum", type: "number", min: -100, default: 0, step: 1 },
 };
 
 const FILTER_KEY_LABELS: Record<string, string> = {
-  min_rsi: "RSI", max_rsi: "RSI",
-  min_adx: "ADX", max_adx: "ADX",
-  min_atr_pct: "ATR", max_atr_pct: "ATR",
-  min_volume_m: "Vol", max_volume_m: "Vol",
-  min_stoch_k: "Stoch", max_stoch_k: "Stoch",
-  min_gap_pct: "Gap", max_gap_pct: "Gap",
-  max_52w_gap: "52W", min_52w_gap: "52W",
-  min_score: "Score", max_score: "Score",
-  min_vol_surge: "VSurge", max_vol_surge: "VSurge",
-  min_wick_pct: "Wick", max_wick_pct: "Wick",
-  min_interest_score: "Interest", max_interest_score: "Interest",
-  min_impact: "Impact", max_impact: "Impact",
-  min_cap_b: "MCap", max_cap_b: "MCap",
-  trend: "Trend", direction: "Dir",
+  min_rsi: "RSI",
+  max_rsi: "RSI",
+  min_adx: "ADX",
+  max_adx: "ADX",
+  min_atr_pct: "ATR",
+  max_atr_pct: "ATR",
+  min_volume_m: "Vol",
+  max_volume_m: "Vol",
+  min_stoch_k: "Stoch",
+  max_stoch_k: "Stoch",
+  min_gap_pct: "Gap",
+  max_gap_pct: "Gap",
+  max_52w_gap: "52W",
+  min_52w_gap: "52W",
+  min_score: "Score",
+  max_score: "Score",
+  min_vol_surge: "VSurge",
+  max_vol_surge: "VSurge",
+  min_wick_pct: "Wick",
+  max_wick_pct: "Wick",
+  min_interest_score: "Interest",
+  max_interest_score: "Interest",
+  min_impact: "Impact",
+  max_impact: "Impact",
+  min_cap_b: "MCap",
+  max_cap_b: "MCap",
+  trend: "Trend",
+  direction: "Dir",
   lookback_minutes: "Lookback",
   min_move_pct: "Move%",
 };
@@ -66,8 +117,10 @@ const getFilterBadges = (filters: Record<string, any>): JSX.Element[] => {
     const displayVal = typeof value === "object" ? JSON.stringify(value) : String(value);
     badges.push(
       <Badge key={key} size="xs" variant="filled" color="red">
-        {label}{prefix}{displayVal}
-      </Badge>
+        {label}
+        {prefix}
+        {displayVal}
+      </Badge>,
     );
   }
   return badges;
@@ -115,25 +168,34 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   const [touchedSymbols] = useState<Set<string>>(new Set());
   const [modalSortColumn, setModalSortColumn] = useState<string | null>("score");
   const [modalSortDirection, setModalSortDirection] = useState<"asc" | "desc">("desc");
-  const [rangeValues, setRangeValues] = useState<Record<string, [number, number]>>({});
-  const [modalRangeValues, setModalRangeValues] = useState<Record<string, [number, number]>>({});
 
   const activeOption = screenerOptions.find((o) => o.id === activeScreener);
-  const columns = activeOption?.columns || ["symbol", "score", "rsi", "day_change", "volume_m", "perf_w", "sector"];
+  const columns = activeOption?.columns || [
+    "symbol",
+    "score",
+    "rsi",
+    "day_change",
+    "volume_m",
+    "perf_w",
+    "sector",
+  ];
   const columnDefs: ColumnDef[] = columns.map((key) => ({
     key,
     label: ALL_COLUMNS.find((c) => c.key === key)?.label || key,
     sortable: true,
   }));
 
-  const handleSortChange = useCallback((column: string) => {
-    if (sortColumn === column) {
-      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(column);
-      setSortDirection("desc");
-    }
-  }, [sortColumn]);
+  const handleSortChange = useCallback(
+    (column: string) => {
+      if (sortColumn === column) {
+        setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+      } else {
+        setSortColumn(column);
+        setSortDirection("desc");
+      }
+    },
+    [sortColumn],
+  );
 
   const handleSymbolClick = useCallback((_symbol: string) => {
     // No-op for config preview - could open detail modal in future
@@ -143,49 +205,51 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
     // No-op for config preview
   }, []);
 
-  const loadPreview = useCallback(async (screenerId?: string, cols?: string[], f?: { key: string; default: any }[]) => {
-    setLoading(true);
-    try {
-      const queryParams = new URLSearchParams();
-      queryParams.set("provider", "upstox");
-      queryParams.set("mode", "intraday");
-      const screenerName = (screenerId || activeScreener).replace("builtin:", "");
-      queryParams.set("screener", screenerName);
-      
-      if (cols && cols.length > 0) {
-        queryParams.set("columns", cols.join(","));
-      }
-      
-      if (f) {
-        f.forEach(filter => {
-          if (filter.default !== undefined) {
-            queryParams.set(filter.key, String(filter.default));
-          }
-        });
-      }
+  const loadPreview = useCallback(
+    async (screenerId?: string, cols?: string[], f?: { key: string; default: any }[]) => {
+      setLoading(true);
+      try {
+        const queryParams = new URLSearchParams();
+        queryParams.set("provider", "upstox");
+        queryParams.set("mode", "intraday");
+        const screenerName = (screenerId || activeScreener).replace("builtin:", "");
+        queryParams.set("screener", screenerName);
 
-      const res = await fetch(
-        `http://localhost:8765/api/screener?${queryParams.toString()}`,
-        {
+        if (cols && cols.length > 0) {
+          queryParams.set("columns", cols.join(","));
+        }
+
+        if (f) {
+          f.forEach((filter) => {
+            if (filter.default !== undefined) {
+              queryParams.set(filter.key, String(filter.default));
+            }
+          });
+        }
+
+        const res = await fetch(`http://localhost:8765/api/screener?${queryParams.toString()}`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
           },
-        }
-      );
-      const data = await res.json();
-      setStocks(data.approaching || []);
-    } catch (e) {
-      console.error("Failed to load preview:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeScreener]);
+        });
+        const data = await res.json();
+        setStocks(data.approaching || []);
+      } catch (e) {
+        console.error("Failed to load preview:", e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activeScreener],
+  );
 
   useEffect(() => {
-    const filterArray = activeOption?.filters ? Object.entries(activeOption.filters as Record<string, any>).map(([key, value]) => ({
-      key,
-      default: value,
-    })) : undefined;
+    const filterArray = activeOption?.filters
+      ? Object.entries(activeOption.filters as Record<string, any>).map(([key, value]) => ({
+          key,
+          default: value,
+        }))
+      : undefined;
     loadPreview(activeScreener, columns, filterArray);
   }, [activeScreener, activeOption?.filters]);
 
@@ -198,26 +262,18 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
       queryParams.set("mode", "intraday");
       queryParams.set("screener", "trending");
       queryParams.set("columns", form.columns.join(","));
-      
-      form.filters.forEach(filter => {
+
+      form.filters.forEach((filter) => {
         if (filter.default !== undefined) {
           queryParams.set(`filter_${filter.key}`, String(filter.default));
         }
       });
 
-      Object.entries(modalRangeValues).forEach(([key, [min, max]]) => {
-        queryParams.set(`filter_${key}_min`, String(min));
-        queryParams.set(`filter_${key}_max`, String(max));
+      const res = await fetch(`http://localhost:8765/api/screener?${queryParams.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
       });
-
-      const res = await fetch(
-        `http://localhost:8765/api/screener?${queryParams.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-          },
-        }
-      );
       const data = await res.json();
       setStocks(data.approaching || []);
     } catch (e) {
@@ -225,7 +281,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
     } finally {
       setLoading(false);
     }
-  }, [form.columns, form.filters, rangeValues]);
+  }, [form.columns, form.filters]);
 
   const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -235,21 +291,23 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
       const activeOpt = screenerOptions.find((o) => o.id === activeScreener);
       const activeFilters = activeOpt?.filters;
       const filterArr: { key: string; default: any; min?: number; max?: number }[] = [];
-      
+
       if (activeFilters) {
         Object.entries(activeFilters as Record<string, any>).forEach(([key, value]) => {
           if (Array.isArray(value) && value.length === 2) {
-            filterArr.push({ key: key + '_min', default: value[0] });
-            filterArr.push({ key: key + '_max', default: value[1] });
+            filterArr.push({ key: key + "_min", default: value[0] });
+            filterArr.push({ key: key + "_max", default: value[1] });
           } else {
             filterArr.push({ key, default: value });
           }
         });
       }
-      
+
       loadPreview(activeScreener, columns, filterArr);
     }, 500);
-    return () => { if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current); };
+    return () => {
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+    };
   }, [activeScreener, columns, screenerOptions]);
 
   const modalPreviewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -260,8 +318,10 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
     modalPreviewDebounceRef.current = setTimeout(() => {
       loadModalPreview();
     }, 300);
-    return () => { if (modalPreviewDebounceRef.current) clearTimeout(modalPreviewDebounceRef.current); };
-  }, [createModalOpen, editModalOpen, loadModalPreview, modalRangeValues]);
+    return () => {
+      if (modalPreviewDebounceRef.current) clearTimeout(modalPreviewDebounceRef.current);
+    };
+  }, [createModalOpen, editModalOpen, loadModalPreview]);
 
   const handleCreate = async () => {
     if (!form.label || form.columns.length === 0) return;
@@ -272,8 +332,10 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         description: form.description,
         indicators: form.indicators,
         columns: form.columns,
-        filters: Object.fromEntries((form.filters || []).map(f => [f.key, f.default])),
-        default_sort: form.defaultSortColumn ? { column: form.defaultSortColumn, direction: form.defaultSortDirection } : undefined,
+        filters: Object.fromEntries((form.filters || []).map((f) => [f.key, f.default])),
+        default_sort: form.defaultSortColumn
+          ? { column: form.defaultSortColumn, direction: form.defaultSortDirection }
+          : undefined,
       });
       setCreateModalOpen(false);
       setForm(EMPTY_FORM);
@@ -295,8 +357,10 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         description: form.description,
         indicators: form.indicators,
         columns: form.columns,
-        filters: Object.fromEntries((form.filters || []).map(f => [f.key, f.default])),
-        default_sort: form.defaultSortColumn ? { column: form.defaultSortColumn, direction: form.defaultSortDirection } : undefined,
+        filters: Object.fromEntries((form.filters || []).map((f) => [f.key, f.default])),
+        default_sort: form.defaultSortColumn
+          ? { column: form.defaultSortColumn, direction: form.defaultSortDirection }
+          : undefined,
       });
       setEditModalOpen(false);
       setEditingScreener(null);
@@ -352,29 +416,32 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   const handleIndicatorToggle = (indicator: string, checked: boolean) => {
     let newIndicators: string[];
     let newFilters: ProfileFilter[];
-    
+
     if (checked) {
       newIndicators = [...form.indicators, indicator];
       const defaultFilter = DEFAULT_FILTERS[indicator];
       newFilters = defaultFilter ? [...form.filters, { ...defaultFilter }] : [...form.filters];
     } else {
-      newIndicators = form.indicators.filter(i => i !== indicator);
-      newFilters = form.filters.filter(f => f.key !== DEFAULT_FILTERS[indicator]?.key);
+      newIndicators = form.indicators.filter((i) => i !== indicator);
+      newFilters = form.filters.filter((f) => f.key !== DEFAULT_FILTERS[indicator]?.key);
     }
     setForm({ ...form, indicators: newIndicators, filters: newFilters });
   };
 
   const updateFilterValue = (key: string, value: number | string) => {
-    const newFilters = form.filters.map(f => 
-      f.key === key ? { ...f, default: value } : f
-    );
+    const newFilters = form.filters.map((f) => (f.key === key ? { ...f, default: value } : f));
     setForm({ ...form, filters: newFilters });
   };
 
   const formatCell = (key: string, value: any) => {
     if (value === null || value === undefined) return "-";
     if (key === "tv_price" || key === "upstox_price") return `₹${value.toFixed(2)}`;
-    if (key === "to_52w_high" || key === "recent_return_5d" || key === "perf_w" || key === "day_change") {
+    if (
+      key === "to_52w_high" ||
+      key === "recent_return_5d" ||
+      key === "perf_w" ||
+      key === "day_change"
+    ) {
       return `${value > 0 ? "+" : ""}${Number(value).toFixed(2)}%`;
     }
     if (key === "rsi" || key === "adx" || key === "atr_pct") return Number(value).toFixed(1);
@@ -383,30 +450,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
     return String(value);
   };
 
-  
-
   const renderFilterInput = (filter: ProfileFilter) => {
-    if (filter.type === "range") {
-      const currentRange = modalRangeValues[filter.key] || (filter.rangeDefault || [filter.min || 0, filter.max || 100]);
-      return (
-        <Box key={filter.key} style={{ width: 200 }}>
-          <Text size="xs" mb={4}>{filter.label}: {currentRange[0]} - {currentRange[1]}</Text>
-          <Slider
-            range
-            min={filter.min}
-            max={filter.max}
-            step={filter.step}
-            value={currentRange}
-            onChange={(val) => setModalRangeValues({ ...modalRangeValues, [filter.key]: val })}
-            marks={[
-              { value: filter.min || 0, label: String(filter.min) },
-              { value: filter.max || 100, label: String(filter.max) },
-            ]}
-            size="sm"
-          />
-        </Box>
-      );
-    }
     if (filter.type === "number") {
       return (
         <NumberInput
@@ -438,14 +482,69 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
 
   return (
     <Box style={{ display: "flex", height: "100%", gap: 8 }}>
-      <Box style={{ width: 280, flexShrink: 0, borderRight: "1px solid var(--mantine-color-default-border)" }} data-testid="screener-list-panel">
+      <Box
+        style={{
+          width: 280,
+          flexShrink: 0,
+          borderRight: "1px solid var(--mantine-color-default-border)",
+        }}
+        data-testid="screener-list-panel"
+      >
         <ScrollArea h="100%">
           <Stack gap={4} p="xs">
             <Group justify="space-between" data-testid="screener-list-header">
               <Text fw={600} size="xs" data-testid="screener-configs-title">
                 CONFIGS
               </Text>
-              <Button size="xs" variant="light" onClick={() => { setForm({ ...EMPTY_FORM, columns: ["symbol", "score", "rsi", "day_change", "volume_m", "perf_w", "sector"], filters: [{ key: "rsi_range", label: "RSI Range", type: "range", min: 30, max: 70, rangeDefault: [35, 65] }, { key: "adx_range", label: "ADX Range", type: "range", min: 15, max: 50, rangeDefault: [20, 40] }, { key: "min_volume_m", label: "Min Vol (M)", type: "number", default: 2, min: 0, max: 100, step: 0.5 }] }); setCreateModalOpen(true); }} data-testid="create-screener-btn">
+              <Button
+                size="xs"
+                variant="light"
+                onClick={() => {
+                  setForm({
+                    ...EMPTY_FORM,
+                    columns: [
+                      "symbol",
+                      "score",
+                      "rsi",
+                      "day_change",
+                      "volume_m",
+                      "perf_w",
+                      "sector",
+                    ],
+                    filters: [
+                      {
+                        key: "min_rsi",
+                        label: "Min RSI",
+                        type: "number",
+                        default: 30,
+                        min: 0,
+                        max: 100,
+                        step: 1,
+                      },
+                      {
+                        key: "min_adx",
+                        label: "Min ADX",
+                        type: "number",
+                        default: 15,
+                        min: 0,
+                        max: 100,
+                        step: 1,
+                      },
+                      {
+                        key: "min_volume_m",
+                        label: "Min Vol (M)",
+                        type: "number",
+                        default: 2,
+                        min: 0,
+                        max: 100,
+                        step: 0.5,
+                      },
+                    ],
+                  });
+                  setCreateModalOpen(true);
+                }}
+                data-testid="create-screener-btn"
+              >
                 + Create
               </Button>
             </Group>
@@ -459,8 +558,14 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 style={{
                   borderRadius: 4,
                   cursor: "pointer",
-                  backgroundColor: option.id === activeScreener ? "var(--mantine-color-blue-light)" : "transparent",
-                  border: option.id === activeScreener ? "1px solid var(--mantine-color-blue)" : "1px solid transparent",
+                  backgroundColor:
+                    option.id === activeScreener
+                      ? "var(--mantine-color-blue-light)"
+                      : "transparent",
+                  border:
+                    option.id === activeScreener
+                      ? "1px solid var(--mantine-color-blue)"
+                      : "1px solid transparent",
                 }}
                 onClick={() => onScreenerChange(option.id)}
               >
@@ -476,10 +581,27 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                     )}
                   </Group>
                   <Group gap={4}>
-                    <ActionIcon size="sm" variant="subtle" onClick={(e) => { e.stopPropagation(); openEditModal(option); }} data-testid={`edit-screener-${option.id}`}>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(option);
+                      }}
+                      data-testid={`edit-screener-${option.id}`}
+                    >
                       <Text size="xs">Edit</Text>
                     </ActionIcon>
-                    <ActionIcon size="sm" variant="subtle" color="red" onClick={(e) => { e.stopPropagation(); openDeleteConfirm(option.id); }} data-testid={`delete-screener-${option.id}`}>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="red"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDeleteConfirm(option.id);
+                      }}
+                      data-testid={`delete-screener-${option.id}`}
+                    >
                       <Text size="xs">Del</Text>
                     </ActionIcon>
                   </Group>
@@ -493,57 +615,57 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         </ScrollArea>
       </Box>
 
-      <Box style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }} data-testid="screener-preview-panel">
+      <Box
+        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+        data-testid="screener-preview-panel"
+      >
         <Box p="xs" style={{ overflow: "auto" }} data-testid="screener-details-bar">
           {activeOption && (
             <Group gap={8} wrap="wrap" data-testid="screener-filters">
-              <Badge size="xs" color="blue" data-testid="screener-name-badge">{activeOption.label}</Badge>
+              <Badge size="xs" color="blue" data-testid="screener-name-badge">
+                {activeOption.label}
+              </Badge>
               {(() => {
                 let filterObj: Record<string, any> = {};
                 if (Array.isArray(activeOption.filters)) {
-                  activeOption.filters.forEach((f: any) => { if (f.key && f.default !== undefined) filterObj[f.key] = f.default; });
-                } else if (activeOption.filters && typeof activeOption.filters === 'object') {
+                  activeOption.filters.forEach((f: any) => {
+                    if (f.key && f.default !== undefined) filterObj[f.key] = f.default;
+                  });
+                } else if (activeOption.filters && typeof activeOption.filters === "object") {
                   filterObj = activeOption.filters as Record<string, any>;
                 }
-                const rangeKeys = ['rsi', 'adx', 'atr', 'score', 'wick', 'gap', 'move'];
-                return Object.entries(filterObj).map(([key, value]) => {
-                  const isRange = key.endsWith('_range') || rangeKeys.some(rk => key.toLowerCase().includes(rk));
-                  if (isRange) {
-                    const rangeVal = Array.isArray(value) ? value : rangeValues[key] || [0, 100];
-                    return (
-                      <Box key={key} style={{ minWidth: 150 }}>
-                        <Text size="xs" mb={2}>{key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}: {rangeVal[0]} - {rangeVal[1]}</Text>
-                        <Slider
-                          range
-                          min={0}
-                          max={100}
-                          step={1}
-                          value={rangeVal}
-                          onChange={(val) => setRangeValues({ ...rangeValues, [key]: val })}
-                          size="xs"
-                        />
-                      </Box>
-                    );
-                  }
-                  return (
-                    <Badge key={key} size="xs" color="red" variant="light">
-                      {key.replace(/_/g, ' ')}: {String(value)}
-                    </Badge>
-                  );
-                });
+                return Object.entries(filterObj).map(([key, value]) => (
+                  <Badge key={key} size="xs" color="red" variant="light">
+                    {key.replace(/_/g, " ")}: {String(value)}
+                  </Badge>
+                ));
               })()}
             </Group>
           )}
         </Box>
         <Group justify="space-between" px="xs" data-testid="preview-header">
-          <Text fw={600} size="xs" data-testid="preview-count">PREVIEW ({stocks.length})</Text>
-          <Button size="xs" variant="light" onClick={() => loadPreview()} loading={loading} data-testid="preview-refresh-btn">↻</Button>
+          <Text fw={600} size="xs" data-testid="preview-count">
+            PREVIEW ({stocks.length})
+          </Text>
+          <Button
+            size="xs"
+            variant="light"
+            onClick={() => loadPreview()}
+            loading={loading}
+            data-testid="preview-refresh-btn"
+          >
+            ↻
+          </Button>
         </Group>
         <Box style={{ flex: 1, overflow: "auto" }} p="xs">
           {loading ? (
-            <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-loading">Loading...</Text>
+            <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-loading">
+              Loading...
+            </Text>
           ) : stocks.length === 0 ? (
-            <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-empty">No stocks</Text>
+            <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-empty">
+              No stocks
+            </Text>
           ) : (
             <ScreenerTable
               stocks={stocks}
@@ -558,7 +680,11 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
             />
           )}
         </Box>
-        <SelectionBar onCompare={() => { /* no-op for config preview */ }} />
+        <SelectionBar
+          onCompare={() => {
+            /* no-op for config preview */
+          }}
+        />
       </Box>
 
       <Modal
@@ -572,7 +698,11 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
 
       <Modal
         opened={editModalOpen}
-        onClose={() => { setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }}
+        onClose={() => {
+          setEditModalOpen(false);
+          setEditingScreener(null);
+          setForm(EMPTY_FORM);
+        }}
         title="Edit Screener"
         size="xl"
       >
@@ -581,14 +711,29 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
 
       <Modal
         opened={deleteConfirmOpen}
-        onClose={() => { setDeleteConfirmOpen(false); setDeletingId(null); }}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setDeletingId(null);
+        }}
         title="Delete Screener"
         size="sm"
       >
-        <Text mb="md">Are you sure you want to delete this screener? This action cannot be undone.</Text>
+        <Text mb="md">
+          Are you sure you want to delete this screener? This action cannot be undone.
+        </Text>
         <Group justify="flex-end">
-          <Button variant="light" onClick={() => { setDeleteConfirmOpen(false); setDeletingId(null); }}>Cancel</Button>
-          <Button color="red" onClick={handleDelete} loading={saving}>Delete</Button>
+          <Button
+            variant="light"
+            onClick={() => {
+              setDeleteConfirmOpen(false);
+              setDeletingId(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleDelete} loading={saving}>
+            Delete
+          </Button>
         </Group>
       </Modal>
     </Box>
@@ -617,14 +762,16 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               Indicators
             </Text>
             <Group gap="md">
-              {["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"].map((ind) => (
-                <Checkbox
-                  key={ind}
-                  label={ind}
-                  checked={form.indicators.includes(ind)}
-                  onChange={(e) => handleIndicatorToggle(ind, e.target.checked)}
-                />
-              ))}
+              {["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"].map(
+                (ind) => (
+                  <Checkbox
+                    key={ind}
+                    label={ind}
+                    checked={form.indicators.includes(ind)}
+                    onChange={(e) => handleIndicatorToggle(ind, e.target.checked)}
+                  />
+                ),
+              )}
             </Group>
 
             {form.filters.length > 0 && (
@@ -632,9 +779,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 <Text size="sm" fw={600}>
                   Filter Values
                 </Text>
-                <Group gap="md">
-                  {form.filters.map(renderFilterInput)}
-                </Group>
+                <Group gap="md">{form.filters.map(renderFilterInput)}</Group>
               </>
             )}
 
@@ -652,11 +797,21 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 { value: "asc", label: "Ascending ↑" },
               ]}
               value={form.defaultSortDirection}
-              onChange={(val) => setForm({ ...form, defaultSortDirection: (val as "asc" | "desc") || "desc" })}
+              onChange={(val) =>
+                setForm({ ...form, defaultSortDirection: (val as "asc" | "desc") || "desc" })
+              }
             />
 
             <Group justify="flex-end" mt="md">
-              <Button variant="light" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setForm(EMPTY_FORM); }} data-testid="cancel-create-btn">
+              <Button
+                variant="light"
+                onClick={() => {
+                  setCreateModalOpen(false);
+                  setEditModalOpen(false);
+                  setForm(EMPTY_FORM);
+                }}
+                data-testid="cancel-create-btn"
+              >
                 Cancel
               </Button>
               <Button
@@ -671,13 +826,21 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
           </Stack>
         </Box>
 
-        <Box style={{ flex: 1, borderLeft: "1px solid var(--mantine-color-default-border)", paddingLeft: 24 }}>
+        <Box
+          style={{
+            flex: 1,
+            borderLeft: "1px solid var(--mantine-color-default-border)",
+            paddingLeft: 24,
+          }}
+        >
           <Stack gap="xs" data-testid="create-modal-preview">
             <Group justify="space-between">
               <Text fw={600} size="sm" data-testid="modal-live-preview-title">
                 LIVE PREVIEW
               </Text>
-              <Badge size="sm" color="blue">{stocks.length} stocks</Badge>
+              <Badge size="sm" color="blue">
+                {stocks.length} stocks
+              </Badge>
             </Group>
             {form.columns.length === 0 ? (
               <Text size="sm" c="dimmed" ta="center" py="xl">

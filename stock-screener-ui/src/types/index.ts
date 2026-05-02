@@ -42,12 +42,11 @@ export interface SummaryItem {
 export interface ProfileFilter {
   key: string;
   label: string;
-  type: "number" | "select" | "range";
+  type: "number" | "select";
   min?: number;
   max?: number;
   step?: number;
   default?: number | string;
-  rangeDefault?: [number, number];
   options?: string[];
 }
 
