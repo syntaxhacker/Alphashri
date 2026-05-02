@@ -150,6 +150,7 @@ export function CorrelationTab() {
                 { label: "Intraday", value: "intraday" },
               ]}
               size="sm"
+              data-testid="correlation-timeframe"
             />
             <Select
               label="Period"
@@ -158,6 +159,7 @@ export function CorrelationTab() {
               data={periods}
               size="sm"
               w={80}
+              data-testid="correlation-period"
             />
             <Button
               onClick={handleCalculate}
