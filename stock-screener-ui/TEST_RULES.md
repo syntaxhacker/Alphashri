@@ -12,6 +12,20 @@
 - `bunx vitest run --dir src` — alternative direct invocation
 - `bunx playwright test` — E2E tests (requires dev server running)
 
+### Skip Test Environment Variables
+Use environment variables to skip specific test suites during development (faster iteration):
+
+```bash
+# Skip Python tests
+SKIP_PYTHON=1 git commit ...
+
+# Skip frontend unit tests  
+SKIP_UI=1 git commit ...
+
+# Skip both (e.g., for doc-only commits)
+SKIP_PYTHON=1 SKIP_UI=1 git commit ...
+```
+
 ## File Conventions
 
 ### Unit Test Files

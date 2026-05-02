@@ -1,8 +1,9 @@
-import { Table, Group, Text, ActionIcon, CopyButton, Tooltip } from "@mantine/core";
+import { Table, Group, Text, ActionIcon, CopyButton, Tooltip, Checkbox } from "@mantine/core";
 import { IconArrowUp, IconArrowDown, IconCopy, IconCheck } from "@tabler/icons-react";
 import { DataTable } from "../common/DataTable";
 import { SortableHeader } from "../common/SortableHeader";
 import { StockRow } from "./StockRow";
+import { selectedSymbols, setSelectedSymbols, clearSelectedSymbols } from "../../state";
 import type { ColumnDef } from "./columns";
 import type { Stock } from "../../types";
 
@@ -28,6 +29,16 @@ export function ScreenerTable({
   onSymbolHover,
 }: ScreenerTableProps) {
   const allSymbols = stocks.map((s) => s.symbol).join(", ");
+  const visibleSymbols = stocks.map((s) => s.symbol);
+  const allVisibleSelected = visibleSymbols.every((s) => selectedSymbols.includes(s));
+
+  const handleSelectAll = () => {
+    if (allVisibleSelected) {
+      clearSelectedSymbols();
+    } else {
+      setSelectedSymbols(visibleSymbols);
+    }
+  };
 
   const renderHeader = (column: ColumnDef) => {
     const isSymbolColumn = column.key === "symbol";
@@ -102,7 +113,18 @@ export function ScreenerTable({
       style={{ width: "100%", minWidth: 0 }}
     >
       <Table.Thead className="screener-table-header" data-testid="screener-table-header">
-        <Table.Tr>{columns.map(renderHeader)}</Table.Tr>
+        <Table.Tr>
+          <Table.Th style={{ width: 40 }} data-testid="select-all-header">
+            <Checkbox
+              size="xs"
+              checked={stocks.length > 0 && allVisibleSelected}
+              indeterminate={selectedSymbols.length > 0 && !allVisibleSelected}
+              onChange={handleSelectAll}
+              data-testid="select-all-checkbox"
+            />
+          </Table.Th>
+          {columns.map(renderHeader)}
+        </Table.Tr>
       </Table.Thead>
       <Table.Tbody className="screener-table-body" data-testid="screener-table-body">
         {stocks.map((stock) => (

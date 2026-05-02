@@ -221,7 +221,7 @@ describe("ScreenerTable", () => {
     );
     const header = screen.getByTestId("screener-table-header");
     const rows = header.querySelectorAll("tr th");
-    expect(rows.length).toBe(mockColumns.length);
+    expect(rows.length).toBe(mockColumns.length + 1);
   });
 
   it("renders correct number of body rows", () => {

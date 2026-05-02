@@ -254,6 +254,16 @@ print('pd.Timestamp' in inspect.getsource(get_paper_chart))
 - Run both before committing
 - **Read `TEST_RULES.md`** before writing or modifying any test — covers assertion conventions, mock patterns, accordion interaction, data-testid naming, and coverage requirements
 
+### Running Targeted Tests (Fast)
+Use glob patterns to run only the changed feature's tests during development:
+```bash
+bun test -- --run src/components/screener/Correlation  # component tests only
+bun test -- --run src/state/correlation.test.ts         # state tests only
+bun test -- --run src/components/screener/CorrelationMatrix.test.tsx  # single file
+source .venv/bin/activate && python -m pytest tests/test_correlation.py -v  # backend
+```
+Always run the full suite (`bun run test`) before committing.
+
 ### Backend Test Gotchas
 - **`@patch` decorator ordering**: When using `@patch` as a decorator on test methods, mock arguments are injected **before** pytest fixtures. Order is bottom-to-top for decorators, left-to-right for args:
   ```python

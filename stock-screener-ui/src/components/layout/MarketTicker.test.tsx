@@ -107,10 +107,9 @@ describe("MarketTicker", () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("market-ticker"),
-      { priority: "low" }
-    );
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("market-ticker"), {
+      priority: "low",
+    });
   });
 
   it("displays ticker items after loading", async () => {

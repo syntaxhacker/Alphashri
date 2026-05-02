@@ -54,6 +54,15 @@ vi.mock("@mantine/core", () => {
       const copy = vi.fn().mockImplementation(async () => {});
       return children({ copied: false, copy });
     },
+    Checkbox: ({ checked, onChange, "data-testid": dataTestId, ...props }: any) => (
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        data-testid={dataTestId}
+        {...props}
+      />
+    ),
   };
 });
 

@@ -201,6 +201,13 @@ stock-screener-ui/
 - Custom screening strategies
 - Real-time data updates
 
+### Sector Analysis
+- Sector performance dashboard with treemap and movers
+- Cross-sector correlation heatmap
+- Sector beta vs benchmark (NIFTY 50 / SPY)
+- Relative strength rankings with rotation timeline
+- Support for India (NIFTY sectors) and US (sector ETFs) markets
+
 ### Strategy Management
 - Create and manage trading strategies
 - Strategy variations and testing
@@ -263,6 +270,10 @@ After migration:
 - `GET /api/paper/journal/summary` - Performance summary
 - `GET /api/paper/journal/symbols` - Symbol performance
 - `GET /api/paper/journal/daily` - Daily report
+
+### Sector
+- `GET /api/sector/performance?market=india|america` - Sector performance summary
+- `GET /api/sector/correlation?market=india|america&lookback_days=90` - Sector correlation matrix, beta vs benchmark, relative strength rankings, and rotation timeline
 
 ## Database
 

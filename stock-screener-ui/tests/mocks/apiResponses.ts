@@ -378,7 +378,108 @@ export const mockSectorResponse = {
   market: "india",
 };
 
+// Mock sector correlation response (India)
+export const mockSectorCorrelationResponse = {
+  sectors: [
+    {
+      name: "NIFTY 50",
+      beta_vs_index: 1.0,
+      relative_strength_5d: 0.5,
+      relative_strength_1m: 1.0,
+      relative_strength_3m: 2.0,
+      rank_current: 1,
+      rank_change_1m: 0,
+    },
+    {
+      name: "NIFTY BANK",
+      beta_vs_index: 1.3,
+      relative_strength_5d: 1.2,
+      relative_strength_1m: 2.5,
+      relative_strength_3m: 4.0,
+      rank_current: 2,
+      rank_change_1m: 1,
+    },
+    {
+      name: "NIFTY IT",
+      beta_vs_index: 0.9,
+      relative_strength_5d: -0.3,
+      relative_strength_1m: 0.5,
+      relative_strength_3m: 1.0,
+      rank_current: 3,
+      rank_change_1m: -1,
+    },
+    {
+      name: "NIFTY FMCG",
+      beta_vs_index: 0.7,
+      relative_strength_5d: 0.2,
+      relative_strength_1m: 0.8,
+      relative_strength_3m: 1.5,
+      rank_current: 4,
+      rank_change_1m: 0,
+    },
+  ],
+  correlation_matrix: [
+    [1.0, 0.85, 0.65, 0.45],
+    [0.85, 1.0, 0.55, 0.4],
+    [0.65, 0.55, 1.0, 0.6],
+    [0.45, 0.4, 0.6, 1.0],
+  ],
+  sector_names: ["NIFTY 50", "NIFTY BANK", "NIFTY IT", "NIFTY FMCG"],
+  last_updated: new Date().toISOString(),
+};
+
+// Mock sector correlation response (US)
+export const mockSectorCorrelationResponseUS = {
+  sectors: [
+    {
+      name: "SPY",
+      beta_vs_index: 1.0,
+      relative_strength_5d: 0.5,
+      relative_strength_1m: 1.0,
+      relative_strength_3m: 2.0,
+      rank_current: 1,
+      rank_change_1m: 0,
+    },
+    {
+      name: "XLK",
+      beta_vs_index: 1.2,
+      relative_strength_5d: 1.5,
+      relative_strength_1m: 3.0,
+      relative_strength_3m: 5.0,
+      rank_current: 2,
+      rank_change_1m: 1,
+    },
+    {
+      name: "XLF",
+      beta_vs_index: 1.1,
+      relative_strength_5d: 0.8,
+      relative_strength_1m: 2.0,
+      relative_strength_3m: 3.0,
+      rank_current: 3,
+      rank_change_1m: -1,
+    },
+    {
+      name: "XLE",
+      beta_vs_index: 0.9,
+      relative_strength_5d: -0.2,
+      relative_strength_1m: 0.5,
+      relative_strength_3m: 1.5,
+      rank_current: 4,
+      rank_change_1m: 0,
+    },
+  ],
+  correlation_matrix: [
+    [1.0, 0.82, 0.75, 0.6],
+    [0.82, 1.0, 0.7, 0.55],
+    [0.75, 0.7, 1.0, 0.65],
+    [0.6, 0.55, 0.65, 1.0],
+  ],
+  sector_names: ["SPY", "XLK", "XLF", "XLE"],
+  last_updated: new Date().toISOString(),
+};
+
 export async function setupSectorMocks(page: import("@playwright/test").Page) {
+  // Mock /api/sector endpoint
   await page.route(/localhost:8765\/api\/sector/, async (route) => {
     const url = route.request().url();
     const marketMatch = url.match(/market=([^&]+)/);
@@ -390,6 +491,24 @@ export async function setupSectorMocks(page: import("@playwright/test").Page) {
       body: JSON.stringify({
         ...mockSectorResponse,
         market,
+      }),
+    });
+  });
+
+  // Mock /api/sector/correlation endpoint
+  await page.route(/localhost:8765\/api\/sector\/correlation/, async (route) => {
+    const url = route.request().url();
+    const marketMatch = url.match(/market=([^&]+)/);
+    const market = marketMatch ? marketMatch[1] : "india";
+
+    const response =
+      market === "america" ? mockSectorCorrelationResponseUS : mockSectorCorrelationResponse;
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...response,
       }),
     });
   });
@@ -953,6 +1072,69 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
           },
         ],
         count: 2,
+      }),
+    });
+  });
+}
+
+// Correlation API mocks
+export const mockCorrelationResponse = {
+  matrix: [
+    [1.0, 0.85, 0.32],
+    [0.85, 1.0, 0.12],
+    [0.32, 0.12, 1.0],
+  ],
+  symbols: ["TCS", "INFY", "RELIANCE"],
+  normalized: {
+    TCS: [
+      { timestamp: "2026-04-01T00:00:00", value: 0 },
+      { timestamp: "2026-04-02T00:00:00", value: 1.2 },
+      { timestamp: "2026-04-03T00:00:00", value: -0.5 },
+    ],
+    INFY: [
+      { timestamp: "2026-04-01T00:00:00", value: 0 },
+      { timestamp: "2026-04-02T00:00:00", value: 0.9 },
+      { timestamp: "2026-04-03T00:00:00", value: -0.3 },
+    ],
+    RELIANCE: [
+      { timestamp: "2026-04-01T00:00:00", value: 0 },
+      { timestamp: "2026-04-02T00:00:00", value: -0.2 },
+      { timestamp: "2026-04-03T00:00:00", value: 0.5 },
+    ],
+  },
+  meta: {
+    start_date: "2026-04-01T00:00:00",
+    end_date: "2026-04-03T00:00:00",
+    data_points: 3,
+  },
+  cached: false,
+};
+
+export async function setupCorrelationMocks(page: import("@playwright/test").Page) {
+  await page.route("**/api/correlation/**", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockCorrelationResponse),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  await page.route("**/api/symbols/search**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        results: [
+          { symbol: "TCS", name: "Tata Consultancy Services" },
+          { symbol: "INFY", name: "Infosys" },
+          { symbol: "RELIANCE", name: "Reliance Industries" },
+        ],
+        query: "t",
+        total: 3,
       }),
     });
   });

@@ -58,7 +58,7 @@ export function ScreenerContent({
   if (totalStocks === 0) return <ScreenerEmpty />;
 
   return (
-    <Stack gap="sm" h="100%" w="100%" miw={0} flex={1} style={{ minHeight: 0, overflow: "hidden" }}>
+    <Stack gap="sm" w="100%" style={{ minHeight: 0 }}>
       {sortedApproaching.length > 0 && (
         <ScreenerSection
           title={`Approaching (${sortedApproaching.length})`}
