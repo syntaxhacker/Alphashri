@@ -86,11 +86,11 @@ test.describe("Correlation - UI", () => {
     await expect(page.getByRole("listbox")).toBeVisible();
   });
 
-  test.skip("should show correlation data after calculate", async ({ page }) => {
+  test.skip("should show correlation data after calculate", async () => {
     // This test requires complex symbol selection mocking - skipped for now
   });
 
-  test.skip("should show meta stats after correlation data loads", async ({ page }) => {
+  test.skip("should show meta stats after correlation data loads", async () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="screener-page"]', { timeout: 15000 });
 
