@@ -37,7 +37,7 @@ describe("TradingAgents API", () => {
       const result = await getTradingAgentsConfig();
       expect(result).toEqual(mockConfig);
       expect(mockFetchWithAuth).toHaveBeenCalledWith(
-        expect.stringContaining("/api/trading-agents/config")
+        expect.stringContaining("/api/trading-agents/config"),
       );
     });
 
@@ -112,7 +112,7 @@ describe("TradingAgents API", () => {
           headers: expect.objectContaining({
             "Content-Type": "application/json",
           }),
-        })
+        }),
       );
     });
 
@@ -141,7 +141,7 @@ describe("TradingAgents API", () => {
         expect.stringContaining("/api/trading-agents/analyze"),
         expect.objectContaining({
           method: "POST",
-        })
+        }),
       );
     });
   });
@@ -175,10 +175,11 @@ describe("TradingAgents API", () => {
         ok: true,
         body: {
           getReader: () => ({
-            read: vi.fn()
+            read: vi
+              .fn()
               .mockResolvedValueOnce({
                 done: false,
-                value: new TextEncoder().encode("data: {\"percent\": 50}\n\n"),
+                value: new TextEncoder().encode('data: {"percent": 50}\n\n'),
               })
               .mockResolvedValueOnce({
                 done: true,

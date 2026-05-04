@@ -136,7 +136,7 @@ export async function* streamStockAnalysis(
     date?: string;
     analysts?: string[];
     llm_provider?: string;
-  }
+  },
 ): AsyncGenerator<StreamEvent> {
   const params = new URLSearchParams();
   params.set("ticker", ticker);
@@ -150,7 +150,7 @@ export async function* streamStockAnalysis(
       headers: {
         Accept: "text/event-stream",
       },
-    }
+    },
   );
 
   if (!response.ok) {
@@ -235,13 +235,17 @@ export async function listConversations(): Promise<Conversation[]> {
 
 export async function createConversation(title?: string): Promise<Conversation> {
   const params = title ? `?title=${encodeURIComponent(title)}` : "";
-  const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/conversations${params}`, { method: "POST" });
+  const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/conversations${params}`, {
+    method: "POST",
+  });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
 
 export async function getMessages(conversationId: string): Promise<ChatMessage[]> {
-  const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/conversations/${conversationId}/messages`);
+  const response = await fetchWithAuth(
+    `${TRADING_AGENTS_BASE}/conversations/${conversationId}/messages`,
+  );
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const data = await response.json();
   return data.messages || [];
@@ -266,14 +270,16 @@ export async function addMessage(
 }
 
 export async function deleteConversation(conversationId: string): Promise<void> {
-  const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/conversations/${conversationId}`, { method: "DELETE" });
+  const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/conversations/${conversationId}`, {
+    method: "DELETE",
+  });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
 export async function fetchWithSSE(
   url: string,
   onEvent: (event: string, data: unknown) => void,
-  options?: RequestInit
+  options?: RequestInit,
 ): Promise<void> {
   const response = await fetchWithAuth(url, {
     ...options,

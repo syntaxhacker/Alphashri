@@ -316,7 +316,9 @@ test.describe("Screener - Config Tab", () => {
     await page.click('[data-testid="tab-config"]');
     await page.waitForLoadState("networkidle");
 
-    await expect(page.locator('[data-testid="create-screener-btn"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="create-screener-btn"]')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("should open create modal when clicking Create button", async ({ page }) => {
@@ -329,7 +331,9 @@ test.describe("Screener - Config Tab", () => {
     await page.click('[data-testid="create-screener-btn"]');
     await page.waitForLoadState("networkidle");
 
-    await expect(page.locator('[data-testid="create-screener-form"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="create-screener-form"]')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("should show form fields in create modal", async ({ page }) => {
@@ -342,8 +346,12 @@ test.describe("Screener - Config Tab", () => {
     await page.click('[data-testid="create-screener-btn"]');
     await page.waitForLoadState("networkidle");
 
-    await expect(page.locator('[data-testid="screener-name-input"]')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('[data-testid="create-modal-preview"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="screener-name-input"]')).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.locator('[data-testid="create-modal-preview"]')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("should have Create button disabled when no name entered", async ({ page }) => {
@@ -369,7 +377,9 @@ test.describe("Screener - Config Tab", () => {
     await page.click('[data-testid="create-screener-btn"]');
     await page.waitForLoadState("networkidle");
     await page.fill('[data-testid="screener-name-input"]', "Test");
-    const firstCol = page.locator('[data-testid="create-screener-form"] .mantine-Checkbox-label').first();
+    const firstCol = page
+      .locator('[data-testid="create-screener-form"] .mantine-Checkbox-label')
+      .first();
     await firstCol.click();
     await expect(page.locator('[data-testid="confirm-create-btn"]')).toBeEnabled();
   });
@@ -384,6 +394,8 @@ test.describe("Screener - Config Tab", () => {
     await page.click('[data-testid="create-screener-btn"]');
     await page.waitForLoadState("networkidle");
 
-    await expect(page.locator('[data-testid="modal-live-preview-title"]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="modal-live-preview-title"]')).toBeVisible({
+      timeout: 10000,
+    });
   });
 });

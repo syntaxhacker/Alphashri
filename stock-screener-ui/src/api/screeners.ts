@@ -28,7 +28,7 @@ export async function createScreener(payload: CreateScreenerPayload): Promise<Sc
 
 export async function updateScreener(
   id: string,
-  payload: Partial<CreateScreenerPayload>
+  payload: Partial<CreateScreenerPayload>,
 ): Promise<ScreenerOption> {
   const response = await fetchWithAuth(`${SCREENERS_API}/${id}`, {
     method: "PUT",

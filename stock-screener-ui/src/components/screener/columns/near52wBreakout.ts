@@ -1,5 +1,14 @@
 import type { ColumnDef } from "./index";
-import { symbolCol, scoreCol, sectorCol, rsiCol, adxCol, recentReturn5dCol, perfWCol, dayChangeCol } from "./base";
+import {
+  symbolCol,
+  scoreCol,
+  sectorCol,
+  rsiCol,
+  adxCol,
+  recentReturn5dCol,
+  perfWCol,
+  dayChangeCol,
+} from "./base";
 
 export function getNear52wBreakoutColumns(): ColumnDef[] {
   return [

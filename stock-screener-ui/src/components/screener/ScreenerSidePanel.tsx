@@ -1,4 +1,14 @@
-import { Stack, Text, Badge, Select, NumberInput, Divider, Group, Box, Button } from "@mantine/core";
+import {
+  Stack,
+  Text,
+  Badge,
+  Select,
+  NumberInput,
+  Divider,
+  Group,
+  Box,
+  Button,
+} from "@mantine/core";
 import type { ScreenerOption, ProfileFilter, SortDirection } from "../../types";
 import * as state from "../../state";
 import { fetchData } from "../../api";

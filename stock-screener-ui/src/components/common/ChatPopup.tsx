@@ -23,7 +23,25 @@ import {
   Title,
   Anchor,
 } from "@mantine/core";
-import { IconMessage, IconSend, IconX, IconRobot, IconUser, IconHistory, IconTrash, IconPlus, IconChartBar, IconNews, IconCoin, IconTrendingUp, IconSearch, IconDatabase, IconChartLine, IconArrowsMaximize, IconArrowsMinimize } from "@tabler/icons-react";
+import {
+  IconMessage,
+  IconSend,
+  IconX,
+  IconRobot,
+  IconUser,
+  IconHistory,
+  IconTrash,
+  IconPlus,
+  IconChartBar,
+  IconNews,
+  IconCoin,
+  IconTrendingUp,
+  IconSearch,
+  IconDatabase,
+  IconChartLine,
+  IconArrowsMaximize,
+  IconArrowsMinimize,
+} from "@tabler/icons-react";
 import {
   checkTradingAgentsHealth,
   streamStockAnalysis,
@@ -57,19 +75,80 @@ interface AgentProgress {
 }
 
 const mdComponents = {
-  h1: ({ children }: any) => <Title order={1} size="lg" mt="xs" mb={2}>{children}</Title>,
-  h2: ({ children }: any) => <Title order={2} size="md" mt="xs" mb={2}>{children}</Title>,
-  h3: ({ children }: any) => <Title order={3} size="sm" mt="xs" mb={2}>{children}</Title>,
-  p: ({ children }: any) => <Text size="sm" mb={2} style={{ lineHeight: 1.5 }}>{children}</Text>,
+  h1: ({ children }: any) => (
+    <Title order={1} size="lg" mt="xs" mb={2}>
+      {children}
+    </Title>
+  ),
+  h2: ({ children }: any) => (
+    <Title order={2} size="md" mt="xs" mb={2}>
+      {children}
+    </Title>
+  ),
+  h3: ({ children }: any) => (
+    <Title order={3} size="sm" mt="xs" mb={2}>
+      {children}
+    </Title>
+  ),
+  p: ({ children }: any) => (
+    <Text size="sm" mb={2} style={{ lineHeight: 1.5 }}>
+      {children}
+    </Text>
+  ),
   code: ({ children }: any) => <MantineCode style={{ fontSize: 11 }}>{children}</MantineCode>,
-  a: ({ href, children }: any) => <Anchor href={href} size="sm">{children}</Anchor>,
-  ul: ({ children }: any) => <Box component="ul" ml="md" mb={2}>{children}</Box>,
-  ol: ({ children }: any) => <Box component="ol" ml="md" mb={2}>{children}</Box>,
-  li: ({ children }: any) => <Text component="li" size="sm" mb={1}>{children}</Text>,
-  strong: ({ children }: any) => <Text component="strong" fw={700}>{children}</Text>,
-  table: ({ children }: any) => <Box component="table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, marginBottom: 4 }}>{children}</Box>,
-  th: ({ children }: any) => <Box component="th" style={{ border: "1px solid var(--mantine-color-default-border)", padding: 2, fontWeight: 600 }}>{children}</Box>,
-  td: ({ children }: any) => <Box component="td" style={{ border: "1px solid var(--mantine-color-default-border)", padding: 2 }}>{children}</Box>,
+  a: ({ href, children }: any) => (
+    <Anchor href={href} size="sm">
+      {children}
+    </Anchor>
+  ),
+  ul: ({ children }: any) => (
+    <Box component="ul" ml="md" mb={2}>
+      {children}
+    </Box>
+  ),
+  ol: ({ children }: any) => (
+    <Box component="ol" ml="md" mb={2}>
+      {children}
+    </Box>
+  ),
+  li: ({ children }: any) => (
+    <Text component="li" size="sm" mb={1}>
+      {children}
+    </Text>
+  ),
+  strong: ({ children }: any) => (
+    <Text component="strong" fw={700}>
+      {children}
+    </Text>
+  ),
+  table: ({ children }: any) => (
+    <Box
+      component="table"
+      style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, marginBottom: 4 }}
+    >
+      {children}
+    </Box>
+  ),
+  th: ({ children }: any) => (
+    <Box
+      component="th"
+      style={{
+        border: "1px solid var(--mantine-color-default-border)",
+        padding: 2,
+        fontWeight: 600,
+      }}
+    >
+      {children}
+    </Box>
+  ),
+  td: ({ children }: any) => (
+    <Box
+      component="td"
+      style={{ border: "1px solid var(--mantine-color-default-border)", padding: 2 }}
+    >
+      {children}
+    </Box>
+  ),
 };
 
 export function ChatPopup() {
@@ -84,7 +163,9 @@ export function ChatPopup() {
   const [activeConvo, setActiveConvo] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [toolCalls, setToolCalls] = useState<Array<{ tool: string; agent: string; args?: unknown }>>([]);
+  const [toolCalls, setToolCalls] = useState<
+    Array<{ tool: string; agent: string; args?: unknown }>
+  >([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -116,12 +197,14 @@ export function ChatPopup() {
     setShowHistory(false);
     try {
       const msgs = await getMessages(convoId);
-      setMessages(msgs.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        timestamp: new Date(m.created_at),
-      })));
+      setMessages(
+        msgs.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.created_at),
+        })),
+      );
     } catch {}
   };
 
@@ -158,7 +241,7 @@ export function ChatPopup() {
       setMessages((prev) => [...prev, newMessage]);
       return newMessage;
     },
-    []
+    [],
   );
 
   const saveMessage = async (role: string, content: string, tickerVal?: string) => {
@@ -216,15 +299,24 @@ export function ChatPopup() {
           if (eventCount === 1) console.log("First event received:", event.event);
           if (event.event === "tool_call") {
             const data = event.data as { tool?: string; agent?: string; args?: unknown };
-            setToolCalls((prev) => [...prev, { tool: data.tool || "", agent: data.agent || "", args: data.args }]);
+            setToolCalls((prev) => [
+              ...prev,
+              { tool: data.tool || "", agent: data.agent || "", args: data.args },
+            ]);
           } else if (event.event === "progress") {
             const data = event.data as { percent: number; step?: number };
             setProgress(data.percent);
           } else if (event.event === "complete") {
             setProgress(100);
-            const data = event.data as { decision?: string; reports?: Record<string, string>; stats?: unknown };
+            const data = event.data as {
+              decision?: string;
+              reports?: Record<string, string>;
+              stats?: unknown;
+            };
             const fullDecision = data.decision || "HOLD";
-            const signal = (fullDecision.match(/\*\*Recommendation:\s*(\w+)\*\*/) || fullDecision.match(/\b(BUY|SELL|HOLD)\b/))?.[1] || "HOLD";
+            const signal =
+              (fullDecision.match(/\*\*Recommendation:\s*(\w+)\*\*/) ||
+                fullDecision.match(/\b(BUY|SELL|HOLD)\b/))?.[1] || "HOLD";
             const content = `📊 **${extractedTicker} Analysis**\n\n${fullDecision}`;
             const msg = addLocalMessage("assistant", content, {
               ticker: extractedTicker,
@@ -232,7 +324,9 @@ export function ChatPopup() {
               stats: data.stats,
               reports: data.reports,
             });
-            try { await saveMessage("assistant", msg.content, extractedTicker); } catch {}
+            try {
+              await saveMessage("assistant", msg.content, extractedTicker);
+            } catch {}
           } else if (event.event === "error") {
             const data = event.data as { error?: string };
             console.error("Stream error:", data.error);
@@ -243,12 +337,19 @@ export function ChatPopup() {
         setIsLoading(false);
       } else {
         const msg = addLocalMessage("assistant", resp.response);
-        try { await saveMessage("assistant", msg.content); } catch {}
+        try {
+          await saveMessage("assistant", msg.content);
+        } catch {}
         setIsLoading(false);
       }
     } catch {
-      const msg = addLocalMessage("assistant", `Sorry, I couldn't process that. Try asking about a specific stock like "What do you think about NVDA?"`);
-      try { await saveMessage("assistant", msg.content); } catch {}
+      const msg = addLocalMessage(
+        "assistant",
+        `Sorry, I couldn't process that. Try asking about a specific stock like "What do you think about NVDA?"`,
+      );
+      try {
+        await saveMessage("assistant", msg.content);
+      } catch {}
       setIsLoading(false);
     }
   };
@@ -315,20 +416,37 @@ export function ChatPopup() {
             <Group justify="space-between">
               <Group gap="xs">
                 <IconRobot size={20} />
-                <Text fw={600} size="sm">Trading Assistant</Text>
+                <Text fw={600} size="sm">
+                  Trading Assistant
+                </Text>
               </Group>
               <Group gap={4}>
                 {isAvailable && (
                   <>
                     <ActionIcon variant="subtle" size="sm" onClick={() => setExpanded((p) => !p)}>
-                      {expanded ? <IconArrowsMinimize size={16} /> : <IconArrowsMaximize size={16} />}
+                      {expanded ? (
+                        <IconArrowsMinimize size={16} />
+                      ) : (
+                        <IconArrowsMaximize size={16} />
+                      )}
                     </ActionIcon>
-                    <ActionIcon variant="subtle" size="sm" onClick={() => { setShowHistory((p) => !p); loadConversations(); }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      onClick={() => {
+                        setShowHistory((p) => !p);
+                        loadConversations();
+                      }}
+                    >
                       <IconHistory size={16} />
                     </ActionIcon>
                   </>
                 )}
-                {isAvailable === false && <Badge size="xs" color="red">Unavailable</Badge>}
+                {isAvailable === false && (
+                  <Badge size="xs" color="red">
+                    Unavailable
+                  </Badge>
+                )}
               </Group>
             </Group>
           </Box>
@@ -342,21 +460,32 @@ export function ChatPopup() {
               }}
             >
               <Group p="xs" justify="space-between">
-                <Text size="xs" fw={600}>Conversations</Text>
+                <Text size="xs" fw={600}>
+                  Conversations
+                </Text>
                 <ActionIcon variant="subtle" size="sm" onClick={startNewConversation}>
                   <IconPlus size={14} />
                 </ActionIcon>
               </Group>
               {conversations.length === 0 ? (
-                <Text size="xs" c="dimmed" ta="center" py="sm">No saved conversations</Text>
+                <Text size="xs" c="dimmed" ta="center" py="sm">
+                  No saved conversations
+                </Text>
               ) : (
                 conversations.map((c) => (
                   <NavLink
                     key={c.id}
                     label={
                       <Group justify="space-between">
-                        <Text size="xs" lineClamp={1}>{c.title}</Text>
-                        <ActionIcon variant="subtle" size="xs" color="red" onClick={(e) => handleDeleteConversation(c.id, e)}>
+                        <Text size="xs" lineClamp={1}>
+                          {c.title}
+                        </Text>
+                        <ActionIcon
+                          variant="subtle"
+                          size="xs"
+                          color="red"
+                          onClick={(e) => handleDeleteConversation(c.id, e)}
+                        >
                           <IconTrash size={12} />
                         </ActionIcon>
                       </Group>
@@ -374,8 +503,12 @@ export function ChatPopup() {
           {isLoading && (
             <Box px="sm" pt="xs">
               <Group gap="xs" mb={4}>
-                <Text size="xs" c="dimmed">Analyzing...</Text>
-                <Text size="xs" fw={600}>{progress}%</Text>
+                <Text size="xs" c="dimmed">
+                  Analyzing...
+                </Text>
+                <Text size="xs" fw={600}>
+                  {progress}%
+                </Text>
               </Group>
               <Progress value={progress} size="sm" animated />
               <Stack gap={2} mt={4}>
@@ -383,28 +516,39 @@ export function ChatPopup() {
                   <Group key={agent.agent} gap={4}>
                     <Box
                       style={{
-                        width: 8, height: 8, borderRadius: "50%",
-                        backgroundColor: agent.status === "completed"
-                          ? "var(--mantine-color-green-6)"
-                          : agent.status === "running"
-                          ? "var(--mantine-color-blue-6)"
-                          : "var(--mantine-color-gray-5)",
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        backgroundColor:
+                          agent.status === "completed"
+                            ? "var(--mantine-color-green-6)"
+                            : agent.status === "running"
+                              ? "var(--mantine-color-blue-6)"
+                              : "var(--mantine-color-gray-5)",
                       }}
                     />
-                    <Text size="xs" c="dimmed">{agent.agent}</Text>
+                    <Text size="xs" c="dimmed">
+                      {agent.agent}
+                    </Text>
                   </Group>
                 ))}
               </Stack>
               {toolCalls.length > 0 && (
                 <Box mt={4}>
-                  <Text size="xs" fw={600} c="dimmed" mb={2}>Tool Calls</Text>
+                  <Text size="xs" fw={600} c="dimmed" mb={2}>
+                    Tool Calls
+                  </Text>
                   <ScrollArea style={{ maxHeight: 100 }}>
                     <Stack gap={2}>
                       {toolCalls.map((tc, i) => (
                         <Group key={i} gap={4}>
                           <IconSearch size={10} />
-                          <Text size="xs" c="dimmed" lineClamp={1}>{tc.tool}</Text>
-                          <Text size="xs" c="gray" style={{ opacity: 0.5 }}>{tc.agent}</Text>
+                          <Text size="xs" c="dimmed" lineClamp={1}>
+                            {tc.tool}
+                          </Text>
+                          <Text size="xs" c="gray" style={{ opacity: 0.5 }}>
+                            {tc.agent}
+                          </Text>
                         </Group>
                       ))}
                     </Stack>
@@ -436,29 +580,62 @@ export function ChatPopup() {
                     <Paper
                       p="xs"
                       radius="md"
-                      bg={msg.role === "user" ? "var(--mantine-color-blue-light)" : "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))"}
+                      bg={
+                        msg.role === "user"
+                          ? "var(--mantine-color-blue-light)"
+                          : "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))"
+                      }
                       style={{ maxWidth: "85%" }}
                     >
                       <Group gap={4} mb={4}>
                         {msg.role === "user" ? <IconUser size={14} /> : <IconRobot size={14} />}
-                        <Text size="xs" c="dimmed">{msg.role === "user" ? "You" : "Assistant"}</Text>
+                        <Text size="xs" c="dimmed">
+                          {msg.role === "user" ? "You" : "Assistant"}
+                        </Text>
                       </Group>
-                      <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]}>
+                        {msg.content}
+                      </ReactMarkdown>
                       {msg.analysis && (
                         <Stack gap={4} mt="xs">
                           <Group gap={4}>
-                            <Badge size="xs" color="blue">{msg.analysis.ticker}</Badge>
-                            <Badge size="xs" color={msg.analysis.decision === "BUY" ? "green" : msg.analysis.decision === "SELL" ? "red" : "yellow"}>
+                            <Badge size="xs" color="blue">
+                              {msg.analysis.ticker}
+                            </Badge>
+                            <Badge
+                              size="xs"
+                              color={
+                                msg.analysis.decision === "BUY"
+                                  ? "green"
+                                  : msg.analysis.decision === "SELL"
+                                    ? "red"
+                                    : "yellow"
+                              }
+                            >
                               {msg.analysis.decision}
                             </Badge>
                           </Group>
                           {msg.analysis.reports && Object.keys(msg.analysis.reports).length > 0 && (
                             <Stack gap={2}>
                               {Object.entries(msg.analysis.reports).map(([section, content]) => (
-                                <Paper key={section} p={4} style={{ background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))" }}>
-                                  <Text size="xs" fw={600} tt="capitalize">{section.replace(/_/g, " ")}</Text>
+                                <Paper
+                                  key={section}
+                                  p={4}
+                                  style={{
+                                    background:
+                                      "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))",
+                                  }}
+                                >
+                                  <Text size="xs" fw={600} tt="capitalize">
+                                    {section.replace(/_/g, " ")}
+                                  </Text>
                                   <ScrollArea style={{ maxHeight: 200 }} type="hover">
-                                    <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]}>{String(content)}</ReactMarkdown>
+                                    <ReactMarkdown
+                                      components={mdComponents}
+                                      remarkPlugins={[remarkGfm]}
+                                    >
+                                      {String(content)}
+                                    </ReactMarkdown>
                                   </ScrollArea>
                                 </Paper>
                               ))}
@@ -472,7 +649,9 @@ export function ChatPopup() {
                 {isLoading && (
                   <Group gap="xs" p="xs">
                     <Loader size="xs" />
-                    <Text size="xs" c="dimmed">Processing...</Text>
+                    <Text size="xs" c="dimmed">
+                      Processing...
+                    </Text>
                   </Group>
                 )}
                 <div ref={messagesEndRef} />

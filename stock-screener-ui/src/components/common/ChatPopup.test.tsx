@@ -11,20 +11,13 @@ vi.mock("../../api/trading_agents", () => ({
   streamStockAnalysis: vi.fn(),
 }));
 
-import {
-  checkTradingAgentsHealth,
-  streamStockAnalysis,
-} from "../../api/trading_agents";
+import { checkTradingAgentsHealth, streamStockAnalysis } from "../../api/trading_agents";
 
 const mockCheckHealth = vi.mocked(checkTradingAgentsHealth);
 const mockStreamAnalysis = vi.mocked(streamStockAnalysis);
 
 const renderWithProvider = (component: React.ReactElement) => {
-  return render(
-    <MantineProvider>
-      {component}
-    </MantineProvider>
-  );
+  return render(<MantineProvider>{component}</MantineProvider>);
 };
 
 describe("ChatPopup", () => {

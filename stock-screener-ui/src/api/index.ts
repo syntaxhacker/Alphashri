@@ -130,9 +130,8 @@ export async function fetchData(
     const baseUrl = `${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}`;
     const url = filterString ? `${baseUrl}&${filterString}` : baseUrl;
     const res = await fetchWithAuth(url, {
-        signal: abortController.signal,
-      },
-    );
+      signal: abortController.signal,
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.setData(data);
