@@ -309,6 +309,8 @@ async def health():
     return {'status': 'ok', 'timestamp': datetime.now().isoformat()}
 
 
+
+
 class ScreenerCreate(BaseModel):
     name: str
     description: str | None = None
@@ -671,6 +673,13 @@ try:
     print("✅ Correlation API loaded at /api/correlation")
 except Exception as e:
     print(f"⚠️ Could not load correlation API: {e}")
+
+try:
+    from api.trading_agents import router as trading_agents_router
+    app.include_router(trading_agents_router)
+    print("✅ TradingAgents API loaded at /api/trading-agents")
+except Exception as e:
+    print(f"⚠️ Could not load TradingAgents API: {e}")
 
 
 if __name__ == '__main__':

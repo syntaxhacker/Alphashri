@@ -8,7 +8,7 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - `bun run dev` — dev server only (proxy /api → localhost:8765)
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
-- `bun run test` — vitest (unit, happy-dom)
+- `bun run test` — vitest --run (use `npx vitest run <file>` for targeted tests, NOT `bun test` which lacks vi.mock support)
 - `source .venv/bin/activate && python -m pytest tests/` — backend tests
 
 ## Python Environment
@@ -18,6 +18,30 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - **Dependencies**: `../requirements.txt` (root) + `api/requirements.txt` (API-specific)
 - **Note**: `nautilus-trader` in `api/requirements.txt` requires Rust toolchain — install separately if needed
 - **`start.sh`**: auto-activates `.venv` before starting uvicorn; always use `./start.sh` to run both services
+- **Start with DeepSeek**: pass env vars inline to use DeepSeek for TradingAgents analysis:
+  ```bash
+  DEEPSEEK_API_KEY=sk-xxx OPENAI_API_KEY=sk-xxx OPENAI_BASE_URL=https://api.deepseek.com ./start.sh
+  ```
+  Or add keys to `.env` or `.env.dev` — `config.py` auto-loads them via `load_dotenv()`.
+- **Test login**: email `qa@test.com` / password `qa123`
+- **Get token for curl**:
+  ```bash
+  TOKEN=$(curl -s -X POST http://localhost:8765/api/auth/login \
+    -H 'Content-Type: application/json' \
+    -d '{"email":"qa@test.com","password":"qa123"}' | python3 -c "import json,sys; print(json.load(sys.stdin).get('access_token',''))"
+  )
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8765/api/trading-agents/health
+  ```
+
+## TradingAgents Chat Bot
+- **Chat endpoint** (`/api/trading-agents/chat`): Conversational AI using DeepSeek via LiteLLM. Uses function calling to detect stock analysis requests. Returns `should_analyze` field when a stock ticker is detected.
+- **Analyze endpoint** (`/api/trading-agents/analyze`): Runs full multi-agent analysis (market, news, fundamentals analysts) via TradingAgents framework. Takes 60-120s. First call slow, subsequent calls served from file cache.
+- **Stream endpoint** (`/api/trading-agents/stream/{ticker}`): SSE streaming with progress, tool_call, report, and complete events. Uses `json.dumps()` for data serialization (critical: sse_starlette 3.4.1 does NOT auto-serialize dicts to JSON — must call `json.dumps()` manually).
+- **File cache**: Results stored at `experiments/data/analysis_cache/{TICKER}_{DATE}.json` with 24h TTL. Checked by both analyze and stream endpoints before running analysis.
+- **Providers**: Chat uses OpenRouter free model (`openai/gpt-oss-20b:free`) if DeepSeek key not available. Analysis uses DeepSeek via LiteLLM (`deepseek/deepseek-chat`).
+- **No auth required** on chat, analyze, and stream endpoints (get_current_user had compatibility issues with this router). Conversation history endpoints use hardcoded user_id=3.
+- **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
+- **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `react-markdown`.
 
 ## Mantine v8 Rules
 - Reference `mantine_llm.txt` for component docs — never guess APIs
@@ -263,6 +287,10 @@ bun test -- --run src/components/screener/CorrelationMatrix.test.tsx  # single f
 source .venv/bin/activate && python -m pytest tests/test_correlation.py -v  # backend
 ```
 Always run the full suite (`bun run test`) before committing.
+**Note**: Use `npx vitest run <file>` for tests using `vi.mock` — `bun test` does not support `vi.mock`.
+```bash
+npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.mock tests
+```
 
 ### Backend Test Gotchas
 - **`@patch` decorator ordering**: When using `@patch` as a decorator on test methods, mock arguments are injected **before** pytest fixtures. Order is bottom-to-top for decorators, left-to-right for args:
@@ -337,3 +365,5 @@ curl -s 'https://earner-production.up.railway.app/api/paper/trades?limit=5' \
 - **Portfolio summary compact redesign** — mentioned but not started
 - **52W daily data caching** — fetches 400 days per chart request with no caching
 - **`_filter_to_date_or_recent` timezone bug** — documented in AGENTS.md, known production issue
+- **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
+- **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.

@@ -6,10 +6,9 @@
 - **Backend**: pytest (`tests/`)
 
 ## Running Tests
-- `bun test` — all vitest tests
-- `bun test -- --run <file>` — single file (no watch)
-- `bun test -- --run src/components/paper-trading/` — directory
-- `bunx vitest run --dir src` — alternative direct invocation
+- `bun run test` — all vitest tests (`vitest run --dir src`)
+- `npx vitest run <file>` — single file (use this, NOT `bun test` which lacks vi.mock support)
+- `npx vitest run --dir src/components/paper-trading/` — directory
 - `bunx playwright test` — E2E tests (requires dev server running)
 
 ### Skip Test Environment Variables
