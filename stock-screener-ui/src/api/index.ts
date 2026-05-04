@@ -51,6 +51,11 @@ const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
     label: "Near 52W",
     description: "52-week high breakout candidate logic",
   },
+  {
+    id: "touched_52w_high",
+    label: "Touched 52W",
+    description: "Stocks that recently touched 52-week high",
+  },
   { id: "rsi_reversal", label: "RSI Reversal", description: "Oversold/overbought reversal logic" },
   { id: "market_open_gap", label: "Gap Open", description: "Market open gap scanner logic" },
   {

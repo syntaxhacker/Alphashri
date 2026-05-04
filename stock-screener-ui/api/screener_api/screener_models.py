@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, List
 
 MAX_WORKERS = 10
 
-PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout'}
+PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout', 'touched_52w_high'}
 
 PROFILE_META = {
     'trending': {
@@ -59,6 +59,11 @@ PROFILE_META = {
             {'key': 'max_52w_gap', 'label': '52W Gap ≤', 'type': 'number', 'min': -5, 'max': 20, 'step': 0.1, 'default': 3}
         ],
         'default_sort': {'column': 'to_52w_high', 'direction': 'asc'}
+    },
+    'touched_52w_high': {
+        'section_labels': {'primary': '✅ ALREADY TOUCHED 52W', 'secondary': '📈 AT 52-WEEK HIGH'},
+        'filters': [],
+        'default_sort': {'column': 'days_ago', 'direction': 'asc'}
     },
     'rsi_reversal': {
         'section_labels': {'primary': '🔄 REVERSAL CANDIDATES', 'secondary': '✅ STRONGER REVERSAL SETUPS'},

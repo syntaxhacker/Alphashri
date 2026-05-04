@@ -654,7 +654,6 @@ class TestScreenerSWR:
             'screener': 'trending',
             'profile_meta': _profile_meta('trending'),
             'summary': [],
-            'demo_mode': True,
             'applied_profile_filters': {},
         }
         with patch('api_server_fastapi.TradingAPIFactory') as mock_api, \

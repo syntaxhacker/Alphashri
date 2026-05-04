@@ -34,6 +34,7 @@ const SCREENER_PROFILE_OPTIONS = [
   { value: "high_momentum", label: "High Momentum" },
   { value: "volatility_trend", label: "Volatility Trend" },
   { value: "near_52w_breakout", label: "Near 52W Breakout" },
+  { value: "touched_52w_high", label: "Touched 52W High" },
   { value: "buyer_interest", label: "Buyer Interest" },
   { value: "buyer_interest_enhanced", label: "Buyer Interest+" },
   { value: "nifty50_activity", label: "Nifty50 Activity" },

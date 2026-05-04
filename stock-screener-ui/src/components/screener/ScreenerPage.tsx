@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Stack, Box, Tabs } from "@mantine/core";
-import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
+import { Stack, Box, Tabs, Alert } from "@mantine/core";
+import { IconTable, IconChartDots, IconSettings, IconAlertCircle } from "@tabler/icons-react";
 import * as state from "../../state";
 import { CompactPage } from "../common/compact";
 import { ScreenerNav } from "./ScreenerNav";
@@ -39,6 +39,7 @@ interface ScreenerPageProps {
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   error?: string | null;
+  warning?: string | null;
 }
 
 function useScreenerSort(activeScreener: string) {
@@ -84,6 +85,7 @@ export function ScreenerPage({
   onSymbolClick,
   onSymbolHover,
   error,
+  warning,
 }: ScreenerPageProps) {
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -177,6 +179,11 @@ export function ScreenerPage({
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
                 />
+                {warning && (
+                  <Alert icon={<IconAlertCircle size={16} />} color="yellow" size="sm" radius="sm">
+                    {warning}
+                  </Alert>
+                )}
               </>
             )}
           </Stack>

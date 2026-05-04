@@ -63,6 +63,13 @@ SCREENER_PROFILES = {
         'columns': ['symbol', 'score', 'rsi', 'adx', 'day_change', 'to_52w_high', 'recent_return_5d', 'perf_w', 'sector'],
         'default_sort': {'column': 'to_52w_high', 'direction': 'asc'}
     },
+    'touched_52w_high': {
+        'label': 'Touched 52W',
+        'description': 'Stocks that recently touched 52-week high',
+        'indicators': ['52W High', 'Days Ago'],
+        'columns': ['symbol', 'rsi', 'adx', 'day_change', 'recent_return_5d', 'high_52w', 'days_ago', 'perf_w', 'volume_m'],
+        'default_sort': {'column': 'days_ago', 'direction': 'asc'}
+    },
     'rsi_reversal': {
         'label': 'RSI Reversal',
         'description': 'Oversold/overbought reversal logic',
@@ -239,6 +246,28 @@ def _query_by_profile(profile, limit):
                 Column('SMA50') > Column('SMA200')
             )
             .order_by('RSI', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    if profile == 'touched_52w_high':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'high', 'low', 'change', 'volume',
+                'price_52_week_high', 'price_52_week_low', 'market_cap_basic',
+                'RSI', 'sector', 'description', 'update_mode',
+                'average_volume_10d_calc', 'SMA50', 'SMA200', 'Perf.W', 'ATR', 'ADX',
+                'Perf.1M', 'Perf.3M'
+            )
+            .set_markets('india')
+            .where(
+                Column('close') >= 10,
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 1_000_000,
+                Column('price_52_week_high') > 0,
+                Column('close') >= Column('price_52_week_high') * 0.98  # within 2% of 52w high
+            )
+            .order_by('volume', ascending=False)
             .limit(fetch_limit)
         )
 

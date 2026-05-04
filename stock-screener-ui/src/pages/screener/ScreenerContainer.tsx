@@ -9,6 +9,7 @@ export function ScreenerContainer() {
     activeScreener,
     isLoading,
     error,
+    warning,
     autoRefreshSeconds,
     provider,
     mode,
@@ -45,6 +46,7 @@ export function ScreenerContainer() {
       onSymbolClick={onSymbolClick}
       onSymbolHover={onSymbolHover}
       error={error}
+      warning={warning}
     />
   );
 }

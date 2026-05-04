@@ -17,7 +17,7 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - **Package manager**: `uv` (faster than pip) — install deps with `uv pip install -r <requirements.txt>`
 - **Dependencies**: `../requirements.txt` (root) + `api/requirements.txt` (API-specific)
 - **Note**: `nautilus-trader` in `api/requirements.txt` requires Rust toolchain — install separately if needed
-- **`start.sh`**: auto-activates `.venv` before starting uvicorn; always use `./start.sh` to run both services
+- **`start.sh`**: auto-activates `.venv` before starting uvicorn; always use `./start.sh` to run both services. Logs saved to `logs/alphashri.log`.
 - **Start with DeepSeek**: pass env vars inline to use DeepSeek for TradingAgents analysis:
   ```bash
   DEEPSEEK_API_KEY=sk-xxx OPENAI_API_KEY=sk-xxx OPENAI_BASE_URL=https://api.deepseek.com ./start.sh
@@ -218,6 +218,7 @@ Always run the full suite (`bun run test`) before committing.
 **Note**: Use `npx vitest run <file>` for tests using `vi.mock` — `bun test` does not support `vi.mock`.
 ```bash
 npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.mock tests
+```
 
 ## Mutation Testing
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide

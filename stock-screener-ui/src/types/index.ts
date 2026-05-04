@@ -11,6 +11,7 @@ export interface Stock {
   perf_w: number;
   sector: string;
   touched_52w: boolean;
+  days_ago?: number | null;
   last_touched?: string | null; // ISO date string of last 52w touch
   last_touched_price?: number | null;
   day_change?: number;
@@ -65,7 +66,7 @@ export interface ScreenerData {
   screener: string;
   profile_meta?: ProfileMeta;
   summary?: SummaryItem[];
-  demo_mode?: boolean;
+  warning?: string | null;
 }
 
 export interface ScreenerOption {

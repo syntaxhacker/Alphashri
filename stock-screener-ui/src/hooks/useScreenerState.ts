@@ -99,6 +99,7 @@ export function useScreenerState() {
     activeScreener: state.activeScreener,
     isLoading: state.isLoading,
     error: state.error,
+    warning: state.data?.warning || null,
     autoRefreshSeconds: state.autoRefreshSeconds,
     provider: state.data?.provider || "upstox",
     mode: state.data?.mode || "intraday",
