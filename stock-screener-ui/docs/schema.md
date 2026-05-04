@@ -50,6 +50,24 @@ erDiagram
         DateTime created_at
         DateTime updated_at
     }
+    chatconversations {
+        Integer id PK
+        String uuid
+        Integer user_id
+        String title
+        DateTime created_at
+        DateTime updated_at
+    }
+    chatmessages {
+        Integer id PK
+        String uuid
+        Integer conversation_id FK
+        String role
+        Text content
+        String ticker
+        Json metadata_json
+        DateTime created_at
+    }
     instruments {
         String instrument_key PK
         String trading_symbol
@@ -102,6 +120,19 @@ erDiagram
         Integer id PK
         Integer user_id FK
         Integer bot_id FK
+    }
+    screeners {
+        Integer id PK
+        Integer user_id
+        String name
+        String description
+        Json indicators
+        Json columns
+        Json filters
+        Json default_sort
+        Boolean is_active
+        DateTime created_at
+        DateTime updated_at
     }
     sessions {
         String id PK
@@ -164,6 +195,7 @@ erDiagram
     botstrategies ||--o{ botconfigs : "bot_id"
     botstrategies ||--o{ strategyconfigs : "strategy_id"
     brokerconnections ||--o{ users : "user_id"
+    chatmessages ||--o{ chatconversations : "conversation_id"
     newssymbolmentions ||--o{ newsarticles : "article_id"
     positions ||--o{ users : "user_id"
     positions ||--o{ botconfigs : "bot_id"
@@ -258,6 +290,32 @@ erDiagram
 | *(Index: `ix_broker_connections_broker_name` on broker_name)* | | | |
 | *(Index: `ix_broker_connections_user_id` on user_id)* | | | |
 | *(Unique: `uq_broker_name_user` on broker_name, user_id)* | | | |
+
+### chat_conversations
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| uuid | String | No | UNIQUE |
+| user_id | Integer | No | - |
+| title | String | No | - |
+| created_at | DateTime | Yes | - |
+| updated_at | DateTime | Yes | - |
+| *(Index: `ix_chat_conversations_user_id` on user_id)* | | | |
+
+### chat_messages
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| uuid | String | No | UNIQUE |
+| conversation_id | Integer | No | FK -> chat_conversations.id |
+| role | String | No | - |
+| content | Text | No | - |
+| ticker | String | Yes | - |
+| metadata_json | Json | Yes | - |
+| created_at | DateTime | Yes | - |
+| *(Index: `ix_chat_messages_conversation_id` on conversation_id)* | | | |
 
 ### instruments
 
@@ -380,6 +438,24 @@ erDiagram
 | *(Index: `ix_positions_symbol` on symbol)* | | | |
 | *(Index: `ix_positions_user_id` on user_id)* | | | |
 | *(Unique: `uq_bot_strategy_symbol` on bot_id, strategy_id, symbol)* | | | |
+
+### screeners
+
+| Column | Type | Nullable | Key |
+|--------|------|----------|-----|
+| id | Integer | No | PK |
+| user_id | Integer | No | - |
+| name | String | No | - |
+| description | String | Yes | - |
+| indicators | Json | Yes | - |
+| columns | Json | Yes | - |
+| filters | Json | Yes | - |
+| default_sort | Json | Yes | - |
+| is_active | Boolean | Yes | - |
+| created_at | DateTime | Yes | - |
+| updated_at | DateTime | Yes | - |
+| *(Index: `ix_screeners_user_id` on user_id)* | | | |
+| *(Unique: `uq_user_screener` on name, user_id)* | | | |
 
 ### sessions
 

@@ -56,7 +56,7 @@ TEMPLATES = [
         'description': 'Support/Resistance Breakout template',
         'pivot_type': 'classic',
         'breakout_buffer_pct': 0.1,
-        'sl_pct': 0.5,
+        'sl_pct': 1.0,
         'tp_pct': 1.5,
     },
     {
@@ -65,7 +65,7 @@ TEMPLATES = [
         'description': '52-Week High Breakout template',
         'entry_threshold_pct': 3.0,
         'sl_pct': 3.0,
-        'take_profit_pct': 5.0,
+        'tp_pct': 5.0,
     },
     {
         'name': '52W Target Template',
@@ -74,6 +74,7 @@ TEMPLATES = [
         'entry_threshold_pct': 2.0,
         'trailing_stop_pct': 0.5,
         'sl_pct': 2.0,
+        'tp_pct': 0.0,
     },
     {
         'name': 'EMA Cross Template',
@@ -131,7 +132,7 @@ STRATEGIES = [
         'description': 'Classic Pivot Point breakout',
         'pivot_type': 'classic',
         'breakout_buffer_pct': 0.1,
-        'sl_pct': 0.5,
+        'sl_pct': 1.0,
         'tp_pct': 1.5,
         'max_positions': 3,
     },
@@ -142,7 +143,7 @@ STRATEGIES = [
         'description': 'Ride the 52W high breakouts',
         'entry_threshold_pct': 2.0,
         'sl_pct': 3.0,
-        'tp_pct': 10.0,  # Fixed: was take_profit_pct
+        'tp_pct': 5.0,
         'max_positions': 2,
         'enable_trailing_stop': True,
         'trailing_stop_pct': 3.0,
@@ -159,6 +160,7 @@ STRATEGIES = [
         'entry_threshold_pct': 2.0,
         'trailing_stop_pct': 0.5,
         'sl_pct': 2.0,
+        'tp_pct': 0.0,
         'max_holding_days': 15,
         'cooldown_days': 7,
     },
