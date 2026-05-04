@@ -7,7 +7,7 @@ cd "$SCRIPT_DIR"
 API_PORT="${API_PORT:-8765}"
 UI_HOST="${UI_HOST:-127.0.0.1}"
 UI_PORT="${UI_PORT:-5173}"
-LOG_FILE="${LOG_FILE:-/tmp/alphashri.log}"
+LOG_FILE="${LOG_FILE:-$SCRIPT_DIR/logs/alphashri.log}"
 
 
 
@@ -50,6 +50,7 @@ kill_port "$API_PORT"
 kill_port "$UI_PORT"
 
 # Fresh log file on each start
+mkdir -p "$(dirname "$LOG_FILE")"
 : > "$LOG_FILE"
 echo "Logging to: $LOG_FILE"
 
