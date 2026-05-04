@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Text, Group, Select, Flex, useMantineColorScheme, Checkbox, Badge, LoadingOverlay } from "@mantine/core";
+import {
+  Box,
+  Text,
+  Group,
+  Select,
+  Flex,
+  useMantineColorScheme,
+  Checkbox,
+  Badge,
+  LoadingOverlay,
+} from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import dayjs from "dayjs";
 import {
@@ -152,14 +162,17 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
   useEffect(() => {
     if (state.chartFromDate && state.chartData?.date) {
       setRange([new Date(state.chartFromDate), new Date(state.chartData.date)]);
-    } else if (!state.chartFromDate && state.chartData?.date && range[0] === null && range[1] === null) {
+    } else if (
+      !state.chartFromDate &&
+      state.chartData?.date &&
+      range[0] === null &&
+      range[1] === null
+    ) {
       // Initial load with no from_date — keep range null (no override)
     }
   }, [state.chartFromDate, state.chartData?.date]);
 
-  const chartDate = range[1]
-    ? dayjs(range[1]).format("YYYY-MM-DD")
-    : state.chartData?.date;
+  const chartDate = range[1] ? dayjs(range[1]).format("YYYY-MM-DD") : state.chartData?.date;
   const fromDate = range[0] ? dayjs(range[0]).format("YYYY-MM-DD") : undefined;
 
   const handleRangeChange = useCallback(
@@ -169,7 +182,14 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       const fd = r[0] ? dayjs(r[0]).format("YYYY-MM-DD") : undefined;
       const cd = r[1] ? dayjs(r[1]).format("YYYY-MM-DD") : state.chartData?.date;
       if (state.selectedSymbol && cd) {
-        fetchPaperChart(state.selectedSymbol, cd, state.chartTimeframe, state.selectedStrategyId, fd, true);
+        fetchPaperChart(
+          state.selectedSymbol,
+          cd,
+          state.chartTimeframe,
+          state.selectedStrategyId,
+          fd,
+          true,
+        );
       }
     },
     [state.selectedSymbol, state.chartData?.date, state.chartTimeframe, state.selectedStrategyId],
@@ -180,7 +200,14 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       if (!value) return;
       setChartTimeframe(value);
       if (state.selectedSymbol && chartDate) {
-        await fetchPaperChart(state.selectedSymbol, chartDate, value, state.selectedStrategyId, fromDate, true);
+        await fetchPaperChart(
+          state.selectedSymbol,
+          chartDate,
+          value,
+          state.selectedStrategyId,
+          fromDate,
+          true,
+        );
       }
     },
     [state.selectedSymbol, chartDate, state.selectedStrategyId, fromDate],
@@ -201,11 +228,12 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         <Group gap="sm">
           <Text fw={600} size="lg">
             {state.chartData?.symbol} - {state.chartData?.date}
-            {state.chartData?.actual_date && state.chartData.actual_date !== state.chartData.date && (
-              <Text span size="xs" c="dimmed" ml={4}>
-                ({formatDateRange(state.chartData.actual_date)})
-              </Text>
-            )}
+            {state.chartData?.actual_date &&
+              state.chartData.actual_date !== state.chartData.date && (
+                <Text span size="xs" c="dimmed" ml={4}>
+                  ({formatDateRange(state.chartData.actual_date)})
+                </Text>
+              )}
           </Text>
           <Select
             data-testid="paper-chart-timeframe"
@@ -224,11 +252,24 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             valueFormat="MMM D, YYYY"
             value={range}
             onChange={handleRangeChange}
+            maxDate={new Date()}
             presets={[
-              { value: [dayjs().subtract(7, "day").toDate(), dayjs().toDate()], label: "Last 7 days" },
-              { value: [dayjs().subtract(30, "day").toDate(), dayjs().toDate()], label: "Last 30 days" },
-              { value: [dayjs().subtract(90, "day").toDate(), dayjs().toDate()], label: "Last 3 months" },
-              { value: [dayjs().startOf("year").toDate(), dayjs().toDate()], label: "Year to date" },
+              {
+                value: [dayjs().subtract(7, "day").toDate(), dayjs().toDate()],
+                label: "Last 7 days",
+              },
+              {
+                value: [dayjs().subtract(30, "day").toDate(), dayjs().toDate()],
+                label: "Last 30 days",
+              },
+              {
+                value: [dayjs().subtract(90, "day").toDate(), dayjs().toDate()],
+                label: "Last 3 months",
+              },
+              {
+                value: [dayjs().startOf("year").toDate(), dayjs().toDate()],
+                label: "Year to date",
+              },
             ]}
           />
         </Group>
@@ -361,13 +402,27 @@ export function PaperChart() {
       style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
     >
       <ChartHeader state={state} />
-      <Box style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
-        <LoadingOverlay visible={state.chartLoading && !!state.chartData} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
+      <Box
+        style={{
+          flex: 1,
+          minHeight: 0,
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <LoadingOverlay
+          visible={state.chartLoading && !!state.chartData}
+          zIndex={10}
+          overlayProps={{ radius: "sm", blur: 1 }}
+        />
         {chartInput ? (
           <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
         ) : (
           <ChartEmptyState className="paper-chart-loading" icon="⏳">
-            <Text c="dimmed">{state.chartLoading ? `Loading ${state.selectedSymbol} chart...` : 'No data'}</Text>
+            <Text c="dimmed">
+              {state.chartLoading ? `Loading ${state.selectedSymbol} chart...` : "No data"}
+            </Text>
           </ChartEmptyState>
         )}
       </Box>
