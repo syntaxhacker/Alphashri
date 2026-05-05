@@ -20,12 +20,12 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
     strategy_type = "52W_CHASER"
 
     def __init__(self, config: dict):
-        self.sl_pct = float(config.get("sl_pct", 3.0))
-        self.tp_pct = float(config.get("tp_pct", 5.0))
+        self.sl_pct = float(config.get("sl_pct", 2.0))
+        self.tp_pct = float(config.get("tp_pct", 3.0))
         self.entry_threshold_pct = float(config.get("entry_threshold_pct", 3.0))
         self.enable_trailing_stop = bool(config.get("enable_trailing_stop", False))
-        self.trailing_stop_pct = float(config.get("trailing_stop_pct", 3.0))
-        self.trailing_activation_pct = float(config.get("trailing_activation_pct", 2.0))
+        self.trailing_stop_pct = float(config.get("trailing_stop_pct", 2.0))
+        self.trailing_activation_pct = float(config.get("trailing_activation_pct", 3.0))
         self.max_holding_days = int(config.get("max_holding_days", 30))
         self.cooldown_days = int(config.get("cooldown_days", 30))
         self.enable_filters = bool(config.get("enable_filters", False))

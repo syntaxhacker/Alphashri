@@ -12,8 +12,6 @@ export const DEFAULT_VALUES: StrategyFormData = {
   max_or_range_pct: 2.0,
   max_positions: 3,
   max_capital_per_trade_pct: 20,
-  max_daily_loss_pct: 5,
-  max_total_exposure_pct: 50,
   risk_per_trade_pct: 2,
   min_trade_value: 5000,
   max_trade_value: 100000,
@@ -30,7 +28,9 @@ export const DEFAULT_VALUES: StrategyFormData = {
   ema_slow_period: 21,
   pivot_type: "classic",
   breakout_buffer_pct: 0.1,
-  min_rr_ratio: 2.0,
+  enable_shorts: false,
+  eod_exit_hour: 15,
+  eod_exit_minute: 30,
   screener_profiles: [],
 };
 
@@ -54,8 +54,6 @@ export function getInitialValues(props: {
       max_or_range_pct: strategy.max_or_range_pct,
       max_positions: strategy.max_positions,
       max_capital_per_trade_pct: strategy.max_capital_per_trade_pct,
-      max_daily_loss_pct: strategy.max_daily_loss_pct,
-      max_total_exposure_pct: strategy.max_total_exposure_pct,
       risk_per_trade_pct: strategy.risk_per_trade_pct,
       min_trade_value: strategy.min_trade_value,
       max_trade_value: strategy.max_trade_value,
@@ -72,7 +70,9 @@ export function getInitialValues(props: {
       ema_slow_period: strategy.ema_slow_period,
       pivot_type: strategy.pivot_type,
       breakout_buffer_pct: strategy.breakout_buffer_pct,
-      min_rr_ratio: strategy.min_rr_ratio,
+      enable_shorts: strategy.enable_shorts ?? false,
+      eod_exit_hour: strategy.eod_exit_hour ?? 15,
+      eod_exit_minute: strategy.eod_exit_minute ?? 30,
       screener_profiles: strategy.screener_profiles || [],
     };
   }
@@ -90,8 +90,6 @@ export function getInitialValues(props: {
       max_or_range_pct: template.max_or_range_pct,
       max_positions: template.max_positions,
       max_capital_per_trade_pct: template.max_capital_per_trade_pct,
-      max_daily_loss_pct: template.max_daily_loss_pct,
-      max_total_exposure_pct: template.max_total_exposure_pct,
       risk_per_trade_pct: template.risk_per_trade_pct,
       min_trade_value: template.min_trade_value,
       max_trade_value: template.max_trade_value,
@@ -108,7 +106,9 @@ export function getInitialValues(props: {
       ema_slow_period: template.ema_slow_period,
       pivot_type: template.pivot_type,
       breakout_buffer_pct: template.breakout_buffer_pct,
-      min_rr_ratio: template.min_rr_ratio,
+      enable_shorts: template.enable_shorts ?? false,
+      eod_exit_hour: template.eod_exit_hour ?? 15,
+      eod_exit_minute: template.eod_exit_minute ?? 30,
       screener_profiles: template.screener_profiles || [],
     };
   }

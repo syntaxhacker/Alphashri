@@ -50,8 +50,6 @@ describe("RunnerSettingsSection", () => {
     // S/R Breakout Parameters
     pivot_type: "standard",
     breakout_buffer_pct: 0.3,
-    // Risk Validation
-    min_rr_ratio: 1.5,
     // Cost Parameters
     brokerage_pct: 0.05,
     min_brokerage: 20,

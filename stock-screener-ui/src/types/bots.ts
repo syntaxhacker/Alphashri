@@ -27,6 +27,7 @@ export interface BotConfig {
   is_active: boolean;
   max_total_positions: number;
   max_total_capital_pct: number;
+  max_daily_loss_pct: number;
   strategies: StrategyWithAllocation[];
   created_at: string | null;
   updated_at: string | null;
@@ -49,6 +50,7 @@ export interface BotUpdate {
   is_active?: boolean;
   max_total_positions?: number;
   max_total_capital_pct?: number;
+  max_daily_loss_pct?: number;
   strategies?: StrategyAllocation[];
 }
 // Bot status (live data)
@@ -162,7 +164,6 @@ export interface AvailableStrategy {
   enable_shorts: boolean;
   eod_exit_hour: number;
   eod_exit_minute: number;
-  min_rr_ratio: number;
   pivot_type: string;
   breakout_buffer_pct: number;
   entry_threshold_pct: number;

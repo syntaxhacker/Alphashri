@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import * as state from "../state";
 import { subscribe } from "../state";
@@ -21,9 +21,13 @@ export function getScreenerDefaults(data?: ScreenerData | null): ScreenerDefault
 export function useScreenerState() {
   const navigate = useNavigate();
   useStoreSubscription(subscribe);
+  const initialLoadDone = useRef(false);
 
-  // Load data on mount
+  // Load data on mount - only once
   useEffect(() => {
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+
     if (state.screenerOptions.length === 0) {
       loadScreeners()
         .then(() => {
@@ -36,6 +40,7 @@ export function useScreenerState() {
         })
         .catch((err) => {
           console.error("Failed to load screeners:", err);
+          initialLoadDone.current = false;
         });
     } else {
       fetchData(

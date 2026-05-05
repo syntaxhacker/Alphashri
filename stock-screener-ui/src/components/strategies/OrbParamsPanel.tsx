@@ -13,23 +13,25 @@ export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) 
       <Stack gap="sm" mt="sm">
         <Group grow>
           <NumberInput
-            label="OR Minutes"
+            label="OR Duration (min)"
             name="or_minutes"
             defaultValue={initialValues.or_minutes}
             min={1}
             max={60}
             suffix=" min"
             required
+            description="Minutes used to calculate the opening range"
             data-testid="strategy-or-minutes-input"
           />
           <NumberInput
-            label="Min OR Range %"
+            label="Min Range"
             name="min_or_range_pct"
             defaultValue={initialValues.min_or_range_pct}
             min={0.1}
             max={5}
             step={0.1}
-            suffix="%"
+            suffix="% of price"
+            description="Skip if opening range width is below this (stock too tight)"
             data-testid="strategy-min-or-range-input"
           />
         </Group>
@@ -39,15 +41,16 @@ export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) 
           isSwing={isSwing}
         />
         <NumberInput
-          label="Max OR Range %"
-          name="max_or_range_pct"
-          defaultValue={initialValues.max_or_range_pct}
-          min={0.1}
-          max={10}
-          step={0.1}
-          suffix="%"
-          data-testid="strategy-max-or-range-input"
-        />
+            label="Max Range"
+            name="max_or_range_pct"
+            defaultValue={initialValues.max_or_range_pct}
+            min={0.1}
+            max={10}
+            step={0.1}
+            suffix="% of price"
+            description="Skip if opening range width is above this (stock too volatile)"
+            data-testid="strategy-max-or-range-input"
+          />
       </Stack>
     </Tabs.Panel>
   );

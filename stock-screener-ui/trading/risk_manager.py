@@ -179,7 +179,6 @@ class RiskManager:
         stop_loss: float,
         take_profit: float,
         side: str = "BUY",
-        min_rr_ratio: float = 2.0,
     ) -> dict:
         """
         Validate a trade request.
@@ -190,7 +189,7 @@ class RiskManager:
         result = make_validation_result()
 
         rr_failed = apply_risk_reward_to_result(
-            result, entry_price, stop_loss, take_profit, side, min_rr_ratio,
+            result, entry_price, stop_loss, take_profit, side,
         )
         if rr_failed is not None:
             return result

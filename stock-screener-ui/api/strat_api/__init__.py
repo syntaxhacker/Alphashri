@@ -4,6 +4,7 @@ from api.strat_api.strat_crud import (
     create_strategy,
     update_strategy,
     delete_strategy,
+    sync_variations,
 )
 from api.strat_api.strat_query import (
     list_strategies,
@@ -26,6 +27,7 @@ router.add_api_route("/{strategy_id}", get_strategy, methods=["GET"])
 router.add_api_route("", create_strategy, methods=["POST"])
 router.add_api_route("/{strategy_id}", update_strategy, methods=["PUT"])
 router.add_api_route("/{strategy_id}", delete_strategy, methods=["DELETE"])
+router.add_api_route("/{strategy_id}/sync-variations", sync_variations, methods=["POST"])
 router.add_api_route("/{strategy_id}/performance", get_strategy_performance, methods=["GET"])
 router.add_api_route("/{strategy_id}/trades", get_strategy_trades, methods=["GET"])
 router.add_api_route("/{strategy_id}/variations", get_strategy_variations, methods=["GET"])

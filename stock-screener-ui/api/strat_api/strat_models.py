@@ -28,7 +28,20 @@ class StrategyCreate(BaseModel):
     enable_shorts: Optional[bool] = None
     eod_exit_hour: Optional[int] = None
     eod_exit_minute: Optional[int] = None
-    min_rr_ratio: Optional[float] = None
+    # 52W strategy parameters
+    entry_threshold_pct: Optional[float] = None
+    trailing_stop_pct: Optional[float] = None
+    trailing_activation_pct: Optional[float] = None
+    max_holding_days: Optional[int] = None
+    cooldown_days: Optional[int] = None
+    enable_trailing_stop: Optional[bool] = None
+    enable_filters: Optional[bool] = None
+    # S/R Breakout parameters
+    pivot_type: Optional[str] = None
+    breakout_buffer_pct: Optional[float] = None
+    # EMA Cross parameters
+    ema_fast_period: Optional[int] = None
+    ema_slow_period: Optional[int] = None
     # Screener Profiles (multi-select)
     screener_profiles: Optional[List[str]] = None
 
@@ -57,6 +70,19 @@ class StrategyUpdate(BaseModel):
     enable_shorts: Optional[bool] = None
     eod_exit_hour: Optional[int] = None
     eod_exit_minute: Optional[int] = None
-    min_rr_ratio: Optional[float] = None
+    # 52W strategy parameters
+    entry_threshold_pct: Optional[float] = None
+    trailing_stop_pct: Optional[float] = None
+    trailing_activation_pct: Optional[float] = None
+    max_holding_days: Optional[int] = None
+    cooldown_days: Optional[int] = None
+    enable_trailing_stop: Optional[bool] = None
+    enable_filters: Optional[bool] = None
+    # S/R Breakout parameters
+    pivot_type: Optional[str] = None
+    breakout_buffer_pct: Optional[float] = None
+    # EMA Cross parameters
+    ema_fast_period: Optional[int] = None
+    ema_slow_period: Optional[int] = None
     # Screener Profiles (multi-select)
     screener_profiles: Optional[List[str]] = None

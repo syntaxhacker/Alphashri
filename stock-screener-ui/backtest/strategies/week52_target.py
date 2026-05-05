@@ -61,7 +61,7 @@ class Week52TargetConfig(StrategyConfig, kw_only=True):
     instrument_id: InstrumentId
     bar_type: BarType
     entry_threshold_pct: float = 2.0  # Entry when price is within this % below 52W high
-    trailing_stop_pct: float = 0.5  # Trailing stop after price closes above 52W high
+    trailing_stop_pct: float = 2.0  # Trailing stop after price closes above 52W high
     stop_loss_pct: float = 2.0  # Stop loss %
     max_holding_days: int = 15  # Max days to hold
     cooldown_days: int = 7  # Days to wait before re-entry after exit

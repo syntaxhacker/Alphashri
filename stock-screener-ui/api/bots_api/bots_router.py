@@ -47,22 +47,28 @@ def validate_uuid(uuid_str: str) -> bool:
         return False
 
 
-def get_bot_by_uuid(bot_uuid: str, user_id: int, db: Session) -> BotConfig:
-    is_numeric = str(bot_uuid).isdigit()
-    
-    if is_numeric:
-        bot = db.query(BotConfig).filter(
-            BotConfig.id == int(bot_uuid),
-            BotConfig.user_id == user_id
-        ).first()
-    else:
-        if not validate_uuid(bot_uuid):
-            raise HTTPException(status_code=400, detail=f"Invalid bot UUID: {bot_uuid}")
-        bot = db.query(BotConfig).filter(
-            BotConfig.uuid == bot_uuid,
-            BotConfig.user_id == user_id
-        ).first()
+def resolve_bot_id(bot_id_str: str, db: Session) -> Optional[int]:
+    """Convert a UUID or numeric string bot_id to the integer PK.
 
+    Tries int() first (fast path for numeric IDs). Falls back to
+    BotConfig.uuid lookup if that fails. Returns None if not found.
+    """
+    try:
+        return int(bot_id_str)
+    except ValueError:
+        from db.models.bot import BotConfig
+        bot = db.query(BotConfig).filter(BotConfig.uuid == bot_id_str).first()
+        return bot.id if bot else None
+
+
+def get_bot_by_uuid(bot_uuid: str, user_id: int, db: Session) -> BotConfig:
+    bot_id = resolve_bot_id(bot_uuid, db)
+    if bot_id is None:
+        raise HTTPException(status_code=404, detail=f"Bot {bot_uuid} not found")
+    bot = db.query(BotConfig).filter(
+        BotConfig.id == bot_id,
+        BotConfig.user_id == user_id
+    ).first()
     if not bot:
         raise HTTPException(status_code=404, detail=f"Bot {bot_uuid} not found")
     return bot
@@ -222,12 +228,13 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
             db.close()
 
     return BotResponse(
-        id=bot.id,
-        uuid=str(bot.uuid) if bot.uuid else None,
+        id=str(bot.uuid) if bot.uuid else str(bot.id),
+        uuid=str(bot.uuid) if bot.uuid else "",
         name=bot.name,
         is_active=bot.is_active,
         max_total_positions=bot.max_total_positions,
         max_total_capital_pct=bot.max_total_capital_pct,
+        max_daily_loss_pct=bot.max_daily_loss_pct if hasattr(bot, 'max_daily_loss_pct') else 0.03,
         strategies=strategies,
         created_at=bot.created_at.isoformat() if bot.created_at else None,
         updated_at=bot.updated_at.isoformat() if bot.updated_at else None,

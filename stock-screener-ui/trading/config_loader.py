@@ -66,7 +66,6 @@ class StrategyConfigData:
     enable_shorts: bool = False
     eod_exit_hour: int = 14
     eod_exit_minute: int = 45
-    min_rr_ratio: float = 2.0
 
     # Screener Profiles (multi-select)
     screener_profiles: List[str] = field(default_factory=list)
@@ -118,7 +117,6 @@ class StrategyConfigData:
             enable_shorts=model.enable_shorts,
             eod_exit_hour=model.eod_exit_hour,
             eod_exit_minute=model.eod_exit_minute,
-            min_rr_ratio=model.min_rr_ratio,
             screener_profiles=json.loads(model.screener_profiles) if isinstance(model.screener_profiles, str) else [],
             ema_fast_period=model.ema_fast_period,
             ema_slow_period=model.ema_slow_period,
@@ -168,7 +166,6 @@ class StrategyConfigData:
             "enable_shorts": self.enable_shorts,
             "eod_exit_hour": self.eod_exit_hour,
             "eod_exit_minute": self.eod_exit_minute,
-            "min_rr_ratio": self.min_rr_ratio,
             "screener_profiles": self.screener_profiles,
             "ema_fast_period": self.ema_fast_period,
             "ema_slow_period": self.ema_slow_period,

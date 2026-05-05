@@ -49,7 +49,6 @@ def _sync_list_available_strategies(db: Session) -> list:
             "enable_shorts": s.enable_shorts,
             "eod_exit_hour": s.eod_exit_hour,
             "eod_exit_minute": s.eod_exit_minute,
-            "min_rr_ratio": s.min_rr_ratio,
             "pivot_type": s.pivot_type,
             "breakout_buffer_pct": s.breakout_buffer_pct,
             "entry_threshold_pct": s.entry_threshold_pct,

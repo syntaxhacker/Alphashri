@@ -53,8 +53,6 @@ function mockConfig(overrides: Partial<StrategyConfig> = {}): StrategyConfig {
     // S/R Breakout Parameters
     pivot_type: "high",
     breakout_buffer_pct: 0.3,
-    // Risk Validation
-    min_rr_ratio: 1.5,
     // Screener Profiles
     screener_profiles: [],
     // Cost Parameters

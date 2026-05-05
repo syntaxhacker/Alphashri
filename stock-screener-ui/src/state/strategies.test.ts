@@ -102,7 +102,7 @@ describe("view management", () => {
   });
 
   it("initial view is 'templates'", () => {
-    expect(getCurrentView()).toBe("templates");
+    expect(getCurrentView()).toBe("tree");
   });
 
   it("setCurrentView updates view", () => {

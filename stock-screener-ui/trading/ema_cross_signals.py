@@ -20,7 +20,7 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
     def __init__(self, config: dict):
         self.ema_fast_period = int(config.get("ema_fast_period", 9))
         self.ema_slow_period = int(config.get("ema_slow_period", 21))
-        self.sl_pct = float(config.get("sl_pct", 0.5))
+        self.sl_pct = float(config.get("sl_pct", 1.0))
         self.tp_pct = float(config.get("tp_pct", 1.5))
         self.enable_shorts = bool(config.get("enable_shorts", False))
         self.cooldown_bars = int(config.get("cooldown_bars", 3))

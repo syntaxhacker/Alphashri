@@ -102,7 +102,11 @@ def _sync_list_bots(db):
 
 
 def _sync_get_bot(db, bot_id):
-    bot = db.query(BotConfig).filter(BotConfig.id == bot_id).first()
+    from api.bots_api.bots_router import resolve_bot_id
+    numeric_id = resolve_bot_id(bot_id, db)
+    if numeric_id is None:
+        return None
+    bot = db.query(BotConfig).filter(BotConfig.id == numeric_id).first()
     return bot
 
 
@@ -269,7 +273,7 @@ async def list_bots(
 
 
 async def get_bot(
-    bot_id: int,
+    bot_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):

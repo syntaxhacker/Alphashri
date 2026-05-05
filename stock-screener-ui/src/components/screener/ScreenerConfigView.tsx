@@ -20,6 +20,7 @@ import { ScreenerTable } from "./ScreenerTable";
 import { SelectionBar } from "./SelectionBar";
 import { createScreener, updateScreener, deleteScreener } from "../../api/screeners";
 import { loadScreeners } from "../../api/index";
+import { useScreenerPreview } from "../../hooks/useScreenerApi";
 
 const ALL_COLUMNS = [
   { key: "symbol", label: "Symbol" },
@@ -101,8 +102,6 @@ const EMPTY_FORM: ScreenerForm = {
 };
 
 export function ScreenerConfigView({ screenerOptions, activeScreener, onScreenerChange }: Props) {
-  const [stocks, setStocks] = useState<Stock[]>([]);
-  const [loading, setLoading] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingScreener, setEditingScreener] = useState<ScreenerOption | null>(null);
@@ -126,13 +125,46 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
     "perf_w",
     "sector",
   ];
+
+  const activeFilters = activeOption?.filters;
+  const filterArr: { key: string; default: any; min?: number; max?: number }[] = [];
+  if (activeFilters) {
+    Object.entries(activeFilters as Record<string, any>).forEach(([key, value]) => {
+      if (Array.isArray(value) && value.length === 2) {
+        filterArr.push({ key: key + "_min", default: value[0] });
+        filterArr.push({ key: key + "_max", default: value[1] });
+      } else {
+        filterArr.push({ key, default: value });
+      }
+    });
+  }
+
+  const { stocks, loading: previewLoading, refresh: loadPreview } = useScreenerPreview(
+    activeScreener,
+    columns,
+    filterArr,
+  );
+
+  // Refresh when screener or filters change (debounced)
+  const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+    previewDebounceRef.current = setTimeout(() => {
+      loadPreview();
+    }, 500);
+    return () => {
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+    };
+  }, [activeScreener, columns, filterArr]);
+
   const columnDefs: ColumnDef[] = columns.map((key) => ({
     key,
     label: ALL_COLUMNS.find((c) => c.key === key)?.label || key,
     sortable: true,
   }));
 
-  const handleSortChange = useCallback(
+const handleSortChange = useCallback(
     (column: string) => {
       if (sortColumn === column) {
         setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
@@ -151,124 +183,6 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   const handleSymbolHover = useCallback((_symbol: string | null) => {
     // No-op for config preview
   }, []);
-
-  const loadPreview = useCallback(
-    async (screenerId?: string, cols?: string[], f?: { key: string; default: any }[]) => {
-      setLoading(true);
-      try {
-        const queryParams = new URLSearchParams();
-        queryParams.set("provider", "upstox");
-        queryParams.set("mode", "intraday");
-        const screenerName = (screenerId || activeScreener).replace("builtin:", "");
-        queryParams.set("screener", screenerName);
-
-        if (cols && cols.length > 0) {
-          queryParams.set("columns", cols.join(","));
-        }
-
-        if (f) {
-          f.forEach((filter) => {
-            if (filter.default !== undefined) {
-              queryParams.set(filter.key, String(filter.default));
-            }
-          });
-        }
-
-        const res = await fetch(`http://localhost:8765/api/screener?${queryParams.toString()}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-          },
-        });
-        const data = await res.json();
-        setStocks(data.approaching || []);
-      } catch (e) {
-        console.error("Failed to load preview:", e);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [activeScreener],
-  );
-
-  useEffect(() => {
-    const filterArray = activeOption?.filters
-      ? Object.entries(activeOption.filters as Record<string, any>).map(([key, value]) => ({
-          key,
-          default: value,
-        }))
-      : undefined;
-    loadPreview(activeScreener, columns, filterArray);
-  }, [activeScreener, activeOption?.filters]);
-
-  const loadModalPreview = useCallback(async () => {
-    if (form.columns.length === 0) return;
-    setLoading(true);
-    try {
-      const queryParams = new URLSearchParams();
-      queryParams.set("provider", "upstox");
-      queryParams.set("mode", "intraday");
-      queryParams.set("screener", "trending");
-      queryParams.set("columns", form.columns.join(","));
-
-      form.filters.forEach((filter) => {
-        if (filter.default !== undefined) {
-          queryParams.set(`filter_${filter.key}`, String(filter.default));
-        }
-      });
-
-      const res = await fetch(`http://localhost:8765/api/screener?${queryParams.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
-      });
-      const data = await res.json();
-      setStocks(data.approaching || []);
-    } catch (e) {
-      console.error("Failed to load preview:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [form.columns, form.filters]);
-
-  const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
-    previewDebounceRef.current = setTimeout(() => {
-      const activeOpt = screenerOptions.find((o) => o.id === activeScreener);
-      const activeFilters = activeOpt?.filters;
-      const filterArr: { key: string; default: any; min?: number; max?: number }[] = [];
-
-      if (activeFilters) {
-        Object.entries(activeFilters as Record<string, any>).forEach(([key, value]) => {
-          if (Array.isArray(value) && value.length === 2) {
-            filterArr.push({ key: key + "_min", default: value[0] });
-            filterArr.push({ key: key + "_max", default: value[1] });
-          } else {
-            filterArr.push({ key, default: value });
-          }
-        });
-      }
-
-      loadPreview(activeScreener, columns, filterArr);
-    }, 500);
-    return () => {
-      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
-    };
-  }, [activeScreener, columns, screenerOptions]);
-
-  const modalPreviewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (!createModalOpen && !editModalOpen) return;
-    if (modalPreviewDebounceRef.current) clearTimeout(modalPreviewDebounceRef.current);
-    modalPreviewDebounceRef.current = setTimeout(() => {
-      loadModalPreview();
-    }, 300);
-    return () => {
-      if (modalPreviewDebounceRef.current) clearTimeout(modalPreviewDebounceRef.current);
-    };
-  }, [createModalOpen, editModalOpen, loadModalPreview]);
 
   const handleCreate = async () => {
     if (!form.label || form.columns.length === 0) return;
@@ -581,14 +495,14 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
             size="xs"
             variant="light"
             onClick={() => loadPreview()}
-            loading={loading}
+            loading={previewLoading}
             data-testid="preview-refresh-btn"
           >
             ↻
           </Button>
         </Group>
         <Box style={{ flex: 1, overflow: "auto" }} p="xs">
-          {loading ? (
+          {previewLoading ? (
             <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-loading">
               Loading...
             </Text>

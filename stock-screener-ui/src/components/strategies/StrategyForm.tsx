@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Modal,
   Stack,
@@ -66,6 +66,17 @@ export function StrategyForm({
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>(
     initialValues.screener_profiles || [],
   );
+
+  useEffect(() => {
+    const newType = initialValues.strategy_type;
+    setCurrentStrategyType(newType);
+    setSelectedProfiles(initialValues.screener_profiles || []);
+    setActiveTab(
+      newType === "ORB" ? "orb" :
+      newType === "SR_BREAKOUT" ? "sr" :
+      newType === "EMA_CROSS" ? "ema" : "52w",
+    );
+  }, [initialValues.strategy_type, initialValues.screener_profiles]);
   const isIntraday = INTRADAY_TYPES.includes(currentStrategyType);
   const isSwing = SWING_TYPES.includes(currentStrategyType);
   const isOrb = currentStrategyType === "ORB";
@@ -96,16 +107,6 @@ export function StrategyForm({
         formData,
         "max_capital_per_trade_pct",
         DEFAULT_VALUES.max_capital_per_trade_pct,
-      ),
-      max_daily_loss_pct: getNumVal(
-        formData,
-        "max_daily_loss_pct",
-        DEFAULT_VALUES.max_daily_loss_pct,
-      ),
-      max_total_exposure_pct: getNumVal(
-        formData,
-        "max_total_exposure_pct",
-        DEFAULT_VALUES.max_total_exposure_pct,
       ),
       risk_per_trade_pct: getNumVal(
         formData,
@@ -141,7 +142,10 @@ export function StrategyForm({
         DEFAULT_VALUES.breakout_buffer_pct,
       ),
       pivot_type: (formData.get("pivot_type") as string) || DEFAULT_VALUES.pivot_type,
-      min_rr_ratio: getNumVal(formData, "min_rr_ratio", DEFAULT_VALUES.min_rr_ratio),
+      enable_shorts: (form.querySelector("[name='enable_shorts']") as HTMLInputElement)?.checked ?? false,
+      eod_exit_hour: getNumVal(formData, "eod_exit_hour", DEFAULT_VALUES.eod_exit_hour),
+      eod_exit_minute: getNumVal(formData, "eod_exit_minute", DEFAULT_VALUES.eod_exit_minute),
+      screener_profiles: selectedProfiles.length > 0 ? selectedProfiles : undefined,
     };
 
     const enableTrailingEl = form.querySelector(
@@ -289,10 +293,10 @@ export function StrategyForm({
                 </Tabs.Tab>
               )}
               <Tabs.Tab value="risk" data-testid="strategy-tab-risk">
-                Risk Mgmt
+                Sizing
               </Tabs.Tab>
               <Tabs.Tab value="runner" data-testid="strategy-tab-runner">
-                Runner
+                Execution
               </Tabs.Tab>
             </Tabs.List>
 

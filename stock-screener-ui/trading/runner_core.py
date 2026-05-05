@@ -161,6 +161,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.risk_manager = GlobalRiskManager(
             max_total_positions=self.bot_config.max_total_positions,
             max_total_capital_pct=self.bot_config.max_total_capital_pct,
+            max_daily_loss_pct=self.bot_config.max_daily_loss_pct if hasattr(self.bot_config, 'max_daily_loss_pct') else 0.03,
         )
 
         self.strategies: Dict[int, StrategyRunner] = {}
@@ -1097,6 +1098,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             self.risk_manager = GlobalRiskManager(
                 max_total_positions=self.bot_config.max_total_positions,
                 max_total_capital_pct=self.bot_config.max_total_capital_pct,
+                max_daily_loss_pct=self.bot_config.max_daily_loss_pct if hasattr(self.bot_config, 'max_daily_loss_pct') else 0.03,
             )
 
             self._load_strategies()
@@ -1335,13 +1337,11 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 if r.strategy_name == sname:
                     runner = r
                     break
-            min_rr = runner.config.get("min_rr_ratio", 2.0) if runner else 2.0
             strategy_breakdown[sname] = {
                 "trades": len(strades),
                 "win_rate": round(len(sw) / len(strades) * 100, 1) if strades else 0,
                 "net_pnl": round(sum(t.net_pnl for t in strades), 2),
                 "profit_factor": round(sum(t.net_pnl for t in sw) / abs(sum(t.net_pnl for t in sl)), 2) if sl else None,
-                "min_rr_ratio": min_rr,
             }
 
         on_event({
