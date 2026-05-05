@@ -200,7 +200,7 @@ const handleSortChange = useCallback(
       });
       setCreateModalOpen(false);
       setForm(EMPTY_FORM);
-      await loadScreeners();
+      await loadScreeners(false);
     } catch (e) {
       console.error("Failed to create screener:", e);
       alert(`Failed to create screener: ${e}`);
@@ -226,7 +226,7 @@ const handleSortChange = useCallback(
       setEditModalOpen(false);
       setEditingScreener(null);
       setForm(EMPTY_FORM);
-      await loadScreeners();
+      await loadScreeners(false);
     } catch (e) {
       console.error("Failed to update screener:", e);
       alert(`Failed to update screener: ${e}`);
@@ -245,7 +245,7 @@ const handleSortChange = useCallback(
       if (activeScreener === deletingId) {
         onScreenerChange("trending");
       }
-      await loadScreeners();
+      await loadScreeners(false);
     } catch (e) {
       console.error("Failed to delete screener:", e);
       alert(`Failed to delete screener: ${e}`);

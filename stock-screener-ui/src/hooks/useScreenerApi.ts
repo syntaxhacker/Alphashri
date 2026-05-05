@@ -10,7 +10,7 @@ export interface ScreenerParams {
   filters?: Record<string, string | number | boolean | undefined>;
 }
 
-const API_BASE = "http://localhost:8765";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
 function buildScreenerUrl(params: ScreenerParams): string {
   const searchParams = new URLSearchParams();

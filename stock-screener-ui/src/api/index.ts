@@ -172,21 +172,21 @@ export function resetLoadingState() {
   renderCallback();
 }
 
-export async function loadScreeners() {
+export async function loadScreeners(resetActive: boolean = true): Promise<void> {
   try {
     const res = await fetchWithAuth(SCREENERS_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
     state.setScreenerOptions(payload.screeners || []);
-    const defaultScreener = payload.default || "trending";
-    state.setActiveScreener(defaultScreener);
     state.setProfileMetaById(payload.meta_by_id || {});
+    const defaultScreener = payload.default || "trending";
 
-    // Set initial sort from default screener meta
-    const defaultMeta = payload.meta_by_id?.[defaultScreener];
-    if (defaultMeta?.default_sort?.column) {
-      state.setSortColumn(defaultMeta.default_sort.column);
-      state.setSortDirection(defaultMeta.default_sort.direction || "desc");
+    if (resetActive) {
+      state.setActiveScreener(defaultScreener);
+      state.setActiveProvider("upstox");
+      state.setActiveMode("intraday");
+      state.setSortColumn("score");
+      state.setSortDirection("asc");
     }
   } catch {
     state.setScreenerOptions(DEFAULT_SCREENER_OPTIONS);
@@ -207,6 +207,11 @@ export function setupAutoRefresh() {
   const interval = setInterval(() => {
     // Only auto-refresh if on screener view (not backtest)
     if (getBacktestState().currentView === "backtest") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const activeTab = params.get("tab");
+    if (activeTab === "config" || activeTab === "correlation") {
       return;
     }
     if (state.data && !state.isLoading) {

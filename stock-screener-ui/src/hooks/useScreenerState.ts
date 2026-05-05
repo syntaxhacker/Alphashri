@@ -88,6 +88,10 @@ export function useScreenerState() {
     fetchData(state.data?.provider || "upstox", state.data?.mode || "intraday", screenerId);
   }, []);
 
+  const onConfigScreenerSelect = useCallback((screenerId: string) => {
+    state.setActiveScreener(screenerId);
+  }, []);
+
   const onSymbolClick = useCallback(
     (symbol: string) => {
       navigate(`/chart/${symbol}`);
@@ -113,6 +117,7 @@ export function useScreenerState() {
     onProviderChange,
     onModeChange,
     onScreenerChange,
+    onConfigScreenerSelect,
     onSymbolClick,
     onSymbolHover,
   };

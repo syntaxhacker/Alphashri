@@ -24,6 +24,7 @@ interface ScreenerPageProps {
   screenerOptions: Array<{ id: string; label: string; description?: string }>;
   activeScreener: string;
   onScreenerChange: (id: string) => void;
+  onConfigScreenerSelect: (id: string) => void;
   title: string;
   status: string;
   isLoading: boolean;
@@ -70,6 +71,7 @@ export function ScreenerPage({
   screenerOptions,
   activeScreener,
   onScreenerChange,
+  onConfigScreenerSelect,
   title,
   status,
   isLoading,
@@ -133,7 +135,12 @@ export function ScreenerPage({
       >
         <Box flex="0 0 auto" className="screener-controls" data-testid="screener-controls">
           <Stack gap="sm">
-            <Tabs value={activeTab} onChange={(v) => v && setActiveTab(v)}>
+            <Tabs value={activeTab} onChange={(v) => {
+              if (v && v !== "screener") {
+                state.setSelectedSymbols([]);
+              }
+              if (v) setActiveTab(v);
+            }}>
               <Tabs.List>
                 <Tabs.Tab
                   value="screener"
@@ -209,7 +216,7 @@ export function ScreenerPage({
                 <ScreenerConfigView
                   screenerOptions={screenerOptions}
                   activeScreener={activeScreener}
-                  onScreenerChange={onScreenerChange}
+                  onScreenerChange={onConfigScreenerSelect}
                 />
               ) : activeTab === "correlation" ? (
                 <CorrelationTab />

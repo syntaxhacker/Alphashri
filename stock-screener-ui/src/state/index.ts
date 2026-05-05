@@ -98,6 +98,16 @@ export function setActiveScreener(screener: string) {
   notifySubscribers();
 }
 
+export function setActiveProvider(provider: string) {
+  data = { ...data, provider };
+  notifySubscribers();
+}
+
+export function setActiveMode(mode: string) {
+  data = { ...data, mode };
+  notifySubscribers();
+}
+
 export function setProfileMetaById(meta: Record<string, ProfileMeta>) {
   profileMetaById = meta;
 }
