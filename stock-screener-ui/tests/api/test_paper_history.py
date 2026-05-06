@@ -128,8 +128,10 @@ class TestTradesBotIdFilter:
 
     def test_trades_with_integer_bot_id_returns_200(self, client, auth_headers):
         """Integer bot_id param does not cause errors."""
-        with patch("api.paper.history._get_trades_from_db") as mock_get:
+        with patch("api.paper.history._get_trades_from_db") as mock_get, \
+             patch("api.paper.history._resolve_trade_bot_ids") as mock_resolve:
             mock_get.return_value = []
+            mock_resolve.return_value = []
             response = client.get(
                 "/api/paper/trades?bot_id=3&limit=5",
                 headers=auth_headers,
@@ -138,8 +140,10 @@ class TestTradesBotIdFilter:
 
     def test_trades_with_uuid_bot_id_returns_200(self, client, auth_headers):
         """UUID bot_id param does not cause errors."""
-        with patch("api.paper.history._get_trades_from_db") as mock_get:
+        with patch("api.paper.history._get_trades_from_db") as mock_get, \
+             patch("api.paper.history._resolve_trade_bot_ids") as mock_resolve:
             mock_get.return_value = []
+            mock_resolve.return_value = []
             test_uuid = str(uuid.uuid4())
             response = client.get(
                 f"/api/paper/trades?bot_id={test_uuid}&limit=5",
@@ -149,8 +153,10 @@ class TestTradesBotIdFilter:
 
     def test_trades_with_default_bot_id_returns_200(self, client, auth_headers):
         """'default' bot_id param is handled without error."""
-        with patch("api.paper.history._get_trades_from_db") as mock_get:
+        with patch("api.paper.history._get_trades_from_db") as mock_get, \
+             patch("api.paper.history._resolve_trade_bot_ids") as mock_resolve:
             mock_get.return_value = []
+            mock_resolve.return_value = []
             response = client.get(
                 "/api/paper/trades?bot_id=default&limit=5",
                 headers=auth_headers,
@@ -164,9 +170,13 @@ class TestTradesBotIdFilter:
 
         # Mock _get_trades_from_db to return the resolve_bot_id result so we
         # can verify it was called with the correct resolved integer
-        with patch("api.paper.history._get_trades_from_db") as mock_get:
+        with patch("api.paper.history._get_trades_from_db") as mock_get, \
+             patch("api.paper.history._resolve_trade_bot_ids") as mock_resolve:
             mock_get.return_value = [
                 {"symbol": "TEST", "pnl": 100.0, "bot_id": 3}
+            ]
+            mock_resolve.return_value = [
+                {"symbol": "TEST", "pnl": 100.0, "bot_id": "uuid-3"}
             ]
             resp_uuid = client.get(
                 f"/api/paper/trades?bot_id={test_uuid}&limit=5",
