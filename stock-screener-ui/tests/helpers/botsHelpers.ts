@@ -1,5 +1,6 @@
 import { Page, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 
 export async function setupBotsMocks(page: Page): Promise<void> {
   await setupApiMocks(page);
@@ -42,7 +43,7 @@ export async function mockBotsListRoute(page: Page, bots: any[]) {
 }
 
 export async function mockAvailableStrategiesRoute(page: Page, strategies: any[]) {
-  await page.route("**/api/bots/available-strategies", async (route) => {
+  await page.route(apiRoute("bots/available-strategies"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

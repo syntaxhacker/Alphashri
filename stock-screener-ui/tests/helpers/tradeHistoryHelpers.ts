@@ -5,6 +5,7 @@ import {
   setupPaperTradingMocks,
   setupMultiStrategyBotMocks,
 } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 
 export async function setupTradeHistoryMocks(page: Page): Promise<void> {
   await setupApiMocks(page);
@@ -77,7 +78,7 @@ export async function verifyTradesTableVisible(page: Page): Promise<void> {
 }
 
 export async function mockEmptyTradeHistory(page: Page): Promise<void> {
-  await page.route("**/api/paper/trades*", async (route) => {
+  await page.route(apiRoute("paper/trades*"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -103,7 +104,7 @@ export async function mockTradeHistoryWithCount(page: Page, count: number): Prom
     bot_id: "550e8400-e29b-41d4-a716-446655440000",
   }));
 
-  await page.route("**/api/paper/trades*", async (route) => {
+  await page.route(apiRoute("paper/trades*"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -221,7 +222,7 @@ export async function mockTradeHistoryWithSampleData(page: Page): Promise<void> 
     },
   ];
 
-  await page.route("**/api/paper/trades*", async (route) => {
+  await page.route(apiRoute("paper/trades*"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

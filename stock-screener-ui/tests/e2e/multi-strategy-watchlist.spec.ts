@@ -5,6 +5,7 @@ import {
   setupPaperTradingMocks,
 } from "../helpers/multiStrategyHelpers";
 import { BOT_IDS, setupBotMocksForId, navigateToBot } from "./helpers/multiStrategyHelpers";
+import { apiRoute } from "../mocks/routeHelper";
 
 test.describe("Multi-Strategy System - Trade History", () => {
   const botId = BOT_IDS.tradeHistory;
@@ -15,7 +16,7 @@ test.describe("Multi-Strategy System - Trade History", () => {
     await setupPaperTradingMocks(page);
     await setupBotMocksForId(page, botId);
 
-    await page.route("**/api/paper/trades*", async (route) => {
+    await page.route(apiRoute("paper/trades"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -51,7 +52,7 @@ test.describe("Multi-Strategy System - Trade History", () => {
       });
     });
 
-    await page.route("**/api/paper/journal/summary", async (route) => {
+    await page.route(apiRoute("paper/journal/summary"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -76,7 +77,7 @@ test.describe("Multi-Strategy System - History Filter", () => {
     await setupPaperTradingMocks(page);
     await setupBotMocksForId(page, botId);
 
-    await page.route("**/api/paper/trades*", async (route) => {
+    await page.route(apiRoute("paper/trades"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

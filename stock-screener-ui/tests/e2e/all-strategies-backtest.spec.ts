@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 import { selectSymbolAndRun, waitForBacktestResult } from "./helpers/backtestHelpers";
 
 const strategyVariations = [
@@ -289,7 +290,7 @@ function generate52wTargetTrades(candles: any[]) {
 }
 
 async function mockFullBacktestApi(page: Page, strategyType: string, symbol: string = "RELIANCE") {
-  await page.route("**/api/backtest/strategies", async (route) => {
+  await page.route(apiRoute("backtest/strategies"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -301,7 +302,7 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
     });
   });
 
-  await page.route("**/api/strategies/variations", async (route) => {
+  await page.route(apiRoute("strategies/variations"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -309,7 +310,7 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
     });
   });
 
-  await page.route("**/api/backtest/costs", async (route) => {
+  await page.route(apiRoute("backtest/costs"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -509,7 +510,7 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
     });
   });
 
-  await page.route("**/api/backtest/chart/*", async (route) => {
+  await page.route(apiRoute("backtest/chart/"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -517,7 +518,7 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
     });
   });
 
-  await page.route("**/api/backtest/history*", async (route) => {
+  await page.route(apiRoute("backtest/history"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -805,21 +806,21 @@ test.describe("Backtest - Multi-Day Chart", () => {
       }
     }
 
-    await page.route("**/api/backtest/strategies", async (route) => {
+    await page.route(apiRoute("backtest/strategies"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ strategies: [{ id: "orb", name: "ORB", params: [] }] }),
       });
     });
-    await page.route("**/api/strategies/variations", async (route) => {
+    await page.route(apiRoute("strategies/variations"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(strategyVariations),
       });
     });
-    await page.route("**/api/backtest/costs", async (route) => {
+    await page.route(apiRoute("backtest/costs"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -880,7 +881,7 @@ test.describe("Backtest - Multi-Day Chart", () => {
         }),
       });
     });
-    await page.route("**/api/backtest/chart/*", async (route) => {
+    await page.route(apiRoute("backtest/chart/"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -896,7 +897,7 @@ test.describe("Backtest - Multi-Day Chart", () => {
         }),
       });
     });
-    await page.route("**/api/backtest/history*", async (route) => {
+    await page.route(apiRoute("backtest/history"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -931,21 +932,21 @@ test.describe("Backtest - Error Scenarios", () => {
   test("should display error when backtest API fails", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route("**/api/backtest/strategies", async (route) => {
+    await page.route(apiRoute("backtest/strategies"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ strategies: [{ id: "orb", name: "ORB", params: [] }] }),
       });
     });
-    await page.route("**/api/strategies/variations", async (route) => {
+    await page.route(apiRoute("strategies/variations"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(strategyVariations),
       });
     });
-    await page.route("**/api/backtest/costs", async (route) => {
+    await page.route(apiRoute("backtest/costs"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -970,7 +971,7 @@ test.describe("Backtest - Error Scenarios", () => {
         body: JSON.stringify({ detail: "Internal server error" }),
       });
     });
-    await page.route("**/api/backtest/history*", async (route) => {
+    await page.route(apiRoute("backtest/history"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -990,21 +991,21 @@ test.describe("Backtest - Error Scenarios", () => {
   test("should display empty chart when chart API returns empty candles", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route("**/api/backtest/strategies", async (route) => {
+    await page.route(apiRoute("backtest/strategies"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ strategies: [{ id: "orb", name: "ORB", params: [] }] }),
       });
     });
-    await page.route("**/api/strategies/variations", async (route) => {
+    await page.route(apiRoute("strategies/variations"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(strategyVariations),
       });
     });
-    await page.route("**/api/backtest/costs", async (route) => {
+    await page.route(apiRoute("backtest/costs"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -1055,7 +1056,7 @@ test.describe("Backtest - Error Scenarios", () => {
         }),
       });
     });
-    await page.route("**/api/backtest/chart/*", async (route) => {
+    await page.route(apiRoute("backtest/chart/"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -1071,7 +1072,7 @@ test.describe("Backtest - Error Scenarios", () => {
         }),
       });
     });
-    await page.route("**/api/backtest/history*", async (route) => {
+    await page.route(apiRoute("backtest/history"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

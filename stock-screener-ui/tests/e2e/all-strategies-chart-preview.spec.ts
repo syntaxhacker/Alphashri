@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 import {
   generateCandles,
   expectChartVisible,
@@ -47,7 +48,7 @@ async function setupChartPreviewMock(
     chartData.week52_levels = data.week52Levels;
   }
 
-  await page.route("**/api/chart/preview/**", async (route) => {
+  await page.route(apiRoute("chart/preview/"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -223,7 +224,7 @@ test.describe("Chart Preview - Timeframe Switching", () => {
     let requestCount = 0;
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route("**/api/chart/preview/**", async (route) => {
+    await page.route(apiRoute("chart/preview/"), async (route) => {
       requestCount++;
       await route.fulfill({
         status: 200,
@@ -342,7 +343,7 @@ test.describe("Chart Preview - Error and Edge Cases", () => {
   test("should show error when API fails", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route("**/api/chart/preview/**", async (route) => {
+    await page.route(apiRoute("chart/preview/"), async (route) => {
       await route.abort("failed");
     });
     await gotoChart(page, "INVALID");
@@ -354,7 +355,7 @@ test.describe("Chart Preview - Error and Edge Cases", () => {
   test("should show error for 500 response", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route("**/api/chart/preview/**", async (route) => {
+    await page.route(apiRoute("chart/preview/"), async (route) => {
       await route.fulfill({
         status: 500,
         contentType: "application/json",
@@ -368,7 +369,7 @@ test.describe("Chart Preview - Error and Edge Cases", () => {
   test("should handle empty candle data", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route("**/api/chart/preview/**", async (route) => {
+    await page.route(apiRoute("chart/preview/"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -468,7 +469,7 @@ test.describe("Chart Preview - Loading State", () => {
   test("should show loading while fetching data", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route("**/api/chart/preview/**", async (route) => {
+    await page.route(apiRoute("chart/preview/"), async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 500));
       await route.fulfill({
         status: 200,
