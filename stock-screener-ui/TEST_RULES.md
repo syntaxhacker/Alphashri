@@ -32,10 +32,35 @@ SKIP_PYTHON=1 SKIP_UI=1 git commit ...
 - Same directory as the component/module they test
 - Test file name matches source file name (e.g., `WatchlistScan.tsx` → `WatchlistScan.test.tsx`)
 
-### E2E Test Files
+### E2E Tests
 - Located in `tests/e2e/`
 - Named `*.spec.ts`
 - Use Playwright's `page` fixture for browser interactions
+
+#### API Mock Pattern — Use `apiRoute()` for localhost:8765 endpoints
+
+**NEVER use broad glob patterns like `**/api/...`** — they accidentally intercept Vite module requests for files in `src/api/`, causing blank white pages because the browser receives JSON instead of JavaScript.
+
+**BAD:**
+```typescript
+await page.route("**/api/auth/me", handler)  // Matches src/api/auth.ts too! ❌
+```
+
+**GOOD:**
+```typescript
+import { apiRoute } from "../mocks/routeHelper";
+
+await page.route(apiRoute("auth/me"), handler)  // Only matches localhost:8765/api/auth/me ✅
+```
+
+The `apiRoute()` helper (in `tests/mocks/routeHelper.ts`) generates a regex that matches **only** `localhost:8765` API routes, preventing the Vite module interception bug. It also supports wildcards:
+
+```typescript
+apiRoute("news/*/articles")     // matches /api/news/RELIANCE/articles
+apiRoute("bots/[a-f0-9-]+/scan") // dynamic segments preserved as regex
+```
+
+All Playwright tests should use `apiRoute()` for every `localhost:8765` API endpoint mock.
 
 ## Import Conventions
 
