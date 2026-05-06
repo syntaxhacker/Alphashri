@@ -36,6 +36,12 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Mock init_db before importing app to prevent alembic migrations during tests
+from unittest.mock import patch
+import db.database
+db.database.init_db = lambda: None
+from api_server_fastapi import app
+
 # Standard imports
 from db.database import Base, get_db
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
@@ -49,17 +55,6 @@ from api.auth import (
     ACCESS_TOKEN_EXPIRE_HOURS,
     REFRESH_TOKEN_EXPIRE_DAYS,
 )
-
-
-try:
-    from api_server_fastapi import app
-except ImportError:
-    from fastapi import FastAPI
-    from api.auth import router as auth_router
-    from api.options import router as options_router
-    app = FastAPI()
-    app.include_router(auth_router)
-    app.include_router(options_router)
 
 
 @pytest.fixture(scope="function")
