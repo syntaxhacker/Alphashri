@@ -270,7 +270,7 @@ test.describe("Bots View - Delete", () => {
           body: JSON.stringify({ message: "Bot deleted" }),
         });
       } else {
-        await route.continue();
+        await route.fallback();
       }
     });
 

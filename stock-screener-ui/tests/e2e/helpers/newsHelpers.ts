@@ -104,14 +104,8 @@ const mockRecentArticles = {
 };
 
 export async function setupNewsMocks(page: Page) {
-  await page.route(apiRoute("news/sources"), async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ sources: mockNewsSources }),
-    });
-  });
-
+  // Broad route registered FIRST so more-specific sub-routes registered below
+  // take priority (Playwright matches routes in reverse registration order).
   await page.route(apiRoute("news"), async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 500));
     await route.fulfill({
@@ -123,6 +117,14 @@ export async function setupNewsMocks(page: Page) {
         total: mockNewsItems.length,
         fetchedAt: new Date().toISOString(),
       }),
+    });
+  });
+
+  await page.route(apiRoute("news/sources"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ sources: mockNewsSources }),
     });
   });
 

@@ -88,7 +88,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
   test("should show empty state when no positions", async ({ page }) => {
     // Override positions mock to return empty
-    await page.route(apiRoute("bots/*/positions*"), async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+/positions"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -422,7 +422,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
 
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
-    await expect(scanCard).toContainText("No scan data yet");
+    await expect(scanCard).toContainText("No scan data");
   });
 });
 

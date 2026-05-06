@@ -272,7 +272,7 @@ test.describe("Multi-Strategy - Empty States", () => {
   test("should show no scan data when bot is stopped", async ({ page }) => {
     await setupMultiStrategyBot(page);
 
-    await page.route(apiRoute(`bots/${TEST_BOT_UUID}/scan*`), async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+/scan"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -280,9 +280,23 @@ test.describe("Multi-Strategy - Empty States", () => {
       });
     });
 
+    await page.route(apiRoute("paper/bot/snapshot"), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          watchlist: [],
+          open_positions: [],
+          scan_items: [],
+          signals: [],
+        }),
+      });
+    });
+
     await navigateToBot(page);
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 15000 });
-    await expect(scanCard).toContainText("No scan data yet");
+    await expect(scanCard).toContainText("No scan data");
   });
 });

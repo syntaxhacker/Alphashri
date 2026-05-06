@@ -278,8 +278,8 @@ test.describe("Screener - Config Tab", () => {
     });
     await page.click('[data-testid="tab-config"]');
     await page.waitForLoadState("networkidle");
-    const volatilityTrend = page.locator("text=Volatility Trend").first();
-    await volatilityTrend.click();
+    const buyerInterest = page.locator("text=Buyer Interest+").first();
+    await buyerInterest.click();
     const filterBadges = page.locator(".mantine-Badge-root");
     await expect(filterBadges.first()).toBeVisible({
       timeout: 10000,
