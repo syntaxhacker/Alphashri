@@ -139,9 +139,9 @@ class TestTradesBotIdFilter:
 
     def test_trades_with_uuid_bot_id_returns_200(self, client, auth_headers):
         """UUID bot_id param does not cause errors."""
-        with patch("api.paper.history._get_trades_from_db") as mock_get, \
+        with patch("api.paper.history._get_trades_from_db", return_value=[]), \
+             patch("api.paper.history._get_trades_from_journals", return_value=[]), \
              patch("api.paper.history._resolve_trade_bot_ids", return_value=[]):
-            mock_get.return_value = []
             test_uuid = str(uuid.uuid4())
             response = client.get(
                 f"/api/paper/trades?bot_id={test_uuid}&limit=5",
