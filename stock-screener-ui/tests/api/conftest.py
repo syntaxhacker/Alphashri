@@ -51,6 +51,9 @@ from api.auth import (
 )
 
 
+from api_server_fastapi import app
+
+
 @pytest.fixture(scope="function")
 def test_engine():
     from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday, Stock52WeekTouch, Screener
