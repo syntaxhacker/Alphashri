@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Modal,
   Stack,
@@ -61,7 +61,10 @@ export function StrategyForm({
   onSubmit,
   isBotRunning,
 }: StrategyFormProps) {
-  const initialValues = getInitialValues({ mode, strategy, template });
+  const initialValues = useMemo(
+    () => getInitialValues({ mode, strategy, template }),
+    [mode, strategy, template],
+  );
   const [currentStrategyType, setCurrentStrategyType] = useState(initialValues.strategy_type);
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>(
     initialValues.screener_profiles || [],

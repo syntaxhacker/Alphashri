@@ -162,6 +162,7 @@ export function TemplateTreeView({
                     variant="subtle"
                     color="gray"
                     onClick={() => onEditTemplate(config)}
+                    data-testid={`edit-template-btn-${id}`}
                   >
                     <IconEdit size={13} />
                   </ActionIcon>
@@ -180,6 +181,7 @@ export function TemplateTreeView({
                         onSyncVariations(id);
                       }
                     }}
+                    data-testid={`sync-variations-btn-${id}`}
                   >
                     <IconRefresh size={13} />
                   </ActionIcon>
@@ -190,6 +192,7 @@ export function TemplateTreeView({
                     variant="subtle"
                     color="teal"
                     onClick={() => onCreateFromTemplate(config)}
+                    data-testid={`create-variation-btn-${id}`}
                   >
                     <IconPlus size={13} />
                   </ActionIcon>
@@ -203,6 +206,7 @@ export function TemplateTreeView({
                     variant="subtle"
                     color="blue"
                     onClick={() => onEditStrategy(config)}
+                    data-testid={`edit-strategy-btn-${id}`}
                   >
                     <IconEdit size={13} />
                   </ActionIcon>
@@ -213,6 +217,7 @@ export function TemplateTreeView({
                     variant="subtle"
                     color="red"
                     onClick={() => onDeleteStrategy(id)}
+                    data-testid={`delete-strategy-btn-${id}`}
                   >
                     <IconTrash size={13} />
                   </ActionIcon>

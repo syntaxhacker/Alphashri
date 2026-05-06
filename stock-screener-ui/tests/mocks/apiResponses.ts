@@ -1532,7 +1532,68 @@ const mockEmptyPerformanceData: {
 
 // Full strategy mocks for strategies page
 export async function setupStrategiesMocks(page: import("@playwright/test").Page) {
+  // Register specific routes BEFORE broad ones to avoid substring regex collisions.
+  // apiRoute("strategies") regex also matches /api/strategies/templates, so templates
+  // must be registered first — otherwise the broad handler intercepts with route.continue()
+  // and sends the request to the real backend.
+
+  await page.route(apiRoute("strategies/templates"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        templates: mockStrategyTemplates,
+        count: mockStrategyTemplates.length,
+      }),
+    });
+  });
+
+  await page.route(apiRoute("strategies/performance"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockPerformanceData),
+    });
+  });
+
+  await page.route(apiRoute("strategies/[0-9]+/performance"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        strategy_id: 10,
+        strategy_name: "ORB Conservative",
+        total_trades: 45,
+        winners: 30,
+        losers: 15,
+        win_rate: 66.67,
+        total_pnl: 12500,
+        net_pnl: 9800,
+      }),
+    });
+  });
+
+  await page.route(apiRoute("strategies/[a-f0-9-]+/activate"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "success",
+        message: "Strategy activated",
+      }),
+    });
+  });
+
+  // General /api/strategies handler — registered AFTER specific sub-routes
   await page.route(apiRoute("strategies"), async (route) => {
+    const url = route.request().url();
+    const path = new URL(url).pathname;
+    // Skip requests that match sub-paths already handled above
+    if (path !== "/api/strategies") {
+      await route.fallback();
+      return;
+    }
+
     const method = route.request().method();
     if (method === "PUT") {
       const body = route.request().postDataJSON();
@@ -1559,25 +1620,7 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
           message: "Strategy deleted",
         }),
       });
-    } else {
-      await route.continue();
-    }
-  });
-
-  await page.route(apiRoute("strategies/templates"), async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        templates: mockStrategyTemplates,
-        count: mockStrategyTemplates.length,
-      }),
-    });
-  });
-
-  await page.route(apiRoute("strategies"), async (route) => {
-    const method = route.request().method();
-    if (method === "GET") {
+    } else if (method === "GET") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -1671,6 +1714,24 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
       }),
     });
   });
+
+  // Mock paper/trades for Performance view (loadAllPerformance fetches trades directly)
+  await page.route(apiRoute("paper/trades"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        trades: [
+          { strategy_id: 10, strategy_name: "ORB Conservative", pnl: 500, net_pnl: 480 },
+          { strategy_id: 10, strategy_name: "ORB Conservative", pnl: -200, net_pnl: -210 },
+          { strategy_id: 10, strategy_name: "ORB Conservative", pnl: 300, net_pnl: 290 },
+          { strategy_id: 11, strategy_name: "ORB Aggressive", pnl: 800, net_pnl: 770 },
+          { strategy_id: 11, strategy_name: "ORB Aggressive", pnl: -100, net_pnl: -110 },
+        ],
+        count: 5,
+      }),
+    });
+  });
 }
 
 // Empty state mocks
@@ -1686,7 +1747,21 @@ export async function setupStrategiesEmptyMocks(page: import("@playwright/test")
     });
   });
 
+  await page.route(apiRoute("strategies/performance"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockEmptyPerformanceData),
+    });
+  });
+
   await page.route(apiRoute("strategies"), async (route) => {
+    const url = route.request().url();
+    const path = new URL(url).pathname;
+    if (path !== "/api/strategies") {
+      await route.fallback();
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1697,11 +1772,12 @@ export async function setupStrategiesEmptyMocks(page: import("@playwright/test")
     });
   });
 
-  await page.route(apiRoute("strategies/performance"), async (route) => {
+  // Mock paper/trades returning empty
+  await page.route(apiRoute("paper/trades"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(mockEmptyPerformanceData),
+      body: JSON.stringify({ trades: [], count: 0 }),
     });
   });
 }

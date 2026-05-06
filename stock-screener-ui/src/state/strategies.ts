@@ -9,12 +9,6 @@ import type {
 } from "../types/strategies";
 import * as api from "../api/strategies";
 import { fetchWithAuth } from "./auth";
-import {
-  openCreateModal,
-  closeCreateModal,
-  openEditModal,
-  closeEditModal,
-} from "./strategies/modalActions";
 
 const initialState: StrategiesState = {
   strategies: [],
@@ -329,4 +323,34 @@ export function initStrategiesState(): void {
   loadInitialData();
 }
 
-export { openCreateModal, closeCreateModal, openEditModal, closeEditModal };
+export function openCreateModal(template: StrategyConfig | null = null): void {
+  state = {
+    ...state,
+    showCreateModal: true,
+    parentTemplate: template,
+    showEditModal: false,
+    editingStrategy: null,
+  };
+  notify();
+}
+
+export function closeCreateModal(): void {
+  state = { ...state, showCreateModal: false, parentTemplate: null };
+  notify();
+}
+
+export function openEditModal(strategy: StrategyConfig): void {
+  state = {
+    ...state,
+    showEditModal: true,
+    editingStrategy: strategy,
+    showCreateModal: false,
+    parentTemplate: null,
+  };
+  notify();
+}
+
+export function closeEditModal(): void {
+  state = { ...state, showEditModal: false, editingStrategy: null };
+  notify();
+}

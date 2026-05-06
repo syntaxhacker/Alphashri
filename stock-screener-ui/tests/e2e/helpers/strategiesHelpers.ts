@@ -18,15 +18,14 @@ export async function switchToStrategiesTab(page: Page, tabName: string) {
   await page.getByTestId("strategies-nav-tabs").locator("label", { hasText: tabName }).click();
 }
 
-export async function openCreateStrategyDialog(page: Page) {
-  await expect(page.getByTestId("templates-grid")).toBeVisible({ timeout: 10000 });
-  await page.getByTestId("create-from-template-btn").first().click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+export async function openCreateFromTemplate(page: Page) {
+  await expect(page.getByTestId("template-tree-panel")).toBeVisible({ timeout: 10000 });
+  await page.locator('[data-testid^="create-variation-btn-"]').first().click();
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
 }
 
-export async function openEditStrategyDialog(page: Page) {
-  await switchToStrategiesTab(page, "All Strategies");
-  await expect(page.getByTestId("strategy-list-table")).toBeVisible();
-  await page.locator('[data-testid^="edit-strategy-btn-"]').first().click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+export async function openEditTemplateFromTree(page: Page) {
+  await expect(page.getByTestId("template-tree-panel")).toBeVisible({ timeout: 10000 });
+  await page.locator('[data-testid^="edit-template-btn-"]').first().click();
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
 }
