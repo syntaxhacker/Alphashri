@@ -101,7 +101,7 @@ async function setupCommonReplayMocks(page: Page) {
   await page.route(apiRoute("bots"), async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) });
   });
-  await page.route(/\/api\/holidays(\?|$)/, async (route) => {
+  await page.route(apiRoute("holidays"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

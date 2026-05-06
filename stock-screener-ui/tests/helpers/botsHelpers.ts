@@ -33,7 +33,7 @@ export function getBotStatus(page: Page) {
 }
 
 export async function mockBotsListRoute(page: Page, bots: any[]) {
-  await page.route(/\/api\/bots(\?|$)/, async (route) => {
+  await page.route(apiRoute("bots"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -64,7 +64,7 @@ export async function mockCreateBotRoute(
   maxPositions: number = 10,
   maxCapitalPct: number = 0.8,
 ) {
-  await page.route(/\/api\/bots(\?|$)/, async (route) => {
+  await page.route(apiRoute("bots"), async (route) => {
     if (route.request().method() === "POST") {
       const body = route.request().postDataJSON();
       await route.fulfill({

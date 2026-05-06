@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { apiRoute } from "../mocks/routeHelper";
 import {
   gotoBotsView,
   expectBotsViewVisible,
@@ -198,7 +199,7 @@ test.describe("Bots View - Edit", () => {
   });
 
   test("should save edited bot", async ({ page }) => {
-    await page.route(/\/api\/bots\/[^/]+$/, async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+"), async (route) => {
       if (route.request().method() === "PUT") {
         await route.fulfill({
           status: 200,
@@ -245,7 +246,7 @@ test.describe("Bots View - Delete", () => {
 
   test("should remove bot after delete", async ({ page }) => {
     let deleted = false;
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
+    await page.route(apiRoute("bots"), async (route) => {
       const bots = deleted ? [mockBots[1]] : mockBots;
       await route.fulfill({
         status: 200,
@@ -253,14 +254,14 @@ test.describe("Bots View - Delete", () => {
         body: JSON.stringify(bots),
       });
     });
-    await page.route(/\/api\/bots\/[^/]+\/trade-count/, async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+/trade-count"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ count: 0 }),
       });
     });
-    await page.route(/\/api\/bots\/[^/]+$/, async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+"), async (route) => {
       if (route.request().method() === "DELETE") {
         deleted = true;
         await route.fulfill({
@@ -296,7 +297,7 @@ test.describe("Bots View - Controls", () => {
   });
 
   test("should show Stop Bot button when bot is running", async ({ page }) => {
-    await page.route(/\/api\/bots\/[^/]+\/stop/, async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+/stop"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -322,7 +323,7 @@ test.describe("Bots View - Status", () => {
   });
 
   test("should show bot status panel", async ({ page }) => {
-    await page.route(/\/api\/bots\/[^/]+\/trades/, async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+/trades"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

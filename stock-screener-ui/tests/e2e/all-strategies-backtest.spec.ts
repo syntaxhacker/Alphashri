@@ -328,7 +328,7 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
     });
   });
 
-  await page.route(/\/api\/symbols\/search/, async (route) => {
+  await page.route(apiRoute("symbols/search"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -487,7 +487,7 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
     .reduce((sum: number, t: any) => sum + (t.trade?.net_pnl || 0), 0);
   const totalTrades = trades.filter((t: any) => t.type === "exit").length;
 
-  await page.route(/\/api\/backtest\/run/, async (route) => {
+  await page.route(apiRoute("backtest/run"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -837,7 +837,7 @@ test.describe("Backtest - Multi-Day Chart", () => {
         }),
       });
     });
-    await page.route(/\/api\/symbols\/search/, async (route) => {
+    await page.route(apiRoute("symbols/search"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -848,7 +848,7 @@ test.describe("Backtest - Multi-Day Chart", () => {
         }),
       });
     });
-    await page.route(/\/api\/backtest\/run/, async (route) => {
+    await page.route(apiRoute("backtest/run"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -953,7 +953,7 @@ test.describe("Backtest - Error Scenarios", () => {
         body: JSON.stringify({ costs: {} }),
       });
     });
-    await page.route(/\/api\/symbols\/search/, async (route) => {
+    await page.route(apiRoute("symbols/search"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -964,7 +964,7 @@ test.describe("Backtest - Error Scenarios", () => {
         }),
       });
     });
-    await page.route(/\/api\/backtest\/run/, async (route) => {
+    await page.route(apiRoute("backtest/run"), async (route) => {
       await route.fulfill({
         status: 500,
         contentType: "application/json",
@@ -1012,7 +1012,7 @@ test.describe("Backtest - Error Scenarios", () => {
         body: JSON.stringify({ costs: {} }),
       });
     });
-    await page.route(/\/api\/symbols\/search/, async (route) => {
+    await page.route(apiRoute("symbols/search"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -1023,7 +1023,7 @@ test.describe("Backtest - Error Scenarios", () => {
         }),
       });
     });
-    await page.route(/\/api\/backtest\/run/, async (route) => {
+    await page.route(apiRoute("backtest/run"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
