@@ -32,11 +32,13 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index('ix_screeners_user_id', 'screeners', ['user_id'])
-    op.create_unique_constraint('uq_user_screener', 'screeners', ['user_id', 'name'])
+    with op.batch_alter_table('screeners', schema=None) as batch_op:
+        batch_op.create_index('ix_screeners_user_id', ['user_id'])
+        batch_op.create_unique_constraint('uq_user_screener', ['user_id', 'name'])
 
 
 def downgrade() -> None:
-    op.drop_constraint('uq_user_screener', 'screeners', type_='unique')
-    op.drop_index('ix_screeners_user_id', table_name='screeners')
+    with op.batch_alter_table('screeners', schema=None) as batch_op:
+        batch_op.drop_constraint('uq_user_screener', type_='unique')
+        batch_op.drop_index('ix_screeners_user_id')
     op.drop_table('screeners')

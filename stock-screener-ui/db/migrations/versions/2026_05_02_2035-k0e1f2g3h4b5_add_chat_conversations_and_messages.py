@@ -21,7 +21,7 @@ def upgrade() -> None:
         'chat_conversations',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('uuid', sa.String(length=36), nullable=False),
-        sa.Column('user_id', sa.Integer(), nullable=False, index=True),
+        sa.Column('user_id', sa.Integer(), nullable=False),
         sa.Column('title', sa.String(length=200), nullable=False, server_default='New Chat'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
