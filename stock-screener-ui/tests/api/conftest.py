@@ -36,12 +36,6 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# Mock init_db before importing app to prevent alembic migrations during tests
-from unittest.mock import patch
-import db.database
-db.database.init_db = lambda: None
-from api_server_fastapi import app
-
 # Standard imports
 from db.database import Base, get_db
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies

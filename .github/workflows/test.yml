@@ -52,6 +52,7 @@ jobs:
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+          SKIP_ALEMBIC: "1"
       - name: Validate migration file integrity
         run: |
           cd stock-screener-ui
