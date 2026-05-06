@@ -209,6 +209,8 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
     return { signals: sig, watching: wat, rejected: rej, skipped: sk };
   }, [snapshot?.scan_items]);
 
+  const scanTime = snapshot?.timestamp ? new Date(snapshot.timestamp).toLocaleTimeString() : "-";
+
   if (!snapshot || !snapshot.scan_items || snapshot.scan_items.length === 0) {
     return (
       <Flex
@@ -221,17 +223,19 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
           <Text fw={600} size="xs" c="dimmed" tt="uppercase">
             Watchlist Scan
           </Text>
+          <Text size="xs" c="dimmed">
+            {scanTime}
+          </Text>
         </Group>
         <Flex justify="center" py="sm">
-          <Text size="xs" c="dimmed">
-            No scan data yet
+          <Text size="xs" c="orange" fs="italic" style={{ textAlign: "center" }}>
+            No scan data — API rate limit or connection issue
           </Text>
         </Flex>
       </Flex>
     );
   }
 
-  const scanTime = snapshot.timestamp ? new Date(snapshot.timestamp).toLocaleTimeString() : "-";
   const totalCount = snapshot.scan_items.length;
 
   return (

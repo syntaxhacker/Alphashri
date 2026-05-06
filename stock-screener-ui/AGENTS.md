@@ -164,6 +164,15 @@ src/
 - `UPSTOX_CONFIG` dict in root `config.py` only has `api_key`/`api_secret` (removed `access_token`)
 - Stale file-only patterns fixed: `sector_data.py` uses `UpstoxAuthHandler`, `upstox_auth_refresh.py` checks DB first
 
+## Upstox Data Debugging
+- `scripts/test_upstox_data.py` — quick V3 API health check: tests LTP + intraday for 5 symbols, detects Cloudflare 1015 blocks and token expiry
+- Run with: `python scripts/test_upstox_data.py` (no venv needed, uses only `requests`)
+- Common errors:
+  - **HTTP 429 / Cloudflare 1015** — IP/network blocked by Cloudflare WAF. Wait or use VPN.
+  - **HTTP 401** — expired token. Re-authenticate via OAuth login.
+  - **HTTP 404** — check instrument key format or market hours
+- Token file: `.upstox_token.json` in project root
+
 ## Benchmark
 - `scripts/benchmark_upstox_data.py` — benchmarks REST LTP V3 vs WebSocket V3 MarketDataStreamerV3
 - Usage: `source .venv/bin/activate && python scripts/benchmark_upstox_data.py`
