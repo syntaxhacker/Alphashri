@@ -529,7 +529,7 @@ class TestGetTradesFromJournals:
     @patch("api.paper.history.asdict")
     @patch("api.paper.history.TradeJournal")
     @patch("api.paper.history.Path")
-    @patch("api.paper.history.SessionLocal")
+    @patch("db.database.SessionLocal")
     def test_strategy_id_filter_resolves_name(self, mock_session, mock_path_cls, mock_tj_cls, mock_asdict, client, auth_headers):
         """strategy_id should resolve to strategy_name via DB, then filter trades."""
         from api.paper.history import _get_trades_from_journals
@@ -622,10 +622,11 @@ class TestGetTradesFromJournals:
         assert len(result) == 1
         assert result[0]["bot_id"] == 5
 
+    @patch("db.database.SessionLocal")
     @patch("api.paper.history.asdict")
     @patch("api.paper.history.TradeJournal")
     @patch("api.paper.history.Path")
-    def test_bot_id_non_numeric_string_match(self, mock_path_cls, mock_tj_cls, mock_asdict, client, auth_headers):
+    def test_bot_id_non_numeric_string_match(self, mock_path_cls, mock_tj_cls, mock_asdict, mock_session, client, auth_headers):
         """bot_id='custom-bot' (non-numeric) should match by str(bot_id) == str(filter)."""
         from api.paper.history import _get_trades_from_journals
 
@@ -785,7 +786,7 @@ class TestGetTradesFromJournals:
     @patch("api.paper.history.asdict")
     @patch("api.paper.history.TradeJournal")
     @patch("api.paper.history.Path")
-    @patch("api.paper.history.SessionLocal")
+    @patch("db.database.SessionLocal")
     def test_strategy_id_not_found_keeps_all(self, mock_session, mock_path_cls, mock_tj_cls, mock_asdict, client, auth_headers):
         """When strategy_id doesn't match any DB config, no strategy filter is applied."""
         from api.paper.history import _get_trades_from_journals
@@ -906,7 +907,8 @@ class TestGetTradesFallback:
         journal_trade = _make_journal_dict(trade_id="TRD-1", symbol="TCS")
 
         with patch("api.paper.history._get_trades_from_db", return_value=[]), \
-             patch("api.paper.history._get_trades_from_journals", return_value=[journal_trade]):
+             patch("api.paper.history._get_trades_from_journals", return_value=[journal_trade]), \
+             patch("api.paper.history._resolve_trade_bot_ids", return_value=[journal_trade]):
 
             response = client.get("/api/paper/trades", headers=auth_headers)
 
@@ -922,7 +924,8 @@ class TestGetTradesFallback:
 
         # Patch SessionLocal to raise, so _get_trades_from_db catches and returns []
         with patch("db.database.SessionLocal", side_effect=RuntimeError("DB timeout")), \
-             patch("api.paper.history._get_trades_from_journals", return_value=[journal_trade]):
+             patch("api.paper.history._get_trades_from_journals", return_value=[journal_trade]), \
+             patch("api.paper.history._resolve_trade_bot_ids", return_value=[journal_trade]):
 
             response = client.get("/api/paper/trades", headers=auth_headers)
 
