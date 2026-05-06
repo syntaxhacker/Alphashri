@@ -47,6 +47,7 @@ def upgrade() -> None:
     )
     with op.batch_alter_table('chat_messages', schema=None) as batch_op:
         batch_op.create_index('ix_chat_messages_conversation_id', ['conversation_id'])
+        batch_op.create_index('ix_chat_messages_uuid', ['uuid'], unique=True)
 
 
 def downgrade() -> None:
