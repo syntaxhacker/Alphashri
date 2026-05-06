@@ -224,10 +224,21 @@ bun test -- --run src/components/screener/CorrelationMatrix.test.tsx  # single f
 source .venv/bin/activate && python -m pytest tests/test_correlation.py -v  # backend
 ```
 Always run the full suite (`bun run test`) before committing.
+
 **Note**: Use `npx vitest run <file>` for tests using `vi.mock` — `bun test` does not support `vi.mock`.
 ```bash
 npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.mock tests
 ```
+
+### Backend Test Gotchas
+- **`@patch` decorator ordering**: When using `@patch` as a decorator on test methods, mock arguments are injected **before** pytest fixtures. Order is bottom-to-top for decorators, left-to-right for args:
+  ```python
+  @patch('module.b')  # mock_b — second arg
+  @patch('module.a')  # mock_a — first arg
+  def test_foo(self, mock_a, mock_b, client, db):  # mocks first, then fixtures
+      ...
+  ```
+  Getting this wrong causes `fixture 'mock_X' not found` errors.
 
 ## Mutation Testing
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
