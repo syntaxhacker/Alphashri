@@ -251,15 +251,30 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             allowSingleDateInRange
             placeholder="Select date range"
             valueFormat="MMM D, YYYY"
-value={range}
+            value={range}
             onChange={handleRangeChange}
             presets={[
               { value: [dayjs().toDate(), dayjs().toDate()], label: "Single day" },
-              { value: [dayjs().subtract(1, "day").toDate(), dayjs().toDate()], label: "Last 2 days" },
-              { value: [dayjs().subtract(7, "day").toDate(), dayjs().toDate()], label: "Last 7 days" },
-              { value: [dayjs().subtract(30, "day").toDate(), dayjs().toDate()], label: "Last 30 days" },
-              { value: [dayjs().subtract(90, "day").toDate(), dayjs().toDate()], label: "Last 3 months" },
-              { value: [dayjs().startOf("year").toDate(), dayjs().toDate()], label: "Year to date" },
+              {
+                value: [dayjs().subtract(1, "day").toDate(), dayjs().toDate()],
+                label: "Last 2 days",
+              },
+              {
+                value: [dayjs().subtract(7, "day").toDate(), dayjs().toDate()],
+                label: "Last 7 days",
+              },
+              {
+                value: [dayjs().subtract(30, "day").toDate(), dayjs().toDate()],
+                label: "Last 30 days",
+              },
+              {
+                value: [dayjs().subtract(90, "day").toDate(), dayjs().toDate()],
+                label: "Last 3 months",
+              },
+              {
+                value: [dayjs().startOf("year").toDate(), dayjs().toDate()],
+                label: "Year to date",
+              },
             ]}
           />
         </Group>

@@ -139,11 +139,11 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
     });
   }
 
-  const { stocks, loading: previewLoading, refresh: loadPreview } = useScreenerPreview(
-    activeScreener,
-    columns,
-    filterArr,
-  );
+  const {
+    stocks,
+    loading: previewLoading,
+    refresh: loadPreview,
+  } = useScreenerPreview(activeScreener, columns, filterArr);
 
   // Refresh when screener or filters change (debounced)
   const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -164,7 +164,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
     sortable: true,
   }));
 
-const handleSortChange = useCallback(
+  const handleSortChange = useCallback(
     (column: string) => {
       if (sortColumn === column) {
         setSortDirection((d) => (d === "asc" ? "desc" : "asc"));

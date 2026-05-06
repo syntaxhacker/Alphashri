@@ -87,4 +87,3 @@ export interface StrategyFormProps {
   onSubmit: (data: StrategyFormData) => void;
   isBotRunning?: boolean;
 }
-

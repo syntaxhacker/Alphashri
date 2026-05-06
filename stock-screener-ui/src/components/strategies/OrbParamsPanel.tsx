@@ -41,16 +41,16 @@ export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) 
           isSwing={isSwing}
         />
         <NumberInput
-            label="Max Range"
-            name="max_or_range_pct"
-            defaultValue={initialValues.max_or_range_pct}
-            min={0.1}
-            max={10}
-            step={0.1}
-            suffix="% of price"
-            description="Skip if opening range width is above this (stock too volatile)"
-            data-testid="strategy-max-or-range-input"
-          />
+          label="Max Range"
+          name="max_or_range_pct"
+          defaultValue={initialValues.max_or_range_pct}
+          min={0.1}
+          max={10}
+          step={0.1}
+          suffix="% of price"
+          description="Skip if opening range width is above this (stock too volatile)"
+          data-testid="strategy-max-or-range-input"
+        />
       </Stack>
     </Tabs.Panel>
   );

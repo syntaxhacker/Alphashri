@@ -135,12 +135,15 @@ export function ScreenerPage({
       >
         <Box flex="0 0 auto" className="screener-controls" data-testid="screener-controls">
           <Stack gap="sm">
-            <Tabs value={activeTab} onChange={(v) => {
-              if (v && v !== "screener") {
-                state.setSelectedSymbols([]);
-              }
-              if (v) setActiveTab(v);
-            }}>
+            <Tabs
+              value={activeTab}
+              onChange={(v) => {
+                if (v && v !== "screener") {
+                  state.setSelectedSymbols([]);
+                }
+                if (v) setActiveTab(v);
+              }}
+            >
               <Tabs.List>
                 <Tabs.Tab
                   value="screener"

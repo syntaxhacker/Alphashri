@@ -12,8 +12,8 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
     <Tabs.Panel value="risk" className="strategy-form-tab-panel" data-testid="strategy-panel-risk">
       <Stack gap="sm" mt="sm">
         <Text size="xs" c="dimmed" style={{ lineHeight: 1.5 }}>
-          These limits apply to the capital allocated to this strategy from the bot.
-          Example: if bot allocates ₹5Lac to this strategy, a 1% risk = max loss ₹5,000 per trade.
+          These limits apply to the capital allocated to this strategy from the bot. Example: if bot
+          allocates ₹5Lac to this strategy, a 1% risk = max loss ₹5,000 per trade.
         </Text>
 
         <Divider label="Per-Trade Sizing" labelPosition="left" />

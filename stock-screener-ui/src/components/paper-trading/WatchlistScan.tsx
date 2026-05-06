@@ -119,13 +119,7 @@ function SkippedRow({
   );
 }
 
-function RejectedRow({
-  item,
-  onSelect,
-}: {
-  item: PaperScanItem;
-  onSelect: (s: string) => void;
-}) {
+function RejectedRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: string) => void }) {
   return (
     <Table.Tr
       onClick={() => onSelect(item.symbol)}

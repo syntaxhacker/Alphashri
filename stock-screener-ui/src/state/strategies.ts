@@ -242,11 +242,18 @@ export async function loadAllPerformance(): Promise<void> {
     const data = await response.json();
     const trades = data.trades || [];
 
-    const perfMap = new Map<string, {
-      strategy_id: number; strategy_name: string;
-      total_trades: number; winners: number; losers: number;
-      total_pnl: number; net_pnl: number;
-    }>();
+    const perfMap = new Map<
+      string,
+      {
+        strategy_id: number;
+        strategy_name: string;
+        total_trades: number;
+        winners: number;
+        losers: number;
+        total_pnl: number;
+        net_pnl: number;
+      }
+    >();
 
     for (const t of trades) {
       const name = t.strategy_name || "Unknown";
@@ -254,8 +261,11 @@ export async function loadAllPerformance(): Promise<void> {
         perfMap.set(name, {
           strategy_id: t.strategy_id || 0,
           strategy_name: name,
-          total_trades: 0, winners: 0, losers: 0,
-          total_pnl: 0, net_pnl: 0,
+          total_trades: 0,
+          winners: 0,
+          losers: 0,
+          total_pnl: 0,
+          net_pnl: 0,
         });
       }
       const perf = perfMap.get(name)!;

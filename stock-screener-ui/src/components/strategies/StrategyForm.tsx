@@ -72,9 +72,13 @@ export function StrategyForm({
     setCurrentStrategyType(newType);
     setSelectedProfiles(initialValues.screener_profiles || []);
     setActiveTab(
-      newType === "ORB" ? "orb" :
-      newType === "SR_BREAKOUT" ? "sr" :
-      newType === "EMA_CROSS" ? "ema" : "52w",
+      newType === "ORB"
+        ? "orb"
+        : newType === "SR_BREAKOUT"
+          ? "sr"
+          : newType === "EMA_CROSS"
+            ? "ema"
+            : "52w",
     );
   }, [initialValues.strategy_type, initialValues.screener_profiles]);
   const isIntraday = INTRADAY_TYPES.includes(currentStrategyType);
@@ -142,7 +146,8 @@ export function StrategyForm({
         DEFAULT_VALUES.breakout_buffer_pct,
       ),
       pivot_type: (formData.get("pivot_type") as string) || DEFAULT_VALUES.pivot_type,
-      enable_shorts: (form.querySelector("[name='enable_shorts']") as HTMLInputElement)?.checked ?? false,
+      enable_shorts:
+        (form.querySelector("[name='enable_shorts']") as HTMLInputElement)?.checked ?? false,
       eod_exit_hour: getNumVal(formData, "eod_exit_hour", DEFAULT_VALUES.eod_exit_hour),
       eod_exit_minute: getNumVal(formData, "eod_exit_minute", DEFAULT_VALUES.eod_exit_minute),
       screener_profiles: selectedProfiles.length > 0 ? selectedProfiles : undefined,

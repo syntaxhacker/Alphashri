@@ -40,7 +40,10 @@ export function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
-function buildUrl(baseUrl: string, params?: Record<string, string | number | boolean | undefined>): string {
+function buildUrl(
+  baseUrl: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): string {
   if (!params || Object.keys(params).length === 0) {
     return baseUrl;
   }
