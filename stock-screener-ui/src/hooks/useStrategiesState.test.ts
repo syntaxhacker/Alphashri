@@ -4,14 +4,9 @@ import type { ViewLoadAction } from "./useStrategiesState";
 import type { StrategyView } from "../components/strategies/types";
 
 describe("getViewLoadAction", () => {
-  it("returns loadTemplates for templates view", () => {
-    const result = getViewLoadAction("templates");
+  it("returns loadTemplates for tree view", () => {
+    const result = getViewLoadAction("tree");
     expect(result).toBe<ViewLoadAction>("loadTemplates");
-  });
-
-  it("returns loadStrategies for list view", () => {
-    const result = getViewLoadAction("list");
-    expect(result).toBe<ViewLoadAction>("loadStrategies");
   });
 
   it("returns loadAllPerformance for performance view", () => {
