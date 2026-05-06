@@ -529,7 +529,7 @@ class TestGetTradesFromJournals:
     @patch("api.paper.history.asdict")
     @patch("api.paper.history.TradeJournal")
     @patch("api.paper.history.Path")
-    @patch("db.database.SessionLocal")
+    @patch("api.paper.history.SessionLocal")
     def test_strategy_id_filter_resolves_name(self, mock_session, mock_path_cls, mock_tj_cls, mock_asdict, client, auth_headers):
         """strategy_id should resolve to strategy_name via DB, then filter trades."""
         from api.paper.history import _get_trades_from_journals
@@ -622,7 +622,7 @@ class TestGetTradesFromJournals:
         assert len(result) == 1
         assert result[0]["bot_id"] == 5
 
-    @patch("db.database.SessionLocal")
+    @patch("api.paper.history.SessionLocal")
     @patch("api.paper.history.asdict")
     @patch("api.paper.history.TradeJournal")
     @patch("api.paper.history.Path")
@@ -792,7 +792,7 @@ class TestGetTradesFromJournals:
     @patch("api.paper.history.asdict")
     @patch("api.paper.history.TradeJournal")
     @patch("api.paper.history.Path")
-    @patch("db.database.SessionLocal")
+    @patch("api.paper.history.SessionLocal")
     def test_strategy_id_not_found_keeps_all(self, mock_session, mock_path_cls, mock_tj_cls, mock_asdict, client, auth_headers):
         """When strategy_id doesn't match any DB config, no strategy filter is applied."""
         from api.paper.history import _get_trades_from_journals
