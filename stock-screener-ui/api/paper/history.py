@@ -216,7 +216,6 @@ def _get_trades_from_journals(
             all_trades = [t for t in all_trades if t.get('bot_id') in (0, None, "0")]
         else:
             from api.bots_api.bots_router import resolve_bot_id
-            from db.database import SessionLocal
             with SessionLocal() as db:
                 numeric_bot_id = resolve_bot_id(bot_id, db)
             if numeric_bot_id is not None:
