@@ -64,7 +64,12 @@ jobs:
       - name: Validate migration status
         run: |
           cd stock-screener-ui
-          uv run --python 3.12 alembic check
+          # Skip alembic check on SQLite - SQLite batch mode doesn't preserve FK ondelete
+          if [[ "$DATABASE_URL" != sqlite* ]]; then
+            uv run --python 3.12 alembic check
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'sqlite:///./test.db' }}
 
 
   frontend-lint-typecheck:
