@@ -43,9 +43,9 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('uuid'),
-        sa.ForeignKeyConstraint(['conversation_id'], ['chat_conversations.id'], ondelete='CASCADE'),
     )
     with op.batch_alter_table('chat_messages', schema=None) as batch_op:
+        batch_op.create_foreign_key('fk_chat_messages_conversation', 'chat_conversations', ['conversation_id'], ['id'], ondelete='CASCADE')
         batch_op.create_index('ix_chat_messages_conversation_id', ['conversation_id'])
         batch_op.create_index('ix_chat_messages_uuid', ['uuid'], unique=True)
 
