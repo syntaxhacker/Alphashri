@@ -1,6 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-import { apiRoute } from "../mocks/routeHelper";
 import { TEST_BOT_UUID, setupBotApiMocks, expectPositionsVisible } from "./helpers/botHelpers";
 
 const ALL_STRATEGY_TYPES = [
@@ -247,14 +246,14 @@ test.describe("Multi-Strategy - Empty States", () => {
   test("should show empty positions state when no positions", async ({ page }) => {
     await setupMultiStrategyBot(page, []);
 
-    await page.route(apiRoute("bots/${TEST_BOT_UUID}/positions"), async (route) => {
+    await page.route(`**/api/bots/${TEST_BOT_UUID}/positions`, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ positions: [], count: 0 }),
       });
     });
-    await page.route(apiRoute("paper/positions"), async (route) => {
+    await page.route("**/api/paper/positions", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -272,7 +271,7 @@ test.describe("Multi-Strategy - Empty States", () => {
   test("should show no scan data when bot is stopped", async ({ page }) => {
     await setupMultiStrategyBot(page);
 
-    await page.route(apiRoute("bots/${TEST_BOT_UUID}/scan"), async (route) => {
+    await page.route(`**/api/bots/${TEST_BOT_UUID}/scan*`, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

@@ -11,7 +11,7 @@ Usage:
   python scripts/update_strategy_params.py update "52W Chaser Swing" --sl_pct=2.0 --tp_pct=3.0 --trailing_stop_pct=2.0
 
   # Update via API (requires running server + token)
-  python scripts/update_strategy_params.py api "EMA Cross Default" --sl_pct=1.0 --token=eyJ...
+  python scripts/update_strategy_params.py api "EMA Cross Default" --sl_pct=1.0 --token=YOUR_API_TOKEN
 
   # Bulk update from JSON file
   python scripts/update_strategy_params.py bulk updates.json

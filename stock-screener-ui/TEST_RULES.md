@@ -10,6 +10,7 @@
 - `npx vitest run <file>` — single file (use this, NOT `bun test` which lacks vi.mock support)
 - `npx vitest run --dir src/components/paper-trading/` — directory
 - `bunx playwright test` — E2E tests (requires dev server running)
+- **Always use `--workers=5` for Playwright** to match CI parallelism
 
 ### Skip Test Environment Variables
 Use environment variables to skip specific test suites during development (faster iteration):
