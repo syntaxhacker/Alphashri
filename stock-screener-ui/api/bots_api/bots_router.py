@@ -234,7 +234,7 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
         is_active=bot.is_active,
         max_total_positions=bot.max_total_positions,
         max_total_capital_pct=bot.max_total_capital_pct,
-        max_daily_loss_pct=bot.max_daily_loss_pct if hasattr(bot, 'max_daily_loss_pct') else 0.03,
+        max_daily_loss_pct=bot.max_daily_loss_pct if hasattr(bot, 'max_daily_loss_pct') and bot.max_daily_loss_pct is not None else 0.03,
         strategies=strategies,
         created_at=bot.created_at.isoformat() if bot.created_at else None,
         updated_at=bot.updated_at.isoformat() if bot.updated_at else None,
