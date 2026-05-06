@@ -40,8 +40,8 @@ jobs:
       - run: |
           cd stock-screener-ui/api
           uv pip install --system --python 3.12 --no-deps -r requirements.txt
-          # Install common deps needed for dependency resolution
-          uv pip install --system --python 3.12 pandas numpy sqlalchemy fastapi pydantic httpx pytest pytest-asyncio pytest-mock sse-starlette
+          # Install common deps + transitive deps (xdist needs execnet)
+          uv pip install --system --python 3.12 pandas numpy sqlalchemy fastapi pydantic httpx pytest pytest-asyncio pytest-mock sse-starlette pytest-xdist execnet
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - run: |
