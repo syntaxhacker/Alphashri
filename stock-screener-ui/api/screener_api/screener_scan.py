@@ -62,7 +62,7 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
     if screener == 'near_52w_breakout':
         return _to_float(stock_data.get('to_52w_high'), 100) <= num('max_52w_gap', 100)
     if screener in ('touched_52w_high', 'builtin:touched_52w_high'):
-        return stock_data.get('touched_52w', False) == True
+        return True  # Filter handled by TV query + approaching/touched classification
     if screener == 'rsi_reversal':
         return _to_float(stock_data.get('rsi'), 100) <= num('max_rsi', 100) and _to_float(stock_data.get('stoch_k'), 0) >= num('min_stoch_k', 0)
     if screener == 'nifty_movers':
@@ -179,13 +179,8 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', adx))
             to_52w_high = ((tv_52w_high - upstox_price) / tv_52w_high) * 100
             est_days, confidence = estimate_days_to_52w(upstox_price, tv_52w_high, adx, atr, recent_return, perf_w)
-            # For touched_52w_high screener, use TV price directly (query already filtered close >= 52w_high * 0.98)
-            if screener_clean == 'touched_52w_high':
-                touched_52w = tv_price >= tv_52w_high * 0.98
-                days_ago = None  # No API in demo mode
-            else:
-                touched_52w = to_52w_high < 0.1
-                days_ago = None
+            touched_52w = to_52w_high < 0.1
+            days_ago = None
             is_bullish = tv_price >= tv_open
 
             if wick_close_pct >= 70:
@@ -281,16 +276,12 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             perf_w = float(row_data.get('Perf.W', 0))
             interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', 0))
             est_days, confidence = estimate_days_to_52w(upstox_price, recent_high, adx, atr, recent_return, perf_w)
-            # For touched_52w_high screener, trust TV query (already filtered close >= 52w_high * 0.999)
-            if screener_clean == 'touched_52w_high':
-                touched_52w = True
-            else:
-                touched_52w = False
-                if tv_52w_high > 0:
-                    if recent_high >= tv_52w_high:
-                        touched_52w = True
-                    elif (tv_52w_high - recent_high) / tv_52w_high < 0.001:
-                        touched_52w = True
+            touched_52w = False
+            if tv_52w_high > 0:
+                if recent_high >= tv_52w_high:
+                    touched_52w = True
+                elif (tv_52w_high - recent_high) / tv_52w_high < 0.001:
+                    touched_52w = True
             days_ago = None
             if screener_clean == 'touched_52w_high':
                 days_ago = _compute_days_ago(api, symbol, today_high=recent_high)
@@ -379,6 +370,8 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 def fetch_screener_data(provider='upstox', mode='historical', screener='trending', profile_filters=None):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import trending_upside
+
+    screener = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
 
     api = None
     use_api = False

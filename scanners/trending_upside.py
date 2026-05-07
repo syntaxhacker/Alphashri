@@ -265,7 +265,7 @@ def _query_by_profile(profile, limit):
                 Column('market_cap_basic') >= 500_000_000,
                 Column('volume') > 1_000_000,
                 Column('price_52_week_high') > 0,
-                Column('close') >= Column('price_52_week_high') * 0.98  # within 2% of 52w high
+                Column('close').above_pct('price_52_week_high', 0.98)  # within 2% of 52w high
             )
             .order_by('volume', ascending=False)
             .limit(fetch_limit)
