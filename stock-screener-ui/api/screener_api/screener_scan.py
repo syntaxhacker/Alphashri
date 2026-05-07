@@ -367,7 +367,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
     return None
 
 
-def fetch_screener_data(provider='upstox', mode='historical', screener='trending', profile_filters=None):
+def fetch_screener_data(provider='upstox', mode='historical', screener='trending', profile_filters=None, _retry_api=True):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import trending_upside
 
@@ -377,25 +377,26 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
     use_api = False
     warning = None
 
-    try:
-        from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
-        api = TradingAPIFactory.create_from_config(provider, quiet=True)
-        use_api = True
-    except (ValueError, ImportError):
+    if _retry_api:
         try:
-            from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
-            from upstox_trader.config_and_utils.upstox_auth import UpstoxAuthHandler
-            import config
-            api_key = getattr(config, 'UPSTOX_API_KEY', None)
-            api_secret = getattr(config, 'UPSTOX_API_SECRET', None)
-            if api_key and api_secret:
-                auth = UpstoxAuthHandler(api_key, api_secret, quiet=True)
-                if auth.load_token():
-                    api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
-                    api.auth_handler.access_token = auth.access_token
-                    use_api = True
-        except Exception:
-            pass
+            from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
+            api = TradingAPIFactory.create_from_config(provider, quiet=True)
+            use_api = True
+        except (ValueError, ImportError):
+            try:
+                from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
+                from upstox_trader.config_and_utils.upstox_auth import UpstoxAuthHandler
+                import config
+                api_key = getattr(config, 'UPSTOX_API_KEY', None)
+                api_secret = getattr(config, 'UPSTOX_API_SECRET', None)
+                if api_key and api_secret:
+                    auth = UpstoxAuthHandler(api_key, api_secret, quiet=True)
+                    if auth.load_token():
+                        api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
+                        api.auth_handler.access_token = auth.access_token
+                        use_api = True
+            except Exception:
+                pass
 
     if not use_api:
         warning = "Upstox credentials not configured. Set UPSTOX_API_KEY/UPSTOX_API_SECRET or connect via Settings > Brokers to enable live price lookups and 'days_ago' calculation."
@@ -445,6 +446,10 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
                         approaching.append(result[0])
             except Exception:
                 pass
+
+    # If Upstox API returned no data (market closed, expired token), fall back to TV prices
+    if use_api and _retry_api and len(approaching) + len(touched) == 0:
+        return fetch_screener_data(provider, mode, screener, profile_filters, _retry_api=False)
 
     return {
         'approaching': approaching,
