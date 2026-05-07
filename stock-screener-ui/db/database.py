@@ -31,6 +31,9 @@ def get_db():
 
 def init_db():
     """Initialize database tables and run pending migrations."""
+    import os
+    if os.getenv("SKIP_ALEMBIC"):
+        return
     _run_alembic_migrations()
 
 

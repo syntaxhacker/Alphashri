@@ -73,7 +73,7 @@ def _make_strategy_runner(strategy_id=1, strategy_type="ORB", strategy_name="ORB
         "max_capital_per_trade_pct": 0.10,
         "min_trade_value": 5000,
         "max_trade_value": 100000,
-        "min_rr_ratio": 1.5,
+
         "max_daily_loss_pct": 0.03,
     }
     runner.max_positions = 3

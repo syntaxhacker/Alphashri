@@ -52,13 +52,11 @@ def apply_risk_reward_to_result(
     stop_loss: float,
     take_profit: float,
     side: str = "BUY",
-    min_rr_ratio: float = 2.0,
 ) -> dict | None:
     """
-    Calculate risk/reward, populate result dict, and check minimum R:R ratio.
+    Calculate risk/reward, populate result dict.
 
-    If the R:R ratio is too low, sets result['reason'] and returns the result
-    (caller should return it).  Otherwise returns None to signal the check passed.
+    Returns None to signal the check passed.
     """
     if entry_price <= 0:
         result['reason'] = "Invalid entry price"
@@ -71,10 +69,6 @@ def apply_risk_reward_to_result(
     result['risk_pct'] = round(risk_pct, 2)
     result['reward_pct'] = round(reward_pct, 2)
     result['rr_ratio'] = round(rr_ratio, 2)
-
-    if result['rr_ratio'] < min_rr_ratio:
-        result['reason'] = f"Risk/reward ratio ({rr_ratio:.1f}) too low. Minimum 1:{min_rr_ratio:.1f} required."
-        return result
 
     return None
 

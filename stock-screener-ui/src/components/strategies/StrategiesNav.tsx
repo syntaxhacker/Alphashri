@@ -1,11 +1,9 @@
-import { Group, Button, SegmentedControl } from "@mantine/core";
-import { IconPlus } from "@tabler/icons-react";
+import { Group, SegmentedControl } from "@mantine/core";
 import type { StrategiesNavProps } from "./types";
 import { CompactPanel } from "../common/compact";
 
 const VIEW_OPTIONS = [
-  { value: "templates", label: "Templates" },
-  { value: "list", label: "All Strategies" },
+  { value: "tree", label: "Strategy Tree" },
   { value: "performance", label: "Performance" },
 ] as const;
 
@@ -30,19 +28,6 @@ export function StrategiesNav({ activeView, onChange }: StrategiesNavProps) {
             label: option.label,
           }))}
         />
-
-        <Button
-          variant="filled"
-          color="teal"
-          size="sm"
-          leftSection={<IconPlus size={14} />}
-          onClick={() => onChange("templates")}
-          data-testid="create-strategy-btn"
-          className="strategies-nav-create-btn"
-          id="create-strategy-btn"
-        >
-          New Strategy
-        </Button>
       </Group>
     </CompactPanel>
   );

@@ -88,7 +88,7 @@ async def get_portfolio(user: "User" = Depends(get_current_user)):
     try:
         from db.models import BotConfig
         bot_cfg = db_session.query(BotConfig).filter(BotConfig.user_id == user_id).first()
-        max_daily_loss_pct = bot_cfg.max_daily_loss_pct if bot_cfg else 0.03
+        max_daily_loss_pct = bot_cfg.max_daily_loss_pct if bot_cfg and bot_cfg.max_daily_loss_pct is not None else 0.03
     except Exception:
         max_daily_loss_pct = 0.03
     finally:

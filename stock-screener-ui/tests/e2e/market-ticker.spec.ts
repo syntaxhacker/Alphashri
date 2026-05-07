@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 
 const mockTickerResponse = {
   tickers: {
@@ -37,7 +38,7 @@ test.describe("Market Ticker", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route("**/api/market-ticker", async (route) => {
+    await page.route(apiRoute("market-ticker"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -110,7 +111,7 @@ test.describe("Market Ticker", () => {
 
   test("should show error state when API fails", async ({ page }) => {
     // Mock API failure
-    await page.route("**/api/market-ticker", async (route) => {
+    await page.route(apiRoute("market-ticker"), async (route) => {
       await route.fulfill({
         status: 500,
         contentType: "application/json",
@@ -134,7 +135,7 @@ test.describe("Market Ticker", () => {
       resolveRoute = resolve;
     });
 
-    await page.route("**/api/market-ticker", async (route) => {
+    await page.route(apiRoute("market-ticker"), async (route) => {
       await routePromise;
       await route.fulfill({
         status: 200,

@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 import { mockSymbolSearch, mockBacktestRun, mockBacktestChart } from "./helpers/backtestHelpers";
 import LZString from "lz-string";
 
@@ -93,7 +94,7 @@ async function getUrlPayload(page: Page): Promise<Record<string, unknown> | null
 }
 
 async function mockVariationsWithAllStrategies(page: Page) {
-  await page.route("**/api/strategies/variations", async (route) => {
+  await page.route(apiRoute("strategies/variations"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -105,7 +106,7 @@ async function mockVariationsWithAllStrategies(page: Page) {
 async function setupUrlParamMocks(page: Page) {
   await setupApiMocks(page);
   await loginAsTestUser(page);
-  await page.route("**/api/backtest/strategies", async (route) => {
+  await page.route(apiRoute("backtest/strategies"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -121,7 +122,7 @@ async function setupUrlParamMocks(page: Page) {
     });
   });
   await mockVariationsWithAllStrategies(page);
-  await page.route("**/api/backtest/costs", async (route) => {
+  await page.route(apiRoute("backtest/costs"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

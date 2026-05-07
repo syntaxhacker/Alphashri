@@ -1,13 +1,13 @@
 import asyncio
 import json
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import Depends, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
+from api.auth import get_current_user
 from db.database import get_db
 from db.models import StrategyConfig, User
-from api.auth import get_current_user
 from api.strat_api.strat_models import StrategyCreate, StrategyUpdate
 
 
@@ -65,7 +65,6 @@ def _sync_create_strategy(db, request):
             "enable_shorts": parent.enable_shorts,
             "eod_exit_hour": parent.eod_exit_hour,
             "eod_exit_minute": parent.eod_exit_minute,
-            "min_rr_ratio": parent.min_rr_ratio,
             "screener_profiles": json.dumps(parent.screener_profiles) if parent.screener_profiles else None,
             "brokerage_pct": parent.brokerage_pct,
             "min_brokerage": parent.min_brokerage,
@@ -91,7 +90,7 @@ def _sync_create_strategy(db, request):
         "max_positions", "max_capital_per_trade_pct", "max_daily_loss_pct",
         "max_total_exposure_pct", "risk_per_trade_pct", "min_trade_value",
         "max_trade_value", "cooldown_minutes", "max_distance_from_or_pct",
-        "enable_shorts", "eod_exit_hour", "eod_exit_minute", "min_rr_ratio",
+        "enable_shorts", "eod_exit_hour", "eod_exit_minute",
         "screener_profiles",
     ]:
         request_val = getattr(request, field, None)
@@ -110,9 +109,6 @@ def _sync_update_strategy(db, strategy_id, request):
     ).first()
     if not strategy:
         return None, "not_found"
-    if strategy.is_template:
-        return None, "template"
-
     update_data = request.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if value is not None and hasattr(strategy, key):
@@ -146,6 +142,56 @@ def _sync_delete_strategy(db, strategy_id):
     return strategy, None
 
 
+def _sync_update_child_variations(db, template_id: int) -> int:
+    """Overwrite all child variation params with template values."""
+    from db.models.bot import StrategyConfig as StratModel
+    template = db.query(StratModel).filter(
+        StratModel.id == template_id,
+        StratModel.is_template == True
+    ).first()
+    if not template:
+        return 0
+
+    skip_fields = {
+        'id', 'uuid', 'internal_id', 'name', 'description', 'is_template',
+        'is_active', 'is_default', 'parent_id', 'user_id',
+        'created_at', 'updated_at', 'screener_profiles',
+    }
+
+    template_dict = template.to_dict()
+    sync_params = {k: v for k, v in template_dict.items() if k not in skip_fields and v is not None}
+
+    variations = db.query(StratModel).filter(
+        StratModel.parent_id == template_id
+    ).all()
+
+    for var in variations:
+        for key, value in sync_params.items():
+            if hasattr(var, key):
+                setattr(var, key, value)
+
+    db.commit()
+    return len(variations)
+
+
+async def sync_variations(
+    strategy_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Sync template params to all child variations."""
+    count = await asyncio.to_thread(_sync_update_child_variations, db, strategy_id)
+
+    if count == 0:
+        raise HTTPException(status_code=404, detail="Template not found or has no variations")
+
+    return {
+        "status": "success",
+        "message": f"Synced {count} variation(s) from template",
+        "count": count,
+    }
+
+
 async def create_strategy(
     request: StrategyCreate,
     db: Session = Depends(get_db),
@@ -177,9 +223,6 @@ async def update_strategy(
 
     if error == "not_found":
         raise HTTPException(status_code=404, detail="Strategy not found")
-    if error == "template":
-        raise HTTPException(status_code=400, detail="Cannot edit template strategies")
-
     return {
         "status": "success",
         "message": f"Strategy '{strategy.name}' updated",

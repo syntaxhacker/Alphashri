@@ -174,7 +174,6 @@ export type ReplayEvent =
           win_rate: number;
           net_pnl: number;
           profit_factor: number;
-          min_rr_ratio: number;
         }
       >;
     }
@@ -230,7 +229,6 @@ export interface ReplaySummary {
       win_rate: number;
       net_pnl: number;
       profit_factor: number | null;
-      min_rr_ratio: number;
     }
   >;
 }

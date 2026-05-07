@@ -9,6 +9,7 @@ export function ScreenerContainer() {
     activeScreener,
     isLoading,
     error,
+    warning,
     autoRefreshSeconds,
     provider,
     mode,
@@ -17,6 +18,7 @@ export function ScreenerContainer() {
     onProviderChange,
     onModeChange,
     onScreenerChange,
+    onConfigScreenerSelect,
     onSymbolClick,
     onSymbolHover,
   } = useScreenerState();
@@ -26,6 +28,7 @@ export function ScreenerContainer() {
       screenerOptions={screenerOptions}
       activeScreener={activeScreener}
       onScreenerChange={onScreenerChange}
+      onConfigScreenerSelect={onConfigScreenerSelect}
       title={`${(screenerOptions ?? []).find((s) => s.id === activeScreener)?.label || "Screener"} | Alphashri`}
       status={
         isLoading
@@ -45,6 +48,7 @@ export function ScreenerContainer() {
       onSymbolClick={onSymbolClick}
       onSymbolHover={onSymbolHover}
       error={error}
+      warning={warning}
     />
   );
 }

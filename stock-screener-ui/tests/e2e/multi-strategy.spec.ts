@@ -10,6 +10,7 @@ import {
   navigateToBot,
   clickStrategyTab,
 } from "./helpers/multiStrategyHelpers";
+import { apiRoute } from "../mocks/routeHelper";
 
 test.describe.configure({ mode: "serial" });
 
@@ -180,7 +181,7 @@ test.describe("Multi-Strategy System - Chart ORB Levels", () => {
     await setupPaperTradingMocks(page);
     await setupBotMocksForId(page, botId);
 
-    await page.route("**/api/paper/chart/*", async (route) => {
+    await page.route(apiRoute("paper/chart/"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -233,7 +234,7 @@ test.describe("Multi-Strategy System - Chart 52W Levels", () => {
     await setupPaperTradingMocks(page);
     await setupBotMocksForId(page, botId);
 
-    await page.route("**/api/paper/chart/*", async (route) => {
+    await page.route(apiRoute("paper/chart/"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

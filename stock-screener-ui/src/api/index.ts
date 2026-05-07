@@ -51,6 +51,11 @@ const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
     label: "Near 52W",
     description: "52-week high breakout candidate logic",
   },
+  {
+    id: "touched_52w_high",
+    label: "Touched 52W",
+    description: "Stocks that recently touched 52-week high",
+  },
   { id: "rsi_reversal", label: "RSI Reversal", description: "Oversold/overbought reversal logic" },
   { id: "market_open_gap", label: "Gap Open", description: "Market open gap scanner logic" },
   {
@@ -112,17 +117,26 @@ export async function fetchData(
     state.setData({ ...state.DEFAULT_SCREENER_DATA });
   }
 
+  // Build filter params
+  const filters = state.profileFilters;
+  const filterParams = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      filterParams.append(key, String(value));
+    }
+  });
+  const filterString = filterParams.toString();
+
   const prevData = state.data;
   renderCallback();
 
   let wasAborted = false;
   try {
-    const res = await fetchWithAuth(
-      `${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}`,
-      {
-        signal: abortController.signal,
-      },
-    );
+    const baseUrl = `${API_URL}?provider=${provider}&mode=${mode}&screener=${screener}`;
+    const url = filterString ? `${baseUrl}&${filterString}` : baseUrl;
+    const res = await fetchWithAuth(url, {
+      signal: abortController.signal,
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.setData(data);
@@ -158,21 +172,21 @@ export function resetLoadingState() {
   renderCallback();
 }
 
-export async function loadScreeners() {
+export async function loadScreeners(resetActive: boolean = true): Promise<void> {
   try {
     const res = await fetchWithAuth(SCREENERS_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
     state.setScreenerOptions(payload.screeners || []);
-    const defaultScreener = payload.default || "trending";
-    state.setActiveScreener(defaultScreener);
     state.setProfileMetaById(payload.meta_by_id || {});
+    const defaultScreener = payload.default || "trending";
 
-    // Set initial sort from default screener meta
-    const defaultMeta = payload.meta_by_id?.[defaultScreener];
-    if (defaultMeta?.default_sort?.column) {
-      state.setSortColumn(defaultMeta.default_sort.column);
-      state.setSortDirection(defaultMeta.default_sort.direction || "desc");
+    if (resetActive) {
+      state.setActiveScreener(defaultScreener);
+      state.setActiveProvider("upstox");
+      state.setActiveMode("intraday");
+      state.setSortColumn("score");
+      state.setSortDirection("asc");
     }
   } catch {
     state.setScreenerOptions(DEFAULT_SCREENER_OPTIONS);
@@ -193,6 +207,11 @@ export function setupAutoRefresh() {
   const interval = setInterval(() => {
     // Only auto-refresh if on screener view (not backtest)
     if (getBacktestState().currentView === "backtest") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const activeTab = params.get("tab");
+    if (activeTab === "config" || activeTab === "correlation") {
       return;
     }
     if (state.data && !state.isLoading) {

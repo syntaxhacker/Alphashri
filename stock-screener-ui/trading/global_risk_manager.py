@@ -46,6 +46,7 @@ class GlobalRiskManager:
         max_total_positions: int = 10,
         max_total_capital_pct: float = 0.80,
         max_symbol_exposure_pct: float = 0.20,
+        max_daily_loss_pct: float = 0.03,
     ):
         """
         Initialize global risk manager.
@@ -55,6 +56,7 @@ class GlobalRiskManager:
             max_total_positions: Override config max positions
             max_total_capital_pct: Override config max capital %
             max_symbol_exposure_pct: Override config max symbol exposure %
+            max_daily_loss_pct: Override config max daily loss %
         """
         if config is not None:
             self.config = config
@@ -63,6 +65,7 @@ class GlobalRiskManager:
                 max_total_positions=max_total_positions,
                 max_total_capital_pct=max_total_capital_pct,
                 max_symbol_exposure_pct=max_symbol_exposure_pct,
+                max_daily_loss_pct=max_daily_loss_pct,
             )
 
         # Track daily P&L for daily loss limit
@@ -330,7 +333,6 @@ class GlobalRiskManager:
         max_capital_per_trade_pct: float = 0.10,
         min_trade_value: float = 5000,
         max_trade_value: float = 100000,
-        min_rr_ratio: float = 2.0,
     ) -> dict:
         """
         Validate a trade request with full risk checks and position sizing.
@@ -364,7 +366,7 @@ class GlobalRiskManager:
         result = make_validation_result()
 
         rr_failed = apply_risk_reward_to_result(
-            result, entry_price, stop_loss, take_profit, side, min_rr_ratio,
+            result, entry_price, stop_loss, take_profit, side,
         )
         if rr_failed is not None:
             return result

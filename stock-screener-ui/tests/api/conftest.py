@@ -51,20 +51,12 @@ from api.auth import (
 )
 
 
-try:
-    from api_server_fastapi import app
-except ImportError:
-    from fastapi import FastAPI
-    from api.auth import router as auth_router
-    from api.options import router as options_router
-    app = FastAPI()
-    app.include_router(auth_router)
-    app.include_router(options_router)
+from api_server_fastapi import app
 
 
 @pytest.fixture(scope="function")
 def test_engine():
-    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday, Stock52WeekTouch
+    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday, Stock52WeekTouch, Screener
     
     engine = create_engine(
         "sqlite:///:memory:",

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { setupApiMocks, testUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 
 async function openUserMenu(page: import("@playwright/test").Page) {
   await page.locator('[data-testid="user-menu-trigger"]').click();
@@ -38,7 +39,7 @@ test.describe("Authentication - Login", () => {
     await page.locator('[data-testid="login-password-input"]').fill("password123");
 
     // Mock successful login response
-    await page.route("**/api/auth/login", async (route) => {
+    await page.route(apiRoute("auth/login"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -52,7 +53,7 @@ test.describe("Authentication - Login", () => {
     });
 
     // Mock auth/me after login
-    await page.route("**/api/auth/me", async (route) => {
+    await page.route(apiRoute("auth/me"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -75,7 +76,7 @@ test.describe("Authentication - Login", () => {
     await page.locator('[data-testid="login-password-input"]').fill("wrongpassword");
 
     // Mock failed login response
-    await page.route("**/api/auth/login", async (route) => {
+    await page.route(apiRoute("auth/login"), async (route) => {
       await route.fulfill({
         status: 401,
         contentType: "application/json",
@@ -151,7 +152,7 @@ test.describe("Authentication - Register", () => {
     await page.locator('[data-testid="display-name-input"]').fill("New User");
 
     // Mock successful register response
-    await page.route("**/api/auth/register", async (route) => {
+    await page.route(apiRoute("auth/register"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -163,7 +164,7 @@ test.describe("Authentication - Register", () => {
       });
     });
 
-    await page.route("**/api/auth/me", async (route) => {
+    await page.route(apiRoute("auth/me"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -204,7 +205,7 @@ test.describe("Authentication - Logout", () => {
       );
     });
 
-    await page.route("**/api/auth/me", async (route) => {
+    await page.route(apiRoute("auth/me"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -229,7 +230,7 @@ test.describe("Authentication - Logout", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Mock logout endpoint
-    await page.route("**/api/auth/logout", async (route) => {
+    await page.route(apiRoute("auth/logout"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -249,7 +250,7 @@ test.describe("Authentication - Logout", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Click sign out
-    await page.route("**/api/auth/logout", async (route) => {
+    await page.route(apiRoute("auth/logout"), async (route) => {
       await route.fulfill({ status: 200, body: "{}" });
     });
 
@@ -279,7 +280,7 @@ test.describe("Authentication - Session", () => {
       );
     });
 
-    await page.route("**/api/auth/me", async (route) => {
+    await page.route(apiRoute("auth/me"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -306,7 +307,7 @@ test.describe("Authentication - Session", () => {
     });
 
     // Mock auth/me to return 401
-    await page.route("**/api/auth/me", async (route) => {
+    await page.route(apiRoute("auth/me"), async (route) => {
       await route.fulfill({
         status: 401,
         contentType: "application/json",
@@ -315,7 +316,7 @@ test.describe("Authentication - Session", () => {
     });
 
     // Mock refresh token failure
-    await page.route("**/api/auth/refresh", async (route) => {
+    await page.route(apiRoute("auth/refresh"), async (route) => {
       await route.fulfill({
         status: 401,
         contentType: "application/json",

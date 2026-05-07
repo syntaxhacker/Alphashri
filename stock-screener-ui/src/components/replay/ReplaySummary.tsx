@@ -23,7 +23,6 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
             <Table.Th ta="right">Win Rate</Table.Th>
             <Table.Th ta="right">Net P&L</Table.Th>
             <Table.Th ta="right">PF</Table.Th>
-            <Table.Th ta="right">Min RR</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -59,9 +58,6 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
                 >
                   {s.profit_factor != null ? s.profit_factor.toFixed(2) : "N/A"}
                 </Text>
-              </Table.Td>
-              <Table.Td ta="right">
-                <Text size="xs">{s.min_rr_ratio}x</Text>
               </Table.Td>
             </Table.Tr>
           ))}

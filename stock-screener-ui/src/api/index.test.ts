@@ -9,6 +9,7 @@ vi.mock("../state", () => ({
   setSortDirection: vi.fn(),
   setScreenerOptions: vi.fn(),
   setProfileMetaById: vi.fn(),
+  setProfileFilters: vi.fn(),
   setAutoRefreshInterval: vi.fn(),
   autoRefreshInterval: null,
   autoRefreshSeconds: 60,
@@ -16,6 +17,7 @@ vi.mock("../state", () => ({
   data: null,
   isLoading: false,
   screenerOptions: [],
+  profileFilters: {},
   DEFAULT_SCREENER_DATA: { screener: null, symbols: [] },
 }));
 

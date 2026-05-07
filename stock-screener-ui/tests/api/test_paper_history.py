@@ -6,9 +6,11 @@ Uses the `client` and `auth_headers` fixtures from tests/api/conftest.py.
 """
 
 import pytest
+import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 from contextlib import contextmanager
+from sqlalchemy.orm import Session
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -69,6 +71,122 @@ def sample_trade():
         reason="",
     )
     return trade
+
+
+# ============================================================================
+# Tests for resolve_bot_id (UUID/bot_id resolution)
+# ============================================================================
+
+@pytest.mark.unit
+class TestResolveBotId:
+    """Tests for resolve_bot_id() in api/bots_api/bots_router.py."""
+
+    def test_resolve_bot_id_with_numeric_string(self, db: Session):
+        """Numeric strings resolve directly to int."""
+        from api.bots_api.bots_router import resolve_bot_id
+        assert resolve_bot_id("42", db) == 42
+
+    def test_resolve_bot_id_with_uuid(self, db: Session):
+        """UUID strings resolve via BotConfig.uuid lookup."""
+        from api.bots_api.bots_router import resolve_bot_id
+        from db.models import BotConfig
+
+        bot_uuid = str(uuid.uuid4())
+        bot = BotConfig(
+            name="UUID Test Bot",
+            uuid=bot_uuid,
+            user_id=1,
+            is_active=True,
+        )
+        db.add(bot)
+        db.commit()
+        db.refresh(bot)
+
+        result = resolve_bot_id(bot_uuid, db)
+        assert result == bot.id
+
+    def test_resolve_bot_id_with_nonexistent_uuid(self, db: Session):
+        """Non-existent UUID returns None."""
+        from api.bots_api.bots_router import resolve_bot_id
+        result = resolve_bot_id(str(uuid.uuid4()), db)
+        assert result is None
+
+    def test_resolve_bot_id_with_invalid_string(self, db: Session):
+        """Invalid string (not numeric, not UUID) returns None."""
+        from api.bots_api.bots_router import resolve_bot_id
+        result = resolve_bot_id("not-a-bot-id", db)
+        assert result is None
+
+
+# ============================================================================
+# Tests for trades endpoint with UUID bot_id
+# ============================================================================
+
+@pytest.mark.unit
+class TestTradesBotIdFilter:
+    """Tests that /api/paper/trades accepts UUID bot_id filter."""
+
+    def test_trades_with_integer_bot_id_returns_200(self, client, auth_headers):
+        """Integer bot_id param does not cause errors."""
+        with patch("api.paper.history._get_trades_from_db") as mock_get, \
+             patch("api.paper.history._resolve_trade_bot_ids", return_value=[]):
+            mock_get.return_value = []
+            response = client.get(
+                "/api/paper/trades?bot_id=3&limit=5",
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+
+    def test_trades_with_uuid_bot_id_returns_200(self, client, auth_headers):
+        """UUID bot_id param does not cause errors."""
+        with patch("api.paper.history._get_trades_from_db", return_value=[]), \
+             patch("api.paper.history._get_trades_from_journals", return_value=[]), \
+             patch("api.paper.history._resolve_trade_bot_ids", return_value=[]):
+            test_uuid = str(uuid.uuid4())
+            response = client.get(
+                f"/api/paper/trades?bot_id={test_uuid}&limit=5",
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+
+    def test_trades_with_default_bot_id_returns_200(self, client, auth_headers):
+        """'default' bot_id param is handled without error."""
+        with patch("api.paper.history._get_trades_from_db") as mock_get, \
+             patch("api.paper.history._resolve_trade_bot_ids", return_value=[]):
+            mock_get.return_value = []
+            response = client.get(
+                "/api/paper/trades?bot_id=default&limit=5",
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+
+    def test_trades_bot_id_uuid_and_int_return_same(self, client, auth_headers):
+        """UUID and integer bot_id produce identical results (via mocked DB)."""
+        from api.bots_api.bots_router import resolve_bot_id
+        test_uuid = str(uuid.uuid4())
+
+        with patch("api.paper.history._get_trades_from_db") as mock_get, \
+             patch("api.paper.history._resolve_trade_bot_ids") as mock_resolve:
+            mock_get.return_value = [
+                {"symbol": "TEST", "pnl": 100.0, "bot_id": 3}
+            ]
+            mock_resolve.return_value = [
+                {"symbol": "TEST", "pnl": 100.0, "bot_id": "uuid-3"}
+            ]
+            resp_uuid = client.get(
+                f"/api/paper/trades?bot_id={test_uuid}&limit=5",
+                headers=auth_headers,
+            )
+            resp_int = client.get(
+                "/api/paper/trades?bot_id=3&limit=5",
+                headers=auth_headers,
+            )
+
+        assert resp_uuid.status_code == 200
+        assert resp_int.status_code == 200
+        data_uuid = resp_uuid.json()
+        data_int = resp_int.json()
+        assert data_uuid.get("total_trades") == data_int.get("total_trades")
 
 
 @pytest.mark.unit

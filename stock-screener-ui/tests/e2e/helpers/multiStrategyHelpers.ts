@@ -1,5 +1,6 @@
 import { Page, expect } from "@playwright/test";
 import { setupBotApiMocks } from "./botHelpers";
+import { apiRoute } from "../../mocks/routeHelper";
 
 export const BOT_IDS = {
   signalGenerators: "200",
@@ -86,7 +87,7 @@ export async function setupBotMocksForId(page: Page, botId: string, customScanIt
     isRunning: true,
   });
 
-  await page.route(`**/api/bots/${botId}/scan`, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/scan"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -100,7 +101,7 @@ export async function setupBotMocksForId(page: Page, botId: string, customScanIt
     });
   });
 
-  await page.route("**/api/paper/positions", async (route) => {
+  await page.route(apiRoute("paper/positions"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

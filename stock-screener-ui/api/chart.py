@@ -4,7 +4,8 @@ Chart API — helpers for resampling candles, ORB zones, pivot points, and chart
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
+from inspect import isawaitable
+from typing import Dict, Any, List
 
 import config
 from fastapi import APIRouter, Query, HTTPException
@@ -12,6 +13,52 @@ from fastapi import APIRouter, Query, HTTPException
 from api.screener import _to_float, _sanitize_for_json
 
 router = APIRouter(tags=["chart"])
+
+
+def _is_weekend(d: datetime) -> bool:
+    """Check if a date is Saturday or Sunday."""
+    return d.weekday() >= 5
+
+
+async def _get_last_trading_day(symbol: str) -> str:
+    """
+    Find the most recent trading day using:
+    1. Weekend check (datetime.weekday)
+    2. Trading holiday check from DB
+    3. Fallback: Upstox data availability check
+    Returns date string in YYYY-MM-DD format.
+    """
+    from db.database import SessionLocal
+    from db.models.holiday import MarketHoliday, HolidayType
+
+    today = datetime.now(config.IST).date()
+
+    # Look back up to 10 days to find a trading day
+    for i in range(10):
+        candidate = today - timedelta(days=i)
+
+        # Weekend check
+        if _is_weekend(candidate):
+            continue
+
+        # Holiday check via DB
+        try:
+            db = SessionLocal()
+            holiday = db.query(MarketHoliday).filter(
+                MarketHoliday.date == candidate,
+                MarketHoliday.type == HolidayType.TRADING
+            ).first()
+            db.close()
+            if holiday:
+                continue  # Trading holiday, skip
+        except Exception:
+            # DB unavailable, fall back to weekend-only check
+            pass
+
+        return candidate.strftime('%Y-%m-%d')
+
+    # All checks failed, fallback: use yesterday
+    return (today - timedelta(days=1)).strftime('%Y-%m-%d')
 
 
 def _resample_candles(df, tf_minutes: int):
@@ -186,6 +233,24 @@ def _format_candles_for_chart(df):
     return candles
 
 
+def _filter_to_last_n_trading_days(df, n: int):
+    """Filter DataFrame to include only the last N trading days."""
+    import pandas as pd
+
+    if df is None or df.empty:
+        return df
+
+    df_copy = df.copy()
+    df_copy['__date'] = df_copy.index.date
+    unique_dates = sorted(df_copy['__date'].unique(), reverse=True)
+
+    if len(unique_dates) <= n:
+        return df
+
+    cutoff_date = unique_dates[n - 1]
+    return df[df.index.date >= cutoff_date]
+
+
 @router.get("/api/chart/preview/{symbol}")
 async def get_chart_preview(
     symbol: str,
@@ -236,26 +301,37 @@ async def get_chart_preview(
         }
 
     try:
-        to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
-        from_date = (datetime.now(config.IST) - timedelta(days=days)).strftime('%Y-%m-%d')
+        # Compute the last trading day using weekend + holiday checks
+        last_trading_day = await _get_last_trading_day(symbol)
 
-        df = await asyncio.to_thread(
-            api.fetch_historical_data_v3,
+        # Fetch enough calendar days to cover N trading days (+ buffer for weekends/holidays)
+        calendar_days_back = days * 3  # 3x buffer is plenty since we're starting from a known trading day
+        from_date = (datetime.strptime(last_trading_day, '%Y-%m-%d') - timedelta(days=calendar_days_back)).strftime('%Y-%m-%d')
+        to_date = last_trading_day
+
+        # Fetch historical data
+        df = api.fetch_historical_data_v3(
             symbol=symbol, unit='minutes', interval=1,
             from_date=from_date, to_date=to_date
         )
+        if isawaitable(df):
+            df = await df
 
+        # Supplement with intraday data if available
         try:
-            df_intraday = await asyncio.to_thread(api.fetch_intraday_data_v3, symbol=symbol, interval='1')
-            if df_intraday is not None and not df_intraday.empty:
-                if df is None or df.empty:
+            df_intraday = api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+            if isawaitable(df_intraday):
+                df_intraday = await df_intraday
+            if df_intraday is not None and hasattr(df_intraday, 'empty') and not df_intraday.empty:
+                if df is None or (hasattr(df, 'empty') and df.empty):
                     df = df_intraday
                 else:
+                    import pandas as pd
                     df = pd.concat([df, df_intraday]).drop_duplicates(keep='last').sort_index()
         except Exception:
             pass
 
-        if df is None or df.empty:
+        if df is None or not hasattr(df, 'empty') or df.empty:
             return {
                 'symbol': symbol,
                 'candles': [],
@@ -265,6 +341,9 @@ async def get_chart_preview(
                 'or_minutes': or_minutes,
                 'total_candles': 0,
             }
+
+        # Filter to the last N trading days
+        df = _filter_to_last_n_trading_days(df, days)
 
         orb_zones = _calculate_orb_zones(df, or_minutes)
         pivot_levels = _calculate_pivot_points(df)

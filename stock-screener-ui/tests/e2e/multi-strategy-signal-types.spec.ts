@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { apiRoute } from "../mocks/routeHelper";
 import {
   setupBotsMocks,
   mockBotsListRoute,
@@ -208,7 +209,7 @@ test.describe("Multi-Strategy Bot - Create with Different Strategy Types", () =>
   });
 
   test("should validate total allocation does not exceed 100%", async ({ page }) => {
-    await page.route(/\/api\/bots(\?|$)/, async (route) => {
+    await page.route(apiRoute("bots"), async (route) => {
       if (route.request().method() === "POST") {
         await route.fulfill({
           status: 400,
@@ -273,7 +274,7 @@ test.describe("Multi-Strategy Bot - Edit Strategy Types", () => {
   });
 
   test("should allow changing strategy type via edit", async ({ page }) => {
-    await page.route(/\/api\/bots\/[^/]+$/, async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+"), async (route) => {
       if (route.request().method() === "PUT") {
         const body = route.request().postDataJSON();
         await route.fulfill({

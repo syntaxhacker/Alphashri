@@ -496,8 +496,8 @@ class SRBreakoutConfig(StrategyConfig, kw_only=True):
     bar_type: BarType
     pivot_type: str = 'classic'
     breakout_buffer_pct: float = 0.1
-    sl_pct: float = 0.5
-    tp_pct: float = 1.5
+    sl_pct: float = 1.5
+    tp_pct: float = 2.5
     trade_size: int = 100
     enable_shorts: bool = False
     cooldown_bars: int = 3

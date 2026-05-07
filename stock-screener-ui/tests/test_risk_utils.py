@@ -137,68 +137,42 @@ class TestCalculateRiskReward:
 
 @pytest.mark.unit
 class TestApplyRiskRewardToResult:
-    def test_buy_side_passes_rr_check(self):
+    def test_buy_side_populates_risk_reward(self):
         result = make_validation_result()
-        ret = apply_risk_reward_to_result(
+        apply_risk_reward_to_result(
             result, entry_price=100.0, stop_loss=95.0, take_profit=115.0,
-            side="BUY", min_rr_ratio=2.0,
+            side="BUY",
         )
-        assert ret is None
         assert result['risk_pct'] == pytest.approx(5.0)
         assert result['reward_pct'] == pytest.approx(15.0)
         assert result['rr_ratio'] == pytest.approx(3.0)
 
-    def test_sell_side_passes_rr_check(self):
+    def test_sell_side_populates_risk_reward(self):
         result = make_validation_result()
-        ret = apply_risk_reward_to_result(
+        apply_risk_reward_to_result(
             result, entry_price=100.0, stop_loss=105.0, take_profit=85.0,
-            side="SELL", min_rr_ratio=2.0,
+            side="SELL",
         )
-        assert ret is None
+        assert result['risk_pct'] == pytest.approx(5.0)
 
     def test_buy_vs_sell_formula_mirror(self):
         """BUY and SELL from same price with mirrored SL/TP should produce same RR."""
-        # BUY: entry=100, SL=96 (4 down), TP=108 (8 up) = 1:2 ratio
-        # SELL: entry=100, SL=104 (4 up), TP=92 (8 down) = 1:2 ratio
-        # Both should have risk=4, reward=8, rr_ratio=2.0
         result_buy = make_validation_result()
         apply_risk_reward_to_result(
             result_buy, entry_price=100.0, stop_loss=96.0, take_profit=108.0,
-            side="BUY", min_rr_ratio=1.0,
+            side="BUY",
         )
 
         result_sell = make_validation_result()
         apply_risk_reward_to_result(
             result_sell, entry_price=100.0, stop_loss=104.0, take_profit=92.0,
-            side="SELL", min_rr_ratio=1.0,
+            side="SELL",
         )
 
-        # Both should have same risk_pct and rr_ratio
         assert result_buy['risk_pct'] == pytest.approx(result_sell['risk_pct']), \
             f"risk_pct mismatch: BUY={result_buy['risk_pct']} vs SELL={result_sell['risk_pct']}"
         assert result_buy['rr_ratio'] == pytest.approx(result_sell['rr_ratio']), \
             f"rr_ratio mismatch: BUY={result_buy['rr_ratio']} vs SELL={result_sell['rr_ratio']}"
-        # Expected: risk_pct=4.0, rr_ratio=2.0 for both
-
-    def test_rr_below_minimum_returns_result_with_reason(self):
-        result = make_validation_result()
-        ret = apply_risk_reward_to_result(
-            result, entry_price=100.0, stop_loss=95.0, take_profit=102.0,
-            side="BUY", min_rr_ratio=2.0,
-        )
-        assert ret is result
-        assert result['rr_ratio'] < 2.0
-        assert "Risk/reward ratio" in result['reason']
-        assert "too low" in result['reason']
-
-    def test_rr_exactly_at_minimum_passes(self):
-        result = make_validation_result()
-        ret = apply_risk_reward_to_result(
-            result, entry_price=100.0, stop_loss=95.0, take_profit=110.0,
-            side="BUY", min_rr_ratio=2.0,
-        )
-        assert ret is None
-        assert result['rr_ratio'] == pytest.approx(2.0)
 
     def test_invalid_entry_price_zero(self):
         result = make_validation_result()
@@ -216,30 +190,11 @@ class TestApplyRiskRewardToResult:
         assert ret is result
         assert result['reason'] == "Invalid entry price"
 
-    def test_zero_risk_entry_equals_sl(self):
-        result = make_validation_result()
-        ret = apply_risk_reward_to_result(
-            result, entry_price=100.0, stop_loss=100.0, take_profit=110.0,
-            side="BUY", min_rr_ratio=2.0,
-        )
-        assert ret is result
-        assert result['rr_ratio'] == pytest.approx(0.0)
-        assert "too low" in result['reason']
-
-    def test_reason_includes_min_ratio(self):
-        result = make_validation_result()
-        ret = apply_risk_reward_to_result(
-            result, entry_price=100.0, stop_loss=95.0, take_profit=102.0,
-            side="BUY", min_rr_ratio=3.0,
-        )
-        assert ret is result
-        assert "1:3.0" in result['reason']
-
     def test_populates_risk_pct_rounded(self):
         result = make_validation_result()
         apply_risk_reward_to_result(
             result, entry_price=100.0, stop_loss=97.5, take_profit=110.0,
-            side="BUY", min_rr_ratio=1.0,
+            side="BUY",
         )
         assert result['risk_pct'] == pytest.approx(2.5)
 

@@ -22,7 +22,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         self.sl_pct: float = float(config.get("sl_pct", 2.0))
         self.tp_pct: float = float(config.get("tp_pct", 0.0))
         self.entry_threshold_pct: float = float(config.get("entry_threshold_pct", 2.0))
-        self.trailing_stop_pct: float = float(config.get("trailing_stop_pct", 0.5))
+        self.trailing_stop_pct: float = float(config.get("trailing_stop_pct", 2.0))
         self.max_holding_days: int = int(config.get("max_holding_days", 15))
         self.cooldown_days: int = int(config.get("cooldown_days", 7))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)

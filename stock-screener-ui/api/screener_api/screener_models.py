@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, List
 
 MAX_WORKERS = 10
 
-PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout'}
+PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout', 'touched_52w_high'}
 
 PROFILE_META = {
     'trending': {
@@ -15,7 +15,7 @@ PROFILE_META = {
     'high_momentum': {
         'section_labels': {'primary': '🚀 MOMENTUM CANDIDATES', 'secondary': '✅ STRONGER MOMENTUM SETUPS'},
         'filters': [
-            {'key': 'min_rsi', 'label': 'RSI ≥', 'type': 'number', 'min': 0, 'max': 100, 'step': 1, 'default': 55},
+            {'key': 'rsi_range', 'label': 'RSI Range', 'type': 'range', 'min': 0, 'max': 100, 'step': 1, 'rangeDefault': [30, 80]},
             {'key': 'min_volume_m', 'label': 'Vol M ≥', 'type': 'number', 'min': 0, 'max': 200, 'step': 0.5, 'default': 1}
         ],
         'default_sort': {'column': 'score', 'direction': 'desc'}
@@ -23,7 +23,7 @@ PROFILE_META = {
     'buyer_interest': {
         'section_labels': {'primary': '🟢 BUYER INTEREST', 'secondary': '✅ STRONGER BUYER SETUPS'},
         'filters': [
-            {'key': 'min_wick_pct', 'label': 'Wick % ≥', 'type': 'number', 'min': 0, 'max': 100, 'step': 1, 'default': 70},
+            {'key': 'wick_pct_range', 'label': 'Wick % Range', 'type': 'range', 'min': 0, 'max': 100, 'step': 1, 'rangeDefault': [50, 100]},
             {'key': 'min_vol_surge', 'label': 'Vol Surge ≥', 'type': 'number', 'min': 0, 'max': 10, 'step': 0.1, 'default': 1.0}
         ],
         'default_sort': {'column': 'wick_close_pct', 'direction': 'desc'}
@@ -32,7 +32,7 @@ PROFILE_META = {
         'section_labels': {'primary': '🟢 BUYER/SELLER INTEREST+', 'secondary': '✅ TOP CONVICTION SETUPS'},
         'filters': [
             {'key': 'direction', 'label': 'Direction', 'type': 'select', 'options': ['both', 'bullish', 'bearish'], 'default': 'both'},
-            {'key': 'min_score', 'label': 'Score ≥', 'type': 'number', 'min': 0, 'max': 100, 'step': 5, 'default': 50},
+            {'key': 'score_range', 'label': 'Score Range', 'type': 'range', 'min': 0, 'max': 100, 'step': 5, 'rangeDefault': [40, 100]},
             {'key': 'min_vol_surge', 'label': 'Vol Surge ≥', 'type': 'number', 'min': 0, 'max': 10, 'step': 0.1, 'default': 1.0}
         ],
         'default_sort': {'column': 'score', 'direction': 'desc'}
@@ -59,6 +59,11 @@ PROFILE_META = {
             {'key': 'max_52w_gap', 'label': '52W Gap ≤', 'type': 'number', 'min': -5, 'max': 20, 'step': 0.1, 'default': 3}
         ],
         'default_sort': {'column': 'to_52w_high', 'direction': 'asc'}
+    },
+    'touched_52w_high': {
+        'section_labels': {'primary': '✅ ALREADY TOUCHED 52W', 'secondary': '📈 AT 52-WEEK HIGH'},
+        'filters': [],
+        'default_sort': {'column': 'days_ago', 'direction': 'asc'}
     },
     'rsi_reversal': {
         'section_labels': {'primary': '🔄 REVERSAL CANDIDATES', 'secondary': '✅ STRONGER REVERSAL SETUPS'},

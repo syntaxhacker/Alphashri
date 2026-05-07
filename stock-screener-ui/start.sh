@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -7,7 +7,7 @@ cd "$SCRIPT_DIR"
 API_PORT="${API_PORT:-8765}"
 UI_HOST="${UI_HOST:-127.0.0.1}"
 UI_PORT="${UI_PORT:-5173}"
-LOG_FILE="${LOG_FILE:-/tmp/alphashri.log}"
+LOG_FILE="${LOG_FILE:-$SCRIPT_DIR/logs/alphashri.log}"
 
 
 
@@ -43,13 +43,14 @@ cleanup() {
   fi
 }
 
-trap cleanup INT TERM EXIT
+trap cleanup INT TERM
 
 # Kill existing processes on ports
 kill_port "$API_PORT"
 kill_port "$UI_PORT"
 
 # Fresh log file on each start
+mkdir -p "$(dirname "$LOG_FILE")"
 : > "$LOG_FILE"
 echo "Logging to: $LOG_FILE"
 
@@ -59,12 +60,13 @@ if [[ -d "$VENV_DIR/bin" ]]; then
   echo "Activated venv: $VENV_DIR"
 fi
 
+
+
 echo "Starting API on http://localhost:${API_PORT} ..."
 uvicorn api_server_fastapi:app \
   --host 127.0.0.1 \
   --port "${API_PORT}" \
-  --reload \
-  --reload-dir "$SCRIPT_DIR" >> "$LOG_FILE" 2>&1 &
+  --reload >> "$LOG_FILE" 2>&1 &
 API_PID=$!
 
 echo "Starting UI on http://${UI_HOST}:${UI_PORT} ..."

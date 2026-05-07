@@ -123,6 +123,8 @@ def _get_sync_functions():
             query = query.order_by(TradeModel.exit_time.desc()).limit(limit)
 
             trades = [t.to_dict() for t in query.all()]
+            from api.paper.history import _resolve_trade_bot_ids
+            trades = _resolve_trade_bot_ids(trades)
 
             if not trades:
                 from trading.journal import get_journal

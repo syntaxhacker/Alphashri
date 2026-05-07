@@ -63,7 +63,7 @@ def _make_mock_config_row(**overrides):
         entry_threshold_pct=3.0, enable_trailing_stop=False, trailing_stop_pct=3.0,
         trailing_activation_pct=2.0, max_holding_days=30, cooldown_days=30,
         enable_filters=False, pivot_type="classic", breakout_buffer_pct=0.3,
-        enable_shorts=False, eod_exit_hour=14, eod_exit_minute=45, min_rr_ratio=2.0,
+        enable_shorts=False, eod_exit_hour=14, eod_exit_minute=45,
         screener_profiles="[]", ema_fast_period=9, ema_slow_period=21,
     )
     defaults.update(overrides)

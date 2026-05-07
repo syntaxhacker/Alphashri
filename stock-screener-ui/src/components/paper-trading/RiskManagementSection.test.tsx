@@ -46,8 +46,6 @@ const mockConfig: StrategyConfig = {
   // S/R Breakout Parameters
   pivot_type: "classic",
   breakout_buffer_pct: 0.5,
-  // Risk Validation
-  min_rr_ratio: 1.5,
   // Screener Profiles
   screener_profiles: undefined,
   // Cost Parameters

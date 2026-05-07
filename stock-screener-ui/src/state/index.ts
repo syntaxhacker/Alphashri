@@ -42,6 +42,7 @@ export let sortDirection: SortDirection = "desc";
 export let screenerOptions: ScreenerOption[] = [];
 export let activeScreener = "trending";
 export let profileMetaById: Record<string, ProfileMeta> = {};
+export let profileFilters: Record<string, number | string> = {};
 
 // Notification state
 export let notifications: ChangeNotification[] = [];
@@ -97,8 +98,23 @@ export function setActiveScreener(screener: string) {
   notifySubscribers();
 }
 
+export function setActiveProvider(provider: string) {
+  data = { ...data, provider };
+  notifySubscribers();
+}
+
+export function setActiveMode(mode: string) {
+  data = { ...data, mode };
+  notifySubscribers();
+}
+
 export function setProfileMetaById(meta: Record<string, ProfileMeta>) {
   profileMetaById = meta;
+}
+
+export function setProfileFilters(filters: Record<string, number | string>) {
+  profileFilters = filters;
+  notifySubscribers();
 }
 
 export function addNotification(notification: ChangeNotification) {

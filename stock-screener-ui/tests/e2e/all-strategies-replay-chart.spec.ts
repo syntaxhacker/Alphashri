@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 import { generateFullDayCandles } from "./helpers/chartHelpers";
 
 const orbTrades = [
@@ -97,10 +98,10 @@ function buildSSEStream(events: any[]): string {
 }
 
 async function setupCommonReplayMocks(page: Page) {
-  await page.route("**/api/bots", async (route) => {
+  await page.route(apiRoute("bots"), async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) });
   });
-  await page.route(/\/api\/holidays(\?|$)/, async (route) => {
+  await page.route(apiRoute("holidays"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -125,7 +126,7 @@ async function setupReplayMocks(
   await loginAsTestUser(page);
   await setupCommonReplayMocks(page);
 
-  await page.route("**/api/replay/symbols", async (route) => {
+  await page.route(apiRoute("replay/symbols"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -133,7 +134,7 @@ async function setupReplayMocks(
     });
   });
 
-  await page.route("**/api/strategies", async (route) => {
+  await page.route(apiRoute("strategies"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -267,7 +268,7 @@ async function setupReplayMocks(
 
   const sseBody = buildSSEStream(sseEvents);
 
-  await page.route("**/api/replay/run", async (route) => {
+  await page.route(apiRoute("replay/run"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "text/event-stream",

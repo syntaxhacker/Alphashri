@@ -19,6 +19,30 @@ import config
 from .paper_api import router, _get_user_id
 
 
+def _resolve_trade_bot_ids(trades: list) -> list:
+    """Batch-resolve integer bot_ids to UUIDs and populate bot_name in trade dicts.
+
+    Opens its own DB session for a single batch query, so it can be
+    safely called from anywhere without requiring an existing session.
+    """
+    bot_ids = {t.get('bot_id') for t in trades if isinstance(t.get('bot_id'), int)}
+    if not bot_ids:
+        return trades
+    from db.models.bot import BotConfig
+    from db.database import SessionLocal
+    with SessionLocal() as db:
+        bots = db.query(BotConfig).filter(BotConfig.id.in_(bot_ids)).all()
+        id_to_uuid = {b.id: b.uuid for b in bots}
+        id_to_name = {b.id: b.name for b in bots}
+        for t in trades:
+            bid = t.get('bot_id')
+            if isinstance(bid, int) and bid in id_to_uuid:
+                t['bot_id'] = id_to_uuid[bid]
+            if isinstance(bid, int) and bid in id_to_name and not t.get('bot_name'):
+                t['bot_name'] = id_to_name[bid]
+    return trades
+
+
 @router.get("/trades")
 async def get_trades(
     limit: int = 50,
@@ -37,6 +61,8 @@ async def get_trades(
 
     if not all_trades:
         all_trades = _get_trades_from_journals(user_id, date, from_date, to_date, days_back, bot_id, symbol, strategy_id, limit)
+
+    all_trades = _resolve_trade_bot_ids(all_trades)
 
     return {
         "total_trades": len(all_trades),
@@ -63,11 +89,10 @@ def _get_trades_from_db(
         query = db.query(TradeModel).filter(TradeModel.user_id == user_id, TradeModel.is_test == False)
 
         if bot_id and bot_id != "default":
-            try:
-                numeric_bot_id = int(bot_id)
+            from api.bots_api.bots_router import resolve_bot_id
+            numeric_bot_id = resolve_bot_id(bot_id, db)
+            if numeric_bot_id is not None:
                 query = query.filter(TradeModel.bot_id == numeric_bot_id)
-            except ValueError:
-                pass
 
         if symbol:
             query = query.filter(TradeModel.symbol == symbol.upper())
@@ -190,11 +215,11 @@ def _get_trades_from_journals(
         if bot_id == "default":
             all_trades = [t for t in all_trades if t.get('bot_id') in (0, None, "0")]
         else:
-            try:
-                numeric_bot_id = int(bot_id)
+            from api.bots_api.bots_router import resolve_bot_id
+            with SessionLocal() as db:
+                numeric_bot_id = resolve_bot_id(bot_id, db)
+            if numeric_bot_id is not None:
                 all_trades = [t for t in all_trades if t.get('bot_id') == numeric_bot_id]
-            except ValueError:
-                all_trades = [t for t in all_trades if str(t.get('bot_id')) == str(bot_id)]
 
     all_trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
     return all_trades[:limit]

@@ -1,4 +1,5 @@
 import { Page, expect } from "@playwright/test";
+import { apiRoute } from "../../mocks/routeHelper";
 
 export const TEST_BOT_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -60,7 +61,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     isRunning = false,
   } = options;
 
-  await page.route("**/api/bots", async (route) => {
+  await page.route(apiRoute("bots/"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -76,7 +77,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route("**/api/bots/summary", async (route) => {
+  await page.route(apiRoute("bots/summary"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -99,7 +100,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route(`**/api/bots/${botId}/start`, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/start"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -107,7 +108,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route(`**/api/bots/${botId}/stop`, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/stop"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -115,7 +116,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route(`**/api/bots/${botId}/status`, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/status"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -133,7 +134,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route(`**/api/bots/${botId}/portfolio`, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/portfolio"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -148,7 +149,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route(`**/api/bots/${botId}/positions`, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/positions"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -156,7 +157,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route("**/api/paper/positions", async (route) => {
+  await page.route(apiRoute("paper/positions"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -164,7 +165,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route(`**/api/bots/${botId}/scan*`, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/scan"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -172,7 +173,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route("**/api/paper/bot/snapshot", async (route) => {
+  await page.route(apiRoute("paper/bot/snapshot"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

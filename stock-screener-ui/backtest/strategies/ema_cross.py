@@ -390,7 +390,7 @@ class EMACrossConfig(StrategyConfig, kw_only=True):
     bar_type: BarType
     ema_fast_period: int = 9
     ema_slow_period: int = 21
-    sl_pct: float = 0.5
+    sl_pct: float = 1.0
     tp_pct: float = 1.5
     trade_size: int = 100
     enable_shorts: bool = False

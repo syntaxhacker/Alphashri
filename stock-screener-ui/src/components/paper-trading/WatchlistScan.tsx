@@ -119,6 +119,35 @@ function SkippedRow({
   );
 }
 
+function RejectedRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: string) => void }) {
+  return (
+    <Table.Tr
+      onClick={() => onSelect(item.symbol)}
+      style={{ cursor: "pointer" }}
+      data-testid={`scan-rejected-${item.symbol}`}
+    >
+      <Table.Td>
+        <ClickableSymbol symbol={item.symbol} showPreview />
+      </Table.Td>
+      <Table.Td>
+        <Badge variant="light" color="red" size="xs">
+          Rejected
+        </Badge>
+      </Table.Td>
+      <Table.Td>
+        <Badge variant="outline" color="blue" size="xs">
+          {item.strategy_name || "-"}
+        </Badge>
+      </Table.Td>
+      <Table.Td>
+        <Text size="xs" c="red" fw={500}>
+          {item.reason || "Risk check failed"}
+        </Text>
+      </Table.Td>
+    </Table.Tr>
+  );
+}
+
 const SECTION_HEADER = { padding: "2px 6px", fontSize: "11px", fontWeight: 600 as const };
 const SECTION_PANEL = { padding: 0 };
 
@@ -134,11 +163,12 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
     );
   };
 
-  const { signals, watching, skipped } = useMemo(() => {
-    if (!snapshot?.scan_items) return { signals: [], watching: [], skipped: [] };
+  const { signals, watching, rejected, skipped } = useMemo(() => {
+    if (!snapshot?.scan_items) return { signals: [], watching: [], rejected: [], skipped: [] };
 
     const sig: PaperScanItem[] = [];
     const wat: PaperScanItem[] = [];
+    const rej: PaperScanItem[] = [];
     const skipMap = new Map<string, { strategies: Set<string>; reasons: Set<string> }>();
 
     for (const item of snapshot.scan_items) {
@@ -146,6 +176,8 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
         sig.push(item);
       } else if (item.status === "watching") {
         wat.push(item);
+      } else if (item.status === "rejected") {
+        rej.push(item);
       } else {
         const existing = skipMap.get(item.symbol);
         const strat = item.strategy_name || "?";
@@ -168,8 +200,10 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
       reasons: Array.from(data.reasons),
     }));
 
-    return { signals: sig, watching: wat, skipped: sk };
+    return { signals: sig, watching: wat, rejected: rej, skipped: sk };
   }, [snapshot?.scan_items]);
+
+  const scanTime = snapshot?.timestamp ? new Date(snapshot.timestamp).toLocaleTimeString() : "-";
 
   if (!snapshot || !snapshot.scan_items || snapshot.scan_items.length === 0) {
     return (
@@ -183,17 +217,19 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
           <Text fw={600} size="xs" c="dimmed" tt="uppercase">
             Watchlist Scan
           </Text>
+          <Text size="xs" c="dimmed">
+            {scanTime}
+          </Text>
         </Group>
         <Flex justify="center" py="sm">
-          <Text size="xs" c="dimmed">
-            No scan data yet
+          <Text size="xs" c="orange" fs="italic" style={{ textAlign: "center" }}>
+            No scan data — API rate limit or connection issue
           </Text>
         </Flex>
       </Flex>
     );
   }
 
-  const scanTime = snapshot.timestamp ? new Date(snapshot.timestamp).toLocaleTimeString() : "-";
   const totalCount = snapshot.scan_items.length;
 
   return (
@@ -306,6 +342,47 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 <Table.Tbody>
                   {watching.map((item) => (
                     <WatchingRow
+                      key={`${item.strategy_id ?? item.strategy_name}-${item.symbol}`}
+                      item={item}
+                      onSelect={handleSelectSymbol}
+                    />
+                  ))}
+                </Table.Tbody>
+              </DataTable>
+            )}
+          </Accordion.Panel>
+        </Accordion.Item>
+
+        <Accordion.Item value="rejected" data-testid="watchlist-scan-rejected">
+          <Accordion.Control>
+            <Group gap="xs">
+              <Badge size="xs" variant="filled" color="red" circle />
+              <Text size="xs" fw={600}>
+                Rejected
+              </Text>
+              <Badge size="xs" variant="filled" color="red">
+                {rejected.length}
+              </Badge>
+            </Group>
+          </Accordion.Control>
+          <Accordion.Panel>
+            {rejected.length === 0 ? (
+              <Text size="xs" c="dimmed" px="xs" py={4}>
+                None rejected
+              </Text>
+            ) : (
+              <DataTable styles={TABLE_STYLES} dataTestId="rejected-table">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Sym</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th>Strategy</Table.Th>
+                    <Table.Th>Reason</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {rejected.map((item) => (
+                    <RejectedRow
                       key={`${item.strategy_id ?? item.strategy_name}-${item.symbol}`}
                       item={item}
                       onSelect={handleSelectSymbol}

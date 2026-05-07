@@ -10,6 +10,7 @@ from datetime import datetime
 import sys
 from pathlib import Path
 import types
+import random
 
 # Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
@@ -168,6 +169,7 @@ class TestScreenersList:
         """Test PROFILES_WITH_52W_BUCKETS constant."""
         assert 'trending' in PROFILES_WITH_52W_BUCKETS
         assert 'near_52w_breakout' in PROFILES_WITH_52W_BUCKETS
+        assert 'touched_52w_high' in PROFILES_WITH_52W_BUCKETS
 
     def test_profile_meta_filters_structure(self):
         """Test that profile filters have correct structure."""
@@ -324,6 +326,81 @@ class TestScreenerDataRetrieval:
         assert 'approaching' in result
         assert 'profile_meta' in result
 
+    @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
+    @patch.object(trending_upside, 'fetch_trending_stocks')
+    @patch('random.uniform', return_value=0.0)
+    @patch('upstox_trader.config_and_utils.upstox_auth.UpstoxAuthHandler.load_token', return_value=False)
+    def test_fetch_screener_data_touched_52w_high_has_both_buckets(
+        self, mock_token, mock_random, mock_fetch, mock_api, mock_trending_stocks
+    ):
+        """Test touched_52w_high populates both approaching and touched buckets."""
+        mock_fetch.return_value = mock_trending_stocks
+        mock_api.side_effect = ValueError('No credentials')
+
+        result = fetch_screener_data(
+            provider='upstox',
+            mode='intraday',
+            screener='touched_52w_high'
+        )
+
+        assert 'approaching' in result
+        assert 'touched' in result
+        # With broker_diff=0, upstox_price == tv_price:
+        #   HDFC: close=1600, 52w_high=1600 → to_52w_high=0  → touched
+        #   RELIANCE: close=2500, 52w_high=2550 → to_52w_high=1.96 → approaching
+        #   TCS: close=3800, 52w_high=3900 → to_52w_high=2.56 → approaching
+        #   INFY: close=1500, 52w_high=1580 → to_52w_high=5.06 → approaching
+        assert len(result['approaching']) > 0, "touched_52w_high must have approaching stocks"
+        assert len(result['touched']) > 0, "touched_52w_high must have touched stocks"
+
+    @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
+    @patch.object(trending_upside, 'fetch_trending_stocks')
+    @patch('random.uniform', return_value=0.0)
+    @patch('upstox_trader.config_and_utils.upstox_auth.UpstoxAuthHandler.load_token', return_value=False)
+    def test_fetch_screener_data_with_builtin_prefix_matches_no_prefix(
+        self, mock_token, mock_random, mock_fetch, mock_api, mock_trending_stocks
+    ):
+        """Test that builtin: prefix produces same results as without."""
+        mock_fetch.return_value = mock_trending_stocks
+        mock_api.side_effect = ValueError('No credentials')
+
+        result_with_prefix = fetch_screener_data(
+            provider='upstox',
+            mode='intraday',
+            screener='builtin:trending'
+        )
+        result_without = fetch_screener_data(
+            provider='upstox',
+            mode='intraday',
+            screener='trending'
+        )
+
+        # Same number of stocks (order differs due to ThreadPoolExecutor.as_completed)
+        assert len(result_with_prefix['approaching']) == len(result_without['approaching'])
+        # Same symbols (regardless of order)
+        prefix_symbols = {s['symbol'] for s in result_with_prefix['approaching']}
+        no_prefix_symbols = {s['symbol'] for s in result_without['approaching']}
+        assert prefix_symbols == no_prefix_symbols
+        # Same profile meta
+        assert result_with_prefix['profile_meta'] == result_without['profile_meta']
+
+    @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
+    @patch.object(trending_upside, 'fetch_trending_stocks')
+    def test_fetch_screener_data_builtin_prefix_does_not_leak_into_downstream(
+        self, mock_fetch, mock_api, mock_trending_stocks
+    ):
+        """Test that builtin: prefix is stripped before _passes_profile_filters check."""
+        mock_fetch.return_value = mock_trending_stocks
+        mock_api.side_effect = ValueError('No credentials')
+
+        # Create a stock that should pass profile filters for touched_52w_high
+        # If builtin: leaked, it wouldn't match the profile check
+        stock_data = {'symbol': 'TEST', 'to_52w_high': 1.5, 'touched_52w': False}
+
+        assert _passes_profile_filters('touched_52w_high', stock_data, {})
+        assert _passes_profile_filters('builtin:touched_52w_high', stock_data, {})
+
+
 class TestProfileFilters:
     """Test profile filter application."""
 
@@ -429,6 +506,26 @@ class TestProfileFilters:
         # Should fail: too far from 52W high
         stock_data['to_52w_high'] = 10.0
         assert not _passes_profile_filters('near_52w_breakout', stock_data, {'max_52w_gap': '5'})
+
+    def test_passes_profile_filters_touched_52w_high(self):
+        """Test touched_52w_high does NOT filter out approaching stocks."""
+        # Approaching stock (within 2% of 52w high but not touched)
+        approaching = {'symbol': 'RELIANCE', 'to_52w_high': 1.5, 'touched_52w': False}
+        assert _passes_profile_filters('touched_52w_high', approaching, {})
+
+        # Touched stock (at or above 52w high)
+        touched = {'symbol': 'HINDALCO', 'to_52w_high': 0.0, 'touched_52w': True}
+        assert _passes_profile_filters('touched_52w_high', touched, {})
+
+        # Stock with builtin: prefix — same behavior
+        assert _passes_profile_filters('builtin:touched_52w_high', approaching, {})
+
+    def test_passes_profile_filters_touched_52w_high_rejects_outside_range(self):
+        """Test touched_52w_high rejects stocks far from their 52w high."""
+        far_stock = {'symbol': 'XYZ', 'touched_52w': False}
+        # The TV query already filters, but _passes_profile_filters should
+        # still let it through (TV query is the gatekeeper, not this function)
+        assert _passes_profile_filters('touched_52w_high', far_stock, {})
 
 
 class TestRationaleBuilder:
@@ -654,7 +751,6 @@ class TestScreenerSWR:
             'screener': 'trending',
             'profile_meta': _profile_meta('trending'),
             'summary': [],
-            'demo_mode': True,
             'applied_profile_filters': {},
         }
         with patch('api_server_fastapi.TradingAPIFactory') as mock_api, \

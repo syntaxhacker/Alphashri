@@ -5,6 +5,7 @@ import {
   setupPaperTradingTestMocks,
 } from "../helpers/paperTradingHelpers";
 import { setupApiMocks, loginAsTestUser, setupPaperTradingMocks } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 import { TEST_BOT_UUID, setupBotApiMocks } from "./helpers/botHelpers";
 import { generateCandles } from "./helpers/chartHelpers";
 
@@ -87,7 +88,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
   test("should show empty state when no positions", async ({ page }) => {
     // Override positions mock to return empty
-    await page.route("**/api/bots/*/positions*", async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+/positions"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -128,7 +129,7 @@ test.describe("Paper Trading - API Polling", () => {
   test("should call bot portfolio API when bot is selected", async ({ page }) => {
     let portfolioApiCalled = false;
 
-    await page.route(`**/api/bots/${TEST_BOT_UUID}/portfolio`, async (route) => {
+    await page.route(apiRoute(`bots/${TEST_BOT_UUID}/portfolio`), async (route) => {
       portfolioApiCalled = true;
       await route.continue();
     });
@@ -142,7 +143,7 @@ test.describe("Paper Trading - API Polling", () => {
   test("should call scan API when bot is selected", async ({ page }) => {
     let scanApiCalled = false;
 
-    await page.route(`**/api/bots/${TEST_BOT_UUID}/scan`, async (route) => {
+    await page.route(apiRoute(`bots/${TEST_BOT_UUID}/scan`), async (route) => {
       scanApiCalled = true;
       await route.continue();
     });
@@ -162,7 +163,7 @@ test.describe("Paper Trading - Bot Controls", () => {
   test("should update UI immediately after starting a bot", async ({ page }) => {
     let botRunning = false;
 
-    await page.route(`**/api/bots/${TEST_BOT_UUID}`, async (route) => {
+    await page.route(apiRoute(`bots/${TEST_BOT_UUID}`), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -177,7 +178,7 @@ test.describe("Paper Trading - Bot Controls", () => {
       });
     });
 
-    await page.route(`**/api/bots/${TEST_BOT_UUID}/start`, async (route) => {
+    await page.route(apiRoute(`bots/${TEST_BOT_UUID}/start`), async (route) => {
       botRunning = true;
       await route.fulfill({
         status: 200,
@@ -201,7 +202,7 @@ test.describe("Paper Trading - Bot Controls", () => {
 
   test("should show Start Bot button when bot is not running", async ({ page }) => {
     // Mock bot as not running
-    await page.route(`**/api/bots/${TEST_BOT_UUID}`, async (route) => {
+    await page.route(apiRoute(`bots/${TEST_BOT_UUID}`), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -224,7 +225,7 @@ test.describe("Paper Trading - Bot Controls", () => {
 
   test("should show Stop Bot button when bot is running", async ({ page }) => {
     // Mock bot as running
-    await page.route(`**/api/bots/${TEST_BOT_UUID}`, async (route) => {
+    await page.route(apiRoute(`bots/${TEST_BOT_UUID}`), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -266,7 +267,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
   test.beforeEach(async ({ page }) => {
     await setupPaperTradingTestMocks(page);
 
-    await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+/scan"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -409,7 +410,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
   });
 
   test("should show No scan data yet when bot is stopped", async ({ page }) => {
-    await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
+    await page.route(apiRoute("bots/[a-f0-9-]+/scan"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -421,7 +422,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
 
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
-    await expect(scanCard).toContainText("No scan data yet");
+    await expect(scanCard).toContainText("No scan data");
   });
 });
 
@@ -469,7 +470,7 @@ test.describe("Paper Trading - Position Actions", () => {
   test("should close all positions via API", async ({ page }) => {
     let closeAllApiCalled = false;
 
-    await page.route(`**/api/bots/${TEST_BOT_UUID}/close-all`, async (route) => {
+    await page.route(apiRoute(`bots/${TEST_BOT_UUID}/close-all`), async (route) => {
       closeAllApiCalled = true;
       await route.fulfill({
         status: 200,
@@ -504,7 +505,7 @@ test.describe("Paper Trading - Settings", () => {
   test("should update ORB sl_pct and save", async ({ page }) => {
     await navigateToPaperTradingSettings(page);
 
-    await page.route(`**/api/bots/${TEST_BOT_UUID}/config`, async (route) => {
+    await page.route(apiRoute(`bots/${TEST_BOT_UUID}/config`), async (route) => {
       const request = route.request();
       const postData = JSON.parse(request.postData() || "{}");
 
@@ -534,7 +535,7 @@ test.describe("Paper Trading - Settings", () => {
   test("should update Risk risk_per_trade", async ({ page }) => {
     await navigateToPaperTradingSettings(page);
 
-    await page.route(`**/api/bots/${TEST_BOT_UUID}/config`, async (route) => {
+    await page.route(apiRoute(`bots/${TEST_BOT_UUID}/config`), async (route) => {
       const request = route.request();
       const postData = JSON.parse(request.postData() || "{}");
 
@@ -669,7 +670,7 @@ test.describe("Paper Trading - Chart Controls", () => {
   };
 
   async function setupChartMocks(page: import("@playwright/test").Page) {
-    await page.route(/localhost:8765\/api\/paper\/chart\//, async (route) => {
+    await page.route(apiRoute("paper/chart/"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

@@ -61,6 +61,8 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
         return _to_float(stock_data.get('interest_score'), 0) >= num('min_interest_score', 0)
     if screener == 'near_52w_breakout':
         return _to_float(stock_data.get('to_52w_high'), 100) <= num('max_52w_gap', 100)
+    if screener in ('touched_52w_high', 'builtin:touched_52w_high'):
+        return True  # Filter handled by TV query + approaching/touched classification
     if screener == 'rsi_reversal':
         return _to_float(stock_data.get('rsi'), 100) <= num('max_rsi', 100) and _to_float(stock_data.get('stoch_k'), 0) >= num('min_stoch_k', 0)
     if screener == 'nifty_movers':
@@ -108,11 +110,48 @@ def estimate_days_to_52w(current_price, high_52w, adx, atr, recent_return_5d, pe
     return round(estimated_days), confidence
 
 
+def _compute_days_ago(api, symbol, today_high=None):
+    """Fetch 90 days of daily data, find the period high, and return days since it was last touched."""
+    try:
+        to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
+        from_date = (datetime.now(config.IST) - timedelta(days=90)).strftime('%Y-%m-%d')
+        df = api.fetch_historical_data_v3(symbol=symbol, unit='days', interval=1, to_date=to_date, from_date=from_date)
+        if df is None or df.empty:
+            return 0 if today_high is not None else None
+
+        # Use Upstox's own period high (avoids TV vs Upstox data mismatch)
+        period_high = df['high'].max()
+        if today_high is not None:
+            period_high = max(period_high, today_high)
+
+        threshold = period_high * 0.98
+
+        # If today's intraday high meets threshold, return 0 immediately
+        if today_high is not None and today_high >= threshold:
+            return 0
+
+        touched = df[df['high'] >= threshold]
+        if touched.empty:
+            return None
+        last_touch = touched.index[-1]
+        if hasattr(last_touch, 'to_pydatetime'):
+            last_touch_dt = last_touch.to_pydatetime()
+        else:
+            last_touch_dt = last_touch
+        if last_touch_dt.tzinfo is None:
+            last_touch_dt = config.IST.localize(last_touch_dt)
+        days_ago = (datetime.now(config.IST) - last_touch_dt).days
+        return max(0, days_ago)
+    except Exception:
+        return None
+
+
 def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import random
 
     symbol = row_data['name']
+    screener_clean = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
     tv_price = row_data['close']
 
     if tv_price >= 7000:
@@ -141,6 +180,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             to_52w_high = ((tv_52w_high - upstox_price) / tv_52w_high) * 100
             est_days, confidence = estimate_days_to_52w(upstox_price, tv_52w_high, adx, atr, recent_return, perf_w)
             touched_52w = to_52w_high < 0.1
+            days_ago = None
             is_bullish = tv_price >= tv_open
 
             if wick_close_pct >= 70:
@@ -166,6 +206,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
                 'perf_w': round(perf_w, 1),
                 'sector': str(row_data.get('sector', '-')),
                 'touched_52w': touched_52w,
+                'days_ago': None,
                 'day_change': round(_to_float(row_data.get('change'), 0), 2),
                 'rsi': round(_to_float(row_data.get('RSI'), 0), 1),
                 'stoch_k': round(_to_float(row_data.get('Stoch.K'), 0), 1),
@@ -241,6 +282,9 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
                     touched_52w = True
                 elif (tv_52w_high - recent_high) / tv_52w_high < 0.001:
                     touched_52w = True
+            days_ago = None
+            if screener_clean == 'touched_52w_high':
+                days_ago = _compute_days_ago(api, symbol, today_high=recent_high)
             c_open = _to_float(current_candle.get('open'), c_close)
             is_bullish = c_close >= c_open
 
@@ -267,6 +311,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
                 'perf_w': round(perf_w, 1),
                 'sector': str(row_data.get('sector', '-')),
                 'touched_52w': touched_52w,
+                'days_ago': days_ago,
                 'day_change': round(_to_float(row_data.get('change'), 0), 2),
                 'rsi': round(_to_float(row_data.get('RSI'), 0), 1),
                 'stoch_k': round(_to_float(row_data.get('Stoch.K'), 0), 1),
@@ -324,15 +369,36 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 
 def fetch_screener_data(provider='upstox', mode='historical', screener='trending', profile_filters=None):
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
     import trending_upside
 
+    screener = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
+
+    api = None
+    use_api = False
+    warning = None
+
     try:
+        from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
         api = TradingAPIFactory.create_from_config(provider, quiet=True)
         use_api = True
-    except ValueError:
-        api = None
-        use_api = False
+    except (ValueError, ImportError):
+        try:
+            from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
+            from upstox_trader.config_and_utils.upstox_auth import UpstoxAuthHandler
+            import config
+            api_key = getattr(config, 'UPSTOX_API_KEY', None)
+            api_secret = getattr(config, 'UPSTOX_API_SECRET', None)
+            if api_key and api_secret:
+                auth = UpstoxAuthHandler(api_key, api_secret, quiet=True)
+                if auth.load_token():
+                    api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
+                    api.auth_handler.access_token = auth.access_token
+                    use_api = True
+        except Exception:
+            pass
+
+    if not use_api:
+        warning = "Upstox credentials not configured. Set UPSTOX_API_KEY/UPSTOX_API_SECRET or connect via Settings > Brokers to enable live price lookups and 'days_ago' calculation."
 
     use_intraday = (mode == 'intraday')
     use_52w_buckets = screener in PROFILES_WITH_52W_BUCKETS
@@ -347,7 +413,8 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
             'mode': mode,
             'screener': screener,
             'profile_meta': _profile_meta(screener),
-            'summary': []
+            'summary': [],
+            'warning': warning,
         }
 
     approaching = []
@@ -388,5 +455,5 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
         'screener': screener,
         'profile_meta': _profile_meta(screener),
         'summary': _summary_items_for(screener, approaching, touched),
-        'demo_mode': not use_api
+        'warning': warning,
     }

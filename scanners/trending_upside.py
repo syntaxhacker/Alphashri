@@ -14,23 +14,104 @@ from utils.tv_utils import clean_and_deduplicate, format_change, format_rsi
 console = Console()
 
 SCREENER_PROFILES = {
-    'trending': {'label': 'Trending', 'description': 'Balanced trend + momentum candidates'},
-    'high_momentum': {'label': 'High Momentum', 'description': 'Momentum scanner logic (RSI/MACD/volume)'},
-    'buyer_interest': {'label': 'Buyer Interest', 'description': 'Wick close + volume surge buyer pressure'},
-    'buyer_interest_enhanced': {'label': 'Buyer Interest+', 'description': 'Enhanced buyer/seller pattern setup'},
-    'volatility_trend': {'label': 'Volatility Trend', 'description': 'Volatility with trend confirmation'},
-    'nifty50_activity': {'label': 'Nifty50 Activity', 'description': 'Nifty-style activity scoring'},
-    'near_52w_breakout': {'label': 'Near 52W', 'description': '52-week high breakout candidate logic'},
-    'rsi_reversal': {'label': 'RSI Reversal', 'description': 'Oversold/overbought reversal logic'},
-    'market_open_gap': {'label': 'Gap Open', 'description': 'Market open gap scanner logic'},
-    'nifty_movers': {'label': 'Nifty Movers', 'description': 'Weighted impact (market-cap × move) logic'},
-    'intraday_momentum': {'label': 'Intraday Momentum', 'description': 'Stocks with rapid price runs in last 5/15/30 mins'},
+    'trending': {
+        'label': 'Trending',
+        'description': 'Balanced trend + momentum candidates',
+        'indicators': ['52W High'],
+        'columns': ['symbol', 'score', 'touched_52w', 'tv_price', 'upstox_price', 'broker_diff', 'to_52w_high', 'recent_return_5d', 'perf_w', 'sector'],
+        'default_sort': {'column': 'to_52w_high', 'direction': 'asc'}
+    },
+    'high_momentum': {
+        'label': 'High Momentum',
+        'description': 'Momentum scanner logic (RSI/MACD/volume)',
+        'indicators': ['RSI', 'MACD', 'Volume'],
+        'columns': ['symbol', 'score', 'rsi', 'day_change', 'volume_m', 'recent_return_5d', 'perf_w', 'sector'],
+        'default_sort': {'column': 'score', 'direction': 'desc'}
+    },
+    'buyer_interest': {
+        'label': 'Buyer Interest',
+        'description': 'Wick close + volume surge buyer pressure',
+        'indicators': ['Wick%', 'Volume Surge'],
+        'columns': ['symbol', 'score', 'wick_close_pct', 'volume_surge', 'rsi', 'day_change', 'volume_m', 'sector'],
+        'default_sort': {'column': 'wick_close_pct', 'direction': 'desc'}
+    },
+    'buyer_interest_enhanced': {
+        'label': 'Buyer Interest+',
+        'description': 'Enhanced buyer/seller pattern setup',
+        'indicators': ['Wick%', 'Volume Surge', 'Score'],
+        'columns': ['symbol', 'score', 'rsi', 'wick_close_pct', 'volume_surge', 'adx', 'day_change', 'sector'],
+        'default_sort': {'column': 'score', 'direction': 'desc'}
+    },
+    'volatility_trend': {
+        'label': 'Volatility Trend',
+        'description': 'Volatility with trend confirmation',
+        'indicators': ['ATR', 'RSI', 'ADX', 'Trend'],
+        'columns': ['symbol', 'score', 'atr_pct', 'rsi', 'adx', 'day_change', 'perf_w', 'sector'],
+        'default_sort': {'column': 'atr_pct', 'direction': 'desc'}
+    },
+    'nifty50_activity': {
+        'label': 'Nifty50 Activity',
+        'description': 'Nifty-style activity scoring',
+        'indicators': ['Interest Score'],
+        'columns': ['symbol', 'score', 'interest_score', 'day_change', 'volume_m', 'market_cap_b', 'sector'],
+        'default_sort': {'column': 'score', 'direction': 'desc'}
+    },
+    'near_52w_breakout': {
+        'label': 'Near 52W',
+        'description': '52-week high breakout candidate logic',
+        'indicators': ['52W Gap %'],
+        'columns': ['symbol', 'score', 'rsi', 'adx', 'day_change', 'to_52w_high', 'recent_return_5d', 'perf_w', 'sector'],
+        'default_sort': {'column': 'to_52w_high', 'direction': 'asc'}
+    },
+    'touched_52w_high': {
+        'label': 'Touched 52W',
+        'description': 'Stocks that recently touched 52-week high',
+        'indicators': ['52W High', 'Days Ago'],
+        'columns': ['symbol', 'rsi', 'adx', 'day_change', 'recent_return_5d', 'high_52w', 'days_ago', 'perf_w', 'volume_m'],
+        'default_sort': {'column': 'days_ago', 'direction': 'asc'}
+    },
+    'rsi_reversal': {
+        'label': 'RSI Reversal',
+        'description': 'Oversold/overbought reversal logic',
+        'indicators': ['RSI', 'Stochastic'],
+        'columns': ['symbol', 'score', 'rsi', 'stoch_k', 'day_change', 'volume_m', 'sector'],
+        'default_sort': {'column': 'score', 'direction': 'desc'}
+    },
+    'market_open_gap': {
+        'label': 'Gap Open',
+        'description': 'Market open gap scanner logic',
+        'indicators': ['Gap%', 'Volume'],
+        'columns': ['symbol', 'score', 'gap_pct', 'premarket_change', 'day_change', 'volume_m', 'sector'],
+        'default_sort': {'column': 'gap_pct', 'direction': 'desc'}
+    },
+    'nifty_movers': {
+        'label': 'Nifty Movers',
+        'description': 'Weighted impact (market-cap × move) logic',
+        'indicators': ['Impact Score', 'Market Cap'],
+        'columns': ['symbol', 'score', 'impact_score', 'day_change', 'market_cap_b', 'volume_m', 'sector'],
+        'default_sort': {'column': 'impact_score', 'direction': 'desc'}
+    },
+    'intraday_momentum': {
+        'label': 'Intraday Momentum',
+        'description': 'Stocks with rapid price runs in last 5/15/30 mins',
+        'indicators': ['5-min Move', 'Volume'],
+        'columns': ['symbol', 'score', 'move_pct', 'volume_m', 'rsi', 'day_change', 'sector'],
+        'default_sort': {'column': 'move_pct', 'direction': 'desc'}
+    },
 }
 
 
 def get_screener_profiles():
     return [
-        {'id': key, 'label': value['label'], 'description': value['description']}
+        {
+            'id': key,
+            'label': value['label'],
+            'description': value['description'],
+            'indicators': value.get('indicators', []),
+            'columns': value.get('columns', []),
+            'default_sort': value.get('default_sort', {}),
+            'filters': value.get('filters', [])
+        }
         for key, value in SCREENER_PROFILES.items()
     ]
 
@@ -165,6 +246,28 @@ def _query_by_profile(profile, limit):
                 Column('SMA50') > Column('SMA200')
             )
             .order_by('RSI', ascending=False)
+            .limit(fetch_limit)
+        )
+
+    if profile == 'touched_52w_high':
+        return (
+            Query()
+            .select(
+                'name', 'close', 'high', 'low', 'change', 'volume',
+                'price_52_week_high', 'price_52_week_low', 'market_cap_basic',
+                'RSI', 'sector', 'description', 'update_mode',
+                'average_volume_10d_calc', 'SMA50', 'SMA200', 'Perf.W', 'ATR', 'ADX',
+                'Perf.1M', 'Perf.3M'
+            )
+            .set_markets('india')
+            .where(
+                Column('close') >= 10,
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 1_000_000,
+                Column('price_52_week_high') > 0,
+                Column('close').above_pct('price_52_week_high', 0.98)  # within 2% of 52w high
+            )
+            .order_by('volume', ascending=False)
             .limit(fetch_limit)
         )
 

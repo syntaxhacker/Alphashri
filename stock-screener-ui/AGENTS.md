@@ -8,7 +8,7 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - `bun run dev` — dev server only (proxy /api → localhost:8765)
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
-- `bun run test` — vitest (unit, happy-dom)
+- `bun run test` — vitest --run (use `npx vitest run <file>` for targeted tests, NOT `bun test` which lacks vi.mock support)
 - `source .venv/bin/activate && python -m pytest tests/` — backend tests
 
 ## Python Environment
@@ -17,7 +17,31 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - **Package manager**: `uv` (faster than pip) — install deps with `uv pip install -r <requirements.txt>`
 - **Dependencies**: `../requirements.txt` (root) + `api/requirements.txt` (API-specific)
 - **Note**: `nautilus-trader` in `api/requirements.txt` requires Rust toolchain — install separately if needed
-- **`start.sh`**: auto-activates `.venv` before starting uvicorn; always use `./start.sh` to run both services
+- **`start.sh`**: auto-activates `.venv` before starting uvicorn; always use `./start.sh` to run both services. Logs saved to `logs/alphashri.log`.
+- **Start with DeepSeek**: pass env vars inline to use DeepSeek for TradingAgents analysis:
+  ```bash
+  DEEPSEEK_API_KEY=sk-xxx OPENAI_API_KEY=sk-xxx OPENAI_BASE_URL=https://api.deepseek.com ./start.sh
+  ```
+  Or add keys to `.env` or `.env.dev` — `config.py` auto-loads them via `load_dotenv()`.
+- **Test login**: email `qa@test.com` / password `qa123`
+- **Get token for curl**:
+  ```bash
+  TOKEN=$(curl -s -X POST http://localhost:8765/api/auth/login \
+    -H 'Content-Type: application/json' \
+    -d '{"email":"qa@test.com","password":"qa123"}' | python3 -c "import json,sys; print(json.load(sys.stdin).get('access_token',''))"
+  )
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8765/api/trading-agents/health
+  ```
+
+## TradingAgents Chat Bot
+- **Chat endpoint** (`/api/trading-agents/chat`): Conversational AI using DeepSeek via LiteLLM. Uses function calling to detect stock analysis requests. Returns `should_analyze` field when a stock ticker is detected.
+- **Analyze endpoint** (`/api/trading-agents/analyze`): Runs full multi-agent analysis (market, news, fundamentals analysts) via TradingAgents framework. Takes 60-120s. First call slow, subsequent calls served from file cache.
+- **Stream endpoint** (`/api/trading-agents/stream/{ticker}`): SSE streaming with progress, tool_call, report, and complete events. Uses `json.dumps()` for data serialization (critical: sse_starlette 3.4.1 does NOT auto-serialize dicts to JSON — must call `json.dumps()` manually).
+- **File cache**: Results stored at `experiments/data/analysis_cache/{TICKER}_{DATE}.json` with 24h TTL. Checked by both analyze and stream endpoints before running analysis.
+- **Providers**: Chat uses OpenRouter free model (`openai/gpt-oss-20b:free`) if DeepSeek key not available. Analysis uses DeepSeek via LiteLLM (`deepseek/deepseek-chat`).
+- **No auth required** on chat, analyze, and stream endpoints (get_current_user had compatibility issues with this router). Conversation history endpoints use hardcoded user_id=3.
+- **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
+- **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `react-markdown`.
 
 ## Mantine v8 Rules
 - Reference `mantine_llm.txt` for component docs — never guess APIs
@@ -94,17 +118,12 @@ src/
 - All strategy params flow through this pipeline. Adding a new param requires touching all 4 layers + API models + CRUD + migration.
 - `base_signals.py` is the abstract base for most signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, and `is_eod_exit_time()`. Each subclass overrides before `super().__init__()`.
 - **ORB** is standalone (does not extend BaseSignalGenerator). SL/TP passed as constructor args from `StrategyRunner`.
-- Each strategy has its own per-generator SL/TP defaults. Config overrides via `runner.config['sl_pct']`:
-  - ORB: `sl_pct=1.0, tp_pct=1.5`
-  - SR_BREAKOUT: `sl_pct=0.5, tp_pct=1.5` (TP dynamically set to R2 pivot if available)
-  - 52W_CHASER: `sl_pct=3.0, tp_pct=5.0`
-  - 52W_TARGET: `sl_pct=2.0, tp_pct=0.0` (TP intentionally unreachable, exits via trailing stop)
-  - EMA_CROSS: `sl_pct=0.5, tp_pct=1.5`
+- Each strategy has its own per-generator SL/TP defaults. Config comes from DB (seed_qa_data.py), not hardcoded here.
 - **StrategyRunner.ORB** passes individual params (not config dict): `self.config['sl_pct']`. All other strategies pass the full dict.
 - **DB model defaults** (`sl_pct=1.0, tp_pct=1.5`) apply when creating a new StrategyConfig row via API without explicit values.
 - **`CompletedTrade`** now carries `sl_price`/`tp_price` from the position (fix: `portfolio_core.py:close_position()` sets them). Previously always stored 0.0.
-- **Risk params**: `min_rr_ratio`, `risk_per_trade_pct`, `max_capital_per_trade_pct` flow from `runner.config` → `global_risk_manager.validate_trade()`.
-- **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `min_rr_ratio=1.5`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
+- **Risk params**: `risk_per_trade_pct`, `max_capital_per_trade_pct` flow from `runner.config` → `global_risk_manager.validate_trade()`.
+- **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
 - **Hardcoded values audit** (all strategy-specific values are now configurable):
   - `runner_core.py:FORCE_EXIT=(15,30)` — global market close, NOT strategy-specific. Safe to keep.
   - `runner_signals.py:178` — `day_change_pct > 2.0` ORB skip filter. Generic safety, could be config in future.
@@ -145,6 +164,15 @@ src/
 - `UPSTOX_CONFIG` dict in root `config.py` only has `api_key`/`api_secret` (removed `access_token`)
 - Stale file-only patterns fixed: `sector_data.py` uses `UpstoxAuthHandler`, `upstox_auth_refresh.py` checks DB first
 
+## Upstox Data Debugging
+- `scripts/test_upstox_data.py` — quick V3 API health check: tests LTP + intraday for 5 symbols, detects Cloudflare 1015 blocks and token expiry
+- Run with: `python scripts/test_upstox_data.py` (no venv needed, uses only `requests`)
+- Common errors:
+  - **HTTP 429 / Cloudflare 1015** — IP/network blocked by Cloudflare WAF. Wait or use VPN.
+  - **HTTP 401** — expired token. Re-authenticate via OAuth login.
+  - **HTTP 404** — check instrument key format or market hours
+- Token file: `.upstox_token.json` in project root
+
 ## Benchmark
 - `scripts/benchmark_upstox_data.py` — benchmarks REST LTP V3 vs WebSocket V3 MarketDataStreamerV3
 - Usage: `source .venv/bin/activate && python scripts/benchmark_upstox_data.py`
@@ -177,76 +205,9 @@ src/
 - **Expandable trade rows**: click to expand with TradeStats (SL, TP, Peak, Low, Costs, Gross/Net P&L) and TradeNotesEditor (editable Reason + Notes with Save)
 - **PATCH endpoint**: `PATCH /api/paper/trades/{trade_id}` — update notes/reason, max 500 chars
 
-## Infrastructure
-- **Railway**: project `298aedcc-23a9-4ce3-9dbe-a87986f910de`, env `bc5056b2-6a82-4af3-bec2-2d1ac848fc5c`, service `b66dd871-18ac-49e7-a9fa-7addfb1be351`. Deploy via `git push` to `fix/*` or `develop` branch.
-- **PostgreSQL**: on Render at `dpg-d6qh4e7kijhs73b5rvpg-a.oregon-postgres.render.com/alphashri` — migrations via Alembic in `db/migrations/`
-- **Redis**: on Upstash — used for bot heartbeat (90s TTL key `bot:{bot_id}:heartbeat`). NOT on Railway.
-- **Deploy**: frontend builds to Cloudflare Pages via Wrangler, backend runs on Railway as FastAPI
-- **Env vars**: see `.env.example` — `DATABASE_URL`, `UPSTOX_API_KEY/SECRET`, `REDIS_URL`, `BACKEND_JWT_SECRET`, `VITE_API_BASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED`
+## Deployment & Production
 
-### Cloudflare Pages Build
-- Build command: `bun install && bun run build` (Cloudflare Pages build image does **not** have `bun`; it silently falls back to `npm install`)
-- **Critical**: `npm` is stricter than `bun` about peer dependency conflicts. A mismatch between `@mantine/core` and `@mantine/dates` major versions will cause the build to fail with `ERESOLVE unable to resolve dependency tree`
-- **Rule**: all `@mantine/*` packages must share the same major version. If you upgrade one, upgrade all.
-- Output directory: `dist`
-- Root directory: `stock-screener-ui`
-
-## Debugging
-
-### Railway CLI
-Railway CLI must be linked to the project first. After linking, project/env/service flags are optional.
-- **Link**: `railway link` (interactive, saves config to `.railway/config.json`)
-- **Check linked project**: `railway status`
-
-### Running commands on production
-- **Single command** (non-interactive, best for quick checks):
-  ```
-  railway run --project=298aedcc-23a9-4ce3-9dbe-a87986f910de \
-    --environment=bc5056b2-6a82-4af3-bec2-2d1ac848fc5c \
-    --service=b66dd871-18ac-49e7-a9fa-7addfb1be351 \
-    python3 -c "print('hello')"
-  ```
-- **Bash scripts**: use `railway run ... bash -c "command1 && command2"`
-- **Working directory in container**: `/app/stock-screener-ui` (Docker WORKDIR). `Path(__file__).parent.parent.parent` = `/app`.
-- **Limitation**: cannot use `railway ssh` through this terminal (requires interactive TTY). Use `railway run` instead.
-
-### Common Railway run patterns
-```bash
-# Test Upstox API on prod
-railway run --project=298aedcc ... --service=b66dd871 python3 -c "
-from config import UPSTOX_API_KEY
-from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
-api = UpstoxAPI(api_key=UPSTOX_API_KEY, api_secret=UPSTOX_API_SECRET, quiet=True)
-df = api.fetch_historical_data_v3(symbol='TCS', unit='minutes', interval=1, to_date='2026-04-02', from_date='2026-03-31')
-print(df.shape if df is not None else None)
-"
-
-# Check env vars
-railway run --project=298aedcc ... --service=b66dd871 python3 -c "import config; print(config.IST, bool(config.UPSTOX_API_KEY))"
-
-# Check deployed code version
-railway run --project=298aedcc ... --service=b66dd871 python3 -c "
-import inspect, os; os.chdir('stock-screener-ui')
-from api.paper_trading import get_paper_chart
-print('pd.Timestamp' in inspect.getsource(get_paper_chart))
-"
-```
-
-### Production Postgres
-- Connect via `DATABASE_URL` env var (never hardcode credentials — GitGuardian scans commits)
-- Dump prod to local: `python scripts/dump_prod_to_local.py` — copies trades+positions. **Important**: prod uses `user_id=1`, local user may differ — update after dump:
-  ```bash
-  sqlite3 stock-screener-ui/db/alphashri.db "UPDATE trades SET user_id=<local_id>; UPDATE positions SET user_id=<local_id>;"
-  ```
-
-### Logs
-- `railway logs` — streams recent logs (works without flags when linked)
-- `railway logs 2>&1 | grep "keyword"` — filter for specific errors
-- Logs stream in real-time; hit the endpoint in another terminal, then check logs for output
-
-### Redis
-- Upstash console for GUI access
-- `redis-cli -u <UPSTOX_REDIS_URL>` after Railway connect for CLI
+See [PRODUCTION.md](./PRODUCTION.md) for infrastructure, deployment, Railway CLI, logs, Redis, and post-push verification.
 
 ## Testing
 - Frontend: vitest, files co-located as `*.test.ts` / `*.test.tsx`
@@ -264,6 +225,11 @@ source .venv/bin/activate && python -m pytest tests/test_correlation.py -v  # ba
 ```
 Always run the full suite (`bun run test`) before committing.
 
+**Note**: Use `npx vitest run <file>` for tests using `vi.mock` — `bun test` does not support `vi.mock`.
+```bash
+npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.mock tests
+```
+
 ### Backend Test Gotchas
 - **`@patch` decorator ordering**: When using `@patch` as a decorator on test methods, mock arguments are injected **before** pytest fixtures. Order is bottom-to-top for decorators, left-to-right for args:
   ```python
@@ -275,49 +241,11 @@ Always run the full suite (`bun run test`) before committing.
   Getting this wrong causes `fixture 'mock_X' not found` errors.
 
 ## Mutation Testing
-- Purpose: verify tests actually catch bugs by deliberately introducing one change at a time and checking tests fail
-- Reference: `MUTATION_TESTING.md` (novice-to-advanced guide)
-- Use when writing critical functions or fixing bugs — manually flip a condition, remove a line, run tests, confirm they fail
-- Not automated in CI; run ad-hoc when you want extra confidence in a specific function
-- Coverage tracked in `MUTATION_TESTING.md` — update when adding new mutation tests
+- See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
 
 ## Committing
 - Never commit unless asked
 - Lint + build must pass: `bun run lint && bun run build`
-
-## Post-Push Verification
-After every push, verify the deployment pipeline end-to-end:
-
-### Step 1: Check GitHub Actions (60s)
-```bash
-# Wait for CI to start and check results
-sleep 60 && gh pr checks <PR_NUMBER>
-```
-- If any check fails, view logs: `gh run view --log-failed`
-- Common failures: E2E smoke tests (missing `data-testid`), GitGuardian (hardcoded secrets), lint errors
-- Fix issues, commit, and push again — repeat until all checks pass
-
-### Step 2: Wait for Railway Deployment (60s)
-```bash
-# Poll until Railway check appears
-while ! gh pr checks <PR_NUMBER> 2>&1 | grep -q "intuitive-tenderness"; do sleep 10; done
-# Wait for deploy to complete
-while gh pr checks <PR_NUMBER> 2>&1 | grep "intuitive-tenderness" | grep -q "pending\|deploying"; do sleep 10; done
-```
-Or just wait ~90s total after push.
-
-### Step 3: Verify
-- **If backend changed** (Python files, API routes, DB models): curl the affected endpoint to confirm it works on production
-- **If only frontend changed** (TSX, CSS, state): no curl needed — Cloudflare Pages deploys separately
-- **If both changed**: verify both
-
-```bash
-# Example: backend change verification
-curl -s 'https://earner-production.up.railway.app/api/paper/trades?limit=5' \
-  -H 'Authorization: Bearer <token>' | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'trades: {len(d.get(\"trades\",[]))}')"
-```
-
-✅ **Deployment done** when Railway check shows "pass" and (if backend changed) curl returns expected data.
 
 ## DB Migrations (Alembic)
 - Location: `db/migrations/versions/`
@@ -330,10 +258,11 @@ curl -s 'https://earner-production.up.railway.app/api/paper/trades?limit=5' \
 - Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`. Position HAS `strategy_type`, `peak_price`, `low_price`, `metadata_json` columns (added in snapshot-to-DB migration).
 
 ## Known Issues / Deferred
-- **3 DB columns missing from frontend config UI**: `enable_shorts`, `eod_exit_hour`, `eod_exit_minute`
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
 - **ExitReasonBadge**: doesn't color-code rich exit reasons (MANUAL_CLOSE, PnL-formatted strings like "Stop loss hit ₹1340.00") — falls to gray default
 - **ExitReasonBadge missing cases**: `FORCE_CLOSE`, `TRAILING_STOP`, `MAX_HOLDING`, `NEW_52W_HIGH` — all show as raw gray text
 - **Portfolio summary compact redesign** — mentioned but not started
 - **52W daily data caching** — fetches 400 days per chart request with no caching
-- **`_filter_to_date_or_recent` timezone bug** — documented in AGENTS.md, known production issue
+- **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
+- **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
+- **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.

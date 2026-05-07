@@ -634,6 +634,8 @@ async def get_paper_chart(
             }
 
         trades_data = [_trade_to_dict(t) for t in symbol_trades]
+        from api.paper.history import _resolve_trade_bot_ids
+        trades_data = _resolve_trade_bot_ids(trades_data)
 
         current_position = None
         snap = _load_fresh_bot_snapshot()

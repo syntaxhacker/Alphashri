@@ -62,6 +62,16 @@ export async function updateStrategy(
   );
 }
 
+// Sync template params to all child variations
+export async function syncVariations(
+  strategyId: number,
+): Promise<{ status: string; message: string; count: number }> {
+  return apiPost<{ status: string; message: string; count: number }>(
+    `${STRATEGY_BASE}/${strategyId}/sync-variations`,
+    {},
+  );
+}
+
 // Delete a strategy (soft delete)
 export async function deleteStrategy(
   strategyId: number,

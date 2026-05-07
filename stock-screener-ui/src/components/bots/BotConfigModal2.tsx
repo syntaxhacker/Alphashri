@@ -60,7 +60,6 @@ function StrategyParams({ strategy }: { strategy: AvailableStrategy }) {
     items.push(`Cooldown: ${strategy.cooldown_minutes}m`);
     items.push(`Shorts: ${bool(strategy.enable_shorts)}`);
     items.push(`EOD: ${time(strategy.eod_exit_hour, strategy.eod_exit_minute)}`);
-    items.push(`Min RR: ${fmt(strategy.min_rr_ratio)}`);
   } else if (t === "SR_BREAKOUT") {
     items.push(`Pivot: ${strategy.pivot_type}`);
     items.push(`Buffer: ${fmt(strategy.breakout_buffer_pct, "%")}`);
@@ -69,7 +68,6 @@ function StrategyParams({ strategy }: { strategy: AvailableStrategy }) {
     items.push(`Cooldown: ${strategy.cooldown_minutes}m`);
     items.push(`Shorts: ${bool(strategy.enable_shorts)}`);
     items.push(`EOD: ${time(strategy.eod_exit_hour, strategy.eod_exit_minute)}`);
-    items.push(`Min RR: ${fmt(strategy.min_rr_ratio)}`);
   } else if (t === "52W_CHASER" || t === "52W_TARGET") {
     items.push(`Entry Threshold: ${fmt(strategy.entry_threshold_pct, "%")}`);
     items.push(`SL: ${fmt(strategy.sl_pct, "%")}`);
@@ -109,6 +107,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
   const [isActive, setIsActive] = useState(true);
   const [maxPositions, setMaxPositions] = useState(10);
   const [maxCapital, setMaxCapital] = useState(80);
+  const [maxDailyLoss, setMaxDailyLoss] = useState(3);
   const [strategies, setStrategies] = useState<StrategyAllocationRow[]>([]);
   const [nextId, setNextId] = useState(1);
 
@@ -121,6 +120,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       setIsActive(bot.is_active);
       setMaxPositions(bot.max_total_positions);
       setMaxCapital(bot.max_total_capital_pct * 100);
+      setMaxDailyLoss(bot.max_daily_loss_pct ?? 3);
       setStrategies(
         bot.strategies.map((s, i) => ({
           id: `existing-${i}`,
@@ -183,6 +183,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       is_active: isActive,
       max_total_positions: maxPositions,
       max_total_capital_pct: maxCapital / 100,
+      max_daily_loss_pct: maxDailyLoss / 100,
       strategies: strategyAllocations,
     };
 
@@ -257,6 +258,18 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 value={maxCapital}
                 onChange={(val) => setMaxCapital(Number(val) || 80)}
                 data-testid="max-capital-input"
+              />
+            </Group>
+            <Group grow>
+              <NumberInput
+                label="Max Daily Loss (%)"
+                description="Stops ALL strategies when hit. Default: 3%"
+                min={1}
+                max={20}
+                step={1}
+                value={maxDailyLoss}
+                onChange={(val) => setMaxDailyLoss(Number(val) || 3)}
+                data-testid="max-daily-loss-input"
               />
             </Group>
           </Stack>
@@ -346,7 +359,6 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                         enable_shorts: false,
                         eod_exit_hour: 14,
                         eod_exit_minute: 45,
-                        min_rr_ratio: 0,
                         pivot_type: "",
                         breakout_buffer_pct: 0,
                         entry_threshold_pct: 0,

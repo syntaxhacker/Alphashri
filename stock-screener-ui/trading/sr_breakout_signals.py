@@ -20,8 +20,8 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
     strategy_type = "SR_BREAKOUT"
 
     def __init__(self, config: dict):
-        self.sl_pct = config.get("sl_pct", 0.5)
-        self.tp_pct = config.get("tp_pct", 1.5)
+        self.sl_pct = config.get("sl_pct", 1.5)
+        self.tp_pct = config.get("tp_pct", 2.5)
         self.pivot_type = config.get("pivot_type", "classic")
         self.breakout_buffer_pct = config.get("breakout_buffer_pct", 0.1)
         eod_hour = int(config.get("eod_exit_hour", 15))

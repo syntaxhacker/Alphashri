@@ -3,6 +3,7 @@ import * as strategiesState from "../state/strategies";
 import * as botsState from "../state/bots";
 import { useStoreSubscription } from "./useStoreSubscription";
 import { updateStrategy as apiUpdateStrategy } from "../api/strategies";
+import { syncVariations } from "../state/strategies";
 import type { StrategyConfig } from "../types/strategies";
 import type { StrategyView, StrategyFormData } from "../components/strategies/types";
 
@@ -10,10 +11,8 @@ export type ViewLoadAction = "loadTemplates" | "loadStrategies" | "loadAllPerfor
 
 export function getViewLoadAction(view: StrategyView): ViewLoadAction {
   switch (view) {
-    case "templates":
+    case "tree":
       return "loadTemplates";
-    case "list":
-      return "loadStrategies";
     case "performance":
       return "loadAllPerformance";
     default:
@@ -22,9 +21,8 @@ export function getViewLoadAction(view: StrategyView): ViewLoadAction {
 }
 
 function loadForView(view: StrategyView) {
-  if (view === "templates") {
+  if (view === "tree") {
     strategiesState.loadTemplates();
-  } else if (view === "list") {
     strategiesState.loadStrategies(true);
   } else if (view === "performance") {
     strategiesState.loadAllPerformance();
@@ -115,6 +113,14 @@ export function useStrategiesState() {
     return result;
   }, []);
 
+  const onEditTemplate = useCallback((template: StrategyConfig) => {
+    strategiesState.openEditModal(template);
+  }, []);
+
+  const onSyncVariationsCb = useCallback((templateId: number) => {
+    syncVariations(templateId);
+  }, []);
+
   return {
     strategies: state.strategies,
     templates: state.templates,
@@ -137,6 +143,8 @@ export function useStrategiesState() {
     onEditStrategy: onEdit,
     onDeleteStrategy: onDelete,
     onCreateFromTemplate,
+    onEditTemplate,
+    onSyncVariations: onSyncVariationsCb,
     onSelectStrategy: onSelect,
     onClearError,
     onUpdate,
