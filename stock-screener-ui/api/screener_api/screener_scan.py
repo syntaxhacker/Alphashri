@@ -323,7 +323,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             is_bullish = c_close >= c_open
             sentiment = _classify_sentiment(wick_close_pct, is_bullish)
 
-            score = int(row_data.get('swing_score', 0))
+            score = min(99, int(adx + (recent_return if recent_return > 0 else 0) * 2))
             broker_diff = round(diff_pct, 2)
 
             stock_data = _build_stock_data(
