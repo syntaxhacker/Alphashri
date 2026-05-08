@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 import { TEST_BOT_UUID, setupBotApiMocks, createLivePosition } from "./helpers/botHelpers";
 import { generateCandles } from "./helpers/chartHelpers";
 
@@ -86,7 +87,7 @@ async function setupPaperWithChart(
     trades,
   };
 
-  await page.route("**/api/paper/chart/*", async (route) => {
+  await page.route(apiRoute("paper/chart/"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

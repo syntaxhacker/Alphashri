@@ -398,7 +398,7 @@ describe("PaperPositionsTable", () => {
       r(<PaperPositionsTable />);
 
       expect(screen.getByTestId("watchlist-scan-card")).toBeTruthy();
-      expect(screen.getByText("No scan data yet")).toBeTruthy();
+      expect(screen.getByText(/No scan data/)).toBeTruthy();
     });
 
     test("WatchlistScan shows skipped section when skipped items exist", () => {

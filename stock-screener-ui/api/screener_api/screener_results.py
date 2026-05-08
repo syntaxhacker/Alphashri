@@ -2,6 +2,7 @@ from .screener_models import _to_float, PROFILE_META
 
 
 def _profile_meta(screener):
+    screener = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
     return PROFILE_META.get(screener, PROFILE_META['trending'])
 
 

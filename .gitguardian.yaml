@@ -1,0 +1,19 @@
+# GitGuardian configuration — whitelist known false positives
+version: 2
+
+secret:
+  ignored-paths:
+    - "stock-screener-ui/bun.lock"
+    - "**/*.lock"
+
+  ignored-matches:
+    # Dev/example JWT secret in .env.example
+    - name: "DEV_JWT_SECRET_EXAMPLE"
+      match: "alphashri-dev-secret-key-2024"
+
+    # Test tokens in E2E mocks
+    - name: "TEST_ACCESS_TOKEN"
+      match: "test_access_token_12345"
+
+    - name: "TEST_REFRESH_TOKEN"
+      match: "test_refresh_token_12345"

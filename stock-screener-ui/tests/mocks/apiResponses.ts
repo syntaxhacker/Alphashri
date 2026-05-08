@@ -1,5 +1,7 @@
 // Mock API responses for E2E tests
 
+import { apiRoute } from "./routeHelper";
+
 export const mockScreenersList = {
   screeners: [
     { id: "trending", label: "Trending", description: "52-week high scanner" },
@@ -480,7 +482,7 @@ export const mockSectorCorrelationResponseUS = {
 
 export async function setupSectorMocks(page: import("@playwright/test").Page) {
   // Mock /api/sector endpoint
-  await page.route(/localhost:8765\/api\/sector/, async (route) => {
+  await page.route(apiRoute("sector"), async (route) => {
     const url = route.request().url();
     const marketMatch = url.match(/market=([^&]+)/);
     const market = marketMatch ? marketMatch[1] : "india";
@@ -496,7 +498,7 @@ export async function setupSectorMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock /api/sector/correlation endpoint
-  await page.route(/localhost:8765\/api\/sector\/correlation/, async (route) => {
+  await page.route(apiRoute("sector/correlation"), async (route) => {
     const url = route.request().url();
     const marketMatch = url.match(/market=([^&]+)/);
     const market = marketMatch ? marketMatch[1] : "india";
@@ -533,7 +535,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   authStateByPage.set(page, false);
 
   // Mock auth endpoints
-  await page.route("**/api/auth/me", async (route) => {
+  await page.route(apiRoute("auth/me"), async (route) => {
     const isAuthenticated = authStateByPage.get(page) ?? false;
     if (isAuthenticated) {
       await route.fulfill({
@@ -550,7 +552,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
     }
   });
 
-  await page.route("**/api/auth/login", async (route) => {
+  await page.route(apiRoute("auth/login"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -564,7 +566,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock screener data endpoint with query parameters
-  await page.route("**/api/screener*", async (route) => {
+  await page.route(apiRoute("screener"), async (route) => {
     const url = route.request().url();
 
     if (url.endsWith("/api/screeners")) {
@@ -598,7 +600,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock market ticker endpoint
-  await page.route("**/api/market-ticker", async (route) => {
+  await page.route(apiRoute("market-ticker"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -671,7 +673,7 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
     localStorage.setItem("alphashri_show_market_ticker", "true");
   }, testUser);
 
-  await page.route("**/api/auth/me", async (route) => {
+  await page.route(apiRoute("auth/me"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -686,7 +688,7 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
   configByPage.set(page, { ...mockStrategyConfig });
 
   // Mock portfolio endpoint
-  await page.route("**/api/paper/portfolio", async (route) => {
+  await page.route(apiRoute("paper/portfolio"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -711,7 +713,7 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
   });
 
   // Mock positions endpoint
-  await page.route("**/api/paper/positions", async (route) => {
+  await page.route(apiRoute("paper/positions"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -723,7 +725,7 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
   });
 
   // Mock bot status endpoint
-  await page.route("**/api/paper/bot/status", async (route) => {
+  await page.route(apiRoute("paper/bot/status"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -736,7 +738,7 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
   });
 
   // Mock bot snapshot endpoint
-  await page.route("**/api/paper/bot/snapshot", async (route) => {
+  await page.route(apiRoute("paper/bot/snapshot"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -751,7 +753,7 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
   });
 
   // Mock live price SSE stream
-  await page.route("**/api/paper/live/stream", async (route) => {
+  await page.route(apiRoute("paper/live/stream"), async (route) => {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -781,7 +783,7 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
   });
 
   // Mock GET config endpoint
-  await page.route("**/api/paper/config**", async (route) => {
+  await page.route(apiRoute("paper/config"), async (route) => {
     const config = getConfigForPage(page);
     if (route.request().method() === "GET") {
       await route.fulfill({
@@ -812,7 +814,7 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
   });
 
   // Mock POST config/reset endpoint
-  await page.route("**/api/paper/config/reset", async (route) => {
+  await page.route(apiRoute("paper/config/reset"), async (route) => {
     const resetConfig = { ...mockStrategyConfig };
     configByPage.set(page, resetConfig);
     await route.fulfill({
@@ -826,7 +828,7 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
     });
   });
 
-  await page.route("**/api/paper/journal/**", async (route) => {
+  await page.route(apiRoute("paper/journal"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -849,7 +851,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
 
   // Mock bots list endpoint - only match /api/bots exactly (not /api/bots/123)
   // The API returns an array of bots directly, not wrapped in { bots: [...] }
-  await page.route("**/api/bots", async (route) => {
+  await page.route(apiRoute("bots"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -880,7 +882,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot summaries endpoint (used by BotCardStrip)
-  await page.route("**/api/bots/summary", async (route) => {
+  await page.route(apiRoute("bots/summary"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -916,7 +918,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot start
-  await page.route(/\/api\/bots\/[a-f0-9-]+\/start/, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/start"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -929,7 +931,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot stop
-  await page.route(/\/api\/bots\/[a-f0-9-]+\/stop/, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/stop"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -941,7 +943,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot status - use regex to match any bot ID
-  await page.route(/\/api\/bots\/[a-f0-9-]+\/status/, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/status"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -963,7 +965,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot portfolio - use regex to match any bot ID
-  await page.route(/\/api\/bots\/[a-f0-9-]+\/portfolio/, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/portfolio"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1008,7 +1010,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot positions - use regex to match any bot ID
-  await page.route(/\/api\/bots\/[a-f0-9-]+\/positions/, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/positions"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1045,7 +1047,7 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 
   // Mock bot scan items - use regex to match any bot ID
-  await page.route(/\/api\/bots\/[a-f0-9-]+\/scan/, async (route) => {
+  await page.route(apiRoute("bots/[a-f0-9-]+/scan"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1111,7 +1113,7 @@ export const mockCorrelationResponse = {
 };
 
 export async function setupCorrelationMocks(page: import("@playwright/test").Page) {
-  await page.route("**/api/correlation/**", async (route) => {
+  await page.route(apiRoute("correlation"), async (route) => {
     if (route.request().method() === "POST") {
       await route.fulfill({
         status: 200,
@@ -1123,7 +1125,7 @@ export async function setupCorrelationMocks(page: import("@playwright/test").Pag
     }
   });
 
-  await page.route("**/api/symbols/search**", async (route) => {
+  await page.route(apiRoute("symbols/search"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1143,7 +1145,7 @@ export async function setupCorrelationMocks(page: import("@playwright/test").Pag
 // Options API mocks
 export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   // Mock underlyings
-  await page.route(/\/api\/options\/underlyings/, async (route) => {
+  await page.route(apiRoute("options/underlyings"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1169,7 +1171,7 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock expiries
-  await page.route(/\/api\/options\/expiries\//, async (route) => {
+  await page.route(apiRoute("options/expiries"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1184,7 +1186,7 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock option chain
-  await page.route(/\/api\/options\/chain\//, async (route) => {
+  await page.route(apiRoute("options/chain"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1275,7 +1277,7 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock positions
-  await page.route(/\/api\/options\/positions/, async (route) => {
+  await page.route(apiRoute("options/positions"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1287,7 +1289,7 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock spot price
-  await page.route(/\/api\/options\/spot\//, async (route) => {
+  await page.route(apiRoute("options/spot"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1300,7 +1302,7 @@ export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   });
 
   // Mock spot history
-  await page.route(/\/api\/options\/spot-history\//, async (route) => {
+  await page.route(apiRoute("options/spot-history"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1530,7 +1532,68 @@ const mockEmptyPerformanceData: {
 
 // Full strategy mocks for strategies page
 export async function setupStrategiesMocks(page: import("@playwright/test").Page) {
-  await page.route("**/api/strategies/**", async (route) => {
+  // Register specific routes BEFORE broad ones to avoid substring regex collisions.
+  // apiRoute("strategies") regex also matches /api/strategies/templates, so templates
+  // must be registered first — otherwise the broad handler intercepts with route.continue()
+  // and sends the request to the real backend.
+
+  await page.route(apiRoute("strategies/templates"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        templates: mockStrategyTemplates,
+        count: mockStrategyTemplates.length,
+      }),
+    });
+  });
+
+  await page.route(apiRoute("strategies/performance"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockPerformanceData),
+    });
+  });
+
+  await page.route(apiRoute("strategies/[0-9]+/performance"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        strategy_id: 10,
+        strategy_name: "ORB Conservative",
+        total_trades: 45,
+        winners: 30,
+        losers: 15,
+        win_rate: 66.67,
+        total_pnl: 12500,
+        net_pnl: 9800,
+      }),
+    });
+  });
+
+  await page.route(apiRoute("strategies/[a-f0-9-]+/activate"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "success",
+        message: "Strategy activated",
+      }),
+    });
+  });
+
+  // General /api/strategies handler — registered AFTER specific sub-routes
+  await page.route(apiRoute("strategies"), async (route) => {
+    const url = route.request().url();
+    const path = new URL(url).pathname;
+    // Skip requests that match sub-paths already handled above
+    if (path !== "/api/strategies") {
+      await route.fallback();
+      return;
+    }
+
     const method = route.request().method();
     if (method === "PUT") {
       const body = route.request().postDataJSON();
@@ -1557,25 +1620,7 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
           message: "Strategy deleted",
         }),
       });
-    } else {
-      await route.continue();
-    }
-  });
-
-  await page.route("**/api/strategies/templates", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        templates: mockStrategyTemplates,
-        count: mockStrategyTemplates.length,
-      }),
-    });
-  });
-
-  await page.route(/\/api\/strategies(\?|$)/, async (route) => {
-    const method = route.request().method();
-    if (method === "GET") {
+    } else if (method === "GET") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -1634,7 +1679,7 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
     }
   });
 
-  await page.route("**/api/strategies/performance", async (route) => {
+  await page.route(apiRoute("strategies/performance"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1642,7 +1687,7 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
     });
   });
 
-  await page.route(/\/api\/strategies\/\d+\/performance/, async (route) => {
+  await page.route(apiRoute("strategies/[0-9]+/performance"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1659,7 +1704,7 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
     });
   });
 
-  await page.route(/\/api\/strategies\/[^/]+\/activate/, async (route) => {
+  await page.route(apiRoute("strategies/[a-f0-9-]+/activate"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1669,11 +1714,29 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
       }),
     });
   });
+
+  // Mock paper/trades for Performance view (loadAllPerformance fetches trades directly)
+  await page.route(apiRoute("paper/trades"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        trades: [
+          { strategy_id: 10, strategy_name: "ORB Conservative", pnl: 500, net_pnl: 480 },
+          { strategy_id: 10, strategy_name: "ORB Conservative", pnl: -200, net_pnl: -210 },
+          { strategy_id: 10, strategy_name: "ORB Conservative", pnl: 300, net_pnl: 290 },
+          { strategy_id: 11, strategy_name: "ORB Aggressive", pnl: 800, net_pnl: 770 },
+          { strategy_id: 11, strategy_name: "ORB Aggressive", pnl: -100, net_pnl: -110 },
+        ],
+        count: 5,
+      }),
+    });
+  });
 }
 
 // Empty state mocks
 export async function setupStrategiesEmptyMocks(page: import("@playwright/test").Page) {
-  await page.route("**/api/strategies/templates", async (route) => {
+  await page.route(apiRoute("strategies/templates"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1684,7 +1747,21 @@ export async function setupStrategiesEmptyMocks(page: import("@playwright/test")
     });
   });
 
-  await page.route(/\/api\/strategies(\?|$)/, async (route) => {
+  await page.route(apiRoute("strategies/performance"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockEmptyPerformanceData),
+    });
+  });
+
+  await page.route(apiRoute("strategies"), async (route) => {
+    const url = route.request().url();
+    const path = new URL(url).pathname;
+    if (path !== "/api/strategies") {
+      await route.fallback();
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1695,18 +1772,19 @@ export async function setupStrategiesEmptyMocks(page: import("@playwright/test")
     });
   });
 
-  await page.route("**/api/strategies/performance", async (route) => {
+  // Mock paper/trades returning empty
+  await page.route(apiRoute("paper/trades"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(mockEmptyPerformanceData),
+      body: JSON.stringify({ trades: [], count: 0 }),
     });
   });
 }
 
 // Error state mocks
 export async function setupStrategiesErrorMocks(page: import("@playwright/test").Page) {
-  await page.route("**/api/strategies/templates", async (route) => {
+  await page.route(apiRoute("strategies/templates"), async (route) => {
     await route.fulfill({
       status: 500,
       contentType: "application/json",
@@ -1714,7 +1792,7 @@ export async function setupStrategiesErrorMocks(page: import("@playwright/test")
     });
   });
 
-  await page.route(/\/api\/strategies(\?|$)/, async (route) => {
+  await page.route(apiRoute("strategies"), async (route) => {
     await route.fulfill({
       status: 500,
       contentType: "application/json",
@@ -1727,7 +1805,7 @@ export async function setupStrategiesErrorMocks(page: import("@playwright/test")
 export async function setupStrategiesLoadingMocks(page: import("@playwright/test").Page) {
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  await page.route("**/api/strategies/**", async (route) => {
+  await page.route(apiRoute("strategies"), async (route) => {
     await delay(5000);
     const method = route.request().method();
     if (method === "PUT") {
@@ -1761,7 +1839,7 @@ export async function setupStrategiesLoadingMocks(page: import("@playwright/test
     }
   });
 
-  await page.route("**/api/strategies/templates", async (route) => {
+  await page.route(apiRoute("strategies/templates"), async (route) => {
     await delay(5000);
     await route.fulfill({
       status: 200,
@@ -1773,7 +1851,7 @@ export async function setupStrategiesLoadingMocks(page: import("@playwright/test
     });
   });
 
-  await page.route(/\/api\/strategies(\?|$)/, async (route) => {
+  await page.route(apiRoute("strategies"), async (route) => {
     await delay(5000);
     await route.fulfill({
       status: 200,
@@ -1785,7 +1863,7 @@ export async function setupStrategiesLoadingMocks(page: import("@playwright/test
     });
   });
 
-  await page.route("**/api/strategies/performance", async (route) => {
+  await page.route(apiRoute("strategies/performance"), async (route) => {
     await delay(5000);
     await route.fulfill({
       status: 200,

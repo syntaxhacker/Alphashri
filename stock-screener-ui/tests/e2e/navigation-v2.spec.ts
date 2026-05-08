@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { testUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 import { setupFullNavigationMocks } from "./helpers/navigationHelpers";
 
 test.describe("Navigation V2 - All Nav Items Visible", () => {
@@ -35,7 +36,7 @@ test.describe("Navigation V2 - All Nav Items Visible", () => {
       localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
       localStorage.setItem("alphashri_user", JSON.stringify(user));
     }, adminUser);
-    await page.route("**/api/auth/me", async (route) => {
+    await page.route(apiRoute("auth/me"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

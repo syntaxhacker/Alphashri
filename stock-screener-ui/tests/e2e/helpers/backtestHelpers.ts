@@ -1,8 +1,9 @@
 import { Page, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../../mocks/apiResponses";
+import { apiRoute } from "../../mocks/routeHelper";
 
 export async function mockSymbolSearch(page: Page) {
-  await page.route("**/api/symbols/search**", async (route) => {
+  await page.route(apiRoute("symbols/search"), async (route) => {
     const url = route.request().url();
     const queryMatch = url.match(/[?&]q=([^&]+)/);
     const query = queryMatch ? queryMatch[1].toLowerCase() : "";
@@ -27,7 +28,7 @@ export async function mockSymbolSearch(page: Page) {
 }
 
 export async function mockBacktestRun(page: Page, body?: object) {
-  await page.route("**/api/backtest/run**", async (route) => {
+  await page.route(apiRoute("backtest/run"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -64,7 +65,7 @@ export async function mockBacktestRun(page: Page, body?: object) {
 }
 
 export async function mockBacktestChart(page: Page, body?: object) {
-  await page.route("**/api/backtest/chart/**", async (route) => {
+  await page.route(apiRoute("backtest/chart"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -88,7 +89,7 @@ export async function mockBacktestStrategies(
   page: Page,
   opts?: { strategies?: object; variations?: object[]; costs?: object },
 ) {
-  await page.route("**/api/backtest/strategies", async (route) => {
+  await page.route(apiRoute("backtest/strategies"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -103,7 +104,7 @@ export async function mockBacktestStrategies(
     });
   });
 
-  await page.route("**/api/strategies/variations", async (route) => {
+  await page.route(apiRoute("strategies/variations"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -116,7 +117,7 @@ export async function mockBacktestStrategies(
     });
   });
 
-  await page.route("**/api/backtest/costs", async (route) => {
+  await page.route(apiRoute("backtest/costs"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -138,7 +139,7 @@ export async function mockBacktestStrategies(
 }
 
 export async function mockBacktestHistory(page: Page, body?: object) {
-  await page.route("**/api/backtest/history*", async (route) => {
+  await page.route(apiRoute("backtest/history"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

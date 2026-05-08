@@ -1,8 +1,7 @@
 import { Box, Stack, Flex, Button, Group, Text } from "@mantine/core";
 import { IconAlertCircle, IconRefresh } from "@tabler/icons-react";
 import { StrategiesNav } from "./StrategiesNav";
-import { TemplatesView } from "./TemplatesView";
-import { StrategiesList } from "./StrategiesList";
+import { TemplateTreeView } from "./TemplateTreeView";
 import { PerformanceView } from "./PerformanceView";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategiesPageProps } from "./types";
@@ -29,6 +28,8 @@ export function StrategiesPage({
   onCloseCreateModal,
   onCloseEditModal,
   onCreateFromTemplate,
+  onEditTemplate,
+  onSyncVariations,
   onSelectStrategy,
   onUpdate,
   onRefresh,
@@ -78,22 +79,16 @@ export function StrategiesPage({
     }
 
     switch (activeView) {
-      case "templates":
+      case "tree":
         return (
-          <TemplatesView
+          <TemplateTreeView
             templates={templates}
             strategies={strategies}
+            onEditTemplate={onEditTemplate!}
+            onSyncVariations={onSyncVariations!}
             onCreateFromTemplate={onCreateFromTemplate}
-            isLoading={isLoading}
-          />
-        );
-      case "list":
-        return (
-          <StrategiesList
-            strategies={strategies}
-            templates={templates}
-            onEdit={onOpenEditModal}
-            onDelete={onDeleteStrategy}
+            onEditStrategy={onOpenEditModal}
+            onDeleteStrategy={onDeleteStrategy}
             onUpdate={onUpdate}
             isLoading={isLoading}
           />

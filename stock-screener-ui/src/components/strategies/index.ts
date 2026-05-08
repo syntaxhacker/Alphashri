@@ -9,8 +9,7 @@ export { StrategiesContainer } from "../../pages/strategies/StrategiesContainer"
 // React components (new)
 export { StrategiesPage } from "./StrategiesPage";
 export { StrategiesNav } from "./StrategiesNav";
-export { TemplatesView } from "./TemplatesView";
-export { StrategiesList } from "./StrategiesList";
+export { TemplateTreeView } from "./TemplateTreeView";
 export { PerformanceView } from "./PerformanceView";
 export { StrategyForm } from "./StrategyForm";
 

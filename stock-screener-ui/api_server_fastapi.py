@@ -20,7 +20,8 @@ sys.path.insert(0, str(_script_dir))
 
 import config
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends, HTTPException
+from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -38,7 +39,9 @@ from api.screener import (
     _build_rationale, _to_float,
 )
 from db.database import SessionLocal
-from db.models import Stock52WeekTouch
+from db.models import Stock52WeekTouch, Screener
+from db.models.user import User
+from api.auth import get_current_user
 from api.symbols import _load_instruments, _instruments_cache, _instruments_loaded
 from api.news_routes import (
     news_poller_task, news_startup_prefetch,
@@ -306,13 +309,161 @@ async def health():
     return {'status': 'ok', 'timestamp': datetime.now().isoformat()}
 
 
+
+
+class ScreenerCreate(BaseModel):
+    name: str
+    description: str | None = None
+    indicators: list[str] | None = None
+    columns: list[str] | None = None
+    filters: dict | None = None
+    default_sort: dict | None = None
+
+
+class ScreenerUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    indicators: list[str] | None = None
+    columns: list[str] | None = None
+    filters: dict | None = None
+    default_sort: dict | None = None
+
+
+def _seed_user_screeners(session, user_id: int):
+    """Seed user's screeners from Python SCREENER_PROFILES if none exist."""
+    # Disabled auto-seeding - user creates screeners manually via UI
+    pass
+
+
 @app.get("/api/screeners")
-async def get_screeners():
-    return {
-        'default': 'trending',
-        'screeners': trending_upside.get_screener_profiles(),
-        'meta_by_id': PROFILE_META
-    }
+async def get_screeners(user: User = Depends(get_current_user)):
+    session = SessionLocal()
+    try:
+        _seed_user_screeners(session, user.id)
+
+        user_screeners = session.query(Screener).filter(
+            Screener.user_id == user.id,
+            Screener.is_active == True
+        ).all()
+
+        builtin_profiles = trending_upside.get_screener_profiles()
+        merged_profiles = []
+
+        for profile in builtin_profiles:
+            profile_id = profile['id']
+            meta = PROFILE_META.get(profile_id, {})
+            filter_list = meta.get('filters', [])
+            merged_profiles.append({
+                **profile,
+                'id': f"builtin:{profile['id']}",
+                'source': 'builtin',
+                'filters': {f['key']: f.get('default') for f in filter_list},
+                'section_labels': meta.get('section_labels', {}),
+            })
+
+        for s in user_screeners:
+            s_dict = s.to_dict()
+            s_dict['source'] = 'user'
+            s_dict['label'] = s_dict.get('name', '')  # frontend expects 'label'
+            filters = s_dict.get('filters')
+            if not filters or filters == {} or filters == []:
+                meta = PROFILE_META.get(s_dict['name'], {})
+                filter_list = meta.get('filters', [])
+                s_dict['filters'] = {f['key']: f.get('default') for f in filter_list}
+            merged_profiles.append(s_dict)
+
+        return {
+            'default': 'builtin:trending',
+            'screeners': merged_profiles,
+        }
+    finally:
+        session.close()
+
+
+@app.post("/api/screeners")
+async def create_screener(
+    screener: ScreenerCreate,
+    user: User = Depends(get_current_user)
+):
+    session = SessionLocal()
+    try:
+        new_screener = Screener(
+            user_id=user.id,
+            name=screener.name,
+            description=screener.description,
+            indicators=screener.indicators,
+            columns=screener.columns,
+            filters=screener.filters,
+            default_sort=screener.default_sort,
+            is_active=True,
+        )
+        session.add(new_screener)
+        session.commit()
+        session.refresh(new_screener)
+        result = new_screener.to_dict()
+        result['source'] = 'user'
+        result['label'] = result.get('name', '')  # frontend expects 'label'
+        return result
+    finally:
+        session.close()
+
+
+@app.put("/api/screeners/{screener_id}")
+async def update_screener(
+    screener_id: int,
+    screener: ScreenerUpdate,
+    user: User = Depends(get_current_user)
+):
+    session = SessionLocal()
+    try:
+        db_screener = session.query(Screener).filter(
+            Screener.id == screener_id,
+            Screener.user_id == user.id
+        ).first()
+        if not db_screener:
+            raise HTTPException(status_code=404, detail="Screener not found")
+
+        if screener.name is not None:
+            db_screener.name = screener.name
+        if screener.description is not None:
+            db_screener.description = screener.description
+        if screener.indicators is not None:
+            db_screener.indicators = screener.indicators
+        if screener.columns is not None:
+            db_screener.columns = screener.columns
+        if screener.filters is not None:
+            db_screener.filters = screener.filters
+        if screener.default_sort is not None:
+            db_screener.default_sort = screener.default_sort
+
+        session.commit()
+        session.refresh(db_screener)
+        result = db_screener.to_dict()
+        result['source'] = 'user'
+        return result
+    finally:
+        session.close()
+
+
+@app.delete("/api/screeners/{screener_id}")
+async def delete_screener(
+    screener_id: int,
+    user: User = Depends(get_current_user)
+):
+    session = SessionLocal()
+    try:
+        db_screener = session.query(Screener).filter(
+            Screener.id == screener_id,
+            Screener.user_id == user.id
+        ).first()
+        if not db_screener:
+            raise HTTPException(status_code=404, detail="Screener not found")
+
+        db_screener.is_active = False
+        session.commit()
+        return {"deleted": True, "id": screener_id}
+    finally:
+        session.close()
 
 
 @app.get("/api/screener")
@@ -523,6 +674,12 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load correlation API: {e}")
 
+try:
+    from api.trading_agents import router as trading_agents_router
+    app.include_router(trading_agents_router)
+    print("✅ TradingAgents API loaded at /api/trading-agents")
+except Exception as e:
+    print(f"⚠️ Could not load TradingAgents API: {e}")
 
 if __name__ == '__main__':
     port = config.PORT

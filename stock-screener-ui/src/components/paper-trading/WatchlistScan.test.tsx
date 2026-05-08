@@ -94,7 +94,7 @@ describe("WatchlistScan", () => {
       r(<WatchlistScan snapshot={null} selectedSymbol={null} />);
 
       expect(screen.getByTestId("watchlist-scan-card")).toBeInTheDocument();
-      expect(screen.getByText("No scan data yet")).toBeInTheDocument();
+      expect(screen.getByText(/No scan data/)).toBeInTheDocument();
     });
 
     test("renders empty state when snapshot has no scan_items", () => {
@@ -112,7 +112,7 @@ describe("WatchlistScan", () => {
       );
 
       expect(screen.getByTestId("watchlist-scan-card")).toBeInTheDocument();
-      expect(screen.getByText("No scan data yet")).toBeInTheDocument();
+      expect(screen.getByText(/No scan data/)).toBeInTheDocument();
     });
   });
 

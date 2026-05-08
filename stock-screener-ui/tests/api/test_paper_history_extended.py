@@ -551,8 +551,8 @@ class TestGetTradesFromJournals:
         strategy_cfg.name = "ORB"
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = strategy_cfg
-        mock_session.return_value.__enter__ = MagicMock(return_value=mock_db)
-        mock_session.return_value.__exit__ = MagicMock(return_value=False)
+        mock_session.return_value.__enter__.return_value = mock_db
+        mock_session.return_value.__exit__.return_value = False
 
         self._setup_path_mock(mock_path_cls, journal_exists=True)
 
@@ -622,11 +622,12 @@ class TestGetTradesFromJournals:
         assert len(result) == 1
         assert result[0]["bot_id"] == 5
 
+    @patch("api.paper.history.SessionLocal")
     @patch("api.paper.history.asdict")
     @patch("api.paper.history.TradeJournal")
     @patch("api.paper.history.Path")
-    def test_bot_id_non_numeric_string_match(self, mock_path_cls, mock_tj_cls, mock_asdict, client, auth_headers):
-        """bot_id='custom-bot' (non-numeric) should match by str(bot_id) == str(filter)."""
+    def test_bot_id_non_numeric_string_match(self, mock_path_cls, mock_tj_cls, mock_asdict, mock_session, client, auth_headers):
+        """bot_id='custom-bot' (non-numeric, non-UUID) resolves to None, no filter applied."""
         from api.paper.history import _get_trades_from_journals
 
         trade_match = _make_journal_dict(trade_id="T1", symbol="A", bot_id="custom-bot",
@@ -640,6 +641,12 @@ class TestGetTradesFromJournals:
         mock_tj_cls.return_value = mock_journal
         mock_asdict.side_effect = [trade_match, trade_other]
 
+        # Mock SessionLocal for resolve_bot_id (returns None for non-UUID string)
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_session.return_value.__enter__.return_value = mock_db
+        mock_session.return_value.__exit__.return_value = False
+
         self._setup_path_mock(mock_path_cls, journal_exists=True)
 
         result = _get_trades_from_journals(
@@ -647,8 +654,8 @@ class TestGetTradesFromJournals:
             days_back=0, bot_id="custom-bot", symbol=None, strategy_id=None, limit=50,
         )
 
-        assert len(result) == 1
-        assert result[0]["bot_id"] == "custom-bot"
+        # resolve_bot_id returns None for non-numeric/non-UUID => no filter applied
+        assert len(result) == 2
 
     @patch("api.paper.history.asdict")
     @patch("api.paper.history.TradeJournal")
@@ -801,8 +808,8 @@ class TestGetTradesFromJournals:
         # Mock SessionLocal to return None for the strategy lookup
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
-        mock_session.return_value.__enter__ = MagicMock(return_value=mock_db)
-        mock_session.return_value.__exit__ = MagicMock(return_value=False)
+        mock_session.return_value.__enter__.return_value = mock_db
+        mock_session.return_value.__exit__.return_value = False
 
         self._setup_path_mock(mock_path_cls, journal_exists=True)
 
@@ -906,7 +913,8 @@ class TestGetTradesFallback:
         journal_trade = _make_journal_dict(trade_id="TRD-1", symbol="TCS")
 
         with patch("api.paper.history._get_trades_from_db", return_value=[]), \
-             patch("api.paper.history._get_trades_from_journals", return_value=[journal_trade]):
+             patch("api.paper.history._get_trades_from_journals", return_value=[journal_trade]), \
+             patch("api.paper.history._resolve_trade_bot_ids", return_value=[journal_trade]):
 
             response = client.get("/api/paper/trades", headers=auth_headers)
 
@@ -922,7 +930,8 @@ class TestGetTradesFallback:
 
         # Patch SessionLocal to raise, so _get_trades_from_db catches and returns []
         with patch("db.database.SessionLocal", side_effect=RuntimeError("DB timeout")), \
-             patch("api.paper.history._get_trades_from_journals", return_value=[journal_trade]):
+             patch("api.paper.history._get_trades_from_journals", return_value=[journal_trade]), \
+             patch("api.paper.history._resolve_trade_bot_ids", return_value=[journal_trade]):
 
             response = client.get("/api/paper/trades", headers=auth_headers)
 

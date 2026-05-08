@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, testUser } from "../mocks/apiResponses";
+import { testUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 import {
   setupFullBacktestMocks,
   mockBacktestStrategies,
@@ -35,7 +36,6 @@ test.describe("Backtest View - Navigation", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
     await page.addInitScript(() => {
       localStorage.setItem("alphashri_token", "test_access_token_12345");
       localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
@@ -50,7 +50,7 @@ test.describe("Backtest View - Navigation", () => {
         }),
       );
     });
-    await page.route("**/api/auth/me", async (route) => {
+    await page.route(apiRoute("auth/me"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

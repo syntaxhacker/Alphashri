@@ -404,12 +404,12 @@ class Week52ChaserConfig(StrategyConfig, kw_only=True):
     """Configuration for 52-Week High Chaser strategy."""
     instrument_id: InstrumentId
     bar_type: BarType
-    entry_threshold_pct: float = 3.0
-    stop_loss_pct: float = 3.0
-    take_profit_pct: float = 5.0
+    entry_threshold_pct: float = 2.0
+    stop_loss_pct: float = 2.0
+    take_profit_pct: float = 3.0
     enable_trailing_stop: bool = False
-    trailing_stop_pct: float = 3.0
-    trailing_activation_pct: float = 2.0
+    trailing_stop_pct: float = 2.0
+    trailing_activation_pct: float = 3.0
     max_holding_days: int = 30
     cooldown_days: int = 30
     trade_size: int = 100

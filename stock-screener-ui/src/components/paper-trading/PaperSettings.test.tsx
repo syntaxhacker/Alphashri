@@ -46,7 +46,6 @@ function createMockStrategy(overrides: Partial<StrategyConfig> = {}): StrategyCo
     ema_slow_period: 21,
     pivot_type: "classic",
     breakout_buffer_pct: 0.5,
-    min_rr_ratio: 1.5,
     screener_profiles: [],
     brokerage_pct: 0.05,
     min_brokerage: 20,

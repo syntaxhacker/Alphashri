@@ -30,6 +30,9 @@ export interface StrategyConfig {
   // Runner Parameters
   cooldown_minutes: number;
   max_distance_from_or_pct: number;
+  enable_shorts?: boolean;
+  eod_exit_hour?: number;
+  eod_exit_minute?: number;
   // 52W Chaser Parameters
   entry_threshold_pct: number;
   enable_trailing_stop: boolean;
@@ -44,8 +47,6 @@ export interface StrategyConfig {
   // S/R Breakout Parameters
   pivot_type: string;
   breakout_buffer_pct: number;
-  // Risk Validation
-  min_rr_ratio: number;
   // Screener Profiles (multi-select)
   screener_profiles?: string[];
   // Cost Parameters
@@ -98,8 +99,10 @@ export interface StrategyCreate {
   // S/R Breakout parameters
   pivot_type?: string;
   breakout_buffer_pct?: number;
-  // Risk validation
-  min_rr_ratio?: number;
+  // Trading controls
+  enable_shorts?: boolean;
+  eod_exit_hour?: number;
+  eod_exit_minute?: number;
   // Screener Profiles (multi-select)
   screener_profiles?: string[];
 }
@@ -135,7 +138,10 @@ export interface StrategyUpdate {
   ema_slow_period?: number;
   pivot_type?: string;
   breakout_buffer_pct?: number;
-  min_rr_ratio?: number;
+  // Trading controls
+  enable_shorts?: boolean;
+  eod_exit_hour?: number;
+  eod_exit_minute?: number;
   // Screener Profiles (multi-select)
   screener_profiles?: string[];
 }

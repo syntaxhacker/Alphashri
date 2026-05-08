@@ -10,6 +10,7 @@ def import_all_models():
     from db.models import (
         User, UserSession, StrategyConfig, BotConfig, BacktestResult,
         BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument,
-        Trade, Position, MarketHoliday, Stock52WeekTouch
+        Trade, Position, MarketHoliday, Stock52WeekTouch,
+        ChatConversation, ChatMessage,
     )
     return locals()

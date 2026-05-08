@@ -7,6 +7,7 @@ PyJWT>=2.8.0
 # FastAPI and server
 fastapi>=0.100.0
 uvicorn>=0.23.0
+sse-starlette>=2.0.0
 pydantic>=2.0.0
 pydantic[email]>=2.0.0
 python-dotenv>=1.0.0
@@ -28,6 +29,9 @@ rookiepy>=0.2.0
 # LLM/AI
 openai>=1.0.0
 fastembed>=0.4.0
+tradingagents>=0.3.0
+langchain-litellm>=0.6.0
+langchain-openrouter>=0.2.0
 
 # Backtesting
 nautilus-trader>=1.0.0

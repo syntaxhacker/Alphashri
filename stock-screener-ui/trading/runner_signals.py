@@ -364,6 +364,11 @@ class RunnerSignalsMixin:
 
         if validation.get('rejected'):
             console.print(f"[red]{runner.strategy_name}: Signal rejected - {validation['reason']}[/red]")
+            for item in getattr(runner, 'last_scan_items', []):
+                if item.get('symbol') == signal.symbol:
+                    item['status'] = 'rejected'
+                    item['reason'] = validation.get('reason', 'Risk check failed')
+                    break
             send_signal_rejected(
                 bot_name=self.bot_config.name,
                 strategy_name=runner.strategy_name,
@@ -453,7 +458,6 @@ class RunnerSignalsMixin:
             max_capital_per_trade_pct=runner.config.get('max_capital_per_trade_pct', 0.10),
             min_trade_value=runner.config.get('min_trade_value', 5000),
             max_trade_value=runner.config.get('max_trade_value', 100000),
-            min_rr_ratio=runner.config.get('min_rr_ratio', 2.0),
         )
 
         if not validation['valid']:

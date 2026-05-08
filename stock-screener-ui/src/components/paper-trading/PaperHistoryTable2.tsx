@@ -349,13 +349,7 @@ export function PaperHistoryTable() {
       : undefined;
     const currentState = getPaperTradingState();
     const date = exitTime ? exitTime.split("T")[0] : dayjs().format("YYYY-MM-DD");
-    await fetchPaperChart(
-      symbol,
-      date,
-      currentState.chartTimeframe,
-      strategyId,
-      fromDate,
-    );
+    await fetchPaperChart(symbol, date, currentState.chartTimeframe, strategyId, fromDate);
   };
 
   const toggleDay = (date: string) => setExpandedDays((prev) => ({ ...prev, [date]: !prev[date] }));

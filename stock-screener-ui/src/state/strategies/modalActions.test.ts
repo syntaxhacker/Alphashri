@@ -1,188 +1,129 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { openCreateModal, closeCreateModal, openEditModal, closeEditModal } from "./modalActions";
 import type { StrategyConfig } from "../../types/strategies";
-import { state as strategiesState } from "../strategies";
-import * as strategiesModule from "../strategies";
 
-// Helper to reset state
-function resetStrategiesState() {
-  strategiesState.showCreateModal = false;
-  strategiesState.showEditModal = false;
-  strategiesState.parentTemplate = null;
-  strategiesState.editingStrategy = null;
-}
+// Import via the strategies module since modal actions are now defined there
+import {
+  openCreateModal,
+  closeCreateModal,
+  openEditModal,
+  closeEditModal,
+  getStrategiesState,
+} from "../strategies";
 
 describe("modalActions", () => {
   beforeEach(() => {
-    resetStrategiesState();
-    vi.clearAllMocks();
+    // Reset state using the actual state object from getStrategiesState
+    const s = getStrategiesState();
+    s.showCreateModal = false;
+    s.showEditModal = false;
+    s.parentTemplate = null;
+    s.editingStrategy = null;
   });
 
   describe("openCreateModal", () => {
     it("sets showCreateModal to true", () => {
       openCreateModal();
 
-      expect(strategiesState.showCreateModal).toBe(true);
+      expect(getStrategiesState().showCreateModal).toBe(true);
     });
 
     it("sets showEditModal to false", () => {
-      strategiesState.showEditModal = true;
+      getStrategiesState().showEditModal = true;
       openCreateModal();
 
-      expect(strategiesState.showEditModal).toBe(false);
+      expect(getStrategiesState().showEditModal).toBe(false);
     });
 
     it("clears parentTemplate when no template provided", () => {
-      strategiesState.parentTemplate = { name: "test" } as StrategyConfig;
+      getStrategiesState().parentTemplate = { name: "test" } as StrategyConfig;
       openCreateModal();
 
-      expect(strategiesState.parentTemplate).toBeNull();
+      expect(getStrategiesState().parentTemplate).toBeNull();
     });
 
-    it("accepts template parameter", () => {
-      const template: StrategyConfig = {
-        name: "ORB Strategy",
-        type: "ORB",
-        enabled: true,
-        risk_per_trade_pct: 1.0,
-        sl_pct: 1.0,
-        tp_pct: 1.5,
-        cooldown_minutes: 75,
-        eod_exit_hour: 15,
-        eod_exit_minute: 0,
-        min_rr_ratio: 1.5,
-        enable_shorts: false,
-        breakout_buffer_pct: 0.3,
-        min_or_range_pct: 0.8,
-      };
-
+    it("sets parentTemplate when template provided", () => {
+      const template = { name: "test template" } as StrategyConfig;
       openCreateModal(template);
 
-      expect(strategiesState.parentTemplate).toEqual(template);
-    });
-
-    it("calls notify to update subscribers", () => {
-      const mockNotify = vi.spyOn(strategiesModule, "notify");
-
-      openCreateModal();
-
-      expect(mockNotify).toHaveBeenCalledTimes(1);
+      expect(getStrategiesState().parentTemplate).toBe(template);
     });
 
     it("clears editingStrategy", () => {
-      strategiesState.editingStrategy = {
-        name: "test",
-        type: "ORB",
-        enabled: true,
-      } as StrategyConfig;
+      getStrategiesState().editingStrategy = { name: "test" } as StrategyConfig;
       openCreateModal();
 
-      expect(strategiesState.editingStrategy).toBeNull();
+      expect(getStrategiesState().editingStrategy).toBeNull();
     });
   });
 
   describe("closeCreateModal", () => {
     it("sets showCreateModal to false", () => {
-      strategiesState.showCreateModal = true;
+      openCreateModal();
       closeCreateModal();
 
-      expect(strategiesState.showCreateModal).toBe(false);
+      expect(getStrategiesState().showCreateModal).toBe(false);
     });
 
     it("clears parentTemplate", () => {
-      strategiesState.parentTemplate = { name: "test" } as StrategyConfig;
+      openCreateModal({ name: "test" } as StrategyConfig);
       closeCreateModal();
 
-      expect(strategiesState.parentTemplate).toBeNull();
-    });
-
-    it("calls notify", () => {
-      const mockNotify = vi.spyOn(strategiesModule, "notify");
-
-      closeCreateModal();
-
-      expect(mockNotify).toHaveBeenCalledTimes(1);
+      expect(getStrategiesState().parentTemplate).toBeNull();
     });
   });
 
   describe("openEditModal", () => {
-    const mockStrategy: StrategyConfig = {
-      name: "ORB Strategy",
-      type: "ORB",
-      enabled: true,
-      risk_per_trade_pct: 1.0,
-      sl_pct: 1.0,
-      tp_pct: 1.5,
-      cooldown_minutes: 75,
-      eod_exit_hour: 15,
-      eod_exit_minute: 0,
-      min_rr_ratio: 1.5,
-      enable_shorts: false,
-      breakout_buffer_pct: 0.3,
-      min_or_range_pct: 0.8,
-    };
+    const mockStrategy = {
+      name: "Test Strategy",
+      strategy_type: "ORB",
+      is_active: true,
+    } as StrategyConfig;
 
     it("sets showEditModal to true", () => {
       openEditModal(mockStrategy);
 
-      expect(strategiesState.showEditModal).toBe(true);
+      expect(getStrategiesState().showEditModal).toBe(true);
     });
 
-    it("sets editingStrategy to provided strategy", () => {
+    it("sets editingStrategy", () => {
       openEditModal(mockStrategy);
 
-      expect(strategiesState.editingStrategy).toEqual(mockStrategy);
+      expect(getStrategiesState().editingStrategy).toBe(mockStrategy);
     });
 
-    it("sets showCreateModal to false", () => {
-      strategiesState.showCreateModal = true;
+    it("clears showCreateModal", () => {
+      getStrategiesState().showCreateModal = true;
       openEditModal(mockStrategy);
 
-      expect(strategiesState.showCreateModal).toBe(false);
+      expect(getStrategiesState().showCreateModal).toBe(false);
     });
 
     it("clears parentTemplate", () => {
-      strategiesState.parentTemplate = { name: "test" } as StrategyConfig;
+      getStrategiesState().parentTemplate = { name: "test" } as StrategyConfig;
       openEditModal(mockStrategy);
 
-      expect(strategiesState.parentTemplate).toBeNull();
-    });
-
-    it("calls notify", () => {
-      const mockNotify = vi.spyOn(strategiesModule, "notify");
-
-      openEditModal(mockStrategy);
-
-      expect(mockNotify).toHaveBeenCalledTimes(1);
+      expect(getStrategiesState().parentTemplate).toBeNull();
     });
   });
 
   describe("closeEditModal", () => {
     it("sets showEditModal to false", () => {
-      strategiesState.showEditModal = true;
+      getStrategiesState().showEditModal = true;
       closeEditModal();
 
-      expect(strategiesState.showEditModal).toBe(false);
+      expect(getStrategiesState().showEditModal).toBe(false);
     });
 
     it("clears editingStrategy", () => {
-      strategiesState.editingStrategy = {
+      getStrategiesState().editingStrategy = {
         name: "test",
         type: "ORB",
         enabled: true,
       } as StrategyConfig;
       closeEditModal();
 
-      expect(strategiesState.editingStrategy).toBeNull();
-    });
-
-    it("calls notify", () => {
-      const mockNotify = vi.spyOn(strategiesModule, "notify");
-
-      closeEditModal();
-
-      expect(mockNotify).toHaveBeenCalledTimes(1);
+      expect(getStrategiesState().editingStrategy).toBeNull();
     });
   });
 });

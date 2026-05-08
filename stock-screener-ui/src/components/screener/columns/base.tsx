@@ -49,6 +49,14 @@ export const rsiCol: ColumnDef = {
   format: (value: number) => (value ?? 0).toFixed(1),
 };
 
+export const adxCol: ColumnDef = {
+  key: "adx",
+  label: "ADX",
+  type: "number",
+  sortable: true,
+  format: (value: number) => (value ?? 0).toFixed(1),
+};
+
 export const touched52wCol: ColumnDef = {
   key: "touched_52w",
   label: "Touched",

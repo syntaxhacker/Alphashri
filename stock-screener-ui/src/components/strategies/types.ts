@@ -5,7 +5,7 @@ import type {
   StrategyCreate,
 } from "../../types/strategies";
 
-export type StrategyView = "templates" | "list" | "performance";
+export type StrategyView = "tree" | "performance";
 
 export type StrategyFormData = StrategyCreate;
 
@@ -54,25 +54,21 @@ export interface StrategiesPageProps {
   isAnyBotRunning: boolean;
 }
 
+export interface TemplateTreeViewProps {
+  templates: StrategyConfig[];
+  strategies: StrategyConfig[];
+  onEditTemplate: (template: StrategyConfig) => void;
+  onSyncVariations: (templateId: number) => void;
+  onCreateFromTemplate: (template: StrategyConfig) => void;
+  onEditStrategy: (strategy: StrategyConfig) => void;
+  onDeleteStrategy: (strategyId: number) => void;
+  onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
+  isLoading: boolean;
+}
+
 export interface StrategiesNavProps {
   activeView: StrategyView;
   onChange: (view: StrategyView) => void;
-}
-
-export interface TemplatesViewProps {
-  templates: StrategyConfig[];
-  strategies: StrategyConfig[];
-  onCreateFromTemplate: (template: StrategyConfig) => void;
-  isLoading: boolean;
-}
-
-export interface StrategiesListProps {
-  strategies: StrategyConfig[];
-  templates: StrategyConfig[];
-  onEdit: (strategy: StrategyConfig) => void;
-  onDelete: (strategyId: number) => void;
-  onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
-  isLoading: boolean;
 }
 
 export interface PerformanceViewProps {
@@ -90,10 +86,4 @@ export interface StrategyFormProps {
   onClose: () => void;
   onSubmit: (data: StrategyFormData) => void;
   isBotRunning?: boolean;
-}
-
-export interface TemplateCardProps {
-  template: StrategyConfig;
-  variations: StrategyConfig[];
-  onCreateFromTemplate: (template: StrategyConfig) => void;
 }

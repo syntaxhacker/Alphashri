@@ -5,14 +5,10 @@ import type {
   StrategiesView,
   StrategyCreate,
   StrategyUpdate,
+  StrategyPerformance,
 } from "../types/strategies";
 import * as api from "../api/strategies";
-import {
-  openCreateModal,
-  closeCreateModal,
-  openEditModal,
-  closeEditModal,
-} from "./strategies/modalActions";
+import { fetchWithAuth } from "./auth";
 
 const initialState: StrategiesState = {
   strategies: [],
@@ -33,7 +29,7 @@ const initialState: StrategiesState = {
 let state: StrategiesState = { ...initialState };
 export { state };
 
-let currentViewValue: StrategiesView = "templates";
+let currentViewValue: StrategiesView = "tree";
 
 const { subscribe, notify } = createSubscriber();
 export { subscribe, notify };
@@ -221,6 +217,79 @@ export async function deleteStrategyAction(strategyId: number): Promise<boolean>
   }
 }
 
+export async function syncVariations(templateId: number): Promise<void> {
+  try {
+    await api.syncVariations(templateId);
+    await loadStrategies();
+    await loadTemplates();
+  } catch (error) {
+    console.error("Failed to sync variations:", error);
+  }
+}
+
+export async function loadAllPerformance(): Promise<void> {
+  setLoading(true);
+  setError(null);
+  try {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?limit=5000&days_back=365`);
+    const data = await response.json();
+    const trades = data.trades || [];
+
+    const perfMap = new Map<
+      string,
+      {
+        strategy_id: number;
+        strategy_name: string;
+        total_trades: number;
+        winners: number;
+        losers: number;
+        total_pnl: number;
+        net_pnl: number;
+      }
+    >();
+
+    for (const t of trades) {
+      const name = t.strategy_name || "Unknown";
+      if (!perfMap.has(name)) {
+        perfMap.set(name, {
+          strategy_id: t.strategy_id || 0,
+          strategy_name: name,
+          total_trades: 0,
+          winners: 0,
+          losers: 0,
+          total_pnl: 0,
+          net_pnl: 0,
+        });
+      }
+      const perf = perfMap.get(name)!;
+      perf.total_trades++;
+      perf.total_pnl += t.pnl || 0;
+      perf.net_pnl += t.net_pnl || 0;
+      if ((t.pnl || 0) > 0) perf.winners++;
+      else if ((t.pnl || 0) < 0) perf.losers++;
+    }
+
+    for (const perf of perfMap.values()) {
+      perf.win_rate = perf.total_trades > 0 ? (perf.winners / perf.total_trades) * 100 : 0;
+    }
+
+    state = {
+      ...state,
+      allPerformance: Array.from(perfMap.values()),
+      isLoading: false,
+    };
+    notify();
+  } catch (error) {
+    state = {
+      ...state,
+      error: error instanceof Error ? error.message : "Failed to load performance",
+      isLoading: false,
+    };
+    notify();
+  }
+}
+
 export async function loadBots(): Promise<void> {
   setLoading(true);
   setError(null);
@@ -254,4 +323,34 @@ export function initStrategiesState(): void {
   loadInitialData();
 }
 
-export { openCreateModal, closeCreateModal, openEditModal, closeEditModal };
+export function openCreateModal(template: StrategyConfig | null = null): void {
+  state = {
+    ...state,
+    showCreateModal: true,
+    parentTemplate: template,
+    showEditModal: false,
+    editingStrategy: null,
+  };
+  notify();
+}
+
+export function closeCreateModal(): void {
+  state = { ...state, showCreateModal: false, parentTemplate: null };
+  notify();
+}
+
+export function openEditModal(strategy: StrategyConfig): void {
+  state = {
+    ...state,
+    showEditModal: true,
+    editingStrategy: strategy,
+    showCreateModal: false,
+    parentTemplate: null,
+  };
+  notify();
+}
+
+export function closeEditModal(): void {
+  state = { ...state, showEditModal: false, editingStrategy: null };
+  notify();
+}

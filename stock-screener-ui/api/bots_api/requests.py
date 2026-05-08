@@ -13,6 +13,7 @@ class BotCreate(BaseModel):
     is_active: bool = True
     max_total_positions: int = Field(default=10, ge=1, le=20)
     max_total_capital_pct: float = Field(default=0.80, ge=0.1, le=1.0)
+    max_daily_loss_pct: float = Field(default=0.03, ge=0.01, le=0.20)
     strategies: List[StrategyAllocation] = Field(default_factory=list)
 
 
@@ -21,16 +22,18 @@ class BotUpdate(BaseModel):
     is_active: Optional[bool] = None
     max_total_positions: Optional[int] = Field(None, ge=1, le=20)
     max_total_capital_pct: Optional[float] = Field(None, ge=0.1, le=1.0)
+    max_daily_loss_pct: Optional[float] = Field(None, ge=0.01, le=0.20)
     strategies: Optional[List[StrategyAllocation]] = None
 
 
 class BotResponse(BaseModel):
-    id: int
+    id: str
     uuid: str
     name: str
     is_active: bool
     max_total_positions: int
     max_total_capital_pct: float
+    max_daily_loss_pct: float = 0.03
     strategies: List[dict]
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

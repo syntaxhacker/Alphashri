@@ -41,8 +41,8 @@ class StrategyConfig(Base):
     description = Column(String, nullable=True)
 
     or_minutes = Column(Integer, default=45)
-    sl_pct = Column(Float, default=1.0)
-    tp_pct = Column(Float, default=1.5)
+    sl_pct = Column(Float, default=1.0)  # Generic fallback; strategy-type-specific values in seed_qa_data.py
+    tp_pct = Column(Float, default=1.5)    # Generic fallback; strategy-type-specific values in seed_qa_data.py
     min_or_range_pct = Column(Float, default=0.5)
     max_or_range_pct = Column(Float, default=3.0)
 
@@ -74,8 +74,6 @@ class StrategyConfig(Base):
     enable_shorts = Column(Boolean, default=False)
     eod_exit_hour = Column(Integer, default=14)
     eod_exit_minute = Column(Integer, default=45)
-    min_rr_ratio = Column(Float, default=2.0)
-
     screener_profiles = Column(String(500), nullable=True)  # JSON array: '["trending", "near_52w_breakout"]'
 
     brokerage_pct = Column(Float, default=0.0003)
@@ -134,7 +132,6 @@ class StrategyConfig(Base):
             "enable_shorts": self.enable_shorts,
             "eod_exit_hour": self.eod_exit_hour,
             "eod_exit_minute": self.eod_exit_minute,
-            "min_rr_ratio": self.min_rr_ratio,
             "screener_profiles": json.loads(self.screener_profiles) if self.screener_profiles else [],
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
@@ -165,6 +162,7 @@ class BotConfig(Base):
 
     max_total_positions = Column(Integer, default=10)
     max_total_capital_pct = Column(Float, default=0.80)
+    max_daily_loss_pct = Column(Float, default=0.03)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -188,6 +186,7 @@ class BotConfig(Base):
             "is_active": self.is_active,
             "max_total_positions": self.max_total_positions,
             "max_total_capital_pct": self.max_total_capital_pct,
+            "max_daily_loss_pct": self.max_daily_loss_pct,
             "strategies": [
                 {
                     "id": s.uuid,

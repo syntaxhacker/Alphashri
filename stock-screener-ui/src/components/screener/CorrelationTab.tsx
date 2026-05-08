@@ -1,14 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  Stack,
-  Group,
-  MultiSelect,
-  SegmentedControl,
-  Select,
-  Button,
-  Alert,
-} from "@mantine/core";
+import { Stack, Group, MultiSelect, SegmentedControl, Select, Button, Alert } from "@mantine/core";
 import { IconAlertCircle, IconChartLine } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
@@ -89,38 +81,35 @@ export function CorrelationTab() {
     setSearchData(results);
   }, []);
 
-  const handleTimeframeChange = useCallback(
-    (value: string) => {
-      setTimeframe(value as "daily" | "intraday");
-      if (value === "daily") {
-        setPeriod(90);
-        setPeriodUnit("days");
-      } else {
-        setPeriod(1);
-        setPeriodUnit("days");
-      }
-    },
-    [],
-  );
+  const handleTimeframeChange = useCallback((value: string) => {
+    setTimeframe(value as "daily" | "intraday");
+    if (value === "daily") {
+      setPeriod(90);
+      setPeriodUnit("days");
+    } else {
+      setPeriod(1);
+      setPeriodUnit("days");
+    }
+  }, []);
 
-  const handlePeriodChange = useCallback(
-    (value: string | null) => {
-      if (value) {
-        setPeriod(parseInt(value, 10));
-      }
-    },
-    [],
-  );
+  const handlePeriodChange = useCallback((value: string | null) => {
+    if (value) {
+      setPeriod(parseInt(value, 10));
+    }
+  }, []);
 
   const handleCalculate = useCallback(() => {
     setSymbols(localSymbols);
     fetchCorrelationData();
-    setSearchParams((prev) => {
-      prev.set("symbols", localSymbols.join(","));
-      prev.set("timeframe", timeframe);
-      prev.set("period", period.toString());
-      return prev;
-    }, { replace: true });
+    setSearchParams(
+      (prev) => {
+        prev.set("symbols", localSymbols.join(","));
+        prev.set("timeframe", timeframe);
+        prev.set("period", period.toString());
+        return prev;
+      },
+      { replace: true },
+    );
   }, [localSymbols, timeframe, period, setSearchParams]);
 
   const periods = timeframe === "daily" ? DAILY_PERIODS : INTRADAY_PERIODS;
@@ -128,7 +117,10 @@ export function CorrelationTab() {
 
   return (
     <Stack data-testid="correlation-tab" gap="sm" style={{ height: "100%" }}>
-      <CompactPanel title="Correlation Analysis" description="Analyze price correlation between symbols">
+      <CompactPanel
+        title="Correlation Analysis"
+        description="Analyze price correlation between symbols"
+      >
         <Stack gap="sm">
           <Group gap="sm" align="flex-end">
             <MultiSelect
@@ -180,7 +172,10 @@ export function CorrelationTab() {
 
           {meta && (
             <CompactStatGrid>
-              <CompactStat label="Date Range" value={`${formatDateRange(meta.start_date)} → ${formatDateRange(meta.end_date)}`} />
+              <CompactStat
+                label="Date Range"
+                value={`${formatDateRange(meta.start_date)} → ${formatDateRange(meta.end_date)}`}
+              />
               <CompactStat label="Data Points" value={meta.data_points} />
               <CompactStat label="Symbols" value={symbols.length} />
               <CompactStat label="Timeframe" value={timeframe === "daily" ? "Daily" : "Intraday"} />
@@ -195,11 +190,7 @@ export function CorrelationTab() {
         </CompactPanel>
 
         <CompactPanel title="Normalized Price Chart">
-          <CorrelationChart
-            normalized={normalized || {}}
-            symbols={symbols}
-            isLoading={isLoading}
-          />
+          <CorrelationChart normalized={normalized || {}} symbols={symbols} isLoading={isLoading} />
         </CompactPanel>
       </Stack>
     </Stack>

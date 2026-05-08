@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
 import { NotificationContainer } from "./components/notifications/NotificationContainer";
 import { PreviewChartProvider } from "./components/common/PreviewChartProvider";
+import { ChatPopup } from "./components/common/ChatPopup";
 import { AppLayout } from "./components/layout/AppLayout";
 import { SectorPage } from "./components/sector/SectorPage2";
 import { ScreenerContainer } from "./pages/screener/ScreenerContainer";
@@ -77,6 +78,7 @@ function AppContent() {
         </Routes>
       </PreviewChartProvider>
       <NotificationContainer />
+      <ChatPopup />
     </AppLayout>
   );
 }

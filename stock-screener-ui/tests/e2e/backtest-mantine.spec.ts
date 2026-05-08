@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+import { apiRoute } from "../mocks/routeHelper";
 import {
   gotoBacktest,
   selectSymbolAndRun,
@@ -186,7 +187,7 @@ test.describe("Backtest - Mantine Features", () => {
     });
     await mockBacktestChart(page, mockChartData);
     await mockBacktestHistory(page);
-    await page.route("**/api/auth/me", async (route) => {
+    await page.route(apiRoute("auth/me"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -383,7 +384,7 @@ test.describe("Backtest - Mantine Features", () => {
     test("should display error alert when backtest fails", async ({ page }) => {
       await setupApiMocks(page);
       await loginAsTestUser(page);
-      await page.route("**/api/backtest/run**", async (route) => {
+      await page.route(apiRoute("backtest/run"), async (route) => {
         await route.fulfill({
           status: 500,
           contentType: "application/json",
