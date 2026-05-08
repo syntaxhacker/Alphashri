@@ -912,7 +912,7 @@ describe("PaperTradingTabs", () => {
 
     r(<PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
 
-    expect(screen.getByText("Live Positions")).toBeInTheDocument();
+    expect(screen.getByText("Positions")).toBeInTheDocument();
     expect(screen.getByText("Trade History")).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });

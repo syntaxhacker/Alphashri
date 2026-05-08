@@ -28,6 +28,7 @@ export interface BotConfig {
   max_total_positions: number;
   max_total_capital_pct: number;
   max_daily_loss_pct: number;
+  live_trading: boolean;
   strategies: StrategyWithAllocation[];
   created_at: string | null;
   updated_at: string | null;
@@ -42,6 +43,7 @@ export interface BotCreate {
   is_active?: boolean;
   max_total_positions?: number;
   max_total_capital_pct?: number;
+  live_trading?: boolean;
   strategies: StrategyAllocation[];
 }
 // Bot update request
@@ -51,6 +53,7 @@ export interface BotUpdate {
   max_total_positions?: number;
   max_total_capital_pct?: number;
   max_daily_loss_pct?: number;
+  live_trading?: boolean;
   strategies?: StrategyAllocation[];
 }
 // Bot status (live data)

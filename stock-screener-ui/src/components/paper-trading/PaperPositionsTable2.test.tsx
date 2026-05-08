@@ -443,8 +443,22 @@ describe("PaperPositionsTable", () => {
       expect(screen.getByText("Positions (2)")).toBeTruthy();
     });
 
-    test("LIVE badge renders in header", () => {
+    test("badge shows PAPER when no live bot selected", () => {
       rWithPosition();
+      expect(screen.getByText("PAPER")).toBeTruthy();
+    });
+
+    test("badge shows LIVE when live bot is selected", () => {
+      rWithPosition({}, {
+        filterBot: "bot-1",
+        availableBots: [{
+          id: "bot-1",
+          name: "Live Bot",
+          strategies: [],
+          is_active: true,
+          live_trading: true,
+        }],
+      });
       expect(screen.getByText("LIVE")).toBeTruthy();
     });
 

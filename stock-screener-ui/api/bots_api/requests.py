@@ -14,6 +14,7 @@ class BotCreate(BaseModel):
     max_total_positions: int = Field(default=10, ge=1, le=20)
     max_total_capital_pct: float = Field(default=0.80, ge=0.1, le=1.0)
     max_daily_loss_pct: float = Field(default=0.03, ge=0.01, le=0.20)
+    live_trading: bool = False
     strategies: List[StrategyAllocation] = Field(default_factory=list)
 
 
@@ -23,6 +24,7 @@ class BotUpdate(BaseModel):
     max_total_positions: Optional[int] = Field(None, ge=1, le=20)
     max_total_capital_pct: Optional[float] = Field(None, ge=0.1, le=1.0)
     max_daily_loss_pct: Optional[float] = Field(None, ge=0.01, le=0.20)
+    live_trading: Optional[bool] = None
     strategies: Optional[List[StrategyAllocation]] = None
 
 
@@ -34,6 +36,7 @@ class BotResponse(BaseModel):
     max_total_positions: int
     max_total_capital_pct: float
     max_daily_loss_pct: float = 0.03
+    live_trading: bool = False
     strategies: List[dict]
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -79,6 +82,7 @@ class BotSummaryResponse(BaseModel):
     id: str
     name: str
     is_active: bool
+    live_trading: bool = False
     running: bool
     pid: Optional[int] = None
     status: str = "STOPPED"

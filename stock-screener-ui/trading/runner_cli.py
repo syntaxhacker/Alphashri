@@ -15,6 +15,7 @@ def main():
     parser.add_argument('--bot-id', type=int, required=True, help='Bot configuration ID')
     parser.add_argument('--user-id', type=int, help='User ID for multi-user support')
     parser.add_argument('--test', action='store_true', help='Test mode (no real trades)')
+    parser.add_argument('--live', action='store_true', help='Live trading mode (places real orders via Upstox)')
     parser.add_argument('--interval', type=int, default=30, help='Scan interval in seconds')
 
     args = parser.parse_args()
@@ -23,6 +24,7 @@ def main():
         bot_id=args.bot_id,
         user_id=args.user_id,
         test_mode=args.test,
+        live_trading=args.live,
     )
 
     runner.run(interval=args.interval)

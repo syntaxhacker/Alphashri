@@ -1,4 +1,4 @@
-import { Box, Card, Text, Button, Group, Stack, Grid } from "@mantine/core";
+import { Box, Card, Text, Button, Group, Stack, Grid, Badge } from "@mantine/core";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
@@ -67,6 +67,16 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                 statusUnknown={status?.status === "unknown"}
                 data-testid="bot-running-badge"
               />
+              {(bot as any).live_trading && (
+                <Badge color="red" variant="filled" size="sm" data-testid="live-trading-badge">
+                  LIVE
+                </Badge>
+              )}
+              {!(bot as any).live_trading && (
+                <Badge color="green" variant="filled" size="sm" data-testid="paper-trading-badge">
+                  PAPER
+                </Badge>
+              )}
             </Stack>
             <Group gap="xs">
               {status?.running ? (

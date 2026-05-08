@@ -67,6 +67,7 @@ def _get_sync_functions():
                         "initial_capital": 1000000,
                         "cash": 1000000,
                         "margin_used": 0,
+                        "available_margin": 1000000,
                         "position_value": 0,
                         "unrealized_pnl": 0,
                         "realized_pnl": 0,
@@ -83,9 +84,14 @@ def _get_sync_functions():
                     "strategies": {},
                     "timestamp": datetime.now().isoformat(),
                 }
+            portfolio = dict(state["portfolio"])
+            cash = portfolio.get("cash", 0)
+            margin_used = portfolio.get("margin_used", 0)
+            if "available_margin" not in portfolio:
+                portfolio["available_margin"] = cash - margin_used
             return {
                 "bot_id": bot.uuid,
-                "portfolio": state["portfolio"],
+                "portfolio": portfolio,
                 "watchlist": state.get("watchlist", []),
                 "positions": state["positions"],
                 "strategies": state["strategies"],
@@ -321,7 +327,7 @@ async def start_bot(
         if running:
             return {"message": f"Bot {bot_id} already running", "pid": pid}
 
-        process = start_bot_process(user_id, bot.id, test_mode)
+        process = start_bot_process(user_id, bot.id, test_mode, bot.live_trading if hasattr(bot, 'live_trading') else False)
 
         return {
             "message": f"Bot {bot_id} started",

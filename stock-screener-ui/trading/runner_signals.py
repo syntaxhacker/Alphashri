@@ -388,19 +388,22 @@ class RunnerSignalsMixin:
             sl=signal.stop_loss or 0.0,
             tp=signal.take_profit or 0.0,
         )
+        entry_price = getattr(position, 'entry_price', signal.price)
+        pos_metadata = getattr(position, 'metadata', {}) or {}
         self._persist_position_to_db({
             'strategy_id': strategy_id,
             'strategy_name': runner.strategy_name,
             'symbol': signal.symbol,
             'side': "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
             'quantity': validation['shares'],
-            'entry_price': signal.price,
+            'entry_price': entry_price,
             'stop_loss': signal.stop_loss or 0.0,
             'take_profit': signal.take_profit or 0.0,
             'entry_time': self._ist_now(),
             'current_price': signal.price,
             'strategy_type': getattr(runner, 'strategy_type', ''),
-            'metadata': {'entry_reason': signal.notes or ''} if signal.notes else {},
+            'metadata': {**({'entry_reason': signal.notes or ''} if signal.notes else {}),
+                         **({'upstox_order_id': pos_metadata.get('upstox_order_id')} if pos_metadata.get('upstox_order_id') else {})},
         }, action="upsert")
         return True
 
@@ -464,6 +467,34 @@ class RunnerSignalsMixin:
             validation['rejected'] = True
             return runner, validation, None
 
+        # === LIVE ORDER PLACEMENT ===
+        order_mgr = self._get_order_manager()
+        filled_price = signal.price
+        order_id = None
+        if order_mgr:
+            tag = f"{runner.strategy_name}_{signal.symbol}"[:40]
+            side_str = "LONG" if signal.signal_type == SignalType.LONG_ENTRY else "SHORT"
+            try:
+                result = order_mgr.place_entry_order(
+                    symbol=signal.symbol,
+                    side=side_str,
+                    quantity=validation['shares'],
+                    price=signal.price,
+                    tag=tag,
+                )
+                if result is None:
+                    console.print(f"[red]Live order FAILED for {signal.symbol}, rejecting signal[/red]")
+                    validation['rejected'] = True
+                    validation['reason'] = 'Live order placement failed'
+                    return runner, validation, None
+                filled_price = result['filled_price']
+                order_id = result['order_id']
+            except Exception as e:
+                console.print(f"[red]Live order error for {signal.symbol}: {e}[/red]")
+                validation['rejected'] = True
+                validation['reason'] = f'Live order error: {str(e)}'
+                return runner, validation, None
+
         position = self.portfolio.open_position(
             strategy_id=strategy_id,
             strategy_name=runner.strategy_name,
@@ -471,7 +502,7 @@ class RunnerSignalsMixin:
             symbol=signal.symbol,
             side=OrderSide.BUY if signal.signal_type == SignalType.LONG_ENTRY else OrderSide.SELL,
             quantity=validation['shares'],
-            entry_price=signal.price,
+            entry_price=filled_price,
             stop_loss=signal.stop_loss,
             take_profit=signal.take_profit,
             entry_time=self._ist_now() if self.replay_mode else None,
@@ -479,10 +510,12 @@ class RunnerSignalsMixin:
 
         if position:
             runner.trades_executed += 1
-            if not hasattr(position, 'metadata'):
+            if not hasattr(position, 'metadata') or not isinstance(position.metadata, dict):
                 position.metadata = {}
             if signal.notes:
                 position.metadata['entry_reason'] = signal.notes
+            if order_id:
+                position.metadata['upstox_order_id'] = order_id
             if runner.strategy_type in SWING_STRATEGY_TYPES:
                 position.metadata['strategy_type'] = runner.strategy_type
                 if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
@@ -589,7 +622,23 @@ class RunnerSignalsMixin:
                         exit_reason = exit_signal.notes
 
             if exit_triggered:
-                positions_to_close.append((pos.strategy_id, pos.symbol, exit_price, exit_reason))
+                order_mgr = self._get_order_manager()
+                exit_price_to_use = exit_price
+                if order_mgr:
+                    side_str = "LONG" if pos.side == OrderSide.BUY else "SHORT"
+                    tag_str = f"{pos.strategy_name}_{pos.symbol}"[:40]
+                    try:
+                        result = order_mgr.place_exit_order(
+                            symbol=pos.symbol,
+                            side=side_str,
+                            quantity=pos.quantity,
+                            tag=tag_str,
+                        )
+                        if result and result.get('filled_price'):
+                            exit_price_to_use = result['filled_price']
+                    except Exception as e:
+                        console.print(f"[red]Live exit order error for {pos.symbol}: {e}[/red]")
+                positions_to_close.append((pos.strategy_id, pos.symbol, exit_price_to_use, exit_reason))
 
         trade_logged = False
         for strategy_id, symbol, exit_price, exit_reason in positions_to_close:

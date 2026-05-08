@@ -245,7 +245,7 @@ export function PaperTradingTabs({
     >
       <Tabs.List>
         <Tabs.Tab value="live" leftSection={<span>📊</span>} data-testid="tab-live">
-          Live Positions
+          Positions
           {state.positions.length > 0 && (
             <Text span ml={4} size="sm" c="blue">
               ({state.positions.length})

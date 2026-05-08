@@ -14,6 +14,7 @@ import {
   Divider,
   Alert,
   ThemeIcon,
+  Switch,
 } from "@mantine/core";
 import { IconPlus, IconTrash, IconInfoCircle } from "@tabler/icons-react";
 import type { BotConfig, AvailableStrategy, StrategyAllocation } from "../../types/bots";
@@ -108,6 +109,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
   const [maxPositions, setMaxPositions] = useState(10);
   const [maxCapital, setMaxCapital] = useState(80);
   const [maxDailyLoss, setMaxDailyLoss] = useState(3);
+  const [liveTrading, setLiveTrading] = useState(false);
   const [strategies, setStrategies] = useState<StrategyAllocationRow[]>([]);
   const [nextId, setNextId] = useState(1);
 
@@ -121,6 +123,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       setMaxPositions(bot.max_total_positions);
       setMaxCapital(bot.max_total_capital_pct * 100);
       setMaxDailyLoss(bot.max_daily_loss_pct ?? 3);
+      setLiveTrading((bot as any).live_trading ?? false);
       setStrategies(
         bot.strategies.map((s, i) => ({
           id: `existing-${i}`,
@@ -134,6 +137,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       setIsActive(true);
       setMaxPositions(10);
       setMaxCapital(80);
+      setLiveTrading(false);
       setStrategies([]);
     }
     setNextId(100);
@@ -184,6 +188,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       max_total_positions: maxPositions,
       max_total_capital_pct: maxCapital / 100,
       max_daily_loss_pct: maxDailyLoss / 100,
+      live_trading: liveTrading,
       strategies: strategyAllocations,
     };
 
@@ -270,6 +275,16 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 value={maxDailyLoss}
                 onChange={(val) => setMaxDailyLoss(Number(val) || 3)}
                 data-testid="max-daily-loss-input"
+              />
+            </Group>
+            <Group>
+              <Switch
+                label="Live Trading"
+                description="Places real orders via Upstox API. Use with caution!"
+                checked={liveTrading}
+                onChange={(e) => setLiveTrading(e.currentTarget.checked)}
+                color="red"
+                data-testid="bot-live-trading-switch"
               />
             </Group>
           </Stack>

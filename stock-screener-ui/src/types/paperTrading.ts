@@ -275,6 +275,7 @@ export interface BotInfo {
     strategy_type: string;
   }>;
   is_active: boolean;
+  live_trading: boolean;
 }
 
 export interface BotSummaryStrategy {
@@ -287,6 +288,7 @@ export interface BotSummary {
   id: string;
   name: string;
   is_active: boolean;
+  live_trading: boolean;
   running: boolean;
   pid: number | null;
   status: string;
