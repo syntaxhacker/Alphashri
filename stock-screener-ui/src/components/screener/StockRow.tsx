@@ -128,7 +128,7 @@ export function StockRow({
       const scoreValue = typeof value === "number" ? value : 0;
       return (
         <Tooltip
-          label={`Score = ADX (${stock.adx ?? "?"}) + Return (${stock.recent_return_5d ?? "?"}%) × 2 = ${scoreValue}`}
+          label={`Score = ADX (${stock.adx ?? "?"}) + Return (${stock.recent_return_5d ?? "?"}%)×2 + RSI premium (${Math.max((stock.rsi ?? 50) - 50, 0)}) + Volume (${stock.volume_surge ?? "?"})×2 = ${scoreValue}`}
           multiline
           w={260}
           withinPortal

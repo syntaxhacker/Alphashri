@@ -228,7 +228,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             atr = _to_float(row_data.get('ATR'), 0.0)
             perf_w = float(row_data.get('Perf.W', 2))
             recent_return = float(row_data.get('change', 0))
-            score = min(99, int(adx + (recent_return if recent_return > 0 else 0) * 2))
+            score = min(99, int(adx + max(recent_return, 0) * 2 + max(rsi - 50, 0) * 0.5 + max(row_data.get('relative_volume_10d_calc', 0), 0) * 2))
             broker_diff = round(random.uniform(-0.5, 0.5), 2)
             upstox_price = tv_price * (1 + broker_diff / 100)
 
@@ -323,7 +323,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             is_bullish = c_close >= c_open
             sentiment = _classify_sentiment(wick_close_pct, is_bullish)
 
-            score = min(99, int(adx + (recent_return if recent_return > 0 else 0) * 2))
+            score = min(99, int(adx + max(recent_return, 0) * 2 + max(rsi - 50, 0) * 0.5 + max(volume_surge, 0) * 2))
             broker_diff = round(diff_pct, 2)
 
             stock_data = _build_stock_data(
