@@ -355,11 +355,11 @@ export function getWinRateColor(value: number): string {
 }
 
 export function getScoreColor(score: number): string {
-  if (score >= 80) return "green";
-  if (score >= 60) return "lime";
+  if (score >= 80) return "teal";
+  if (score >= 60) return "green";
   if (score >= 40) return "yellow";
   if (score >= 20) return "orange";
-  return "red";
+  return "gray";
 }
 
 // ============================================

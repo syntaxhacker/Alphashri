@@ -5,7 +5,6 @@ import type {
   StrategiesView,
   StrategyCreate,
   StrategyUpdate,
-  StrategyPerformance,
 } from "../types/strategies";
 import * as api from "../api/strategies";
 import { fetchWithAuth } from "./auth";

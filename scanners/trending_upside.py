@@ -19,84 +19,264 @@ SCREENER_PROFILES = {
         'description': 'Balanced trend + momentum candidates',
         'indicators': ['52W High'],
         'columns': ['symbol', 'score', 'touched_52w', 'tv_price', 'upstox_price', 'broker_diff', 'to_52w_high', 'recent_return_5d', 'perf_w', 'sector'],
-        'default_sort': {'column': 'to_52w_high', 'direction': 'asc'}
+        'default_sort': {'column': 'to_52w_high', 'direction': 'asc'},
+        'query': {
+            'select': [
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'EMA20', 'EMA50', 'Mom',
+                'relative_volume_10d_calc', 'sector', 'market_cap_basic',
+                'price_52_week_high', 'Perf.W', 'Volatility.D',
+                'return_on_equity', 'debt_to_equity',
+                'MACD.macd', 'MACD.signal', 'Perf.1M', 'earnings_release_next_date',
+                'ATR',
+            ],
+            'filters': [
+                Column('close') > 20,
+                Column('close') > Column('EMA20'),
+                Column('EMA20') > Column('EMA50'),
+                Column('RSI') > 50,
+                Column('ADX') > 20,
+                Column('relative_volume_10d_calc') > 0.5,
+                Column('market_cap_basic') > 50_000_000_000,
+                Column('return_on_equity') > 10,
+            ],
+            'order_by': ('Mom', False),
+        },
     },
     'high_momentum': {
         'label': 'High Momentum',
         'description': 'Momentum scanner logic (RSI/MACD/volume)',
         'indicators': ['RSI', 'MACD', 'Volume'],
         'columns': ['symbol', 'score', 'rsi', 'day_change', 'volume_m', 'recent_return_5d', 'perf_w', 'sector'],
-        'default_sort': {'column': 'score', 'direction': 'desc'}
+        'default_sort': {'column': 'score', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'high', 'low', 'change', 'volume',
+                'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal',
+                'sector', 'description', 'update_mode', 'market_cap_basic',
+                'price_52_week_high', 'Perf.W', 'ATR', 'ADX', 'relative_volume_10d_calc',
+            ],
+            'filters': [
+                Column('close') >= 10,
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 500_000,
+                Column('RSI').between(50, 80),
+                Column('change') >= -5,
+            ],
+            'order_by': ('RSI', False),
+        },
     },
     'buyer_interest': {
         'label': 'Buyer Interest',
         'description': 'Wick close + volume surge buyer pressure',
         'indicators': ['Wick%', 'Volume Surge'],
         'columns': ['symbol', 'score', 'wick_close_pct', 'volume_surge', 'rsi', 'day_change', 'volume_m', 'sector'],
-        'default_sort': {'column': 'wick_close_pct', 'direction': 'desc'}
+        'default_sort': {'column': 'wick_close_pct', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'open', 'high', 'low', 'change', 'volume',
+                'RSI', 'ADX', 'relative_volume_10d_calc',
+                'sector', 'market_cap_basic', 'price_52_week_high',
+                'Perf.W', 'ATR',
+            ],
+            'filters': [
+                Column('market_cap_basic') >= 2_000_000_000,
+                Column('volume') > 100_000,
+                Column('close') > 10,
+                Column('RSI') > 40,
+            ],
+            'order_by': ('volume', False),
+        },
     },
     'buyer_interest_enhanced': {
         'label': 'Buyer Interest+',
         'description': 'Enhanced buyer/seller pattern setup',
         'indicators': ['Wick%', 'Volume Surge', 'Score'],
         'columns': ['symbol', 'score', 'rsi', 'wick_close_pct', 'volume_surge', 'adx', 'day_change', 'sector'],
-        'default_sort': {'column': 'score', 'direction': 'desc'}
+        'default_sort': {'column': 'score', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'open', 'high', 'low', 'change', 'volume',
+                'gap', 'RSI', 'ADX', 'relative_volume_10d_calc', 'Volatility.D',
+                'sector', 'market_cap_basic', 'price_52_week_high',
+                'Perf.W', 'ATR',
+            ],
+            'filters': [
+                Column('market_cap_basic') >= 2_000_000_000,
+                Column('volume') > 150_000,
+                Column('close') > 10,
+            ],
+            'order_by': ('relative_volume_10d_calc', False),
+        },
     },
     'volatility_trend': {
         'label': 'Volatility Trend',
         'description': 'Volatility with trend confirmation',
         'indicators': ['ATR', 'RSI', 'ADX', 'Trend'],
         'columns': ['symbol', 'score', 'atr_pct', 'rsi', 'adx', 'day_change', 'perf_w', 'sector'],
-        'default_sort': {'column': 'atr_pct', 'direction': 'desc'}
+        'default_sort': {'column': 'atr_pct', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'Volatility.D', 'ATR', 'Perf.W',
+                'relative_volume_10d_calc', 'sector', 'market_cap_basic',
+                'price_52_week_high',
+            ],
+            'filters': [
+                Column('market_cap_basic') >= 2_000_000_000,
+                Column('volume') > 200_000,
+                Column('close') > 10,
+                Column('Volatility.D') > 1.0,
+            ],
+            'order_by': ('Volatility.D', False),
+        },
     },
     'nifty50_activity': {
         'label': 'Nifty50 Activity',
         'description': 'Nifty-style activity scoring',
         'indicators': ['Interest Score'],
         'columns': ['symbol', 'score', 'interest_score', 'day_change', 'volume_m', 'market_cap_b', 'sector'],
-        'default_sort': {'column': 'score', 'direction': 'desc'}
+        'default_sort': {'column': 'score', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'market_cap_basic', 'sector',
+                'price_52_week_high', 'Perf.W', 'ATR', 'relative_volume_10d_calc',
+            ],
+            'filters': [
+                Column('market_cap_basic') >= 500_000_000,
+                Column('close') > 20,
+            ],
+            'order_by': ('market_cap_basic', False),
+            'limit': 80,
+        },
     },
     'near_52w_breakout': {
         'label': 'Near 52W',
         'description': '52-week high breakout candidate logic',
         'indicators': ['52W Gap %'],
         'columns': ['symbol', 'score', 'rsi', 'adx', 'day_change', 'to_52w_high', 'recent_return_5d', 'perf_w', 'sector'],
-        'default_sort': {'column': 'to_52w_high', 'direction': 'asc'}
+        'default_sort': {'column': 'to_52w_high', 'direction': 'asc'},
+        'query': {
+            'select': [
+                'name', 'close', 'high', 'low', 'change', 'volume',
+                'price_52_week_high', 'price_52_week_low', 'market_cap_basic',
+                'RSI', 'sector', 'description', 'update_mode',
+                'average_volume_10d_calc', 'SMA50', 'SMA200', 'Perf.W', 'ATR', 'ADX',
+            ],
+            'filters': [
+                Column('close') >= 10,
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 1_000_000,
+                Column('RSI').between(45, 75),
+                Column('change') >= 0.5,
+                Column('close') > Column('SMA50'),
+                Column('SMA50') > Column('SMA200'),
+            ],
+            'order_by': ('RSI', False),
+        },
     },
     'touched_52w_high': {
         'label': 'Touched 52W',
         'description': 'Stocks that recently touched 52-week high',
         'indicators': ['52W High', 'Days Ago'],
         'columns': ['symbol', 'rsi', 'adx', 'day_change', 'recent_return_5d', 'high_52w', 'days_ago', 'perf_w', 'volume_m'],
-        'default_sort': {'column': 'days_ago', 'direction': 'asc'}
+        'default_sort': {'column': 'days_ago', 'direction': 'asc'},
+        'query': {
+            'select': [
+                'name', 'close', 'high', 'low', 'change', 'volume',
+                'price_52_week_high', 'price_52_week_low', 'market_cap_basic',
+                'RSI', 'sector', 'description', 'update_mode',
+                'average_volume_10d_calc', 'SMA50', 'SMA200', 'Perf.W', 'ATR', 'ADX',
+                'Perf.1M', 'Perf.3M',
+            ],
+            'filters': [
+                Column('close') >= 10,
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 1_000_000,
+                Column('price_52_week_high') > 0,
+                Column('close').above_pct('price_52_week_high', 0.98),
+            ],
+            'order_by': ('volume', False),
+        },
     },
     'rsi_reversal': {
         'label': 'RSI Reversal',
         'description': 'Oversold/overbought reversal logic',
         'indicators': ['RSI', 'Stochastic'],
         'columns': ['symbol', 'score', 'rsi', 'stoch_k', 'day_change', 'volume_m', 'sector'],
-        'default_sort': {'column': 'score', 'direction': 'desc'}
+        'default_sort': {'column': 'score', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'change', 'volume', 'RSI', 'Stoch.K', 'Stoch.D',
+                'market_cap_basic', 'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX',
+            ],
+            'filters': [
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 100_000,
+                Column('close') > 20,
+            ],
+            'order_by': ('volume', False),
+        },
     },
     'market_open_gap': {
         'label': 'Gap Open',
         'description': 'Market open gap scanner logic',
         'indicators': ['Gap%', 'Volume'],
         'columns': ['symbol', 'score', 'gap_pct', 'premarket_change', 'day_change', 'volume_m', 'sector'],
-        'default_sort': {'column': 'gap_pct', 'direction': 'desc'}
+        'default_sort': {'column': 'gap_pct', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'open', 'gap', 'volume', 'premarket_change',
+                'change', 'change_abs', 'market_cap_basic',
+                'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX', 'relative_volume_10d_calc',
+            ],
+            'filters': [
+                Column('volume') > 10_000,
+                Column('open') > 10,
+                Column('market_cap_basic') > 1_000_000_000,
+            ],
+            'order_by': ('volume', False),
+        },
     },
     'nifty_movers': {
         'label': 'Nifty Movers',
         'description': 'Weighted impact (market-cap × move) logic',
         'indicators': ['Impact Score', 'Market Cap'],
         'columns': ['symbol', 'score', 'impact_score', 'day_change', 'market_cap_b', 'volume_m', 'sector'],
-        'default_sort': {'column': 'impact_score', 'direction': 'desc'}
+        'default_sort': {'column': 'impact_score', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'change', 'market_cap_basic', 'volume',
+                'description', 'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX',
+            ],
+            'filters': [
+                Column('market_cap_basic') >= 500_000_000,
+                Column('close') > 20,
+            ],
+            'order_by': ('market_cap_basic', False),
+        },
     },
     'intraday_momentum': {
         'label': 'Intraday Momentum',
         'description': 'Stocks with rapid price runs in last 5/15/30 mins',
         'indicators': ['5-min Move', 'Volume'],
         'columns': ['symbol', 'score', 'move_pct', 'volume_m', 'rsi', 'day_change', 'sector'],
-        'default_sort': {'column': 'move_pct', 'direction': 'desc'}
+        'default_sort': {'column': 'move_pct', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'market_cap_basic', 'sector',
+                'relative_volume_10d_calc', 'ATR',
+            ],
+            'filters': [
+                Column('market_cap_basic') >= 500_000_000,
+                Column('volume') > 500_000,
+                Column('close') > 20,
+                Column('relative_volume_10d_calc') > 0.5,
+            ],
+            'order_by': ('volume', False),
+        },
     },
 }
 
@@ -110,7 +290,6 @@ def get_screener_profiles():
             'indicators': value.get('indicators', []),
             'columns': value.get('columns', []),
             'default_sort': value.get('default_sort', {}),
-            'filters': value.get('filters', [])
         }
         for key, value in SCREENER_PROFILES.items()
     ]
@@ -126,246 +305,23 @@ def _safe_float(row, key, default=0.0):
         return float(default)
 
 
+def _build_query(query_config, limit):
+    fetch_limit = query_config.get('limit', max(limit * 4, 120))
+    q = Query().select(*query_config['select'])
+    q = q.set_markets('india')
+    if query_config.get('filters'):
+        q = q.where(*query_config['filters'])
+    order_col, order_asc = query_config.get('order_by', ('volume', False))
+    q = q.order_by(order_col, ascending=order_asc)
+    q = q.limit(fetch_limit)
+    return q
+
+
 def _query_by_profile(profile, limit):
-    fetch_limit = max(limit * 4, 120)
-
-    if profile == 'high_momentum':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'high', 'low', 'change', 'volume',
-                'RSI', 'RSI[1]', 'MACD.macd', 'MACD.signal',
-                'sector', 'description', 'update_mode', 'market_cap_basic',
-                'price_52_week_high', 'Perf.W', 'ATR', 'ADX', 'relative_volume_10d_calc'
-            )
-            .set_markets('india')
-            .where(
-                Column('close') >= 10,
-                Column('market_cap_basic') >= 500_000_000,
-                Column('volume') > 500_000,
-                Column('RSI').between(50, 80),
-                Column('change') >= -5
-            )
-            .order_by('RSI', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    if profile == 'buyer_interest':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'open', 'high', 'low', 'change', 'volume',
-                'RSI', 'ADX', 'relative_volume_10d_calc',
-                'sector', 'market_cap_basic', 'price_52_week_high',
-                'Perf.W', 'ATR'
-            )
-            .set_markets('india')
-            .where(
-                Column('market_cap_basic') >= 2_000_000_000,
-                Column('volume') > 100_000,
-                Column('close') > 10,
-                Column('RSI') > 40
-            )
-            .order_by('volume', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    if profile == 'buyer_interest_enhanced':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'open', 'high', 'low', 'change', 'volume',
-                'gap', 'RSI', 'ADX', 'relative_volume_10d_calc', 'Volatility.D',
-                'sector', 'market_cap_basic', 'price_52_week_high',
-                'Perf.W', 'ATR'
-            )
-            .set_markets('india')
-            .where(
-                Column('market_cap_basic') >= 2_000_000_000,
-                Column('volume') > 150_000,
-                Column('close') > 10
-            )
-            .order_by('relative_volume_10d_calc', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    if profile == 'volatility_trend':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'change', 'volume',
-                'RSI', 'ADX', 'Volatility.D', 'ATR', 'Perf.W',
-                'relative_volume_10d_calc', 'sector', 'market_cap_basic',
-                'price_52_week_high'
-            )
-            .set_markets('india')
-            .where(
-                Column('market_cap_basic') >= 2_000_000_000,
-                Column('volume') > 200_000,
-                Column('close') > 10,
-                Column('Volatility.D') > 1.0
-            )
-            .order_by('Volatility.D', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    if profile == 'nifty50_activity':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'change', 'volume',
-                'RSI', 'ADX', 'market_cap_basic', 'sector',
-                'price_52_week_high', 'Perf.W', 'ATR', 'relative_volume_10d_calc'
-            )
-            .set_markets('india')
-            .where(
-                Column('market_cap_basic') >= 500_000_000,
-                Column('close') > 20
-            )
-            .order_by('market_cap_basic', ascending=False)
-            .limit(80)
-        )
-
-    if profile == 'near_52w_breakout':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'high', 'low', 'change', 'volume',
-                'price_52_week_high', 'price_52_week_low', 'market_cap_basic',
-                'RSI', 'sector', 'description', 'update_mode',
-                'average_volume_10d_calc', 'SMA50', 'SMA200', 'Perf.W', 'ATR', 'ADX'
-            )
-            .set_markets('india')
-            .where(
-                Column('close') >= 10,
-                Column('market_cap_basic') >= 500_000_000,
-                Column('volume') > 1_000_000,
-                Column('RSI').between(45, 75),
-                Column('change') >= 0.5,
-                Column('close') > Column('SMA50'),
-                Column('SMA50') > Column('SMA200')
-            )
-            .order_by('RSI', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    if profile == 'touched_52w_high':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'high', 'low', 'change', 'volume',
-                'price_52_week_high', 'price_52_week_low', 'market_cap_basic',
-                'RSI', 'sector', 'description', 'update_mode',
-                'average_volume_10d_calc', 'SMA50', 'SMA200', 'Perf.W', 'ATR', 'ADX',
-                'Perf.1M', 'Perf.3M'
-            )
-            .set_markets('india')
-            .where(
-                Column('close') >= 10,
-                Column('market_cap_basic') >= 500_000_000,
-                Column('volume') > 1_000_000,
-                Column('price_52_week_high') > 0,
-                Column('close').above_pct('price_52_week_high', 0.98)  # within 2% of 52w high
-            )
-            .order_by('volume', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    if profile == 'rsi_reversal':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'change', 'volume', 'RSI', 'Stoch.K', 'Stoch.D',
-                'market_cap_basic', 'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX'
-            )
-            .set_markets('india')
-            .where(
-                Column('market_cap_basic') >= 500_000_000,
-                Column('volume') > 100_000,
-                Column('close') > 20
-            )
-            .order_by('volume', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    if profile == 'market_open_gap':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'open', 'gap', 'volume', 'premarket_change',
-                'change', 'change_abs', 'market_cap_basic',
-                'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX', 'relative_volume_10d_calc'
-            )
-            .set_markets('india')
-            .where(
-                Column('volume') > 10_000,
-                Column('open') > 10,
-                Column('market_cap_basic') > 1_000_000_000
-            )
-            .order_by('volume', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    if profile == 'nifty_movers':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'change', 'market_cap_basic', 'volume',
-                'description', 'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX'
-            )
-            .set_markets('india')
-            .where(
-                Column('market_cap_basic') >= 500_000_000,
-                Column('close') > 20
-            )
-            .order_by('market_cap_basic', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    if profile == 'intraday_momentum':
-        return (
-            Query()
-            .select(
-                'name', 'close', 'change', 'volume',
-                'RSI', 'ADX', 'market_cap_basic', 'sector',
-                'relative_volume_10d_calc', 'ATR'
-            )
-            .set_markets('india')
-            .where(
-                Column('market_cap_basic') >= 500_000_000,
-                Column('volume') > 500_000,
-                Column('close') > 20,
-                Column('relative_volume_10d_calc') > 0.5
-            )
-            .order_by('volume', ascending=False)
-            .limit(fetch_limit)
-        )
-
-    return (
-        Query()
-        .select(
-            'name', 'close', 'change', 'volume',
-            'RSI', 'ADX', 'EMA20', 'EMA50', 'Mom',
-            'relative_volume_10d_calc', 'sector', 'market_cap_basic',
-            'price_52_week_high', 'Perf.W', 'Volatility.D',
-            'return_on_equity', 'debt_to_equity',
-            'MACD.macd', 'MACD.signal', 'Perf.1M', 'earnings_release_next_date',
-            'ATR'
-        )
-        .set_markets('india')
-        .where(
-            Column('close') > 20,
-            Column('close') > Column('EMA20'),
-            Column('EMA20') > Column('EMA50'),
-            Column('RSI') > 50,
-            Column('ADX') > 20,
-            Column('relative_volume_10d_calc') > 0.5,
-            Column('market_cap_basic') > 50_000_000_000,
-            Column('return_on_equity') > 10
-        )
-        .order_by('Mom', ascending=False)
-        .limit(fetch_limit)
-    )
+    config = SCREENER_PROFILES.get(profile)
+    if config is None:
+        config = SCREENER_PROFILES['trending']
+    return _build_query(config['query'], limit)
 
 
 def _score_trending(df):

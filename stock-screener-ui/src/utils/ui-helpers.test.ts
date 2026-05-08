@@ -407,14 +407,14 @@ describe("getWinRateColor", () => {
 });
 
 describe("getScoreColor", () => {
-  test("returns green for >= 80", () => {
-    expect(getScoreColor(80)).toBe("green");
-    expect(getScoreColor(100)).toBe("green");
+  test("returns teal for >= 80", () => {
+    expect(getScoreColor(80)).toBe("teal");
+    expect(getScoreColor(100)).toBe("teal");
   });
 
-  test("returns lime for >= 60", () => {
-    expect(getScoreColor(60)).toBe("lime");
-    expect(getScoreColor(75)).toBe("lime");
+  test("returns green for >= 60", () => {
+    expect(getScoreColor(60)).toBe("green");
+    expect(getScoreColor(75)).toBe("green");
   });
 
   test("returns yellow for >= 40", () => {
@@ -427,9 +427,9 @@ describe("getScoreColor", () => {
     expect(getScoreColor(35)).toBe("orange");
   });
 
-  test("returns red for < 20", () => {
-    expect(getScoreColor(19)).toBe("red");
-    expect(getScoreColor(0)).toBe("red");
+  test("returns gray for < 20", () => {
+    expect(getScoreColor(19)).toBe("gray");
+    expect(getScoreColor(0)).toBe("gray");
   });
 });
 

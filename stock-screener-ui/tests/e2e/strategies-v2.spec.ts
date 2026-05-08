@@ -2,7 +2,6 @@ import { test, expect } from "@playwright/test";
 import {
   setupStrategiesEmptyMocks,
   setupStrategiesErrorMocks,
-  setupStrategiesLoadingMocks,
 } from "../mocks/apiResponses";
 import {
   setupStrategiesTest,
