@@ -13,7 +13,6 @@ import {
 } from "@mantine/core";
 import {
   IconChevronDown,
-  IconChevronRight,
   IconEdit,
   IconTrash,
   IconPlus,

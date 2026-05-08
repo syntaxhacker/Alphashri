@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import type { StrategyConfig } from "../../types/strategies";
 
 // Import via the strategies module since modal actions are now defined there
