@@ -3,9 +3,10 @@ import { Accordion, Badge, Flex, Group, Table, Text } from "@mantine/core";
 import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
-import { nearBreakoutPct, tableStyles as TABLE_STYLES } from "./PositionsHelpers";
+import { nearBreakoutPct } from "./PositionsHelpers";
 import { DataTable, SideBadge } from "../common";
 import { ClickableSymbol } from "../common";
+import { COMMON_TABLE_STYLES } from "../common/tableStyles";
 
 interface WatchlistScanProps {
   snapshot: PaperBotSnapshot | null;
@@ -283,7 +284,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 No signals
               </Text>
             ) : (
-              <DataTable styles={TABLE_STYLES} dataTestId="signals-table">
+              <DataTable styles={COMMON_TABLE_STYLES} dataTestId="signals-table">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Sym</Table.Th>
@@ -327,7 +328,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 None watching
               </Text>
             ) : (
-              <DataTable styles={TABLE_STYLES} dataTestId="watching-table">
+              <DataTable styles={COMMON_TABLE_STYLES} dataTestId="watching-table">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Sym</Table.Th>
@@ -371,7 +372,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 None rejected
               </Text>
             ) : (
-              <DataTable styles={TABLE_STYLES} dataTestId="rejected-table">
+              <DataTable styles={COMMON_TABLE_STYLES} dataTestId="rejected-table">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Sym</Table.Th>
@@ -412,7 +413,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
                 None skipped
               </Text>
             ) : (
-              <DataTable styles={TABLE_STYLES} dataTestId="skipped-table">
+              <DataTable styles={COMMON_TABLE_STYLES} dataTestId="skipped-table">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Sym</Table.Th>

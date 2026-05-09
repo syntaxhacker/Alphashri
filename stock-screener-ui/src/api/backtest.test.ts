@@ -35,7 +35,7 @@ vi.mock("../state/auth", () => ({
 }));
 
 import { fetchWithAuth } from "../state/auth";
-import { calculateTotals, runBacktest, fetchVariations, fetchCosts } from "./backtest";
+import { calculateTotals, runBacktest, fetchStrategies, fetchVariations, fetchCosts, fetchChartData, fetchProgress, fetchResults, fetchBacktestHistory, fetchBacktestDetails, deleteBacktest } from "./backtest";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
 
@@ -95,6 +95,35 @@ describe("calculateTotals", () => {
     const totals = calculateTotals(results);
 
     expect(totals.win_rate).toBe(65);
+  });
+});
+
+describe("fetchStrategies", () => {
+  it("fetches available strategies", async () => {
+    const strategies = [{ id: "orb", name: "ORB", description: "", params: [] }];
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ strategies }),
+    } as Response);
+
+    const result = await fetchStrategies();
+    expect(result).toEqual(strategies);
+  });
+
+  it("returns empty array when no strategies key", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    } as Response);
+
+    const result = await fetchStrategies();
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+    const result = await fetchStrategies();
+    expect(result).toEqual([]);
   });
 });
 
@@ -240,6 +269,180 @@ describe("fetchVariations", () => {
     const result = await fetchVariations();
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("runBacktest processes chart_data", () => {
+  it("processes chart_data from response", async () => {
+    const { setResults, setChartData } = await import("../state/backtest");
+    const chartData = {
+      TATASTEEL: { pivot_levels: [{ price: 100 }], trades: [] },
+    };
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [{ trades: 10, wins: 5, gross_pnl: 1000, total_costs: 100 }],
+        totals: { trades: 10, net_pnl: 900, win_rate: 50 },
+        chart_data: chartData,
+        candles: { TATASTEEL: [] },
+      }),
+    } as Response);
+
+    await runBacktest();
+
+    expect(setResults).toHaveBeenCalled();
+    expect(setChartData).toHaveBeenCalledWith("TATASTEEL", chartData.TATASTEEL);
+  });
+});
+
+describe("fetchChartData", () => {
+  it("fetches chart for symbol with optional tf", async () => {
+    const { setChartData, setChartLoading } = await import("../state/backtest");
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candles: [{ time: "09:15", open: 100 }],
+        trades: [],
+      }),
+    } as Response);
+
+    const result = await fetchChartData("TATASTEEL", 15);
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/backtest/chart/TATASTEEL?tf=15"),
+    );
+    expect(result).toBeTruthy();
+    expect(setChartData).toHaveBeenCalledWith("TATASTEEL", expect.any(Object));
+  });
+
+  it("handles missing candles", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ error: "No data" }),
+    } as Response);
+
+    const result = await fetchChartData("TATASTEEL");
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null on fetch error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchChartData("TATASTEEL");
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("fetchProgress", () => {
+  it("fetches progress for long-running backtests", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ current: 5, total: 10, message: "Processing..." }),
+    } as Response);
+
+    const result = await fetchProgress();
+
+    expect(result).toEqual({ current: 5, total: 10, message: "Processing..." });
+  });
+
+  it("returns null on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchProgress();
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("fetchResults", () => {
+  it("fetches cached results", async () => {
+    const mockResults = { results: [{ trades: 10 }], totals: { net_pnl: 500 } };
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => mockResults,
+    } as Response);
+
+    const result = await fetchResults();
+
+    expect(result).toEqual(mockResults);
+  });
+
+  it("returns null on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchResults();
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("fetchBacktestHistory", () => {
+  it("fetches history list", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ history: [{ uuid: "abc", created_at: "2024-01-01" }] }),
+    } as Response);
+
+    const result = await fetchBacktestHistory();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].uuid).toBe("abc");
+  });
+
+  it("returns empty array on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchBacktestHistory();
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe("fetchBacktestDetails", () => {
+  it("fetches single history item", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ uuid: "abc", results: [] }),
+    } as Response);
+
+    const result = await fetchBacktestDetails("abc");
+
+    expect(result?.uuid).toBe("abc");
+  });
+
+  it("returns null on non-ok response", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+    } as Response);
+
+    const result = await fetchBacktestDetails("abc");
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("deleteBacktest", () => {
+  it("sends DELETE and returns success", async () => {
+    mockedFetch.mockResolvedValue({ ok: true } as Response);
+
+    const result = await deleteBacktest("abc");
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/backtest/history/abc"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(result).toBe(true);
+  });
+
+  it("returns false on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await deleteBacktest("abc");
+
+    expect(result).toBe(false);
   });
 });
 

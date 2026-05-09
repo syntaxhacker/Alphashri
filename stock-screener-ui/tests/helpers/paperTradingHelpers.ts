@@ -36,7 +36,7 @@ export async function navigateToPaperTradingWithBot(
   await navigateToPaperTrading(page);
 
   // Wait for positions data to load - either table (with data) or empty state
-  const positionsTable = page.locator('[data-testid="positions-table-container"]');
+  const positionsTable = page.locator('[data-testid="positions-table"]');
   const positionsEmpty = page.locator('[data-testid="positions-empty"]');
   await Promise.race([
     positionsTable.waitFor({ state: "visible", timeout: 20000 }),

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { SettingsPage } from "./SettingsPage";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, MemoryRouter } from "react-router-dom";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
@@ -35,15 +35,22 @@ vi.mock("../../hooks/useThemeColors", () => ({
   }),
 }));
 
-// Mock useMarketTickerEnabled
-const mockSetShowMarketTicker = vi.fn();
+// Mock useMarketTickerEnabled with mutable toggle value
+let mockMarketTickerEnabled = false;
+const mockSetShowMarketTicker = vi.fn((val: boolean) => {
+  mockMarketTickerEnabled = val;
+});
 vi.mock("../../hooks/useMarketTickerEnabled", () => ({
-  useMarketTickerEnabled: () => [false, mockSetShowMarketTicker],
+  useMarketTickerEnabled: () => [mockMarketTickerEnabled, mockSetShowMarketTicker],
 }));
 
 // Wrapper with Router + Mantine
 function renderWithRouter(ui: React.ReactElement) {
   return renderWithMantine(<BrowserRouter>{ui}</BrowserRouter>);
+}
+
+function renderWithMemoryRouter(ui: React.ReactElement, initialEntries: string[]) {
+  return renderWithMantine(<MemoryRouter initialEntries={initialEntries}>{ui}</MemoryRouter>);
 }
 
 describe("SettingsPage", () => {
@@ -284,5 +291,85 @@ describe("SettingsPage", () => {
     toggle.click();
 
     expect(mockSetShowMarketTicker).toHaveBeenCalledWith(true);
+  });
+
+  it("renders page description text", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Broker connection and account integration controls.")).toBeInTheDocument();
+    });
+  });
+
+  it("shows helper text about live indices", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Show live indices and commodities in the header/)).toBeInTheDocument();
+    });
+  });
+
+  it("clears polling interval on unmount", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+    const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+
+    const { unmount } = renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(mockGetBrokerStatus).toHaveBeenCalled();
+    });
+
+    unmount();
+
+    expect(clearIntervalSpy).toHaveBeenCalled();
+
+    clearIntervalSpy.mockRestore();
+  });
+
+  it("shows notification when upstox=connected query param is present", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+
+    renderWithMemoryRouter(<SettingsPage />, ["/?upstox=connected"]);
+
+    await waitFor(() => {
+      expect(mockDispatch).toHaveBeenCalledWith({
+        type: "notifications/addNotification",
+        payload: {
+          type: "success",
+          message: "Upstox connected successfully!",
+          duration: 5000,
+        },
+      });
+    });
+  });
+
+  it("refreshes status when upstox=connected query param is present", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+
+    renderWithMemoryRouter(<SettingsPage />, ["/?upstox=connected"]);
+
+    await waitFor(() => {
+      expect(mockGetBrokerStatus).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("switches market ticker toggle off", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+    mockMarketTickerEnabled = true;
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("switch")).toBeChecked();
+    });
+
+    const toggle = screen.getByRole("switch");
+    toggle.click();
+
+    expect(mockSetShowMarketTicker).toHaveBeenCalledWith(false);
   });
 });

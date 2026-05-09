@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerTable } from "./ScreenerTable";
 import { MantineProvider } from "@mantine/core";
+import { setSelectedSymbols } from "../../state";
 import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
 
@@ -276,5 +277,47 @@ describe("ScreenerTable", () => {
       </MantineProvider>,
     );
     expect(screen.getByTestId("screener-table")).toHaveClass("screener-table");
+  });
+
+  it("renders select-all checkbox in header", () => {
+    render(
+      <MantineProvider>
+        <ScreenerTable {...defaultProps} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("select-all-header")).toBeInTheDocument();
+    expect(screen.getByTestId("select-all-checkbox")).toBeInTheDocument();
+  });
+
+  it("select-all checkbox is unchecked when no visible stocks selected", () => {
+    render(
+      <MantineProvider>
+        <ScreenerTable {...defaultProps} />
+      </MantineProvider>,
+    );
+    const checkbox = screen.getByTestId("select-all-checkbox") as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it("select-all checkbox is checked when all visible selected", () => {
+    act(() => setSelectedSymbols(["RELIANCE", "TCS", "INFY"]));
+    render(
+      <MantineProvider>
+        <ScreenerTable {...defaultProps} />
+      </MantineProvider>,
+    );
+    const checkbox = screen.getByTestId("select-all-checkbox") as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+  });
+
+  it("select-all checkbox is indeterminate when some selected", () => {
+    act(() => setSelectedSymbols(["RELIANCE"]));
+    render(
+      <MantineProvider>
+        <ScreenerTable {...defaultProps} />
+      </MantineProvider>,
+    );
+    const checkbox = screen.getByTestId("select-all-checkbox") as HTMLInputElement;
+    expect(checkbox.indeterminate).toBe(true);
   });
 });

@@ -74,6 +74,15 @@ const mockSnapshotWithAll: PaperBotSnapshot = {
       strategy_name: "ORB Strategy",
       strategy_id: 1,
     },
+    {
+      symbol: "HDFC",
+      status: "rejected" as const,
+      side: "LONG",
+      price: 3200,
+      reason: "Risk check failed",
+      strategy_name: "ORB Strategy",
+      strategy_id: 1,
+    },
   ],
   signals: [{ symbol: "RELIANCE", side: "LONG", price: 2520, notes: "ORB breakout" }],
 };
@@ -82,6 +91,7 @@ const SECTIONS = [
   { section: "signals", label: "Signals", testidPrefix: "watchlist-scan-signals" },
   { section: "watching", label: "Watching", testidPrefix: "watchlist-scan-watching" },
   { section: "skipped", label: "Skipped", testidPrefix: "watchlist-scan-skipped" },
+  { section: "rejected", label: "Rejected", testidPrefix: "watchlist-scan-rejected" },
 ] as const;
 
 describe("WatchlistScan", () => {
@@ -120,22 +130,30 @@ describe("WatchlistScan", () => {
     test.each(SECTIONS)("renders $label section", ({ section: _section, label, testidPrefix }) => {
       r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
       expect(screen.getByTestId(testidPrefix)).toBeInTheDocument();
-      expect(screen.getByText(label)).toBeInTheDocument();
+      const labelMatches = screen.getAllByText(label);
+      expect(labelMatches.length).toBeGreaterThanOrEqual(1);
     });
   });
 
   describe("DataTable data-testid attributes", () => {
     test.each(SECTIONS)(
       "$label table has data-testid from DataTable",
-      ({ section, label: _label }) => {
+      async ({ section, label: _label }) => {
+        const user = userEvent.setup();
         r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
+        if (section === "skipped" || section === "rejected") {
+          const control = screen
+            .getByTestId(`watchlist-scan-${section}`)
+            .querySelector('button[data-accordion-control="true"]') as HTMLElement;
+          await user.click(control);
+        }
         expect(screen.getByTestId(`${section}-table`)).toBeInTheDocument();
       },
     );
   });
 
   describe("row click handlers", () => {
-    async function clickScanRow(symbol: string, status: "signal" | "watching" | "skipped") {
+    async function clickScanRow(symbol: string, status: "signal" | "watching" | "skipped" | "rejected") {
       const user = userEvent.setup();
       if (status === "skipped") {
         await user.click(
@@ -150,6 +168,7 @@ describe("WatchlistScan", () => {
       { symbol: "RELIANCE", status: "signal" as const },
       { symbol: "TCS", status: "watching" as const },
       { symbol: "INFY", status: "skipped" as const },
+      { symbol: "HDFC", status: "rejected" as const },
     ])("clicking $status row calls setSelectedSymbol for $symbol", async ({ symbol, status }) => {
       r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
       await clickScanRow(symbol, status);
@@ -213,6 +232,26 @@ describe("WatchlistScan", () => {
       expect(signalsControl).toHaveAttribute("aria-expanded", "true");
     });
 
+    test("rejected accordion starts collapsed", async () => {
+      const user = userEvent.setup();
+
+      r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
+
+      const control = accordionControl("rejected");
+      expect(control).toHaveAttribute("aria-expanded", "false");
+
+      // Row exists in DOM despite collapsed panel (keepMounted=true)
+      expect(screen.getByTestId("scan-rejected-HDFC")).toBeInTheDocument();
+
+      // Expand and verify row is clickable
+      await user.click(control);
+      expect(control).toHaveAttribute("aria-expanded", "true");
+
+      const { setSelectedSymbol } = await import("../../state/paperTrading");
+      await user.click(screen.getByTestId("scan-rejected-HDFC"));
+      expect(setSelectedSymbol).toHaveBeenCalledWith("HDFC");
+    });
+
     test("with defaultValue changed, sections start collapsed", async () => {
       const user = userEvent.setup();
       const { setSelectedSymbol } = await import("../../state/paperTrading");
@@ -237,7 +276,7 @@ describe("WatchlistScan", () => {
   describe("header info", () => {
     test("displays total scan count", () => {
       r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
-      expect(within(screen.getByTestId("watchlist-scan-card")).getByText("3")).toBeInTheDocument();
+      expect(within(screen.getByTestId("watchlist-scan-card")).getByText("4")).toBeInTheDocument();
     });
 
     test("displays scan time", () => {

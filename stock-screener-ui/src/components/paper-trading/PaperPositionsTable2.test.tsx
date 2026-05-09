@@ -435,7 +435,7 @@ describe("PaperPositionsTable", () => {
   describe("Positions table container and header", () => {
     test("positions table container renders", () => {
       rWithPosition();
-      expect(screen.getByTestId("positions-table-container")).toBeTruthy();
+      expect(screen.getByTestId("positions-table")).toBeTruthy();
     });
 
     test("positions header shows count", () => {

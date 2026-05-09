@@ -140,7 +140,7 @@ export async function fetchData(
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.setData(data);
-    state.setActiveScreener(data?.screener || screener);
+    state.setActiveScreener(screener);
 
     const defaultSort = data?.profile_meta?.default_sort;
     if (defaultSort?.column) {

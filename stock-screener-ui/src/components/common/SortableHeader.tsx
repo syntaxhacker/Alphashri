@@ -1,5 +1,6 @@
 import { Table, Group, Text } from "@mantine/core";
 import { IconArrowUp, IconArrowDown } from "@tabler/icons-react";
+import type { ReactNode } from "react";
 
 interface SortableHeaderProps {
   label: string;
@@ -9,7 +10,8 @@ interface SortableHeaderProps {
   onSort: (column: string) => void;
   sortable?: boolean;
   testId?: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
+  extraContent?: ReactNode;
 }
 
 export function SortableHeader({
@@ -21,6 +23,7 @@ export function SortableHeader({
   sortable = true,
   testId,
   children,
+  extraContent,
 }: SortableHeaderProps) {
   const isActive = sortColumn === columnKey && sortable;
 
@@ -44,6 +47,7 @@ export function SortableHeader({
           </span>
         )}
         {children}
+        {extraContent}
       </Group>
     </Table.Th>
   );

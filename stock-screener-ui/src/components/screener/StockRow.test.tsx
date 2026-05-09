@@ -67,10 +67,14 @@ vi.mock("@mantine/core", () => {
 });
 
 // Mock PreviewChartProvider
+const { mockShowPreviewChart, mockHidePreviewChart } = vi.hoisted(() => ({
+  mockShowPreviewChart: vi.fn(),
+  mockHidePreviewChart: vi.fn(),
+}));
 vi.mock("../common/PreviewChartProvider", () => ({
   usePreviewChart: () => ({
-    showPreviewChart: vi.fn(),
-    hidePreviewChart: vi.fn(),
+    showPreviewChart: mockShowPreviewChart,
+    hidePreviewChart: mockHidePreviewChart,
   }),
 }));
 
@@ -263,5 +267,14 @@ describe("StockRow", () => {
     render(<StockRow {...defaultProps} />);
     const priceCell = screen.getByTestId("number-cell-RELIANCE-tv_price");
     expect(priceCell).toHaveClass("number-cell");
+  });
+
+  it("shows preview chart on hover via PreviewChartProvider", () => {
+    render(<StockRow {...defaultProps} />);
+    const link = screen.getByTestId("symbol-link-RELIANCE");
+    fireEvent.mouseEnter(link);
+    expect(mockShowPreviewChart).toHaveBeenCalled();
+    fireEvent.mouseLeave(link);
+    expect(mockHidePreviewChart).toHaveBeenCalled();
   });
 });

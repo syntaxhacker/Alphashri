@@ -44,4 +44,25 @@ describe("SentimentBadge", () => {
     render(<SentimentBadge sentiment={null} />, { wrapper: TestWrapper });
     expect(screen.queryByTestId("sentiment-badge")).not.toBeInTheDocument();
   });
+
+  it("shows trending up icon for Bullish sentiment", () => {
+    render(<SentimentBadge sentiment="Bullish" />, { wrapper: TestWrapper });
+    const badge = screen.getByTestId("sentiment-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("Bullish");
+  });
+
+  it("shows trending down icon for Bearish sentiment", () => {
+    render(<SentimentBadge sentiment="Bearish" />, { wrapper: TestWrapper });
+    const badge = screen.getByTestId("sentiment-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("Bearish");
+  });
+
+  it("shows minus icon for Neutral sentiment", () => {
+    render(<SentimentBadge sentiment="Neutral" />, { wrapper: TestWrapper });
+    const badge = screen.getByTestId("sentiment-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("Neutral");
+  });
 });

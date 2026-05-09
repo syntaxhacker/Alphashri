@@ -105,6 +105,14 @@ vi.mock("./ScreenerHeatmap", () => ({
   ),
 }));
 
+vi.mock("./CorrelationTab", () => ({
+  CorrelationTab: () => <div data-testid="correlation-tab">Correlation Tab</div>,
+}));
+
+vi.mock("./ScreenerConfigView", () => ({
+  ScreenerConfigView: () => <div data-testid="screener-config-view">Config View</div>,
+}));
+
 vi.mock("./ScreenerEmpty", () => ({
   ScreenerEmpty: ({ message }: any) => (
     <div data-testid="screener-empty" data-message={message}>
@@ -134,27 +142,44 @@ vi.mock("../../hooks/useTableSort", () => ({
   }),
 }));
 
-// Mock the state module
-vi.mock("../../state", () => ({
-  setSortColumn: vi.fn(),
-  setSortDirection: vi.fn(),
-  sortColumn: null,
-  sortDirection: "desc",
-  profileMetaById: {},
-  selectedSymbols: [] as string[],
-  toggleSymbolSelection: vi.fn(),
-  setSelectedSymbols: vi.fn(),
-  clearSelectedSymbols: vi.fn(),
-  subscribe: vi.fn(() => vi.fn()),
-}));
+// Mutable mocks for dynamic tests
+let mockSelectedSymbols: string[] = [];
+
+vi.mock("../../state", () => {
+  const mockSetSelectedSymbols = vi.fn((syms: string[]) => { mockSelectedSymbols = syms; });
+  const mockClearSelectedSymbols = vi.fn(() => { mockSelectedSymbols = []; });
+  return {
+    setSortColumn: vi.fn(),
+    setSortDirection: vi.fn(),
+    sortColumn: null,
+    sortDirection: "desc",
+    profileMetaById: {},
+    get selectedSymbols() { return mockSelectedSymbols; },
+    toggleSymbolSelection: vi.fn(),
+    setSelectedSymbols: mockSetSelectedSymbols,
+    clearSelectedSymbols: mockClearSelectedSymbols,
+    subscribe: vi.fn(() => vi.fn()),
+    screenerOptions: [] as Array<{ id: string; label: string }>,
+  };
+});
 
 vi.mock("../../state/correlation", () => ({
+  subscribe: vi.fn(() => vi.fn()),
+  symbols: [],
+  timeframe: "daily",
+  period: 90,
+  matrix: null,
+  normalized: null,
+  meta: null,
+  isLoading: false,
+  error: null,
   setSymbols: vi.fn(),
   setTimeframe: vi.fn(),
   setPeriod: vi.fn(),
   setPeriodUnit: vi.fn(),
   fetchCorrelationData: vi.fn(),
   clearSelectedSymbols: vi.fn(),
+  searchSymbols: vi.fn(),
 }));
 
 const mockStock: Stock = {
@@ -209,6 +234,7 @@ describe("ScreenerPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSelectedSymbols = [];
   });
 
   afterEach(() => {
@@ -481,5 +507,107 @@ describe("ScreenerPage", () => {
     );
     expect(screen.getByTestId("screener-approaching-section")).toBeInTheDocument();
     expect(screen.getByTestId("screener-touched-section")).toBeInTheDocument();
+  });
+
+  it("renders warning alert when warning prop is set", () => {
+    render(
+      <MantineProvider>
+        <ScreenerPage {...defaultProps} warning="API rate limit reached" />
+      </MantineProvider>,
+    );
+    expect(screen.getByText("API rate limit reached")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-controls")).toBeInTheDocument();
+  });
+
+  it("does not render warning alert when warning prop is not set", () => {
+    render(
+      <MantineProvider>
+        <ScreenerPage {...defaultProps} />
+      </MantineProvider>,
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("hides warning alert on config or correlation tab", () => {
+    render(
+      <MantineProvider>
+        <ScreenerPage {...defaultProps} warning="Some warning" />
+      </MantineProvider>,
+    );
+    expect(screen.getByText("Some warning")).toBeInTheDocument();
+
+    // Switch to config tab
+    fireEvent.click(screen.getByTestId("tab-config"));
+    expect(screen.queryByText("Some warning")).not.toBeInTheDocument();
+  });
+
+  it("switches to correlation tab when tab-correlation clicked", () => {
+    render(
+      <MantineProvider>
+        <ScreenerPage {...defaultProps} />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId("tab-correlation"));
+    expect(screen.getByTestId("tab-correlation")).toBeInTheDocument();
+  });
+
+  it("renders SelectionBar when stocks are selected", () => {
+    mockSelectedSymbols = ["RELIANCE", "TCS"];
+    render(
+      <MantineProvider>
+        <ScreenerPage {...defaultProps} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("selection-bar")).toBeInTheDocument();
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+  });
+
+  it("hides SelectionBar when no stocks selected", () => {
+    mockSelectedSymbols = [];
+    render(
+      <MantineProvider>
+        <ScreenerPage {...defaultProps} />
+      </MantineProvider>,
+    );
+    expect(screen.queryByTestId("selection-bar")).not.toBeInTheDocument();
+  });
+
+  it("Compare button triggers correlation data fetch and tab switch", async () => {
+    mockSelectedSymbols = ["RELIANCE", "TCS"];
+    render(
+      <MantineProvider>
+        <ScreenerPage {...defaultProps} />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId("compare-btn"));
+    const corr = await import("../../state/correlation");
+    expect(corr.setSymbols).toHaveBeenCalledWith(["RELIANCE", "TCS"]);
+    expect(corr.fetchCorrelationData).toHaveBeenCalled();
+    const st = await import("../../state");
+    expect(st.clearSelectedSymbols).toHaveBeenCalled();
+  });
+
+  it("clears selected symbols when switching to config tab", async () => {
+    mockSelectedSymbols = ["RELIANCE", "TCS"];
+    render(
+      <MantineProvider>
+        <ScreenerPage {...defaultProps} />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId("tab-config"));
+    const st = await import("../../state");
+    expect(st.setSelectedSymbols).toHaveBeenCalledWith([]);
+  });
+
+  it("clears selected symbols when switching to correlation tab", async () => {
+    mockSelectedSymbols = ["RELIANCE", "TCS"];
+    render(
+      <MantineProvider>
+        <ScreenerPage {...defaultProps} />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId("tab-correlation"));
+    const st = await import("../../state");
+    expect(st.setSelectedSymbols).toHaveBeenCalledWith([]);
   });
 });

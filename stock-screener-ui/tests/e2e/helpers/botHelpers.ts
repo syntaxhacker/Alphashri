@@ -189,5 +189,5 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
 }
 
 export async function expectPositionsVisible(page: Page, timeout: number = 15000) {
-  await expect(page.locator('[data-testid="positions-table-container"]')).toBeVisible({ timeout });
+  await expect(page.locator('[data-testid="positions-table"]')).toBeVisible({ timeout });
 }

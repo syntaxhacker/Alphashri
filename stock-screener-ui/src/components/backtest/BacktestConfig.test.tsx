@@ -224,4 +224,55 @@ describe("BacktestConfig", () => {
     document.dispatchEvent(event);
     expect(onRun).not.toHaveBeenCalled();
   });
+
+  it("strategy param section shows param inputs with correct testids", () => {
+    const strategy = mockStrategy();
+    render(
+      <BacktestConfig
+        {...defaultProps({
+          selectedStrategy: strategy.id,
+          selectedVariation: "var-1",
+          strategies: [strategy],
+          variations: [mockVariation()],
+        })}
+      />,
+      { wrapper: Wrapper },
+    );
+    expect(screen.getByTestId("param-sl_pct")).toBeInTheDocument();
+    expect(screen.getByTestId("param-tp_pct")).toBeInTheDocument();
+    // Param labels should be visible
+    expect(screen.getByText("SL %")).toBeInTheDocument();
+    expect(screen.getByText("TP %")).toBeInTheDocument();
+  });
+
+  it("variation select rendered with grouped data (Templates vs Your Variations)", async () => {
+    const customVariations = [
+      mockVariation({ id: "t1", name: "ORB Base", strategy_type: "ORB", is_template: true }),
+      mockVariation({ id: "v1", name: "My ORB", strategy_type: "ORB", is_template: false }),
+    ];
+    render(<BacktestConfig {...defaultProps({ variations: customVariations })} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("variation-select")).toBeInTheDocument();
+    screen.getByTestId("variation-select").click();
+    await waitFor(() => {
+      expect(screen.getByText("Templates (Base Logic)")).toBeInTheDocument();
+      expect(screen.getByText("Your Variations")).toBeInTheDocument();
+    });
+  });
+
+  it("variation select is clearable and searchable", () => {
+    const onVariationChange = vi.fn();
+    render(
+      <BacktestConfig
+        {...defaultProps({
+          onVariationChange,
+          selectedVariation: "var-1",
+          variations: [mockVariation()],
+        })}
+      />,
+      { wrapper: Wrapper },
+    );
+    const select = screen.getByTestId("variation-select");
+    expect(select).toBeInTheDocument();
+    expect(select.getAttribute("aria-haspopup")).toBe("listbox");
+  });
 });

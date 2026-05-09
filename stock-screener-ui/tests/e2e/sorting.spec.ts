@@ -42,7 +42,7 @@ test.describe("Table Sorting", () => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    const sortableHeaders = page.locator("th.sortable");
+    const sortableHeaders = page.locator('[data-testid^="sort-header-"]');
     const count = await sortableHeaders.count();
 
     expect(count).toBeGreaterThan(0);

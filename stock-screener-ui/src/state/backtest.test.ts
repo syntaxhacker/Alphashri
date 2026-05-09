@@ -30,6 +30,9 @@ import {
   resetBacktestState,
   triggerRerender,
   getStrategyDefaults,
+  setStrategiesLoading,
+  setParamsKeepVariation,
+  setChartData,
 } from "./backtest";
 import type {
   BacktestResult,
@@ -519,6 +522,70 @@ describe("setRunning / setProgress / setError", () => {
     const state = getState();
     expect(state.error).toBe("test error");
     expect(state.isRunning).toBe(false);
+  });
+});
+
+describe("setStrategiesLoading", () => {
+  beforeEach(() => {
+    resetBacktestState();
+  });
+
+  it("updates loading flag", () => {
+    setStrategiesLoading(true);
+    expect(getState().strategiesLoading).toBe(true);
+  });
+});
+
+describe("setSelectedVariation null", () => {
+  beforeEach(() => {
+    resetBacktestState();
+  });
+
+  it("returns to default when null", () => {
+    setVariations([
+      { id: "v1", internal_id: 1, name: "Var 1", strategy_type: "ORB", description: "", is_template: false, is_default: true },
+    ]);
+    setSelectedVariation("v1");
+    setSelectedVariation(null);
+    const state = getState();
+    expect(state.selectedVariation).toBeNull();
+  });
+});
+
+describe("setParamsKeepVariation", () => {
+  beforeEach(() => {
+    resetBacktestState();
+  });
+
+  it("merges params without clearing variation", () => {
+    setParam("or_minutes", 45);
+    setParamsKeepVariation({ stop_loss_pct: 1.0 });
+    const state = getState();
+    expect(state.params.or_minutes).toBe(45);
+    expect(state.params.stop_loss_pct).toBe(1.0);
+  });
+});
+
+describe("setChartData", () => {
+  beforeEach(() => {
+    resetBacktestState();
+  });
+
+  it("sets single chart data", () => {
+    const data: SymbolChartData = {
+      symbol: "RELIANCE",
+      candles: [],
+      orb_zones: [],
+      pivot_levels: [],
+      week52_levels: [],
+      trades: [],
+      date_range: { start: "2025-01-01", end: "2025-06-01" },
+      total_candles: 100,
+      total_trades: 0,
+    };
+    setChartData("RELIANCE", data);
+    expect(getState().chartData.get("RELIANCE")).toEqual(data);
+    expect(getState().chartLoading).toBe(false);
   });
 });
 
