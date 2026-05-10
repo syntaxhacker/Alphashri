@@ -14,14 +14,14 @@ describe("ScreenerEmpty", () => {
     cleanup();
   });
 
-  it("renders with default message", () => {
+  it("renders with default message 'No results found'", () => {
     render(
       <MantineProvider>
         <ScreenerEmpty />
       </MantineProvider>,
     );
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
-    expect(screen.getByTestId("status")).toBeInTheDocument();
+    expect(screen.getAllByText("No results found").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders with custom message", () => {
@@ -33,14 +33,16 @@ describe("ScreenerEmpty", () => {
     expect(screen.getByText("No stocks match your criteria")).toBeInTheDocument();
   });
 
-  it("renders icon", () => {
+  it("renders icon (IconDatabaseOff)", () => {
     render(
       <MantineProvider>
         <ScreenerEmpty />
       </MantineProvider>,
     );
-    // The IconDatabaseOff should be rendered
-    expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
+    // IconDatabaseOff renders as an SVG inside the panel title
+    const panel = screen.getByTestId("screener-empty");
+    const svg = panel.querySelector("svg");
+    expect(svg).toBeInTheDocument();
   });
 
   it("has correct test id", () => {

@@ -43,7 +43,7 @@ describe("BacktestResultsTable", () => {
 
   it("renders empty state when no results", () => {
     render(<BacktestResultsTable results={[]} {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("results-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("table-empty-state")).toBeInTheDocument();
     expect(screen.getByText("No results yet. Run a backtest.")).toBeInTheDocument();
   });
 

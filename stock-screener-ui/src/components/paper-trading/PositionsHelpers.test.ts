@@ -4,8 +4,8 @@ import {
   formatNear,
   groupPositionsByStrategy,
   calcStrategySummary,
-  tableStyles,
 } from "./PositionsHelpers";
+import { COMMON_TABLE_STYLES } from "../common/tableStyles";
 import type { PaperPosition, PaperScanItem } from "../types/paperTrading";
 
 describe("PositionsHelpers", () => {
@@ -489,32 +489,29 @@ describe("PositionsHelpers", () => {
   });
 
   describe("tableStyles export", () => {
-    it("exports TABLE_STYLES as tableStyles", () => {
-      expect(tableStyles).toBeDefined();
-      expect(typeof tableStyles).toBe("object");
-    });
-
-    it("has required style properties", () => {
-      expect(tableStyles.thead).toBeDefined();
-      expect(tableStyles.th).toBeDefined();
-      expect(tableStyles.td).toBeDefined();
+    it("exports COMMON_TABLE_STYLES with required style properties", () => {
+      expect(COMMON_TABLE_STYLES).toBeDefined();
+      expect(typeof COMMON_TABLE_STYLES).toBe("object");
+      expect(COMMON_TABLE_STYLES.thead).toBeDefined();
+      expect(COMMON_TABLE_STYLES.th).toBeDefined();
+      expect(COMMON_TABLE_STYLES.td).toBeDefined();
     });
 
     it("has correct thead styles", () => {
-      expect(tableStyles.thead.position).toBe("sticky");
-      expect(tableStyles.thead.top).toBe(0);
-      expect(tableStyles.thead.zIndex).toBe(1);
+      expect(COMMON_TABLE_STYLES.thead.position).toBe("sticky");
+      expect(COMMON_TABLE_STYLES.thead.top).toBe(0);
+      expect(COMMON_TABLE_STYLES.thead.zIndex).toBe(1);
     });
 
     it("has correct th styles", () => {
-      expect(tableStyles.th.fontSize).toBe("11px");
-      expect(tableStyles.th.fontWeight).toBe(600);
-      expect(tableStyles.th.textTransform).toBe("uppercase");
+      expect(COMMON_TABLE_STYLES.th.fontSize).toBe("11px");
+      expect(COMMON_TABLE_STYLES.th.fontWeight).toBe(600);
+      expect(COMMON_TABLE_STYLES.th.textTransform).toBe("uppercase");
     });
 
     it("has correct td styles", () => {
-      expect(tableStyles.td.fontSize).toBe("12px");
-      expect(tableStyles.td.whiteSpace).toBe("nowrap");
+      expect(COMMON_TABLE_STYLES.td.fontSize).toBe("12px");
+      expect(COMMON_TABLE_STYLES.td.whiteSpace).toBe("nowrap");
     });
   });
 });

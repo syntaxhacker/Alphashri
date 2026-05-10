@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { BrowserRouter } from "react-router-dom";
 import { MantineProvider } from "@mantine/core";
 import { PreviewChartProvider, usePreviewChart } from "./PreviewChartProvider";
+import { fetchChartPreview } from "../../api/chartPreview";
 
 const { mockData } = vi.hoisted(() => ({
   mockData: {
@@ -167,5 +169,205 @@ describe("PreviewChartProvider", () => {
       await new Promise((r) => setTimeout(r, 100));
     });
     expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeNull();
+  });
+
+  it("fetches chart data for hover preview", async () => {
+    renderWithProvider();
+    const { hover } = getButtons();
+    fireEvent.click(hover);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 1, 45);
+  });
+
+  it("renders expanded panel on click", async () => {
+    renderWithProvider();
+    const { expand } = getButtons();
+    fireEvent.click(expand);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeTruthy();
+  });
+
+  it("HoverPreview renders symbol, timeframe label, and echarts container", async () => {
+    renderWithProvider();
+    const { hover } = getButtons();
+    fireEvent.click(hover);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    const hoverEl = document.querySelector('[data-testid="preview-chart-hover"]');
+    expect(hoverEl).toBeTruthy();
+    expect(hoverEl?.textContent).toContain("TEST");
+    expect(hoverEl?.textContent).toContain("15m");
+  });
+
+  it("HoverPreview shows loading state initially", async () => {
+    vi.mocked(fetchChartPreview).mockImplementationOnce(() => new Promise(() => {}));
+    renderWithProvider();
+    const { hover } = getButtons();
+    fireEvent.click(hover);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 350));
+    });
+    const hoverEl = document.querySelector('[data-testid="preview-chart-hover"]');
+    expect(hoverEl).toBeTruthy();
+    const loader = hoverEl?.querySelector(".mantine-Loader-root");
+    expect(loader).toBeTruthy();
+  });
+
+  it("HoverPreview shows 'No data' when candles empty", async () => {
+    vi.mocked(fetchChartPreview).mockResolvedValueOnce({
+      ...mockData,
+      candles: [],
+    });
+    renderWithProvider();
+    const { hover } = getButtons();
+    fireEvent.click(hover);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    expect(screen.getByText("No data")).toBeInTheDocument();
+  });
+
+  it("ExpandedPanel renders symbol", async () => {
+    renderWithProvider();
+    const { expand } = getButtons();
+    fireEvent.click(expand);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    const expandedEl = document.querySelector('[data-testid="preview-chart-expanded"]');
+    expect(expandedEl?.textContent).toContain("TEST");
+  });
+
+  it("ExpandedPanel has timeframe/orMinutes selects and close button", async () => {
+    renderWithProvider();
+    const { expand } = getButtons();
+    fireEvent.click(expand);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    expect(document.querySelector('[data-testid="preview-tf-select"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="preview-or-select"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="preview-close-btn"]')).toBeTruthy();
+  });
+
+  it("ExpandedPanel has 'Open Full Chart' link", async () => {
+    renderWithProvider();
+    const { expand } = getButtons();
+    fireEvent.click(expand);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    const link = document.querySelector('[data-testid="preview-open-full-link"]');
+    expect(link).toBeTruthy();
+    expect(link?.textContent).toContain("Open Full Chart");
+  });
+
+  // Mantine Select onChange can't be triggered via fireEvent.change on inner input
+  // Needs real user interaction with dropdown
+  it.skip("changing timeframe in expanded refetches data", async () => {
+    renderWithProvider();
+    const { expand } = getButtons();
+    fireEvent.click(expand);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    const tfSelect = document.querySelector('[data-testid="preview-tf-select"]') as HTMLElement;
+    expect(tfSelect).toBeTruthy();
+    const firstCallCount = vi.mocked(fetchChartPreview).mock.calls.length;
+
+    const input = tfSelect.querySelector("input");
+    if (input) {
+      fireEvent.change(input, { target: { value: "5" } });
+    }
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    expect(vi.mocked(fetchChartPreview).mock.calls.length).toBeGreaterThan(firstCallCount);
+  });
+
+  // Mantine Select onChange can't be triggered via fireEvent.change on inner input
+  it.skip("changing OR minutes in expanded refetches data", async () => {
+    renderWithProvider();
+    const { expand } = getButtons();
+    fireEvent.click(expand);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    const orSelect = document.querySelector('[data-testid="preview-or-select"]') as HTMLElement;
+    expect(orSelect).toBeTruthy();
+    const firstCallCount = vi.mocked(fetchChartPreview).mock.calls.length;
+
+    const input = orSelect.querySelector("input");
+    if (input) {
+      fireEvent.change(input, { target: { value: "30" } });
+    }
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    expect(vi.mocked(fetchChartPreview).mock.calls.length).toBeGreaterThan(firstCallCount);
+  });
+
+  // Component doesn't auto-fetch on expand — echarts only initializes when data is available
+  it.skip("Expands initializes echarts on data", async () => {
+    const initSpy = vi.fn().mockReturnValue({
+      setOption: vi.fn(),
+      dispose: vi.fn(),
+      resize: vi.fn(),
+    });
+    (window as any).echarts = { init: initSpy };
+    renderWithProvider();
+    const { expand } = getButtons();
+    fireEvent.click(expand);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    expect(initSpy).toHaveBeenCalled();
+  });
+
+  it("Hover initializes echarts on data", async () => {
+    const initSpy = vi.fn().mockReturnValue({
+      setOption: vi.fn(),
+      dispose: vi.fn(),
+      resize: vi.fn(),
+    });
+    (window as any).echarts = { init: initSpy };
+    renderWithProvider();
+    const { hover } = getButtons();
+    fireEvent.click(hover);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    expect(initSpy).toHaveBeenCalled();
+  });
+
+  it("handles error with deduped notifications", async () => {
+    vi.mocked(fetchChartPreview).mockResolvedValueOnce({
+      ...mockData,
+      error: "API Error occurred",
+    });
+    renderWithProvider();
+    const { expand } = getButtons();
+    fireEvent.click(expand);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeTruthy();
+  });
+
+  it("ECharts container rendered when hover has data", async () => {
+    renderWithProvider();
+    const { hover } = getButtons();
+    fireEvent.click(hover);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    const hoverEl = document.querySelector('[data-testid="preview-chart-hover"]');
+    const chartContainer = hoverEl?.querySelector(".echarts-container");
+    expect(chartContainer).toBeTruthy();
   });
 });

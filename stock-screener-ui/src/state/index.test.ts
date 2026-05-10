@@ -29,6 +29,7 @@ beforeEach(() => {
   indexModule.setNotifPanelOpen(true);
   indexModule.setNotifFilter("all");
   indexModule.setRecentAddedSymbols({});
+  indexModule.clearSelectedSymbols();
 });
 
 afterEach(() => {
@@ -251,6 +252,63 @@ describe("notification state", () => {
   it("setNotifFilter updates filter", () => {
     indexModule.setNotifFilter("unread");
     expect(indexModule.notifFilter).toBe("unread");
+  });
+});
+
+describe("profile and provider state", () => {
+  it("setProfileFilters updates filters and notifies", () => {
+    const callback = vi.fn();
+    indexModule.subscribe(callback);
+    indexModule.setProfileFilters({ min_price: 100, max_price: 500 });
+    expect(indexModule.profileFilters).toEqual({ min_price: 100, max_price: 500 });
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("setActiveProvider updates provider and notifies", () => {
+    const callback = vi.fn();
+    indexModule.subscribe(callback);
+    indexModule.setActiveProvider("icici");
+    expect(indexModule.data.provider).toBe("icici");
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("setActiveMode updates mode and notifies", () => {
+    const callback = vi.fn();
+    indexModule.subscribe(callback);
+    indexModule.setActiveMode("daily");
+    expect(indexModule.data.mode).toBe("daily");
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("symbol selection state", () => {
+  it("toggleSymbolSelection adds symbol when not selected", () => {
+    const callback = vi.fn();
+    indexModule.subscribe(callback);
+    indexModule.toggleSymbolSelection("TCS");
+    expect(indexModule.selectedSymbols).toContain("TCS");
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("toggleSymbolSelection removes symbol when already selected", () => {
+    indexModule.toggleSymbolSelection("TCS");
+    vi.clearAllMocks();
+    const callback = vi.fn();
+    indexModule.subscribe(callback);
+    indexModule.toggleSymbolSelection("TCS");
+    expect(indexModule.selectedSymbols).not.toContain("TCS");
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("setSelectedSymbols replaces all selected", () => {
+    indexModule.setSelectedSymbols(["TCS", "INFY"]);
+    expect(indexModule.selectedSymbols).toEqual(["TCS", "INFY"]);
+  });
+
+  it("clearSelectedSymbols empties selection", () => {
+    indexModule.setSelectedSymbols(["TCS", "INFY"]);
+    indexModule.clearSelectedSymbols();
+    expect(indexModule.selectedSymbols).toEqual([]);
   });
 });
 

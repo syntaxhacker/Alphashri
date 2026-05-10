@@ -112,6 +112,11 @@ describe("CompactPanel", () => {
     const { container } = render(<CompactPanel>Content</CompactPanel>);
     expect(container.querySelector('[data-testid="group"]')).toBeNull();
   });
+
+  it("scrollable wraps children in scrollable Box", () => {
+    const { container } = render(<CompactPanel scrollable>Scroll Content</CompactPanel>);
+    expect(container.querySelector('[style*="overflow: auto"]')).toBeTruthy();
+  });
 });
 
 describe("CompactStat", () => {

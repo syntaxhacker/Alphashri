@@ -224,4 +224,24 @@ describe("useECharts", () => {
     expect(getChartInstance().on).toHaveBeenCalledWith("click", mockOnClick);
     expect(getChartInstance().on).toHaveBeenCalledTimes(1);
   });
+
+  it("disposes chart instance on unmount", () => {
+    const { result, unmount } = renderHook(() => useECharts({ isDark: false }));
+
+    const mockDiv = document.createElement("div");
+    Object.defineProperty(result.current.chartRef, "current", {
+      value: mockDiv,
+    });
+
+    act(() => {
+      result.current.setChartOption({ series: [] });
+    });
+
+    const instance = getChartInstance();
+    expect(instance).toBeDefined();
+
+    unmount();
+
+    expect(instance.dispose).toHaveBeenCalledTimes(1);
+  });
 });

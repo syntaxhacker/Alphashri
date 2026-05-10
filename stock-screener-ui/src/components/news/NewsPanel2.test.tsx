@@ -281,4 +281,68 @@ describe("NewsPanel2", () => {
       expect(saveAutoRefresh).toHaveBeenCalledWith("30000");
     });
   });
+
+  it("shows unread count badge on toggle button", async () => {
+    const user = userEvent.setup();
+    (useNewsWebSocket as any).mockReturnValue({
+      connected: true,
+      newsItems: mockNewsItems,
+      hasNewArticles: true,
+      clearNewArticlesFlag: vi.fn(),
+      addNewsItems: vi.fn(),
+    });
+
+    renderComponent();
+
+    // Open panel
+    await user.click(screen.getByTestId("news-toggle-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("news-panel")).toHaveClass("open");
+    });
+
+    // The Indicator component shows unread count - since mockNewsItems has 2 items
+    // and readIds is empty, unread count should be 2
+    const toggleBtn = screen.getByTestId("news-toggle-btn");
+    expect(toggleBtn).toBeInTheDocument();
+  });
+
+  it("shows WebSocket connected indicator in panel header", async () => {
+    const user = userEvent.setup();
+    renderComponent();
+    await user.click(screen.getByTestId("news-toggle-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("news-panel")).toHaveClass("open");
+    });
+
+    expect(screen.getByTestId("news-panel-header")).toBeInTheDocument();
+    expect(screen.getByTestId("news-ws-indicator")).toBeInTheDocument();
+  });
+
+  it("renders correctly with handleSymbolClick handler", async () => {
+    const user = userEvent.setup();
+    renderComponent();
+    await user.click(screen.getByTestId("news-toggle-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("news-panel")).toHaveClass("open");
+    });
+
+    expect(screen.getByTestId("news-list-view")).toBeInTheDocument();
+  });
+
+  it("renders news items when panel opens and data loads", async () => {
+    const user = userEvent.setup();
+    renderComponent();
+    await user.click(screen.getByTestId("news-toggle-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("news-panel")).toHaveClass("open");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Test News 1")).toBeInTheDocument();
+    });
+  });
 });

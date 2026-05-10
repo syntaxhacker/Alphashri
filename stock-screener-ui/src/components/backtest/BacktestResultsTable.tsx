@@ -3,6 +3,7 @@ import type { BacktestResult } from "../../types/backtest";
 import { getPnLTextColor, getWinRateColor, formatPnl } from "../../utils/ui-helpers";
 import { SortableHeader } from "../common/SortableHeader";
 import { DataTable } from "../common/DataTable";
+import { TableEmptyState } from "../common/TableEmptyState";
 
 interface BacktestResultsTableProps {
   results: BacktestResult[];
@@ -84,11 +85,7 @@ export function BacktestResultsTable({
 
   if (!results || results.length === 0) {
     return (
-      <Box className="results-empty" data-testid="results-empty">
-        <Text c="dimmed" ta="center" py="md">
-          No results yet. Run a backtest.
-        </Text>
-      </Box>
+      <TableEmptyState message="No results yet. Run a backtest." />
     );
   }
 

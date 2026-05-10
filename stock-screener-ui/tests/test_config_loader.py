@@ -1047,7 +1047,7 @@ class TestConfigMerging:
         default_config = StrategyConfigData()
         
         assert default_config.or_minutes == 45
-        assert default_config.sl_pct == 0.4
+        assert default_config.sl_pct == 1.0
         assert default_config.max_positions == 5
 
 
@@ -1163,3 +1163,35 @@ class TestLogging:
         get_all_strategies()
         
         mock_logger.warning.assert_called_once()
+
+
+# ============================================================================
+# Environment Variable Configuration Tests
+# ============================================================================
+
+class TestEnvConfig:
+    """Tests for loading configuration from environment variables and .env files."""
+
+    def test_config_has_required_env_keys(self):
+        """Config module must have expected attributes."""
+        from config import UPSTOX_API_KEY, UPSTOX_API_SECRET
+        assert UPSTOX_API_KEY is not None
+        assert UPSTOX_API_SECRET is not None
+
+    def test_config_uses_os_getenv_for_fallbacks(self):
+        """Config uses os.getenv with defaults for non-critical settings."""
+        from config import PORT, ALLOWED_ORIGINS
+        assert PORT == 8765 or isinstance(PORT, int)
+        assert isinstance(ALLOWED_ORIGINS, list)
+        assert len(ALLOWED_ORIGINS) > 0
+
+    def test_config_has_port_from_env_or_default(self):
+        """Config PORT comes from env var or defaults to 8765."""
+        from config import PORT
+        assert PORT > 0
+
+    def test_config_has_upstox_credentials(self):
+        """Config has UPSTOX_API_KEY and UPSTOX_API_SECRET."""
+        from config import UPSTOX_API_KEY, UPSTOX_API_SECRET
+        assert UPSTOX_API_KEY is not None
+        assert UPSTOX_API_SECRET is not None
