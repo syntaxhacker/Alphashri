@@ -640,6 +640,13 @@ except Exception as e:
     print(f"⚠️ Could not load chart API: {e}")
 
 try:
+    from api.heatmap import router as heatmap_router
+    app.include_router(heatmap_router)
+    print("✅ Heatmap API loaded at /api/heatmap")
+except Exception as e:
+    print(f"⚠️ Could not load heatmap API: {e}")
+
+try:
     from api.symbols import router as symbols_router
     app.include_router(symbols_router)
     print("✅ Symbols API loaded at /api/symbols")

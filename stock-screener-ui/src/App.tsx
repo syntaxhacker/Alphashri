@@ -20,6 +20,7 @@ import { NewsWebSocketProvider } from "./state/newsWebSocket";
 import ChartView from "./pages/chart/ChartView";
 import NewsPage from "./pages/NewsPage";
 import AdminPage from "./pages/AdminPage";
+import { HeatmapPage } from "./pages/heatmap/HeatmapPage";
 
 function AuthScreen() {
   const [showRegister, setShowRegister] = useState(false);
@@ -73,6 +74,7 @@ function AppContent() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/news" element={<NewsPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/heatmap" element={<HeatmapPage />} />
           <Route path="/chart/:symbol?" element={<ChartView />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
