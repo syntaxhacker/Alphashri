@@ -41,4 +41,9 @@ describe("ImpactScore", () => {
     render(<ImpactScore score={4} />, { wrapper: TestWrapper });
     expect(screen.getByText(/Moderate impact/)).toBeInTheDocument();
   });
+
+  it("shows progress bar with correct value", () => {
+    render(<ImpactScore score={8} />, { wrapper: TestWrapper });
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+  });
 });

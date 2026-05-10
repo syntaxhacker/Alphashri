@@ -1,0 +1,473 @@
+# Paper Trading
+
+## PaperTradingView
+- [x] PaperTradingView mounts and renders with correct data-testid
+- [x] Loads bots and bot summaries on mount
+- [x] Refreshes bot live data after bot selection
+- [x] Falls back to refreshLiveData when no bot selected
+- [x] Bot selection refreshes data
+- [x] Null bot selection resets to auto-refresh
+- [x] Live view displays left panel (portfolio + positions) and right panel (chart)
+- [x] History view displays history table and chart side by side
+- [x] Settings view displays settings panel
+- [x] Error alert renders when state.error is set
+- [x] Error alert close button clears error
+- [x] Cleanup stops auto-refresh on unmount
+- [x] LivePriceUpdater is mounted in view
+
+## PaperPositionsTable
+- [x] Shows empty state when positions empty and no bot snapshot
+- [x] Shows loading state when isLoading and no positions
+- [x] Shows empty positions + watchlist when bot snapshot present but no positions
+- [x] Renders positions table with data-testid
+- [x] Positions header shows count
+- [x] LIVE badge renders in header
+- [x] Close All button renders when positions exist
+- [x] Close All button NOT rendered when no positions
+- [x] Close All shows loading state while closing
+- [x] Close All shows alert on failure
+- [x] Single position renders symbol, entry price, current price, P&L
+- [x] Close button renders for each position row
+- [x] Position row click triggers symbol selection
+- [x] BUY badge shown for BUY side
+- [x] SELL badge shown for SELL side
+- [x] Positive P&L rendered correctly
+- [x] Negative P&L rendered correctly
+- [x] Single strategy does not show strategy tabs
+- [x] Multiple strategies show strategy tabs
+- [x] Strategy tab shows count and P&L
+- [x] Clicking strategy tab filters positions
+- [x] Strategy summary footer visible with multi-strategy all tab
+- [x] WatchlistScan renders when botSnapshot present
+- [x] WatchlistScan shows signals and watching sections
+- [x] WatchlistScan shows empty state when no scan items
+- [x] WatchlistScan shows skipped section when skipped items exist
+- [x] Clicking signal row selects symbol
+- [x] Clicking watching row selects symbol
+- [x] Clicking skipped row selects symbol
+- [x] WatchlistScan hidden when no botSnapshot and no positions
+- [x] Strategy tabs normalize name for data-testid
+- [x] handleSelectSymbol calls fetchPaperChart with current state params
+
+## PositionsHelpers
+- [x] nearBreakoutPct returns correct % when price within ORB range
+- [x] nearBreakoutPct returns correct % when price above ORB high
+- [x] nearBreakoutPct returns correct % when price below ORB low
+- [x] nearBreakoutPct returns 9999 when price null but ORB exist
+- [x] nearBreakoutPct returns 9999 when ORB levels null
+- [x] nearBreakoutPct returns 9999 when ORB levels zero
+- [x] nearBreakoutPct uses 52W high when ORB levels invalid
+- [x] nearBreakoutPct returns 9999 when price null and no 52W high
+- [x] nearBreakoutPct handles zero prices correctly
+- [x] nearBreakoutPct returns 9999 for Infinity
+- [x] nearBreakoutPct uses 52W high when ORB missing, calculates correct %
+- [x] formatNear formats valid % correctly
+- [x] formatNear returns '-' for invalid data
+- [x] formatNear returns '-' for infinite values
+- [x] groupPositionsByStrategy groups by strategy_id
+- [x] groupPositionsByStrategy handles empty array
+- [x] groupPositionsByStrategy groups same symbol from different strategies separately
+- [x] groupPositionsByStrategy groups same symbol same strategy together
+- [x] groupPositionsByStrategy puts null strategy_id under key 0
+- [x] calcStrategySummary calculates total P&L, margin, count
+- [x] calcStrategySummary handles empty positions
+- [x] calcStrategySummary handles positions without pnl/margin
+- [x] calcStrategySummary handles null pnl / undefined margin_used
+
+## DayGroup
+- [x] DaySummary renders formatted date
+- [x] DaySummary shows day P&L with + prefix for positive
+- [x] DaySummary shows day P&L with - prefix for negative
+- [x] DaySummary applies green color for positive P&L
+- [x] DaySummary applies green color for zero P&L
+- [x] DaySummary shows win badge with green when wins > 0
+- [x] DaySummary shows win badge gray when wins = 0
+- [x] DaySummary shows loss badge red when losses > 0
+- [x] DaySummary shows loss badge gray when losses = 0
+- [x] Clicking DaySummary header calls onToggle
+- [x] DayGroup root renders with data-testid day-group-{date}
+- [x] DayGroup renders with id day-group-{date}
+- [x] DayGroup has className paper-day-group
+- [x] expanded=true renders table inside Collapse
+- [x] expanded=false does not render table
+- [x] Empty trades array renders only DaySummary, no table
+- [x] Single trade renders correctly
+- [x] Multiple trades same day render all rows
+- [x] TradeRow renders with data-testid trade-row-{trade_id}
+- [x] TradeRow shows BUY/SELL side badge
+- [x] TradeRow shows ClickableSymbol
+- [x] TradeRow shows entry price with ₹ prefix
+- [x] TradeRow shows exit price with ₹ prefix
+- [x] TradeRow shows entry time via formatTimeOnly
+- [x] TradeRow shows exit time via formatTimeOnly
+- [x] TradeRow shows duration via formatDuration
+- [x] TradeRow shows net P&L formatted
+- [x] TradeRow shows bot name
+- [x] TradeRow bot anchor has data-testid
+- [x] TradeRow shows strategy name
+- [x] TradeRow shows ExitReasonBadge
+- [x] TradeRow expand toggle shows ▶ when collapsed
+- [x] TradeRow expand toggle shows ▼ when expanded
+- [x] TradeRow delete button renders with trash emoji
+- [x] Row click calls onSelectSymbol with correct args
+- [x] strategyType derived from trade.strategy_type when present
+- [x] strategyType falls back to getStrategyTypeFromName
+- [x] Delete click calls onDeleteTrade with stopPropagation
+- [x] Bot anchor click calls setFilterBot with bot_id
+- [x] Bot anchor click with null bot_id calls setFilterBot(null)
+- [x] Strategy anchor click calls setFilterStrategy with strategy_id
+- [x] Strategy anchor click with null strategy_id calls setFilterStrategy(null)
+- [x] All interactive buttons stop propagation to row
+- [x] SortableHeader clicks call onSort with columnKey
+- [x] Trades rendered in default order (exit_time desc)
+- [x] Trades rendered in sorted order when sortColumn set
+- [x] SortableHeader shows sort indicator when active
+- [x] SortableHeader shows descending indicator for desc
+- [x] SortableHeader hides indicator when not active column
+- [x] TradeDetail shows all stats (SL, TP, Peak, Low, Costs, Gross P&L, Net P&L)
+- [x] SL value shows with ₹ prefix toFixed(2)
+- [x] TP value shows with ₹ prefix toFixed(2)
+- [x] Peak shows with ₹ prefix toFixed(2)
+- [x] Low shows with ₹ prefix toFixed(2)
+- [x] null stop_loss shows dash
+- [x] null take_profit shows dash
+- [x] null peak_price shows dash
+- [x] null low_price shows dash
+- [x] Costs formatted via formatNumber
+- [x] Gross P&L shows with sign and formatted
+- [x] Net P&L shows with sign and formatted
+- [x] TradeNotesEditor renders reason textarea with data-testid
+- [x] TradeNotesEditor renders notes textarea with data-testid
+- [x] TradeNotesEditor renders Save button with data-testid
+- [x] Reason textarea initial value from trade.reason
+- [x] Notes textarea initial value from trade.notes
+- [x] Reason textarea is editable
+- [x] Notes textarea is editable
+- [x] Clicking Save calls updateTradeNotesAction with correct args
+- [x] Save button shows loading state while saving
+- [x] Handles empty reason textarea
+- [x] Handles empty notes textarea
+- [x] Trade with null bot_id shows dash for bot name
+- [x] Trade with null strategy_id shows 'default'
+- [x] Trade with null exit_reason handled gracefully
+- [x] Long symbol names render correctly
+- [x] Negative P&L displays correct sign and red color
+- [x] Zero net_pnl displays correct formatting
+- [x] useEffect scrolls to row when selectedTradeId matches
+- [x] Does not scroll when isSelected false
+
+## PaperHistoryTable
+- [x] PaperHistoryTable renders with loading state when isLoading and no trades
+- [x] History filters display bot select when multiple bots
+- [x] History filters display strategy select when multiple strategies
+- [x] Quick filter dates set correct fromDate/toDate
+- [x] Quick filter triggers refreshHistoryData
+- [x] getPeriodFromDateRange returns correct period from date range
+- [x] filterByRange filters trades correctly
+- [x] groupTradesByDate groups by exit_time date
+- [x] groupTradesByDate sorts by specified column
+- [x] getUniqueStrategies extracts unique strategies
+- [x] getUniqueBots extracts unique bots
+- [x] Trades filtered by symbol, date range, strategy, bot
+- [x] Loading state shows loader and text
+- [x] Empty state shows "No trades found"
+- [x] DayGroup renders for each date with trades
+- [x] Trade row click selects symbol and fetches chart
+- [x] Multiple same-symbol trades sets showAllTrades
+- [x] handleSort updates sort column and direction
+
+## WatchlistScan
+- [x] WatchlistScan renders empty state when snapshot null
+- [x] WatchlistScan renders empty state when snapshot has no scan_items
+- [x] WatchlistScan renders signals section with data-testid
+- [x] WatchlistScan renders watching section with data-testid
+- [x] WatchlistScan renders skipped section with data-testid
+- [x] WatchlistScan renders rejected section with data-testid
+- [x] Signals section has table with data-testid
+- [x] Watching section has table with data-testid
+- [x] Skipped section has table with data-testid
+- [x] Rejected section has table with data-testid
+- [x] Clicking signal row calls setSelectedSymbol
+- [x] Clicking watching row calls setSelectedSymbol
+- [x] Clicking skipped row calls setSelectedSymbol
+- [x] Signals accordion starts expanded by default
+- [x] Watching accordion starts expanded by default
+- [x] Skipped accordion starts collapsed
+- [x] Rejected accordion starts collapsed
+- [x] Clicking accordion control toggles visibility
+- [x] Displays total scan count
+- [x] Displays scan time
+- [x] handleSelectSymbol calls fetchPaperChart with current params
+- [x] fetchPaperChart rejection does not prevent setSelectedSymbol
+- [x] handleSelectSymbol uses current timeframe from state
+- [x] Skipped rows merge strategies and reasons for same symbol
+- [x] Skipped row with empty strategy_name shows "?"
+- [x] Skipped row with empty reason shows "-"
+
+## PaperPortfolioCard
+- [x] Shows "Loading..." when portfolio is null
+- [x] Portfolio card has data-testid
+- [x] Positive P&L shows + prefix
+- [x] Negative P&L shows no + prefix
+- [x] Zero P&L shows ₹0
+- [x] Large P&L formats with Indian commas
+- [x] Daily loss progress bar shows when max_daily_loss_pct > 0 and day_pnl < 0
+- [x] Daily loss progress bar hidden when day_pnl positive
+- [x] Daily loss progress bar hidden when max_daily_loss_pct = 0
+- [x] Daily loss progress bar hidden when max_daily_loss_pct undefined
+- [x] LOSS LIMIT badge when daily_loss_limit_exceeded true
+- [x] Strategy summaries shown when isMultiStrategy and non-empty
+- [x] Strategy badges for each strategy
+- [x] + prefix for positive strategy P&L
+- [x] Strategy summaries hidden when isMultiStrategy false
+- [x] Strategy summaries hidden when array empty
+- [x] Large total_value formatted in INR
+- [x] Labels displayed: Total Value, Cash, Margin Used, Day P&L
+
+## PaperSettings
+- [x] SettingsLoadingState shows Loader and text
+- [x] SettingsErrorState shows Alert with error message
+- [x] Retry button visible and calls fetchStrategyConfig
+- [x] Shows SettingsLoadingState when configLoading and no config
+- [x] Shows SettingsErrorState when configError and no config
+- [x] Strategy name and type shown in header
+- [x] "Unsaved Changes" badge shown when configDirty
+- [x] "Unsaved Changes" badge hidden when not dirty
+- [x] Strategy selector marks default with "(Default)"
+- [x] Manage button visible
+- [x] All 4 section headers visible (ORB, Risk, Runner, Costs)
+- [x] SettingsActions Save and Reset buttons visible
+- [x] Strategy select disabled while strategiesLoading
+- [x] Strategy select disabled while configLoading
+- [x] Changing strategy calls fetchStrategyConfig
+- [x] configError Alert visible with close button
+- [x] On mount calls listStrategies(false)
+- [x] Finds default strategy and calls fetchStrategyConfig
+- [x] Handles listStrategies error
+- [x] Empty strategies array handled
+- [x] No default strategy skips fetch
+- [x] Strategy with null description handled
+
+## OrbSettingsSection
+- [x] Renders section with className and id
+- [x] Renders header text
+- [x] Renders all 5 input fields with labels
+- [x] Renders descriptions
+- [x] All inputs have correct data-testids
+- [x] Displays initial values correctly
+- [x] onChange passes or_minutes value as-is (Number)
+- [x] onChange converts sl_pct string to Number
+- [x] onChange converts tp_pct string to Number
+- [x] onChange converts min_or_range_pct string to Number
+- [x] onChange converts max_or_range_pct string to Number
+- [x] Shows error when sl_pct < 0.1
+- [x] Shows error when sl_pct > 5
+- [x] No error when sl_pct = 0.1 (lower boundary)
+- [x] No error when sl_pct = 5 (upper boundary)
+- [x] No error when sl_pct within valid range
+- [x] Accepts sl_pct boundary values (0.1, 5)
+- [x] Accepts min_or_range_pct boundary values (0.1, 5)
+- [x] Accepts max_or_range_pct boundary values (1, 10)
+- [x] Accepts or_minutes boundary values (15, 120)
+- [x] Accepts fractional step values for all inputs
+
+## RunnerSettingsSection
+- [x] Renders section with className and id
+- [x] Renders header text with uppercase styling
+- [x] Renders Cooldown NumberInput with label and testid
+- [x] Renders Max Distance NumberInput with label and testid
+- [x] Labels and descriptions rendered
+- [x] Displays initial values from config
+- [x] onChange with correct key/value for cooldown
+- [x] onChange with correct key/value for max_distance
+- [x] Converts cooldown to number
+- [x] Converts max_distance to number
+- [x] Renders with zero cooldown (min boundary)
+- [x] Renders with max cooldown (120)
+- [x] Renders with min max_distance (0.5)
+- [x] Renders with max max_distance (5)
+- [x] Accepts fractional max_distance values
+
+## RiskManagementSection
+- [x] Renders section with className and id
+- [x] Renders header text
+- [x] All 5 NumberInputs rendered (Max Positions, Capital/Trade %, Daily Loss %, Max Exposure %, Risk/Trade %)
+- [x] 2 trade value NumberInputs rendered (Min, Max)
+- [x] Labels and descriptions rendered
+- [x] Initial values displayed correctly
+- [x] onChange for Max Positions (no conversion)
+- [x] onChange for Capital/Trade % (divide by 100)
+- [x] onChange for Daily Loss % (divide by 100)
+- [x] onChange for Max Exposure % (divide by 100)
+- [x] onChange for Risk/Trade % (divide by 100)
+- [x] onChange for Min Trade Value (no conversion)
+- [x] onChange for Max Trade Value (no conversion)
+- [x] Percentage values converted correctly for display
+- [x] Zero values rendered as '0'
+- [x] Handles entering zero in percentage inputs
+- [x] Decimal percentage inputs handled correctly
+
+## TradingCostsSection
+- [x] All 7 inputs rendered with testids
+- [x] Initial values displayed as percentages correctly
+- [x] min_brokerage displayed as is
+- [x] onChange computes value / 100 for brokerage
+- [x] onChange for min_brokerage (no conversion)
+- [x] onChange computes value / 100 for stt
+- [x] onChange computes value / 100 for exchange
+- [x] onChange computes value / 100 for sebi
+- [x] onChange computes value / 100 for stamp
+- [x] onChange computes value / 100 for gst
+- [x] Labels rendered correctly
+- [x] Descriptions rendered
+- [x] Zero values handled
+- [x] Fractional percentages handled correctly
+
+## SettingsActions
+- [x] Renders reset button
+- [x] Renders save button
+- [x] Displays "Save Changes" when dirty
+- [x] Displays "Saved" when not dirty
+- [x] Save button disabled when not dirty
+- [x] Save button enabled when dirty
+- [x] Buttons disabled when loading
+- [x] Calls onSave on save click
+- [x] Calls onReset on reset click
+
+## BotCardStrip
+- [x] Renders nothing when bots array empty
+- [x] Renders bot cards when bots provided
+- [x] Displays bot name
+- [x] Displays position count
+- [x] Displays singular "1 position"
+- [x] Displays "0 positions"
+- [x] Calls onSelect when active bot clicked
+- [x] Does not call onSelect when inactive bot clicked
+- [x] Does not call onSelect when already selected bot clicked
+- [x] Handles multiple bots
+
+## useLivePrices
+- [x] Connects to SSE endpoint with auth header
+- [x] Notifies subscribers on price events
+- [x] Handles malformed SSE events gracefully
+- [x] Handles fetch failure gracefully
+- [x] Returns empty prices before any events
+- [x] Cleans up on unmount (aborts controller)
+
+## LivePriceUpdater
+- [x] Renders hidden div with data-testid
+- [x] Updates position current_price when live prices arrive
+- [x] Calculates P&L correctly for BUY positions
+- [x] Calculates P&L correctly for SELL positions
+- [x] Preserves positions not in live price update
+
+## Paper Trading State (paperTrading.ts)
+- [x] getPaperTradingState returns current state
+- [x] setPaperTradingView changes view
+- [x] setPositions updates positions
+- [x] setPortfolio updates portfolio
+- [x] setTrades updates trades
+- [x] setDailySummary updates daily summary
+- [x] setPerformanceSummary updates performance
+- [x] setSymbolPerformance updates symbol perf
+- [x] setFilterDate/Symbol/Strategy/Bot updates filters
+- [x] setSelectedSymbol clears selectedTradeId
+- [x] setSelectedTradeId sets strategy-specific line visibility (ORB, SR_BREAKOUT, 52W)
+- [x] setShowAllTrades toggles all trades
+- [x] setShowOrbLines/PivotLines/52wLines/EmaLines toggles overlays
+- [x] setChartData updates chart data
+- [x] setChartLoading updates loading
+- [x] setChartTimeframe updates timeframe
+- [x] setError sets error and clears loading
+- [x] setupAutoRefresh starts interval
+- [x] stopAutoRefresh clears interval
+- [x] setupAutoRefresh only runs when autoRefreshEnabled and view=live
+- [x] setAutoRefresh disables and clears timer
+- [x] setBotStatus updates bot running/pid/log
+- [x] setBotSnapshot updates snapshot
+- [x] setStrategyConfig sets config
+- [x] updateConfigValue updates single config key, sets dirty
+- [x] setAvailableBots sets bots
+- [x] setFilterBot sets bot filter
+- [x] deleteTradeAction removes trade from API and local state
+- [x] updateTradeNotesAction updates trade via API and local state
+
+## Paper Trading API (api/paper/)
+- [ ] GET /api/bots returns list of bots
+- [ ] GET /api/bots/{id}/positions returns positions
+- [ ] GET /api/bots/{id}/portfolio returns portfolio
+- [ ] GET /api/bots/{id}/scan returns scan items
+- [ ] POST /api/bots/{id}/start starts bot
+- [ ] POST /api/bots/{id}/stop stops bot
+- [ ] POST /api/bots/{id}/close-all closes all positions
+- [ ] POST /api/paper/close-position closes single position
+- [ ] GET /api/paper/trades returns trade history
+- [ ] GET /api/paper/chart/{symbol} returns chart data
+- [ ] DELETE /api/paper/trades/{trade_id} deletes trade
+- [ ] PATCH /api/paper/trades/{trade_id} updates trade notes
+- [ ] GET /api/paper/live/stream SSE streams live prices
+- [ ] Chart cache stores/returns pickle files
+- [ ] Chart cache has 60-second TTL for today's data
+- [ ] Portfolio endpoints return TradingCosts breakdown
+
+## Trading Logic (trading/)
+- [ ] calculate_trading_costs returns correct cost breakdown
+- [ ] SharedPortfolioManager manages positions in-memory
+- [ ] Bot stores state via BotRuntimeState + StrategyRuntimeState DB tables
+- [ ] Position restore on restart force-closes previous-day positions
+- [ ] Signal generators set signal.notes with entry reason
+- [ ] exit_reason stored in CompletedTrade.reason on close
+- [ ] Exit notes include PnL% and price level
+- [ ] risk_per_trade_pct and max_capital_per_trade_pct from config flow to risk manager
+
+## Paper Trading E2E
+- [x] Paper trading view displays with tabs (Live, History, Settings)
+- [x] Bot cards displayed
+- [x] Portfolio summary visible
+- [x] Scan items displayed from multi-strategy bot
+- [x] Positions with strategy tabs shown
+- [x] Filter positions by strategy tab
+- [x] Bot status shows running/pid
+- [x] Empty state shown when no positions
+- [x] Bots API called on load
+- [x] Portfolio API called when bot selected
+- [x] Scan API called when bot selected
+- [x] Start bot updates UI with Running status
+- [x] Start Bot button shown when bot not running
+- [x] Stop Bot button shown when bot running
+- [x] "All" tab shows all positions
+- [x] Watchlist Scan card with accordion sections
+- [x] Accordion component used (not flat table)
+- [x] Signals, Watching, Skipped accordion items
+- [x] Signal items display side, price, strategy
+- [x] Watching items displayed
+- [x] Skipped items displayed in table
+- [x] Skipped symbols deduplicated across strategies
+- [x] "No scan data" shown when bot stopped
+- [x] Close button for each position
+- [x] Close All button visible
+- [x] Close All calls API
+- [x] OrbSettingsSection fields visible
+- [x] RiskManagementSection fields visible
+- [x] RunnerSettingsSection fields visible
+- [x] TradingCostsSection fields visible
+- [x] Settings labels visible
+- [x] Update ORB sl_pct and save
+- [x] Update Risk risk_per_trade and save
+- [x] Reset settings to defaults
+- [x] Validation error for invalid sl_pct
+- [x] Portfolio card values displayed
+- [x] Chart controls rendered (ORB, Pivot, 52W, EMA toggles, timeframe)
+- [x] All chart toggle switches functional
+- [x] Chart header shows symbol
+- [x] Trade history tab visible
+- [x] Trade history table displayed
+- [x] Trade history entries and prices shown
+- [x] Trade history P&L displayed
+- [x] Trade history date filter visible
+- [x] Trade history symbol filter visible
+- [x] Trade history strategy filter visible
+- [x] Trade history empty state shown
+- [x] Trade details expandable
+- [x] Live price updater component mounted
+- [x] Live prices update position current_price

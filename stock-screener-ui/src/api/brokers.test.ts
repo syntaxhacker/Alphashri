@@ -1,46 +1,48 @@
-import { describe, expect, test } from "vitest";
+// @vitest-environment happy-dom
+import { describe, expect, test, vi, beforeEach } from "vitest";
 import type { BrokerStatus } from "./brokers";
 import { getBrokerStatus, connectUpstox, disconnectUpstox } from "./brokers";
 
-describe("Brokers API Types", () => {
-  test("BrokerStatus interface has correct shape", () => {
-    const status: BrokerStatus = {
-      connected: true,
-      broker: "upstox",
-      expires_in_hours: 12.5,
-      expires_at: "2024-01-02T00:00:00",
-    };
+vi.mock("./utils", () => ({
+  apiGet: vi.fn(),
+  apiPostAction: vi.fn(),
+  API_BASE: "http://localhost:8765",
+}));
 
-    expect(status.connected).toBe(true);
-    expect(status.broker).toBe("upstox");
-    expect(typeof status.expires_in_hours).toBe("number");
-    expect(typeof status.expires_at).toBe("string");
-  });
+import { apiGet, apiPostAction } from "./utils";
 
-  test("BrokerStatus with null values", () => {
-    const status: BrokerStatus = {
-      connected: false,
-      broker: "upstox",
-      expires_in_hours: null,
-      expires_at: null,
-    };
+const mockedApiGet = vi.mocked(apiGet);
+const mockedApiPostAction = vi.mocked(apiPostAction);
 
-    expect(status.connected).toBe(false);
-    expect(status.expires_in_hours).toBeNull();
-    expect(status.expires_at).toBeNull();
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
 });
 
-describe("Brokers API exports", () => {
-  test("getBrokerStatus is exported as a function", () => {
-    expect(typeof getBrokerStatus).toBe("function");
+describe("Brokers API", () => {
+  test("getBrokerStatus fetches broker connections", async () => {
+    const status: BrokerStatus = { connected: true, broker: "upstox", expires_in_hours: 12, expires_at: "2024-01-02T00:00:00" };
+    mockedApiGet.mockResolvedValue(status);
+
+    const result = await getBrokerStatus();
+
+    expect(mockedApiGet).toHaveBeenCalledWith("/api/brokers/status");
+    expect(result).toEqual(status);
   });
 
-  test("connectUpstox is exported as a function", () => {
-    expect(typeof connectUpstox).toBe("function");
+  test("connectUpstox opens OAuth URL", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    connectUpstox();
+
+    expect(openSpy).toHaveBeenCalledWith("http://localhost:8765/api/brokers/upstox/auth", "_blank");
+    openSpy.mockRestore();
   });
 
-  test("disconnectUpstox is exported as a function", () => {
-    expect(typeof disconnectUpstox).toBe("function");
+  test("disconnectUpstox sends disconnect request", async () => {
+    mockedApiPostAction.mockResolvedValue(undefined);
+
+    await disconnectUpstox();
+
+    expect(mockedApiPostAction).toHaveBeenCalledWith("/api/brokers/upstox/disconnect");
   });
 });

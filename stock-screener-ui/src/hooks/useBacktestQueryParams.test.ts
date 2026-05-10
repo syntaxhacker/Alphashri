@@ -1,13 +1,25 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import {
   configToPayload,
   payloadToUrl,
   urlToPayload,
   encodeConfig,
   decodeConfig,
+  useBacktestQueryParams,
 } from "./useBacktestQueryParams";
 import type { BacktestConfigPayload, BacktestConfigInput } from "./useBacktestQueryParams";
+import * as backtestState from "../state/backtest";
+
+beforeEach(() => {
+  backtestState.resetBacktestState();
+  vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const defaultState: BacktestConfigInput = {
   selectedStrategy: "orb",
@@ -207,6 +219,48 @@ describe("urlToPayload", () => {
   });
 });
 
+describe("edge cases", () => {
+  it("handles missing variation gracefully in payload", () => {
+    const result = configToPayload({
+      ...defaultState,
+      selectedVariation: null,
+    });
+    expect(result).not.toHaveProperty("variation");
+  });
+
+  it("includes variation when set", () => {
+    const result = configToPayload({
+      ...defaultState,
+      selectedVariation: "var-1",
+    });
+    expect(result.variation).toBe("var-1");
+  });
+
+  it("handles empty symbols array", () => {
+    const result = configToPayload({
+      ...defaultState,
+      selectedSymbols: [],
+    });
+    expect(result).not.toHaveProperty("symbols");
+  });
+
+  it("handles default days (180) correctly - omits from payload", () => {
+    const result = configToPayload({
+      ...defaultState,
+      days: 180,
+    });
+    expect(result).not.toHaveProperty("days");
+  });
+
+  it("handles includeCosts=true (default) - omits from payload", () => {
+    const result = configToPayload({
+      ...defaultState,
+      includeCosts: true,
+    });
+    expect(result).not.toHaveProperty("includeCosts");
+  });
+});
+
 describe("round-trip integration", () => {
   it("configToPayload → payloadToUrl → urlToPayload matches", () => {
     const chaserDefaults = {
@@ -236,5 +290,121 @@ describe("round-trip integration", () => {
     const decoded = urlToPayload(sp);
 
     expect(decoded).toEqual(payload);
+  });
+});
+
+describe("useBacktestQueryParams hook", () => {
+  beforeEach(() => {
+    backtestState.resetBacktestState();
+    vi.restoreAllMocks();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  function setUrlWithPayload(payload: BacktestConfigPayload) {
+    const encoded = encodeConfig(payload);
+    Object.defineProperty(window, "location", {
+      value: new URL(`http://localhost:3000/?p=${encoded}`),
+      configurable: true,
+      writable: true,
+    });
+  }
+
+  it("on mount, reads URL params and restores config", async () => {
+    setUrlWithPayload({ strategy: "orb", symbols: ["TCS"] });
+
+    backtestState.setVariations([
+      { id: "v1", internal_id: 1, name: "ORB Base", strategy_type: "ORB", description: "", is_template: true, is_default: true, or_minutes: 45 },
+    ]);
+
+    renderHook(() => useBacktestQueryParams());
+
+    await waitFor(() => {
+      expect(backtestState.getState().selectedSymbols).toContain("TCS");
+    });
+  });
+
+  it("restores strategy, symbols, days, includeCosts, params from URL", async () => {
+    setUrlWithPayload({
+      strategy: "52w_chaser",
+      symbols: ["TCS", "RELIANCE"],
+      days: 90,
+      includeCosts: false,
+      params: { entry_threshold_pct: 2.0 },
+    });
+
+    backtestState.setVariations([
+      { id: "v1", internal_id: 1, name: "ORB Base", strategy_type: "orb", description: "", is_template: true, is_default: true },
+    ]);
+
+    renderHook(() => useBacktestQueryParams());
+
+    await waitFor(() => {
+      const state = backtestState.getState();
+      expect(state.selectedStrategy).toBe("52w_chaser");
+      expect(state.selectedSymbols).toEqual(["TCS", "RELIANCE"]);
+      expect(state.days).toBe(90);
+      expect(state.includeCosts).toBe(false);
+      expect(state.params.entry_threshold_pct).toBe(2.0);
+    });
+  });
+
+  it("restores variation when match found", async () => {
+    setUrlWithPayload({ variation: "v1" });
+
+    backtestState.setVariations([
+      { id: "v1", internal_id: 1, name: "ORB Base", strategy_type: "ORB", description: "", is_template: true, is_default: true, or_minutes: 30 },
+    ]);
+
+    renderHook(() => useBacktestQueryParams());
+
+    await waitFor(() => {
+      expect(backtestState.getState().selectedVariation).toBe("v1");
+    });
+  });
+
+  it("writes current config to URL on state changes", async () => {
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    renderHook(() => useBacktestQueryParams());
+
+    await act(async () => {
+      backtestState.setSelectedSymbols(["TCS"]);
+    });
+
+    await waitFor(() => {
+      expect(replaceStateSpy).toHaveBeenCalled();
+    });
+  });
+
+  it("does not write URL until initial sync done", async () => {
+    setUrlWithPayload({ strategy: "orb" });
+
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    renderHook(() => useBacktestQueryParams());
+
+    await act(async () => {
+      backtestState.setSelectedSymbols(["TCS"]);
+    });
+
+    expect(replaceStateSpy).not.toHaveBeenCalled();
+  });
+
+  it("handles missing variation gracefully", async () => {
+    setUrlWithPayload({ variation: "nonexistent" });
+
+    backtestState.setVariations([
+      { id: "v1", internal_id: 1, name: "ORB Base", strategy_type: "ORB", description: "", is_template: true, is_default: true },
+    ]);
+
+    renderHook(() => useBacktestQueryParams());
+
+    await waitFor(() => {
+      expect(backtestState.getState().selectedVariation).toBe("nonexistent");
+    });
   });
 });

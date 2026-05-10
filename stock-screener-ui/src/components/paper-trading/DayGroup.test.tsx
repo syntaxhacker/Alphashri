@@ -281,7 +281,6 @@ const defaultProps = {
   onDeleteTrade: vi.fn(),
   expanded: false,
   onToggle: vi.fn(),
-  tableStyles: {},
   sortColumn: null,
   sortDirection: "asc" as const,
   onSort: vi.fn(),

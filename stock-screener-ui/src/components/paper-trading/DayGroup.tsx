@@ -27,6 +27,7 @@ import { SideBadge, ExitReasonBadge } from "../common";
 import { ClickableSymbol } from "../common";
 import { SortableHeader } from "../common/SortableHeader";
 import { setFilterStrategy, setFilterBot, updateTradeNotesAction } from "../../state/paperTrading";
+import { COMMON_TABLE_STYLES } from "../common/tableStyles";
 
 interface DayGroupProps {
   date: string;
@@ -44,7 +45,6 @@ interface DayGroupProps {
   onDeleteTrade: (tradeId: string) => void;
   expanded: boolean;
   onToggle: () => void;
-  tableStyles: Record<string, any>;
   sortColumn: string | null;
   sortDirection: "asc" | "desc";
   onSort: (column: string) => void;
@@ -354,7 +354,6 @@ export function DayGroup({
   onDeleteTrade,
   expanded,
   onToggle,
-  tableStyles,
   sortColumn,
   sortDirection,
   onSort,
@@ -373,7 +372,7 @@ export function DayGroup({
       <DaySummary date={date} trades={trades} onToggle={onToggle} />
       <Collapse in={expanded}>
         <div style={{ overflowX: "auto" }}>
-          <Table striped highlightOnHover styles={tableStyles}>
+          <Table striped highlightOnHover styles={COMMON_TABLE_STYLES}>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th p={0} />

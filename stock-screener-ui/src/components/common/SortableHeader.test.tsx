@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { SortableHeader } from "./SortableHeader";
 
 vi.mock("@mantine/core", () => ({
@@ -99,5 +100,26 @@ describe("SortableHeader", () => {
   it("renders with custom testId", () => {
     render(<SortableHeader {...defaultProps} testId="custom-id" />);
     expect(screen.getByTestId("custom-id")).toBeTruthy();
+  });
+
+  it("renders extraContent alongside the label", () => {
+    render(
+      <SortableHeader
+        {...defaultProps}
+        extraContent={<span data-testid="extra-content">Copy all</span>}
+      />,
+    );
+    expect(screen.getByTestId("extra-content")).toBeInTheDocument();
+    expect(screen.getByText("Copy all")).toBeTruthy();
+  });
+
+  it("renders both children and extraContent", () => {
+    render(
+      <SortableHeader {...defaultProps} extraContent={<span data-testid="extra">X</span>}>
+        <span data-testid="child">C</span>
+      </SortableHeader>,
+    );
+    expect(screen.getByTestId("child")).toBeInTheDocument();
+    expect(screen.getByTestId("extra")).toBeInTheDocument();
   });
 });

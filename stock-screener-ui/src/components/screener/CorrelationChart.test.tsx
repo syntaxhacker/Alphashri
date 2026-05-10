@@ -104,4 +104,15 @@ describe("CorrelationChart", () => {
     r(<CorrelationChart normalized={{}} symbols={[]} />);
     expect(mockSetChartOption).not.toHaveBeenCalled();
   });
+
+  test("shows loading overlay when isLoading is true", () => {
+    r(<CorrelationChart normalized={{}} symbols={[]} isLoading={true} />);
+    expect(screen.getByText("Loading chart data...")).toBeInTheDocument();
+    expect(screen.getByTestId("correlation-chart")).toBeInTheDocument();
+  });
+
+  test("does not show loading overlay when isLoading is false", () => {
+    r(<CorrelationChart normalized={{}} symbols={[]} isLoading={false} />);
+    expect(screen.queryByText("Loading chart data...")).not.toBeInTheDocument();
+  });
 });
