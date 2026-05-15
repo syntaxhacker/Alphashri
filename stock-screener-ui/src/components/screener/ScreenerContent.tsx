@@ -6,7 +6,18 @@ import { ScreenerLoading } from "./ScreenerLoading";
 import { ScreenerErrorPanel } from "./ScreenerErrorPanel";
 import { ScreenerSection } from "./ScreenerSection";
 import { getColumnsForScreener } from "./columns";
+import * as state from "../../state";
 import type { Stock } from "../../types";
+
+const FALLBACK_LABELS = {
+  primary: "Approaching",
+  secondary: "Touched",
+};
+
+const FALLBACK_DESCRIPTIONS = {
+  primary: "Stocks nearing but have not yet touched the 52W high",
+  secondary: "Stocks that have touched or broken out of the 52W high",
+};
 
 interface Props {
   approachingStocks: Stock[];
@@ -53,6 +64,11 @@ export function ScreenerContent({
   const columns = getColumnsForScreener(activeScreener);
   const emptySet = new Set<string>();
 
+  const sectionLabels = state.screenerOptions.find((s) => s.id === activeScreener)?.section_labels;
+  const hasLabels = !!sectionLabels?.primary;
+  const labels = hasLabels ? sectionLabels : FALLBACK_LABELS;
+  const descriptions = hasLabels ? { primary: "", secondary: "" } : FALLBACK_DESCRIPTIONS;
+
   if (isLoading) return <ScreenerLoading />;
   if (error) return <ScreenerErrorPanel error={error} onRefresh={onRefresh} />;
   if (totalStocks === 0) return <ScreenerEmpty />;
@@ -61,8 +77,8 @@ export function ScreenerContent({
     <Stack gap="sm" w="100%" style={{ minHeight: 0 }}>
       {sortedApproaching.length > 0 && (
         <ScreenerSection
-          title={`Approaching (${sortedApproaching.length})`}
-          description="Stocks nearing but have not yet touched the 52W high"
+          title={`${labels.primary} (${sortedApproaching.length})`}
+          description={descriptions.primary}
           testId="screener-approaching-section"
           stocks={sortedApproaching}
           columns={columns}
@@ -79,8 +95,8 @@ export function ScreenerContent({
       )}
       {sortedTouched.length > 0 && (
         <ScreenerSection
-          title={`Touched (${sortedTouched.length})`}
-          description="Stocks that have touched or broken out of the 52W high"
+          title={`${labels.secondary} (${sortedTouched.length})`}
+          description={descriptions.secondary}
           testId="screener-touched-section"
           stocks={sortedTouched}
           columns={columns}

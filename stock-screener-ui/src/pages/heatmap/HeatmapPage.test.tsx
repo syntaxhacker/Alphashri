@@ -6,21 +6,9 @@ import { HeatmapPage } from "./HeatmapPage";
 import { fetchHeatmapData, fetchHeatmapSectors } from "../../api/heatmap";
 import { MantineProvider } from "@mantine/core";
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  (window as any).echarts = {
-    init: vi.fn().mockReturnValue({
-      setOption: vi.fn(),
-      dispose: vi.fn(),
-      resize: vi.fn(),
-    }),
-  };
-});
-
-afterEach(() => {
-  delete (window as any).echarts;
-  cleanup();
-});
+vi.mock("echarts-for-react", () => ({
+  default: () => null,
+}));
 
 vi.mock("../../api/heatmap", () => ({
   fetchHeatmapData: vi.fn(),
@@ -33,6 +21,14 @@ vi.mock("@mantine/core", async (importOriginal) => {
     ...actual,
     useMantineColorScheme: vi.fn(() => ({ colorScheme: "light" })),
   };
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 const mockStocks = [
