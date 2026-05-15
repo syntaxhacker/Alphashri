@@ -6,6 +6,11 @@ import { ScreenerContainer } from "./ScreenerContainer";
 import { MantineProvider } from "@mantine/core";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
+vi.mock("react-router-dom", () => ({
+  useNavigate: vi.fn(() => vi.fn()),
+  useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
+}));
+
 // Mock the hook
 vi.mock("../../hooks/useScreenerState", () => ({
   useScreenerState: vi.fn(() => ({
