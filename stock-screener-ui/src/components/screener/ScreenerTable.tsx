@@ -51,6 +51,7 @@ export function ScreenerTable({
         sortDirection={sortDirection}
         onSort={onSortChange}
         testId={`sort-header-${column.key}`}
+        className="sortable screener-table-header-cell"
       >
         {isSymbolColumn && stocks.length > 0 && (
           <CopyButton value={allSymbols}>
