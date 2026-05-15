@@ -7,7 +7,9 @@ test.describe("Notification Panel", () => {
     await loginAsTestUser(page);
   });
 
-  test.skip("should open notification panel and button clicked", async ({ page }) => {
+  test.skip("reason: notification sidebar/panel (notif-open-btn, notif-sidebar, notif-tab) not implemented - only toast-style notifications exist", async ({
+    page,
+  }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
 
@@ -17,7 +19,9 @@ test.describe("Notification Panel", () => {
     await expect(page.locator(".notif-sidebar")).toBeVisible({ timeout: 5000 });
   });
 
-  test.skip("should show notification filter tabs", async ({ page }) => {
+  test.skip("reason: notification sidebar/panel not implemented - only toast-style notifications exist", async ({
+    page,
+  }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
 

@@ -47,8 +47,7 @@ test.describe("UI Controls", () => {
     }
   });
 
-  // Skip: Flaky in parallel execution
-  test.skip("should change auto-refresh interval", async ({ page }) => {
+  test("should change auto-refresh interval", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", {
       timeout: 15000,
@@ -60,11 +59,12 @@ test.describe("UI Controls", () => {
     await autoRefreshInput.dispatchEvent("change");
     expect(await autoRefreshInput.inputValue()).toBe("30");
   });
-  test.skip("should show error state when API fails", async ({ page }) => {
-    await page.route(apiRoute("screener**"), async (route) => {
+  test("should show error state when API fails", async ({ page }) => {
+    await page.route(apiRoute("screener"), async (route) => {
       await route.abort("failed");
     });
     await page.goto("/");
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
     const errorElement = page.getByTestId("screener-error");
     try {
       await expect(errorElement).toBeVisible({

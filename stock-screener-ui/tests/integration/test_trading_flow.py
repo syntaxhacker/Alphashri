@@ -216,8 +216,9 @@ class TestBotCreationFlow:
         assert len(bot["strategies"]) == 2
 
         # Step 4: Verify strategy associations in database
+        bot_db = db.query(BotConfig).filter(BotConfig.uuid == bot["uuid"]).first()
         associations = db.execute(
-            bot_strategies.select().where(bot_strategies.c.bot_id == bot["id"])
+            bot_strategies.select().where(bot_strategies.c.bot_id == bot_db.id)
         ).fetchall()
 
         assert len(associations) == 2

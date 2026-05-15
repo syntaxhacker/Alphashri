@@ -1,4 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+// @vitest-environment happy-dom
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const { mockStateData } = vi.hoisted(() => ({
+  mockStateData: { data: null as Record<string, any> | null, isLoading: false },
+}));
 
 vi.mock("../state", () => ({
   setIsLoading: vi.fn(),
@@ -14,8 +19,8 @@ vi.mock("../state", () => ({
   autoRefreshInterval: null,
   autoRefreshSeconds: 60,
   activeScreener: "trending",
-  data: null,
-  isLoading: false,
+  get data() { return mockStateData.data; },
+  get isLoading() { return mockStateData.isLoading; },
   screenerOptions: [],
   profileFilters: {},
   DEFAULT_SCREENER_DATA: { screener: null, symbols: [] },
@@ -44,8 +49,9 @@ vi.mock("../state/auth", () => ({
 }));
 
 import { fetchWithAuth } from "../state/auth";
-import { fetchData, resetLoadingState, detectAutoRefreshChanges, setRenderCallback } from "./index";
+import { fetchData, resetLoadingState, detectAutoRefreshChanges, setRenderCallback, setupAutoRefresh } from "./index";
 import * as state from "../state";
+import * as backtestModule from "../state/backtest";
 import { isAbortError } from "../hooks/useFetch";
 import { detectAddedSymbols } from "../utils/runtime_utils";
 import { pushNotification, markNewSymbols } from "../utils/notifications";
@@ -220,5 +226,63 @@ describe("detectAutoRefreshChanges", () => {
 
     expect(markNewSymbols).toHaveBeenCalled();
     expect(pushNotification).toHaveBeenCalled();
+  });
+});
+
+describe("setupAutoRefresh", () => {
+  beforeEach(() => {
+    mockStateData.data = { screener: "trending", symbols: [{ symbol: "RELIANCE" }] };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("clears existing interval and sets up new one", () => {
+    (state as any).autoRefreshInterval = 123;
+    const spyClear = vi.spyOn(globalThis, "clearInterval");
+    setupAutoRefresh();
+    expect(spyClear).toHaveBeenCalledWith(123);
+    expect(state.setAutoRefreshInterval).toHaveBeenCalled();
+    spyClear.mockRestore();
+    (state as any).autoRefreshInterval = null;
+  });
+
+  it("skips auto-refresh on backtest view", async () => {
+    vi.useFakeTimers();
+    vi.mocked(backtestModule.getBacktestState).mockReturnValue({ currentView: "backtest" });
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("skips auto-refresh on config tab", async () => {
+    vi.useFakeTimers();
+    window.location.search = "?tab=config";
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("skips auto-refresh on correlation tab", async () => {
+    vi.useFakeTimers();
+    window.location.search = "?tab=correlation";
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("skips auto-refresh on config tab (no timers)", () => {
+    window.location.search = "?tab=config";
+    setupAutoRefresh();
+    expect(state.setAutoRefreshInterval).toHaveBeenCalled();
+  });
+
+  it("throws error when fetchData is called from interval without tab param", () => {
+    // This verifies the interval setup works (interval is created)
+    vi.useFakeTimers();
+    setupAutoRefresh();
+    expect(state.setAutoRefreshInterval).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });

@@ -8,6 +8,26 @@ import { StrategyForm } from "./StrategyForm";
 import type { StrategyConfig } from "../../types/strategies";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
+vi.mock("@mantine/core", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    Select: ({ onChange, data, "data-testid": testId, ...rest }: any) => (
+      <select
+        data-testid={testId}
+        onChange={(e) => onChange?.(e.target.value)}
+        {...rest}
+      >
+        {data?.map((opt: any) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    ),
+  };
+});
+
 beforeEach(() => {
   window.alert = vi.fn();
 });
@@ -333,5 +353,94 @@ describe("StrategyForm", () => {
     );
     expect(screen.getByTestId("strategy-tab-runner")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-runner")).toBeInTheDocument();
+  });
+
+  it("shows S/R Breakout tab for SR_BREAKOUT type", () => {
+    const template = makeTemplate({ strategy_type: "SR_BREAKOUT" });
+    render(
+      <MantineProvider>
+        <StrategyForm {...baseProps} template={template} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("strategy-tab-sr")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-panel-sr")).toBeInTheDocument();
+  });
+
+  it("shows 52W Params tab for 52W_CHASER type", () => {
+    const template = makeTemplate({ strategy_type: "52W_CHASER" });
+    render(
+      <MantineProvider>
+        <StrategyForm {...baseProps} template={template} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("strategy-tab-52w")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
+  });
+
+  it("shows 52W Params tab for 52W_TARGET type", () => {
+    const template = makeTemplate({ strategy_type: "52W_TARGET" });
+    render(
+      <MantineProvider>
+        <StrategyForm {...baseProps} template={template} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("strategy-tab-52w")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
+  });
+
+  it("shows EMA params panel with Fast/Slow period inputs for EMA_CROSS type", () => {
+    const template = makeTemplate({ strategy_type: "EMA_CROSS" });
+    render(
+      <MantineProvider>
+        <StrategyForm {...baseProps} template={template} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("strategy-tab-ema")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-panel-ema")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-ema-fast-period-input")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-ema-slow-period-input")).toBeInTheDocument();
+  });
+
+  it("shows Swing params panel with entry threshold, trailing stop, holding days, cooldown days for 52W_CHASER type", () => {
+    const template = makeTemplate({ strategy_type: "52W_CHASER" });
+    render(
+      <MantineProvider>
+        <StrategyForm {...baseProps} template={template} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-entry-threshold-input")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-trailing-stop-input")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-max-holding-input")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-cooldown-days-input")).toBeInTheDocument();
+  });
+
+  it("shows Swing params panel with all inputs for 52W_TARGET type", () => {
+    const template = makeTemplate({ strategy_type: "52W_TARGET" });
+    render(
+      <MantineProvider>
+        <StrategyForm {...baseProps} template={template} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-entry-threshold-input")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-trailing-stop-input")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-max-holding-input")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-cooldown-days-input")).toBeInTheDocument();
+  });
+
+  it("changes active tab when strategy type is changed via Select", async () => {
+    const user = userEvent.setup();
+    render(
+      <MantineProvider>
+        <StrategyForm {...baseProps} template={makeTemplate({ strategy_type: "ORB" })} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("strategy-tab-orb")).toBeInTheDocument();
+    expect(screen.queryByTestId("strategy-tab-sr")).not.toBeInTheDocument();
+    const select = screen.getByTestId("strategy-type-input");
+    await user.selectOptions(select, "SR_BREAKOUT");
+    expect(screen.getByTestId("strategy-tab-sr")).toBeInTheDocument();
+    expect(screen.queryByTestId("strategy-tab-orb")).not.toBeInTheDocument();
   });
 });

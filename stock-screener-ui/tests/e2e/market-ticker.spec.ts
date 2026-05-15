@@ -161,7 +161,9 @@ test.describe("Market Ticker", () => {
     await navigationPromise;
   });
 
-  test.skip("should auto-refresh ticker data", async () => {
-    // Skip this test - auto-refresh takes 30 seconds
+  test.skip("reason: auto-refresh interval is 30s by default, making test impractical to wait", async ({
+    page,
+  }) => {
+    // Auto-refresh requires waiting 30s, too long for E2E test
   });
 });

@@ -173,4 +173,19 @@ describe("ReplayPositions", () => {
     );
     expect(screen.getByText("09:15")).toBeInTheDocument();
   });
+
+  it("row key is composite (symbol-strategy-id) so same symbol different strategies both render", () => {
+    const positions: ReplayOpenPosition[] = [
+      { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
+      { id: 2, symbol: "TCS", strategy: "52W", side: "SHORT", entry_price: 200, sl: 210, tp: 190, entry_time: "09:20", quantity: 50 },
+    ];
+    render(
+      <MantineProvider>
+        <ReplayPositions positions={positions} />
+      </MantineProvider>,
+    );
+    expect(screen.getAllByText("TCS")).toHaveLength(2);
+    expect(screen.getByText("ORB")).toBeInTheDocument();
+    expect(screen.getByText("52W")).toBeInTheDocument();
+  });
 });

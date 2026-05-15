@@ -170,6 +170,45 @@ describe("ReplayPage", () => {
     expect(setHighlightedTrade).toHaveBeenCalledWith(1);
   });
 
+  it("renders ReplayPositions when open positions exist", async () => {
+    mockUseReplayState.mockReturnValue({
+      config: { date: "2025-01-15", strategy: "ALL", symbols: "DEFAULT", refresh_cache: false, bot_uuid: "" },
+      isRunning: false,
+      progress: null,
+      trades: [],
+      openPositions: [{ id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 }],
+      orLevels: [],
+      pivotLevels: [],
+      high52wLevels: [],
+      emaData: {},
+      summary: null,
+      candlesBySymbol: {},
+      selectedSymbol: "",
+      strategyFilter: "ALL",
+      error: null,
+      totalCandles: 0,
+      totalSymbols: 0,
+      chartOptions: { show_orb_zones: false, show_pivot_levels: false, show_52w_high: false, show_ema: false, show_markers: false, show_all_trades: false },
+      highlightedTradeId: null,
+      setConfig: vi.fn(),
+      startReplay: vi.fn(),
+      stopReplay: vi.fn(),
+      reset: vi.fn(),
+      setSelectedSymbol: vi.fn(),
+      setStrategyFilter: vi.fn(),
+      setChartOptions: vi.fn(),
+      setHighlightedTrade: vi.fn(),
+      loadSymbols: vi.fn(),
+    });
+    const { ReplayPage } = await import("./ReplayPage");
+    render(
+      <MantineProvider>
+        <ReplayPage />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("replay-positions")).toBeInTheDocument();
+  });
+
   it("does not auto-select when highlightedTradeId already set", async () => {
     const setSelectedSymbol = vi.fn();
     const setHighlightedTrade = vi.fn();

@@ -157,7 +157,7 @@ export async function navigateToBot(page: Page, _botId?: string) {
   await firstBotCard.click();
 
   await page.getByTestId("tab-live").click();
-  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(1000);
 }
 
 export async function clickStrategyTab(page: Page, tabName: string): Promise<void> {
@@ -170,5 +170,5 @@ export async function clickStrategyTab(page: Page, tabName: string): Promise<voi
     await expect(tab.first()).toBeVisible();
     await tab.first().click();
   }
-  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(1000);
 }
