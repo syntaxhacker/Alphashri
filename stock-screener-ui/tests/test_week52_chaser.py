@@ -32,7 +32,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 
 try:
-    from nautilus_trader import __version__ as _nt_version
+    import nautilus_trader
 except ModuleNotFoundError:
     pytest.skip("nautilus_trader not available", allow_module_level=True)
 
