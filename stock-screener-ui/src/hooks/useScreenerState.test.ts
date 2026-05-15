@@ -36,6 +36,7 @@ vi.mock("./useStoreSubscription", () => ({
 
 vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(() => vi.fn()),
+  useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
 
 describe("useScreenerState", () => {
