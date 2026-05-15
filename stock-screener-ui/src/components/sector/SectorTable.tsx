@@ -1,6 +1,6 @@
 import { Table, Text, Badge, Group, ScrollArea, Progress, Box } from "@mantine/core";
 import type { SectorItem } from "../../types/sector";
-import { DataTable } from "../common/DataTable";
+import { DataTable, TableEmptyState } from "../common";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 
 interface SectorTableProps {
@@ -83,7 +83,17 @@ export function SectorTable({ sectors }: SectorTableProps) {
             <Table.Th>Top Movers</Table.Th>
           </Table.Tr>
         </Table.Thead>
-        <Table.Tbody>{rows}</Table.Tbody>
+        <Table.Tbody>
+          {sectors.length === 0 ? (
+            <Table.Tr>
+              <Table.Td colSpan={6}>
+                <TableEmptyState message="No sector data available" />
+              </Table.Td>
+            </Table.Tr>
+          ) : (
+            rows
+          )}
+        </Table.Tbody>
       </DataTable>
     </ScrollArea>
   );

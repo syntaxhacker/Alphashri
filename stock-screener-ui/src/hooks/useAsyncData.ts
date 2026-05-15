@@ -39,9 +39,7 @@ export function useAsyncData<T>(options: UseAsyncDataOptions<T>): UseAsyncDataRe
   }, [errorMessage]);
 
   useEffect(() => {
-    console.log("useAsyncData: useEffect called, autoFetch=", autoFetch);
     if (autoFetch) {
-      console.log("useAsyncData: calling execute()");
       execute();
     }
   }, [autoFetch, execute]);

@@ -8,6 +8,7 @@ import {
   TextInput,
   LoadingOverlay,
   Badge,
+  ScrollArea,
 } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
 import ReactECharts from "echarts-for-react";
@@ -148,8 +149,10 @@ export function HeatmapPage() {
         {
           type: "treemap",
           sort: false,
-          width: "100%",
-          height: "100%",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           roam: false,
           squareRatio: 1,
           label: {
@@ -192,7 +195,7 @@ export function HeatmapPage() {
       <Box p="sm" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
         <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
           <Group gap="xs">
-            <Text data-testid="heatmap-title" fw={700} size="lg">🇮🇳 NSE 500 · P/E Forward</Text>
+            <Text data-testid="heatmap-title" fw={700} size="lg">🇮🇳 NSE 500</Text>
             <Badge data-testid="heatmap-badge" variant="light" color={heatmapData?.cached ? "green" : "blue"}>
               {heatmapData?.cached ? "Cached" : "Live"}
             </Badge>
@@ -250,12 +253,16 @@ export function HeatmapPage() {
           </Flex>
         )}
         {!heatmapLoading && isChartView && (
-          <ReactECharts
-            ref={chartRef}
-            option={chartOption}
-            style={{ height: "100%", width: "100%" }}
-            opts={{ renderer: "canvas" }}
-          />
+          <ScrollArea style={{ height: "100%" }}>
+            <Box style={{ minHeight: "100%", minWidth: 600 }}>
+              <ReactECharts
+                ref={chartRef}
+                option={chartOption}
+                style={{ height: 800, width: "100%" }}
+                opts={{ renderer: "canvas" }}
+              />
+            </Box>
+          </ScrollArea>
         )}
         {isTableView && (
           <HeatmapListView
