@@ -10,19 +10,37 @@ Available strategies:
 """
 
 from .base import BaseStrategy, StrategyParam
-from .orb import ORBStrategy
-from .sr_breakout import SRBreakoutStrategy
-from .week52_chaser import Week52ChaserStrategy
-from .week52_target import Week52TargetStrategy
-from .ema_cross import EMACrossStrategy
 
-# Strategy registry
+
+class _LazyStrategy:
+    """Lazily import a strategy class on first access."""
+
+    def __init__(self, module: str, cls: str):
+        self._module = module
+        self._cls = cls
+        self._resolved = None
+
+    def _resolve(self):
+        if self._resolved is None:
+            import importlib
+            mod = importlib.import_module(f'.{self._module}', package=__package__)
+            self._resolved = getattr(mod, self._cls)
+        return self._resolved
+
+    def __getattr__(self, name):
+        return getattr(self._resolve(), name)
+
+    def __call__(self, *args, **kwargs):
+        return self._resolve()(*args, **kwargs)
+
+
+# Strategy registry — lazy-loaded to avoid importing nautilus_trader at import time
 STRATEGIES = {
-    'orb': ORBStrategy,
-    'sr_breakout': SRBreakoutStrategy,
-    '52w_chaser': Week52ChaserStrategy,
-    '52w_target': Week52TargetStrategy,
-    'ema_cross': EMACrossStrategy,
+    'orb': _LazyStrategy('orb', 'ORBStrategy'),
+    'sr_breakout': _LazyStrategy('sr_breakout', 'SRBreakoutStrategy'),
+    '52w_chaser': _LazyStrategy('week52_chaser', 'Week52ChaserStrategy'),
+    '52w_target': _LazyStrategy('week52_target', 'Week52TargetStrategy'),
+    'ema_cross': _LazyStrategy('ema_cross', 'EMACrossStrategy'),
 }
 
 
@@ -47,11 +65,6 @@ def list_strategies():
 __all__ = [
     'BaseStrategy',
     'StrategyParam',
-    'ORBStrategy',
-    'SRBreakoutStrategy',
-    'Week52ChaserStrategy',
-    'Week52TargetStrategy',
-    'EMACrossStrategy',
     'STRATEGIES',
     'get_strategy',
     'list_strategies',

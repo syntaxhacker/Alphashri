@@ -11,7 +11,6 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from typing import Dict, Any, Optional, List
 
-from .strategies import list_strategies, get_strategy
 from .costs import get_cost_breakdown
 from .chart_data import build_chart_data_for_symbol
 
@@ -49,6 +48,7 @@ def build_backtest_cache_key(user_id: int, strategy_id: str, symbols: List[str],
 
 def handle_get_strategies() -> Dict:
     """Handle GET /api/backtest/strategies"""
+    from .strategies import list_strategies
     return {
         'strategies': list_strategies(),
         'default': 'orb',
@@ -79,6 +79,7 @@ def save_backtest_result(user_id: int, result: Dict) -> Optional[str]:
         chart_data = result.get('chart_data', {})
         
         # Extract name from strategy list if possible
+        from .strategies import list_strategies
         strategies = list_strategies()
         strategy_name = next((s['name'] for s in strategies if s['id'] == strategy_id), strategy_id)
 
@@ -187,6 +188,7 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
         return {'error': 'No symbols provided'}
 
     # Get strategy
+    from .strategies import get_strategy
     strategy_class = get_strategy(strategy_id)
     if not strategy_class:
         return {'error': f'Unknown strategy: {strategy_id}'}

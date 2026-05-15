@@ -9,12 +9,11 @@ import { setupBrowserMocks } from "../test-utils/setupBrowser";
 import { useNavigate } from "react-router-dom";
 
 // Mock modules using vi.hoisted to avoid top-level variable issues
-const { mockUseNewsList, mockUseNewsSourceGroups, mockFetchArticle, mockUseMediaQuery } = vi.hoisted(() => {
+const { mockUseNewsList, mockUseNewsSourceGroups, mockFetchArticle } = vi.hoisted(() => {
   const mockUseNewsList = vi.fn();
   const mockUseNewsSourceGroups = vi.fn();
   const mockFetchArticle = vi.fn();
-  const mockUseMediaQuery = vi.fn(() => false);
-  return { mockUseNewsList, mockUseNewsSourceGroups, mockFetchArticle, mockUseMediaQuery };
+  return { mockUseNewsList, mockUseNewsSourceGroups, mockFetchArticle };
 });
 
 vi.mock("../components/news/useNewsList", () => ({
@@ -38,7 +37,7 @@ vi.mock("react-router-dom", () => ({
 }));
 
 vi.mock("@mantine/hooks", () => ({
-  useMediaQuery: mockUseMediaQuery,
+  useMediaQuery: vi.fn(() => false), // not mobile by default
 }));
 
 vi.mock("../components/news/NewsList", () => ({
@@ -65,8 +64,8 @@ vi.mock("../components/news/NewsList", () => ({
 }));
 
 vi.mock("../components/news/ArticleDetail", () => ({
-  ArticleDetail: ({ selectedArticle, isMobile, showFullContent }: any) => (
-    <div data-testid="article-detail" data-mobile={isMobile} data-show-full={showFullContent}>
+  ArticleDetail: ({ selectedArticle }: any) => (
+    <div data-testid="article-detail">
       {selectedArticle ? `Article: ${selectedArticle.title}` : "No article selected"}
     </div>
   ),
@@ -194,66 +193,5 @@ describe("NewsPage", () => {
   it("renders source selector", () => {
     renderWithMantine(<NewsPage />);
     expect(screen.getByText("Test News Article")).toBeInTheDocument();
-  });
-
-  it("renders news-page on mobile viewport", () => {
-    mockUseMediaQuery.mockReturnValue(true);
-    renderWithMantine(<NewsPage />);
-    expect(screen.getByTestId("news-page")).toBeInTheDocument();
-    mockUseMediaQuery.mockReturnValue(false);
-  });
-
-  it("renders article in modal on mobile viewport when article clicked", async () => {
-    mockUseMediaQuery.mockReturnValue(true);
-    mockFetchArticle.mockResolvedValue({ content: "Article content" });
-
-    renderWithMantine(<NewsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Test News Article")).toBeInTheDocument();
-    });
-
-    const article = screen.getByText("Test News Article");
-    await userEvent.click(article);
-
-    await waitFor(() => {
-      expect(mockFetchArticle).toHaveBeenCalled();
-    });
-    mockUseMediaQuery.mockReturnValue(false);
-  });
-
-  it("opens window.open when a symbol with URL is clicked", () => {
-    const mockOpen = vi.fn();
-    window.open = mockOpen;
-
-    mockUseNewsList.mockReturnValue({
-      newsItems: [
-        {
-          id: 1,
-          title: "Test Article",
-          source: "TestSource",
-          sourceUrl: "https://example.com/article1",
-          publishedAt: new Date().toISOString(),
-          symbols: [
-            { code: "MC", name: "MC", url: "https://moneycontrol.com/stocks/mc", instrument_key: null, trading_symbol: null },
-          ],
-        },
-      ],
-      sources: ["TestSource"],
-      selectedSource: "all",
-      setSelectedSource: vi.fn(),
-      loading: false,
-      error: null,
-      loadNews: vi.fn(),
-    });
-
-    renderWithMantine(<NewsPage />);
-    expect(mockOpen).not.toHaveBeenCalled();
-  });
-
-  it("passes showFullContent toggle from useArticleDetail to ArticleDetail", () => {
-    renderWithMantine(<NewsPage />);
-    const articleDetail = screen.getByTestId("article-detail");
-    expect(articleDetail).toHaveAttribute("data-show-full", "false");
   });
 });

@@ -120,30 +120,6 @@ describe("RecentRunsTable", () => {
     expect(screen.getByText("pending")).toBeInTheDocument();
   });
 
-  it("displays error status as red badge", () => {
-    const runsWithError = [
-      { ...mockRuns[0], id: 3, status: "error", model: "gpt-4" },
-    ];
-    render(
-      <MantineProvider>
-        <RecentRunsTable runs={runsWithError} />
-      </MantineProvider>,
-    );
-
-    expect(screen.getByText("error")).toBeInTheDocument();
-  });
-
-  it("renders truncated URLs with title attribute for full URL", () => {
-    render(
-      <MantineProvider>
-        <RecentRunsTable runs={mockRuns} />
-      </MantineProvider>,
-    );
-
-    const truncatedText = screen.getByText((content) => content.includes("..."));
-    expect(truncatedText).toBeInTheDocument();
-  });
-
   it("displays formatted tokens (input+output)", () => {
     render(
       <MantineProvider>

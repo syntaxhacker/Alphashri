@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   Box,
   Flex,
@@ -6,82 +6,85 @@ import {
   Group,
   Select,
   TextInput,
-  SegmentedControl,
   LoadingOverlay,
-  Tooltip,
   Badge,
 } from "@mantine/core";
-import { useAsync } from "../../hooks/useAsync";
-import { fetchHeatmapData, fetchHeatmapSectors, type HeatmapStock, type SectorInfo } from "../../api/heatmap";
+import { useMantineColorScheme } from "@mantine/core";
+import ReactECharts from "echarts-for-react";
+import { useAsyncData } from "../../hooks/useAsyncData";
+import { fetchHeatmapData, fetchHeatmapSectors, type SectorInfo } from "../../api/heatmap";
+import {
+  TOOLTIP_DARK_BG,
+  TOOLTIP_LIGHT_BG,
+  TOOLTIP_DARK_BORDER,
+  TOOLTIP_LIGHT_BORDER,
+  TOOLTIP_DARK_TEXT,
+  TOOLTIP_LIGHT_TEXT,
+} from "../../config/colors";
+import { METRICS, getMetricValue, getMetricColor, getMetricTextColor, formatMarketCap } from "./heatmapUtils";
+import { ScatterView } from "./ScatterView";
+import { DistributionView } from "./DistributionView";
+import { SectorBarView } from "./SectorBarView";
+import { TopBottomView } from "./TopBottomView";
 
-const GRID_COLS = 10;
-
-const PE_COLORS: Record<string, string> = {
-  green: "#1a9850",
-  "light-green": "#91cf60",
-  yellow: "#ffffbf",
-  orange: "#fc8d59",
-  red: "#d73027",
-  grey: "#808080",
-};
-
-function getPeColor(pe: number): string {
-  if (pe < 10) return PE_COLORS.green;
-  if (pe < 15) return PE_COLORS["light-green"];
-  if (pe < 20) return PE_COLORS.yellow;
-  if (pe < 30) return PE_COLORS.orange;
-  return PE_COLORS.red;
-}
-
-function formatMarketCap(mcap: number): string {
-  if (mcap >= 1e12) return `₹${(mcap / 1e12).toFixed(1)}T`;
-  if (mcap >= 1e10) return `₹${(mcap / 1e10).toFixed(1)}L`;
-  if (mcap >= 1e8) return `₹${(mcap / 1e8).toFixed(1)}Cr`;
-  return `₹${(mcap / 1e6).toFixed(0)}M`;
-}
+const VIEWS = [
+  { value: "treemap", label: "Treemap" },
+  { value: "list", label: "List" },
+  { value: "scatter", label: "Scatter" },
+  { value: "distribution", label: "Distribution" },
+  { value: "sectors", label: "Sectors" },
+  { value: "top10", label: "Top 10" },
+];
 
 export function HeatmapPage() {
-  const [sortBy, setSortBy] = useState<"market_cap" | "pe_ratio">("market_cap");
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
+  const chartRef = useRef<any>(null);
+
+  const [view, setView] = useState("treemap");
   const [sectorFilter, setSectorFilter] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState("");
-  const [view, setView] = useState("heatmap");
+  const [metric, setMetric] = useState<string>("market_cap");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const [scatterMetricX, setScatterMetricX] = useState<string>("pe_ratio");
+  const [scatterMetricY, setScatterMetricY] = useState<string>("roe");
 
-  const { data: heatmapData, loading: heatmapLoading, error: heatmapError, execute: loadHeatmap } = useAsync(
-    () => fetchHeatmapData(undefined, undefined, sectorFilter || undefined, 500),
-    { immediate: true }
-  );
+  const { data: heatmapData, loading: heatmapLoading, error: heatmapError } = useAsyncData({
+    fetchFn: () => fetchHeatmapData(undefined, undefined, undefined, 500),
+    autoFetch: true
+  });
 
-  const { data: sectorsData, loading: sectorsLoading } = useAsync(() => fetchHeatmapSectors(), {
-    immediate: true,
+  const { data: sectorsData } = useAsyncData({
+    fetchFn: () => fetchHeatmapSectors(),
+    autoFetch: true
   });
 
   const stocks = heatmapData?.stocks || [];
 
-  const filteredStocks = useMemo(() => {
-    let result = [...stocks];
+  let filtered = stocks;
 
-    if (searchFilter) {
-      const lower = searchFilter.toLowerCase();
-      result = result.filter(
-        (s) => s.symbol.toLowerCase().includes(lower) || s.name.toLowerCase().includes(lower)
-      );
-    }
+  if (sectorFilter) {
+    filtered = filtered.filter(s => s.sector === sectorFilter);
+  }
 
-    result.sort((a, b) => {
-      if (sortBy === "market_cap") return b.market_cap - a.market_cap;
-      return a.pe_ratio - b.pe_ratio;
-    });
+  if (searchFilter) {
+    const lower = searchFilter.toLowerCase();
+    filtered = filtered.filter(
+      (s) => s.symbol.toLowerCase().includes(lower) || s.name.toLowerCase().includes(lower)
+    );
+  }
 
-    return result;
-  }, [stocks, searchFilter, sortBy]);
+  const activeMetric = METRICS.find((m) => m.value === metric) || METRICS[0];
 
-  const gridStocks = useMemo(() => {
-    const rows: HeatmapStock[][] = [];
-    for (let i = 0; i < filteredStocks.length; i += GRID_COLS) {
-      rows.push(filteredStocks.slice(i, i + GRID_COLS));
-    }
-    return rows;
-  }, [filteredStocks]);
+  const filteredStocks = [...filtered].sort((a, b) => {
+    const va = getMetricValue(a, metric);
+    const vb = getMetricValue(b, metric);
+    return sortDir === "desc" ? vb - va : va - vb;
+  });
+
+  const metricValues = filteredStocks.map((s) => getMetricValue(s, metric));
+  const metricMin = metricValues.length ? Math.min(...metricValues) : 0;
+  const metricMax = metricValues.length ? Math.max(...metricValues) : 1;
 
   const sectorOptions = useMemo(() => {
     if (!sectorsData?.sectors) return [];
@@ -91,301 +94,262 @@ export function HeatmapPage() {
     }));
   }, [sectorsData]);
 
-  const totalCount = filteredStocks.length;
-  const displayCount = Math.min(totalCount, 500);
+  const chartOption = useMemo(() => {
+    const data = filteredStocks.map((stock) => {
+      const mv = getMetricValue(stock, metric);
+      const color = getMetricColor(mv, metricMin, metricMax);
+      const textColor = getMetricTextColor(mv, metricMin, metricMax);
+      return {
+        name: stock.symbol,
+        value: 1,
+        path: stock.symbol,
+        nameFull: stock.name,
+        sector: stock.sector,
+        price: stock.price,
+        change: stock.change_pct,
+        mcap: stock.market_cap,
+        pe: stock.pe_ratio,
+        metricLabel: activeMetric.label,
+        metricValue: activeMetric.fmt(mv),
+        label: { color: textColor },
+        itemStyle: { color },
+      };
+    });
+
+    const tooltipBg = isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG;
+    const tooltipBorder = isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER;
+    const tooltipText = isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT;
+
+    return {
+      tooltip: {
+        trigger: "item",
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
+        textStyle: { color: tooltipText },
+        formatter: (params: any) => {
+          const d = params.data;
+          if (!d) return "";
+          return [
+            `<div style="font-weight:bold;font-size:14px;color:${tooltipText}">${d.name}</div>`,
+            `<div style="color:${tooltipText};font-size:12px;opacity:0.8">${d.nameFull}</div>`,
+            `<div style="margin-top:8px">`,
+            `  <div style="color:${tooltipText}">${d.metricLabel}: <b>${d.metricValue}</b></div>`,
+            `  <div style="color:${tooltipText}">P/E: <b>${d.pe}</b></div>`,
+            `  <div style="color:${tooltipText}">MCap: <b>${formatMarketCap(d.mcap)}</b></div>`,
+            `  <div style="color:${tooltipText}">Price: <b>₹${d.price?.toFixed(2) || "-"}</b></div>`,
+            `  <div style="color:${d.change >= 0 ? "green" : "red"}">Change: <b>${d.change >= 0 ? "+" : ""}${d.change?.toFixed(2)}%</b></div>`,
+            `  <div style="color:${tooltipText}">Sector: ${d.sector || "-"}</div>`,
+            `</div>`,
+          ].join("\n");
+        },
+      },
+      series: [
+        {
+          type: "treemap",
+          sort: false,
+          width: "100%",
+          height: "100%",
+          roam: false,
+          squareRatio: 1,
+          label: {
+            show: true,
+            formatter: (params: any) =>
+              `${params.name}\n${params.data?.metricValue}`,
+            fontSize: 10,
+            fontWeight: "bold",
+            lineHeight: 14,
+            textBorderColor: "#000",
+            textBorderWidth: 0.5,
+          },
+          breadcrumb: { show: false },
+          itemStyle: {
+            borderColor: isDark ? "#1a1a1a" : "#fff",
+            borderWidth: 1,
+            gapWidth: 0,
+          },
+          levels: [
+            { itemStyle: { borderColor: isDark ? "#1a1a1a" : "#fff", borderWidth: 0, gapWidth: 0 } },
+            { colorSaturation: [0.35, 0.5], itemStyle: { borderColorSaturation: 0.6, gapWidth: 0, borderWidth: 1 } },
+          ],
+          data,
+        },
+      ],
+    };
+  }, [filteredStocks, activeMetric, metric, metricMin, metricMax, isDark]);
+
+  const metricOptions = METRICS.map((m) => ({ value: m.value, label: m.label }));
+
+  const isTableView = view === "list" || view === "top10";
+  const isChartView = view === "treemap";
+  const isScatterView = view === "scatter";
+  const isDistView = view === "distribution";
+  const isSectorView = view === "sectors";
+  const isTop10View = view === "top10";
 
   return (
-    <Box style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <Box
-        p="sm"
-        style={{
-          borderBottom: "1px solid var(--mantine-color-default-border)",
-          background: "var(--mantine-color-body)",
-        }}
-      >
+    <Box data-testid="heatmap-page" style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Box p="sm" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
         <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
           <Group gap="xs">
-            <Text fw={700} size="lg">
-              🇮🇳 NSE 500 · P/E Forward
-            </Text>
-            <Badge variant="light" color={heatmapData?.cached ? "green" : "blue"}>
+            <Text data-testid="heatmap-title" fw={700} size="lg">🇮🇳 NSE 500 · P/E Forward</Text>
+            <Badge data-testid="heatmap-badge" variant="light" color={heatmapData?.cached ? "green" : "blue"}>
               {heatmapData?.cached ? "Cached" : "Live"}
             </Badge>
           </Group>
-
-          <SegmentedControl
-            size="xs"
-            value={view}
-            onChange={setView}
-            data={[
-              { label: "Heatmap", value: "heatmap" },
-              { label: "Bars", value: "bars" },
-              { label: "Table", value: "table" },
-            ]}
-          />
         </Flex>
-
-        <Group mt="sm" gap="sm">
+        <Group mt="sm" gap="sm" wrap="wrap">
           <Select
+            data-testid="heatmap-sector-filter"
             size="xs"
             placeholder="Filter by sector"
             clearable
             value={sectorFilter}
             onChange={setSectorFilter}
             data={sectorOptions}
-            style={{ width: 200 }}
+            style={{ width: 180 }}
             searchable
           />
           <TextInput
+            data-testid="heatmap-search"
             size="xs"
-            placeholder="Search symbol or name..."
+            placeholder="Search symbol..."
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            style={{ width: 180 }}
+            style={{ width: 140 }}
           />
+          {!isScatterView && (
+            <Select
+              data-testid="heatmap-metric"
+              size="xs"
+              label="Metric"
+              value={metric}
+              onChange={(v) => setMetric(v || "market_cap")}
+              data={metricOptions}
+              style={{ width: 130 }}
+            />
+          )}
           <Select
+            data-testid="heatmap-view"
             size="xs"
-            value={sortBy}
-            onChange={(v) => setSortBy((v as "market_cap") || "market_cap")}
-            data={[
-              { value: "market_cap", label: "Sort by MCap" },
-              { value: "pe_ratio", label: "Sort by P/E" },
-            ]}
-            style={{ width: 120 }}
+            label="View"
+            value={view}
+            onChange={(v) => setView(v || "treemap")}
+            data={VIEWS}
+            style={{ width: 130 }}
           />
-          <Text size="xs" c="dimmed">
-            {displayCount} stocks
-          </Text>
+          <Text data-testid="heatmap-stock-count" size="xs" c="dimmed">{filteredStocks.length} stocks</Text>
         </Group>
       </Box>
 
-      <Box style={{ flex: 1, overflow: "auto", position: "relative" }}>
+      <Box style={{ flex: 1, overflow: "hidden", position: "relative" }}>
         <LoadingOverlay visible={heatmapLoading} />
-
         {heatmapError && (
           <Flex justify="center" align="center" h={200}>
-            <Text c="red">{heatmapError.message || "Failed to load heatmap data"}</Text>
+            <Text data-testid="heatmap-error" c="red">Error: {heatmapError.message || "Failed to load"}</Text>
           </Flex>
         )}
-
-        {!heatmapLoading && view === "heatmap" && (
-          <Box p="sm">
-            <Box
-              style={{
-                display: "grid",
-                gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
-                gap: 2,
-              }}
-            >
-              {gridStocks.map((row, rowIdx) =>
-                row.map((stock, colIdx) => (
-                  <Tooltip
-                    key={`${stock.symbol}-${rowIdx}-${colIdx}`}
-                    label={
-                      <Box p="xs">
-                        <Text fw={700} size="sm">
-                          {stock.symbol}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {stock.name}
-                        </Text>
-                        <Text size="xs" mt={4}>
-                          P/E: <b>{stock.pe_ratio}</b>
-                        </Text>
-                        <Text size="xs">
-                          MCap: <b>{formatMarketCap(stock.market_cap)}</b>
-                        </Text>
-                        {stock.price && (
-                          <Text size="xs">
-                            Price: <b>₹{stock.price.toFixed(2)}</b>
-                          </Text>
-                        )}
-                        {stock.change_pct !== undefined && (
-                          <Text
-                            size="xs"
-                            c={stock.change_pct >= 0 ? "green" : "red"}
-                          >
-                            {stock.change_pct >= 0 ? "+" : ""}
-                            {stock.change_pct.toFixed(2)}%
-                          </Text>
-                        )}
-                        {stock.sector && (
-                          <Badge size="xs" mt={4}>
-                            {stock.sector}
-                          </Badge>
-                        )}
-                      </Box>
-                    }
-                    position="top-start"
-                    withArrow
-                  >
-                    <Box
-                      style={{
-                        aspectRatio: "1.4",
-                        backgroundColor: getPeColor(stock.pe_ratio),
-                        borderRadius: 4,
-                        padding: 4,
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        cursor: "pointer",
-                        minHeight: 48,
-                        transition: "transform 0.1s",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "scale(1.05)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "scale(1)";
-                      }}
-                    >
-                      <Text
-                        size="xs"
-                        fw={600}
-                        c="dark"
-                        style={{
-                          textOverflow: "ellipsis",
-                          overflow: "hidden",
-                          maxWidth: "100%",
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        {stock.symbol}
-                      </Text>
-                      <Text
-                        size="xs"
-                        fw={700}
-                        c="dark"
-                        style={{ lineHeight: 1.2 }}
-                      >
-                        {stock.pe_ratio}
-                      </Text>
-                    </Box>
-                  </Tooltip>
-                ))
-              )}
-            </Box>
+        {!heatmapLoading && isChartView && (
+          <ReactECharts
+            ref={chartRef}
+            option={chartOption}
+            style={{ height: "100%", width: "100%" }}
+            opts={{ renderer: "canvas" }}
+          />
+        )}
+        {isTableView && (
+          <Box p="sm" style={{ overflow: "auto" }}>
+            <table data-testid="heatmap-list-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #ccc" }}>
+                  <th style={{ textAlign: "left", padding: "8px 6px" }}>Symbol</th>
+                  <th style={{ textAlign: "right", padding: "8px 6px" }}>{activeMetric.label}</th>
+                  <th style={{ textAlign: "left", padding: "8px 6px" }}>Name</th>
+                  <th style={{ textAlign: "right", padding: "8px 6px" }}>P/E</th>
+                  <th style={{ textAlign: "right", padding: "8px 6px" }}>MCap</th>
+                  <th style={{ textAlign: "right", padding: "8px 6px" }}>Price</th>
+                  <th style={{ textAlign: "right", padding: "8px 6px" }}>Change</th>
+                  <th style={{ textAlign: "left", padding: "8px 6px" }}>Sector</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStocks.slice(0, 100).map((stock) => {
+                  const mv = getMetricValue(stock, metric);
+                  const bg = getMetricColor(mv, metricMin, metricMax);
+                  const tc = getMetricTextColor(mv, metricMin, metricMax);
+                  return (
+                    <tr key={stock.symbol} style={{ borderBottom: "1px solid #eee" }}>
+                      <td style={{ padding: "4px 6px", fontWeight: "bold" }}>{stock.symbol}</td>
+                      <td style={{ padding: "4px 6px", textAlign: "right", fontWeight: "bold", backgroundColor: bg, color: tc }}>
+                        {activeMetric.fmt(mv)}
+                      </td>
+                      <td style={{ padding: "4px 6px" }}>{stock.name}</td>
+                      <td style={{ padding: "4px 6px", textAlign: "right" }}>{stock.pe_ratio}</td>
+                      <td style={{ padding: "4px 6px", textAlign: "right" }}>{formatMarketCap(stock.market_cap)}</td>
+                      <td style={{ padding: "4px 6px", textAlign: "right" }}>₹{stock.price?.toFixed(2)}</td>
+                      <td style={{ padding: "4px 6px", textAlign: "right", color: stock.change_pct >= 0 ? "green" : "red" }}>
+                        {stock.change_pct >= 0 ? "+" : ""}{stock.change_pct?.toFixed(2)}%
+                      </td>
+                      <td style={{ padding: "4px 6px" }}>{stock.sector}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </Box>
         )}
-
-        {!heatmapLoading && view === "table" && (
-          <Box p="sm">
-            <Box
-              style={{
-                display: "table",
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 12,
-              }}
-            >
-              <Box component="thead" style={{ display: "table-header-group" }}>
-                <Box component="tr" style={{ display: "table-row" }}>
-                  <Box component="th" style={{ display: "table-cell", padding: 8, textAlign: "left" }}>
-                    Symbol
-                  </Box>
-                  <Box component="th" style={{ display: "table-cell", padding: 8, textAlign: "left" }}>
-                    Name
-                  </Box>
-                  <Box component="th" style={{ display: "table-cell", padding: 8, textAlign: "right" }}>
-                    P/E
-                  </Box>
-                  <Box component="th" style={{ display: "table-cell", padding: 8, textAlign: "right" }}>
-                    MCap
-                  </Box>
-                  <Box component="th" style={{ display: "table-cell", padding: 8, textAlign: "right" }}>
-                    Price
-                  </Box>
-                  <Box component="th" style={{ display: "table-cell", padding: 8, textAlign: "right" }}>
-                    Change
-                  </Box>
-                  <Box component="th" style={{ display: "table-cell", padding: 8, textAlign: "left" }}>
-                    Sector
-                  </Box>
-                </Box>
-              </Box>
-              <Box component="tbody">
-                {filteredStocks.slice(0, 100).map((stock) => (
-                  <Box
-                    key={stock.symbol}
-                    component="tr"
-                    style={{
-                      display: "table-row",
-                      backgroundColor: getPeColor(stock.pe_ratio),
-                    }}
-                  >
-                    <Box component="td" style={{ display: "table-cell", padding: 6 }}>
-                      {stock.symbol}
-                    </Box>
-                    <Box component="td" style={{ display: "table-cell", padding: 6 }}>
-                      {stock.name?.substring(0, 20)}
-                    </Box>
-                    <Box component="td" style={{ display: "table-cell", padding: 6, textAlign: "right" }}>
-                      {stock.pe_ratio}
-                    </Box>
-                    <Box component="td" style={{ display: "table-cell", padding: 6, textAlign: "right" }}>
-                      {formatMarketCap(stock.market_cap)}
-                    </Box>
-                    <Box component="td" style={{ display: "table-cell", padding: 6, textAlign: "right" }}>
-                      {stock.price ? `₹${stock.price.toFixed(2)}` : "-"}
-                    </Box>
-                    <Box
-                      component="td"
-                      style={{
-                        display: "table-cell",
-                        padding: 6,
-                        textAlign: "right",
-                        color: stock.change_pct >= 0 ? "green" : "red",
-                      }}
-                    >
-                      {stock.change_pct ? `${stock.change_pct >= 0 ? "+" : ""}${stock.change_pct.toFixed(2)}%` : "-"}
-                    </Box>
-                    <Box component="td" style={{ display: "table-cell", padding: 6 }}>
-                      {stock.sector}
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-            </Box>
-          </Box>
+        {!heatmapLoading && isScatterView && (
+          <ScatterView
+            stocks={filteredStocks}
+            metricX={scatterMetricX}
+            metricY={scatterMetricY}
+            onMetricXChange={setScatterMetricX}
+            onMetricYChange={setScatterMetricY}
+            getMetricValue={getMetricValue}
+            getMetricColor={getMetricColor}
+            METRICS={METRICS}
+          />
         )}
-
-        {!heatmapLoading && view === "bars" && (
-          <Box p="sm">
-            <Text size="sm" c="dimmed">
-              Bars view coming soon...
-            </Text>
-          </Box>
+        {!heatmapLoading && isDistView && (
+          <DistributionView
+            stocks={filteredStocks}
+            metric={metric}
+            getMetricValue={getMetricValue}
+            getMetricColor={getMetricColor}
+            METRICS={METRICS}
+          />
+        )}
+        {!heatmapLoading && isSectorView && (
+          <SectorBarView
+            stocks={filteredStocks}
+            metric={metric}
+            getMetricValue={getMetricValue}
+            getMetricColor={getMetricColor}
+            METRICS={METRICS}
+          />
+        )}
+        {!heatmapLoading && isTop10View && (
+          <TopBottomView
+            stocks={filteredStocks}
+            metric={metric}
+            getMetricValue={getMetricValue}
+            getMetricColor={getMetricColor}
+            getMetricTextColor={getMetricTextColor}
+            METRICS={METRICS}
+          />
         )}
       </Box>
 
-      <Box
-        p="xs"
-        style={{
-          borderTop: "1px solid var(--mantine-color-default-border)",
-          background: "var(--mantine-color-body)",
-        }}
-      >
-        <Group gap="lg">
+      <Box data-testid="heatmap-legend" p="xs" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
+        <Group gap="md">
+          <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric.label}</Text>
           <Group gap={4}>
-            <Box style={{ width: 16, height: 16, backgroundColor: PE_COLORS.green, borderRadius: 2 }} />
-            <Text size="xs">&lt;10 (Undervalued)</Text>
+            <Box style={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMin, metricMin, metricMax), borderRadius: 2 }} />
+            <Text size="xs" data-testid="heatmap-legend-min">{activeMetric.fmt(metricMin)}</Text>
           </Group>
+          <Box style={{ flex: 1, maxWidth: 120, height: 8, borderRadius: 4, background: "linear-gradient(to right, rgb(0,90,30), rgb(80,185,70), rgb(245,230,60), rgb(235,130,40), rgb(175,35,35))" }} />
           <Group gap={4}>
-            <Box style={{ width: 16, height: 16, backgroundColor: PE_COLORS["light-green"], borderRadius: 2 }} />
-            <Text size="xs">10-15</Text>
-          </Group>
-          <Group gap={4}>
-            <Box style={{ width: 16, height: 16, backgroundColor: PE_COLORS.yellow, borderRadius: 2 }} />
-            <Text size="xs">15-20 (Fair)</Text>
-          </Group>
-          <Group gap={4}>
-            <Box style={{ width: 16, height: 16, backgroundColor: PE_COLORS.orange, borderRadius: 2 }} />
-            <Text size="xs">20-30</Text>
-          </Group>
-          <Group gap={4}>
-            <Box style={{ width: 16, height: 16, backgroundColor: PE_COLORS.red, borderRadius: 2 }} />
-            <Text size="xs">30+ (Overvalued)</Text>
+            <Box style={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMax, metricMin, metricMax), borderRadius: 2 }} />
+            <Text size="xs" data-testid="heatmap-legend-max">{activeMetric.fmt(metricMax)}</Text>
           </Group>
         </Group>
       </Box>

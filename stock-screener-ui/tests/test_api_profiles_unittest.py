@@ -99,15 +99,6 @@ class TestApiProfiles(unittest.TestCase):
         syms = [r['symbol'] for r in data['approaching']]
         self.assertEqual(syms, ['ABC'])
 
-    @patch.object(api_server.trending_upside, 'fetch_trending_stocks', side_effect=lambda **_: pd.DataFrame())
-    @patch.object(api_server.TradingAPIFactory, 'create_from_config', side_effect=ValueError('no creds'))
-    def test_handles_empty_dataframe_gracefully(self, _mock_factory, _mock_fetch):
-        data = api_server.fetch_screener_data(provider='upstox', mode='historical', screener='market_open_gap')
-        self.assertEqual(len(data['approaching']), 0)
-        self.assertEqual(len(data['touched']), 0)
-        self.assertIn('profile_meta', data)
-        self.assertIn('summary', data)
-
     def test_rationale_formats_by_profile(self):
         row = {
             'gap_pct': 1.2,

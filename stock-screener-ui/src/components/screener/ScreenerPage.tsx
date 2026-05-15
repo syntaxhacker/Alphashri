@@ -109,14 +109,6 @@ export function ScreenerPage({
 
   const { sortColumn, sortDirection, handleSortChange } = useScreenerSort(activeScreener);
 
-  const handleScreenerChange = useCallback((id: string) => {
-    setSearchParams((prev) => {
-      prev.set("screener", id);
-      return prev;
-    }, { replace: true });
-    onScreenerChange(id);
-  }, [onScreenerChange, setSearchParams]);
-
   const handleCompare = useCallback(() => {
     const syms = state.selectedSymbols;
     if (syms.length < 2) return;
@@ -181,7 +173,7 @@ export function ScreenerPage({
                 <ScreenerNav
                   options={screenerOptions}
                   activeScreener={activeScreener}
-                  onChange={handleScreenerChange}
+                  onChange={onScreenerChange}
                 />
                 <ScreenerHeader
                   title={title}

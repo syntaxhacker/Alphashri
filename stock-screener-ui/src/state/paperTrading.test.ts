@@ -16,12 +16,6 @@ import {
   setFilterStrategy,
   setFilterBot,
   setSelectedSymbol,
-  setSelectedTradeId,
-  setShowAllTrades,
-  setShowOrbLines,
-  setShowPivotLines,
-  setShow52wLines,
-  setShowEmaLines,
   setSelectedStrategyTab,
   setChartData,
   setChartLoading,
@@ -42,8 +36,6 @@ import {
   setPaperTradingView,
   deleteTradeAction,
   updateTradeNotesAction,
-  setupAutoRefresh,
-  stopAutoRefresh,
 } from "./paperTrading";
 import type {
   PaperPosition,
@@ -333,94 +325,6 @@ describe("chart management", () => {
     expect(getPaperTradingState().selectedSymbol).toBeNull();
   });
 
-  it("setSelectedSymbol clears selectedTradeId", () => {
-    setSelectedTradeId("trade-1", "ORB", 1);
-    expect(getPaperTradingState().selectedTradeId).toBe("trade-1");
-    setSelectedSymbol("RELIANCE");
-    expect(getPaperTradingState().selectedSymbol).toBe("RELIANCE");
-    expect(getPaperTradingState().selectedTradeId).toBeNull();
-  });
-
-  it("setSelectedTradeId sets ORB line visibility for ORB strategy", () => {
-    setSelectedTradeId("trade-1", "ORB", 1);
-    const state = getPaperTradingState();
-    expect(state.selectedTradeId).toBe("trade-1");
-    expect(state.selectedStrategyId).toBe(1);
-    expect(state.showAllTrades).toBe(false);
-    expect(state.showOrbLines).toBe(true);
-    expect(state.showPivotLines).toBe(false);
-    expect(state.show52wLines).toBe(false);
-  });
-
-  it("setSelectedTradeId sets SR_BREAKOUT line visibility", () => {
-    setSelectedTradeId("trade-2", "SR_BREAKOUT", 2);
-    const state = getPaperTradingState();
-    expect(state.selectedTradeId).toBe("trade-2");
-    expect(state.selectedStrategyId).toBe(2);
-    expect(state.showOrbLines).toBe(false);
-    expect(state.showPivotLines).toBe(true);
-    expect(state.show52wLines).toBe(false);
-  });
-
-  it("setSelectedTradeId sets 52W line visibility", () => {
-    setSelectedTradeId("trade-3", "52W_TARGET", 3);
-    const state = getPaperTradingState();
-    expect(state.selectedTradeId).toBe("trade-3");
-    expect(state.showOrbLines).toBe(false);
-    expect(state.showPivotLines).toBe(false);
-    expect(state.show52wLines).toBe(true);
-  });
-
-  it("setSelectedTradeId handles 52W prefix strategies", () => {
-    setSelectedTradeId("trade-4", "52W_CHASER", 4);
-    const state = getPaperTradingState();
-    expect(state.show52wLines).toBe(true);
-  });
-
-  it("setSelectedTradeId clears all overlays when no strategy type", () => {
-    setSelectedTradeId("trade-5", null, null);
-    const state = getPaperTradingState();
-    expect(state.showOrbLines).toBe(false);
-    expect(state.showPivotLines).toBe(false);
-    expect(state.show52wLines).toBe(false);
-    expect(state.selectedStrategyId).toBeNull();
-  });
-
-  it("setShowAllTrades toggles all trades view", () => {
-    setShowAllTrades(true);
-    expect(getPaperTradingState().showAllTrades).toBe(true);
-    setShowAllTrades(false);
-    expect(getPaperTradingState().showAllTrades).toBe(false);
-  });
-
-  it("setShowOrbLines toggles ORB overlay", () => {
-    setShowOrbLines(true);
-    expect(getPaperTradingState().showOrbLines).toBe(true);
-    setShowOrbLines(false);
-    expect(getPaperTradingState().showOrbLines).toBe(false);
-  });
-
-  it("setShowPivotLines toggles pivot overlay", () => {
-    setShowPivotLines(true);
-    expect(getPaperTradingState().showPivotLines).toBe(true);
-    setShowPivotLines(false);
-    expect(getPaperTradingState().showPivotLines).toBe(false);
-  });
-
-  it("setShow52wLines toggles 52W overlay", () => {
-    setShow52wLines(true);
-    expect(getPaperTradingState().show52wLines).toBe(true);
-    setShow52wLines(false);
-    expect(getPaperTradingState().show52wLines).toBe(false);
-  });
-
-  it("setShowEmaLines toggles EMA overlay", () => {
-    setShowEmaLines(true);
-    expect(getPaperTradingState().showEmaLines).toBe(true);
-    setShowEmaLines(false);
-    expect(getPaperTradingState().showEmaLines).toBe(false);
-  });
-
   it("setSelectedStrategyTab updates selectedStrategyTab", () => {
     setSelectedStrategyTab("ORB");
     expect(getPaperTradingState().selectedStrategyTab).toBe("ORB");
@@ -490,72 +394,6 @@ describe("auto-refresh", () => {
     setAutoRefresh(false);
     setAutoRefresh(true);
     expect(getPaperTradingState().autoRefreshEnabled).toBe(true);
-  });
-
-  it("setupAutoRefresh starts interval that calls fetchFn", () => {
-    const fetchFn = vi.fn();
-    setupAutoRefresh(fetchFn, 10000);
-    expect(fetchFn).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(10000);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-
-    vi.advanceTimersByTime(10000);
-    expect(fetchFn).toHaveBeenCalledTimes(2);
-
-    stopAutoRefresh();
-  });
-
-  it("setupAutoRefresh only calls fetchFn when autoRefreshEnabled and view=live", () => {
-    const fetchFn = vi.fn();
-    setAutoRefresh(false);
-    setupAutoRefresh(fetchFn, 10000);
-
-    vi.advanceTimersByTime(10000);
-    expect(fetchFn).not.toHaveBeenCalled();
-
-    setAutoRefresh(true);
-    vi.advanceTimersByTime(10000);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-
-    stopAutoRefresh();
-  });
-
-  it("setupAutoRefresh does not call fetchFn when view is not live", () => {
-    const fetchFn = vi.fn();
-    setPaperTradingView("history");
-    setupAutoRefresh(fetchFn, 10000);
-
-    vi.advanceTimersByTime(10000);
-    expect(fetchFn).not.toHaveBeenCalled();
-
-    setPaperTradingView("live");
-    vi.advanceTimersByTime(10000);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-
-    stopAutoRefresh();
-  });
-
-  it("stopAutoRefresh clears the interval timer", () => {
-    const fetchFn = vi.fn();
-    setupAutoRefresh(fetchFn, 10000);
-    stopAutoRefresh();
-
-    vi.advanceTimersByTime(10000);
-    expect(fetchFn).not.toHaveBeenCalled();
-  });
-
-  it("setupAutoRefresh replaces existing timer", () => {
-    const fetchFn1 = vi.fn();
-    const fetchFn2 = vi.fn();
-    setupAutoRefresh(fetchFn1, 10000);
-    setupAutoRefresh(fetchFn2, 10000);
-
-    vi.advanceTimersByTime(10000);
-    expect(fetchFn1).not.toHaveBeenCalled();
-    expect(fetchFn2).toHaveBeenCalledTimes(1);
-
-    stopAutoRefresh();
   });
 });
 

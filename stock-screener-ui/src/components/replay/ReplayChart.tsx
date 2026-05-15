@@ -21,7 +21,7 @@ const TF_PRESETS = [
   { label: "1D", minutes: 1440 },
 ];
 
-export function aggregateCandles(candles: ReplayCandle[], intervalMin: number): ReplayCandle[] {
+function aggregateCandles(candles: ReplayCandle[], intervalMin: number): ReplayCandle[] {
   if (intervalMin <= 1 || candles.length === 0) return candles;
 
   const groups = new Map<

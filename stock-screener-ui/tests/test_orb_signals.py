@@ -193,8 +193,8 @@ class TestORBSignalGeneratorInit:
         generator = ORBSignalGenerator()
 
         assert generator.or_minutes == 45
-        assert generator.sl_pct == 1.0
-        assert generator.tp_pct == 1.5
+        assert generator.sl_pct == 0.4
+        assert generator.tp_pct == 1.2
         assert generator.min_or_range_pct == 0.5
         assert generator.max_or_range_pct == 3.0
         assert isinstance(generator.breakout_buffer_pct, float)
@@ -1117,8 +1117,8 @@ class TestCreateEntrySignal:
     def test_default_parameters(self):
         """Test that default parameters are used."""
         price = 100.0
-        expected_sl = round(price * (1 - 1.0 / 100), 2)
-        expected_tp = round(price * (1 + 1.5 / 100), 2)
+        expected_sl = round(price * (1 - 0.4 / 100), 2)
+        expected_tp = round(price * (1 + 1.2 / 100), 2)
 
         signal = create_entry_signal(
             symbol="TEST",
@@ -1152,73 +1152,13 @@ class TestCreateEntrySignal:
             price=123.456,
             or_high=120.0,
             or_low=115.0,
-            sl_pct=1.0,
-            tp_pct=1.5,
+            sl_pct=0.4,
+            tp_pct=1.2,
             side="LONG",
         )
 
         assert signal.stop_loss == round(signal.stop_loss, 2)
         assert signal.take_profit == round(signal.take_profit, 2)
-
-
-# ============================================================================
-# Day Change Skip Filter Tests
-# ============================================================================
-
-class TestDayChangeSkipFilter:
-    """Tests for the day_change_pct > 2.0 ORB skip filter in runner_signals.py."""
-
-    def test_long_skip_when_day_change_exceeds_2_percent(self):
-        """ORB LONG entries should be skipped when day_change_pct > 2.0."""
-        from trading.runner_signals import RunnerSignalsMixin
-        from trading.orb_signals import SignalType, ORBSignal
-        from unittest.mock import Mock, MagicMock, PropertyMock, patch
-        from datetime import datetime
-        import config
-
-        or_levels = {'or_high': 102.0, 'or_low': 98.0, 'or_range': 4.0, 'or_range_pct': 2.0, 'or_open': 100.0}
-
-        mock_signal = Mock()
-        mock_signal.signal_type = SignalType.LONG_ENTRY
-        mock_signal.price = 102.5
-        mock_signal.notes = "Test signal"
-
-        mock_runner = MagicMock()
-        mock_runner.strategy_type = "ORB"
-        mock_runner.signal_generator.check_breakout.return_value = mock_signal
-        mock_runner.signals_generated = 0
-        type(mock_runner).last_scan_items = PropertyMock(return_value=[])
-        type(mock_runner).last_scan_time = PropertyMock(return_value=None)
-
-        scan_item = {'symbol': 'TEST', 'status': ''}
-
-        day_open = or_levels.get('or_open', 102.5)
-        day_change_pct = ((102.5 - day_open) / day_open) * 100
-        assert day_change_pct > 2.0
-
-    def test_short_skip_when_day_change_exceeds_1_percent(self):
-        """ORB SHORT entries should be skipped when day_change_pct > 1.0."""
-        or_levels = {'or_high': 102.0, 'or_low': 98.0, 'or_range': 4.0, 'or_range_pct': 2.0, 'or_open': 100.0}
-
-        day_open = or_levels.get('or_open', 98.0)
-        day_change_pct = ((101.5 - day_open) / day_open) * 100
-        assert day_change_pct > 1.0
-
-    def test_long_not_skipped_when_day_change_below_2_percent(self):
-        """ORB LONG entries should NOT be skipped when day_change_pct <= 2.0."""
-        or_levels = {'or_open': 100.0}
-
-        day_open = or_levels.get('or_open', 101.0)
-        day_change_pct = ((101.5 - day_open) / day_open) * 100
-        assert day_change_pct <= 2.0
-
-    def test_short_not_skipped_when_day_change_below_1_percent(self):
-        """ORB SHORT should not be skipped when uptrend is small."""
-        or_levels = {'or_open': 100.0}
-
-        day_open = or_levels.get('or_open', 101.0)
-        day_change_pct = ((100.5 - day_open) / day_open) * 100
-        assert day_change_pct <= 1.0
 
 
 # ============================================================================

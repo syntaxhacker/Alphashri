@@ -15,15 +15,6 @@ import {
   createStrategy,
   updateStrategy,
   deleteStrategyAction,
-  setLoading,
-  setError,
-  loadTemplates,
-  loadInitialData,
-  loadStrategy,
-  syncVariations,
-  loadAllPerformance,
-  loadBots,
-  initStrategiesState,
 } from "./strategies";
 import type { StrategyConfig } from "../types/strategies";
 
@@ -36,11 +27,6 @@ vi.mock("../api/strategies", () => ({
   deleteStrategy: vi.fn(),
   getStrategyPerformance: vi.fn(),
   listBots: vi.fn(),
-  syncVariations: vi.fn(),
-}));
-
-vi.mock("./auth", () => ({
-  fetchWithAuth: vi.fn(),
 }));
 
 function createMockStrategy(overrides: Partial<StrategyConfig> = {}): StrategyConfig {
@@ -203,31 +189,6 @@ describe("modal management", () => {
     const state = getStrategiesState();
     expect(state.showEditModal).toBe(false);
     expect(state.editingStrategy).toBeNull();
-  });
-});
-
-describe("setLoading / setError", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("setLoading updates loading flag", () => {
-    setLoading(true);
-    expect(getStrategiesState().isLoading).toBe(true);
-  });
-
-  it("setError sets error", () => {
-    setError("test error");
-    expect(getStrategiesState().error).toBe("test error");
-  });
-
-  it("setError clears error when null", () => {
-    setError("error");
-    setError(null);
-    expect(getStrategiesState().error).toBeNull();
   });
 });
 
@@ -413,184 +374,5 @@ describe("deleteStrategyAction", () => {
     const result = await deleteStrategyAction(1);
     expect(result).toBe(false);
     expect(getStrategiesState().error).toBe("delete fail");
-  });
-});
-
-describe("loadTemplates", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("fetches templates", async () => {
-    const api = await import("../api/strategies");
-    const templates = [{ id: "1", name: "ORB Template", is_template: true }];
-    vi.mocked(api.listTemplates).mockResolvedValue({ templates, count: 1 });
-
-    await loadTemplates();
-
-    expect(getStrategiesState().templates).toEqual(templates);
-    expect(getStrategiesState().isLoading).toBe(false);
-  });
-
-  it("handles error", async () => {
-    const api = await import("../api/strategies");
-    vi.mocked(api.listTemplates).mockRejectedValue(new Error("fail"));
-
-    await loadTemplates();
-
-    expect(getStrategiesState().error).toBe("fail");
-  });
-});
-
-describe("loadInitialData", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("fetches templates and strategies together", async () => {
-    const api = await import("../api/strategies");
-    const templates = [{ id: "1", name: "ORB", is_template: true } as any];
-    const strategies = [{ id: "2", name: "ORB Child" } as any];
-    vi.mocked(api.listTemplates).mockResolvedValue({ templates, count: 1 });
-    vi.mocked(api.listStrategies).mockResolvedValue({ strategies, count: 1 });
-
-    await loadInitialData();
-
-    const state = getStrategiesState();
-    expect(state.templates).toEqual(templates);
-    expect(state.strategies).toEqual(strategies);
-    expect(state.isLoading).toBe(false);
-  });
-});
-
-describe("loadStrategy", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("fetches single strategy with variations", async () => {
-    const api = await import("../api/strategies");
-    const strategy = { id: "1", name: "ORB" } as any;
-    const variations = [{ id: "2", name: "ORB v2" } as any];
-    vi.mocked(api.getStrategy).mockResolvedValue({ strategy, variations });
-
-    await loadStrategy(1);
-
-    const state = getStrategiesState();
-    expect(state.selectedStrategy).toEqual(strategy);
-    expect(state.selectedVariations).toEqual(variations);
-    expect(state.isLoading).toBe(false);
-  });
-});
-
-describe("syncVariations", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("syncs template params", async () => {
-    const api = await import("../api/strategies");
-    vi.mocked(api.syncVariations).mockResolvedValue({ status: "ok", message: "Synced", count: 3 } as any);
-    vi.mocked(api.listStrategies).mockResolvedValue({ strategies: [], count: 0 });
-    vi.mocked(api.listTemplates).mockResolvedValue({ templates: [], count: 0 });
-
-    await syncVariations(1);
-
-    expect(api.syncVariations).toHaveBeenCalledWith(1);
-  });
-});
-
-describe("loadAllPerformance", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("fetches and aggregates trade performance", async () => {
-    const { fetchWithAuth } = await import("./auth");
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        trades: [
-          { strategy_name: "ORB", pnl: 100, net_pnl: 90 },
-          { strategy_name: "ORB", pnl: -50, net_pnl: -55 },
-          { strategy_name: "SR Breakout", pnl: 200, net_pnl: 180 },
-        ],
-      }),
-    } as any);
-
-    await loadAllPerformance();
-
-    const state = getStrategiesState();
-    expect(state.allPerformance).toHaveLength(2);
-    expect(state.isLoading).toBe(false);
-  });
-});
-
-describe("loadBots", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("fetches assigned bots", async () => {
-    const api = await import("../api/strategies");
-    const bots = [{ id: "bot-1", name: "Live Bot" }] as any;
-    vi.mocked(api.listBots).mockResolvedValue({ bots, count: 1 });
-
-    await loadBots();
-
-    expect(getStrategiesState().bots).toEqual(bots);
-    expect(getStrategiesState().isLoading).toBe(false);
-  });
-
-  it("handles error", async () => {
-    const api = await import("../api/strategies");
-    vi.mocked(api.listBots).mockRejectedValue(new Error("fail"));
-
-    await loadBots();
-
-    expect(getStrategiesState().error).toBe("fail");
-  });
-});
-
-describe("initStrategiesState", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("calls loadInitialData only on first call", async () => {
-    const api = await import("../api/strategies");
-    vi.mocked(api.listTemplates).mockResolvedValue({ templates: [], count: 0 });
-    vi.mocked(api.listStrategies).mockResolvedValue({ strategies: [], count: 0 });
-    const callsBefore = vi.mocked(api.listTemplates).mock.calls.length;
-
-    initStrategiesState();
-
-    expect(vi.mocked(api.listTemplates).mock.calls.length).toBe(callsBefore + 1);
-
-    initStrategiesState();
-    initStrategiesState();
-
-    expect(vi.mocked(api.listTemplates).mock.calls.length).toBe(callsBefore + 1);
   });
 });

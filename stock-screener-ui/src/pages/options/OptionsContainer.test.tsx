@@ -17,6 +17,7 @@ afterEach(() => {
 // Mock the hook and child component
 vi.mock("../../hooks/useOptionsState", () => ({
   useOptionsState: () => ({
+    // Mock whatever props OptionsPage expects
     chainData: [],
     positions: [],
     selectedSymbol: null,
@@ -55,7 +56,7 @@ describe("OptionsContainer", () => {
     expect(screen.getByTestId("options-page")).toBeInTheDocument();
   });
 
-  it("defaults activeTab to chain", () => {
+  it("passes activeTab and setActiveTab to OptionsPage", () => {
     render(
       <MantineProvider>
         <OptionsContainer />

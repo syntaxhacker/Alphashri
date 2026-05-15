@@ -39,8 +39,8 @@ class StrategyRunner:
             from trading.orb_signals import ORBSignalGenerator
             self.signal_generator = ORBSignalGenerator(
                 or_minutes=self.config.get('or_minutes', 45),
-                sl_pct=self.config.get('sl_pct'),
-                tp_pct=self.config.get('tp_pct'),
+                sl_pct=self.config['sl_pct'],
+                tp_pct=self.config['tp_pct'],
                 min_or_range_pct=self.config.get('min_or_range_pct', 0.5),
                 max_or_range_pct=self.config.get('max_or_range_pct', 3.0),
                 breakout_buffer_pct=self.config.get('breakout_buffer_pct', 0.3),

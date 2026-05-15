@@ -1,4 +1,4 @@
-import { Table, Group, Text, Badge, ActionIcon, Stack } from "@mantine/core";
+import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Stack } from "@mantine/core";
 import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { Trade } from "../../types/backtest";
 import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";
@@ -147,13 +147,19 @@ export function TradeHistoryTable({
         </Text>
       </Group>
 
-      <DataTable
-        dataTestId="trade-history-table"
-        className="trade-history-table"
-        id="trade-history-data-table"
-        style={{ minWidth: "100%" }}
-        scrollable
+      <ScrollArea
+        flex={1}
+        type="auto"
+        offsetScrollbars
+        style={{ minHeight: 0 }}
+        className="trade-history-scroll"
       >
+        <DataTable
+          dataTestId="trade-history-table"
+          className="trade-history-table"
+          id="trade-history-data-table"
+          style={{ minWidth: "100%" }}
+        >
           <Table.Thead>
             <Table.Tr>
               <Table.Th>
@@ -345,6 +351,7 @@ export function TradeHistoryTable({
             })}
           </Table.Tbody>
         </DataTable>
+      </ScrollArea>
     </Stack>
   );
 }

@@ -56,7 +56,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    const positionsTable = page.locator('[data-testid="positions-table"]');
+    const positionsTable = page.locator('[data-testid="positions-table-container"]');
     await expect(positionsTable).toBeVisible();
 
     const strategyTabs = page.locator('[data-testid="strategy-tabs"]');
@@ -73,10 +73,10 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await page.locator('[data-testid="strategy-tab-orb-conservative"]').click({ timeout: 15000 });
 
     // Verify TCS position is visible (from ORB Conservative)
-    await expect(page.locator('[data-testid="positions-table"]')).toContainText("TCS", {
+    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
       timeout: 5000,
     });
-    await expect(page.locator('[data-testid="positions-table"]')).toContainText("TCS");
+    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
   });
 
   test("should show bot status running/pid when bot is running", async ({ page }) => {
@@ -258,8 +258,8 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await page.locator('[data-testid="strategy-tab-all"]').click({ timeout: 15000 });
 
     // Verify both positions are visible
-    await expect(page.locator('[data-testid="positions-table"]')).toContainText("TCS");
-    await expect(page.locator('[data-testid="positions-table"]')).toContainText("INFY");
+    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
+    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("INFY");
   });
 });
 

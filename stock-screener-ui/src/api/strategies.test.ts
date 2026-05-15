@@ -27,7 +27,6 @@ import {
   getStrategyVariations,
   listBots,
   getBot,
-  syncVariations,
 } from "./strategies";
 
 const mockedApiGet = vi.mocked(apiGet);
@@ -247,17 +246,5 @@ describe("getBot", () => {
     await getBot("bot-1");
 
     expect(mockedApiGet).toHaveBeenCalledWith("/api/strategies/bots/bot-1");
-  });
-});
-
-describe("syncVariations", () => {
-  it("sends POST to sync endpoint", async () => {
-    const mockResponse = { status: "ok", message: "Synced", count: 5 };
-    mockedApiPost.mockResolvedValue(mockResponse);
-
-    const result = await syncVariations(42);
-
-    expect(mockedApiPost).toHaveBeenCalledWith("/api/strategies/42/sync-variations", {});
-    expect(result).toEqual(mockResponse);
   });
 });

@@ -5,82 +5,113 @@ Heatmap API — P/E Forward heatmap for Indian stocks (NSE/BSE).
 import logging
 from typing import List, Optional
 from functools import lru_cache
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from fastapi import APIRouter, Query, HTTPException
-import config
+from tradingview_screener import Query as TVQuery, col
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["heatmap"])
 
-# In-memory cache (15 min TTL)
 _heatmap_cache = {"data": None, "timestamp": None}
-CACHE_TTL_SECONDS = 15 * 60  # 15 minutes
+CACHE_TTL_SECONDS = 15 * 60
 
 
-def _get_tradingview_screener():
-    """Import and return TradingView screener instance."""
-    from tradingview_screener import Query
-    return Query()
+from requests.exceptions import RequestException, HTTPError, ConnectionError as RequestsConnectionError, Timeout
+import time
+
+FALLBACK_DATA_KEY = "heatmap_fallback"
 
 
-@lru_cache(maxsize=1)
 def _get_cached_stocks() -> List[dict]:
-    """
-    Fetch top 500 NSE stocks with P/E and market cap data from TradingView.
-    Returns list of dicts with: symbol, name, sector, market_cap, pe_ratio, price, change_pct
-    """
-    try:
-        q = _get_tradingview_screener()
-        df = q.with_columns(
-            "market_cap_basic",
-            "price_earnings_ttm",  # Forward P/E
-            "close",
-            "name",
-            "sector",
-            "description",
-            "change_percent",
-        ).set_filter(
-            "exchange=NSE"
-        ).order_by("market_cap_basic", ascending=False).limit(500)
+    max_retries = 3
+    last_error = None
 
-        rows = df.execute()
+    for attempt in range(max_retries):
+        try:
+            query = TVQuery()
+            query = query.select(
+                'name', 'close', 'change', 'sector',
+                'market_cap_basic', 'price_earnings_ttm',
+                'price_book_ratio', 'dividend_yield_recent',
+                'Perf.Y', 'return_on_equity',
+                'price_52_week_high', 'price_52_week_low',
+            )
+            query = query.set_markets('india')
+            query = query.where(col('sector') != '', col('price_earnings_ttm') > 0)
+            query = query.order_by('market_cap_basic', ascending=False).limit(1000)
 
-        if rows.empty:
-            logger.warning("TradingView screener returned empty result")
-            return []
+            _, df = query.get_scanner_data()
 
-        stocks = []
-        for _, row in rows.iterrows():
-            pe = row.get("price_earnings_ttm")
-            mcap = row.get("market_cap_basic")
+            if df.empty:
+                logger.warning("TradingView screener returned empty result")
+                return _get_fallback_data()
 
-            # Skip stocks with no P/E or negative P/E (loss-making)
-            if pe is None or pe <= 0:
-                continue
-            if mcap is None or mcap <= 0:
-                continue
+            # Deduplicate - keep NSE only, drop BSE duplicates
+            df = df[~df['ticker'].str.contains('BSE:')].drop_duplicates(subset=['name'])
 
-            stocks.append({
-                "symbol": row.get("ticker", "").replace(":NSE", ""),
-                "name": row.get("name", ""),
-                "sector": row.get("sector", ""),
-                "market_cap": mcap,
-                "pe_ratio": round(pe, 2),
-                "price": row.get("close"),
-                "change_pct": row.get("change_percent"),
-            })
+            stocks = []
+            for _, row in df.iterrows():
+                stocks.append({
+                    "symbol": row.get("ticker", "").replace("NSE:", ""),
+                    "name": row.get("name", ""),
+                    "sector": row.get("sector", ""),
+                    "market_cap": row.get("market_cap_basic"),
+                    "pe_ratio": round(row.get("price_earnings_ttm", 0), 2),
+                    "pb_ratio": round(row.get("price_book_ratio", 0), 2) if row.get("price_book_ratio") else None,
+                    "dividend_yield": round(row.get("dividend_yield_recent", 0), 2) if row.get("dividend_yield_recent") else None,
+                    "perf_1y": round(row.get("Perf.Y", 0), 2) if row.get("Perf.Y") else None,
+                    "roe": round(row.get("return_on_equity", 0), 2) if row.get("return_on_equity") else None,
+                    "high_52w": row.get("price_52_week_high"),
+                    "low_52w": row.get("price_52_week_low"),
+                    "price": row.get("close"),
+                    "change_pct": row.get("change"),
+                })
 
-        logger.info(f"Fetched {len(stocks)} stocks with valid P/E data from TradingView")
-        return stocks
+            # Store successful response for fallback
+            global _heatmap_cache
+            _heatmap_cache["fallback"] = stocks
 
-    except Exception as e:
-        logger.error(f"Error fetching TradingView screener data: {e}")
-        raise HTTPException(status_code=503, detail=f"Failed to fetch stock data: {str(e)}")
+            logger.info(f"Fetched {len(stocks)} stocks with valid P/E data from TradingView")
+            return stocks
+
+        except HTTPError as e:
+            logger.error(f"TradingView API HTTP error (attempt {attempt + 1}/{max_retries}): {e}")
+            last_error = f"TradingView API error: {e.response.status_code if e.response else 'unknown'}"
+        except RequestsConnectionError as e:
+            logger.warning(f"Connection error (attempt {attempt + 1}/{max_retries}): {e}")
+            last_error = "TradingView server unreachable"
+        except Timeout as e:
+            logger.warning(f"Timeout (attempt {attempt + 1}/{max_retries}): {e}")
+            last_error = "TradingView API timeout"
+        except RequestException as e:
+            logger.error(f"Request error (attempt {attempt + 1}/{max_retries}): {e}")
+            last_error = f"Request failed: {str(e)}"
+        except ValueError as e:
+            logger.error(f"Data parsing error (attempt {attempt + 1}/{max_retries}): {e}")
+            last_error = f"Data parsing error: {str(e)}"
+        except Exception as e:
+            logger.exception(f"Unexpected error (attempt {attempt + 1}/{max_retries}): {e}")
+            last_error = f"Internal error: {str(e)}"
+
+        if attempt < max_retries - 1:
+            time.sleep(1 * (attempt + 1))  # Exponential backoff
+
+    # All retries failed - try fallback data
+    fallback = _get_fallback_data()
+    if fallback:
+        logger.warning(f"Using fallback data ({len(fallback)} stocks) after {max_retries} failed attempts")
+        return fallback
+
+    raise HTTPException(status_code=503, detail=f"Failed to fetch stock data: {last_error}")
+
+
+def _get_fallback_data() -> List[dict]:
+    global _heatmap_cache
+    return _heatmap_cache.get("fallback", [])
 
 
 def _get_cached_data() -> List[dict]:
-    """Return cached data if still valid, else fetch fresh data."""
     now = datetime.now()
     if (
         _heatmap_cache["data"] is not None
@@ -89,7 +120,6 @@ def _get_cached_data() -> List[dict]:
     ):
         return _heatmap_cache["data"]
 
-    # Fetch fresh data
     data = _get_cached_stocks()
     _heatmap_cache["data"] = data
     _heatmap_cache["timestamp"] = now
@@ -103,13 +133,8 @@ async def get_pe_heatmap(
     sector: Optional[str] = Query(None, description="Filter by sector"),
     limit: int = Query(500, ge=1, le=1000, description="Number of stocks to return"),
 ) -> dict:
-    """
-    Get top Indian stocks by market cap with P/E ratios.
-    Returns heatmap-ready data (sorted by market cap, color-coded by P/E).
-    """
     stocks = _get_cached_data()
 
-    # Apply filters
     if min_pe is not None:
         stocks = [s for s in stocks if s["pe_ratio"] >= min_pe]
     if max_pe is not None:
@@ -117,7 +142,6 @@ async def get_pe_heatmap(
     if sector:
         stocks = [s for s in stocks if s["sector"] and sector.lower() in s["sector"].lower()]
 
-    # Apply limit
     stocks = stocks[:limit]
 
     return {
@@ -129,7 +153,6 @@ async def get_pe_heatmap(
 
 @router.get("/api/heatmap/sectors")
 async def get_sectors():
-    """Return sector list with average P/E and stock count."""
     stocks = _get_cached_data()
 
     sector_data = {}
@@ -150,7 +173,6 @@ async def get_sectors():
             "avg_pe": round(avg_pe, 2),
         })
 
-    # Sort by count descending
     sectors.sort(key=lambda x: x["count"], reverse=True)
 
     return {"sectors": sectors}
@@ -158,7 +180,6 @@ async def get_sectors():
 
 @router.post("/api/heatmap/refresh")
 async def refresh_cache():
-    """Force refresh the cache (admin endpoint)."""
     global _heatmap_cache
     _heatmap_cache = {"data": None, "timestamp": None}
     data = _get_cached_data()

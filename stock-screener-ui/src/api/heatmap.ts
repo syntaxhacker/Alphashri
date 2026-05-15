@@ -1,8 +1,3 @@
-/**
- * Heatmap API Client - P/E Forward Heatmap for Indian Stocks
- */
-
-import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "./config";
 
 export interface HeatmapStock {
@@ -11,6 +6,12 @@ export interface HeatmapStock {
   sector: string;
   market_cap: number;
   pe_ratio: number;
+  pb_ratio: number | null;
+  dividend_yield: number | null;
+  perf_1y: number | null;
+  roe: number | null;
+  high_52w: number | null;
+  low_52w: number | null;
   price: number;
   change_pct: number;
 }
@@ -46,7 +47,8 @@ export async function fetchHeatmapData(
   if (sector) params.set("sector", sector);
   params.set("limit", limit.toString());
 
-  const response = await fetchWithAuth(`${HEATMAP_API_BASE}/pe?${params}`, { signal });
+  const url = `${HEATMAP_API_BASE}/pe?${params}`;
+  const response = await fetch(url, { signal });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Failed to fetch heatmap data" }));
     throw new Error(error.detail || "Failed to fetch heatmap data");
@@ -55,7 +57,7 @@ export async function fetchHeatmapData(
 }
 
 export async function fetchHeatmapSectors(signal?: AbortSignal): Promise<SectorsResponse> {
-  const response = await fetchWithAuth(`${HEATMAP_API_BASE}/sectors`, { signal });
+  const response = await fetch(`${HEATMAP_API_BASE}/sectors`, { signal });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Failed to fetch sectors" }));
     throw new Error(error.detail || "Failed to fetch sectors");
@@ -64,7 +66,7 @@ export async function fetchHeatmapSectors(signal?: AbortSignal): Promise<Sectors
 }
 
 export async function refreshHeatmapCache(signal?: AbortSignal): Promise<{ status: string; count: number }> {
-  const response = await fetchWithAuth(`${HEATMAP_API_BASE}/refresh`, { method: "POST", signal });
+  const response = await fetch(`${HEATMAP_API_BASE}/refresh`, { method: "POST", signal });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Failed to refresh cache" }));
     throw new Error(error.detail || "Failed to refresh cache");

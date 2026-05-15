@@ -18,7 +18,6 @@ import type { PaperTrade } from "../../types/paperTrading";
 import { getNextSortDirection } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { DayGroup } from "./DayGroup";
-import { TableEmptyState } from "../common/TableEmptyState";
 
 export function getUniqueStrategies(trades: PaperTrade[]): { id: number; name: string }[] {
   const map = new Map<number, string>();
@@ -137,6 +136,29 @@ function useQuickFilter() {
   return { handleQuickFilter, getCurrentPeriod };
 }
 
+const TABLE_STYLES = {
+  thead: {
+    position: "sticky" as const,
+    top: 0,
+    zIndex: 1,
+    background: "var(--mantine-color-body)",
+  },
+  th: {
+    padding: "4px 6px",
+    fontSize: "11px",
+    fontWeight: 600,
+    textTransform: "uppercase" as const,
+    borderBottom: "1px solid var(--mantine-color-default-border)",
+    whiteSpace: "nowrap" as const,
+  },
+  td: {
+    padding: "3px 6px",
+    fontSize: "12px",
+    borderBottom: "1px solid var(--mantine-color-default-border)",
+    whiteSpace: "nowrap" as const,
+  },
+};
+
 function HistoryFilters({
   bots,
   strategies,
@@ -240,7 +262,11 @@ function HistoryList({
   return (
     <ScrollArea flex={1} className="paper-history-list" id="history-list" type="scroll">
       {filteredTrades.length === 0 ? (
-        <TableEmptyState message="No trades found" />
+        <Flex py="lg" justify="center" align="center" direction="column" gap={4}>
+          <Text size="xs" fw={500} c="dimmed">
+            No trades found
+          </Text>
+        </Flex>
       ) : (
         sortedDates.map((date) => (
           <DayGroup
@@ -253,6 +279,7 @@ function HistoryList({
             onDeleteTrade={deleteTradeAction}
             expanded={expandedDays[date] !== false}
             onToggle={() => toggleDay(date)}
+            tableStyles={TABLE_STYLES}
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onSort={onSort}

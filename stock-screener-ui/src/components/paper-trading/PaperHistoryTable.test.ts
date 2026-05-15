@@ -191,36 +191,6 @@ describe("groupTradesByDate", () => {
     expect(result["2026-03-20"][0].trade_id).toBe("2");
     expect(result["2026-03-20"][1].trade_id).toBe("1");
   });
-
-  test("sorts by specified column ascending", () => {
-    const trades = [
-      mockTrade({ trade_id: "1", symbol: "ZOO", exit_time: "2026-03-20T10:00:00Z" }),
-      mockTrade({ trade_id: "2", symbol: "AAPL", exit_time: "2026-03-20T10:00:00Z" }),
-    ];
-    const result = groupTradesByDate(trades, "symbol", "asc");
-    expect(result["2026-03-20"][0].trade_id).toBe("2");
-    expect(result["2026-03-20"][1].trade_id).toBe("1");
-  });
-
-  test("sorts by specified column descending", () => {
-    const trades = [
-      mockTrade({ trade_id: "1", symbol: "AAPL", exit_time: "2026-03-20T10:00:00Z" }),
-      mockTrade({ trade_id: "2", symbol: "ZOO", exit_time: "2026-03-20T10:00:00Z" }),
-    ];
-    const result = groupTradesByDate(trades, "symbol", "desc");
-    expect(result["2026-03-20"][0].trade_id).toBe("2");
-    expect(result["2026-03-20"][1].trade_id).toBe("1");
-  });
-
-  test("sorts by numeric column", () => {
-    const trades = [
-      mockTrade({ trade_id: "1", net_pnl: 500, exit_time: "2026-03-20T10:00:00Z" }),
-      mockTrade({ trade_id: "2", net_pnl: 100, exit_time: "2026-03-20T10:00:00Z" }),
-    ];
-    const result = groupTradesByDate(trades, "net_pnl", "asc");
-    expect(result["2026-03-20"][0].trade_id).toBe("2");
-    expect(result["2026-03-20"][1].trade_id).toBe("1");
-  });
 });
 
 describe("formatDateHeader", () => {

@@ -33,7 +33,7 @@ test.describe("Multi-Strategy System - Signal Generators", () => {
     await page.waitForSelector("[data-testid='positions-panel']", { timeout: 15000 });
 
     const strategyTabs = page.locator('[data-testid^="strategy-tab-"]');
-    const positionsContainer = page.getByTestId("positions-table");
+    const positionsContainer = page.getByTestId("positions-table-container");
     const emptyState = page.getByTestId("positions-empty");
 
     await expect(strategyTabs.first().or(positionsContainer).or(emptyState)).toBeVisible();
@@ -127,9 +127,9 @@ test.describe("Multi-Strategy System - Positions Attribution", () => {
   test.skip("should show positions with strategy attribution", async ({ page }) => {
     await navigateToBot(page, botId);
 
-    await expect(page.getByTestId("positions-table")).toBeVisible();
+    await expect(page.getByTestId("positions-table-container")).toBeVisible();
     await expect(
-      page.getByTestId("positions-table").locator("th", { hasText: "Strategy" }).first(),
+      page.getByTestId("positions-table-container").locator("th", { hasText: "Strategy" }).first(),
     ).toBeVisible();
   });
 });
@@ -148,7 +148,7 @@ test.describe("Multi-Strategy System - Positions Filter", () => {
     await navigateToBot(page, botId);
 
     await clickStrategyTab(page, "ORB Conservative");
-    await expect(page.getByTestId("positions-table")).toContainText("TCS");
+    await expect(page.getByTestId("positions-table-container")).toContainText("TCS");
   });
 });
 
@@ -166,7 +166,7 @@ test.describe("Multi-Strategy System - All Positions", () => {
     await navigateToBot(page, botId);
 
     await clickStrategyTab(page, "All");
-    const positionsTable = page.getByTestId("positions-table");
+    const positionsTable = page.getByTestId("positions-table-container");
     await expect(positionsTable).toContainText("TCS");
     await expect(positionsTable).toContainText("INFY");
   });

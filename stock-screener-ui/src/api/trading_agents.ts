@@ -309,11 +309,10 @@ export async function fetchWithSSE(
     const lines = buffer.split("\n");
     buffer = lines.pop() || "";
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    for (const line of lines) {
       if (line.startsWith("event: ")) {
         const event = line.slice(7);
-        const dataLine = lines[i + 1];
+        const dataLine = lines.shift();
         if (dataLine?.startsWith("data: ")) {
           try {
             const data = JSON.parse(dataLine.slice(6));
@@ -321,7 +320,6 @@ export async function fetchWithSSE(
           } catch {
             onEvent(event, dataLine.slice(6));
           }
-          i++;
         }
       } else if (line.startsWith("data: ")) {
         try {

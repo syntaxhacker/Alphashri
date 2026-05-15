@@ -16,7 +16,7 @@ test.describe("Live Price Streaming", () => {
   test("should update position current_price from live prices", async ({ page }) => {
     await navigateToPaperTrading(page);
 
-    const positionsTable = page.locator('[data-testid="positions-table"]');
+    const positionsTable = page.locator('[data-testid="positions-table-container"]');
     const hasPositions = await positionsTable.isVisible().catch(() => false);
 
     if (hasPositions) {

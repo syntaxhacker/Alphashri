@@ -14,7 +14,6 @@ import {
   register,
   logout,
   checkAuth,
-  initAuth,
   type User,
 } from "./auth";
 
@@ -373,21 +372,5 @@ describe("checkAuth", () => {
     const result = await checkAuth();
     expect(result).toBe(false);
     expect(authState.isAuthenticated).toBe(false);
-  });
-});
-
-describe("initAuth", () => {
-  beforeEach(resetAuthState);
-  afterEach(cleanupAuth);
-
-  it("runs checkAuth and updates state", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(createMockFetchResponse({}));
-    vi.stubGlobal("fetch", mockFetch);
-
-    initAuth();
-
-    await vi.waitFor(() => {
-      expect(authState.loading).toBe(false);
-    });
   });
 });

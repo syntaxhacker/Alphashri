@@ -423,7 +423,7 @@ export function ChatPopup() {
               <Group gap={4}>
                 {isAvailable && (
                   <>
-                    <ActionIcon variant="subtle" size="sm" onClick={() => setExpanded((p) => !p)} data-testid="chat-expand-btn">
+                    <ActionIcon variant="subtle" size="sm" onClick={() => setExpanded((p) => !p)}>
                       {expanded ? (
                         <IconArrowsMinimize size={16} />
                       ) : (
@@ -433,7 +433,6 @@ export function ChatPopup() {
                     <ActionIcon
                       variant="subtle"
                       size="sm"
-                      data-testid="chat-history-btn"
                       onClick={() => {
                         setShowHistory((p) => !p);
                         loadConversations();
@@ -464,7 +463,7 @@ export function ChatPopup() {
                 <Text size="xs" fw={600}>
                   Conversations
                 </Text>
-                <ActionIcon variant="subtle" size="sm" onClick={startNewConversation} data-testid="chat-new-convo-btn">
+                <ActionIcon variant="subtle" size="sm" onClick={startNewConversation}>
                   <IconPlus size={14} />
                 </ActionIcon>
               </Group>
@@ -486,7 +485,6 @@ export function ChatPopup() {
                           size="xs"
                           color="red"
                           onClick={(e) => handleDeleteConversation(c.id, e)}
-                          data-testid={`chat-delete-convo-${c.id}`}
                         >
                           <IconTrash size={12} />
                         </ActionIcon>

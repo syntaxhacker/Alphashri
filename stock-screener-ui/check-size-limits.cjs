@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 // === CONFIGURABLE LIMITS ===
-const FILE_LINE_LIMIT = 700;
+const FILE_LINE_LIMIT = 500;
 const FILE_SIZE_LIMIT_KB = 100;
 const FUNCTION_LINE_LIMIT = 50;
 const TOP_N = 10; // Show top N biggest files

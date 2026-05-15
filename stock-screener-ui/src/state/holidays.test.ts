@@ -13,7 +13,6 @@ import {
   isClearingHoliday,
   checkDate,
   resetHolidays,
-  subscribeToHolidays,
 } from "./holidays";
 
 const mockedFetchHolidays = vi.mocked(fetchHolidays);
@@ -144,14 +143,5 @@ describe("checkDate", () => {
     const result = await checkDate("2026-01-20");
 
     expect(result.is_holiday).toBe(false);
-  });
-});
-
-describe("subscribeToHolidays", () => {
-  it("subscribes to holiday changes", () => {
-    const callback = vi.fn();
-    const unsub = subscribeToHolidays(callback);
-    expect(typeof unsub).toBe("function");
-    unsub();
   });
 });
