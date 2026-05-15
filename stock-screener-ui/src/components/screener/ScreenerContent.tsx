@@ -64,7 +64,7 @@ export function ScreenerContent({
   const columns = getColumnsForScreener(activeScreener);
   const emptySet = new Set<string>();
 
-  const sectionLabels = state.screenerOptions.find((s) => s.id === activeScreener)?.section_labels;
+  const sectionLabels = state.profileMetaById[activeScreener]?.section_labels;
   const hasLabels = !!sectionLabels?.primary;
   const labels = hasLabels ? sectionLabels : FALLBACK_LABELS;
   const descriptions = hasLabels ? { primary: "", secondary: "" } : FALLBACK_DESCRIPTIONS;

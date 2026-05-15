@@ -36,9 +36,13 @@ vi.mock("./ScreenerErrorPanel", () => ({
 
 vi.mock("../../state", () => ({
   screenerOptions: [
-    { id: "builtin:trending", label: "Trending", section_labels: { primary: "Approaching", secondary: "Touched" } },
-    { id: "builtin:buyer_interest", label: "Buyer Interest", section_labels: { primary: "Buyer Interest", secondary: "Stronger Setups" } },
+    { id: "builtin:trending", label: "Trending" },
+    { id: "builtin:buyer_interest", label: "Buyer Interest" },
   ],
+  profileMetaById: {
+    "builtin:trending": { section_labels: { primary: "Approaching", secondary: "Touched" } },
+    "builtin:buyer_interest": { section_labels: { primary: "Buyer Interest", secondary: "Stronger Setups" } },
+  },
 }));
 
 const defaultProps = {
