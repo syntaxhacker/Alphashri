@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import * as state from "../state";
 import { subscribe } from "../state";
 import { fetchData, setupAutoRefresh, loadScreeners } from "../api";
@@ -18,8 +18,9 @@ export function getScreenerDefaults(data?: ScreenerData | null): ScreenerDefault
   };
 }
 
-export function useScreenerState() {
+export function useScreenerState(initialScreener?: string) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   useStoreSubscription(subscribe);
   const initialLoadDone = useRef(false);
 
@@ -28,9 +29,17 @@ export function useScreenerState() {
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
 
+    const useUrlScreener = initialScreener && (!state.screenerOptions.length || initialScreener !== state.activeScreener);
+    if (useUrlScreener) {
+      state.setActiveScreener(initialScreener);
+    }
+
     if (state.screenerOptions.length === 0) {
-      loadScreeners()
+      loadScreeners(!useUrlScreener)
         .then(() => {
+          if (useUrlScreener) {
+            state.setActiveScreener(initialScreener);
+          }
           fetchData(
             state.data?.provider || "upstox",
             state.data?.mode || "intraday",
@@ -86,7 +95,10 @@ export function useScreenerState() {
   const onScreenerChange = useCallback((screenerId: string) => {
     state.setActiveScreener(screenerId);
     fetchData(state.data?.provider || "upstox", state.data?.mode || "intraday", screenerId);
-  }, []);
+    const next = new URLSearchParams(searchParams);
+    next.set("screener", screenerId);
+    setSearchParams(next, { replace: true });
+  }, [searchParams]);
 
   const onConfigScreenerSelect = useCallback((screenerId: string) => {
     state.setActiveScreener(screenerId);
