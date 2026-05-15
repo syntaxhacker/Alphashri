@@ -9,6 +9,7 @@ interface SortableHeaderProps {
   onSort: (column: string) => void;
   sortable?: boolean;
   testId?: string;
+  className?: string;
   children?: React.ReactNode;
 }
 
@@ -20,6 +21,7 @@ export function SortableHeader({
   onSort,
   sortable = true,
   testId,
+  className,
   children,
 }: SortableHeaderProps) {
   const isActive = sortColumn === columnKey && sortable;
@@ -30,6 +32,7 @@ export function SortableHeader({
       data-testid={testId || `sort-header-${columnKey}`}
       data-sorted={isActive ? "true" : "false"}
       data-direction={sortDirection}
+      className={className}
     >
       <Group gap={4} wrap="nowrap">
         <Text size="sm" fw={500}>

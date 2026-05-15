@@ -12,7 +12,7 @@ test.describe("Screener - URL Params", () => {
     await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
     await expect(
-      page.locator('[data-testid="screener-nav-option-builtin\\:buyer_interest_enhanced"]'),
+      page.locator('[data-testid="screener-nav-option-buyer_interest_enhanced"]'),
     ).toBeVisible({ timeout: 5000 });
 
     // Verify the correct section title is shown (not fallback "Approaching")
@@ -23,7 +23,7 @@ test.describe("Screener - URL Params", () => {
     await page.goto("/");
     await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
-    await page.click('[data-testid="screener-nav-option-builtin\\:buyer_interest_enhanced"]', {
+    await page.click('[data-testid="screener-nav-option-buyer_interest_enhanced"]', {
       force: true,
     });
 
@@ -34,7 +34,7 @@ test.describe("Screener - URL Params", () => {
     await page.goto("/?screener=builtin%3Abuyer_interest_enhanced");
     await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
-    await page.click('[data-testid="screener-nav-option-builtin\\:trending"]', {
+    await page.click('[data-testid="screener-nav-option-trending"]', {
       force: true,
     });
 

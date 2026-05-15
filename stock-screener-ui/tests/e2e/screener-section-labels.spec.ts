@@ -24,9 +24,9 @@ test.describe("Screener - Section Labels", () => {
     await page.waitForSelector(".mantine-Table-tr", {
       timeout: 10000,
     });
-    await expect(page.locator('[data-testid="screener-nav-option-builtin\\:trending"]')).toBeVisible();
+    await expect(page.locator('[data-testid="screener-nav-option-trending"]')).toBeVisible();
     await page.waitForLoadState("networkidle");
-    await expect(page.locator('[data-testid="screener-nav-option-builtin\\:trending"]')).toBeVisible();
+    await expect(page.locator('[data-testid="screener-nav-option-trending"]')).toBeVisible();
   });
   test("should show touched section when data has touched stocks", async ({ page }) => {
     await page.goto("/");
