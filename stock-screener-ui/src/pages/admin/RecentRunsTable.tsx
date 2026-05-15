@@ -3,7 +3,6 @@ import type { LLMRun, ModelUsage } from "../../types/admin";
 import { getStatusColor } from "../../utils/ui-helpers";
 import { CompactPanel } from "../../components/common/compact";
 import { DataTable } from "../../components/common/DataTable";
-import { TableEmptyState } from "../../components/common/TableEmptyState";
 import { formatCost, formatResponseTime, formatDateTime, truncateUrl } from "./formatters";
 
 export { formatCost, formatResponseTime, formatDateTime, truncateUrl } from "./formatters";
@@ -26,7 +25,11 @@ export function ModelBreakdown({ models }: { models: ModelUsage[] }) {
 
 export function RecentRunsTable({ runs }: { runs: LLMRun[] }) {
   if (runs.length === 0) {
-    return <TableEmptyState message="No recent runs" />;
+    return (
+      <Text c="dimmed" ta="center" py="sm">
+        No recent runs
+      </Text>
+    );
   }
   return (
     <DataTable dataTestId="runs-table">

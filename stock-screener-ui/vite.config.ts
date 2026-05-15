@@ -23,6 +23,9 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: true,
+      watch: {
+        ignored: ['**/.venv/**', '**/venv/**'],
+      },
       proxy: {
         '/api': {
           target: env.VITE_API_BASE_URL || 'http://localhost:8765',

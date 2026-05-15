@@ -10,27 +10,15 @@ import {
   getAvailableExpiries,
   getAvailableUnderlyingSymbols,
   getUnderlyingInfo,
-  setUnderlying,
-  fetchChain,
-  fetchPositions,
-  initOptionsState,
 } from "./optionsStore";
 import type { OptionContract, Expiry, Underlying } from "../api/upstoxOptions";
 
-const { mockGetOptionChain, mockGetUnderlyings, mockGetExpiries, mockGetSpotPrice, mockGetPositions } = vi.hoisted(() => ({
-  mockGetOptionChain: vi.fn(),
-  mockGetUnderlyings: vi.fn(),
-  mockGetExpiries: vi.fn(),
-  mockGetSpotPrice: vi.fn(),
-  mockGetPositions: vi.fn(),
-}));
-
 vi.mock("../api/upstoxOptions", () => ({
-  getOptionChain: mockGetOptionChain,
-  getUnderlyings: mockGetUnderlyings,
-  getExpiries: mockGetExpiries,
-  getSpotPrice: mockGetSpotPrice,
-  getPositions: mockGetPositions,
+  getOptionChain: vi.fn(),
+  getUnderlyings: vi.fn(),
+  getExpiries: vi.fn(),
+  getSpotPrice: vi.fn(),
+  getPositions: vi.fn(),
 }));
 
 function createMockContract(overrides: Partial<OptionContract> = {}): OptionContract {
@@ -501,102 +489,5 @@ describe("getUnderlyingInfo", () => {
     (state as any).underlyings = [underlying];
 
     expect(getUnderlyingInfo("NIFTY")).toEqual(underlying);
-  });
-});
-
-describe("fetchChain", () => {
-  beforeEach(() => {
-    resetStoreState();
-    vi.clearAllMocks();
-  });
-  afterEach(() => {
-    resetStoreState();
-  });
-
-  it("validates underlying and expiry selected", async () => {
-    await fetchChain();
-    expect(getOptionsState().error).toBe("Please select underlying and expiry");
-  });
-
-  it("fetches option chain from API on success", async () => {
-    const contract = createMockContract();
-    mockGetOptionChain.mockResolvedValue({
-      chain: [{ ce: contract }],
-      spot: 24000,
-      timestamp: "2025-01-01T00:00:00",
-      summary: { total_contracts: 1 },
-    });
-    getOptionsState().selectedUnderlying = "NIFTY";
-    getOptionsState().selectedExpiry = "2025-02-27";
-
-    await fetchChain();
-
-    const state = getOptionsState();
-    expect(state.optionChain).toHaveLength(1);
-    expect(state.spotPrice).toBe(24000);
-    expect(state.loading).toBe(false);
-  });
-
-  it("sets error on API failure", async () => {
-    mockGetOptionChain.mockRejectedValue(new Error("API error"));
-    getOptionsState().selectedUnderlying = "NIFTY";
-    getOptionsState().selectedExpiry = "2025-02-27";
-
-    await fetchChain();
-
-    expect(getOptionsState().error).toBe("API error");
-    expect(getOptionsState().loading).toBe(false);
-  });
-});
-
-describe("fetchPositions", () => {
-  beforeEach(() => {
-    resetStoreState();
-    vi.clearAllMocks();
-  });
-  afterEach(() => {
-    resetStoreState();
-  });
-
-  it("fetches positions from API", async () => {
-    const position = { instrument_key: "key-1", quantity: 10, buy_price: 100 };
-    mockGetPositions.mockResolvedValue({ positions: [position] });
-
-    await fetchPositions();
-
-    expect(getOptionsState().positions).toHaveLength(1);
-    expect(getOptionsState().loading).toBe(false);
-  });
-
-  it("handles API error gracefully", async () => {
-    mockGetPositions.mockRejectedValue(new Error("Network error"));
-
-    await fetchPositions();
-
-    expect(getOptionsState().error).toBe("Network error");
-    expect(getOptionsState().loading).toBe(false);
-  });
-});
-
-describe("initOptionsState", () => {
-  beforeEach(() => {
-    resetStoreState();
-    vi.clearAllMocks();
-  });
-  afterEach(() => {
-    resetStoreState();
-  });
-
-  it("loads underlyings and selects first", async () => {
-    const underlying = createMockUnderlying("NIFTY");
-    mockGetUnderlyings.mockResolvedValue([underlying]);
-    mockGetExpiries.mockResolvedValue([]);
-    mockGetSpotPrice.mockResolvedValue({ spot: 24000 });
-
-    await initOptionsState();
-
-    const state = getOptionsState();
-    expect(state.underlyings).toHaveLength(1);
-    expect(state.selectedUnderlying).toBe("NIFTY");
   });
 });

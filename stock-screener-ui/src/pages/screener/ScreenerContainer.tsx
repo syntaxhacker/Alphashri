@@ -1,11 +1,7 @@
 import { ScreenerPage } from "../../components/screener/ScreenerPage";
 import { useScreenerState } from "../../hooks/useScreenerState";
-import { useSearchParams } from "react-router-dom";
 
 export function ScreenerContainer() {
-  const [searchParams] = useSearchParams();
-  const urlScreener = searchParams.get("screener") || undefined;
-
   const {
     approachingStocks,
     touchedStocks,
@@ -25,7 +21,7 @@ export function ScreenerContainer() {
     onConfigScreenerSelect,
     onSymbolClick,
     onSymbolHover,
-  } = useScreenerState(urlScreener);
+  } = useScreenerState();
 
   return (
     <ScreenerPage

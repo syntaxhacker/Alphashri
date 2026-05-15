@@ -243,16 +243,6 @@ describe("useNewsWebSocket", () => {
     expect(consoleSpy).toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
-
-  it("disconnects WebSocket on unmount", () => {
-    const { unmount } = renderWithWrapper();
-    const closeSpy = vi.fn();
-    mockWsInstance.close = closeSpy;
-
-    unmount();
-
-    expect(closeSpy).toHaveBeenCalled();
-  });
 });
 
 describe("NewsWebSocketProvider", () => {

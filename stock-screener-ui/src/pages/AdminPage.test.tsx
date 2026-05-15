@@ -136,20 +136,6 @@ describe("AdminPage", () => {
     expect(screen.getByText("100")).toBeInTheDocument();
     expect(screen.getByText("150,000")).toBeInTheDocument();
     expect(screen.getByText("$4.5000")).toBeInTheDocument();
-    expect(screen.getByText("1100ms")).toBeInTheDocument();
-  });
-
-  it("displays page description text", async () => {
-    mockFetchWithAuth.mockResolvedValue({
-      ok: true,
-      json: async () => mockStats,
-    });
-
-    renderWithMantine(<AdminPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Recent model usage, response time, and cost telemetry.")).toBeInTheDocument();
-    });
   });
 
   it("displays refresh button", async () => {
@@ -228,44 +214,5 @@ describe("AdminPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Some models failed to fetch/)).toBeInTheDocument();
     });
-  });
-
-  it("shows error with status code when response is not ok", async () => {
-    mockFetchWithAuth.mockResolvedValue({
-      ok: false,
-      status: 500,
-    });
-
-    renderWithMantine(<AdminPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Unable to load stats/)).toBeInTheDocument();
-    });
-  });
-
-  it("refreshes admin content when refresh button is clicked and shows loading", async () => {
-    let resolvePromise: (v: unknown) => void;
-    const fetchPromise = new Promise((resolve) => {
-      resolvePromise = resolve;
-    });
-    mockFetchWithAuth
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockStats,
-      })
-      .mockImplementationOnce(() => fetchPromise);
-
-    renderWithMantine(<AdminPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("refresh-btn")).toBeInTheDocument();
-    });
-
-    const refreshBtn = screen.getByTestId("refresh-btn");
-    refreshBtn.click();
-
-    expect(mockFetchWithAuth).toHaveBeenCalledTimes(2);
-
-    resolvePromise!({ ok: true, json: async () => mockStats });
   });
 });

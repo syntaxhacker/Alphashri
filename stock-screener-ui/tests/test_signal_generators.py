@@ -166,8 +166,8 @@ class TestSRBreakoutSignalGenerator:
 
     def test_config_defaults(self):
         gen = SRBreakoutSignalGenerator(config={})
-        assert gen.sl_pct == 1.5
-        assert gen.tp_pct == 2.5
+        assert gen.sl_pct == 0.5
+        assert gen.tp_pct == 1.5
         assert gen.pivot_type == "classic"
         assert gen.breakout_buffer_pct == 0.1
 
@@ -193,10 +193,8 @@ class TestWeek52ChaserSignalGenerator:
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
         assert signal.price == price
-        expected_sl = round(price * (1 - self.gen.sl_pct / 100), 2)
-        expected_tp = round(price * (1 + self.gen.tp_pct / 100), 2)
-        assert signal.stop_loss == expected_sl
-        assert signal.take_profit == expected_tp
+        assert signal.stop_loss == round(price * 0.97, 2)
+        assert signal.take_profit == round(price * 1.05, 2)
 
     def test_check_entry_exactly_at_52w_high(self):
         signal = self.gen.check_entry("TEST", {"current_price": 500.0, "high_52w": 500.0})
@@ -369,12 +367,12 @@ class TestWeek52ChaserSignalGenerator:
 
     def test_config_defaults(self):
         gen = Week52ChaserSignalGenerator(config={})
-        assert gen.sl_pct == 2.0
-        assert gen.tp_pct == 3.0
+        assert gen.sl_pct == 3.0
+        assert gen.tp_pct == 5.0
         assert gen.entry_threshold_pct == 3.0
         assert gen.enable_trailing_stop is False
-        assert gen.trailing_stop_pct == 2.0
-        assert gen.trailing_activation_pct == 3.0
+        assert gen.trailing_stop_pct == 3.0
+        assert gen.trailing_activation_pct == 2.0
         assert gen.max_holding_days == 30
         assert gen.cooldown_days == 30
         assert gen.enable_filters is False
@@ -479,6 +477,6 @@ class TestWeek52TargetSignalGenerator:
         assert gen.sl_pct == 2.0
         assert gen.tp_pct == 0.0
         assert gen.entry_threshold_pct == 2.0
-        assert gen.trailing_stop_pct == 2.0
+        assert gen.trailing_stop_pct == 0.5
         assert gen.max_holding_days == 15
         assert gen.cooldown_days == 7

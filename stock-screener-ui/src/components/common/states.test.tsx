@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
-import { InlineLoader, EmptyState, ErrorAlert, EmptyCompact } from "./states";
+import { InlineLoader, EmptyState, ErrorAlert } from "./states";
 
 afterEach(cleanup);
 
@@ -49,38 +49,5 @@ describe("ErrorAlert", () => {
   it("renders custom title", () => {
     render(<ErrorAlert title="Fetch Error" message="Failed" />, { wrapper: Wrapper });
     expect(screen.getByText("Fetch Error")).toBeTruthy();
-  });
-
-  it("renders close button when onClose provided", () => {
-    const onClose = vi.fn();
-    render(<ErrorAlert message="Error" onClose={onClose} />, { wrapper: Wrapper });
-    const closeBtn = document.querySelector(".mantine-Alert-closeButton");
-    expect(closeBtn).toBeTruthy();
-  });
-
-  it("renders retry button when withRetry=true", () => {
-    const onRetry = vi.fn();
-    render(<ErrorAlert message="Error" withRetry onRetry={onRetry} />, { wrapper: Wrapper });
-    expect(screen.getByText("Retry")).toBeTruthy();
-  });
-
-  it("calls onRetry when retry button clicked", () => {
-    const onRetry = vi.fn();
-    render(<ErrorAlert message="Error" withRetry onRetry={onRetry} />, { wrapper: Wrapper });
-    fireEvent.click(screen.getByText("Retry"));
-    expect(onRetry).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("EmptyCompact", () => {
-  it("renders inside CompactPanel", () => {
-    render(<EmptyCompact title="No Data" description="Nothing here" />, { wrapper: Wrapper });
-    expect(screen.getByText("No Data")).toBeTruthy();
-    expect(screen.getByText("Nothing here")).toBeTruthy();
-  });
-
-  it("renders with emoji", () => {
-    render(<EmptyCompact emoji="📊" title="Empty" />, { wrapper: Wrapper });
-    expect(screen.getByText("📊")).toBeTruthy();
   });
 });

@@ -4,15 +4,14 @@ import { apiRoute } from "./routeHelper";
 
 export const mockScreenersList = {
   screeners: [
-    { id: "builtin:trending", label: "Trending", description: "52-week high scanner", section_labels: { primary: "Approaching", secondary: "Touched" } },
+    { id: "trending", label: "Trending", description: "52-week high scanner" },
     {
-      id: "builtin:buyer_interest_enhanced",
+      id: "buyer_interest_enhanced",
       label: "Buyer Interest+",
       description: "Enhanced buyer interest with sentiment",
-      section_labels: { primary: "Buyer Interest+", secondary: "Stronger Setups" },
     },
   ],
-  default: "builtin:trending",
+  default: "trending",
   meta_by_id: {
     buyer_interest_enhanced: {
       section_labels: { primary: "Buyer Interest+", secondary: "" },
@@ -139,10 +138,6 @@ export const mockTrendingResponse = {
   provider: "upstox",
   mode: "intraday",
   screener: "trending",
-  profile_meta: {
-    section_labels: { primary: "Approaching", secondary: "Touched" },
-    default_sort: { column: "to_52w_high", direction: "asc" },
-  },
 };
 
 // All buyer interest stocks (unfiltered)
@@ -584,7 +579,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
     }
 
     // Check if it's buyer_interest_enhanced
-    if (url.includes("buyer_interest_enhanced")) {
+    if (url.includes("screener=buyer_interest_enhanced")) {
       const directionMatch = url.match(/pf_direction=([^&]+)/);
       const direction = directionMatch ? directionMatch[1] : "both";
       const response = createBuyerInterestResponse(direction);

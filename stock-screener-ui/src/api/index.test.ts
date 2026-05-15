@@ -5,8 +5,6 @@ vi.mock("../state", () => ({
   setError: vi.fn(),
   setData: vi.fn(),
   setActiveScreener: vi.fn(),
-  setActiveProvider: vi.fn(),
-  setActiveMode: vi.fn(),
   setSortColumn: vi.fn(),
   setSortDirection: vi.fn(),
   setScreenerOptions: vi.fn(),
@@ -46,15 +44,7 @@ vi.mock("../state/auth", () => ({
 }));
 
 import { fetchWithAuth } from "../state/auth";
-import {
-  fetchData,
-  resetLoadingState,
-  detectAutoRefreshChanges,
-  setRenderCallback,
-  loadScreeners,
-  setupAutoRefresh,
-} from "./index";
-import { getBacktestState } from "../state/backtest";
+import { fetchData, resetLoadingState, detectAutoRefreshChanges, setRenderCallback } from "./index";
 import * as state from "../state";
 import { isAbortError } from "../hooks/useFetch";
 import { detectAddedSymbols } from "../utils/runtime_utils";
@@ -65,7 +55,6 @@ const mockedIsAbortError = vi.mocked(isAbortError);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.unstubAllGlobals();
   setRenderCallback(() => {});
 });
 
@@ -196,18 +185,6 @@ describe("fetchData", () => {
     expect(state.setSortColumn).not.toHaveBeenCalled();
     expect(state.setSortDirection).not.toHaveBeenCalled();
   });
-
-  it("uses param screener value not stripped response value for activeScreener", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ screener: "trending" }),
-    } as Response);
-
-    await fetchData("upstox", "intraday", "builtin:trending", "manual");
-
-    expect(state.setActiveScreener).toHaveBeenCalledWith("builtin:trending");
-    expect(state.setActiveScreener).not.toHaveBeenCalledWith("trending");
-  });
 });
 
 describe("resetLoadingState", () => {
@@ -219,152 +196,6 @@ describe("resetLoadingState", () => {
 
     expect(state.setIsLoading).toHaveBeenCalledWith(false);
     expect(renderCb).toHaveBeenCalled();
-  });
-});
-
-describe("fetchData with profile filters", () => {
-  it("appends profile filter params to URL", async () => {
-    (state as any).profileFilters = { min_price: 100, max_price: 500 };
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ screener: "trending" }),
-    } as Response);
-
-    await fetchData("upstox", "intraday", "trending", "manual");
-
-    const calledUrl = mockedFetch.mock.calls[0][0] as string;
-    expect(calledUrl).toContain("min_price=100");
-    expect(calledUrl).toContain("max_price=500");
-  });
-
-  it("clears data only on manual screener switch", async () => {
-    (state as any).data = { screener: "52w-high", symbols: ["OLD"] };
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ screener: "trending", symbols: ["NEW"] }),
-    } as Response);
-
-    await fetchData("upstox", "intraday", "trending", "manual");
-
-    expect(state.setData).toHaveBeenCalledWith({ screener: null, symbols: [] });
-  });
-
-  it("does not clear data on auto-refresh", async () => {
-    (state as any).data = { screener: "trending", symbols: ["EXISTING"] };
-    (state as any).DEFAULT_SCREENER_DATA = { screener: null, symbols: [] };
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ screener: "trending", symbols: ["NEW"] }),
-    } as Response);
-
-    await fetchData("upstox", "intraday", "trending", "auto");
-
-    expect(state.setData).not.toHaveBeenCalledWith({ screener: null, symbols: [] });
-  });
-});
-
-describe("loadScreeners", () => {
-  it("fetches screener options and meta", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        screeners: [{ id: "custom", label: "Custom" }],
-        meta_by_id: { CUSTOM: { name: "Custom" } },
-        default: "custom",
-      }),
-    } as Response);
-
-    await loadScreeners(true);
-
-    expect(state.setScreenerOptions).toHaveBeenCalledWith([{ id: "custom", label: "Custom" }]);
-    expect(state.setProfileMetaById).toHaveBeenCalledWith({ CUSTOM: { name: "Custom" } });
-  });
-
-  it("resets active screener when resetActive=true", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        screeners: [],
-        meta_by_id: {},
-        default: "high_momentum",
-      }),
-    } as Response);
-
-    await loadScreeners(true);
-
-    expect(state.setActiveScreener).toHaveBeenCalledWith("high_momentum");
-    expect(state.setActiveProvider).toHaveBeenCalledWith("upstox");
-    expect(state.setActiveMode).toHaveBeenCalledWith("intraday");
-  });
-
-  it("falls back to DEFAULT_SCREENER_OPTIONS on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
-
-    await loadScreeners(true);
-
-    expect(state.setScreenerOptions).toHaveBeenCalled();
-    expect(state.setActiveScreener).toHaveBeenCalledWith("trending");
-  });
-});
-
-describe("setupAutoRefresh", () => {
-  beforeEach(() => {
-    (state as any).autoRefreshInterval = null;
-    (state as any).autoRefreshSeconds = 30;
-  });
-
-  it("clears existing interval", () => {
-    const clearSpy = vi.spyOn(globalThis, "clearInterval");
-    const existingInterval = setInterval(() => {}, 1000);
-    (state as any).autoRefreshInterval = existingInterval;
-
-    setupAutoRefresh();
-
-    expect(clearSpy).toHaveBeenCalledWith(existingInterval);
-    clearInterval(existingInterval);
-    clearSpy.mockRestore();
-  });
-
-  it("does not set interval when autoRefreshSeconds <= 0", () => {
-    const setSpy = vi.spyOn(globalThis, "setInterval");
-    (state as any).autoRefreshSeconds = 0;
-
-    setupAutoRefresh();
-
-    expect(setSpy).not.toHaveBeenCalled();
-    setSpy.mockRestore();
-  });
-
-  it("skips auto-refresh on backtest view", () => {
-    vi.useFakeTimers();
-    vi.stubGlobal("window", { location: { search: "" } });
-    (state as any).autoRefreshSeconds = 10;
-    (state as any).data = { screener: "trending" };
-    (state as any).isLoading = false;
-    vi.mocked(getBacktestState).mockReturnValue({ currentView: "backtest" });
-
-    setupAutoRefresh();
-    vi.advanceTimersByTime(15000);
-
-    expect(mockedFetch).not.toHaveBeenCalled();
-    vi.useRealTimers();
-  });
-
-  it("calls fetchData with auto source", () => {
-    vi.useFakeTimers();
-    vi.stubGlobal("window", { location: { search: "" } });
-    (state as any).autoRefreshSeconds = 5;
-    (state as any).data = { provider: "upstox", mode: "intraday" };
-    (state as any).activeScreener = "trending";
-    (state as any).isLoading = false;
-    vi.mocked(getBacktestState).mockReturnValue({ currentView: "screener" });
-
-    setupAutoRefresh();
-    vi.advanceTimersByTime(6000);
-
-    expect(mockedFetch).toHaveBeenCalled();
-    vi.unstubAllGlobals();
-    vi.useRealTimers();
   });
 });
 

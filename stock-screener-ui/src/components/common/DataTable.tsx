@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Table, ScrollArea } from "@mantine/core";
+import { Table } from "@mantine/core";
 
 interface DataTableProps {
   children: ReactNode;
@@ -17,7 +17,6 @@ interface DataTableProps {
   styles?: Partial<
     Record<"table" | "thead" | "tbody" | "tfoot" | "tr" | "th" | "td" | "caption", CSSProperties>
   >;
-  scrollable?: boolean;
 }
 
 export function DataTable({
@@ -34,9 +33,8 @@ export function DataTable({
   dataTestId,
   style,
   styles,
-  scrollable = false,
 }: DataTableProps) {
-  const table = (
+  return (
     <Table
       striped={striped}
       highlightOnHover={highlightOnHover}
@@ -54,14 +52,4 @@ export function DataTable({
       {children}
     </Table>
   );
-
-  if (scrollable) {
-    return (
-      <ScrollArea flex={1} style={{ minHeight: 0 }}>
-        <div style={{ overflowX: "auto" }}>{table}</div>
-      </ScrollArea>
-    );
-  }
-
-  return table;
 }

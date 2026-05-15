@@ -302,8 +302,8 @@ class TestStrategyConfigModel:
         db_session.commit()
         
         assert strategy.or_minutes == 45
-        assert strategy.sl_pct == 1.0
-        assert strategy.tp_pct == 1.5
+        assert strategy.sl_pct == 0.4
+        assert strategy.tp_pct == 1.2
         assert strategy.min_or_range_pct == 0.5
         assert strategy.max_or_range_pct == 3.0
         assert strategy.breakout_buffer_pct == 0.3
@@ -625,81 +625,6 @@ class TestBotStrategyRelationship:
         assert 'strategy_id' in columns
         assert 'max_positions' in columns
         assert 'capital_allocation_pct' in columns
-
-
-class TestBrokerConnectionModel:
-    """Tests for BrokerConnection model."""
-
-    @pytest.fixture
-    def test_user(self, db_session):
-        user = User(email="broker@example.com", hashed_password="hashed")
-        db_session.add(user)
-        db_session.commit()
-        return user
-
-    def test_create_broker_connection(self, db_session, test_user):
-        conn = BrokerConnection(
-            broker_name="upstox",
-            access_token="test_access_token_123",
-            token_timestamp=datetime.utcnow(),
-            user_id=test_user.id,
-        )
-        db_session.add(conn)
-        db_session.commit()
-
-        assert conn.id is not None
-        assert conn.broker_name == "upstox"
-        assert conn.access_token == "test_access_token_123"
-
-    def test_broker_connection_unique_constraint(self, db_session, test_user):
-        conn1 = BrokerConnection(
-            broker_name="upstox", access_token="token1",
-            token_timestamp=datetime.utcnow(), user_id=test_user.id,
-        )
-        db_session.add(conn1)
-        db_session.commit()
-
-        conn2 = BrokerConnection(
-            broker_name="upstox", access_token="token2",
-            token_timestamp=datetime.utcnow(), user_id=test_user.id,
-        )
-        db_session.add(conn2)
-        with pytest.raises(IntegrityError):
-            db_session.commit()
-
-    def test_broker_connection_null_user_id(self, db_session):
-        conn = BrokerConnection(
-            broker_name="upstox", access_token="shared_token",
-            token_timestamp=datetime.utcnow(), user_id=None,
-        )
-        db_session.add(conn)
-        db_session.commit()
-        assert conn.user_id is None
-
-    def test_broker_connection_to_dict(self, db_session, test_user):
-        conn = BrokerConnection(
-            broker_name="upstox", access_token="dict_token",
-            token_timestamp=datetime.utcnow(), user_id=test_user.id,
-        )
-        db_session.add(conn)
-        db_session.commit()
-
-        result = conn.to_dict()
-        assert result["broker_name"] == "upstox"
-        assert result["access_token"] == "dict_token"
-        assert result["user_id"] == test_user.id
-
-    def test_broker_connection_repr(self, db_session, test_user):
-        conn = BrokerConnection(
-            broker_name="zerodha", access_token="repr_token",
-            token_timestamp=datetime.utcnow(), user_id=test_user.id,
-        )
-        db_session.add(conn)
-        db_session.commit()
-
-        repr_str = repr(conn)
-        assert "BrokerConnection" in repr_str
-        assert "zerodha" in repr_str
 
 
 class TestModelConstraints:

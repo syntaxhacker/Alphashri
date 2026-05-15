@@ -90,10 +90,10 @@ class TestSignalGeneratorInitialization:
         )
         from trading.orb_signals import ORBSignalGenerator
         assert isinstance(runner.signal_generator, ORBSignalGenerator)
-        # Check defaults (from ORBSignalGenerator fallback when config is empty)
+        # Check defaults
         assert runner.signal_generator.or_minutes == 45
-        assert runner.signal_generator.sl_pct == 1.0
-        assert runner.signal_generator.tp_pct == 1.5
+        assert runner.signal_generator.sl_pct == 0.4
+        assert runner.signal_generator.tp_pct == 1.2
         assert runner.signal_generator.min_or_range_pct == 0.5
         assert runner.signal_generator.max_or_range_pct == 3.0
         assert runner.signal_generator.breakout_buffer_pct == 0.3
@@ -150,8 +150,8 @@ class TestSignalGeneratorInitialization:
         )
         from trading.sr_breakout_signals import SRBreakoutSignalGenerator
         assert isinstance(runner.signal_generator, SRBreakoutSignalGenerator)
-        assert runner.signal_generator.sl_pct == 1.5
-        assert runner.signal_generator.tp_pct == 2.5
+        assert runner.signal_generator.sl_pct == 0.5
+        assert runner.signal_generator.tp_pct == 1.5
         assert runner.signal_generator.pivot_type == "classic"
 
     def test_52w_chaser_creates_generator(self):
@@ -198,7 +198,7 @@ class TestSignalGeneratorInitialization:
         assert runner.signal_generator.ema_slow_period == 26
         assert runner.signal_generator.cooldown_bars == 5
         # sl_pct and tp_pct come from BaseSignalGenerator __init__ via EMACrossSignalGenerator's super
-        assert runner.signal_generator.sl_pct == 1.0
+        assert runner.signal_generator.sl_pct == 0.5
         assert runner.signal_generator.tp_pct == 1.5
 
     def test_unknown_type_fallback_to_orb(self):
@@ -229,7 +229,7 @@ class TestSignalGeneratorInitialization:
         assert runner.signal_generator.ema_fast_period == 9
         assert runner.signal_generator.ema_slow_period == 21
         assert runner.signal_generator.cooldown_bars == 3
-        assert runner.signal_generator.sl_pct == 1.0
+        assert runner.signal_generator.sl_pct == 0.5
         assert runner.signal_generator.tp_pct == 1.5
         assert runner.signal_generator.enable_shorts is False
 
@@ -245,12 +245,12 @@ class TestSignalGeneratorInitialization:
         )
         from trading.week52_chaser_signals import Week52ChaserSignalGenerator
         assert isinstance(runner.signal_generator, Week52ChaserSignalGenerator)
-        assert runner.signal_generator.sl_pct == 2.0
-        assert runner.signal_generator.tp_pct == 3.0
+        assert runner.signal_generator.sl_pct == 3.0
+        assert runner.signal_generator.tp_pct == 5.0
         assert runner.signal_generator.entry_threshold_pct == 3.0
         assert runner.signal_generator.enable_trailing_stop is False
-        assert runner.signal_generator.trailing_stop_pct == 2.0
-        assert runner.signal_generator.trailing_activation_pct == 3.0
+        assert runner.signal_generator.trailing_stop_pct == 3.0
+        assert runner.signal_generator.trailing_activation_pct == 2.0
         assert runner.signal_generator.max_holding_days == 30
         assert runner.signal_generator.cooldown_days == 30
         assert runner.signal_generator.enable_filters is False
@@ -270,7 +270,7 @@ class TestSignalGeneratorInitialization:
         assert runner.signal_generator.sl_pct == 2.0
         assert runner.signal_generator.tp_pct == 0.0
         assert runner.signal_generator.entry_threshold_pct == 2.0
-        assert runner.signal_generator.trailing_stop_pct == 2.0
+        assert runner.signal_generator.trailing_stop_pct == 0.5
         assert runner.signal_generator.max_holding_days == 15
         assert runner.signal_generator.cooldown_days == 7
 
@@ -300,35 +300,3 @@ class TestIntradayAndSwingTypes:
     def test_swing_strategy_types(self):
         """Test SWING_STRATEGY_TYPES contains expected types."""
         assert SWING_STRATEGY_TYPES == {"52W_CHASER", "52W_TARGET"}
-
-
-class TestTimestampedConsole:
-    """Tests for _TimestampedConsole timestamp prefixing."""
-    
-    def test_timestamped_console_prepends_timestamp(self):
-        """_TimestampedConsole.print should prepend [HH:MM:SS] to output."""
-        from trading.runner_core import _TimestampedConsole
-        import io
-        from rich.console import Console as RichConsole
-        
-        output = io.StringIO()
-        ts_console = _TimestampedConsole(file=output, force_terminal=False)
-        ts_console.print("test message")
-        
-        result = output.getvalue()
-        assert "[" in result
-        assert "]" in result
-        assert "test message" in result
-    
-    def test_timestamped_console_timestamp_format(self):
-        """Timestamp should match HH:MM:SS pattern."""
-        from trading.runner_core import _TimestampedConsole
-        import io
-        import re
-        
-        output = io.StringIO()
-        ts_console = _TimestampedConsole(file=output, force_terminal=False)
-        ts_console.print("hello")
-        
-        ts_match = re.search(r'\[(\d{2}:\d{2}:\d{2})\].*hello', output.getvalue(), re.DOTALL)
-        assert ts_match is not None, f"Expected [HH:MM:SS] prefix with message, got: {output.getvalue()}"

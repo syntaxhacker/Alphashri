@@ -1,7 +1,6 @@
 import { Table, ActionIcon, CopyButton, Tooltip, Checkbox } from "@mantine/core";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
-import { DataTable } from "../common/DataTable";
-import { SortableHeader } from "../common/SortableHeader";
+import { DataTable, SortableHeader } from "../common";
 import { StockRow } from "./StockRow";
 import { selectedSymbols, setSelectedSymbols, clearSelectedSymbols } from "../../state";
 import type { ColumnDef } from "./columns";
@@ -43,43 +42,6 @@ export function ScreenerTable({
   const renderHeader = (column: ColumnDef) => {
     const isSymbolColumn = column.key === "symbol";
 
-    if (isSymbolColumn) {
-      const copyAllButton = stocks.length > 0 && (
-        <CopyButton value={allSymbols}>
-          {({ copied, copy }) => (
-            <Tooltip label={copied ? "Copied" : "Copy all symbols"}>
-              <ActionIcon
-                variant="subtle"
-                color={copied ? "teal" : "gray"}
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  copy();
-                }}
-                data-testid="copy-all-symbols-btn"
-                className="copy-all-symbols-btn"
-              >
-                {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </CopyButton>
-      );
-
-      return (
-        <SortableHeader
-          key={column.key}
-          label={column.label}
-          columnKey={column.key}
-          sortColumn={sortColumn}
-          sortDirection={sortDirection}
-          onSort={onSortChange}
-          testId={`sort-header-${column.key}`}
-          extraContent={copyAllButton}
-        />
-      );
-    }
-
     return (
       <SortableHeader
         key={column.key}
@@ -89,7 +51,29 @@ export function ScreenerTable({
         sortDirection={sortDirection}
         onSort={onSortChange}
         testId={`sort-header-${column.key}`}
-      />
+      >
+        {isSymbolColumn && stocks.length > 0 && (
+          <CopyButton value={allSymbols}>
+            {({ copied, copy }) => (
+              <Tooltip label={copied ? "Copied" : "Copy all symbols"}>
+                <ActionIcon
+                  variant="subtle"
+                  color={copied ? "teal" : "gray"}
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    copy();
+                  }}
+                  data-testid="copy-all-symbols-btn"
+                  className="copy-all-symbols-btn"
+                >
+                  {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </CopyButton>
+        )}
+      </SortableHeader>
     );
   };
 

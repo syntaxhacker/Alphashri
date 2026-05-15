@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon } from "@mantine/core";
+import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
 import dayjs from "dayjs";
 import { DataTable } from "../common";
 import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
@@ -18,7 +18,6 @@ import {
 } from "../../utils/ui-helpers";
 import { SideBadge } from "../common";
 import { ClickableSymbol } from "../common";
-import { COMMON_TABLE_STYLES } from "../common/tableStyles";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
@@ -76,6 +75,30 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
   return { totalPnl, marginUsed, count: positions.length };
 }
 
+const TABLE_STYLES = {
+  thead: {
+    position: "sticky" as const,
+    top: 0,
+    zIndex: 1,
+    background: "var(--mantine-color-body)",
+  },
+  th: {
+    padding: "4px 6px",
+    fontSize: "11px",
+    fontWeight: 600,
+    textTransform: "uppercase" as const,
+    borderBottom: "1px solid var(--mantine-color-default-border)",
+    whiteSpace: "nowrap" as const,
+  },
+  td: {
+    padding: "3px 6px",
+    fontSize: "12px",
+    borderBottom: "1px solid var(--mantine-color-default-border)",
+    whiteSpace: "nowrap" as const,
+  },
+};
+
+export { TABLE_STYLES as tableStyles };
 
 function PriceDisplay({ price, prevPrice }: { price: number; prevPrice: number }) {
   const [flash, setFlash] = useState<string | null>(null);
@@ -252,11 +275,9 @@ function PositionRow({
 export function PositionsTableBody({
   positions,
   selectedSymbol: _selectedSymbol,
-  scrollable = false,
 }: {
   positions: PaperPosition[];
   selectedSymbol: string | null;
-  scrollable?: boolean;
 }) {
   const handleClosePosition = async (symbol: string, currentPrice: number) => {
     if (confirm(`Close position for ${symbol} at ₹${currentPrice.toFixed(2)}?`)) {
@@ -295,7 +316,7 @@ export function PositionsTableBody({
   };
 
   return (
-    <DataTable styles={COMMON_TABLE_STYLES} dataTestId="positions-table" scrollable={scrollable}>
+    <DataTable styles={TABLE_STYLES} dataTestId="positions-table">
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Symbol</Table.Th>
@@ -365,11 +386,9 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
           {scanTime}
         </Text>
       </Group>
-      <DataTable
-        styles={COMMON_TABLE_STYLES}
-        dataTestId="scan-table"
-        scrollable
-      >
+      <ScrollArea flex={1} style={{ minHeight: 0 }}>
+        <div style={{ overflowX: "auto" }}>
+          <DataTable styles={TABLE_STYLES} dataTestId="scan-table">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Sym</Table.Th>
@@ -410,6 +429,8 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
               ))}
             </Table.Tbody>
           </DataTable>
+        </div>
+      </ScrollArea>
     </Flex>
   );
 }
@@ -438,7 +459,7 @@ export function StrategySummaryFooter({
       <Text fw={600} size="xs" c="dimmed" tt="uppercase" mb={2}>
         Strategy Summary
       </Text>
-      <DataTable highlightOnHover={false} styles={COMMON_TABLE_STYLES} dataTestId="strategy-summary-table">
+      <DataTable highlightOnHover={false} styles={TABLE_STYLES} dataTestId="strategy-summary-table">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Strategy</Table.Th>

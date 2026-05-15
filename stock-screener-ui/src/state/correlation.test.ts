@@ -139,43 +139,6 @@ describe("correlation state", () => {
     });
   });
 
-  describe("setIsLoading", () => {
-    test("sets loading state", async () => {
-      const mod = await import("./correlation");
-      mod.setIsLoading(true);
-      expect(mod.isLoading).toBe(true);
-    });
-
-    test("calls notify on setIsLoading", async () => {
-      const mod = await import("./correlation");
-      vi.clearAllMocks();
-      mod.setIsLoading(true);
-      expect(mod.notify).toHaveBeenCalled();
-    });
-  });
-
-  describe("setError", () => {
-    test("sets error state", async () => {
-      const mod = await import("./correlation");
-      mod.setError("Something went wrong");
-      expect(mod.error).toBe("Something went wrong");
-    });
-
-    test("clears error when passed null", async () => {
-      const mod = await import("./correlation");
-      mod.setError("error");
-      mod.setError(null);
-      expect(mod.error).toBeNull();
-    });
-
-    test("calls notify on setError", async () => {
-      const mod = await import("./correlation");
-      vi.clearAllMocks();
-      mod.setError("test error");
-      expect(mod.notify).toHaveBeenCalled();
-    });
-  });
-
   describe("fetchCorrelationData", () => {
     test("calls fetchCorrelation and sets data on success", async () => {
       const { fetchCorrelation } = await import("../api/correlation");

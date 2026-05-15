@@ -112,7 +112,7 @@ test.describe("Screener - Screener Navigation", () => {
       timeout: 10000,
     });
     await expect(page.locator('[data-testid="screener-nav"]')).toBeVisible();
-    await expect(page.locator('[data-testid="screener-nav-option-builtin\\:trending"]')).toBeVisible();
+    await expect(page.locator('[data-testid="screener-nav-option-trending"]')).toBeVisible();
   });
 });
 test.describe.configure({

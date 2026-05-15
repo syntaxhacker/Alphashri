@@ -18,7 +18,7 @@ export function getScreenerDefaults(data?: ScreenerData | null): ScreenerDefault
   };
 }
 
-export function useScreenerState(initialScreener?: string) {
+export function useScreenerState() {
   const navigate = useNavigate();
   useStoreSubscription(subscribe);
   const initialLoadDone = useRef(false);
@@ -28,17 +28,9 @@ export function useScreenerState(initialScreener?: string) {
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
 
-    const useUrlScreener = initialScreener && (!state.screenerOptions.length || initialScreener !== state.activeScreener);
-    if (useUrlScreener) {
-      state.setActiveScreener(initialScreener);
-    }
-
     if (state.screenerOptions.length === 0) {
-      loadScreeners(!useUrlScreener)
+      loadScreeners()
         .then(() => {
-          if (useUrlScreener) {
-            state.setActiveScreener(initialScreener);
-          }
           fetchData(
             state.data?.provider || "upstox",
             state.data?.mode || "intraday",

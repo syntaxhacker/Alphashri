@@ -7,8 +7,6 @@ High-level wrapper for running backtests with NautilusTrader.
 from typing import Dict, List, Optional
 from datetime import datetime
 
-from .strategies import get_strategy, list_strategies
-
 
 class BacktestEngine:
     """
@@ -22,6 +20,7 @@ class BacktestEngine:
 
     def list_strategies(self) -> List[Dict]:
         """Get list of available strategies."""
+        from .strategies import list_strategies
         return list_strategies()
 
     def run(self, strategy_id: str, symbols: List[str], days: int,
@@ -42,6 +41,7 @@ class BacktestEngine:
         if params is None:
             params = {}
 
+        from .strategies import get_strategy
         strategy_class = get_strategy(strategy_id)
         if not strategy_class:
             raise ValueError(f"Unknown strategy: {strategy_id}")

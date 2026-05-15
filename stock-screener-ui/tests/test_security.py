@@ -720,25 +720,6 @@ class TestResourceOwnership:
 
 
 @pytest.mark.unit
-class TestTradingAgentsNoAuth:
-    """Tests that trading_agents chat/analyze/stream endpoints do not require auth."""
-
-    @patch("api.trading_agents.router")
-    def test_trading_agents_router_has_no_auth_dependency(self, mock_router):
-        """Verify the trading_agents router is created without auth middleware."""
-        from api.trading_agents import router
-        assert router is not None
-        for route in router.routes:
-            deps = getattr(route, "dependencies", []) or []
-            guard_names = [getattr(d, "dependency", None) for d in deps]
-            auth_names = ["get_current_user", "get_optional_user"]
-            has_auth = any(
-                any(a in str(g) for a in auth_names)
-                for g in guard_names if g is not None
-            )
-            assert not has_auth, f"Route {route.path} has auth dependency"
-
-
 class TestPrivilegeEscalation:
     """Tests for privilege escalation prevention."""
 

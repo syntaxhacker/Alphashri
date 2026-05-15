@@ -124,9 +124,4 @@ describe("StatusBadge", () => {
     render(<StatusBadge running={true} size="xl" />, { wrapper: Wrapper });
     expect(screen.getByText("Running")).toBeTruthy();
   });
-
-  it('renders "Unknown (Redis unavailable)" when statusUnknown=true', () => {
-    render(<StatusBadge running={false} statusUnknown />, { wrapper: Wrapper });
-    expect(screen.getByText("Unknown (Redis unavailable)")).toBeTruthy();
-  });
 });

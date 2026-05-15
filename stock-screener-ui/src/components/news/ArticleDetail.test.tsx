@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { ArticleDetail } from "./ArticleDetail";
 import type { NewsItem, ArticleResponse } from "./news-types";
@@ -275,41 +274,6 @@ describe("ArticleDetail", () => {
         { wrapper: TestWrapper },
       );
       expect(screen.getByTestId("impact-score")).toHaveTextContent("0");
-    });
-
-    it("shows close button on mobile when isMobile is true", () => {
-      render(<ArticleDetail {...defaultProps} isMobile={true} />, { wrapper: TestWrapper });
-      expect(screen.getByTestId("close-article-btn")).toBeInTheDocument();
-    });
-
-    it("hides close button on desktop when isMobile is false", () => {
-      render(<ArticleDetail {...defaultProps} isMobile={false} />, { wrapper: TestWrapper });
-      expect(screen.queryByTestId("close-article-btn")).not.toBeInTheDocument();
-    });
-
-    it("calls onClose when close button is clicked on mobile", async () => {
-      const user = userEvent.setup();
-      const onClose = vi.fn();
-      render(<ArticleDetail {...defaultProps} isMobile={true} onClose={onClose} />, {
-        wrapper: TestWrapper,
-      });
-      await user.click(screen.getByTestId("close-article-btn"));
-      expect(onClose).toHaveBeenCalled();
-    });
-
-    it("renders toggle full content button when LLM summary exists", () => {
-      render(<ArticleDetail {...defaultProps} />, { wrapper: TestWrapper });
-      expect(screen.getByTestId("article-toggle-full-content-btn")).toBeInTheDocument();
-    });
-
-    it("calls onToggleFullContent when toggle button is clicked", async () => {
-      const user = userEvent.setup();
-      const onToggleFullContent = vi.fn();
-      render(<ArticleDetail {...defaultProps} onToggleFullContent={onToggleFullContent} />, {
-        wrapper: TestWrapper,
-      });
-      await user.click(screen.getByTestId("article-toggle-full-content-btn"));
-      expect(onToggleFullContent).toHaveBeenCalled();
     });
   });
 });

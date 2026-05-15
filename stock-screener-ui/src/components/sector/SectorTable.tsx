@@ -1,8 +1,7 @@
 import { Table, Text, Badge, Group, ScrollArea, Progress, Box } from "@mantine/core";
 import type { SectorItem } from "../../types/sector";
-import { DataTable } from "../common/DataTable";
+import { DataTable, TableEmptyState } from "../common";
 import { getPnLTextColor } from "../../utils/ui-helpers";
-import { TableEmptyState } from "../common/TableEmptyState";
 
 interface SectorTableProps {
   sectors: SectorItem[];

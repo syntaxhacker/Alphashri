@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import "@testing-library/jest-dom/vitest";
 import { DataTable } from "./DataTable";
 
 const mockTableProps: Record<string, any>[] = [];
@@ -11,11 +10,6 @@ vi.mock("@mantine/core", () => ({
     mockTableProps.push(props);
     return <div data-testid="mantine-table">{children}</div>;
   },
-  ScrollArea: ({ children, ...props }: any) => (
-    <div data-testid="scroll-area" data-flex={props.flex} style={props.style}>
-      <div data-testid="scroll-area-content">{children}</div>
-    </div>
-  ),
 }));
 
 afterEach(() => {
@@ -105,17 +99,5 @@ describe("DataTable", () => {
     expect(props.styles.thead.position).toBe("sticky");
     expect(props.styles.th.fontSize).toBe("11px");
     expect(props.styles.td.fontSize).toBe("12px");
-  });
-
-  it("wraps table in ScrollArea when scrollable is true", () => {
-    render(<DataTable scrollable>Content</DataTable>);
-    expect(screen.getByTestId("scroll-area")).toBeInTheDocument();
-    expect(screen.getByTestId("scroll-area-content")).toHaveTextContent("Content");
-  });
-
-  it("renders plain table when scrollable is false (default)", () => {
-    render(<DataTable>Content</DataTable>);
-    expect(screen.getByTestId("mantine-table")).toBeInTheDocument();
-    expect(screen.queryByTestId("scroll-area")).not.toBeInTheDocument();
   });
 });
