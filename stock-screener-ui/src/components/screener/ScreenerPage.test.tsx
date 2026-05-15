@@ -146,6 +146,9 @@ vi.mock("../../state", () => ({
   setSelectedSymbols: vi.fn(),
   clearSelectedSymbols: vi.fn(),
   subscribe: vi.fn(() => vi.fn()),
+  screenerOptions: [
+    { id: "trending", label: "Trending" },
+  ],
 }));
 
 vi.mock("../../state/correlation", () => ({
