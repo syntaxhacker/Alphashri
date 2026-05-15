@@ -4,7 +4,10 @@ import { useSearchParams } from "react-router-dom";
 
 export function ScreenerContainer() {
   const [searchParams] = useSearchParams();
-  const urlScreener = searchParams.get("screener") || undefined;
+  const rawScreener = searchParams.get("screener");
+  const urlScreener = rawScreener?.includes(":")
+    ? rawScreener.split(":").pop()
+    : rawScreener || undefined;
 
   const {
     approachingStocks,
