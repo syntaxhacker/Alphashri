@@ -87,6 +87,7 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
       data={stocks}
       columns={columns}
       initialState={{ sorting: [{ id: metric, desc: true }] }}
+      dataTestId="heatmap-list-table"
     />
   );
 }

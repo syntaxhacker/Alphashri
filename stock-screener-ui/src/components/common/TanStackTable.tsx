@@ -13,6 +13,7 @@ interface Props<T> {
   data: T[];
   columns: ColumnDef<T>[];
   initialState?: { sorting?: SortingState };
+  dataTestId?: string;
 }
 
 const cellStyle: React.CSSProperties = {
@@ -36,7 +37,7 @@ const headerStyle: React.CSSProperties = {
   zIndex: 1,
 };
 
-export function TanStackTable<T extends Record<string, unknown>>({ data, columns, initialState }: Props<T>) {
+export function TanStackTable<T extends Record<string, unknown>>({ data, columns, initialState, dataTestId }: Props<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialState?.sorting ?? []);
 
   const table = useReactTable<T>({
@@ -51,7 +52,7 @@ export function TanStackTable<T extends Record<string, unknown>>({ data, columns
 
   return (
     <ScrollArea style={{ height: "100%" }}>
-      <Box component="table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+      <Box component="table" data-testid={dataTestId} style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
