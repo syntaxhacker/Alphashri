@@ -130,14 +130,12 @@ test.describe("Bots View - List", () => {
     await mockBotsListRoute(page, mockBots);
   });
 
-  // TODO: Fix bots-view data-testid timeout in CI - pre-existing issue
-  test.skip("@smoke should display list of bots", async ({ page }) => {
+  test("@smoke should display list of bots", async ({ page }) => {
     await gotoBotsViewAndWait(page);
     await expect(getBotListItems(page)).toHaveCount(2);
   });
 
-  // TODO: Fix bots-view data-testid timeout in CI - pre-existing issue
-  test.skip("@smoke should show bot status for each bot", async ({ page }) => {
+  test("@smoke should show bot status for each bot", async ({ page }) => {
     await gotoBotsViewAndWait(page);
     await expect(getBotStatus(page)).toHaveCount(2);
     await expect(getBotStatus(page).first()).toBeVisible();

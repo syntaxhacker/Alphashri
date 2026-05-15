@@ -206,16 +206,14 @@ test.describe("Screener - Trading List", () => {
   });
 });
 test.describe("Screener - Error Handling", () => {
-  test.skip("should show error state when API fails", async ({ page }) => {
+  test("should show error state when API fails", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await page.route(apiRoute("screener"), async (route) => {
       await route.abort("failed");
     });
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
-      timeout: 10000,
-    });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
     const errorElement = page.getByTestId("screener-error");
     try {
       await expect(errorElement).toBeVisible({
@@ -230,7 +228,9 @@ test.describe("Screener - Error Handling", () => {
       expect(count).toBeGreaterThan(0);
     }
   });
-  test.skip("should retry on error", async () => {
+  test.skip("reason: complex route handling conflicts between mock and retry logic", async ({
+    page,
+  }) => {
     // Test is complex due to route handling conflicts - skipped for now
     // Can be reimplemented with proper mock setup if needed
   });

@@ -190,4 +190,54 @@ describe("CorrelationTab", () => {
     renderWithProvider(<CorrelationTab />);
     expect(screen.getByTestId("correlation-chart")).toBeInTheDocument();
   });
+
+  describe("URL search params", () => {
+    it("initializes symbols/timeframe/period from URL search params", async () => {
+      const { MemoryRouter } = await import("react-router-dom");
+      render(
+        <MemoryRouter initialEntries={["/?symbols=RELIANCE,TCS&timeframe=daily&period=90"]}>
+          <MantineProvider>
+            <CorrelationTab />
+          </MantineProvider>
+        </MemoryRouter>,
+      );
+      await waitFor(() => {
+        expect(mockSetSymbols).toHaveBeenCalledWith(["RELIANCE", "TCS"]);
+      });
+      expect(mockSetTimeframe).toHaveBeenCalledWith("daily");
+      expect(mockFetchCorrelationData).toHaveBeenCalled();
+    });
+
+    it("initializes with intraday timeframe from URL", async () => {
+      const { MemoryRouter } = await import("react-router-dom");
+      render(
+        <MemoryRouter initialEntries={["/?symbols=INFY,WIPRO&timeframe=intraday&period=1"]}>
+          <MantineProvider>
+            <CorrelationTab />
+          </MantineProvider>
+        </MemoryRouter>,
+      );
+      await waitFor(() => {
+        expect(mockSetSymbols).toHaveBeenCalledWith(["INFY", "WIPRO"]);
+      });
+      expect(mockSetTimeframe).toHaveBeenCalledWith("intraday");
+      expect(mockSetPeriod).toHaveBeenCalledWith(1);
+    });
+
+    it("updates URL search params on calculate", async () => {
+      mockSymbols = ["RELIANCE", "TCS", "INFY"];
+      const { MemoryRouter, useSearchParams } = await import("react-router-dom");
+      render(
+        <MemoryRouter initialEntries={["/"]}>
+          <MantineProvider>
+            <CorrelationTab />
+          </MantineProvider>
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Calculate/ }));
+      await waitFor(() => {
+        expect(mockFetchCorrelationData).toHaveBeenCalled();
+      });
+    });
+  });
 });

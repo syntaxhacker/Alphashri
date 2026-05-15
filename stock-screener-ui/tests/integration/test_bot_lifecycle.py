@@ -150,8 +150,9 @@ class TestBotCreationAndConfiguration:
         assert abs(total_allocation - 0.9) < 1e-10
 
         # Verify database associations
+        bot_db = db.query(BotConfig).filter(BotConfig.uuid == bot["uuid"]).first()
         associations = db.execute(
-            bot_strategies.select().where(bot_strategies.c.bot_id == bot["id"])
+            bot_strategies.select().where(bot_strategies.c.bot_id == bot_db.id)
         ).fetchall()
 
         assert len(associations) == 3
@@ -729,8 +730,9 @@ class TestBotDeletionFlow:
         bot = bot_response.json()
 
         # Verify associations exist
+        bot_db = db.query(BotConfig).filter(BotConfig.uuid == bot["uuid"]).first()
         associations = db.execute(
-            bot_strategies.select().where(bot_strategies.c.bot_id == bot["id"])
+            bot_strategies.select().where(bot_strategies.c.bot_id == bot_db.id)
         ).fetchall()
         assert len(associations) == 2
 
@@ -740,7 +742,7 @@ class TestBotDeletionFlow:
 
         # Verify associations removed
         associations = db.execute(
-            bot_strategies.select().where(bot_strategies.c.bot_id == bot["id"])
+            bot_strategies.select().where(bot_strategies.c.bot_id == bot_db.id)
         ).fetchall()
         assert len(associations) == 0
 

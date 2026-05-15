@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { SettingsPage } from "./SettingsPage";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, MemoryRouter, Routes, Route } from "react-router-dom";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
@@ -72,6 +72,20 @@ describe("SettingsPage", () => {
     mockGetBrokerStatus.mockResolvedValue(null);
 
     renderWithRouter(<SettingsPage />);
+
+    expect(screen.getByTestId("settings-page")).toBeInTheDocument();
+  });
+
+  it("loads settings page when accessed via /settings URL", () => {
+    mockGetBrokerStatus.mockResolvedValue(null);
+
+    renderWithMantine(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Routes>
+          <Route path="/settings" element={<SettingsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
 
     expect(screen.getByTestId("settings-page")).toBeInTheDocument();
   });

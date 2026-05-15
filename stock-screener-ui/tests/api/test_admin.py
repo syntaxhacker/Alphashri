@@ -114,6 +114,93 @@ class TestAdminLLMStats:
         assert response.status_code == 500
         assert "Database error" in response.json()["detail"]
 
+    @patch('api.news_routes._llm_available', True)
+    @patch('api.news_routes.article_analyzer')
+    def test_get_llm_stats_includes_runs_by_model(self, mock_analyzer, client, admin_auth_headers):
+        """Test that response includes runs_by_model breakdown with count, tokens, cost."""
+        mock_analyzer.get_llm_stats.return_value = [
+            {
+                "id": 1, "model": "gpt-4", "tokens": 1000, "cost": 0.01,
+                "response_time_ms": 500, "success": True,
+                "timestamp": datetime.now().isoformat(),
+            },
+            {
+                "id": 2, "model": "claude-3", "tokens": 800, "cost": 0.008,
+                "response_time_ms": 600, "success": True,
+                "timestamp": datetime.now().isoformat(),
+            },
+        ]
+        mock_analyzer.get_llm_aggregate_stats.return_value = {
+            "total_runs": 2,
+            "total_tokens": 1800,
+            "total_cost_usd": 0.018,
+            "avg_response_time_ms": 550,
+            "success_rate": 1.0,
+            "runs_by_model": {
+                "gpt-4": {"runs": 1, "tokens": 1000, "cost_usd": 0.01},
+                "claude-3": {"runs": 1, "tokens": 800, "cost_usd": 0.008},
+            },
+        }
+        response = client.get("/api/admin/llm-stats", headers=admin_auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "runs_by_model" in data["aggregate"]
+        assert data["aggregate"]["runs_by_model"]["gpt-4"]["runs"] == 1
+        assert data["aggregate"]["runs_by_model"]["claude-3"]["tokens"] == 800
+        assert data["aggregate"]["runs_by_model"]["gpt-4"]["cost_usd"] == 0.01
+
+    @patch('api.news_routes._llm_available', True)
+    @patch('api.news_routes.article_analyzer')
+    def test_get_llm_stats_includes_runs_by_day(self, mock_analyzer, client, admin_auth_headers):
+        """Test that response includes runs_by_day for last 7 days."""
+        mock_analyzer.get_llm_stats.return_value = [
+            {
+                "id": 1, "model": "gpt-4", "tokens": 1000, "cost": 0.01,
+                "response_time_ms": 500, "success": True,
+                "timestamp": datetime.now().isoformat(),
+            },
+        ]
+        mock_analyzer.get_llm_aggregate_stats.return_value = {
+            "total_runs": 1,
+            "total_tokens": 1000,
+            "total_cost_usd": 0.01,
+            "avg_response_time_ms": 500,
+            "success_rate": 1.0,
+            "runs_by_day": [
+                {"date": "2025-06-15", "runs": 1, "tokens": 1000, "cost_usd": 0.01},
+            ],
+        }
+        response = client.get("/api/admin/llm-stats", headers=admin_auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "runs_by_day" in data["aggregate"]
+        assert len(data["aggregate"]["runs_by_day"]) == 1
+        assert data["aggregate"]["runs_by_day"][0]["date"] == "2025-06-15"
+
+    @patch('api.news_routes._llm_available', True)
+    @patch('api.news_routes.article_analyzer')
+    def test_get_llm_stats_empty_stats(self, mock_analyzer, client, admin_auth_headers):
+        """Test that empty stats are returned when no LLM runs exist."""
+        mock_analyzer.get_llm_stats.return_value = []
+        mock_analyzer.get_llm_aggregate_stats.return_value = {
+            "total_runs": 0,
+            "total_tokens": 0,
+            "total_cost_usd": 0.0,
+            "avg_response_time_ms": 0.0,
+            "success_rate": 0.0,
+            "runs_by_model": {},
+            "runs_by_day": [],
+        }
+        response = client.get("/api/admin/llm-stats", headers=admin_auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["aggregate"]["total_runs"] == 0
+        assert data["aggregate"]["total_tokens"] == 0
+        assert data["aggregate"]["total_cost_usd"] == 0.0
+        assert data["aggregate"]["runs_by_model"] == {}
+        assert data["aggregate"]["runs_by_day"] == []
+        assert data["recent_runs"] == []
+
 # =====================
 # Cache Stats Tests
 # =====================

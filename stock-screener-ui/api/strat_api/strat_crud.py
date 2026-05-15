@@ -109,6 +109,8 @@ def _sync_update_strategy(db, strategy_id, request):
     ).first()
     if not strategy:
         return None, "not_found"
+    if strategy.is_template:
+        return None, "template"
     update_data = request.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if value is not None and hasattr(strategy, key):
@@ -223,6 +225,8 @@ async def update_strategy(
 
     if error == "not_found":
         raise HTTPException(status_code=404, detail="Strategy not found")
+    if error == "template":
+        raise HTTPException(status_code=400, detail="Cannot update template strategies")
     return {
         "status": "success",
         "message": f"Strategy '{strategy.name}' updated",

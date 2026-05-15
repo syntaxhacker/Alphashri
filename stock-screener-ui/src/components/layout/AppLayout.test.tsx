@@ -171,4 +171,22 @@ describe("AppLayout", () => {
     const navbar = screen.getByTestId("navbar-nested");
     expect(navbar).toHaveAttribute("data-collapsed", "false");
   });
+
+  it("uses theme colors for background and text", () => {
+    render(
+      <TestWrapper>
+        <AppLayout>
+          <div>Content</div>
+        </AppLayout>
+      </TestWrapper>,
+    );
+
+    const header = screen.getByTestId("app-header");
+    const main = screen.getByTestId("app-main");
+
+    expect(header).toHaveStyle({ backgroundColor: "#ffffff" });
+    expect(header).toHaveStyle({ color: "#000000" });
+    expect(main).toHaveStyle({ backgroundColor: "#ffffff" });
+    expect(main).toHaveStyle({ color: "#000000" });
+  });
 });

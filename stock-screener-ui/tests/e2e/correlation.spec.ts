@@ -90,11 +90,13 @@ test.describe("Correlation - UI", () => {
     await expect(page.getByRole("listbox")).toBeVisible();
   });
 
-  test.skip("should show correlation data after calculate", async () => {
+  test.skip("should show correlation data after calculate", async ({ page }) => {
     // This test requires complex symbol selection mocking - skipped for now
   });
 
-  test.skip("should show meta stats after correlation data loads", async () => {
+  test.skip("reason: correlation UI uses MultiSelect that needs complex dropdown interaction - feature pending", async ({
+    page,
+  }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="screener-page"]', { timeout: 15000 });
 

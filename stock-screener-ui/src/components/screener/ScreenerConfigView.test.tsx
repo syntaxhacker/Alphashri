@@ -340,6 +340,48 @@ describe("ScreenerConfigView", () => {
     });
   });
 
+  describe("preview debounce", () => {
+    it("Preview refreshes on screener change with debounce", async () => {
+      vi.useFakeTimers();
+      const onChange = vi.fn();
+      const { rerender } = render(
+        <MantineProvider>
+          <ScreenerConfigView
+            screenerOptions={defaultProps.screenerOptions}
+            activeScreener="trending"
+            onScreenerChange={onChange}
+          />
+        </MantineProvider>,
+      );
+
+      expect(mockRefreshPreview).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(500);
+      await vi.runOnlyPendingTimersAsync();
+      expect(mockRefreshPreview).toHaveBeenCalledTimes(1);
+
+      mockRefreshPreview.mockClear();
+
+      rerender(
+        <MantineProvider>
+          <ScreenerConfigView
+            screenerOptions={defaultProps.screenerOptions}
+            activeScreener="new-highs"
+            onScreenerChange={onChange}
+          />
+        </MantineProvider>,
+      );
+
+      expect(mockRefreshPreview).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(500);
+      await vi.runOnlyPendingTimersAsync();
+      expect(mockRefreshPreview).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+    });
+  });
+
   describe("preview panel", () => {
     it("Preview shows loading state", () => {
       mockPreviewLoading = true;

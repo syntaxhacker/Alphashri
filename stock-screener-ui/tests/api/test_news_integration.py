@@ -306,9 +306,11 @@ class TestAnalyzeEndpoint:
         call_args = mock_cache_set_smart.call_args[0]
         assert "news:llm:" in call_args[0]
 
+    @patch('cache.redis_client.is_cache_available')
     @patch('api_server_fastapi.fetch_article_content')
     @patch('cache.redis_client.cache_get')
-    def test_returns_cached_llm_analysis(self, mock_cache_get, mock_fetcher):
+    def test_returns_cached_llm_analysis(self, mock_cache_get, mock_fetcher, mock_cache_avail):
+        mock_cache_avail.return_value = True
         cached_result = {
             "url": "http://test.com/cached-llm",
             "headline": "Cached LLM",
@@ -361,8 +363,10 @@ class TestNewsEndpoint:
 
         assert response.status_code == 200
 
+    @patch('cache.redis_client.is_cache_available')
     @patch('cache.redis_client.cache_get')
-    def test_returns_cached_news_list(self, mock_cache_get):
+    def test_returns_cached_news_list(self, mock_cache_get, mock_cache_avail):
+        mock_cache_avail.return_value = True
         cached = {
             "items": [{"headline": "Cached News", "source": "moneycontrol", "sourceUrl": "http://cached"}],
             "source": "all", "total": 1, "fetchedAt": datetime.now().isoformat()
@@ -430,5 +434,5 @@ class TestSentimentCache:
         assert response.status_code == 200
         data = response.json()
         assert data["sentiment_label"] == "BULLISH"
-        assert data["from_cache"] is not True
+        assert data.get("from_cache", False) is not True
         mock_fetcher.assert_not_called()

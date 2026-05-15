@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, waitFor } from "@testing-library/react";
+import { screen, cleanup, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import React from "react";
 import AdminPage from "./AdminPage";
@@ -214,5 +214,35 @@ describe("AdminPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Some models failed to fetch/)).toBeInTheDocument();
     });
+  });
+
+  it("renders with empty stats when no LLM runs exist", async () => {
+    const emptyStats = {
+      recent_runs: [],
+      aggregate: {
+        total_runs: 0,
+        total_tokens: 0,
+        total_cost_usd: 0,
+        avg_response_time_ms: 0,
+        models_used: [],
+      },
+    };
+    mockFetchWithAuth.mockResolvedValue({
+      ok: true,
+      json: async () => emptyStats,
+    });
+
+    renderWithMantine(<AdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("refresh-btn")).toBeInTheDocument();
+    });
+
+    const statGrid = screen.getByTestId("compact-stat-grid");
+    expect(within(statGrid).getAllByText("0").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("$0.0000")).toBeInTheDocument();
+    expect(screen.getByText("0ms")).toBeInTheDocument();
+    expect(screen.getByText("Models: 0")).toBeInTheDocument();
+    expect(screen.getByText("Runs: 0")).toBeInTheDocument();
   });
 });

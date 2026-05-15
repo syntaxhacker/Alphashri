@@ -9,6 +9,7 @@ vi.mock("../state/paperTrading", () => ({
   setSymbolPerformance: vi.fn(),
   setChartData: vi.fn(),
   setChartLoading: vi.fn(),
+  setChartFromDate: vi.fn(),
   setError: vi.fn(),
   setLoading: vi.fn(),
   setBotStatus: vi.fn(),
@@ -34,6 +35,17 @@ import {
   healthCheck,
   closePaperPosition,
   deleteTrade,
+  closeAllPositions,
+  updateTradeNotes,
+  fetchPaperChart,
+  fetchPaperBotSnapshot,
+  fetchPortfolio,
+  refreshLiveData,
+  refreshHistoryData,
+  fetchStrategyConfig,
+  updateStrategyConfig,
+  resetStrategyConfig,
+  fetchPerformanceSummary,
 } from "./paperTrading";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
@@ -324,6 +336,201 @@ describe("fetchDailyReport", () => {
   });
 });
 
+describe("fetchPerformanceSummary", () => {
+  it("fetches performance summary", async () => {
+    const perfData = { total_pnl: 5000, win_rate: 60, total_trades: 50 };
+    mockedFetch.mockResolvedValue({
+      json: async () => perfData,
+    } as Response);
+
+    const result = await fetchPerformanceSummary();
+
+    expect(result).toEqual(perfData);
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/journal/summary"),
+    );
+  });
+
+  it("returns null on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchPerformanceSummary();
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("closeAllPositions", () => {
+  it("sends POST to close-all with prices body", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ message: "All positions closed" }),
+    } as Response);
+
+    const prices = { TATASTEEL: 150, INFY: 1800 };
+    const result = await closeAllPositions("bot-1", prices);
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/bots/bot-1/close-all"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ prices }),
+      }),
+    );
+    expect(result.success).toBe(true);
+    expect(result.message).toBe("All positions closed");
+  });
+
+  it("throws on non-ok response", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      json: async () => ({ detail: "Bot not found" }),
+    } as Response);
+
+    await expect(closeAllPositions("bad-bot", {})).rejects.toThrow("Bot not found");
+  });
+});
+
+describe("updateTradeNotes", () => {
+  it("sends PATCH with notes and reason", async () => {
+    const tradeData = { id: "trade-1", notes: "Updated notes", reason: "SL hit" };
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => tradeData,
+    } as Response);
+
+    const result = await updateTradeNotes("trade-1", "Updated notes", "SL hit");
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/trades/trade-1"),
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ notes: "Updated notes", reason: "SL hit" }),
+      }),
+    );
+    expect(result).toEqual(tradeData);
+  });
+
+  it("throws on non-ok response", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      json: async () => ({ detail: "Trade not found" }),
+    } as Response);
+
+    await expect(updateTradeNotes("bad-id", "notes", "reason")).rejects.toThrow("Trade not found");
+  });
+});
+
+describe("fetchPaperChart", () => {
+  it("builds URL with symbol with no optional params", async () => {
+    const chartData = { candles: [] };
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => chartData,
+    } as Response);
+
+    const result = await fetchPaperChart("TATASTEEL");
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/chart/TATASTEEL"),
+    );
+    expect(result).toEqual(chartData);
+  });
+
+  it("includes date, timeframe, and strategyId params", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ candles: [] }),
+    } as Response);
+
+    await fetchPaperChart("TATASTEEL", "2024-01-15", "1h", 2);
+
+    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("date=2024-01-15");
+    expect(calledUrl).toContain("timeframe=1h");
+    expect(calledUrl).toContain("strategy_id=2");
+  });
+
+  it("includes from_date when provided", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ candles: [] }),
+    } as Response);
+
+    await fetchPaperChart("TATASTEEL", undefined, undefined, null, "2024-01-01");
+
+    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("from_date=2024-01-01");
+  });
+
+  it("returns null when data has error field", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ error: "No data" }),
+    } as Response);
+
+    const result = await fetchPaperChart("BAD");
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null on fetch error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchPaperChart("TATASTEEL");
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("fetchPaperBotSnapshot", () => {
+  it("fetches and returns bot snapshot", async () => {
+    const snapshot = { watchlist: ["RELIANCE"], open_positions: ["TATASTEEL"], scan_items: [] };
+    mockedFetch.mockResolvedValue({
+      json: async () => snapshot,
+    } as Response);
+
+    const result = await fetchPaperBotSnapshot();
+
+    expect(result).toEqual(snapshot);
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/bot/snapshot"),
+    );
+  });
+
+  it("returns null on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchPaperBotSnapshot();
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("fetchPortfolio", () => {
+  it("fetches and returns portfolio data", async () => {
+    const portfolio = { total_value: 100000, cash: 50000 };
+    mockedFetch.mockResolvedValue({
+      json: async () => portfolio,
+    } as Response);
+
+    const result = await fetchPortfolio();
+
+    expect(result).toEqual(portfolio);
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/portfolio"),
+    );
+  });
+
+  it("returns null on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchPortfolio();
+
+    expect(result).toBeNull();
+  });
+});
+
 describe("healthCheck", () => {
   it("returns true when status is healthy", async () => {
     mockedFetch.mockResolvedValue({
@@ -428,5 +635,178 @@ describe("deleteTrade", () => {
     } as Response);
 
     await expect(deleteTrade("bad-id")).rejects.toThrow("Failed to delete trade");
+  });
+});
+
+describe("refreshLiveData", () => {
+  it("fetches portfolio, positions, bot status, and snapshot in parallel", async () => {
+    mockedFetch
+      .mockResolvedValueOnce({ json: async () => ({ total_value: 100000 }) })
+      .mockResolvedValueOnce({ json: async () => ({ positions: [{ symbol: "TATASTEEL" }] }) })
+      .mockResolvedValueOnce({ json: async () => ({ running: true, pid: 12345 }) })
+      .mockResolvedValueOnce({ json: async () => ({ watchlist: ["RELIANCE"] }) });
+
+    const { setPortfolio, setPositions, setBotStatus, setBotSnapshot, setLoading, setError } =
+      await import("../state/paperTrading");
+
+    await refreshLiveData();
+
+    expect(setLoading).toHaveBeenCalledWith(true);
+    expect(setPortfolio).toHaveBeenCalled();
+    expect(setPositions).toHaveBeenCalled();
+    expect(setBotStatus).toHaveBeenCalled();
+    expect(setBotSnapshot).toHaveBeenCalled();
+    expect(setLoading).toHaveBeenCalledWith(false);
+    expect(setError).not.toHaveBeenCalled();
+  });
+
+  it("handles API errors gracefully (each sub-function catches its own error)", async () => {
+    mockedFetch.mockRejectedValue(new Error("API failed"));
+
+    const { setError, setLoading } = await import("../state/paperTrading");
+
+    await refreshLiveData();
+
+    // Each sub-function (fetchPortfolio, fetchPositions, etc.) catches its own error
+    // so Promise.all resolves without throwing, and setError is not called
+    expect(setError).not.toHaveBeenCalled();
+    expect(setLoading).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("refreshHistoryData", () => {
+  it("fetches trades and performance summary in parallel", async () => {
+    mockedFetch
+      .mockResolvedValueOnce({ json: async () => ({ trades: [], total_trades: 0 }) })
+      .mockResolvedValueOnce({ json: async () => ({ total_pnl: 1000 }) });
+
+    const { setLoading, setError } = await import("../state/paperTrading");
+
+    await refreshHistoryData();
+
+    expect(setLoading).toHaveBeenCalledWith(true);
+    expect(setLoading).toHaveBeenCalledWith(false);
+    expect(setError).not.toHaveBeenCalled();
+  });
+
+  it("passes botId, fromDate, toDate to fetchTrades", async () => {
+    mockedFetch
+      .mockResolvedValueOnce({ json: async () => ({ trades: [], total_trades: 0 }) })
+      .mockResolvedValueOnce({ json: async () => ({ total_pnl: 1000 }) });
+
+    await refreshHistoryData("bot-1", "2024-01-01", "2024-01-31");
+
+    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("bot_id=bot-1");
+    expect(calledUrl).toContain("from_date=2024-01-01");
+    expect(calledUrl).toContain("to_date=2024-01-31");
+  });
+
+  it("handles API errors gracefully", async () => {
+    mockedFetch.mockRejectedValue(new Error("History error"));
+
+    const { setError } = await import("../state/paperTrading");
+
+    await refreshHistoryData();
+
+    // Each sub-function catches its own error, so setError is not called
+    expect(setError).not.toHaveBeenCalled();
+  });
+});
+
+describe("fetchStrategyConfig", () => {
+  it("fetches config without strategy_id", async () => {
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ config: { sl_pct: 1.0, tp_pct: 1.5 } }),
+    } as Response);
+
+    const result = await fetchStrategyConfig();
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/config"),
+    );
+    expect(result).toEqual({ sl_pct: 1.0, tp_pct: 1.5 });
+  });
+
+  it("includes strategy_id when provided", async () => {
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ config: { sl_pct: 2.0 } }),
+    } as Response);
+
+    await fetchStrategyConfig(5);
+
+    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("strategy_id=5");
+  });
+
+  it("returns null on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchStrategyConfig();
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null when response has no config key", async () => {
+    mockedFetch.mockResolvedValue({
+      json: async () => ({}),
+    } as Response);
+
+    const result = await fetchStrategyConfig();
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("updateStrategyConfig", () => {
+  it("sends PUT with config body", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ config: { sl_pct: 2.0 } }),
+    } as Response);
+
+    const result = await updateStrategyConfig({ sl_pct: 2.0 });
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/config"),
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ sl_pct: 2.0 }),
+      }),
+    );
+    expect(result).toBe(true);
+  });
+
+  it("returns false on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Update failed"));
+
+    const result = await updateStrategyConfig({ sl_pct: 2.0 });
+
+    expect(result).toBe(false);
+  });
+});
+
+describe("resetStrategyConfig", () => {
+  it("sends POST to reset endpoint", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ config: { sl_pct: 1.0 } }),
+    } as Response);
+
+    const result = await resetStrategyConfig();
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/config/reset"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(result).toBe(true);
+  });
+
+  it("returns false on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Reset failed"));
+
+    const result = await resetStrategyConfig();
+
+    expect(result).toBe(false);
   });
 });

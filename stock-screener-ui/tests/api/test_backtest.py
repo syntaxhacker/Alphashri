@@ -15,6 +15,23 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+# Mock nautilus_trader before importing backtest modules
+_nautilus_mock = MagicMock()
+_nautilus_mock.backtest.config.BacktestEngineConfig = MagicMock
+for mod_name in [
+    'nautilus_trader', 'nautilus_trader.backtest', 'nautilus_trader.backtest.config',
+    'nautilus_trader.backtest.engine', 'nautilus_trader.config', 'nautilus_trader.model',
+    'nautilus_trader.model.enums', 'nautilus_trader.model.objects',
+    'nautilus_trader.model.identifiers', 'nautilus_trader.model.orders',
+    'nautilus_trader.model.instruments', 'nautilus_trader.model.core',
+    'nautilus_trader.model.currencies', 'nautilus_trader.model.data',
+    'nautilus_trader.persistence', 'nautilus_trader.persistence.wranglers',
+    'nautilus_trader.trading', 'nautilus_trader.trading.strategy',
+    'nautilus_trader.test_kit', 'nautilus_trader.test_kit.providers',
+]:
+    if mod_name not in sys.modules:
+        sys.modules[mod_name] = _nautilus_mock
+
 from backtest.api import (
     BacktestRequestHandler,
     handle_get_strategies,
@@ -157,7 +174,7 @@ class TestBacktestStrategiesEndpoint:
         param_keys = [p['key'] for p in orb_strategy['params']]
 
         # Expected ORB parameters
-        expected_params = ['or_minutes', 'timeframe', 'stop_loss_pct', 'take_profit_pct', 'trade_size', 'cooldown_bars', 'enable_shorts']
+        expected_params = ['or_minutes', 'timeframe', 'sl_pct', 'take_profit_pct', 'trade_size', 'cooldown_bars', 'enable_shorts']
         for param in expected_params:
             assert param in param_keys
 
@@ -331,7 +348,7 @@ class TestBacktestRunEndpoint:
         assert 'error' in result
         assert 'No symbols provided' in result['error']
 
-    @patch('backtest.api.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_backtest_invalid_strategy(self, mock_get_strategy):
         """Test running backtest with invalid strategy returns error."""
         mock_get_strategy.return_value = None
@@ -348,7 +365,7 @@ class TestBacktestRunEndpoint:
         assert 'error' in result
         assert 'Unknown strategy' in result['error']
 
-    @patch('backtest.api.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_backtest_invalid_params(self, mock_get_strategy):
         """Test running backtest with invalid parameters returns error."""
         mock_strategy = MagicMock()
@@ -367,7 +384,7 @@ class TestBacktestRunEndpoint:
         assert 'error' in result
         assert 'Invalid parameters' in result['error']
 
-    @patch('backtest.api.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_backtest_success(self, mock_get_strategy, mock_strategy_result):
         """Test running backtest successfully."""
         mock_strategy = MagicMock()
@@ -400,7 +417,7 @@ class TestBacktestRunEndpoint:
         # Check strategy was called
         mock_strategy_instance.run.assert_called_once()
 
-    @patch('backtest.api.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_backtest_progress_tracking(self, mock_get_strategy):
         """Test that progress is tracked during backtest."""
         mock_strategy = MagicMock()
@@ -439,7 +456,7 @@ class TestBacktestRunEndpoint:
         assert progress_state['total'] == 1
         assert progress_state['message'] == 'Complete'
 
-    @patch('backtest.api.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_backtest_with_costs(self, mock_get_strategy):
         """Test running backtest with costs included."""
         mock_strategy = MagicMock()
@@ -468,7 +485,7 @@ class TestBacktestRunEndpoint:
         params = call_args[0][2]  # Third argument is params
         assert params.get('include_costs') is True
 
-    @patch('backtest.api.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_backtest_exception_handling(self, mock_get_strategy):
         """Test that exceptions during backtest are handled gracefully."""
         mock_strategy = MagicMock()
@@ -681,7 +698,7 @@ class TestBacktestRequestHandler:
 class TestBacktestIntegration:
     """Integration tests for backtest workflows."""
 
-    @patch('backtest.api.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_full_backtest_workflow(self, mock_get_strategy, backtest_handler):
         """Test complete backtest workflow: run -> progress -> chart -> results."""
         # Setup mock strategy
