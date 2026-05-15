@@ -26,6 +26,7 @@ import { ScatterView } from "./ScatterView";
 import { DistributionView } from "./DistributionView";
 import { SectorBarView } from "./SectorBarView";
 import { TopBottomView } from "./TopBottomView";
+import { HeatmapListView } from "./HeatmapListView";
 
 const VIEWS = [
   { value: "treemap", label: "Treemap" },
@@ -257,45 +258,13 @@ export function HeatmapPage() {
           />
         )}
         {isTableView && (
-          <Box p="sm" style={{ overflow: "auto" }}>
-            <table data-testid="heatmap-list-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #ccc" }}>
-                  <th style={{ textAlign: "left", padding: "8px 6px" }}>Symbol</th>
-                  <th style={{ textAlign: "right", padding: "8px 6px" }}>{activeMetric.label}</th>
-                  <th style={{ textAlign: "left", padding: "8px 6px" }}>Name</th>
-                  <th style={{ textAlign: "right", padding: "8px 6px" }}>P/E</th>
-                  <th style={{ textAlign: "right", padding: "8px 6px" }}>MCap</th>
-                  <th style={{ textAlign: "right", padding: "8px 6px" }}>Price</th>
-                  <th style={{ textAlign: "right", padding: "8px 6px" }}>Change</th>
-                  <th style={{ textAlign: "left", padding: "8px 6px" }}>Sector</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredStocks.slice(0, 100).map((stock) => {
-                  const mv = getMetricValue(stock, metric);
-                  const bg = getMetricColor(mv, metricMin, metricMax);
-                  const tc = getMetricTextColor(mv, metricMin, metricMax);
-                  return (
-                    <tr key={stock.symbol} style={{ borderBottom: "1px solid #eee" }}>
-                      <td style={{ padding: "4px 6px", fontWeight: "bold" }}>{stock.symbol}</td>
-                      <td style={{ padding: "4px 6px", textAlign: "right", fontWeight: "bold", backgroundColor: bg, color: tc }}>
-                        {activeMetric.fmt(mv)}
-                      </td>
-                      <td style={{ padding: "4px 6px" }}>{stock.name}</td>
-                      <td style={{ padding: "4px 6px", textAlign: "right" }}>{stock.pe_ratio}</td>
-                      <td style={{ padding: "4px 6px", textAlign: "right" }}>{formatMarketCap(stock.market_cap)}</td>
-                      <td style={{ padding: "4px 6px", textAlign: "right" }}>₹{stock.price?.toFixed(2)}</td>
-                      <td style={{ padding: "4px 6px", textAlign: "right", color: stock.change_pct >= 0 ? "green" : "red" }}>
-                        {stock.change_pct >= 0 ? "+" : ""}{stock.change_pct?.toFixed(2)}%
-                      </td>
-                      <td style={{ padding: "4px 6px" }}>{stock.sector}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Box>
+          <HeatmapListView
+            stocks={filteredStocks}
+            metric={metric}
+            activeMetric={activeMetric}
+            metricMin={metricMin}
+            metricMax={metricMax}
+          />
         )}
         {!heatmapLoading && isScatterView && (
           <ScatterView
