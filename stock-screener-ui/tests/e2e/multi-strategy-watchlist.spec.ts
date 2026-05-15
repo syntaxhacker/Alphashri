@@ -122,7 +122,7 @@ test.describe("Multi-Strategy System - History Filter", () => {
     await expect(strategyFilter).toBeVisible();
     await strategyFilter.click();
     await page.getByRole("option", { name: "ORB Conservative" }).click();
-    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(2000);
   });
 });
 

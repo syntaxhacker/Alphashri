@@ -20,23 +20,17 @@ test.describe("Screener - Interactions", () => {
 
   test("should switch to heatmap view", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="app-shell"]', {
       timeout: 10000,
     });
 
-    // Try to find and click the heatmap toggle
-    const heatmapBtn = page.locator('[data-testid="view-heatmap"], button:has-text("Heatmap")');
-    if ((await heatmapBtn.count()) > 0) {
-      await heatmapBtn.first().click();
-      await page.waitForTimeout(500);
-    }
+    // Dispatch click on hidden radio (view toggle is hidden on desktop via hiddenFrom="sm")
+    await page.locator('[data-testid="screener-view-toggle"] input[value="heatmap"]').dispatchEvent("click");
 
-    // Verify heatmap content or table rows still render
-    const rows = page.locator(".mantine-Table-tr");
-    const heatmapEl = page.locator('[data-testid="screener-heatmap"]');
-    const hasRows = (await rows.count()) > 0;
-    const hasHeatmap = (await heatmapEl.count()) > 0;
-    expect(hasRows || hasHeatmap).toBeTruthy();
+    // Verify heatmap content is displayed with stock cards
+    const heatmap = page.locator('[data-testid="screener-heatmap"]').first();
+    await expect(heatmap).toBeVisible({ timeout: 5000 });
+    await expect(heatmap.locator('[data-testid^="heatmap-"]').first()).toBeVisible();
   });
 
   test("should navigate to chart on symbol click", async ({ page }) => {
