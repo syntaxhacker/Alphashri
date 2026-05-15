@@ -96,7 +96,7 @@ export function useScreenerState(initialScreener?: string) {
     state.setActiveScreener(screenerId);
     fetchData(state.data?.provider || "upstox", state.data?.mode || "intraday", screenerId);
     const next = new URLSearchParams(searchParams);
-    next.set("screener", screenerId);
+    next.set("screener", `builtin:${screenerId}`);
     setSearchParams(next, { replace: true });
   }, [searchParams]);
 
