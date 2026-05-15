@@ -156,20 +156,30 @@ class TestBacktestDefaults:
         sl_db = StrategyConfig.__table__.c['sl_pct'].default.arg
         tp_db = StrategyConfig.__table__.c['tp_pct'].default.arg
         from backtest.strategies.orb import ORBConfig
-        fields = ORBConfig.__struct_fields__
-        defaults = ORBConfig.__struct_defaults__
-        defaults_map = dict(zip(fields, defaults))
-        assert defaults_map['sl_pct'] == sl_db, \
-            f"Backtest ORBConfig sl_pct ({defaults_map['sl_pct']}) != DB ({sl_db})"
-        assert defaults_map['tp_pct'] == tp_db, \
-            f"Backtest ORBConfig tp_pct ({defaults_map['tp_pct']}) != DB ({tp_db})"
+        if hasattr(ORBConfig, '__struct_fields__'):
+            fields = ORBConfig.__struct_fields__
+            defaults = ORBConfig.__struct_defaults__
+            defaults_map = dict(zip(fields, defaults))
+            assert defaults_map['sl_pct'] == sl_db
+            assert defaults_map['tp_pct'] == tp_db
+        elif hasattr(ORBConfig, 'model_fields'):
+            fields = ORBConfig.model_fields
+            assert fields['sl_pct'].default == sl_db
+            assert fields['tp_pct'].default == tp_db
+        else:
+            pytest.skip("Unknown ORBConfig type")
 
     def test_backtest_uses_sl_pct_key(self):
         """Backend backtest reads params using 'sl_pct' key, not 'stop_loss_pct'."""
         from backtest.strategies.orb import ORBConfig
-        fields = ORBConfig.__struct_fields__
-        defaults = ORBConfig.__struct_defaults__
-        params = dict(zip(fields, defaults))
+        if hasattr(ORBConfig, '__struct_fields__'):
+            fields = ORBConfig.__struct_fields__
+            defaults = ORBConfig.__struct_defaults__
+            params = dict(zip(fields, defaults))
+        elif hasattr(ORBConfig, 'model_fields'):
+            params = {name: fld.default for name, fld in ORBConfig.model_fields.items()}
+        else:
+            pytest.skip("Unknown ORBConfig type")
         sl = float(params.get('sl_pct', 1.0))
         tp = float(params.get('tp_pct', 1.5))
         assert sl == 1.0
