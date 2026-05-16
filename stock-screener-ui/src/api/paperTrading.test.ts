@@ -25,6 +25,10 @@ vi.mock("../state/auth", () => ({
   fetchWithAuth: vi.fn(),
 }));
 
+vi.mock("../state/holidays", () => ({
+  isMarketClosedToday: vi.fn().mockReturnValue(false),
+}));
+
 import { fetchWithAuth } from "../state/auth";
 import {
   normalizeBotPortfolio,

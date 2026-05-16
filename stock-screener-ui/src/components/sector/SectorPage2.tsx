@@ -28,6 +28,8 @@ import { SectorTable } from "./SectorTable";
 import { IntervalMoversTable } from "./IntervalMoversTable";
 import { SectorCorrelationTab } from "./SectorCorrelationTab";
 import { fetchSectorPerformance } from "../../api/sector";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { formatPercentage } from "../../utils/ui-helpers";
@@ -401,6 +403,7 @@ function useSectorPolling(
       if (cancelled) return;
       liveTimeoutRef.current = setTimeout(() => {
         if (cancelled) return;
+        if (isMarketClosedToday()) return;
         void loadData(market).then((completed) => {
           if (cancelled || !completed) return;
           fastPollCount += 1;
@@ -528,6 +531,7 @@ function SectorTabContent({
 }
 
 export function SectorPage() {
+  useStoreSubscription(subscribeToHolidays);
   const state = useSectorData();
   return (
     <Stack

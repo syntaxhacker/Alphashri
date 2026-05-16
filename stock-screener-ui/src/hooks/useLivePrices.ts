@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { getAccessToken } from "../state/auth";
+import { isMarketClosedToday } from "../state/holidays";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -28,6 +29,7 @@ export function useLivePrices() {
   const getPrices = useCallback(() => pricesRef.current, []);
 
   useEffect(() => {
+    if (isMarketClosedToday()) return;
     const controller = new AbortController();
     controllerRef.current = controller;
     let cancelled = false;

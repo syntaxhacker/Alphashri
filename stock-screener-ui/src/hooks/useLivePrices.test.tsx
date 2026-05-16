@@ -10,6 +10,10 @@ vi.mock("../state/auth", () => ({
   getAccessToken: () => mockToken,
 }));
 
+vi.mock("../state/holidays", () => ({
+  isMarketClosedToday: () => false,
+}));
+
 function createMockSSEResponse(events: Array<{ event: string; data: string }>) {
   const encoder = new TextEncoder();
   const body = new ReadableStream({

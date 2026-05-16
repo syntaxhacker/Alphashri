@@ -12,8 +12,11 @@ import { useAppDispatch } from "../../state/store/hooks";
 import { addNotification } from "../../state/store/notificationsSlice";
 import { CompactPage } from "../../components/common/compact";
 import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 
 export function SettingsPage() {
+  useStoreSubscription(subscribeToHolidays);
   const [status, setStatus] = useState<BrokerStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,7 +37,10 @@ export function SettingsPage() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 60000);
+    const interval = setInterval(() => {
+      if (isMarketClosedToday()) return;
+      fetchStatus();
+    }, 60000);
     return () => clearInterval(interval);
   }, [fetchStatus]);
 

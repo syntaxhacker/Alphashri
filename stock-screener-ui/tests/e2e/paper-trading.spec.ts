@@ -157,6 +157,9 @@ test.describe("Paper Trading - API Polling", () => {
 
 test.describe("Paper Trading - Bot Controls", () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    });
     await setupPaperTradingTestMocks(page);
   });
 

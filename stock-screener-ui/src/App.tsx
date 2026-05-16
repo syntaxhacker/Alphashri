@@ -21,6 +21,7 @@ import ChartView from "./pages/chart/ChartView";
 import NewsPage from "./pages/NewsPage";
 import AdminPage from "./pages/AdminPage";
 import { HeatmapPage } from "./pages/heatmap/HeatmapPage";
+import { loadHolidays } from "./state/holidays";
 
 function AuthScreen() {
   const [showRegister, setShowRegister] = useState(false);
@@ -46,6 +47,10 @@ function AppContent() {
       (window as any).__ALPHASHRI_USER__ = null;
     }
   }, [user, logout]);
+
+  useEffect(() => {
+    loadHolidays(new Date().getFullYear());
+  }, []);
 
   if (loading) {
     return (

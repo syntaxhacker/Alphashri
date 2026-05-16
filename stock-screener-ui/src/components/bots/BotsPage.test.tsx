@@ -49,6 +49,11 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
+vi.mock("../../state/holidays", () => ({
+  subscribeToHolidays: vi.fn(),
+  isMarketClosedToday: vi.fn().mockReturnValue(false),
+}));
+
 import { BotsPage } from "./BotsPage";
 
 const baseState = (): BotsState =>

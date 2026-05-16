@@ -3,6 +3,8 @@ import { Box, Group, Text, Badge, Skeleton } from "@mantine/core";
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
 import { useThemeColors } from "../../hooks/useThemeColors";
 import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 
 export interface MarketTickerItem {
   symbol: string;
@@ -174,6 +176,7 @@ export function MarketTicker() {
   const [enabled] = useMarketTickerEnabled();
   const [data, setData] = useState<MarketTickerData | null>(null);
   const { background } = useThemeColors();
+  useStoreSubscription(subscribeToHolidays);
 
   // If disabled, render nothing
   if (!enabled) {
@@ -181,6 +184,7 @@ export function MarketTicker() {
   }
 
   const fetchTicker = useCallback(async () => {
+    if (isMarketClosedToday()) return;
     try {
       const response = await fetch(MARKET_TICKER_API, { priority: "low" });
       if (!response.ok) {

@@ -1,8 +1,10 @@
-import { Box, Card, Text, Button, Group, Stack, Grid, Badge } from "@mantine/core";
+import { Box, Card, Text, Button, Group, Stack, Grid, Badge, Tooltip } from "@mantine/core";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
 import { StatusBadge } from "../common/BadgeComponents";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 import {
   PortfolioSummaryCard,
   StrategyStatusCard,
@@ -19,6 +21,9 @@ interface BotStatusPanelProps {
 }
 
 export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStatusPanelProps) {
+  useStoreSubscription(subscribeToHolidays);
+  const marketClosed = isMarketClosedToday();
+
   const handleRefresh = async () => {
     await Promise.all([loadBotStatus(bot.id), loadBotTrades(bot.id)]);
   };
@@ -90,15 +95,23 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                   Stop Bot
                 </Button>
               ) : (
-                <Button
-                  leftSection={<IconPlayerPlay size={16} />}
-                  variant="light"
-                  color="green"
-                  onClick={handleStart}
-                  data-testid="start-bot-btn"
+                <Tooltip
+                  label="Market closed — cannot start bot"
+                  disabled={!marketClosed}
                 >
-                  Start Bot
-                </Button>
+                  <span>
+                    <Button
+                      leftSection={<IconPlayerPlay size={16} />}
+                      variant="light"
+                      color="green"
+                      onClick={handleStart}
+                      disabled={marketClosed}
+                      data-testid="start-bot-btn"
+                    >
+                      Start Bot
+                    </Button>
+                  </span>
+                </Tooltip>
               )}
               <Button
                 leftSection={<IconRefresh size={16} />}

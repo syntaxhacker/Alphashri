@@ -18,6 +18,7 @@ import type {
 
 import { deleteTrade, updateTradeNotes } from "../api/paperTrading";
 import { createSubscriber } from "./createSubscriber";
+import { isMarketClosedToday } from "./holidays";
 
 // Initial state
 export const initialPaperTradingState: PaperTradingState = {
@@ -273,6 +274,7 @@ export function setupAutoRefresh(fetchFn: () => void, intervalMs: number = 20000
     clearInterval(refreshTimer);
   }
   refreshTimer = setInterval(() => {
+    if (isMarketClosedToday()) return;
     if (state.autoRefreshEnabled && state.currentView === "live") {
       fetchFn();
     }

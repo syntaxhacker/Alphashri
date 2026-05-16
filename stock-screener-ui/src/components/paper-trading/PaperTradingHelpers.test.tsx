@@ -90,6 +90,11 @@ vi.mock("../../state/paperTrading", () => ({
   setFilterStrategy: vi.fn(),
 }));
 
+vi.mock("../../state/holidays", () => ({
+  subscribeToHolidays: vi.fn(),
+  isMarketClosedToday: vi.fn().mockReturnValue(false),
+}));
+
 vi.mock("../../api/paperTrading", () => ({
   refreshLiveData: vi.fn().mockResolvedValue(undefined),
   refreshHistoryData: vi.fn().mockResolvedValue(undefined),

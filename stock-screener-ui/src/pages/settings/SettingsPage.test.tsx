@@ -35,6 +35,11 @@ vi.mock("../../hooks/useThemeColors", () => ({
   }),
 }));
 
+vi.mock("../../state/holidays", () => ({
+  subscribeToHolidays: vi.fn(),
+  isMarketClosedToday: vi.fn().mockReturnValue(false),
+}));
+
 // Mock useMarketTickerEnabled
 const mockSetShowMarketTicker = vi.fn();
 vi.mock("../../hooks/useMarketTickerEnabled", () => ({

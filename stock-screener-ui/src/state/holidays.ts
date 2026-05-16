@@ -58,7 +58,15 @@ export async function loadHolidays(year?: number) {
 }
 
 export function isTradingHoliday(dateStr: string): boolean {
-  return state.tradingDates.has(dateStr);
+  if (state.tradingDates.has(dateStr)) return true;
+  const day = new Date(dateStr).getDay();
+  return day === 0 || day === 6;
+}
+
+export function isMarketClosedToday(): boolean {
+  if (typeof window !== "undefined" && (window as any).__E2E_MOCK_MARKET_OPEN__) return false;
+  const today = new Date().toISOString().split("T")[0];
+  return isTradingHoliday(today);
 }
 
 export function isClearingHoliday(dateStr: string): boolean {
