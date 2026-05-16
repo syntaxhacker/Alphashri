@@ -10,6 +10,7 @@ import { detectAddedSymbols } from "../utils/runtime_utils";
 import { pushNotification, markNewSymbols } from "../utils/notifications";
 import { abortPendingRequest, isAbortError } from "../hooks/useFetch";
 import { fetchWithAuth } from "../state/auth";
+import { isMarketClosedToday } from "../state/holidays";
 
 // Render callback - set by notifications module
 let renderCallback: () => void = () => {};
@@ -214,6 +215,7 @@ export function setupAutoRefresh() {
     if (activeTab === "config" || activeTab === "correlation") {
       return;
     }
+    if (isMarketClosedToday()) return;
     if (state.data && !state.isLoading) {
       fetchData(
         state.data?.provider ?? "upstox",

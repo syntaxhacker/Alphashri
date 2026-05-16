@@ -14,6 +14,11 @@ vi.mock("../../state/bots", () => ({
   stopAutoRefresh: vi.fn(),
 }));
 
+vi.mock("../../state/holidays", () => ({
+  subscribeToHolidays: vi.fn(),
+  isMarketClosedToday: vi.fn().mockReturnValue(false),
+}));
+
 import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
 
 const mockBot: BotConfig = {

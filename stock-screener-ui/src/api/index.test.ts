@@ -48,6 +48,10 @@ vi.mock("../state/auth", () => ({
   fetchWithAuth: vi.fn(),
 }));
 
+vi.mock("../state/holidays", () => ({
+  isMarketClosedToday: vi.fn().mockReturnValue(false),
+}));
+
 import { fetchWithAuth } from "../state/auth";
 import { fetchData, resetLoadingState, detectAutoRefreshChanges, setRenderCallback, setupAutoRefresh } from "./index";
 import * as state from "../state";

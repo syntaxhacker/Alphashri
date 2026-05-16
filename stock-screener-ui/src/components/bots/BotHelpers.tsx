@@ -9,6 +9,7 @@ import {
   Table,
   ActionIcon,
   Box,
+  Tooltip,
 } from "@mantine/core";
 import {
   IconRefresh,
@@ -27,8 +28,10 @@ import type {
 } from "../../types/bots";
 import { formatNumber as formatNumberShared, getPnLTextColor } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge, StatusBadge } from "../common/BadgeComponents";
-import { TINT_TEST_TRADE, BOT_RUNNING, BOT_STOPPED, BOT_SELECTED_BG } from "../../config/colors";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 
+import { TINT_TEST_TRADE, BOT_RUNNING, BOT_STOPPED, BOT_SELECTED_BG } from "../../config/colors";
 export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
   const pnlColor = getPnLTextColor(portfolio.total_pnl);
 
@@ -318,6 +321,9 @@ export function BotActionButtons({
   onEdit,
   onDelete,
 }: BotActionButtonsProps) {
+  useStoreSubscription(subscribeToHolidays);
+  const marketClosed = isMarketClosedToday();
+
   return (
     <Group gap="xs">
       <ActionIcon
@@ -340,16 +346,23 @@ export function BotActionButtons({
           <IconPlayerStop size={16} />
         </ActionIcon>
       ) : (
-        <ActionIcon
-          variant="subtle"
-          color="green"
-          onClick={() => onStart(bot.id)}
-          disabled={!bot.is_active}
-          title="Start Bot"
-          data-testid={`start-bot-btn-${bot.id}`}
+        <Tooltip
+          label="Market closed — cannot start bot"
+          disabled={!marketClosed}
         >
-          <IconPlayerPlay size={16} />
-        </ActionIcon>
+          <span>
+            <ActionIcon
+              variant="subtle"
+              color="green"
+              onClick={() => onStart(bot.id)}
+              disabled={!bot.is_active || marketClosed}
+              title={marketClosed ? "Market closed" : "Start Bot"}
+              data-testid={`start-bot-btn-${bot.id}`}
+            >
+              <IconPlayerPlay size={16} />
+            </ActionIcon>
+          </span>
+        </Tooltip>
       )}
       <ActionIcon
         variant="subtle"

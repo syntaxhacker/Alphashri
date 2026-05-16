@@ -31,6 +31,7 @@ import {
   setConfigError,
 } from "../state/paperTrading";
 import { fetchWithAuth } from "../state/auth";
+import { isMarketClosedToday } from "../state/holidays";
 import {
   startPaperBot,
   stopPaperBot,
@@ -259,6 +260,7 @@ export async function fetchPaperChart(
 
 // Refresh all live data
 export async function refreshLiveData(): Promise<void> {
+  if (isMarketClosedToday()) return;
   setLoading(true);
 
   try {

@@ -43,6 +43,11 @@ vi.mock("../../hooks/useMarketTickerEnabled", () => ({
   useMarketTickerEnabled: () => [mockMarketTickerEnabled, mockSetMarketTickerEnabled],
 }));
 
+vi.mock("../../state/holidays", () => ({
+  subscribeToHolidays: vi.fn(),
+  isMarketClosedToday: vi.fn().mockReturnValue(false),
+}));
+
 describe("MarketTicker", () => {
   beforeEach(() => {
     vi.clearAllMocks();

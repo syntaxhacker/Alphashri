@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import dayjs from "dayjs";
-import { Flex, Tabs, Text, Group, Button, Select } from "@mantine/core";
+import { Flex, Tabs, Text, Group, Button, Select, Tooltip } from "@mantine/core";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import {
@@ -24,6 +24,8 @@ import {
 } from "../../api/paperTrading";
 import { BotCardStrip } from "./BotCardStrip";
 import { StatusBadge } from "../common/BadgeComponents";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 
 export function usePaperViewActions(activeBotId: string | null) {
   const handleViewChange = useCallback(
@@ -116,6 +118,9 @@ export function LiveFilters({
   state: ReturnType<typeof getPaperTradingState>;
   actions: ReturnType<typeof usePaperViewActions>;
 }) {
+  useStoreSubscription(subscribeToHolidays);
+  const marketClosed = isMarketClosedToday();
+
   const selectedBot = bots.find((b) => b.id === activeBotId);
   const botName = selectedBot?.name || "Bot";
 
@@ -137,18 +142,37 @@ export function LiveFilters({
         >
           Refresh
         </Button>
-        <Button
-          size="xs"
-          variant="subtle"
-          color={state.botRunning ? "red" : "blue"}
-          leftSection={
-            state.botRunning ? <IconPlayerStop size={14} /> : <IconPlayerPlay size={14} />
-          }
-          onClick={actions.handleToggleBot}
-          data-testid={state.botRunning ? "stop-bot-btn" : "start-bot-btn"}
-        >
-          {state.botRunning ? `Stop ${botName}` : `Start ${botName}`}
-        </Button>
+        {state.botRunning ? (
+          <Button
+            size="xs"
+            variant="subtle"
+            color="red"
+            leftSection={<IconPlayerStop size={14} />}
+            onClick={actions.handleToggleBot}
+            data-testid="stop-bot-btn"
+          >
+            Stop {botName}
+          </Button>
+        ) : (
+          <Tooltip
+            label="Market closed — cannot start bot"
+            disabled={!marketClosed}
+          >
+            <span>
+              <Button
+                size="xs"
+                variant="subtle"
+                color="blue"
+                leftSection={<IconPlayerPlay size={14} />}
+                onClick={actions.handleToggleBot}
+                disabled={marketClosed}
+                data-testid="start-bot-btn"
+              >
+                Start {botName}
+              </Button>
+            </span>
+          </Tooltip>
+        )}
       </Group>
     </Flex>
   );
