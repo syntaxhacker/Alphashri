@@ -64,6 +64,7 @@ export function isTradingHoliday(dateStr: string): boolean {
 }
 
 export function isMarketClosedToday(): boolean {
+  if (typeof window !== "undefined" && (window as any).__E2E_MOCK_MARKET_OPEN__) return false;
   const today = new Date().toISOString().split("T")[0];
   return isTradingHoliday(today);
 }

@@ -236,6 +236,9 @@ test.describe("Layout - Market Ticker", () => {
   };
 
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    });
     await setupApiMocks(page);
     await loginAsTestUser(page);
 
