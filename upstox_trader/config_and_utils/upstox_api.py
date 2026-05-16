@@ -471,8 +471,9 @@ class UpstoxAPI(BaseAPIClient):
 
     def place_order(self, symbol: str, transaction_type: str, quantity: int,
                     order_type: str = "MARKET", product: str = "D", price: float = 0,
-                    trigger_price: float = 0) -> Optional[Dict]:
-        """Places an order using the Upstox API V3."""
+                    trigger_price: float = 0, slice: bool = True,
+                    market_protection: int = -1, tag: str = "") -> Optional[Dict]:
+        """Places an order using the Upstox HFT API V3."""
         if not self.auth_handler.access_token:
             return None
 
@@ -493,8 +494,12 @@ class UpstoxAPI(BaseAPIClient):
             "transaction_type": transaction_type,
             "disclosed_quantity": 0,
             "trigger_price": trigger_price,
-            "is_amo": False
+            "is_amo": False,
+            "slice": slice,
+            "market_protection": market_protection,
         }
+        if tag:
+            data["tag"] = tag
 
         try:
             from .api_helpers import ORDER_URL
@@ -504,6 +509,88 @@ class UpstoxAPI(BaseAPIClient):
         except requests.RequestException as e:
             if not self.quiet:
                 print(f"❌ API Error placing order for {symbol}: {e.response.text if e.response else e}")
+            return None
+
+    def get_order_book(self) -> Optional[List[Dict]]:
+        """Fetch all orders placed today using V2 API.
+
+        Returns a list of order dicts on success, None on failure.
+        V2 order/retrieve-all returns a JSON array on success,
+        or {"status":"error","errors":[...]} on failure.
+        """
+        if not self.auth_handler.access_token:
+            return None
+        headers = self._get_headers()
+        headers['Content-Type'] = 'application/json'
+        headers['Accept'] = 'application/json'
+        try:
+            from .api_helpers import ORDER_BOOK_URL
+            response = requests.get(ORDER_BOOK_URL, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, list):
+                return data
+            if isinstance(data, dict) and data.get('status') == 'success':
+                return data.get('data', [])
+            return None
+        except requests.RequestException as e:
+            if not self.quiet:
+                print(f"❌ API Error fetching order book: {e.response.text if e.response else e}")
+            return None
+
+    def get_order_details(self, order_id: str) -> Optional[Dict]:
+        if not self.auth_handler.access_token:
+            return None
+        headers = self._get_headers()
+        headers['Content-Type'] = 'application/json'
+        headers['Accept'] = 'application/json'
+        try:
+            url = "https://api.upstox.com/v2/order/details"
+            response = requests.get(url, headers=headers, params={"order_id": order_id})
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, dict) and data.get('status') == 'success':
+                return data.get('data')
+            return None
+        except requests.RequestException as e:
+            if not self.quiet:
+                print(f"❌ API Error fetching order details for {order_id}: {e.response.text if e.response else e}")
+            return None
+
+    def get_funds(self) -> Optional[Dict]:
+        if not self.auth_handler.access_token:
+            return None
+        headers = self._get_headers()
+        headers['Content-Type'] = 'application/json'
+        headers['Accept'] = 'application/json'
+        try:
+            response = requests.get("https://api.upstox.com/v3/user/get-funds-and-margin", headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, dict) and data.get('status') == 'success':
+                return data.get('data')
+            return None
+        except requests.RequestException as e:
+            if not self.quiet:
+                print(f"❌ API Error fetching funds: {e.response.text if e.response else e}")
+            return None
+
+    def get_positions(self) -> Optional[List[Dict]]:
+        if not self.auth_handler.access_token:
+            return None
+        headers = self._get_headers()
+        headers['Content-Type'] = 'application/json'
+        headers['Accept'] = 'application/json'
+        try:
+            response = requests.get("https://api.upstox.com/v3/positions", headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, dict) and data.get('status') == 'success':
+                return data.get('data')
+            return None
+        except requests.RequestException as e:
+            if not self.quiet:
+                print(f"❌ API Error fetching positions: {e.response.text if e.response else e}")
             return None
 
     def setup_realtime_streaming(self, symbols: List[str],

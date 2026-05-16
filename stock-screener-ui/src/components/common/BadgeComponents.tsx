@@ -53,6 +53,14 @@ export function ExitReasonBadge({
   );
 }
 
+export function TradingModeBadge({ liveTrading, size = "sm" }: { liveTrading: boolean; size?: "sm" | "md" | "lg" }) {
+  return (
+    <Badge color={liveTrading ? "red" : "green"} variant="filled" size={size}>
+      {liveTrading ? "LIVE" : "PAPER"}
+    </Badge>
+  );
+}
+
 interface StatusBadgeProps {
   running: boolean;
   pid?: number;

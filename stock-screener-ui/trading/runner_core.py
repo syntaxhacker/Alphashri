@@ -136,9 +136,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         user_id: int = None,
         initial_capital: float = 1_000_000,
         test_mode: bool = False,
+        live_trading: bool = False,
     ):
         self.user_id = user_id
         self.test_mode = test_mode
+        self.live_trading = live_trading
+        self._order_manager = None
         self.running = False
         self.bot_config_id = bot_config_id
 
@@ -297,6 +300,17 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 continue
             side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
             costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+            order_mgr = self._get_order_manager()
+            if order_mgr:
+                tag_str = f"{pos.strategy_name}_{pos.symbol}"[:40]
+                result = order_mgr.place_exit_order(
+                    symbol=pos.symbol,
+                    side=side,
+                    quantity=pos.quantity,
+                    tag=tag_str,
+                )
+                if result and result.get('filled_price'):
+                    exit_price = result['filled_price']
             trade = self.portfolio.close_position(
                 strategy_id=pos.strategy_id,
                 symbol=pos.symbol,
@@ -357,6 +371,21 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             except ImportError:
                 console.print("[red]Could not import TVScreenerUsage[/red]")
         return self._data_fetcher
+
+    def _get_order_manager(self):
+        if not self.live_trading:
+            return None
+        if self._order_manager is None:
+            try:
+                from trading.live_order_manager import LiveOrderManager
+                fetcher = self._get_data_fetcher()
+                if fetcher and hasattr(fetcher, 'upstox_api'):
+                    self._order_manager = LiveOrderManager(fetcher.upstox_api)
+                else:
+                    console.print("[red]Cannot initialize LiveOrderManager: no UpstoxAPI available[/red]")
+            except ImportError as e:
+                console.print(f"[red]Failed to import LiveOrderManager: {e}[/red]")
+        return self._order_manager
 
     def _ist_now(self) -> datetime:
         if self._replay_time is not None:
@@ -830,9 +859,10 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         """Display current trading status."""
         portfolio_status = self.portfolio.get_portfolio_status()
 
+        mode_str = 'TEST' if self.test_mode else ('LIVE' if self.live_trading else 'PAPER')
         console.print(Panel.fit(
             f"[bold cyan]Multi-Strategy Bot: {self.bot_config.name}[/bold cyan]\n"
-            f"Mode: {'TEST' if self.test_mode else 'LIVE'} | "
+            f"Mode: {mode_str} | "
             f"Strategies: {len(self.strategies)} | "
             f"Time: {datetime.now(IST).strftime('%H:%M:%S')}",
             border_style="green"
@@ -909,10 +939,11 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         """
         from trading.telegram_notifier import send_bot_status, send_daily_summary
 
+        mode_str = 'TEST' if self.test_mode else ('LIVE' if self.live_trading else 'PAPER')
         console.print(Panel.fit(
             f"[bold cyan]Starting Multi-Strategy Bot: {self.bot_config.name}[/bold cyan]\n"
             f"Strategies: {len(self.strategies)}\n"
-            f"Mode: {'TEST' if self.test_mode else 'LIVE'}",
+            f"Mode: {mode_str}",
             border_style="green"
         ))
 
@@ -925,7 +956,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         send_bot_status(
             bot_name=self.bot_config.name,
             status="started",
-            details=f"Strategies: {len(self.strategies)} | Mode: {'TEST' if self.test_mode else 'LIVE'}",
+            details=f"Strategies: {len(self.strategies)} | Mode: {mode_str}",
         )
 
         self.refresh_watchlist()
@@ -1358,6 +1389,7 @@ def create_multi_strategy_runner(
     bot_id: int,
     user_id: int = None,
     test_mode: bool = False,
+    live_trading: bool = False,
 ) -> MultiStrategyRunner:
     """
     Create a multi-strategy runner from a bot ID.
@@ -1366,6 +1398,7 @@ def create_multi_strategy_runner(
         bot_id: Database ID of the bot configuration
         user_id: User ID for multi-user support
         test_mode: If True, don't execute actual trades
+        live_trading: If True, place real orders via Upstox
 
     Returns:
         MultiStrategyRunner instance
@@ -1374,4 +1407,5 @@ def create_multi_strategy_runner(
         bot_config_id=bot_id,
         user_id=user_id,
         test_mode=test_mode,
+        live_trading=live_trading,
     )

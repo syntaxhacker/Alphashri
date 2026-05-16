@@ -122,6 +122,9 @@ function PositionsContent({
   activeTab: string;
   filteredPositions: PaperPosition[];
 }) {
+  const state = getPaperTradingState();
+  const selectedBot = state.availableBots.find(b => b.id === state.filterBot);
+  const isLive = selectedBot?.live_trading ?? false;
   return (
     <Flex direction="column" flex={1} style={{ minHeight: 0 }}>
       <Group
@@ -135,8 +138,8 @@ function PositionsContent({
         </Text>
         <Group gap="xs">
           <CloseAllButton positions={positions} />
-          <Badge color="red" variant="light" size="xs">
-            LIVE
+          <Badge color={isLive ? "red" : "green"} variant="light" size="xs">
+            {isLive ? "LIVE" : "PAPER"}
           </Badge>
         </Group>
       </Group>

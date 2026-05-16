@@ -163,6 +163,7 @@ class BotConfig(Base):
     max_total_positions = Column(Integer, default=10)
     max_total_capital_pct = Column(Float, default=0.80)
     max_daily_loss_pct = Column(Float, default=0.03)
+    live_trading = Column(Boolean, default=False, server_default='false')
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -187,6 +188,7 @@ class BotConfig(Base):
             "max_total_positions": self.max_total_positions,
             "max_total_capital_pct": self.max_total_capital_pct,
             "max_daily_loss_pct": self.max_daily_loss_pct,
+            "live_trading": self.live_trading,
             "strategies": [
                 {
                     "id": s.uuid,

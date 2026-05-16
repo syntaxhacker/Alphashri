@@ -10,6 +10,7 @@ export interface Portfolio {
   positions_count: number;
   max_daily_loss_pct?: number;
   daily_loss_limit_exceeded?: boolean;
+  available_margin?: number;
 }
 
 export interface StrategySummary {
@@ -79,6 +80,13 @@ export function PaperPortfolioCard({
           valueSize="md"
           label="Margin Used"
           value={`₹${formatCurrencyIN(portfolio.margin_used)}`}
+        />
+        <CompactStat
+          p="xs"
+          labelSize="xs"
+          valueSize="md"
+          label="Available"
+          value={portfolio.available_margin != null ? `₹${formatCurrencyIN(portfolio.available_margin)}` : `₹${formatCurrencyIN(portfolio.cash)}`}
         />
         <CompactStat
           p="xs"

@@ -7,7 +7,8 @@ from typing import Optional
 
 API_VERSION = "3.0"
 BASE_URL = "https://api.upstox.com/v3"
-ORDER_URL = "https://api.upstox.com/v3/order/place"
+ORDER_URL = "https://api-hft.upstox.com/v3/order/place"
+ORDER_BOOK_URL = "https://api.upstox.com/v2/order/retrieve-all"
 INSTRUMENT_LIST_URL = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz"
 INSTRUMENT_CACHE_FILE = Path(__file__).parent / "nse_instruments.json"
 

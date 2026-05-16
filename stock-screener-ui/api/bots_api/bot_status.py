@@ -169,6 +169,7 @@ def _sync_list_bots_summary(user_id: int, db: Session) -> list:
             id=bot.uuid,
             name=bot.name,
             is_active=bot.is_active,
+            live_trading=bot.live_trading if hasattr(bot, 'live_trading') else False,
             running=running,
             pid=pid,
             status=status,

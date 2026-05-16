@@ -445,6 +445,9 @@ export function BotRow({
             }}
           />
           <Text fw={500}>{bot.name}</Text>
+          {(bot as any).live_trading && (
+            <Badge color="red" size="sm" variant="filled">LIVE</Badge>
+          )}
           {!bot.is_active && (
             <Badge color="gray" size="sm" variant="light">
               Inactive

@@ -7,19 +7,19 @@ fi
 
 echo "Running pre-commit checks..."
 
-# Allow skipping sections via env vars for faster re-runs:
-#   SKIP_PYTHON=1 git commit ...   (skip Python tests)
-#   SKIP_UI=1 git commit ...       (skip frontend tests)
-#   SKIP_TESTS=1 git commit ...    (skip both)
+# Allow opt-in via env vars:
+#   RUN_PYTHON_TESTS=1 git commit ...   (run Python tests — disabled by default)
+#   SKIP_UI=1 git commit ...            (skip frontend tests)
+#   SKIP_TESTS=1 git commit ...         (skip both)
 
-if [ "$SKIP_PYTHON" != "1" ] && [ "$SKIP_TESTS" != "1" ]; then
+if [ "$RUN_PYTHON_TESTS" = "1" ] && [ "$SKIP_TESTS" != "1" ]; then
   STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.py$')
   if [ ! -z "$STAGED_PY" ]; then
     echo "Removing debug print statements from Python files..."
     cd stock-screener-ui
     STAGED_PY_REL=$(echo "$STAGED_PY" | sed 's|^stock-screener-ui/||')
     echo "$STAGED_PY_REL" | xargs -r python remove-debug-prints.py
-    echo "$STAGED_PY" | xargs -r git add --
+    echo "$STAGED_PY" | xargs git add --
     cd ..
 
     echo "Running Python unit tests..."
@@ -30,6 +30,14 @@ if [ "$SKIP_PYTHON" != "1" ] && [ "$SKIP_TESTS" != "1" ]; then
       echo "❌ Python unit tests failed! Commit aborted."
       exit 1
     fi
+    echo "✅ Python unit tests passed."
+    cd ..
+  else
+    echo "No Python files staged, skipping Python tests."
+  fi
+else
+  echo "⏭️  Skipping Python tests (opt in with RUN_PYTHON_TESTS=1)."
+fi
     echo "✅ Python unit tests passed."
     cd ..
   else
