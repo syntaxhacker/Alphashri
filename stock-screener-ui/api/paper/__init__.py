@@ -15,7 +15,6 @@ from .portfolio import get_portfolio, get_positions, update_prices
 from .orders import place_order, close_position, close_all_positions
 from .bot_control import (
     get_paper_bot_status,
-    get_paper_bot_snapshot,
     start_paper_bot,
     stop_paper_bot,
 )

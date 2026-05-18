@@ -29,10 +29,8 @@ router = APIRouter(prefix="/api/paper", tags=["Paper Trading"])
 _paper_bot_process: Optional[subprocess.Popen] = None
 _paper_bot_log_file = Path("/tmp/alphashri-runner.log")
 _paper_bot_log_handle = None
-_paper_bot_snapshot_file = Path("/tmp/alphashri-snapshot.json")
 _paper_bot_pid_file = Path("/tmp/alphashri-runner.pid")
 
-_user_snapshot_files: dict = {}
 _user_pid_files: dict = {}
 
 DEFAULT_USER_ID = 1
@@ -42,39 +40,12 @@ def _get_user_id(user: "User") -> int:
     return user.id
 
 
-def _get_snapshot_file(user_id: Optional[int] = None) -> Path:
-    if user_id is None:
-        return _paper_bot_snapshot_file
-    if user_id not in _user_snapshot_files:
-        _user_snapshot_files[user_id] = Path(f"/tmp/alphashri-{user_id}-snapshot.json")
-    return _user_snapshot_files[user_id]
-
-
 def _get_pid_file(user_id: Optional[int] = None) -> Path:
     if user_id is None:
         return _paper_bot_pid_file
     if user_id not in _user_pid_files:
         _user_pid_files[user_id] = Path(f"/tmp/alphashri-{user_id}-runner.pid")
     return _user_pid_files[user_id]
-
-
-def _load_fresh_bot_snapshot(max_age_seconds: int = 300, user_id: Optional[int] = None) -> Optional[dict]:
-    snapshot_file = _get_snapshot_file(user_id)
-    if not snapshot_file.exists():
-        return None
-    try:
-        data = json.loads(snapshot_file.read_text())
-        ts = data.get("timestamp")
-        if ts:
-            try:
-                age = (datetime.now(config.IST) - datetime.fromisoformat(ts)).total_seconds()
-                if age > max_age_seconds:
-                    return None
-            except Exception:
-                pass
-        return data
-    except Exception:
-        return None
 
 
 def _read_runner_pid_file(user_id: Optional[int] = None) -> Optional[int]:
@@ -223,4 +194,4 @@ def _get_symbol_trades_from_db(user_id: int, symbol: str, date: str) -> list:
             pass
 
 
-__all__ = ["router", "_get_user_id", "_get_bot_status", "_get_symbol_trades_from_db"]
+__all__ = ["router", "_get_user_id", "_get_bot_status", "_get_symbol_trades_from_db", "_get_pid_file", "_read_runner_pid_file", "_write_runner_pid_file", "_clear_runner_pid_file"]

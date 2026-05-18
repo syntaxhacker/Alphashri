@@ -18,7 +18,6 @@ from db.models import Instrument
 
 INSTRUMENT_FILES = [
     Path(__file__).parent.parent.parent / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
-    Path(__file__).parent.parent.parent / 'upstox_trader' / 'screeners' / 'nse_instruments.json',
 ]
 
 BATCH_SIZE = 1000

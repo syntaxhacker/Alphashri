@@ -21,6 +21,22 @@ from .bots_router import (
     SessionLocal,
 )
 
+_BUY_SIDES = ("BUY", "LONG")
+
+
+def _get_market_price(symbol: str) -> float | None:
+    try:
+        import config as _cfg
+        from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+        _api = UpstoxAPI(api_key=_cfg.UPSTOX_API_KEY, api_secret=_cfg.UPSTOX_API_SECRET, quiet=True)
+        _df = _api.fetch_intraday_data_v3(symbol, "1")
+        if _df is not None and not _df.empty:
+            return float(_df.iloc[-1]["close"])
+    except Exception:
+        pass
+    return None
+
+
 from api.auth import get_current_user
 from api.bot_state import get_bot_state
 
@@ -429,19 +445,38 @@ async def close_all_bot_positions(
 
     try:
         bot = get_bot_by_uuid(bot_id, user_id, db)
-        running, _ = is_bot_running(user_id, bot.id)
+        running, pid = is_bot_running(user_id, bot.id)
 
         from db.models import Position as _Pos, Trade as _Trade
         from backtest.costs import calculate_trading_costs
         from config import IST
         positions = db.query(_Pos).filter(_Pos.bot_id == bot.id).all()
-        closed_count = 0
 
+        if running:
+            import json
+            cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
+            cmd_path.write_text(json.dumps({
+                "action": "close_all",
+                "prices": request.prices,
+            }))
+            return {
+                "status": "signal_sent",
+                "message": f"Close signal sent to bot for {len(positions)} positions",
+                "bot_running": True,
+                "bot_pid": pid,
+            }
+
+        closed_count = 0
+        cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
+        cmd_path.unlink(missing_ok=True)
         if positions:
             for pos in positions:
                 exit_price = request.prices.get(pos.symbol, pos.current_price or pos.entry_price)
+                _mp = _get_market_price(pos.symbol)
+                if _mp is not None:
+                    exit_price = _mp
                 side = pos.side.upper()
-                if side == "LONG":
+                if side in _BUY_SIDES:
                     pnl = (exit_price - pos.entry_price) * pos.quantity
                     pnl_pct = ((exit_price - pos.entry_price) / pos.entry_price) * 100
                 else:
@@ -468,8 +503,8 @@ async def close_all_bot_positions(
                     net_pnl=round(pnl - costs, 2),
                     exit_reason="MANUAL_CLOSE",
                     reason="Closed via Close All",
-                    peak_price=pos.entry_price,
-                    low_price=pos.entry_price,
+                    peak_price=pos.peak_price or pos.entry_price,
+                    low_price=pos.low_price or pos.entry_price,
                     source="live",
                 )
                 db.add(trade)
@@ -477,10 +512,7 @@ async def close_all_bot_positions(
                 closed_count += 1
             db.commit()
 
-        cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
-        cmd_path.unlink(missing_ok=True)
-
-        return {"status": "success", "message": f"Closed {closed_count} positions", "bot_running": running}
+        return {"status": "success", "message": f"Closed {closed_count} positions", "bot_running": False}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to close positions: {str(e)}")
     finally:

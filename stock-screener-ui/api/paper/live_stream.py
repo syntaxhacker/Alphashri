@@ -73,18 +73,6 @@ def _get_instrument_keys(user_id: int) -> tuple[list[str], dict[str, str]]:
 
     if not trading_symbols:
         try:
-            from .paper_api import _load_fresh_bot_snapshot
-            snap = _load_fresh_bot_snapshot(user_id=user_id)
-            if snap:
-                for pos in snap.get("positions") or snap.get("open_positions_data") or []:
-                    sym = pos.get("symbol") or pos.get("trading_symbol")
-                    if sym:
-                        trading_symbols.add(sym)
-        except Exception:
-            pass
-
-    if not trading_symbols:
-        try:
             from trading.paper_trader import get_paper_trader
             trader = get_paper_trader(user_id)
             for pos in trader.get_positions():

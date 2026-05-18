@@ -10,7 +10,6 @@ import type {
   PerformanceSummary,
   SymbolPerformance,
   PaperChartData,
-  PaperBotSnapshot,
   StrategyConfig,
 } from "../types/paperTrading";
 import {
@@ -25,7 +24,6 @@ import {
   setChartFromDate,
   setError,
   setLoading,
-  setBotSnapshot,
   setStrategyConfig,
   setConfigLoading,
   setConfigError,
@@ -69,18 +67,6 @@ export {
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
-
-export async function fetchPaperBotSnapshot(): Promise<PaperBotSnapshot | null> {
-  try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/bot/snapshot`);
-    const data = await response.json();
-    setBotSnapshot(data);
-    return data;
-  } catch (error) {
-    console.error("Failed to fetch paper bot snapshot:", error);
-    return null;
-  }
-}
 
 // Fetch portfolio status
 export async function fetchPortfolio(): Promise<PortfolioStatus | null> {
@@ -268,7 +254,6 @@ export async function refreshLiveData(): Promise<void> {
       fetchPortfolio(),
       fetchPositions(),
       fetchPaperBotStatus(),
-      fetchPaperBotSnapshot(),
     ]);
   } catch (error) {
     setError(error instanceof Error ? error.message : "Unknown error");

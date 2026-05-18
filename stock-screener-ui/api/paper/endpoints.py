@@ -21,7 +21,7 @@ import config
 from rich.console import Console
 
 from .requests import StrategyConfigUpdate
-from .paper_api import router, _get_user_id, _load_fresh_bot_snapshot, _get_symbol_trades_from_db
+from .paper_api import router, _get_user_id, _get_symbol_trades_from_db
 from .chart_cache import get_cached_candles, save_cached_candles
 
 console = Console()
@@ -638,13 +638,6 @@ async def get_paper_chart(
         trades_data = _resolve_trade_bot_ids(trades_data)
 
         current_position = None
-        snap = _load_fresh_bot_snapshot()
-        if snap:
-            snap_positions = snap.get("positions") or snap.get("open_positions_data") or []
-            for pos in snap_positions:
-                if pos.get("symbol", "").upper() == symbol.upper():
-                    current_position = pos
-                    break
 
         if not current_position:
             trader = get_paper_trader()

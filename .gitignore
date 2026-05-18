@@ -60,8 +60,7 @@ data_cache/
 *.json
 !package.json
 !historical_sector_cycles/rotation_dashboard_data.json
-!upstox_trader/config_and_utils/nse_instruments.json
-!upstox_trader/screeners/nse_instruments.json
+# nse_instruments.json is untracked — fetch with scripts/fetch_instruments.py
 *.html
 !stock-screener-ui/index.html
 # Upstox token (explicitly listed)

@@ -284,6 +284,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 prices = cmd.get("prices", {})
                 self._execute_close_all(prices)
                 console.print(f"[red]Executed close_all command for {len(prices)} symbols[/red]")
+            elif cmd.get("action") == "close_position":
+                symbol = cmd.get("symbol", "")
+                exit_price = cmd.get("exit_price", 0)
+                strategy_id = cmd.get("strategy_id")
+                self._execute_close_position(symbol, exit_price, strategy_id)
+                console.print(f"[red]Executed close_position command for {symbol}[/red]")
         except Exception as e:
             console.print(f"[yellow]Error reading command file: {e}[/yellow]")
         finally:
@@ -298,6 +304,14 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             exit_price = prices.get(pos.symbol, pos.current_price or pos.entry_price)
             if exit_price <= 0:
                 continue
+            try:
+                _fetcher = self._get_data_fetcher()
+                if _fetcher and hasattr(_fetcher, 'upstox_api') and _fetcher.upstox_api:
+                    _df = _fetcher.upstox_api.fetch_intraday_data_v3(pos.symbol, "1")
+                    if _df is not None and not _df.empty:
+                        exit_price = float(_df.iloc[-1]["close"])
+            except Exception:
+                pass
             side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
             costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
             order_mgr = self._get_order_manager()
@@ -345,6 +359,33 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     'strategy_id': pos.strategy_id,
                     'symbol': pos.symbol,
                 }, action="delete")
+
+    def _execute_close_position(self, symbol: str, exit_price: float, strategy_id: int = None):
+        for key, pos in list(self.portfolio.positions.items()):
+            if pos.symbol == symbol and (strategy_id is None or pos.strategy_id == strategy_id):
+                if exit_price <= 0:
+                    exit_price = pos.current_price or pos.entry_price
+                try:
+                    _fetcher = self._get_data_fetcher()
+                    if _fetcher and hasattr(_fetcher, 'upstox_api') and _fetcher.upstox_api:
+                        _df = _fetcher.upstox_api.fetch_intraday_data_v3(symbol, "1")
+                        if _df is not None and not _df.empty:
+                            exit_price = float(_df.iloc[-1]["close"])
+                except Exception:
+                    pass
+                side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
+                from trading.backtest.costs import calculate_trading_costs
+                costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+                self.portfolio.close_position(
+                    strategy_id=pos.strategy_id,
+                    symbol=pos.symbol,
+                    exit_price=exit_price,
+                    exit_reason="MANUAL_CLOSE",
+                    costs=costs,
+                    exit_time=self._ist_now(),
+                )
+                console.print(f"[red]Closed position {pos.symbol} in strategy {pos.strategy_id} via API command[/red]")
+                break
 
     def _get_screener(self):
         """Lazy load screener."""
