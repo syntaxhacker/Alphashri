@@ -103,6 +103,15 @@ class TestCalculateTradingCosts:
 class TestBrokerageCalculation:
     """Tests for brokerage calculation with ₹20 cap."""
 
+    def test_brokerage_percentage_applied_below_cap(self):
+        """Test: Brokerage uses 0.03% for trades below ₹20 cap (hardcoded rate)."""
+        entry_price = 100.0
+        quantity = 50
+        buy_value = entry_price * quantity
+        result = costs.calculate_trading_costs(entry_price, 105.0, quantity)
+        expected = min(20, buy_value * 0.0003)
+        assert result['breakdown']['buy_brokerage'] == round(expected, 2)
+
     def test_brokerage_capped_at_20_small_trade(self):
         """Test: Brokerage capped at ₹20 for small trades."""
         entry_price = 100.0

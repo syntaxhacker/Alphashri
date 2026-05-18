@@ -76,10 +76,15 @@ class TestEMACrossSignalGenerator:
              "ema_fast_current": 101.0, "ema_slow_current": 100.0},
             SignalType.LONG_ENTRY, 100.0, False,
         ),
+        (
+            {"current_price": 100.0, "ema_fast_prev": 100.0, "ema_slow_prev": 100.0,
+             "ema_fast_current": 99.0, "ema_slow_current": 100.0},
+            SignalType.SHORT_ENTRY, 100.0, True,
+        ),
     ], ids=[
         "bullish_crossover", "bearish_crossover",
         "no_crossover_fast_above", "no_crossover_fast_below",
-        "equal_no_cross", "bullish_from_equal",
+        "equal_no_cross", "bullish_from_equal", "bearish_from_equal",
     ])
     def test_check_entry_scenarios(self, market_data, expected_type, expected_price, enable_shorts):
         gen = EMACrossSignalGenerator({"enable_shorts": enable_shorts})

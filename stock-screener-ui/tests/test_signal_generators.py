@@ -187,32 +187,32 @@ class TestWeek52ChaserSignalGenerator:
     def setup_method(self):
         self.gen = Week52ChaserSignalGenerator(config={})
 
-    def test_check_entry_within_threshold(self):
-        price = 490.0
+    def test_check_entry_breakout_above_52w_high(self):
+        price = 510.0
         signal = self.gen.check_entry("TEST", {"current_price": price, "high_52w": 500.0})
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
         assert signal.price == price
-        assert signal.stop_loss == round(price * 0.97, 2)
-        assert signal.take_profit == round(price * 1.05, 2)
+        assert signal.stop_loss == round(price * (1 - self.gen.sl_pct / 100), 2)
+        assert signal.take_profit == round(price * (1 + self.gen.tp_pct / 100), 2)
 
     def test_check_entry_exactly_at_52w_high(self):
         signal = self.gen.check_entry("TEST", {"current_price": 500.0, "high_52w": 500.0})
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
 
-    def test_check_entry_too_far_from_52w_high(self):
-        signal = self.gen.check_entry("TEST", {"current_price": 470.0, "high_52w": 500.0})
+    def test_check_entry_below_52w_high_rejected(self):
+        signal = self.gen.check_entry("TEST", {"current_price": 490.0, "high_52w": 500.0})
         assert signal is None
 
-    def test_check_entry_negative_distance(self):
-        signal = self.gen.check_entry("TEST", {"current_price": 510.0, "high_52w": 500.0})
+    def test_check_entry_too_far_above_52w_high(self):
+        signal = self.gen.check_entry("TEST", {"current_price": 520.0, "high_52w": 500.0})
         assert signal is None
 
     def test_check_entry_with_filters_all_pass(self):
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
-            "current_price": 490.0,
+            "current_price": 510.0,
             "high_52w": 500.0,
             "adx": 30.0,
             "rsi": 60.0,
@@ -227,28 +227,28 @@ class TestWeek52ChaserSignalGenerator:
     def test_check_entry_with_filters_adx_fail(self):
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
-            "current_price": 490.0, "high_52w": 500.0, "adx": 20.0,
+            "current_price": 510.0, "high_52w": 500.0, "adx": 20.0,
         })
         assert signal is None
 
     def test_check_entry_with_filters_rsi_fail(self):
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
-            "current_price": 490.0, "high_52w": 500.0, "rsi": 40.0,
+            "current_price": 510.0, "high_52w": 500.0, "rsi": 40.0,
         })
         assert signal is None
 
     def test_check_entry_with_filters_rsi_overbought(self):
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
-            "current_price": 490.0, "high_52w": 500.0, "rsi": 75.0,
+            "current_price": 510.0, "high_52w": 500.0, "rsi": 75.0,
         })
         assert signal is None
 
     def test_check_entry_with_filters_volume_fail(self):
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
-            "current_price": 490.0, "high_52w": 500.0,
+            "current_price": 510.0, "high_52w": 500.0,
             "volume": 100, "avg_volume_20d": 100,
         })
         assert signal is None
@@ -256,13 +256,13 @@ class TestWeek52ChaserSignalGenerator:
     def test_check_entry_with_filters_ma50_fail(self):
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
-            "current_price": 490.0, "high_52w": 500.0, "ma50": 500.0,
+            "current_price": 510.0, "high_52w": 500.0, "ma50": 520.0,
         })
         assert signal is None
 
     def test_check_entry_filters_disabled_by_default(self):
         signal = self.gen.check_entry("TEST", {
-            "current_price": 490.0, "high_52w": 500.0,
+            "current_price": 510.0, "high_52w": 500.0,
             "adx": 10.0, "rsi": 30.0, "volume": 10, "avg_volume_20d": 10000,
         })
         assert signal is not None
@@ -367,12 +367,12 @@ class TestWeek52ChaserSignalGenerator:
 
     def test_config_defaults(self):
         gen = Week52ChaserSignalGenerator(config={})
-        assert gen.sl_pct == 3.0
-        assert gen.tp_pct == 5.0
+        assert gen.sl_pct == 2.0
+        assert gen.tp_pct == 3.0
         assert gen.entry_threshold_pct == 3.0
         assert gen.enable_trailing_stop is False
-        assert gen.trailing_stop_pct == 3.0
-        assert gen.trailing_activation_pct == 2.0
+        assert gen.trailing_stop_pct == 2.0
+        assert gen.trailing_activation_pct == 3.0
         assert gen.max_holding_days == 30
         assert gen.cooldown_days == 30
         assert gen.enable_filters is False
@@ -393,24 +393,27 @@ class TestWeek52TargetSignalGenerator:
         signal = self.gen.check_entry("TEST", {"current_price": 480.0, "high_52w": 500.0})
         assert signal is None
 
-    def test_check_entry_uses_daily_highs(self):
+    def test_check_entry_fallback_to_daily_highs(self):
         daily_highs = [400.0] * 200 + [500.0]
         signal = self.gen.check_entry("TEST", {
-            "current_price": 495.0, "high_52w": 490.0, "daily_highs": daily_highs,
+            "current_price": 495.0, "daily_highs": daily_highs,
         })
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
+
+    def test_check_entry_above_52w_high_rejected(self):
+        signal = self.gen.check_entry("TEST", {"current_price": 510.0, "high_52w": 500.0})
+        assert signal is None
 
     def test_check_entry_missing_data(self):
         assert self.gen.check_entry("TEST", {}) is None
         assert self.gen.check_entry("TEST", {"current_price": 100.0}) is None
         assert self.gen.check_entry("TEST", {"high_52w": 500.0}) is None
 
-    def test_check_entry_no_take_profit_set(self):
-        price = 495.0
-        signal = self.gen.check_entry("TEST", {"current_price": price, "high_52w": 500.0})
+    def test_check_entry_tp_is_52w_high(self):
+        signal = self.gen.check_entry("TEST", {"current_price": 495.0, "high_52w": 500.0})
         assert signal is not None
-        assert signal.take_profit == round(price * 2, 2)
+        assert signal.take_profit == 500.0
 
     def test_check_exit_stop_loss_always_active(self):
         signal = self.gen.check_exit(
@@ -418,6 +421,7 @@ class TestWeek52TargetSignalGenerator:
             take_profit=1000, current_price=97,
             entry_52w_high=95.0, highest_price_since_entry=105.0,
             trailing_stop_pct=0.5,
+            near_high_activation_pct=1.0,
         )
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
@@ -433,20 +437,74 @@ class TestWeek52TargetSignalGenerator:
             entry_52w_high=entry_52w_high,
             highest_price_since_entry=highest,
             trailing_stop_pct=0.5,
+            near_high_activation_pct=1.0,
+            near_high_trail_pct=0.5,
         )
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_EXIT
         assert "TRAILING_STOP" in signal.notes
 
-    def test_check_exit_trailing_stop_not_active_below_52w(self):
+    def test_check_exit_trailing_stop_not_active_far_below_52w(self):
         signal = self.gen.check_exit(
             "TEST", "BUY", entry_price=100, stop_loss=98,
             take_profit=1000, current_price=103.0,
             entry_52w_high=105.0,
             highest_price_since_entry=104.0,
             trailing_stop_pct=0.5,
+            near_high_activation_pct=1.0,
         )
         assert signal is None
+
+    def test_check_exit_trailing_stop_activates_near_52w_high(self):
+        entry_52w_high = 100.0
+        highest = 99.5
+        near_high_trail_pct = 0.5
+        near_high_activation_pct = 1.0
+        trail_price = highest * (1 - near_high_trail_pct / 100)
+        signal = self.gen.check_exit(
+            "TEST", "BUY", entry_price=98, stop_loss=95,
+            take_profit=1000, current_price=trail_price,
+            entry_52w_high=entry_52w_high,
+            highest_price_since_entry=highest,
+            trailing_stop_pct=2.0,
+            near_high_activation_pct=near_high_activation_pct,
+            near_high_trail_pct=near_high_trail_pct,
+        )
+        assert signal is not None
+        assert signal.signal_type == SignalType.LONG_EXIT
+        assert "TRAILING_STOP" in signal.notes
+
+    def test_check_exit_above_52w_uses_wider_trail(self):
+        entry_52w_high = 100.0
+        highest = 103.0
+        near_high_trail_pct = 0.5
+        wider_trail_pct = 2.0
+        near_high_activation_pct = 1.0
+        # Above 52W high, so wider trail applies: 103 * 0.98 = 100.94
+        # A 1% drop from 103 = 101.97, still above 100.94 → no exit
+        signal_no_exit = self.gen.check_exit(
+            "TEST", "BUY", entry_price=98, stop_loss=95,
+            take_profit=1000, current_price=101.97,
+            entry_52w_high=entry_52w_high,
+            highest_price_since_entry=highest,
+            trailing_stop_pct=wider_trail_pct,
+            near_high_activation_pct=near_high_activation_pct,
+            near_high_trail_pct=near_high_trail_pct,
+        )
+        assert signal_no_exit is None
+        # A drop all the way to trail trigger: 103 * 0.98 = 100.94
+        signal_exit = self.gen.check_exit(
+            "TEST", "BUY", entry_price=98, stop_loss=95,
+            take_profit=1000, current_price=100.94,
+            entry_52w_high=entry_52w_high,
+            highest_price_since_entry=highest,
+            trailing_stop_pct=wider_trail_pct,
+            near_high_activation_pct=near_high_activation_pct,
+            near_high_trail_pct=near_high_trail_pct,
+        )
+        assert signal_exit is not None
+        assert signal_exit.signal_type == SignalType.LONG_EXIT
+        assert "TRAILING_STOP" in signal_exit.notes
 
     def test_check_exit_max_holding(self):
         signal = self.gen.check_exit(
@@ -477,6 +535,8 @@ class TestWeek52TargetSignalGenerator:
         assert gen.sl_pct == 2.0
         assert gen.tp_pct == 0.0
         assert gen.entry_threshold_pct == 2.0
-        assert gen.trailing_stop_pct == 0.5
+        assert gen.trailing_stop_pct == 2.0
+        assert gen.near_high_activation_pct == 1.0
+        assert gen.near_high_trail_pct == 0.5
         assert gen.max_holding_days == 15
         assert gen.cooldown_days == 7

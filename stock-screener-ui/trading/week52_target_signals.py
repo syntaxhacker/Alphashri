@@ -23,6 +23,8 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         self.tp_pct: float = float(config.get("tp_pct", 0.0))
         self.entry_threshold_pct: float = float(config.get("entry_threshold_pct", 2.0))
         self.trailing_stop_pct: float = float(config.get("trailing_stop_pct", 2.0))
+        self.near_high_activation_pct: float = float(config.get("near_high_activation_pct", 1.0))
+        self.near_high_trail_pct: float = float(config.get("near_high_trail_pct", 0.5))
         self.max_holding_days: int = int(config.get("max_holding_days", 15))
         self.cooldown_days: int = int(config.get("cooldown_days", 7))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
@@ -39,24 +41,28 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         if current_price is None:
             return None
 
-        # Calculate 52W high from daily highs if available, otherwise use high_52w from market data
+        # Use provided high_52w from market_data first (includes latest completed bar),
+        # fall back to calculation from daily_highs if not provided
         calculated_high = None
-        if daily_highs:
-            calculated_high = calculate_52w_high(daily_highs)
-        elif high_52w is not None:
+        if high_52w is not None:
             calculated_high = high_52w
+        elif daily_highs:
+            calculated_high = calculate_52w_high(daily_highs, exclude_current=False)
 
-        if calculated_high is None:
+        if calculated_high is None or calculated_high <= 0:
+            return None
+
+        # Target buys BELOW the 52W high, sells at it
+        if current_price > calculated_high:
             return None
 
         entry_threshold = calculated_high * (1 - self.entry_threshold_pct / 100)
-
         if current_price < entry_threshold:
             return None
 
         stop_loss = round(current_price * (1 - self.sl_pct / 100), 2)
-        # TP intentionally unreachable; exits managed entirely by trailing stop.
-        take_profit = round(current_price * 2, 2)
+        # TP is the 52W high itself
+        take_profit = round(calculated_high, 2)
 
         return self.create_signal(
             symbol=symbol,
@@ -65,7 +71,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
             stop_loss=stop_loss,
             take_profit=take_profit,
             or_high=round(calculated_high, 2),
-            notes=f"52W Target: ₹{current_price:.2f} within {self.entry_threshold_pct}% of 52W high ₹{calculated_high:.2f} | SL {self.sl_pct}% trail {self.trailing_stop_pct}%",
+            notes=f"52W Target: ₹{current_price:.2f} towards 52W high ₹{calculated_high:.2f} ({(calculated_high - current_price) / current_price * 100:.1f}% upside) | SL {self.sl_pct}% trail {self.near_high_trail_pct}%/{self.trailing_stop_pct}%",
         )
 
     def check_exit(
@@ -86,6 +92,8 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         days_in_position: int = kwargs.get("days_in_position", 0)
         max_holding_days: int = kwargs.get("max_holding_days", self.max_holding_days)
         trailing_stop_pct: float = kwargs.get("trailing_stop_pct", self.trailing_stop_pct)
+        near_high_activation_pct: float = kwargs.get("near_high_activation_pct", self.near_high_activation_pct)
+        near_high_trail_pct: float = kwargs.get("near_high_trail_pct", self.near_high_trail_pct)
         sl_pct: float = kwargs.get("sl_pct", self.sl_pct)
 
         exit_reason = None
@@ -94,9 +102,12 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         if current_price <= sl_price:
             exit_reason = "SL"
 
-        if exit_reason is None and entry_52w_high is not None:
-            if current_price > entry_52w_high:
-                trailing_stop_price = highest_price_since_entry * (1 - trailing_stop_pct / 100)
+        # Two-tier trailing: tight trail near the 52W high, wider trail above it
+        if exit_reason is None and entry_52w_high is not None and entry_52w_high > 0:
+            near_high_threshold = entry_52w_high * (1 - near_high_activation_pct / 100)
+            if current_price >= near_high_threshold:
+                trail_pct = trailing_stop_pct if current_price > entry_52w_high else near_high_trail_pct
+                trailing_stop_price = highest_price_since_entry * (1 - trail_pct / 100)
                 if current_price <= trailing_stop_price:
                     exit_reason = "TRAILING_STOP"
 

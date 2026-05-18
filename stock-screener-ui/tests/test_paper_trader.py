@@ -1200,3 +1200,17 @@ class TestPaperTraderSimulations:
         assert order.status == OrderStatus.CANCELLED
         assert "TEST" not in trader.positions
 
+    def test_sell_sl_exact_boundary(self):
+        """Test SELL SL triggers at exact boundary price."""
+        trader = PaperTrader(initial_capital=1_000_000)
+        trader.place_order(
+            "TEST", OrderSide.SELL, 100, 100.0,
+            stop_loss=105.0,
+            take_profit=90.0,
+        )
+        # Price exactly at SL for SELL (>= stop_loss triggers SL)
+        trader.update_prices({"TEST": 105.0})
+        assert "TEST" not in trader.positions
+        assert len(trader.trades) == 1
+        assert trader.trades[0].exit_reason == ExitReason.STOP_LOSS
+
