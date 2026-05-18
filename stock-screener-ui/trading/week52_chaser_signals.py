@@ -36,16 +36,18 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
         high_52w = market_data.get("high_52w")
         daily_highs: List[float] = market_data.get("daily_highs", [])
 
-        # Use provided high_52w or calculate from daily_highs using shared utility
         if high_52w is None:
             high_52w = calculate_52w_high(daily_highs)
 
-        if current_price is None or high_52w is None or current_price <= 0:
+        if current_price is None or high_52w is None or current_price <= 0 or high_52w <= 0:
             return None
 
-        distance_pct = ((high_52w - current_price) / current_price) * 100
+        # Chaser enters ABOVE the 52W high (breakout confirmed)
+        if current_price < high_52w:
+            return None
 
-        if distance_pct < 0 or distance_pct > self.entry_threshold_pct:
+        pct_above = ((current_price - high_52w) / high_52w) * 100
+        if pct_above > self.entry_threshold_pct:
             return None
 
         if self.enable_filters and not self._check_filters(market_data, current_price):
@@ -62,11 +64,11 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
             take_profit=round(tp, 2),
             or_high=round(high_52w, 2),
             or_low=0.0,
-            or_range=round(high_52w - current_price, 2),
-            or_range_pct=round(distance_pct, 2),
+            or_range=round(current_price - high_52w, 2),
+            or_range_pct=round(pct_above, 2),
             adx=float(market_data.get("adx", 0.0) or 0.0),
             rsi=float(market_data.get("rsi", 0.0) or 0.0),
-            notes=f"Within {distance_pct:.2f}% of 52W high ₹{high_52w:.2f} | SL {self.sl_pct}% TP {self.tp_pct}% | ADX {float(market_data.get('adx', 0.0) or 0.0):.0f} RSI {float(market_data.get('rsi', 0.0) or 0.0):.0f}",
+            notes=f"Breakout above 52W high ₹{high_52w:.2f} (+{pct_above:.2f}%) | SL {self.sl_pct}% TP {self.tp_pct}% | ADX {float(market_data.get('adx', 0.0) or 0.0):.0f} RSI {float(market_data.get('rsi', 0.0) or 0.0):.0f}",
         )
 
     def check_exit(

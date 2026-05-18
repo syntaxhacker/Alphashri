@@ -213,11 +213,11 @@ class TestWeek52ChaserSignalNotes:
             "enable_filters": False,
         })
 
-    def test_entry_notes_contain_distance_and_indicators(self, chaser_generator):
+    def test_entry_notes_contain_breakout_info(self, chaser_generator):
         signal = chaser_generator.check_entry(
             symbol="RELIANCE",
             market_data={
-                "current_price": 2940.0,
+                "current_price": 3060.0,
                 "high_52w": 3000.0,
                 "adx": 30.0,
                 "rsi": 60.0,
@@ -225,6 +225,7 @@ class TestWeek52ChaserSignalNotes:
         )
         assert signal is not None
         assert "52W high" in signal.notes
+        assert "Breakout" in signal.notes
         assert "SL 3.0%" in signal.notes
         assert "TP 5.0%" in signal.notes
         assert "ADX 30" in signal.notes

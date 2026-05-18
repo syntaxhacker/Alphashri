@@ -376,16 +376,22 @@ assert result['current_price'] == expected_live_price
 |---|---------|---------------|--------|
 | 38 | `restore_position` | Remove capital_used update | ✅ CAUGHT |
 
-### 14. `tests/test_signal_generators.py` (updated) — Added Apr 28
+### 14. `tests/test_signal_generators.py` (updated) — Added Apr 28, expanded May 18
 
 | # | Function | Mutation Tested | Status |
 |---|---------|---------------|--------|
 | 39 | `SRBreakout.check_entry` | Remove breakout buffer check | ✅ CAUGHT |
 | 40 | `SRBreakout.check_entry` | Remove R2 fallback for TP | ✅ CAUGHT |
-| 41 | `Week52Chaser.check_exit` | Remove trailing stop activation | ✅ CAUGHT |
-| 42 | `Week52Chaser.check_exit` | Remove max_holding_days check | ✅ CAUGHT |
-| 43 | `Week52Target.check_exit` | Remove trailing stop check | ✅ CAUGHT |
-| 44 | `Week52Target.check_exit` | Remove max_holding_days check | ✅ CAUGHT |
+| 41 | `Week52Chaser.check_entry` | Remove below-52W-high rejection | ✅ CAUGHT |
+| 42 | `Week52Chaser.check_entry` | Flip `entry_threshold` `>` to `<` | ✅ CAUGHT |
+| 43 | `Week52Chaser.check_exit` | Remove trailing activation on 52W cross | ✅ CAUGHT |
+| 44 | `Week52Chaser.check_exit` | Remove NEW_52W_HIGH momentum fade | ✅ CAUGHT |
+| 45 | `Week52Target.check_entry` | Remove above-52W-high rejection | ✅ CAUGHT |
+| 46 | `Week52Target.check_entry` | TP not set to 52W high | ✅ CAUGHT |
+| 47 | `Week52Target.check_exit` | Remove near-high activation (always wide) | ✅ CAUGHT |
+| 48 | `Week52Target.check_exit` | Use tight trail even above 52W | ✅ CAUGHT |
+| 49 | `Week52Target.check_exit` | Remove max_holding check | ✅ CAUGHT |
+| 50 | `Week52Target.check_exit` | Remove SL check | ✅ CAUGHT |
 
 ### 15. `tests/test_global_risk_manager.py` (?? tests) — Added Apr 28
 
@@ -408,16 +414,82 @@ assert result['current_price'] == expected_live_price
 | 49 | `monitor_positions` | Remove SL/TP exit conditions for BUY | ✅ CAUGHT |
 | 50 | `monitor_positions` | Remove signal_generator exit fallback | ✅ CAUGHT |
 
+### 18. `tests/test_mutation_orb_signals.py` — Added May 18
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 51 | `ORB.is_eod_exit_time` | Flip `minute >= 45` to `>` | ✅ CAUGHT |
+| 52 | `ORB.check_exit` LONG SL | Flip `<=` to `<` | ✅ CAUGHT |
+| 53 | `ORB.check_exit` LONG TP | Flip `>=` to `>` | ✅ CAUGHT |
+| 54 | `ORB.check_breakout` OR min | Flip `<` to `<=` | ✅ CAUGHT |
+| 55 | `ORB.check_breakout` OR max | Flip `>` to `>=` | ✅ CAUGHT |
+| 56 | `ORB.check_breakout` | Remove OR range validation | ✅ CAUGHT |
+
+### 19. `tests/test_mutation_ema_cross_signals.py` — Added May 18
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 57 | `EMACross.check_entry` bullish | Flip `<=` to `<` on prev comparison | ✅ CAUGHT |
+| 58 | `EMACross.check_entry` bullish | Flip `>` to `>=` on current comparison | ✅ CAUGHT |
+| 59 | `EMACross.check_entry` bearish | Flip `>=` to `>` on prev comparison | ✅ CAUGHT |
+| 60 | `EMACross.check_entry` | Remove cooldown check after exit | ✅ CAUGHT |
+| 61 | `EMACross.check_entry` | Remove `enable_shorts` gate | ✅ CAUGHT |
+
+### 20. `tests/test_mutation_shared_portfolio.py` — Added May 18
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 62 | `close_position` | Invert BUY P&L formula | ✅ CAUGHT |
+| 63 | `open_position` | Remove cash deduction | ✅ CAUGHT |
+| 64 | `open_position` | Remove capital_used update | ✅ CAUGHT |
+| 65 | `update_prices` | Swap BUY/SELL P&L formulas | ✅ CAUGHT |
+| 66 | `close_position` | Remove realized_pnl accumulation | ✅ CAUGHT |
+
+### 21. `tests/test_mutation_risk_manager.py` — Added May 18
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 67 | `calculate_position_size` | Remove `stop_loss <= 0` guard | ✅ CAUGHT |
+| 68 | `can_open_position` | Remove max positions check | ✅ CAUGHT |
+| 69 | `can_open_position` | Flip `>` to `>=` in exposure check | ✅ CAUGHT |
+| 70 | `can_open_position` | Remove daily loss limit flag check | ✅ CAUGHT |
+| 71 | `check_daily_loss_limit` | Flip `>=` to `>` | ✅ CAUGHT |
+| 72 | `get_risk_manager` | Always create new instance (bypass singleton) | ✅ CAUGHT |
+
+### 22. `tests/test_mutation_paper_trader.py` — Added May 18
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 73 | BUY SL trigger | Flip `<=` to `<` | ✅ CAUGHT |
+| 74 | BUY TP trigger | Flip `>=` to `>` | ✅ CAUGHT |
+| 75 | SELL SL trigger | Flip `>=` to `>` | ✅ CAUGHT |
+| 76 | Slippage exit BUY | Wrong direction (`1 +` instead of `1 -`) | ✅ CAUGHT |
+| 77 | Cost calculation | Remove `min_brokerage` cap | ✅ CAUGHT |
+| 78 | Order validation | Flip insufficient cash check | ✅ CAUGHT |
+| 79 | Margin on close | Use `entry_price` instead of `actual_exit_price` | ✅ CAUGHT |
+
+### 23. `tests/test_mutation_backtest_costs.py` — Added May 18
+
+| # | Function | Mutation Tested | Status |
+|---|---------|---------------|--------|
+| 80 | Brokerage cap constant | Raise `min(20, ...)` to `min(50, ...)` | ✅ CAUGHT |
+| 81 | STT sell-side | Remove STT from sell side | ✅ CAUGHT |
+| 82 | Stamp duty buy-side | Remove stamp duty from buy side | ✅ CAUGHT |
+| 83 | SEBI fee constant | Double `SEBI_FEE_PCT` | ✅ CAUGHT |
+| 84 | GST on sell side | Include STT in GST base | ✅ CAUGHT |
+| 85 | GST on buy side | Include stamp duty in GST base | ✅ CAUGHT |
+| 86 | Brokerage percentage | Double `BROKERAGE_PCT` | ✅ CAUGHT |
+
 ---
 
 ## Summary
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ CAUGHT | 42 | 84% |
-| ✅ FIXED (after weak test) | 6 | 12% |
-| ⚠️ NOT CAUGHT (acceptable) | 2 | 4% |
-| **TOTAL** | **50** | **100%** |
+| ✅ CAUGHT | 88 | 92% |
+| ✅ FIXED (after weak test) | 6 | 6% |
+| ⚠️ NOT CAUGHT (acceptable) | 2 | 2% |
+| **TOTAL** | **96** | **100%** |
 
 ---
 
@@ -537,6 +609,30 @@ source .venv/bin/activate && python -m pytest \
     tests/api/test_paper_helpers.py \
     tests/test_runner_risk.py \
     -v
+
+# Quick check for 52W signal generators (May 18)
+source .venv/bin/activate && python tests/test_mutation_week52_signals.py
+
+# Quick check for ORB signals (May 18)
+source .venv/bin/activate && python tests/test_mutation_orb_signals.py
+
+# Quick check for EMA cross signals (May 18)
+source .venv/bin/activate && python tests/test_mutation_ema_cross_signals.py
+
+# Quick check for SharedPortfolio core (May 18)
+source .venv/bin/activate && python tests/test_mutation_shared_portfolio.py
+
+# Quick check for RiskManager (May 18)
+source .venv/bin/activate && python tests/test_mutation_risk_manager.py
+
+# Quick check for PaperTrader (May 18)
+source .venv/bin/activate && python tests/test_mutation_paper_trader.py
+
+# Quick check for backtest costs (May 18)
+source .venv/bin/activate && python tests/test_mutation_backtest_costs.py
+
+# Run ALL mutation checks
+source .venv/bin/activate && for f in tests/test_mutation_*.py; do [[ "$f" == *heatmap* ]] && continue; python "$f" || break; done
 
 # Target specific area
 source .venv/bin/activate && python -m pytest \
