@@ -1,5 +1,9 @@
 # stock-screener-ui — Agent Rules
 
+## ⚠️ Golden Rules
+- **NEVER delete or directly modify `db/alphashri.db`** — it contains user accounts, bot state, and trade history. Tests use in-memory SQLite via `test_engine` fixture. If a migration is stuck, use `SKIP_ALEMBIC=1` or ask the user.
+- **NEVER commit secrets, API keys, or tokens** to the repo.
+
 ## Stack
 React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 

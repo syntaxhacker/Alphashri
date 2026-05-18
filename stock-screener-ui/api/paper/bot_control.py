@@ -23,7 +23,6 @@ from .paper_api import (
     _paper_bot_log_handle,
     _write_runner_pid_file,
     _clear_runner_pid_file,
-    _load_fresh_bot_snapshot,
 )
 
 
@@ -31,26 +30,6 @@ from .paper_api import (
 async def get_paper_bot_status():
     """Get background paper trading runner status."""
     return _get_bot_status()
-
-
-@router.get("/bot/snapshot")
-async def get_paper_bot_snapshot():
-    """Get latest scan/watchlist snapshot produced by runner."""
-    from .paper_api import _paper_bot_snapshot_file
-    
-    if not _paper_bot_snapshot_file.exists():
-        return {
-            "timestamp": None,
-            "watchlist": [],
-            "open_positions": [],
-            "scan_items": [],
-            "signals": [],
-        }
-    try:
-        import json
-        return json.loads(_paper_bot_snapshot_file.read_text())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read snapshot: {e}")
 
 
 @router.post("/bot/start")

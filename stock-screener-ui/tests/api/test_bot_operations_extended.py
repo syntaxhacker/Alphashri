@@ -17,6 +17,8 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 
+MARKET_PRICE_PATCH = "api.bots_api.bot_operations._get_market_price"
+
 from db.models import Position, Trade, User, StrategyConfig, BotConfig, bot_strategies
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -118,7 +120,8 @@ class TestCloseAllBotPositions:
                        quantity=100, entry_price=2500.0, current_price=2600.0)
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
-             patch(COSTS_PATCH, return_value={"total_costs": 50.0}):
+             patch(COSTS_PATCH, return_value={"total_costs": 50.0}), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
 
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
@@ -149,7 +152,8 @@ class TestCloseAllBotPositions:
                        quantity=50, entry_price=3500.0, current_price=3400.0)
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
-             patch(COSTS_PATCH, return_value={"total_costs": 30.0}):
+             patch(COSTS_PATCH, return_value={"total_costs": 30.0}), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
 
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
@@ -175,7 +179,8 @@ class TestCloseAllBotPositions:
                        quantity=200, entry_price=1500.0, current_price=1550.0)
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
-             patch(COSTS_PATCH, return_value={"total_costs": 10.0}):
+             patch(COSTS_PATCH, return_value={"total_costs": 10.0}), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
 
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
@@ -200,7 +205,8 @@ class TestCloseAllBotPositions:
                        quantity=100, entry_price=400.0, current_price=420.0)
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
-             patch(COSTS_PATCH, return_value={"total_costs": 5.0}):
+             patch(COSTS_PATCH, return_value={"total_costs": 5.0}), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
 
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
@@ -227,7 +233,8 @@ class TestCloseAllBotPositions:
         db.commit()
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
-             patch(COSTS_PATCH, return_value={"total_costs": 0.0}):
+             patch(COSTS_PATCH, return_value={"total_costs": 0.0}), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
 
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
@@ -252,7 +259,8 @@ class TestCloseAllBotPositions:
                        quantity=100, entry_price=800.0, current_price=850.0)
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
-             patch(COSTS_PATCH, return_value={"total_costs": 123.45}) as mock_costs:
+             patch(COSTS_PATCH, return_value={"total_costs": 123.45}) as mock_costs, \
+             patch(MARKET_PRICE_PATCH, return_value=None):
 
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
@@ -284,7 +292,8 @@ class TestCloseAllBotPositions:
         assert db.query(Position).filter(Position.bot_id == bot.id).count() == 2
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
-             patch(COSTS_PATCH, return_value={"total_costs": 1.0}):
+             patch(COSTS_PATCH, return_value={"total_costs": 1.0}), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
 
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
@@ -307,7 +316,8 @@ class TestCloseAllBotPositions:
         cmd_path.write_text('{"command": "close_all"}')
         assert cmd_path.exists()
 
-        with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)):
+        with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
                 json={"prices": {}},
@@ -324,7 +334,8 @@ class TestCloseAllBotPositions:
         user = _get_auth_user(client, auth_headers, db)
         bot = _create_bot(db, user, strategy)
 
-        with patch("api.bots_api.bot_operations.is_bot_running", return_value=(True, 12345)):
+        with patch("api.bots_api.bot_operations.is_bot_running", return_value=(True, 12345)), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
                 json={"prices": {}},
@@ -333,8 +344,8 @@ class TestCloseAllBotPositions:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "success"
-        assert data["message"] == "Closed 0 positions"
+        assert data["status"] == "signal_sent"
+        assert "Close signal sent to bot" in data["message"]
         assert data["bot_running"] is True
 
     def test_closes_multiple_positions(self, db, bot_with_strategy,
@@ -350,7 +361,8 @@ class TestCloseAllBotPositions:
                            quantity=10, entry_price=1000.0, current_price=1050.0)
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
-             patch(COSTS_PATCH, return_value={"total_costs": 5.0}):
+             patch(COSTS_PATCH, return_value={"total_costs": 5.0}), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
 
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",
@@ -375,7 +387,8 @@ class TestCloseAllBotPositions:
                        quantity=100, entry_price=2500.0, current_price=2550.0)
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
-             patch(COSTS_PATCH, return_value={"total_costs": 10.0}):
+             patch(COSTS_PATCH, return_value={"total_costs": 10.0}), \
+             patch(MARKET_PRICE_PATCH, return_value=None):
 
             resp = client.post(
                 f"/api/bots/{bot.uuid}/close-all",

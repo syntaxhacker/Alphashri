@@ -17,8 +17,8 @@ class SymbolValidator:
     """Validates and maps symbols for Upstox API compatibility"""
 
     def __init__(self, instrument_file_name="nse_instruments.json"):
-        # Construct path relative to the current file's directory
-        self.instrument_file = Path(__file__).parent / instrument_file_name
+        # Canonical location is config_and_utils/
+        self.instrument_file = Path(__file__).parent.parent / "config_and_utils" / instrument_file_name
         self.valid_symbols = set()
         self.symbol_mapping = {}
         self.blacklist = set()

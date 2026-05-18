@@ -63,7 +63,6 @@ class TestChartEndpoint:
         mock_api = MagicMock()
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
-             patch("api.paper_trading._load_fresh_bot_snapshot", return_value=None), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
              patch("api.paper_trading.get_journal", return_value=mock_journal):
             response = client.get(
@@ -81,7 +80,6 @@ class TestChartEndpoint:
         mock_api = MagicMock()
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
-             patch("api.paper_trading._load_fresh_bot_snapshot", return_value=None), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
              patch("api.paper_trading.get_journal", return_value=mock_journal):
             response = client.get(
@@ -98,7 +96,6 @@ class TestChartEndpoint:
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         mock_api.fetch_historical_data_v3.return_value = sample_400day_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
-             patch("api.paper_trading._load_fresh_bot_snapshot", return_value=None), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
              patch("api.paper_trading.get_journal", return_value=mock_journal):
             response = client.get(
@@ -120,7 +117,6 @@ class TestChartEndpoint:
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         mock_api.fetch_historical_data_v3.side_effect = Exception("API error")
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
-             patch("api.paper_trading._load_fresh_bot_snapshot", return_value=None), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
              patch("api.paper_trading.get_journal", return_value=mock_journal):
             response = client.get(

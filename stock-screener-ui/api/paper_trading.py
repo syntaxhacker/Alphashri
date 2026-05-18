@@ -21,8 +21,6 @@ from api.paper.paper_api import (
     router,
     _paper_bot_process,
     _paper_bot_log_file,
-    _paper_bot_log_handle,
-    _paper_bot_snapshot_file,
     _paper_bot_pid_file,
     _write_runner_pid_file,
     _clear_runner_pid_file,
@@ -33,7 +31,6 @@ from api.paper.portfolio import get_portfolio, get_positions, update_prices
 from api.paper.orders import place_order, close_position, close_all_positions
 from api.paper.bot_control import (
     get_paper_bot_status,
-    get_paper_bot_snapshot,
     start_paper_bot,
     stop_paper_bot,
 )
@@ -63,7 +60,7 @@ from api.paper.requests import (
     UpdatePricesRequest,
     StrategyConfigUpdate,
 )
-from api.paper.paper_api import _get_user_id, _load_fresh_bot_snapshot, _get_symbol_trades_from_db
+from api.paper.paper_api import _get_user_id, _get_symbol_trades_from_db
 
 __all__ = [
     "router",
@@ -79,7 +76,6 @@ __all__ = [
     "close_position",
     "close_all_positions",
     "get_paper_bot_status",
-    "get_paper_bot_snapshot",
     "start_paper_bot",
     "stop_paper_bot",
     "get_trades",
@@ -104,13 +100,10 @@ __all__ = [
     "get_journal",
     "_paper_bot_process",
     "_paper_bot_log_file",
-    "_paper_bot_log_handle",
-    "_paper_bot_snapshot_file",
     "_paper_bot_pid_file",
     "_write_runner_pid_file",
     "_clear_runner_pid_file",
     "_is_pid_alive",
     "_read_runner_pid_file",
-    "_load_fresh_bot_snapshot",
     "_get_symbol_trades_from_db",
 ]

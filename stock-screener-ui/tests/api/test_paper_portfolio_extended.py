@@ -69,11 +69,9 @@ def mock_paper_trader():
             "total_value": trader.cash + trader.margin_used,
             "unrealized_pnl": 0.0,
             "daily_pnl": trader.daily_pnl,
-            "realized_pnl_today": 0.0,
             "total_pnl": 0.0,
             "daily_pnl_pct": 0.0,
             "total_pnl_pct": 0.0,
-            "daily_trades": trader.daily_trades,
             "positions": len(trader.positions),
             "open_positions": len(trader.positions),
         }
@@ -237,15 +235,23 @@ def _make_position(symbol, entry_price, quantity, stop_loss, take_profit,
 class TestBotSnapshotOverlay:
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_portfolio_snapshot_overlay_recomputes_values(
-        self, mock_snapshot, mock_session_local, client, mock_paper_trader
+        self, mock_session_local, client, mock_paper_trader
     ):
-        snap_positions = [
-            _make_snap_position("RELIANCE", 2500.0, 100, 2600.0, 10000.0),
-            _make_snap_position("TCS", 3500.0, 50, 3400.0, -5000.0),
-        ]
-        mock_snapshot.return_value = _make_snapshot(snap_positions)
+        mock_paper_trader.get_portfolio_status = lambda: {
+            "initial_capital": 1000000.0,
+            "cash": 575000.0,
+            "margin_used": 425000.0,
+            "position_value": 430000.0,
+            "unrealized_pnl": 5000.0,
+            "total_value": 1005000.0,
+            "total_pnl": 5000.0,
+            "daily_pnl": 5000.0,
+            "daily_pnl_pct": 0.5,
+            "total_pnl_pct": 0.5,
+            "positions": 2,
+            "open_positions": 2,
+        }
 
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -265,14 +271,23 @@ class TestBotSnapshotOverlay:
         assert data["open_positions"] == 2
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_portfolio_snapshot_overlay_rounds_values(
-        self, mock_snapshot, mock_session_local, client
+        self, mock_session_local, client, mock_paper_trader
     ):
-        snap_positions = [
-            _make_snap_position("INFY", 1456.789, 10, 1500.123, 433.34),
-        ]
-        mock_snapshot.return_value = _make_snapshot(snap_positions)
+        mock_paper_trader.get_portfolio_status = lambda: {
+            "initial_capital": 1000000.0,
+            "cash": 985432.11,
+            "margin_used": 14567.89,
+            "position_value": 15001.23,
+            "unrealized_pnl": 433.34,
+            "total_value": 1000433.34,
+            "total_pnl": 433.34,
+            "daily_pnl": 433.34,
+            "daily_pnl_pct": 0.04,
+            "total_pnl_pct": 0.04,
+            "positions": 1,
+            "open_positions": 1,
+        }
 
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -282,22 +297,28 @@ class TestBotSnapshotOverlay:
         data = response.json()
 
         for key in ("cash", "margin_used", "position_value", "unrealized_pnl",
-                     "total_value", "total_pnl", "total_pnl_pct", "daily_pnl_pct"):
+                     "total_value", "total_pnl", "daily_pnl_pct", "total_pnl_pct"):
             val = data.get(key, 0)
             assert round(val, 2) == val, f"{key} not rounded: {val}"
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_portfolio_snapshot_uses_open_positions_data_key(
-        self, mock_snapshot, mock_session_local, client
+        self, mock_session_local, client, mock_paper_trader
     ):
-        snap = {
-            "open_positions_data": [
-                _make_snap_position("WIPRO", 400.0, 200, 420.0, 4000.0),
-            ],
-            "timestamp": datetime.now().isoformat(),
+        mock_paper_trader.get_portfolio_status = lambda: {
+            "initial_capital": 1000000.0,
+            "cash": 920000.0,
+            "margin_used": 80000.0,
+            "position_value": 84000.0,
+            "unrealized_pnl": 4000.0,
+            "total_value": 1004000.0,
+            "total_pnl": 4000.0,
+            "daily_pnl": 4000.0,
+            "daily_pnl_pct": 0.4,
+            "total_pnl_pct": 0.4,
+            "positions": 1,
+            "open_positions": 1,
         }
-        mock_snapshot.return_value = snap
 
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -311,14 +332,23 @@ class TestBotSnapshotOverlay:
         assert data["positions"] == 1
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_snapshot_overlay_updates_daily_pnl_with_realized(
-        self, mock_snapshot, mock_session_local, client
+        self, mock_session_local, client, mock_paper_trader
     ):
-        snap_positions = [
-            _make_snap_position("TCS", 3500.0, 10, 3600.0, 1000.0),
-        ]
-        mock_snapshot.return_value = _make_snapshot(snap_positions)
+        mock_paper_trader.get_portfolio_status = lambda: {
+            "initial_capital": 1000000.0,
+            "cash": 965000.0,
+            "margin_used": 35000.0,
+            "position_value": 36000.0,
+            "unrealized_pnl": 1000.0,
+            "total_value": 1001000.0,
+            "total_pnl": 1000.0,
+            "daily_pnl": 3000.0,
+            "daily_pnl_pct": 0.3,
+            "total_pnl_pct": 0.1,
+            "positions": 1,
+            "open_positions": 1,
+        }
 
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -340,7 +370,6 @@ class TestBotSnapshotOverlay:
             response = client.get("/api/paper/portfolio")
             data = response.json()
 
-            # daily_pnl = unrealized(1000) + realized(2000) = 3000
             assert data["daily_pnl"] == 3000.0
 
 
@@ -352,13 +381,11 @@ class TestBotSnapshotOverlay:
 class TestStaleSnapshotFallback:
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_stale_snapshot_falls_back_to_in_memory(
-        self, mock_snapshot, mock_session_local, client, mock_paper_trader
+        self, mock_session_local, client, mock_paper_trader
     ):
         mock_paper_trader.cash = 900000.0
         mock_paper_trader.margin_used = 100000.0
-        mock_snapshot.return_value = None
 
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -371,13 +398,11 @@ class TestStaleSnapshotFallback:
         assert data["margin_used"] == 100000.0
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_no_snapshot_uses_in_memory_portfolio(
-        self, mock_snapshot, mock_session_local, client, mock_paper_trader
+        self, mock_session_local, client, mock_paper_trader
     ):
         mock_paper_trader.cash = 750000.0
         mock_paper_trader.margin_used = 250000.0
-        mock_snapshot.return_value = None
 
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -399,12 +424,10 @@ class TestStaleSnapshotFallback:
 class TestDailyLossLimitExceeded:
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_daily_loss_limit_exceeded_true(
-        self, mock_snapshot, mock_session_local, client, mock_paper_trader
+        self, mock_session_local, client, mock_paper_trader
     ):
         mock_paper_trader.daily_pnl = -40000.0
-        mock_snapshot.return_value = None
 
         mock_bot_cfg = MagicMock()
         mock_bot_cfg.max_daily_loss_pct = 0.03
@@ -419,12 +442,10 @@ class TestDailyLossLimitExceeded:
         assert data["max_daily_loss_pct"] == 0.03
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_daily_loss_limit_not_exceeded_small_loss(
-        self, mock_snapshot, mock_session_local, client, mock_paper_trader
+        self, mock_session_local, client, mock_paper_trader
     ):
         mock_paper_trader.daily_pnl = -10000.0
-        mock_snapshot.return_value = None
 
         mock_bot_cfg = MagicMock()
         mock_bot_cfg.max_daily_loss_pct = 0.03
@@ -438,12 +459,10 @@ class TestDailyLossLimitExceeded:
         assert data["daily_loss_limit_exceeded"] is False
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_daily_loss_limit_not_exceeded_positive_pnl(
-        self, mock_snapshot, mock_session_local, client, mock_paper_trader
+        self, mock_session_local, client, mock_paper_trader
     ):
         mock_paper_trader.daily_pnl = 50000.0
-        mock_snapshot.return_value = None
 
         mock_bot_cfg = MagicMock()
         mock_bot_cfg.max_daily_loss_pct = 0.03
@@ -457,12 +476,10 @@ class TestDailyLossLimitExceeded:
         assert data["daily_loss_limit_exceeded"] is False
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_daily_loss_limit_exceeded_boundary(
-        self, mock_snapshot, mock_session_local, client, mock_paper_trader
+        self, mock_session_local, client, mock_paper_trader
     ):
         mock_paper_trader.daily_pnl = -30000.0
-        mock_snapshot.return_value = None
 
         mock_bot_cfg = MagicMock()
         mock_bot_cfg.max_daily_loss_pct = 0.03
@@ -484,12 +501,9 @@ class TestDailyLossLimitExceeded:
 class TestMaxDailyLossPctFallback:
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_db_query_exception_defaults_to_003(
-        self, mock_snapshot, mock_session_local, client
+        self, mock_session_local, client
     ):
-        mock_snapshot.return_value = None
-
         mock_db = MagicMock()
         mock_db.query.side_effect = Exception("DB connection failed")
         mock_session_local.return_value = mock_db
@@ -500,12 +514,9 @@ class TestMaxDailyLossPctFallback:
         assert data["max_daily_loss_pct"] == 0.03
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_no_bot_config_defaults_to_003(
-        self, mock_snapshot, mock_session_local, client
+        self, mock_session_local, client
     ):
-        mock_snapshot.return_value = None
-
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
         mock_session_local.return_value = mock_db
@@ -524,21 +535,13 @@ class TestMaxDailyLossPctFallback:
 class TestRealizedPnlToday:
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     @patch("api.paper.portfolio.TradeJournal")
     def test_realized_pnl_from_journal(
-        self, mock_journal_cls, mock_snapshot, mock_session_local,
+        self, mock_journal_cls, mock_session_local,
         client, tmp_path
     ):
-        # Journal data flows into portfolio via snapshot overlay's status.update()
-        # Without snapshot, get_portfolio_status() already has realized_pnl_today=0
-        # and the fallback "if not in status" check prevents overwrite.
-        # So we need a snapshot for journal data to take effect.
-        snap_positions = [
-            _make_snap_position("TCS", 3500.0, 10, 3600.0, 1000.0),
-        ]
-        mock_snapshot.return_value = _make_snapshot(snap_positions)
-
+        # Without snapshot overlay, realized_pnl_today and daily_trades flow
+        # from journal only when not already present in the status dict.
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
         mock_session_local.return_value = mock_db
@@ -566,13 +569,9 @@ class TestRealizedPnlToday:
         assert data["daily_trades"] == 2
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_realized_pnl_no_snapshot_uses_status_default(
-        self, mock_snapshot, mock_session_local, client, tmp_path
+        self, mock_session_local, client, tmp_path
     ):
-        """Without snapshot, realized_pnl_today comes from get_portfolio_status() (0.0)."""
-        mock_snapshot.return_value = None
-
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
         mock_session_local.return_value = mock_db
@@ -587,12 +586,10 @@ class TestRealizedPnlToday:
         assert data["daily_trades"] == 0
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_no_journal_file_realized_pnl_zero(
-        self, mock_snapshot, mock_session_local,
+        self, mock_session_local,
         client, tmp_path
     ):
-        mock_snapshot.return_value = None
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
         mock_session_local.return_value = mock_db
@@ -607,13 +604,11 @@ class TestRealizedPnlToday:
         assert data["daily_trades"] == 0
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     @patch("api.paper.portfolio.TradeJournal")
     def test_journal_load_exception_handled(
-        self, mock_journal_cls, mock_snapshot, mock_session_local,
+        self, mock_journal_cls, mock_session_local,
         client, tmp_path
     ):
-        mock_snapshot.return_value = None
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
         mock_session_local.return_value = mock_db
@@ -644,17 +639,11 @@ class TestRealizedPnlToday:
 class TestDailyTradesCount:
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     @patch("api.paper.portfolio.TradeJournal")
     def test_daily_trades_from_snapshot_overlay(
-        self, mock_journal_cls, mock_snapshot, mock_session_local,
+        self, mock_journal_cls, mock_session_local,
         client, tmp_path
     ):
-        snap_positions = [
-            _make_snap_position("TCS", 3500.0, 10, 3600.0, 1000.0),
-        ]
-        mock_snapshot.return_value = _make_snapshot(snap_positions)
-
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
         mock_session_local.return_value = mock_db
@@ -682,12 +671,10 @@ class TestDailyTradesCount:
         assert data["daily_trades"] == 3
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_daily_trades_zero_when_no_journal(
-        self, mock_snapshot, mock_session_local,
+        self, mock_session_local,
         client, tmp_path
     ):
-        mock_snapshot.return_value = None
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
         mock_session_local.return_value = mock_db
@@ -708,19 +695,16 @@ class TestDailyTradesCount:
 @pytest.mark.unit
 class TestGetPositionsSnapshot:
 
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_positions_snapshot_override(
-        self, mock_snapshot, client, mock_paper_trader
+        self, client, mock_paper_trader
     ):
-        mock_paper_trader.positions["INFY"] = _make_position(
-            "INFY", 1500.0, 50, 1470.0, 1560.0, current_price=1520.0
+        mock_paper_trader.positions.clear()
+        mock_paper_trader.positions["RELIANCE"] = _make_position(
+            "RELIANCE", 2500.0, 100, 2475.0, 2575.0, current_price=2600.0
         )
-
-        snap_positions = [
-            _make_snap_position("RELIANCE", 2500.0, 100, 2600.0, 10000.0),
-            _make_snap_position("TCS", 3500.0, 50, 3400.0, -5000.0),
-        ]
-        mock_snapshot.return_value = _make_snapshot(snap_positions)
+        mock_paper_trader.positions["TCS"] = _make_position(
+            "TCS", 3500.0, 50, 3430.0, 3640.0, current_price=3400.0
+        )
 
         response = client.get("/api/paper/positions")
         data = response.json()
@@ -731,17 +715,13 @@ class TestGetPositionsSnapshot:
         assert "TCS" in symbols
         assert "INFY" not in symbols
 
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_positions_uses_open_positions_data_key(
-        self, mock_snapshot, client
+        self, client, mock_paper_trader
     ):
-        snap = {
-            "open_positions_data": [
-                _make_snap_position("WIPRO", 400.0, 200, 420.0, 4000.0),
-            ],
-            "timestamp": datetime.now().isoformat(),
-        }
-        mock_snapshot.return_value = snap
+        mock_paper_trader.positions.clear()
+        mock_paper_trader.positions["WIPRO"] = _make_position(
+            "WIPRO", 400.0, 200, 390.0, 440.0, current_price=420.0
+        )
 
         response = client.get("/api/paper/positions")
         data = response.json()
@@ -757,15 +737,12 @@ class TestGetPositionsSnapshot:
 @pytest.mark.unit
 class TestGetPositionsEmptySnapshot:
 
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_empty_snapshot_positions_falls_back(
-        self, mock_snapshot, client, mock_paper_trader
+        self, client, mock_paper_trader
     ):
         mock_paper_trader.positions["RELIANCE"] = _make_position(
             "RELIANCE", 2500.0, 100, 2475.0, 2575.0, current_price=2520.0
         )
-
-        mock_snapshot.return_value = _make_snapshot([])
 
         response = client.get("/api/paper/positions")
         data = response.json()
@@ -773,14 +750,12 @@ class TestGetPositionsEmptySnapshot:
         assert data["count"] == 1
         assert data["positions"][0]["symbol"] == "RELIANCE"
 
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_no_snapshot_uses_in_memory_positions(
-        self, mock_snapshot, client, mock_paper_trader
+        self, client, mock_paper_trader
     ):
         mock_paper_trader.positions["TCS"] = _make_position(
             "TCS", 3500.0, 50, 3430.0, 3640.0, current_price=3550.0
         )
-        mock_snapshot.return_value = None
 
         response = client.get("/api/paper/positions")
         data = response.json()
@@ -788,21 +763,16 @@ class TestGetPositionsEmptySnapshot:
         assert data["count"] == 1
         assert data["positions"][0]["symbol"] == "TCS"
 
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_snapshot_with_none_positions_falls_back(
-        self, mock_snapshot, client, mock_paper_trader
+        self, client, mock_paper_trader
     ):
         mock_paper_trader.positions["INFY"] = _make_position(
             "INFY", 1500.0, 100, 1470.0, 1560.0
         )
 
-        # Snapshot has positions=None
-        mock_snapshot.return_value = {"positions": None, "timestamp": datetime.now().isoformat()}
-
         response = client.get("/api/paper/positions")
         data = response.json()
 
-        # Empty list from None → len is 0 → falls back to in-memory
         assert data["count"] == 1
         assert data["positions"][0]["symbol"] == "INFY"
 
@@ -972,9 +942,8 @@ class TestUpdatePricesTradesClosed:
 class TestDivisionByZeroGuard:
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_zero_initial_capital_no_crash(
-        self, mock_snapshot, mock_session_local, client, mock_paper_trader
+        self, mock_session_local, client, mock_paper_trader
     ):
         mock_paper_trader.initial_capital = 0
         mock_paper_trader.cash = 0
@@ -985,15 +954,12 @@ class TestDivisionByZeroGuard:
             "total_value": 0,
             "unrealized_pnl": 0.0,
             "daily_pnl": 0.0,
-            "realized_pnl_today": 0.0,
             "total_pnl": 0.0,
             "daily_pnl_pct": 0.0,
             "total_pnl_pct": 0.0,
-            "daily_trades": 0,
             "positions": 0,
             "open_positions": 0,
         }
-        mock_snapshot.return_value = None
 
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -1008,9 +974,8 @@ class TestDivisionByZeroGuard:
         assert data["daily_loss_limit_exceeded"] is False
 
     @patch("db.database.SessionLocal")
-    @patch("api.paper.portfolio._load_fresh_bot_snapshot")
     def test_zero_initial_capital_with_snapshot_no_crash(
-        self, mock_snapshot, mock_session_local, client, mock_paper_trader
+        self, mock_session_local, client, mock_paper_trader
     ):
         mock_paper_trader.initial_capital = 0
         mock_paper_trader.get_portfolio_status = lambda: {
@@ -1020,19 +985,12 @@ class TestDivisionByZeroGuard:
             "total_value": 0,
             "unrealized_pnl": 0.0,
             "daily_pnl": 0.0,
-            "realized_pnl_today": 0.0,
             "total_pnl": 0.0,
             "daily_pnl_pct": 0.0,
             "total_pnl_pct": 0.0,
-            "daily_trades": 0,
             "positions": 0,
             "open_positions": 0,
         }
-
-        snap_positions = [
-            _make_snap_position("TCS", 3500.0, 10, 3600.0, 1000.0),
-        ]
-        mock_snapshot.return_value = _make_snapshot(snap_positions)
 
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
