@@ -507,7 +507,7 @@ describe("PositionsHelpers", () => {
     });
 
     it("has correct th styles", () => {
-      expect(tableStyles.th.fontSize).toBe("11px");
+      expect(tableStyles.th.fontSize).toBe("10px");
       expect(tableStyles.th.fontWeight).toBe(600);
       expect(tableStyles.th.textTransform).toBe("uppercase");
     });

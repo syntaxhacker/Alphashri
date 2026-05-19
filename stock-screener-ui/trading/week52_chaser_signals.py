@@ -56,6 +56,14 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
         sl = current_price * (1 - self.sl_pct / 100)
         tp = current_price * (1 + self.tp_pct / 100)
 
+        vol = market_data.get("volume", 0) or 0
+        avg_vol = market_data.get("avg_volume_20d", 0) or 0
+        vol_ratio = round(vol / avg_vol, 2) if avg_vol > 0 else 0
+        ma50 = market_data.get("ma50", 0) or 0
+        ma200 = market_data.get("ma200", 0) or 0
+        adx = float(market_data.get("adx", 0.0) or 0.0)
+        rsi = float(market_data.get("rsi", 0.0) or 0.0)
+
         return self.create_signal(
             symbol=symbol,
             signal_type=SignalType.LONG_ENTRY,
@@ -66,9 +74,9 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
             or_low=0.0,
             or_range=round(current_price - high_52w, 2),
             or_range_pct=round(pct_above, 2),
-            adx=float(market_data.get("adx", 0.0) or 0.0),
-            rsi=float(market_data.get("rsi", 0.0) or 0.0),
-            notes=f"Breakout above 52W high ₹{high_52w:.2f} (+{pct_above:.2f}%) | SL {self.sl_pct}% TP {self.tp_pct}% | ADX {float(market_data.get('adx', 0.0) or 0.0):.0f} RSI {float(market_data.get('rsi', 0.0) or 0.0):.0f}",
+            adx=adx,
+            rsi=rsi,
+            notes=f"Breakout above 52W high ₹{high_52w:.2f} (+{pct_above:.2f}%) | SL {self.sl_pct}% TP {self.tp_pct}% | ADX {adx:.0f} RSI {rsi:.0f} | filters={'on' if self.enable_filters else 'off'} thresh={self.entry_threshold_pct}% vol_ratio={vol_ratio} ma50={ma50:.0f} ma200={ma200:.0f}",
         )
 
     def check_exit(

@@ -410,6 +410,17 @@ async def get_bot_scan(
         scan_items = state['scan_items'] if state else []
         running = state is not None
 
+        # Filter out scan items that already have open positions
+        positions = state['positions'] if state and state.get('positions') else []
+        if not positions:
+            from db.models import Position as PositionModel
+            db_positions = db.query(PositionModel).filter(
+                PositionModel.bot_id == bot.id,
+            ).all()
+            positions = [p.to_dict() for p in db_positions]
+        position_keys = {(p.get('symbol', ''), p.get('strategy_id')) for p in positions}
+        scan_items = [s for s in scan_items if (s.get('symbol', ''), s.get('strategy_id')) not in position_keys]
+
         if strategy_id is not None:
             strat = get_strategy_by_uuid(strategy_id, db)
             scan_items = [s for s in scan_items if s.get('strategy_id') == strat.id]

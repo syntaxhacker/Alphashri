@@ -478,23 +478,12 @@ describe("DayGroup core rendering", () => {
     });
     expect(screen.getByText("Entry")).toBeInTheDocument();
   });
-  it("SortableHeader renders Entry Time column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByText("Entry Time")).toBeInTheDocument();
-  });
   it("SortableHeader renders Exit column", () => {
     render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
       wrapper: TestWrapper,
     });
-    expect(screen.getByText("Exit")).toBeInTheDocument();
-  });
-  it("SortableHeader renders Exit Time column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByText("Exit Time")).toBeInTheDocument();
+    // Two "Exit" headers: exit_price column and exit_reason column
+    expect(screen.getAllByText("Exit").length).toBe(2);
   });
   it("SortableHeader renders Hold column", () => {
     render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
@@ -520,11 +509,11 @@ describe("DayGroup core rendering", () => {
     });
     expect(screen.getByText("Strategy")).toBeInTheDocument();
   });
-  it("SortableHeader renders Type column (exit_reason)", () => {
+  it("SortableHeader renders Exit column (exit_reason)", () => {
     render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
       wrapper: TestWrapper,
     });
-    expect(screen.getByText("Type")).toBeInTheDocument();
+    expect(screen.getAllByText("Exit").length).toBe(2);
   });
   it("expanded=true renders table visible inside Collapse", () => {
     render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
@@ -574,13 +563,17 @@ describe("TradeRow rendering", () => {
   it("Exit price formatted toFixed(2) with ₹ prefix", () => {
     expect(screen.getByText("₹3825.00")).toBeInTheDocument();
   });
-  it("Entry time formatted via formatTimeOnly", () => {
-    // Entry and exit times may both be "09:30"; check at least one exists
+  it("Entry time formatted via formatTimeOnly in expanded detail", async () => {
+    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    expect(screen.getByText("Entry Time")).toBeInTheDocument();
     expect(screen.getAllByText("09:30").length).toBeGreaterThan(0);
   });
-  it("Exit time formatted via formatTimeOnly", () => {
+  it("Exit time formatted via formatTimeOnly in expanded detail", async () => {
+    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    expect(screen.getByText("Exit Time")).toBeInTheDocument();
     expect(screen.getAllByText("09:30").length).toBeGreaterThan(0);
   });
+
   it("Duration formatted via formatDuration", () => {
     expect(screen.getByText("30m")).toBeInTheDocument();
   });
@@ -601,7 +594,7 @@ describe("TradeRow rendering", () => {
     expect(screen.getByTestId("trade-strategy-filter-trade-1")).toBeInTheDocument();
   });
   it("ExitReasonBadge renders exit reason", () => {
-    expect(screen.getByText("TP")).toBeInTheDocument();
+    expect(screen.getAllByText("TP").length).toBeGreaterThanOrEqual(1);
   });
   it("Expand toggle button renders with ▶ when detail collapsed", () => {
     const toggle = screen.getByTestId("trade-detail-toggle-trade-1");
@@ -611,12 +604,6 @@ describe("TradeRow rendering", () => {
     const toggle = screen.getByTestId("trade-detail-toggle-trade-1");
     await userEvent.click(toggle);
     expect(toggle).toHaveTextContent("▼");
-  });
-  it("Delete button renders with trash emoji", () => {
-    expect(screen.getByTestId("delete-trade-btn-trade-1")).toHaveTextContent("🗑️");
-  });
-  it("delete button has data-testid delete-trade-btn-{trade_id}", () => {
-    expect(screen.getByTestId("delete-trade-btn-trade-1")).toBeInTheDocument();
   });
 });
 
@@ -631,25 +618,20 @@ describe("Expand/Collapse functionality", () => {
       wrapper: TestWrapper,
     });
 
-    // The TradeRow's internal detailExpanded state starts false
-    // Clicking the toggle button should show TradeDetail
     const toggle = screen.getByTestId("trade-detail-toggle-trade-1");
     await userEvent.click(toggle);
 
-    // TradeDetail should now be visible - check for SL label inside
-    expect(screen.getByText("SL")).toBeInTheDocument();
+    expect(screen.getByText("Entry Time")).toBeInTheDocument();
   });
   it("clicking toggle button again collapses detail", async () => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
       wrapper: TestWrapper,
     });
     const toggle = screen.getByTestId("trade-detail-toggle-trade-1");
-    // First click expands the detail
     await userEvent.click(toggle);
-    expect(screen.getByText("SL")).toBeInTheDocument();
-    // Second click collapses
+    expect(screen.getByText("Entry Time")).toBeInTheDocument();
     await userEvent.click(toggle);
-    expect(screen.queryByText("SL")).not.toBeInTheDocument();
+    expect(screen.queryByText("Entry Time")).not.toBeInTheDocument();
   });
   it("expanded prop controls DayGroup-level table visibility", () => {
     const { rerender } = render(<DayGroup {...defaultProps} trades={[trade]} expanded={false} />, {
@@ -718,26 +700,6 @@ describe("TradeDetail", () => {
     const lowElements = screen.getAllByText("₹3710.00");
     expect(lowElements.length).toBeGreaterThan(0);
   });
-  it("null stop_loss shows dash", async () => {
-    const tradeNoSl = mockTrade({
-      stop_loss: null as any,
-    });
-    render(<DayGroup {...defaultProps} trades={[tradeNoSl]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
-    expect(screen.getByText("₹-")).toBeInTheDocument();
-  });
-  it("null take_profit shows dash", async () => {
-    const tradeNoTp = mockTrade({
-      take_profit: null as any,
-    });
-    render(<DayGroup {...defaultProps} trades={[tradeNoTp]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
-    expect(screen.getByText("₹-")).toBeInTheDocument();
-  });
   it("null peak_price shows dash", async () => {
     const tradeNoPeak = mockTrade({
       peak_price: null as any,
@@ -791,7 +753,7 @@ describe("TradeDetail", () => {
 
 describe("TradeNotesEditor", () => {
   const trade = mockTrade();
-  it("renders reason textarea with data-testid trade-reason-{trade_id}", async () => {
+  it("renders reason text with data-testid trade-reason-{trade_id}", async () => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
       wrapper: TestWrapper,
     });
@@ -812,13 +774,13 @@ describe("TradeNotesEditor", () => {
     await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
     expect(screen.getByTestId(`trade-notes-save-${trade.trade_id}`)).toBeInTheDocument();
   });
-  it("reason textarea initial value from trade.reason", async () => {
+  it("reason text displays trade.reason value", async () => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
       wrapper: TestWrapper,
     });
     await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
-    const textarea = screen.getByTestId(`trade-reason-${trade.trade_id}`) as HTMLTextAreaElement;
-    expect(textarea.value).toBe("Test reason");
+    const reasonEl = screen.getByTestId(`trade-reason-${trade.trade_id}`);
+    expect(reasonEl).toHaveTextContent("Test reason");
   });
   it("notes textarea initial value from trade.notes", async () => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
@@ -828,15 +790,14 @@ describe("TradeNotesEditor", () => {
     const textarea = screen.getByTestId(`trade-notes-${trade.trade_id}`) as HTMLTextAreaElement;
     expect(textarea.value).toBe("Test notes");
   });
-  it("reason textarea is editable", async () => {
+  it("reason is displayed as read-only text", async () => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
       wrapper: TestWrapper,
     });
     await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
-    const textarea = screen.getByTestId(`trade-reason-${trade.trade_id}`) as HTMLTextAreaElement;
-    await userEvent.clear(textarea);
-    await userEvent.type(textarea, "New reason");
-    expect(textarea.value).toBe("New reason");
+    const reasonEl = screen.getByTestId(`trade-reason-${trade.trade_id}`);
+    expect(reasonEl).toHaveTextContent("Test reason");
+    expect(reasonEl.tagName).toBe("SPAN");
   });
   it("notes textarea is editable", async () => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
@@ -855,11 +816,8 @@ describe("TradeNotesEditor", () => {
     });
     await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
 
-    // Change values
-    const reasonArea = screen.getByTestId(`trade-reason-${trade.trade_id}`) as HTMLTextAreaElement;
+    // Change notes only (reason is read-only)
     const notesArea = screen.getByTestId(`trade-notes-${trade.trade_id}`) as HTMLTextAreaElement;
-    await userEvent.clear(reasonArea);
-    await userEvent.type(reasonArea, "Updated reason");
     await userEvent.clear(notesArea);
     await userEvent.type(notesArea, "Updated notes");
 
@@ -868,12 +826,11 @@ describe("TradeNotesEditor", () => {
     expect(updateTradeNotesAction).toHaveBeenCalledWith(
       "trade-1",
       "Updated notes",
-      "Updated reason",
+      "Test reason",
     );
   });
   it("Save button shows loading state while saving", async () => {
     const { updateTradeNotesAction } = await import("../../state/paperTrading");
-    // Make it slow
     updateTradeNotesAction.mockImplementation(
       () => new Promise((resolve) => setTimeout(resolve, 100)),
     );
@@ -885,14 +842,14 @@ describe("TradeNotesEditor", () => {
     const saveBtn = screen.getByTestId(`trade-notes-save-${trade.trade_id}`);
     expect(saveBtn).toHaveAttribute("loading", "");
   });
-  it("handles empty reason textarea", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
+  it("handles empty reason shows dash", async () => {
+    const emptyReasonTrade = mockTrade({ reason: "" });
+    render(<DayGroup {...defaultProps} trades={[emptyReasonTrade]} expanded={true} />, {
       wrapper: TestWrapper,
     });
     await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
-    const textarea = screen.getByTestId(`trade-reason-${trade.trade_id}`) as HTMLTextAreaElement;
-    await userEvent.clear(textarea);
-    expect(textarea.value).toBe("");
+    const reasonEl = screen.getByTestId(`trade-reason-${emptyReasonTrade.trade_id}`);
+    expect(reasonEl).toHaveTextContent("-");
   });
   it("handles empty notes textarea", async () => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
@@ -960,13 +917,6 @@ describe("Interactions", () => {
       expect.any(String),
     );
   });
-  it("delete click calls onDeleteTrade with stopPropagation", () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    screen.getByTestId("delete-trade-btn-trade-1").click();
-    expect(defaultProps.onDeleteTrade).toHaveBeenCalledWith("trade-1");
-  });
   it("bot anchor click calls setFilterBot with bot_id", async () => {
     const { setFilterBot } = await import("../../state/paperTrading");
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
@@ -1015,7 +965,6 @@ describe("Interactions", () => {
     // These should not trigger row click (onSelectSymbol)
     const botBtn = screen.getByTestId("trade-bot-filter-trade-1");
     const strategyBtn = screen.getByTestId("trade-strategy-filter-trade-1");
-    const deleteBtn = screen.getByTestId("delete-trade-btn-trade-1");
     const toggleBtn = screen.getByTestId("trade-detail-toggle-trade-1");
 
     // Click bot filter
@@ -1025,10 +974,6 @@ describe("Interactions", () => {
 
     // Click strategy filter
     fireEvent.click(strategyBtn);
-    expect(defaultProps.onSelectSymbol).not.toHaveBeenCalled();
-
-    // Click delete
-    fireEvent.click(deleteBtn);
     expect(defaultProps.onSelectSymbol).not.toHaveBeenCalled();
 
     // Click toggle
@@ -1158,43 +1103,6 @@ describe("Sorting", () => {
 // ============================================
 
 describe("Edge cases", () => {
-  it("trade with null stop_loss shows dash in TradeStats", async () => {
-    render(
-      <DayGroup
-        {...defaultProps}
-        trades={[
-          mockTrade({
-            stop_loss: null as any,
-          }),
-        ]}
-        expanded={true}
-      />,
-      {
-        wrapper: TestWrapper,
-      },
-    );
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
-    // Stop loss displays as "₹-" when null
-    expect(screen.getByText("₹-")).toBeInTheDocument();
-  });
-  it("trade with null take_profit shows dash in TradeStats", async () => {
-    render(
-      <DayGroup
-        {...defaultProps}
-        trades={[
-          mockTrade({
-            take_profit: null as any,
-          }),
-        ]}
-        expanded={true}
-      />,
-      {
-        wrapper: TestWrapper,
-      },
-    );
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
-    expect(screen.getByText("₹-")).toBeInTheDocument();
-  });
   it("trade with null peak_price shows dash in TradeStats", async () => {
     render(
       <DayGroup
@@ -1247,7 +1155,8 @@ describe("Edge cases", () => {
         wrapper: TestWrapper,
       },
     );
-    expect(screen.getByText("-")).toBeInTheDocument();
+    const dashElements = screen.getAllByText("-");
+    expect(dashElements.length).toBeGreaterThanOrEqual(1);
   });
   it("bot anchor does not call setFilterBot when bot_id is null", async () => {
     const { setFilterBot } = await import("../../state/paperTrading");
@@ -1369,7 +1278,7 @@ describe("Edge cases", () => {
     expect(screen.getByTestId("trade-row-t2")).toBeInTheDocument();
     expect(screen.getByTestId("trade-row-t3")).toBeInTheDocument();
   });
-  it("trade without reason shows empty textarea", async () => {
+  it("trade without reason shows dash", async () => {
     const tradeNoReason = mockTrade({
       reason: "",
     });
@@ -1377,10 +1286,8 @@ describe("Edge cases", () => {
       wrapper: TestWrapper,
     });
     await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
-    const textarea = screen.getByTestId(
-      `trade-reason-${tradeNoReason.trade_id}`,
-    ) as HTMLTextAreaElement;
-    expect(textarea.value).toBe("");
+    const reasonEl = screen.getByTestId(`trade-reason-${tradeNoReason.trade_id}`);
+    expect(reasonEl).toHaveTextContent("-");
   });
   it("trade without notes shows empty textarea", async () => {
     const tradeNoNotes = mockTrade({

@@ -236,12 +236,13 @@ describe("PaperPositionsTable", () => {
   });
 
   describe("Single position display", () => {
-    test("renders single position with symbol, entry/exit prices, P&L", () => {
+    test("renders single position with symbol, merged entry/curr, P&L %", () => {
       rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
       expect(screen.getByText("RELIANCE")).toBeTruthy();
-      expect(screen.getByText("₹2500.00")).toBeTruthy();
-      expect(screen.getByText("₹2550.00")).toBeTruthy();
-      expect(screen.getByText(/₹5\.0K/)).toBeTruthy();
+      expect(screen.getByText((c) => c.includes("10") && c.includes("₹2500"))).toBeTruthy();
+      const row = screen.getByTestId("position-row-RELIANCE");
+      expect(row.textContent).toContain("+₹5.0K");
+      expect(row.textContent).toContain("+2.00%");
     });
 
     test("renders close button for each position row", () => {
@@ -257,38 +258,43 @@ describe("PaperPositionsTable", () => {
     });
   });
 
-  describe("BUY and SELL badges", () => {
-    test("shows BUY badge for BUY side", () => {
+  describe("Side indicator", () => {
+    test("BUY side shows symbol name", () => {
       rWithPosition();
-      const badge = screen.getByTestId("side-badge-RELIANCE");
-      expect(badge).toBeTruthy();
-      expect(badge.textContent).toContain("BUY");
+      expect(screen.getByText("RELIANCE")).toBeTruthy();
     });
 
-    test("shows SELL badge for SELL side", () => {
+    test("SELL side shows symbol name", () => {
       rWithPosition({ side: "SELL", pnl: -500, pnl_pct: -1.0 });
-      const badge = screen.getByTestId("side-badge-RELIANCE");
-      expect(badge).toBeTruthy();
-      expect(badge.textContent).toContain("SELL");
+      expect(screen.getByText("RELIANCE")).toBeTruthy();
     });
   });
 
   describe("P&L text color", () => {
-    test("positive P&L rendered", () => {
+    test("positive P&L with ₹ amount and percentage", () => {
       rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
       const row = screen.getByTestId("position-row-RELIANCE");
-      expect(row.textContent).toMatch(/₹5\.0K/);
+      expect(row.textContent).toContain("+₹5.0K");
+      expect(row.textContent).toContain("+2.00%");
     });
 
-    test("negative P&L rendered", () => {
+    test("positive P&L with ₹ amount and percentage", () => {
+      rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
+      const row = screen.getByTestId("position-row-RELIANCE");
+      expect(row.textContent).toContain("+₹5.0K");
+      expect(row.textContent).toContain("+2.00%");
+    });
+
+    test("negative P&L with ₹ amount and percentage", () => {
       rWithPosition({ pnl: -500, pnl_pct: -0.2 });
       const row = screen.getByTestId("position-row-RELIANCE");
-      expect(row.textContent).toMatch(/₹-500/);
+      expect(row.textContent).toContain("₹-500");
+      expect(row.textContent).toContain("-0.20%");
     });
   });
 
-  describe("Multiple positions grouped by strategy (isMultiStrategy)", () => {
-    test("renders positions without strategy tabs when single strategy", () => {
+  describe("Multiple positions grouped by strategy", () => {
+    test("renders positions in strategy panel", () => {
       rWithTwoPositions(
         { strategy_id: 1, strategy_name: "ORB Strategy" },
         {
@@ -299,46 +305,27 @@ describe("PaperPositionsTable", () => {
           order_id: "ord-2",
         },
       );
-      expect(screen.getByText("RELIANCE")).toBeTruthy();
-      expect(screen.getByText("TCS")).toBeTruthy();
-      expect(screen.queryByTestId("strategy-tabs")).toBeFalsy();
+      expect(screen.getByText((c) => c.includes("RELIANCE"))).toBeTruthy();
+      expect(screen.getByText((c) => c.includes("TCS"))).toBeTruthy();
+      expect(screen.getByTestId("strategy-panel-1")).toBeTruthy();
     });
 
-    test("renders strategy tabs when multiple strategies", () => {
+    test("renders separate panels for different strategies", () => {
       rWithTwoPositions(
         { strategy_id: 1, strategy_name: "ORB Strategy" },
         { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout" },
       );
-      expect(screen.getByTestId("strategy-tabs")).toBeTruthy();
-      expect(screen.getByTestId("strategy-tab-all")).toBeTruthy();
+      expect(screen.getByTestId("strategy-panel-1")).toBeTruthy();
+      expect(screen.getByTestId("strategy-panel-2")).toBeTruthy();
     });
 
-    test("strategy tab shows count and P&L", () => {
+    test("strategy panel shows count and P&L", () => {
       rWithTwoPositions(
         { strategy_id: 1, strategy_name: "ORB Strategy", pnl: 5000 },
         { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout", pnl: 3000 },
       );
-      const allTab = screen.getByTestId("strategy-tab-all");
-      expect(within(allTab).getByText("2")).toBeTruthy();
-      expect(within(allTab).getByText(/₹8\.0K/)).toBeTruthy();
-    });
-
-    test("clicking strategy tab filters positions", async () => {
-      rWithTwoPositions(
-        { strategy_id: 1, strategy_name: "ORB Strategy" },
-        { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout" },
-        { selectedStrategyTab: "1" },
-      );
-      expect(screen.getByText("RELIANCE")).toBeTruthy();
-      expect(screen.queryByText("INFY")).toBeFalsy();
-    });
-
-    test("strategy summary footer visible with multi-strategy all tab", () => {
-      rWithTwoPositions(
-        { strategy_id: 1, strategy_name: "ORB Strategy", pnl: 5000 },
-        { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout", pnl: 3000 },
-      );
-      expect(screen.getByTestId("strategy-summary-footer")).toBeTruthy();
+      expect(screen.getByText("ORB Strategy")).toBeTruthy();
+      expect(screen.getByText("SR Breakout")).toBeTruthy();
     });
   });
 
@@ -353,7 +340,7 @@ describe("PaperPositionsTable", () => {
       r(<PaperPositionsTable />);
 
       expect(screen.getByTestId("close-all-positions")).toBeTruthy();
-      expect(screen.getByText("Close All")).toBeTruthy();
+      expect(screen.getAllByText("Close All").length).toBeGreaterThanOrEqual(1);
     });
 
     test("CloseAll button NOT rendered when no positions", () => {
@@ -470,28 +457,6 @@ describe("PaperPositionsTable", () => {
     test("positions table has data-testid from DataTable", () => {
       rWithPosition();
       expect(screen.getByTestId("positions-table")).toBeInTheDocument();
-    });
-
-    test("strategy summary table has data-testid when multi-strategy", () => {
-      rWithTwoPositions(
-        { strategy_id: 1, strategy_name: "ORB Strategy", pnl: 5000 },
-        { symbol: "INFY", strategy_id: 2, strategy_name: "SR Breakout", pnl: 3000 },
-      );
-      expect(screen.getByTestId("strategy-summary-table")).toBeInTheDocument();
-    });
-  });
-
-  describe("Strategy tabs with various strategy names", () => {
-    test("tabs normalize strategy name for testid", async () => {
-      const user = userEvent.setup();
-      rWithTwoPositions(
-        { strategy_id: 1, strategy_name: "ORB Conservative" },
-        { symbol: "TCS", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout" },
-      );
-      expect(screen.getByTestId("strategy-tab-orb-conservative")).toBeTruthy();
-      expect(screen.getByTestId("strategy-tab-sr-breakout")).toBeTruthy();
-      await user.click(screen.getByTestId("strategy-tab-sr-breakout"));
-      expect(screen.getByText("TCS")).toBeTruthy();
     });
   });
 

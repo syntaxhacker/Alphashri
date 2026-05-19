@@ -1,61 +1,25 @@
 import { useMemo, useState } from "react";
-import { Tabs, Badge, Text, Group, Flex, ScrollArea, Button, Tooltip } from "@mantine/core";
+import { Badge, Text, Group, Flex, ScrollArea, Button, Tooltip, Collapse } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
-import { getPaperTradingState, setSelectedStrategyTab, subscribe } from "../../state/paperTrading";
+import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { closeAllPositions, refreshBotLiveData } from "../../api/paperTrading";
-import {
-  PositionsTableBody,
-  StrategySummaryFooter,
-  groupPositionsByStrategy,
-  calcStrategySummary,
-} from "./PositionsHelpers";
+import { CompactPanel } from "../common/compact";
+import { PositionsTableBody, groupPositionsByStrategy, calcStrategySummary } from "./PositionsHelpers";
 import { WatchlistScan } from "./WatchlistScan";
 
-interface UsePositionsDerivedDataReturn {
-  sortedPositions: PaperPosition[];
-  strategyGroups: Map<number, PaperPosition[]>;
-  isMultiStrategy: boolean;
-  activeTab: string;
-  filteredPositions: PaperPosition[];
-}
-
-function usePositionsDerivedData(): UsePositionsDerivedDataReturn {
+function usePositionsData(): PaperPosition[] {
   useStoreSubscription(subscribe);
-
   const state = getPaperTradingState();
-  const { positions, selectedStrategyTab } = state;
-
-  const sortedPositions = useMemo(
+  return useMemo(
     () =>
-      [...positions].sort(
+      [...state.positions].sort(
         (a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime(),
       ),
-    [positions],
+    [state.positions],
   );
-
-  const strategyGroups = useMemo(
-    () => groupPositionsByStrategy(sortedPositions),
-    [sortedPositions],
-  );
-
-  const isMultiStrategy = useMemo(() => strategyGroups.size > 1, [strategyGroups]);
-
-  const activeTab = useMemo(() => selectedStrategyTab || "all", [selectedStrategyTab]);
-
-  const filteredPositions = useMemo(
-    () =>
-      activeTab === "all"
-        ? sortedPositions
-        : (strategyGroups.get(Number(activeTab)) || []).sort(
-            (a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime(),
-          ),
-    [activeTab, sortedPositions, strategyGroups],
-  );
-
-  return { sortedPositions, strategyGroups, isMultiStrategy, activeTab, filteredPositions };
 }
 
 function EmptyPositions() {
@@ -109,116 +73,101 @@ function EmptyOrLoadingState() {
 
 function PositionsContent({
   positions,
-  selectedSymbol,
   strategyGroups,
-  isMultiStrategy,
-  activeTab,
-  filteredPositions,
+  selectedSymbol,
 }: {
   positions: PaperPosition[];
-  selectedSymbol: string | null;
   strategyGroups: Map<number, PaperPosition[]>;
-  isMultiStrategy: boolean;
-  activeTab: string;
-  filteredPositions: PaperPosition[];
+  selectedSymbol: string | null;
 }) {
   const state = getPaperTradingState();
   const selectedBot = state.availableBots.find(b => b.id === state.filterBot);
   const isLive = selectedBot?.live_trading ?? false;
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set(
+    Array.from(strategyGroups.keys()),
+  ));
+
+  const toggleGroup = (id: number) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
-    <Flex direction="column" flex={1} style={{ minHeight: 0 }}>
-      <Group
-        justify="space-between"
-        py={2}
-        className="paper-positions-header"
-        id="positions-header"
-      >
+    <Flex direction="column" flex={1} gap="xs" style={{ minHeight: 0 }}>
+      <Group justify="space-between" py={2}>
         <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
           Positions ({positions.length})
         </Text>
         <Group gap="xs">
-          <CloseAllButton positions={positions} />
           <Badge color={isLive ? "red" : "green"} variant="light" size="xs">
             {isLive ? "LIVE" : "PAPER"}
           </Badge>
+          <CloseAllButton positions={positions} />
         </Group>
       </Group>
 
-      {isMultiStrategy && (
-        <StrategyTabs activeTab={activeTab} strategyGroups={strategyGroups} positions={positions} />
-      )}
-
       <ScrollArea flex={1} style={{ minHeight: 0 }}>
-        <div style={{ overflowX: "auto" }} data-testid="positions-table-container">
-          <PositionsTableBody positions={filteredPositions} selectedSymbol={selectedSymbol} />
-        </div>
+        <Flex direction="column" gap="sm" data-testid="positions-table-container">
+          {Array.from(strategyGroups.entries()).map(([strategyId, group]) => {
+            const summary = calcStrategySummary(group);
+            const displayName = group[0]?.strategy_name || `Strategy ${strategyId}`;
+            const expanded = expandedGroups.has(strategyId);
+            return (
+              <CompactPanel
+                key={strategyId}
+                testId={`strategy-panel-${strategyId}`}
+                scrollable={false}
+              >
+                <Group
+                  justify="space-between"
+                  mb="xs"
+                  onClick={() => toggleGroup(strategyId)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <Group gap="xs">
+                    <Text size="xs" c="dimmed">{expanded ? "▼" : "▶"}</Text>
+                    <Text size="sm" fw={600}>{displayName}</Text>
+                    <Badge size="xs">{summary.count}</Badge>
+                    <Text size="xs" c={getPnLTextColor(summary.totalPnl)} fw={600}>
+                      {summary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(summary.totalPnl)}
+                    </Text>
+                  </Group>
+                  <Tooltip label="Close all in this strategy">
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      color="red"
+                      leftSection={<IconX size={12} />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCloseGroup(group);
+                      }}
+                      data-testid={`close-strategy-${strategyId}`}
+                    >
+                      Close All
+                    </Button>
+                  </Tooltip>
+                </Group>
+                <Collapse in={expanded}>
+                  <PositionsTableBody positions={group} selectedSymbol={selectedSymbol} />
+                </Collapse>
+              </CompactPanel>
+            );
+          })}
+        </Flex>
       </ScrollArea>
-
-      {isMultiStrategy && activeTab === "all" && (
-        <StrategySummaryFooter strategyGroups={strategyGroups} />
-      )}
     </Flex>
   );
 }
 
-function StrategyTabs({
-  activeTab,
-  strategyGroups,
-  positions,
-}: {
-  activeTab: string;
-  strategyGroups: Map<number, PaperPosition[]>;
+function CloseAllButton({ positions, onClose }: {
   positions: PaperPosition[];
+  onClose?: () => void;
 }) {
-  const allSummary = calcStrategySummary(positions);
-  const strategies = Array.from(strategyGroups.keys());
-
-  return (
-    <Tabs
-      value={activeTab}
-      onChange={(v) => {
-        if (v) setSelectedStrategyTab(v);
-      }}
-      data-testid="strategy-tabs"
-      variant="default"
-    >
-      <Tabs.List>
-        <Tabs.Tab value="all" data-testid="strategy-tab-all">
-          <Group gap="xs">
-            <span>All</span>
-            <Badge size="xs">{positions.length}</Badge>
-            <Text size="xs" c={getPnLTextColor(allSummary.totalPnl)}>
-              {allSummary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(allSummary.totalPnl)}
-            </Text>
-          </Group>
-        </Tabs.Tab>
-        {strategies.map((strategyId) => {
-          const group = strategyGroups.get(strategyId) || [];
-          const summary = calcStrategySummary(group);
-          const tabValue = String(strategyId);
-          const displayName = group[0]?.strategy_name || `Strategy ${strategyId}`;
-          return (
-            <Tabs.Tab
-              key={strategyId}
-              value={tabValue}
-              data-testid={`strategy-tab-${displayName.replace(/\s+/g, "-").toLowerCase()}`}
-            >
-              <Group gap="xs">
-                <span>{displayName}</span>
-                <Badge size="xs">{summary.count}</Badge>
-                <Text size="xs" c={getPnLTextColor(summary.totalPnl)}>
-                  {summary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(summary.totalPnl)}
-                </Text>
-              </Group>
-            </Tabs.Tab>
-          );
-        })}
-      </Tabs.List>
-    </Tabs>
-  );
-}
-
-function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
   const [closing, setClosing] = useState(false);
 
   const handleCloseAll = async () => {
@@ -234,6 +183,7 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
       if (!botId) throw new Error("No active bot found");
       await closeAllPositions(botId, prices);
       await refreshBotLiveData(botId);
+      onClose?.();
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to close all positions";
       alert(msg);
@@ -259,12 +209,23 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
   );
 }
 
+async function handleCloseGroup(group: PaperPosition[]) {
+  const prices: Record<string, number> = {};
+  for (const p of group) {
+    if (p.current_price > 0) prices[p.symbol] = p.current_price;
+  }
+  const state = getPaperTradingState();
+  const botId = state.availableBots.length > 0 ? state.availableBots[0].id : null;
+  if (!botId) throw new Error("No active bot found");
+  await closeAllPositions(botId, prices);
+  await refreshBotLiveData(botId);
+}
+
 export function PaperPositionsTable() {
   const state = getPaperTradingState();
   const { positions, selectedSymbol, botSnapshot, isLoading } = state;
-
-  const { strategyGroups, isMultiStrategy, activeTab, filteredPositions } =
-    usePositionsDerivedData();
+  const sortedPositions = usePositionsData();
+  const strategyGroups = useMemo(() => groupPositionsByStrategy(sortedPositions), [sortedPositions]);
 
   if (isLoading && positions.length === 0) {
     return <LoadingState />;
@@ -287,12 +248,9 @@ export function PaperPositionsTable() {
 
       {positions.length > 0 && (
         <PositionsContent
-          positions={positions}
-          selectedSymbol={selectedSymbol}
+          positions={sortedPositions}
           strategyGroups={strategyGroups}
-          isMultiStrategy={isMultiStrategy}
-          activeTab={activeTab}
-          filteredPositions={filteredPositions}
+          selectedSymbol={selectedSymbol}
         />
       )}
 
