@@ -292,6 +292,7 @@ class RunnerSignalsMixin:
             market_data = {
                 'current_price': daily_data['current_price'],
                 'high_52w': daily_data['high_52w'],
+                'today_intraday_high': daily_data.get('today_intraday_high', 0.0),
                 'daily_highs': daily_data['daily_highs'],
                 'volume': daily_data['volume'],
                 'avg_volume_20d': daily_data['avg_volume_20d'],
@@ -726,6 +727,8 @@ class RunnerSignalsMixin:
                         pnl_pct=trade.pnl_pct,
                         exit_reason=trade.exit_reason,
                         entry_time=trade.entry_time,
+                        costs=trade.costs,
+                        net_pnl=trade.net_pnl,
                     )
 
                 trade_logged = True

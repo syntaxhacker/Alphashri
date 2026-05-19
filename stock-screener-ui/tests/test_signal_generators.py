@@ -410,10 +410,22 @@ class TestWeek52TargetSignalGenerator:
         assert self.gen.check_entry("TEST", {"current_price": 100.0}) is None
         assert self.gen.check_entry("TEST", {"high_52w": 500.0}) is None
 
+    def test_check_entry_skips_failed_breakout(self):
+        signal = self.gen.check_entry("TEST", {
+            "current_price": 490.0, "high_52w": 500.0, "today_intraday_high": 505.0,
+        })
+        assert signal is None
+
+    def test_check_entry_allows_fresh_approach(self):
+        signal = self.gen.check_entry("TEST", {
+            "current_price": 490.0, "high_52w": 500.0, "today_intraday_high": 495.0,
+        })
+        assert signal is not None
+
     def test_check_entry_tp_is_52w_high(self):
         signal = self.gen.check_entry("TEST", {"current_price": 495.0, "high_52w": 500.0})
         assert signal is not None
-        assert signal.take_profit == 500.0
+        assert signal.or_high == 500.0
 
     def test_check_exit_stop_loss_always_active(self):
         signal = self.gen.check_exit(

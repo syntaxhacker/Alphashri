@@ -274,11 +274,14 @@ class TestPublicSendFunctions:
             pnl_pct=4.0,
             exit_reason="TP",
             entry_time=entry_time,
+            costs=50.0,
+            net_pnl=950.0,
         )
         msg = mock_send.call_args[0][0]
         assert "💚" in msg
         assert "*TRADE EXIT* — TestBot" in msg
-        assert "P&L: +1,000.00 (+4.00%)" in msg
+        assert "P&L: ₹+950.00 (+4.00%)" in msg
+        assert "Gross: ₹+1,000.00 | Costs: ₹+50.00" in msg
         assert "Reason: *TP*" in msg
         assert "Hold:" in msg
         assert mock_send.call_args[1]['cooldown_key'] == "exit:RELIANCE"
@@ -299,10 +302,13 @@ class TestPublicSendFunctions:
             pnl_pct=-2.86,
             exit_reason="SL",
             entry_time=entry_time,
+            costs=25.0,
+            net_pnl=-525.0,
         )
         msg = mock_send.call_args[0][0]
         assert "❌" in msg
-        assert "P&L: -500.00 (-2.86%)" in msg
+        assert "P&L: ₹-525.00 (-2.86%)" in msg
+        assert "Gross: ₹-500.00 | Costs: ₹+25.00" in msg
 
     @patch.object(tgn, "_send_message")
     def test_send_bot_status_started(self, mock_send):
