@@ -314,7 +314,7 @@ def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name
     console.print(f"[green]✓ Created bot '{bot.name}' (ID: {bot.id}) for User {user_id}[/green]")
 
     # Add strategies to bot
-    allocations = [0.25, 0.20, 0.15, 0.15, 0.15, 0.10]  # Conservative, Aggressive, 52W Chaser
+    allocations = [0.25, 0.20, 0.15, 0.15, 0.15, 0.10]  # Conservative, Aggressive, Best, S/R, EMA Cross
     for idx, (strategy_id, strategy) in enumerate(strategies.items()):
         allocation_pct = allocations[idx] if idx < len(allocations) else 0.15
         max_positions = getattr(strategy, 'max_positions', 3)
@@ -522,9 +522,11 @@ def seed_qa_data(seed_journals: bool = False):
         console.print("\n[bold]Step 2: Creating Strategies[/bold]")
         all_strategies = create_strategies(db)
         
-        # Filter only variations for bots
+        # Filter only non-52W variations for multi-strategy bots
         variation_names = [s['name'] for s in STRATEGIES]
-        variations = {name: config for name, config in all_strategies.items() if name in variation_names}
+        skip_52w = {'52W Chaser Swing', '52W Target Swing'}
+        variations = {name: config for name, config in all_strategies.items()
+                      if name in variation_names and name not in skip_52w}
 
         # 3. Create bot for QA user
         console.print("\n[bold]Step 3: Creating Multi-Strategy Bot for QA[/bold]")

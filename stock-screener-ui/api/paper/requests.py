@@ -2,7 +2,7 @@
 Pydantic request/response models for Paper Trading API.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
@@ -17,7 +17,7 @@ class OrderRequest(BaseModel):
 
 class ClosePositionRequest(BaseModel):
     symbol: str
-    exit_price: float
+    exit_price: float = Field(gt=0)
     reason: str = "MANUAL"
 
 

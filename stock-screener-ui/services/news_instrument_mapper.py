@@ -119,17 +119,11 @@ class NewsInstrumentMapper:
             print(f"⚠️ Could not load manual mappings: {e}")
     
     def _try_default_paths(self):
-        """Try to load instruments from default paths."""
+        """Try to load instruments from the canonical path."""
         base_path = Path(__file__).parent.parent.parent
-        default_paths = [
-            base_path / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json',
-            base_path / 'upstox_trader' / 'screeners' / 'nse_instruments.json',
-        ]
-        
-        for path in default_paths:
-            if path.exists():
-                self.load_instruments(str(path))
-                break
+        default_path = base_path / 'upstox_trader' / 'config_and_utils' / 'nse_instruments.json'
+        if default_path.exists():
+            self.load_instruments(str(default_path))
     
     def load_instruments(self, file_path: str):
         """Load instruments from JSON file."""

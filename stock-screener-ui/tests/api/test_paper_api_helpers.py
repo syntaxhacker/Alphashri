@@ -2,7 +2,6 @@
 Tests for shared helpers in api/paper/paper_api.py.
 
 Covers:
-- _load_fresh_bot_snapshot
 - _read_runner_pid_file
 - _write_runner_pid_file
 - _clear_runner_pid_file
@@ -12,23 +11,18 @@ Covers:
 - _get_user_id
 """
 
-import json
 import os
 import sys
 import tempfile
-import time
-from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-import config
 from api.paper.paper_api import (
-    _load_fresh_bot_snapshot,
     _read_runner_pid_file,
     _write_runner_pid_file,
     _clear_runner_pid_file,
@@ -36,9 +30,7 @@ from api.paper.paper_api import (
     _get_bot_status,
     _get_symbol_trades_from_db,
     _get_user_id,
-    _get_snapshot_file,
     _get_pid_file,
-    _user_snapshot_files,
     _user_pid_files,
 )
 
@@ -50,10 +42,8 @@ from api.paper.paper_api import (
 @pytest.fixture(autouse=True)
 def _clean_user_file_dicts():
     """Reset per-user file caches between tests."""
-    _user_snapshot_files.clear()
     _user_pid_files.clear()
     yield
-    _user_snapshot_files.clear()
     _user_pid_files.clear()
 
 
@@ -64,18 +54,6 @@ def temp_dir():
     yield Path(d)
     import shutil
     shutil.rmtree(d, ignore_errors=True)
-
-
-@pytest.fixture
-def patch_snapshot_file(temp_dir):
-    """Patch _get_snapshot_file to return a temp path."""
-    snapshot_path = temp_dir / "snapshot.json"
-
-    def _get(user_id=None):
-        return snapshot_path
-
-    with patch("api.paper.paper_api._get_snapshot_file", side_effect=_get):
-        yield snapshot_path
 
 
 @pytest.fixture
@@ -116,26 +94,8 @@ class TestGetUserId:
 
 
 # ============================================================================
-# _get_snapshot_file / _get_pid_file (supporting helpers)
+# _get_pid_file
 # ============================================================================
-
-class TestGetSnapshotFile:
-    @pytest.mark.unit
-    def test_default_returns_global_path(self):
-        result = _get_snapshot_file(None)
-        assert result == Path("/tmp/alphashri-snapshot.json")
-
-    @pytest.mark.unit
-    def test_user_id_returns_user_specific_path(self):
-        result = _get_snapshot_file(5)
-        assert result == Path("/tmp/alphashri-5-snapshot.json")
-
-    @pytest.mark.unit
-    def test_same_user_id_returns_same_path(self):
-        a = _get_snapshot_file(10)
-        b = _get_snapshot_file(10)
-        assert a is b
-
 
 class TestGetPidFile:
     @pytest.mark.unit
@@ -147,95 +107,6 @@ class TestGetPidFile:
     def test_user_id_returns_user_specific_path(self):
         result = _get_pid_file(7)
         assert result == Path("/tmp/alphashri-7-runner.pid")
-
-
-# ============================================================================
-# _load_fresh_bot_snapshot
-# ============================================================================
-
-class TestLoadFreshBotSnapshot:
-    @pytest.mark.unit
-    def test_fresh_snapshot_returns_data(self, patch_snapshot_file):
-        now = datetime.now(config.IST)
-        data = {"timestamp": now.isoformat(), "watchlist": ["TCS"], "open_positions": []}
-        patch_snapshot_file.write_text(json.dumps(data))
-
-        result = _load_fresh_bot_snapshot(max_age_seconds=300)
-        assert result is not None
-        assert result["watchlist"] == ["TCS"]
-
-    @pytest.mark.unit
-    def test_stale_snapshot_returns_none(self, patch_snapshot_file):
-        old = datetime.now(config.IST) - timedelta(seconds=600)
-        data = {"timestamp": old.isoformat(), "watchlist": []}
-        patch_snapshot_file.write_text(json.dumps(data))
-
-        result = _load_fresh_bot_snapshot(max_age_seconds=300)
-        assert result is None
-
-    @pytest.mark.unit
-    def test_missing_file_returns_none(self, patch_snapshot_file):
-        # File does not exist
-        assert not patch_snapshot_file.exists()
-        result = _load_fresh_bot_snapshot()
-        assert result is None
-
-    @pytest.mark.unit
-    def test_corrupt_json_returns_none(self, patch_snapshot_file):
-        patch_snapshot_file.write_text("{not valid json!!!")
-
-        result = _load_fresh_bot_snapshot()
-        assert result is None
-
-    @pytest.mark.unit
-    def test_missing_timestamp_field_returns_data(self, patch_snapshot_file):
-        """When there's no timestamp, the snapshot is returned without age check."""
-        data = {"watchlist": ["INFY"], "open_positions": []}
-        patch_snapshot_file.write_text(json.dumps(data))
-
-        result = _load_fresh_bot_snapshot()
-        assert result is not None
-        assert result["watchlist"] == ["INFY"]
-
-    @pytest.mark.unit
-    def test_empty_file_returns_none(self, patch_snapshot_file):
-        patch_snapshot_file.write_text("")
-
-        result = _load_fresh_bot_snapshot()
-        assert result is None
-
-    @pytest.mark.unit
-    def test_just_barely_fresh(self, patch_snapshot_file):
-        ts = datetime.now(config.IST) - timedelta(seconds=299)
-        data = {"timestamp": ts.isoformat(), "watchlist": []}
-        patch_snapshot_file.write_text(json.dumps(data))
-
-        result = _load_fresh_bot_snapshot(max_age_seconds=300)
-        assert result is not None
-
-    @pytest.mark.unit
-    def test_exactly_at_max_age_returns_none(self, patch_snapshot_file):
-        ts = datetime.now(config.IST) - timedelta(seconds=301)
-        data = {"timestamp": ts.isoformat(), "watchlist": []}
-        patch_snapshot_file.write_text(json.dumps(data))
-
-        result = _load_fresh_bot_snapshot(max_age_seconds=300)
-        assert result is None
-
-    @pytest.mark.unit
-    def test_with_user_id(self, temp_dir):
-        user_snap = temp_dir / "user-snap.json"
-        now = datetime.now(config.IST)
-        data = {"timestamp": now.isoformat(), "user_id": 5}
-
-        def _get(uid=None):
-            return user_snap
-
-        with patch("api.paper.paper_api._get_snapshot_file", side_effect=_get):
-            user_snap.write_text(json.dumps(data))
-            result = _load_fresh_bot_snapshot(max_age_seconds=300, user_id=5)
-            assert result is not None
-            assert result["user_id"] == 5
 
 
 # ============================================================================

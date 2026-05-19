@@ -675,6 +675,142 @@ class TestOrderManagement:
         # The actual error message is "No position found for NONEXISTENT"
         assert "position" in response.json()["detail"].lower()
 
+    def test_close_position_db_fallback(self, client, mock_paper_trader):
+        """Test POST /api/paper/close with DB fallback for bot-managed LONG position."""
+        from datetime import datetime
+        from config import IST
+        from unittest.mock import patch, MagicMock
+
+        mock_paper_trader.positions.clear()
+
+        pos = MagicMock()
+        pos.user_id = 1
+        pos.symbol = "RELIANCE"
+        pos.side = "BUY"
+        pos.quantity = 100
+        pos.entry_price = 2500.0
+        pos.entry_time = datetime(2026, 5, 18, 9, 30, tzinfo=IST)
+        pos.stop_loss = 2475.0
+        pos.take_profit = 2575.0
+        pos.peak_price = 2520.0
+        pos.low_price = 2480.0
+        pos.bot_id = 1
+        pos.strategy_id = 1
+        pos.strategy_name = "ORB"
+
+        with patch("db.database.SessionLocal") as mock_session_local, \
+             patch("api.paper.orders._get_market_price", return_value=None):
+            mock_db = MagicMock()
+            mock_db.query.return_value.filter.return_value.first.return_value = pos
+            mock_session_local.return_value = mock_db
+
+            response = client.post("/api/paper/close", json={
+                "symbol": "RELIANCE",
+                "exit_price": 2600.0,
+                "reason": "MANUAL",
+            })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "trade_id" in data
+        assert data["symbol"] == "RELIANCE"
+        assert data["pnl"] == 10000.0
+        assert data["pnl_pct"] == 4.0
+        assert data["exit_reason"] == "MANUAL_CLOSE"
+
+    def test_close_position_db_fallback_short(self, client, mock_paper_trader):
+        """Test POST /api/paper/close with DB fallback for bot-managed SHORT position."""
+        from datetime import datetime
+        from config import IST
+        from unittest.mock import patch, MagicMock
+
+        mock_paper_trader.positions.clear()
+
+        pos = MagicMock()
+        pos.user_id = 1
+        pos.symbol = "RELIANCE"
+        pos.side = "SELL"
+        pos.quantity = 100
+        pos.entry_price = 2500.0
+        pos.entry_time = datetime(2026, 5, 18, 9, 30, tzinfo=IST)
+        pos.stop_loss = 2525.0
+        pos.take_profit = 2425.0
+        pos.peak_price = 2520.0
+        pos.low_price = 2480.0
+        pos.bot_id = 1
+        pos.strategy_id = 1
+        pos.strategy_name = "ORB"
+
+        with patch("db.database.SessionLocal") as mock_session_local, \
+             patch("api.paper.orders._get_market_price", return_value=None):
+            mock_db = MagicMock()
+            mock_db.query.return_value.filter.return_value.first.return_value = pos
+            mock_session_local.return_value = mock_db
+
+            response = client.post("/api/paper/close", json={
+                "symbol": "RELIANCE",
+                "exit_price": 2400.0,
+                "reason": "MANUAL",
+            })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "trade_id" in data
+        assert data["symbol"] == "RELIANCE"
+        assert data["pnl"] == 10000.0
+        assert data["pnl_pct"] == 4.0
+        assert data["exit_reason"] == "MANUAL_CLOSE"
+
+    def test_close_position_exit_reason_eod(self, client, mock_paper_trader, mock_journal):
+        """Test POST /api/paper/close with EOD exit reason."""
+        from trading.paper_trader import PaperPosition, OrderSide
+
+        mock_paper_trader.positions["RELIANCE"] = PaperPosition(
+            symbol="RELIANCE",
+            side=OrderSide.BUY,
+            quantity=100,
+            entry_price=2500.0,
+            stop_loss=2475.0,
+            take_profit=2575.0,
+            entry_time=datetime.now(),
+            current_price=2520.0,
+        )
+
+        response = client.post("/api/paper/close", json={
+            "symbol": "RELIANCE",
+            "exit_price": 2550.0,
+            "reason": "EOD",
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["exit_reason"] == "EOD"
+
+    def test_close_position_exit_reason_invalid(self, client, mock_paper_trader, mock_journal):
+        """Test POST /api/paper/close with invalid exit reason (defaults to MANUAL)."""
+        from trading.paper_trader import PaperPosition, OrderSide
+
+        mock_paper_trader.positions["RELIANCE"] = PaperPosition(
+            symbol="RELIANCE",
+            side=OrderSide.BUY,
+            quantity=100,
+            entry_price=2500.0,
+            stop_loss=2475.0,
+            take_profit=2575.0,
+            entry_time=datetime.now(),
+            current_price=2520.0,
+        )
+
+        response = client.post("/api/paper/close", json={
+            "symbol": "RELIANCE",
+            "exit_price": 2550.0,
+            "reason": "INVALID_REASON",
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["exit_reason"] == "MANUAL"
+
     def test_close_all_positions(self, client, mock_paper_trader):
         """Test POST /api/paper/close-all."""
         from trading.paper_trader import PaperPosition, OrderSide
@@ -700,6 +836,105 @@ class TestOrderManagement:
         data = response.json()
         assert data["status"] == "success"
         assert "portfolio" in data
+
+    def test_close_position_exit_price_zero(self, client):
+        """Test POST /api/paper/close with exit_price=0 is rejected."""
+        response = client.post("/api/paper/close", json={
+            "symbol": "RELIANCE",
+            "exit_price": 0,
+            "reason": "MANUAL",
+        })
+        assert response.status_code == 422
+
+    def test_close_position_exit_price_negative(self, client):
+        """Test POST /api/paper/close with negative exit_price is rejected."""
+        response = client.post("/api/paper/close", json={
+            "symbol": "RELIANCE",
+            "exit_price": -100,
+            "reason": "MANUAL",
+        })
+        assert response.status_code == 422
+
+    def test_close_position_market_price_overrides_stale(self, client, mock_paper_trader):
+        """Test DB fallback uses fresh market price when request exit_price is stale."""
+        from datetime import datetime
+        from config import IST
+        from unittest.mock import patch, MagicMock
+
+        mock_paper_trader.positions.clear()
+        pos = MagicMock()
+        pos.user_id = 1
+        pos.symbol = "LAURUSLABS"
+        pos.side = "BUY"
+        pos.quantity = 42
+        pos.entry_price = 1188.3
+        pos.entry_time = datetime(2026, 5, 6, 11, 45, tzinfo=IST)
+        pos.stop_loss = 1158.59
+        pos.take_profit = 2376.6
+        pos.peak_price = 1332.3
+        pos.low_price = 1175.0
+        pos.bot_id = 3
+        pos.strategy_id = 10
+        pos.strategy_name = "52W Target Swing"
+
+        with patch("db.database.SessionLocal") as mock_session_local, \
+             patch("api.paper.orders._get_market_price", return_value=1326.5):
+            mock_db = MagicMock()
+            mock_db.query.return_value.filter.return_value.first.return_value = pos
+            mock_session_local.return_value = mock_db
+
+            response = client.post("/api/paper/close", json={
+                "symbol": "LAURUSLABS",
+                "exit_price": 1200.0,
+                "reason": "MANUAL",
+            })
+
+        assert response.status_code == 200
+        data = response.json()
+        # (1326.5 - 1188.3) * 42 = 5804.4
+        assert data["pnl"] == 5804.4
+        assert data["symbol"] == "LAURUSLABS"
+        assert data["exit_reason"] == "MANUAL_CLOSE"
+
+    def test_close_position_market_price_none_falls_back(self, client, mock_paper_trader):
+        """Test DB fallback uses request exit_price when market price unavailable."""
+        from datetime import datetime
+        from config import IST
+        from unittest.mock import patch, MagicMock
+
+        mock_paper_trader.positions.clear()
+        pos = MagicMock()
+        pos.user_id = 1
+        pos.symbol = "RELIANCE"
+        pos.side = "BUY"
+        pos.quantity = 100
+        pos.entry_price = 2500.0
+        pos.entry_time = datetime(2026, 5, 18, 9, 30, tzinfo=IST)
+        pos.stop_loss = 2475.0
+        pos.take_profit = 2575.0
+        pos.peak_price = 2520.0
+        pos.low_price = 2480.0
+        pos.bot_id = 1
+        pos.strategy_id = 1
+        pos.strategy_name = "ORB"
+
+        with patch("db.database.SessionLocal") as mock_session_local, \
+             patch("api.paper.orders._get_market_price", return_value=None):
+            mock_db = MagicMock()
+            mock_db.query.return_value.filter.return_value.first.return_value = pos
+            mock_session_local.return_value = mock_db
+
+            response = client.post("/api/paper/close", json={
+                "symbol": "RELIANCE",
+                "exit_price": 2600.0,
+                "reason": "MANUAL",
+            })
+
+        assert response.status_code == 200
+        data = response.json()
+        # (2600 - 2500) * 100 = 10000
+        assert data["pnl"] == 10000.0
+        assert data["exit_reason"] == "MANUAL_CLOSE"
 
     def test_update_prices(self, client, mock_paper_trader, mock_journal):
         """Test POST /api/paper/update-prices."""
@@ -1074,48 +1309,6 @@ class TestRunnerControl:
             assert data["running"] is True
             assert data["pid"] == 12345
 
-    def test_get_bot_snapshot(self, client):
-        """Test GET /api/paper/bot/snapshot."""
-        with patch('api.paper.paper_api._paper_bot_snapshot_file') as mock_file:
-            # Create temp file
-            temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
-            snapshot_data = {
-                "timestamp": "2024-03-03T10:30:00",
-                "watchlist": ["RELIANCE", "TCS"],
-                "open_positions": [
-                    {"symbol": "RELIANCE", "quantity": 100, "entry_price": 2500.0}
-                ],
-                "scan_items": [],
-                "signals": [],
-            }
-            json.dump(snapshot_data, temp_file)
-            temp_file.close()
-
-            mock_file.exists.return_value = True
-            mock_file.read_text.return_value = Path(temp_file.name).read_text()
-
-            response = client.get("/api/paper/bot/snapshot")
-
-            # Clean up
-            Path(temp_file.name).unlink(missing_ok=True)
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "watchlist" in data
-            assert "open_positions" in data
-
-    def test_get_bot_snapshot_no_file(self, client):
-        """Test GET /api/paper/bot/snapshot when file doesn't exist."""
-        with patch('api.paper.paper_api._paper_bot_snapshot_file') as mock_file:
-            mock_file.exists.return_value = False
-
-            response = client.get("/api/paper/bot/snapshot")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["watchlist"] == []
-            assert data["open_positions"] == []
-
     def test_start_bot(self, client):
         """Test POST /api/paper/bot/start."""
         with patch('api.paper.bot_control._get_bot_status') as mock_status, \
@@ -1186,6 +1379,101 @@ class TestRunnerControl:
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "not_running"
+
+    def test_start_bot_script_not_found(self, client):
+        """Test POST /api/paper/bot/start when runner script doesn't exist."""
+        with patch('api.paper.bot_control._get_bot_status') as mock_status, \
+             patch.object(Path, 'exists', return_value=False):
+            mock_status.return_value = {"running": False, "pid": None, "runner_pids": []}
+
+            response = client.post("/api/paper/bot/start")
+
+            assert response.status_code == 500
+            data = response.json()
+            assert "Runner script not found" in data["detail"]
+
+    def test_stop_bot_force_kill(self, client):
+        """Test POST /api/paper/bot/stop when process resists SIGTERM -> SIGKILL."""
+        with patch('api.paper.bot_control._get_bot_status') as mock_status, \
+             patch('subprocess.run') as mock_run, \
+             patch('api.paper.bot_control._clear_runner_pid_file'), \
+             patch('api.paper.bot_control._paper_bot_process', None):
+
+            mock_status.return_value = {
+                "running": True, "pid": 12345, "runner_pids": [12345],
+            }
+
+            kill_history = []
+            def run_side_effect(cmd, **kwargs):
+                kill_history.append(list(cmd))
+                if cmd == ["kill", "12345"]:
+                    return MagicMock(returncode=0)
+                if cmd == ["kill", "-9", "12345"]:
+                    return MagicMock(returncode=0)
+                if cmd == ["kill", "-0", "12345"]:
+                    sigkill_sent = any(c == ["kill", "-9", "12345"] for c in kill_history)
+                    return MagicMock(returncode=0 if not sigkill_sent else 1)
+                return MagicMock(returncode=0)
+
+            mock_run.side_effect = run_side_effect
+
+            response = client.post("/api/paper/bot/stop")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert any(c == ["kill", "-9", "12345"] for c in kill_history), \
+                "SIGKILL should have been sent when SIGTERM is ignored"
+            assert 12345 in data.get("stopped_pids", [])
+
+    def test_stop_bot_partial_failure(self, client):
+        """Test POST /api/paper/bot/stop when one PID stops but another doesn't."""
+        with patch('api.paper.bot_control._get_bot_status') as mock_status, \
+             patch('subprocess.run') as mock_run, \
+             patch('api.paper.bot_control._clear_runner_pid_file'), \
+             patch('api.paper.bot_control._paper_bot_process', None):
+
+            mock_status.return_value = {
+                "running": True, "pid": 12345, "runner_pids": [12345, 67890],
+            }
+
+            def run_side_effect(cmd, **kwargs):
+                if cmd == ["kill", "12345"]:
+                    return MagicMock(returncode=0)
+                if cmd == ["kill", "-0", "12345"]:
+                    return MagicMock(returncode=1)
+                if cmd in (["kill", "67890"], ["kill", "-9", "67890"]):
+                    return MagicMock(returncode=0)
+                if cmd == ["kill", "-0", "67890"]:
+                    return MagicMock(returncode=0)
+                return MagicMock(returncode=0)
+
+            mock_run.side_effect = run_side_effect
+
+            response = client.post("/api/paper/bot/stop")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert 12345 in data.get("stopped_pids", [])
+            assert 67890 in data.get("still_running_pids", [])
+
+    def test_stop_bot_log_handle_close(self, client):
+        """Test POST /api/paper/bot/stop closes the log handle when set."""
+        mock_handle = MagicMock()
+        with patch('api.paper.bot_control._get_bot_status') as mock_status, \
+             patch('subprocess.run') as mock_run, \
+             patch('api.paper.bot_control._clear_runner_pid_file'), \
+             patch('api.paper.bot_control._paper_bot_process', None), \
+             patch('api.paper.bot_control._paper_bot_log_handle', mock_handle):
+
+            mock_status.return_value = {
+                "running": True, "pid": 12345, "runner_pids": [12345],
+            }
+            mock_run.return_value = MagicMock(returncode=1)
+
+            response = client.post("/api/paper/bot/stop")
+
+            assert response.status_code == 200
+            mock_handle.close.assert_called_once()
 
 
 # ============================================================================

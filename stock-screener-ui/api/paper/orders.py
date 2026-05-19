@@ -2,6 +2,7 @@
 Order endpoints for Paper Trading API.
 """
 
+from datetime import datetime
 from fastapi import HTTPException, Depends
 
 from trading.paper_trader import get_paper_trader, OrderSide, ExitReason
@@ -13,6 +14,31 @@ from db.models import User
 from .paper_api import router, _get_user_id
 from .requests import OrderRequest, ClosePositionRequest, UpdatePricesRequest
 from .helpers import build_trade_log_entry
+
+_BUY_SIDES = ("BUY", "LONG")
+
+
+def _get_market_price(symbol: str) -> float | None:
+    """Fetch the latest market price for a symbol from Upstox.
+
+    Returns the close of the most recent 1-min candle, or None if unavailable.
+    This is used to validate/override stale exit prices from the frontend.
+    """
+    try:
+        import config as app_config
+        from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+        import pandas as pd
+        api = UpstoxAPI(
+            api_key=app_config.UPSTOX_API_KEY,
+            api_secret=app_config.UPSTOX_API_SECRET,
+            quiet=True,
+        )
+        df = api.fetch_intraday_data_v3(symbol, "1")
+        if df is not None and not df.empty:
+            return float(df.iloc[-1]["close"])
+    except Exception:
+        pass
+    return None
 
 
 @router.post("/order")
@@ -66,36 +92,131 @@ async def place_order(request: OrderRequest, user: "User" = Depends(get_current_
 
 @router.post("/close")
 async def close_position(request: ClosePositionRequest, user: "User" = Depends(get_current_user)):
-    """Close a specific position."""
+    """Close a specific position.
+
+    First tries PaperTrader in-memory close. Falls back to DB-based close
+    (for positions managed by a bot subprocess).
+    """
     user_id = _get_user_id(user)
+    symbol = request.symbol.upper()
+    exit_price = request.exit_price
+
     trader = get_paper_trader(user_id)
 
     try:
-        exit_reason = ExitReason[request.reason.upper()]
-    except KeyError:
+        exit_reason = ExitReason(request.reason.upper())
+    except ValueError:
         exit_reason = ExitReason.MANUAL
 
     trade = trader.close_position(
-        symbol=request.symbol.upper(),
-        exit_price=request.exit_price,
+        symbol=symbol,
+        exit_price=exit_price,
         exit_reason=exit_reason,
     )
 
-    if trade is None:
-        raise HTTPException(status_code=404, detail=f"No position found for {request.symbol}")
+    if trade is not None:
+        journal = get_journal(user_id)
+        journal.log_trade(build_trade_log_entry(trade))
+        journal.save_journal()
+        return {
+            "trade_id": trade.trade_id,
+            "symbol": trade.symbol,
+            "pnl": trade.pnl,
+            "pnl_pct": trade.pnl_pct,
+            "net_pnl": trade.net_pnl,
+            "exit_reason": trade.exit_reason.value,
+        }
 
-    journal = get_journal(user_id)
-    journal.log_trade(build_trade_log_entry(trade))
-    journal.save_journal()
+    # Fallback: close from DB (bot-managed positions)
+    try:
+        from db.database import SessionLocal
+        from db.models import Position as _Pos, Trade as _Trade
+        from backtest.costs import calculate_trading_costs
+        from config import IST
 
-    return {
-        "trade_id": trade.trade_id,
-        "symbol": trade.symbol,
-        "pnl": trade.pnl,
-        "pnl_pct": trade.pnl_pct,
-        "net_pnl": trade.net_pnl,
-        "exit_reason": trade.exit_reason.value,
-    }
+        db = SessionLocal()
+        try:
+            pos = db.query(_Pos).filter(
+                _Pos.user_id == user_id,
+                _Pos.symbol == symbol,
+            ).first()
+            if pos is None:
+                raise HTTPException(status_code=404, detail=f"No position found for {symbol}")
+
+            market_price = _get_market_price(symbol)
+            if market_price is not None:
+                exit_price = market_price
+
+            side = pos.side.upper()
+            if side in _BUY_SIDES:
+                pnl = (exit_price - pos.entry_price) * pos.quantity
+                pnl_pct = ((exit_price - pos.entry_price) / pos.entry_price) * 100
+            else:
+                pnl = (pos.entry_price - exit_price) * pos.quantity
+                pnl_pct = ((pos.entry_price - exit_price) / pos.entry_price) * 100
+
+            costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+
+            db_trade = _Trade(
+                user_id=user_id,
+                bot_id=pos.bot_id,
+                strategy_id=pos.strategy_id,
+                strategy_name=pos.strategy_name or "",
+                symbol=symbol,
+                side=side,
+                quantity=pos.quantity,
+                entry_price=pos.entry_price,
+                exit_price=exit_price,
+                entry_time=pos.entry_time,
+                exit_time=datetime.now(IST),
+                stop_loss=pos.stop_loss or 0.0,
+                take_profit=pos.take_profit or 0.0,
+                pnl=round(pnl, 2),
+                pnl_pct=round(pnl_pct, 2),
+                costs=round(costs, 2),
+                net_pnl=round(pnl - costs, 2),
+                exit_reason="MANUAL_CLOSE",
+                reason=f"Closed manually at ₹{exit_price:.2f}",
+                peak_price=pos.peak_price or pos.entry_price,
+                low_price=pos.low_price or pos.entry_price,
+                source="live",
+            )
+            db.add(db_trade)
+            bot_id = pos.bot_id
+            db.delete(pos)
+            db.commit()
+
+            try:
+                import json
+                from pathlib import Path
+                cmd_path = Path(f"/tmp/bot-cmd-{bot_id}.json")
+                cmd_path.write_text(json.dumps({
+                    "action": "close_position",
+                    "symbol": symbol,
+                    "strategy_id": pos.strategy_id,
+                    "exit_price": exit_price,
+                }))
+            except Exception:
+                pass
+
+            return {
+                "trade_id": db_trade.uuid,
+                "symbol": symbol,
+                "pnl": round(pnl, 2),
+                "pnl_pct": round(pnl_pct, 2),
+                "net_pnl": round(pnl - costs, 2),
+                "exit_reason": "MANUAL_CLOSE",
+            }
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=404, detail=f"No position found for {symbol}")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=404, detail=f"No position found for {symbol}")
 
 
 @router.post("/close-all")

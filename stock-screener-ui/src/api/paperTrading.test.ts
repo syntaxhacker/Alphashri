@@ -42,7 +42,7 @@ import {
   closeAllPositions,
   updateTradeNotes,
   fetchPaperChart,
-  fetchPaperBotSnapshot,
+
   fetchPortfolio,
   refreshLiveData,
   refreshHistoryData,
@@ -487,30 +487,6 @@ describe("fetchPaperChart", () => {
   });
 });
 
-describe("fetchPaperBotSnapshot", () => {
-  it("fetches and returns bot snapshot", async () => {
-    const snapshot = { watchlist: ["RELIANCE"], open_positions: ["TATASTEEL"], scan_items: [] };
-    mockedFetch.mockResolvedValue({
-      json: async () => snapshot,
-    } as Response);
-
-    const result = await fetchPaperBotSnapshot();
-
-    expect(result).toEqual(snapshot);
-    expect(mockedFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/paper/bot/snapshot"),
-    );
-  });
-
-  it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
-
-    const result = await fetchPaperBotSnapshot();
-
-    expect(result).toBeNull();
-  });
-});
-
 describe("fetchPortfolio", () => {
   it("fetches and returns portfolio data", async () => {
     const portfolio = { total_value: 100000, cash: 50000 };
@@ -643,12 +619,11 @@ describe("deleteTrade", () => {
 });
 
 describe("refreshLiveData", () => {
-  it("fetches portfolio, positions, bot status, and snapshot in parallel", async () => {
+  it("fetches portfolio, positions, and bot status in parallel", async () => {
     mockedFetch
       .mockResolvedValueOnce({ json: async () => ({ total_value: 100000 }) })
       .mockResolvedValueOnce({ json: async () => ({ positions: [{ symbol: "TATASTEEL" }] }) })
-      .mockResolvedValueOnce({ json: async () => ({ running: true, pid: 12345 }) })
-      .mockResolvedValueOnce({ json: async () => ({ watchlist: ["RELIANCE"] }) });
+      .mockResolvedValueOnce({ json: async () => ({ running: true, pid: 12345 }) });
 
     const { setPortfolio, setPositions, setBotStatus, setBotSnapshot, setLoading, setError } =
       await import("../state/paperTrading");
@@ -659,7 +634,7 @@ describe("refreshLiveData", () => {
     expect(setPortfolio).toHaveBeenCalled();
     expect(setPositions).toHaveBeenCalled();
     expect(setBotStatus).toHaveBeenCalled();
-    expect(setBotSnapshot).toHaveBeenCalled();
+    expect(setBotSnapshot).not.toHaveBeenCalled();
     expect(setLoading).toHaveBeenCalledWith(false);
     expect(setError).not.toHaveBeenCalled();
   });

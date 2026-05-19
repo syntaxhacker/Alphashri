@@ -4,17 +4,13 @@ Script to find the actual instrument names in the NSE instruments file
 """
 
 import json
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pathlib import Path
 
 def search_instruments_for_symbol(symbol_to_find):
     """Search for a symbol in the NSE instruments file"""
-    instrument_file = "nse_instruments.json"
+    instrument_file = Path(__file__).parent.parent / "config_and_utils" / "nse_instruments.json"
     
-    if not os.path.exists(instrument_file):
+    if not instrument_file.exists():
         print(f"❌ Instrument file {instrument_file} not found")
         return []
     

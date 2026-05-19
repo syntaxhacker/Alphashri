@@ -885,7 +885,7 @@ class TestCloseAllDirectDB:
 
         app.dependency_overrides.clear()
 
-    def test_close_all_closes_positions_in_db(self, db, user, bot, strategy, app_client):
+    def _setup_dual_positions(self, db, user, bot, strategy):
         db.execute(
             bot_strategies.insert().values(
                 bot_id=bot.id,
@@ -927,6 +927,10 @@ class TestCloseAllDirectDB:
         db.add(pos1)
         db.add(pos2)
         db.commit()
+        return pos1, pos2
+
+    def test_close_all_bot_not_running_closes_db_direct(self, db, user, bot, strategy, app_client):
+        self._setup_dual_positions(db, user, bot, strategy)
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
              patch("backtest.costs.calculate_trading_costs", return_value={"total_costs": 50.0}):
@@ -938,6 +942,7 @@ class TestCloseAllDirectDB:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "success"
+        assert data["bot_running"] is False
         assert "Closed 2 positions" in data["message"]
 
         remaining_positions = db.query(Position).filter(Position.bot_id == bot.id).all()
@@ -948,6 +953,42 @@ class TestCloseAllDirectDB:
         for t in trades:
             assert t.exit_reason == "MANUAL_CLOSE"
             assert t.reason == "Closed via Close All"
+
+    def test_close_all_bot_running_writes_command_file(self, db, user, bot, strategy, app_client):
+        self._setup_dual_positions(db, user, bot, strategy)
+
+        from unittest.mock import patch, MagicMock
+
+        mock_cmd_path = MagicMock()
+
+        with patch("api.bots_api.bot_operations.is_bot_running", return_value=(True, 12345)), \
+             patch("api.bots_api.bot_operations.Path") as mock_path:
+            mock_path.return_value = mock_cmd_path
+
+            resp = app_client.post(
+                f"/api/bots/{bot.id}/close-all",
+                json={"prices": {"RELIANCE": 2600.0, "TCS": 4000.0}},
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "signal_sent"
+        assert data["bot_running"] is True
+        assert data["bot_pid"] == 12345
+        assert "signal sent" in data["message"].lower()
+
+        mock_cmd_path.write_text.assert_called_once()
+        import json
+        written = json.loads(mock_cmd_path.write_text.call_args[0][0])
+        assert written["action"] == "close_all"
+        assert written["prices"]["RELIANCE"] == 2600.0
+        assert written["prices"]["TCS"] == 4000.0
+
+        remaining_positions = db.query(Position).filter(Position.bot_id == bot.id).all()
+        assert len(remaining_positions) == 2
+
+        trades = db.query(Trade).filter(Trade.bot_id == bot.id).all()
+        assert len(trades) == 0
 
 
 # ============================================================================
