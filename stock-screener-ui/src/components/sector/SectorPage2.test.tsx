@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
 import { SectorPage } from "./SectorPage2";
 import type { SectorItem } from "../../types/sector";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 const { mockFetchSectorPerformance } = vi.hoisted(() => ({
   mockFetchSectorPerformance: vi.fn(),
@@ -45,10 +45,6 @@ const mockResponse = {
   top_stock_movers: [],
   last_updated: new Date().toISOString(),
 };
-
-function renderWithMantine(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-}
 
 describe("SectorPage", () => {
   beforeEach(() => {

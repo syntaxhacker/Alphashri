@@ -1,18 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
 import { BrokerConnectionCard, formatExpiresIn, getStatusBadge } from "./BrokerConnectionCard";
 import type { BrokerStatus } from "../../api/brokers";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => cleanup());
-
-function renderWithMantine(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-}
 
 describe("BrokerConnectionCard helpers", () => {
   describe("formatExpiresIn", () => {

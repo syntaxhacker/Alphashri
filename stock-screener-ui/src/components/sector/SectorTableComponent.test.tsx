@@ -1,16 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
 import { SectorTable } from "./SectorTable";
 import type { SectorItem } from "../../types/sector";
+import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 afterEach(() => cleanup());
-
-function renderWithMantine(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-}
 
 const mockSectors: SectorItem[] = [
   {

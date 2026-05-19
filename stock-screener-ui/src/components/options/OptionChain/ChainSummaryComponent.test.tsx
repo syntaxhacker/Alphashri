@@ -1,17 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
 import { ChainSummary } from "./ChainSummary";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => cleanup());
-
-function renderWithMantine(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-}
 
 describe("ChainSummary component rendering", () => {
   it("renders chain summary container", () => {

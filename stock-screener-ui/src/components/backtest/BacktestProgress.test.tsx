@@ -31,6 +31,23 @@ describe("calcProgressPercent", () => {
   it("handles partial progress", () => {
     expect(calcProgressPercent(33, 100)).toBe(33);
   });
+
+  it("handles fractional progress", () => {
+    expect(calcProgressPercent(1, 3)).toBeCloseTo(33.33, 1);
+    expect(calcProgressPercent(1, 7)).toBeCloseTo(14.29, 1);
+  });
+
+  it("handles progress exceeding 100%", () => {
+    expect(calcProgressPercent(150, 100)).toBe(150);
+  });
+
+  it("handles negative current", () => {
+    expect(calcProgressPercent(-10, 100)).toBe(-10);
+  });
+
+  it("handles negative total", () => {
+    expect(calcProgressPercent(50, -100)).toBe(0);
+  });
 });
 
 describe("BacktestProgress", () => {
