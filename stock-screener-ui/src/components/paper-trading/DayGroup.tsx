@@ -102,34 +102,49 @@ function TradeStats({ trade }: { trade: PaperTrade }) {
   const netColor = getPnLTextColor(netPnl);
   const netSign = netPnl >= 0 ? "+" : "";
 
-  const items = [
-    { label: "SL", value: `₹${trade.stop_loss?.toFixed(2) ?? "-"}` },
-    { label: "TP", value: `₹${trade.take_profit?.toFixed(2) ?? "-"}` },
+  const entryContext = [
+    { label: "Entry Time", value: formatTimeOnly(trade.entry_time) },
     { label: "Peak", value: `₹${trade.peak_price?.toFixed(2) ?? "-"}` },
     { label: "Low", value: `₹${trade.low_price?.toFixed(2) ?? "-"}` },
+    { label: "Hold", value: trade.hold_duration_minutes != null ? formatDuration(trade.hold_duration_minutes) : "-" },
+  ];
+
+  const exitContext = [
+    { label: "Exit Time", value: formatTimeOnly(trade.exit_time) },
+    { label: "Exit Price", value: trade.exit_price != null ? `₹${trade.exit_price.toFixed(2)}` : "-" },
     { label: "Costs", value: `₹${formatNumber(trade.costs)}` },
-    {
-      label: "Gross P&L",
-      value: `${grossSign}₹${formatNumber(Math.abs(grossPnl))}`,
-      color: grossColor,
-    },
+    { label: "Gross P&L", value: `${grossSign}₹${formatNumber(Math.abs(grossPnl))}`, color: grossColor },
     { label: "Net P&L", value: `${netSign}₹${formatNumber(Math.abs(netPnl))}`, color: netColor },
   ];
 
   return (
     <Grid gutter="xs">
-      {items.map((item) => (
-        <Grid.Col key={item.label} span={{ base: 6, md: 3 }}>
-          <Stack gap={1}>
-            <Text size="xs" c="dimmed">
-              {item.label}
-            </Text>
-            <Text size="sm" fw={500} c={item.color}>
-              {item.value}
-            </Text>
-          </Stack>
-        </Grid.Col>
-      ))}
+      <Grid.Col span={{ base: 12, md: 6 }}>
+        <Stack gap={2}>
+          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Entry</Text>
+          {entryContext.map((item) => (
+            <Group key={item.label} gap="xs" justify="space-between">
+              <Text size="xs" c="dimmed">{item.label}</Text>
+              <Text size="sm" fw={500} c={item.color}>{item.value}</Text>
+            </Group>
+          ))}
+        </Stack>
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, md: 6 }}>
+        <Stack gap={2}>
+          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Exit</Text>
+          {exitContext.map((item) => (
+            <Group key={item.label} gap="xs" justify="space-between">
+              <Text size="xs" c="dimmed">{item.label}</Text>
+              <Text size="sm" fw={500} c={item.color}>{item.value}</Text>
+            </Group>
+          ))}
+          <Group gap="xs" justify="space-between">
+            <Text size="xs" c="dimmed">Exit Reason</Text>
+            <ExitReasonBadge reason={trade.exit_reason} />
+          </Group>
+        </Stack>
+      </Grid.Col>
     </Grid>
   );
 }
@@ -152,17 +167,12 @@ function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
           <Text size="xs" c="dimmed">
             Reason
           </Text>
-          <Textarea
-            size="xs"
-            minRows={2}
-            maxRows={4}
-            value={reason}
-            onChange={(e) => setReason(e.currentTarget.value)}
-            placeholder="Why was this trade taken?"
-            styles={{ input: { background: "var(--mantine-color-body)" } }}
-            data-testid={`trade-reason-${trade.trade_id}`}
-          />
+          <Text size="xs" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }} data-testid={`trade-reason-${trade.trade_id}`}>
+            {trade.reason || "-"}
+          </Text>
         </Stack>
+      </Group>
+      <Group gap="sm" align="flex-start" grow>
         <Stack gap={1} style={{ flex: 1 }}>
           <Text size="xs" c="dimmed">
             Notes
@@ -231,6 +241,7 @@ function TradeRow({
   }, [isSelected]);
 
   const pnlColor = getPnLTextColor(trade.net_pnl);
+  const pnlPctColor = getPnLTextColor(trade.pnl_pct);
 
   return (
     <>
@@ -273,9 +284,7 @@ function TradeRow({
         </Table.Td>
         <Table.Td>{trade.quantity}</Table.Td>
         <Table.Td>₹{trade.entry_price.toFixed(2)}</Table.Td>
-        <Table.Td>{formatTimeOnly(trade.entry_time)}</Table.Td>
         <Table.Td>{trade.exit_price != null ? `₹${trade.exit_price.toFixed(2)}` : "-"}</Table.Td>
-        <Table.Td>{formatTimeOnly(trade.exit_time)}</Table.Td>
         <Table.Td>
           <Text size="sm" c="dimmed">
             {trade.hold_duration_minutes != null
@@ -284,22 +293,29 @@ function TradeRow({
           </Text>
         </Table.Td>
         <Table.Td>
+          <Text size="sm">
+            {trade.stop_loss != null ? `₹${trade.stop_loss.toFixed(2)}` : "-"}
+          </Text>
+        </Table.Td>
+        <Table.Td>
+          <Text size="sm">
+            {trade.take_profit != null && trade.take_profit > 0
+              ? `₹${trade.take_profit.toFixed(2)}`
+              : "-"}
+          </Text>
+        </Table.Td>
+        <Table.Td>
+          <Text c={pnlPctColor} fw={600} size="sm">
+            {trade.pnl_pct != null ? `${trade.pnl_pct >= 0 ? "+" : ""}${trade.pnl_pct.toFixed(2)}%` : "-"}
+          </Text>
+        </Table.Td>
+        <Table.Td>
           <Text c={pnlColor} fw={600} size="sm">
             ₹{formatNumber(trade.net_pnl)}
           </Text>
         </Table.Td>
         <Table.Td>
-          <Anchor
-            component="button"
-            size="xs"
-            onClick={(e) => {
-              e.stopPropagation();
-              setFilterBot(trade.bot_id || null);
-            }}
-            data-testid={`trade-bot-filter-${trade.trade_id}`}
-          >
-            {trade.bot_name || "-"}
-          </Anchor>
+          <ExitReasonBadge reason={trade.exit_reason} />
         </Table.Td>
         <Table.Td>
           <Anchor
@@ -315,21 +331,17 @@ function TradeRow({
           </Anchor>
         </Table.Td>
         <Table.Td>
-          <ExitReasonBadge reason={trade.exit_reason} />
-        </Table.Td>
-        <Table.Td>
-          <ActionIcon
-            variant="subtle"
-            color="red"
+          <Anchor
+            component="button"
+            size="xs"
             onClick={(e) => {
               e.stopPropagation();
-              onDeleteTrade(trade.trade_id);
+              setFilterBot(trade.bot_id || null);
             }}
-            title="Delete Trade"
-            data-testid={`delete-trade-btn-${trade.trade_id}`}
+            data-testid={`trade-bot-filter-${trade.trade_id}`}
           >
-            🗑️
-          </ActionIcon>
+            {trade.bot_name || "-"}
+          </Anchor>
         </Table.Td>
       </Table.Tr>
       <Table.Tr>
@@ -406,22 +418,8 @@ export function DayGroup({
                   onSort={onSort}
                 />
                 <SortableHeader
-                  label="Entry Time"
-                  columnKey="entry_time"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
                   label="Exit"
                   columnKey="exit_price"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="Exit Time"
-                  columnKey="exit_time"
                   sortColumn={sortColumn}
                   sortDirection={sortDirection}
                   onSort={onSort}
@@ -434,6 +432,27 @@ export function DayGroup({
                   onSort={onSort}
                 />
                 <SortableHeader
+                  label="SL"
+                  columnKey="stop_loss"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onSort={onSort}
+                />
+                <SortableHeader
+                  label="TP"
+                  columnKey="take_profit"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onSort={onSort}
+                />
+                <SortableHeader
+                  label="P&L%"
+                  columnKey="pnl_pct"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onSort={onSort}
+                />
+                <SortableHeader
                   label="P&L"
                   columnKey="net_pnl"
                   sortColumn={sortColumn}
@@ -441,8 +460,8 @@ export function DayGroup({
                   onSort={onSort}
                 />
                 <SortableHeader
-                  label="Bot"
-                  columnKey="bot_name"
+                  label="Exit"
+                  columnKey="exit_reason"
                   sortColumn={sortColumn}
                   sortDirection={sortDirection}
                   onSort={onSort}
@@ -455,13 +474,12 @@ export function DayGroup({
                   onSort={onSort}
                 />
                 <SortableHeader
-                  label="Type"
-                  columnKey="exit_reason"
+                  label="Bot"
+                  columnKey="bot_name"
                   sortColumn={sortColumn}
                   sortDirection={sortDirection}
                   onSort={onSort}
                 />
-                <Table.Th>Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
