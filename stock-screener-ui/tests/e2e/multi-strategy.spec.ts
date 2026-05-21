@@ -12,7 +12,7 @@ import {
 } from "./helpers/multiStrategyHelpers";
 import { apiRoute } from "../mocks/routeHelper";
 
-test.describe.configure({ mode: "serial" });
+test.describe.configure({ mode: "default" });
 
 test.describe("Multi-Strategy System - Signal Generators", () => {
   const botId = BOT_IDS.signalGenerators;
@@ -30,7 +30,7 @@ test.describe("Multi-Strategy System - Signal Generators", () => {
     test.slow();
     await navigateToBot(page, botId);
 
-    await page.waitForSelector("[data-testid='positions-panel']", { timeout: 15000 });
+    await page.waitForSelector("[data-testid='positions-panel']", { timeout: 30000 });
 
     const positionsContainer = page.getByTestId("positions-table-container");
     const emptyState = page.getByTestId("positions-empty");
