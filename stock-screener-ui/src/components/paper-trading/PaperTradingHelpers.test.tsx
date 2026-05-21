@@ -181,6 +181,7 @@ import {
   PaperTradingTabs,
 } from "./PaperTradingHelpers";
 import type { BotSummary, PaperTrade } from "../../types/paperTrading";
+import { mockTrade } from "./testFixtures";
 
 // --- Helper ---
 function r<T>(jsx: T) {
@@ -198,36 +199,6 @@ function mockBot(overrides: Partial<BotSummary> = {}): BotSummary {
     status: "stopped",
     position_count: 0,
     strategies: [],
-    ...overrides,
-  };
-}
-
-function mockTrade(overrides: Partial<PaperTrade> = {}): PaperTrade {
-  return {
-    trade_id: "trade-1",
-    symbol: "RELIANCE",
-    side: "BUY",
-    quantity: 1,
-    entry_price: 100,
-    exit_price: 110,
-    entry_time: "2026-04-27T09:30:00Z",
-    exit_time: "2026-04-27T15:30:00Z",
-    pnl: 10,
-    pnl_pct: 10,
-    exit_reason: "TP",
-    costs: 1,
-    net_pnl: 9,
-    stop_loss: 95,
-    take_profit: 115,
-    peak_price: 115,
-    low_price: 95,
-    hold_duration_minutes: 360,
-    notes: "",
-    reason: "ORB Breakout",
-    strategy_id: 1,
-    strategy_name: "ORB",
-    bot_id: null,
-    bot_name: null,
     ...overrides,
   };
 }

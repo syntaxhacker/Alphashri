@@ -45,6 +45,7 @@ STRATEGY_TYPE_DEFAULT_PROFILES = {
     "EMA_CROSS": ["trending"],
     "52W_CHASER": ["near_52w_breakout"],
     "52W_TARGET": ["near_52w_breakout"],
+    "BLIND_52W": ["near_52w_breakout"],
 }
 from trading.global_risk_manager import GlobalRiskManager
 from trading.journal import get_journal
@@ -1241,7 +1242,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
                 if is_5min or is_market_open:
                     for sid, runner in self.strategies.items():
-                        if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
+                        if runner.strategy_type in ("52W_CHASER", "52W_TARGET", "BLIND_52W"):
                             if not is_market_open:
                                 continue
                         try:

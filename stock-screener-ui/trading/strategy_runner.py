@@ -11,7 +11,7 @@ from rich.console import Console
 console = Console()
 
 INTRADAY_STRATEGY_TYPES = {"ORB", "SR_BREAKOUT", "EMA_CROSS"}
-SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET"}
+SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET", "BLIND_52W"}
 
 
 @dataclass
@@ -39,8 +39,8 @@ class StrategyRunner:
             from trading.orb_signals import ORBSignalGenerator
             self.signal_generator = ORBSignalGenerator(
                 or_minutes=self.config.get('or_minutes', 45),
-                sl_pct=self.config['sl_pct'],
-                tp_pct=self.config['tp_pct'],
+                sl_pct=self.config.get('sl_pct'),
+                tp_pct=self.config.get('tp_pct'),
                 min_or_range_pct=self.config.get('min_or_range_pct', 0.5),
                 max_or_range_pct=self.config.get('max_or_range_pct', 3.0),
                 breakout_buffer_pct=self.config.get('breakout_buffer_pct', 0.3),
@@ -54,6 +54,9 @@ class StrategyRunner:
         elif self.strategy_type == "52W_TARGET":
             from trading.week52_target_signals import Week52TargetSignalGenerator
             self.signal_generator = Week52TargetSignalGenerator(self.config)
+        elif self.strategy_type == "BLIND_52W":
+            from trading.blind_52w_signals import Blind52WSignalGenerator
+            self.signal_generator = Blind52WSignalGenerator(self.config)
         elif self.strategy_type == "EMA_CROSS":
             from trading.ema_cross_signals import EMACrossSignalGenerator
             self.signal_generator = EMACrossSignalGenerator(self.config)

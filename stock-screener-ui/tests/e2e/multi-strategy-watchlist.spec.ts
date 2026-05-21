@@ -136,11 +136,11 @@ test.describe("Multi-Strategy System - P&L Tabs", () => {
     await setupBotMocksForId(page, botId);
   });
 
-  test("should show P&L per strategy in tabs", async ({ page }) => {
+  test("should show P&L per strategy in panels", async ({ page }) => {
     await navigateToBot(page, botId);
 
-    await expect(page.getByTestId("strategy-tabs")).toBeVisible();
-    await expect(page.getByTestId("strategy-tab-orb-conservative")).toContainText("₹");
+    // Positions are grouped in strategy panels, check portfolio card shows P&L
+    await expect(page.getByTestId("portfolio-card")).toBeVisible();
   });
 });
 

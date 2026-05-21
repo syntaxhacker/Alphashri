@@ -1,23 +1,21 @@
-import { useRef, useState, useEffect } from "react";
-import { Table, Badge, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea } from "@mantine/core";
+import { useRef, useState, useEffect, Fragment } from "react";
+import { Table, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea, Badge, Collapse, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@mantine/core";
 import dayjs from "dayjs";
-import { DataTable } from "../common";
-import { fetchPaperChart, closePaperPosition, refreshLiveData } from "../../api/paperTrading";
+import { DataTable, ClickableSymbol } from "../common";
+import { fetchPaperChart, closePaperPosition, refreshLiveData, fetch52WLevels } from "../../api/paperTrading";
 import {
   getPaperTradingState,
   setSelectedSymbol,
   setSelectedTradeId,
+  updatePositionNotesAction,
 } from "../../state/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import {
-  formatCurrencyIN,
   formatNumber,
   formatElapsed,
+  formatCurrencyIN,
   getPnLTextColor,
-  getStrategyTypeFromName,
 } from "../../utils/ui-helpers";
-import { SideBadge } from "../common";
-import { ClickableSymbol } from "../common";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
@@ -83,15 +81,16 @@ const TABLE_STYLES = {
     background: "var(--mantine-color-body)",
   },
   th: {
-    padding: "4px 6px",
-    fontSize: "11px",
+    padding: "3px 5px",
+    fontSize: "10px",
     fontWeight: 600,
     textTransform: "uppercase" as const,
     borderBottom: "1px solid var(--mantine-color-default-border)",
     whiteSpace: "nowrap" as const,
+    letterSpacing: "0.5px",
   },
   td: {
-    padding: "3px 6px",
+    padding: "3px 5px",
     fontSize: "12px",
     borderBottom: "1px solid var(--mantine-color-default-border)",
     whiteSpace: "nowrap" as const,
@@ -185,6 +184,29 @@ function usePrevPrice(price: number) {
   return prev;
 }
 
+function getSideColor(side: string): string {
+  return side === "BUY" ? "#22c55e" : "#ef4444";
+}
+
+function calcRowBg(current: number, entry: number, sl: number, tp: number): string {
+  const slDist = entry - sl;
+  const tpDist = tp > 0 ? tp - entry : null;
+  if (slDist <= 0 && (tpDist == null || tpDist <= 0)) return "transparent";
+  let redPct = 0;
+  let greenPct = 0;
+  if (slDist > 0) {
+    redPct = Math.max(0, Math.min(1, (entry - current) / slDist));
+  }
+  if (tpDist != null && tpDist > 0) {
+    greenPct = Math.max(0, Math.min(1, (current - entry) / tpDist));
+  } else if (current > entry) {
+    greenPct = 0.3;
+  }
+  const redStop = redPct * 50;
+  const greenStart = 100 - greenPct * 50;
+  return `linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.12) ${redStop}%, transparent ${redStop}%, transparent ${greenStart}%, rgba(34,197,94,0.12) ${greenStart}%, rgba(34,197,94,0.08) 100%)`;
+}
+
 function PositionRow({
   pos,
   onSelect,
@@ -201,74 +223,152 @@ function PositionRow({
   ) => void;
   onClose: (symbol: string, price: number) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const prevPrice = usePrevPrice(pos.current_price);
+  const sideColor = getSideColor(pos.side);
+  const rowBg = calcRowBg(pos.current_price, pos.entry_price, pos.stop_loss, pos.take_profit);
+  const tpLabel = pos.take_profit > 0 ? `₹${pos.take_profit.toFixed(2)}` : "trail";
 
   return (
-    <Table.Tr
-      key={pos.order_id || `${pos.strategy_id}-${pos.symbol}`}
-      onClick={() =>
-        onSelect(
-          pos.symbol,
-          pos.order_id,
-          pos.strategy_name,
-          pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined),
-          pos.strategy_id,
-          pos.entry_time,
-        )
+    <Fragment key={pos.order_id || `${pos.strategy_id}-${pos.symbol}`}>
+      <Table.Tr
+        onClick={() => setExpanded((e) => !e)}
+        style={{
+          cursor: "pointer",
+          background: rowBg,
+          borderLeft: `3px solid ${sideColor}`,
+          transition: "background 0.5s ease",
+        }}
+        data-testid={`position-row-${pos.symbol}`}
+      >
+        <Table.Td>
+          <Text span size="xs" c="dimmed" mr={4}>{expanded ? "▼" : "▶"}</Text>
+          <Tooltip label={`SL: ₹${pos.stop_loss.toFixed(2)} | TP: ${tpLabel}`}>
+            <ClickableSymbol
+              symbol={pos.symbol}
+              showPreview
+              onClick={() => onSelect(pos.symbol, pos.order_id, pos.strategy_name, undefined, pos.strategy_id, pos.entry_time)}
+            />
+          </Tooltip>
+        </Table.Td>
+        <Table.Td>
+          <Text size="sm">
+            {pos.quantity}×₹{pos.entry_price.toFixed(0)}
+            <Text span c="dimmed" size="xs">→</Text>
+            <PriceDisplay price={pos.current_price} prevPrice={prevPrice} />
+          </Text>
+        </Table.Td>
+        <Table.Td>
+          <PnLDisplay pnl={pos.pnl} pnlPct={pos.pnl_pct} />
+        </Table.Td>
+        <Table.Td>
+          <Text size="xs" c="dimmed">{formatElapsed(pos.entry_time)}</Text>
+        </Table.Td>
+        <Table.Td>
+          <Tooltip label="Close position">
+            <ActionIcon variant="subtle" color="gray" size="sm" onClick={(e) => { e.stopPropagation(); onClose(pos.symbol, pos.current_price); }} data-testid={`close-position-${pos.symbol}`}>
+              ✕
+            </ActionIcon>
+          </Tooltip>
+        </Table.Td>
+      </Table.Tr>
+      <Table.Tr key={`${pos.order_id || `${pos.strategy_id}-${pos.symbol}`}-detail`}>
+        <Table.Td colSpan={5} style={{ padding: 0, border: "none" }}>
+          <Collapse in={expanded}>
+            <Box p="sm" bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}>
+              <PositionDetail pos={pos} />
+            </Box>
+          </Collapse>
+        </Table.Td>
+      </Table.Tr>
+    </Fragment>
+  );
+}
+
+function PositionDetail({ pos }: { pos: PaperPosition }) {
+  const [notes, setNotes] = useState(pos.notes || "");
+  const [saving, setSaving] = useState(false);
+  const [week52, setWeek52] = useState<{ high_52w: number; low_52w: number } | null>(null);
+  const [loading52, setLoading52] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading52(true);
+    fetch52WLevels(pos.symbol).then((data) => {
+      if (!cancelled) {
+        setWeek52(data);
+        setLoading52(false);
       }
-      style={{ cursor: "pointer" }}
-      data-testid={`position-row-${pos.symbol}`}
-    >
-      <Table.Td>
-        <ClickableSymbol
-          symbol={pos.symbol}
-          onClick={() =>
-            onSelect(
-              pos.symbol,
-              pos.order_id,
-              pos.strategy_name,
-              pos.strategy_type || (getStrategyTypeFromName(pos.strategy_name) ?? undefined),
-              pos.strategy_id,
-              pos.entry_time,
-            )
-          }
-        />
-      </Table.Td>
-      <Table.Td>
-        <SideBadge side={pos.side} data-testid={`side-badge-${pos.symbol}`} />
-      </Table.Td>
-      <Table.Td>{pos.quantity}</Table.Td>
-      <Table.Td>₹{(pos.entry_price ?? 0).toFixed(2)}</Table.Td>
-      <Table.Td>
-        <PriceDisplay price={pos.current_price ?? 1} prevPrice={prevPrice} />
-      </Table.Td>
-      <Table.Td>
-        <PnLDisplay pnl={pos.pnl ?? 0} pnlPct={pos.pnl_pct ?? 0} />
-      </Table.Td>
-      <Table.Td>₹{(pos.stop_loss ?? 0).toFixed(2)}</Table.Td>
-      <Table.Td>₹{(pos.take_profit ?? 0).toFixed(2)}</Table.Td>
-      <Table.Td>
-        <Badge variant="outline" color="blue">
-          {pos.strategy_name || "Default"}
-        </Badge>
-      </Table.Td>
-      <Table.Td>{formatElapsed(pos.entry_time)}</Table.Td>
-      <Table.Td>
-        <Tooltip label="Close Position">
-          <ActionIcon
-            variant="subtle"
-            color="red"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose(pos.symbol, pos.current_price);
-            }}
-            data-testid={`close-position-${pos.symbol}`}
-          >
-            ✕
-          </ActionIcon>
-        </Tooltip>
-      </Table.Td>
-    </Table.Tr>
+    });
+    return () => { cancelled = true; };
+  }, [pos.symbol]);
+
+  const handleSaveNotes = async () => {
+    setSaving(true);
+    await updatePositionNotesAction(pos.order_id, notes, null);
+    setSaving(false);
+  };
+
+  return (
+    <Stack gap="xs">
+      <SimpleGrid cols={2} spacing="xs">
+        <Box style={{ overflow: "hidden" }}>
+          <Text size="xs" c="dimmed">Entry Reason</Text>
+          <Text size="sm" style={{ wordBreak: "break-word" }}>{pos.entry_reason || "—"}</Text>
+        </Box>
+        <Box style={{ overflow: "hidden" }}>
+          <Text size="xs" c="dimmed">Exit Reason</Text>
+          <Text size="sm" style={{ wordBreak: "break-word" }}>Open (no exit yet)</Text>
+        </Box>
+      </SimpleGrid>
+      <SimpleGrid cols={4} spacing="xs">
+        <Box>
+          <Text size="xs" c="dimmed">Stop Loss</Text>
+          <Text size="sm" c="red">{pos.stop_loss ? `₹${pos.stop_loss.toFixed(2)}` : "—"}</Text>
+        </Box>
+        <Box>
+          <Text size="xs" c="dimmed">Take Profit</Text>
+          <Text size="sm" c="teal">{pos.take_profit ? `₹${pos.take_profit.toFixed(2)}` : "—"}</Text>
+        </Box>
+        <Box>
+          <Text size="xs" c="dimmed">Peak</Text>
+          <Text size="sm">{pos.peak_price ? `₹${pos.peak_price.toFixed(2)}` : "—"}</Text>
+        </Box>
+        <Box>
+          <Text size="xs" c="dimmed">Low</Text>
+          <Text size="sm">{pos.low_price ? `₹${pos.low_price.toFixed(2)}` : "—"}</Text>
+        </Box>
+        <Box>
+          <Text size="xs" c="dimmed">52W High</Text>
+          <Text size="sm" c="orange">
+            {loading52 ? <Loader size="xs" /> : week52?.high_52w ? `₹${week52.high_52w.toFixed(2)}` : "—"}
+          </Text>
+        </Box>
+        <Box>
+          <Text size="xs" c="dimmed">52W Low</Text>
+          <Text size="sm" c="blue">
+            {loading52 ? <Loader size="xs" /> : week52?.low_52w ? `₹${week52.low_52w.toFixed(2)}` : "—"}
+          </Text>
+        </Box>
+      </SimpleGrid>
+      <Box>
+        <Text size="xs" c="dimmed" mb={2}>Notes</Text>
+        <Group gap="xs">
+          <Textarea
+            size="xs"
+            value={notes}
+            onChange={(e) => setNotes(e.currentTarget.value)}
+            placeholder="Add notes..."
+            style={{ flex: 1 }}
+            maxLength={500}
+            autosize
+            minRows={1}
+            maxRows={3}
+          />
+          <Button size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving}>Save</Button>
+        </Group>
+      </Box>
+    </Stack>
   );
 }
 
@@ -320,15 +420,9 @@ export function PositionsTableBody({
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Symbol</Table.Th>
-          <Table.Th>Side</Table.Th>
-          <Table.Th>Qty</Table.Th>
-          <Table.Th>Entry</Table.Th>
-          <Table.Th>Curr</Table.Th>
+          <Table.Th>Entry→Curr</Table.Th>
           <Table.Th>P&L</Table.Th>
-          <Table.Th>SL</Table.Th>
-          <Table.Th>TP</Table.Th>
-          <Table.Th>Strategy</Table.Th>
-          <Table.Th>Time</Table.Th>
+          <Table.Th>Age</Table.Th>
           <Table.Th></Table.Th>
         </Table.Tr>
       </Table.Thead>

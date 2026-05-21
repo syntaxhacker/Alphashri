@@ -123,8 +123,8 @@ describe("paperTrading state", () => {
     expect(state.performanceSummary).toBeNull();
     expect(state.symbolPerformance).toEqual([]);
     expect(state.filterDate).toBeNull();
-    expect(state.filterFromDate).toBe(new Date().toISOString().split("T")[0]);
-    expect(state.filterToDate).toBe(new Date().toISOString().split("T")[0]);
+    expect(state.filterFromDate).toBeNull();
+    expect(state.filterToDate).toBeNull();
     expect(state.filterSymbol).toBeNull();
     expect(state.filterStrategy).toBeNull();
     expect(state.filterBot).toBeNull();

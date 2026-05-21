@@ -51,9 +51,9 @@ describe("buildGrid", () => {
         scale: true,
         gridIndex: 1,
         axisLine: { show: false },
-        axisLabel: { show: false },
         splitLine: { show: false },
       });
+      expect(result.yAxes[1].axisLabel.show).toBe(true);
     });
 
     it("includes dataZoom configuration", () => {

@@ -1,39 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from "vitest";
 import type { PaperTrade } from "../../types/paperTrading";
-
-const mockTrade = (overrides: Partial<PaperTrade> = {}): PaperTrade => ({
-  trade_id: "TRADE-000001",
-  symbol: "TCS",
-  side: "BUY",
-  quantity: 10,
-  entry_price: 100,
-  exit_price: 110,
-  entry_time: "2026-04-15T09:30:00",
-  exit_time: "2026-04-15T14:30:00",
-  pnl: 100,
-  pnl_pct: 10,
-  exit_reason: "TP",
-  costs: 5,
-  net_pnl: 95,
-  stop_loss: 95,
-  take_profit: 115,
-  peak_price: 112,
-  low_price: 98,
-  hold_duration_minutes: 300,
-  notes: "test notes",
-  reason: "test reason",
-  strategy_id: 1,
-  strategy_name: "ORB Best",
-  strategy_type: "ORB",
-  bot_id: null,
-  bot_name: null,
-  ...overrides,
-});
+import { mockTrade } from "./testFixtures";
 
 describe("PaperTrade type", () => {
   test("has reason and notes fields", () => {
-    const trade = mockTrade();
+    const trade = mockTrade({ reason: "test reason", notes: "test notes" });
     expect(trade.reason).toBe("test reason");
     expect(trade.notes).toBe("test notes");
   });

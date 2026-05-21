@@ -53,6 +53,9 @@ from api.paper.endpoints import (
     update_strategy_config_endpoint,
     reset_strategy_config_endpoint,
 )
+from api.paper.analytics import get_analytics
+from api.paper.activity import get_activity_feed, push_event
+from api.paper.aggregated import get_aggregated_dashboard
 from api.paper.requests import (
     OrderRequest,
     ClosePositionRequest,

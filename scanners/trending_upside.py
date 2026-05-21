@@ -168,7 +168,7 @@ SCREENER_PROFILES = {
                 Column('close') >= 10,
                 Column('market_cap_basic') >= 500_000_000,
                 Column('volume') > 1_000_000,
-                Column('RSI').between(45, 75),
+                Column('RSI').between(45, 85),
                 Column('change') >= 0.5,
                 Column('close') > Column('SMA50'),
                 Column('SMA50') > Column('SMA200'),

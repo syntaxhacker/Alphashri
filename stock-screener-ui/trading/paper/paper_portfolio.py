@@ -413,6 +413,7 @@ class PaperTrader:
                 'strategy_id': pos.strategy_id,
                 'strategy_name': pos.strategy_name,
                 'strategy_type': pos.strategy_type,
+                'entry_reason': getattr(pos, 'metadata', {}).get('entry_reason', ''),
             }
             for pos in self.positions.values()
         ]

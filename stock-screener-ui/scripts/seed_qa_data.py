@@ -64,6 +64,7 @@ TEMPLATES = [
         'strategy_type': '52W_CHASER',
         'description': '52-Week High Breakout template',
         'entry_threshold_pct': 2.0,
+        'min_breakout_pct': 0.5,
         'sl_pct': 2.0,
         'tp_pct': 3.0,
     },
@@ -84,6 +85,14 @@ TEMPLATES = [
         'ema_slow_period': 21,
         'sl_pct': 1.0,
         'tp_pct': 1.5,
+    },
+    {
+        'name': 'Blind 52W Template',
+        'strategy_type': 'BLIND_52W',
+        'description': 'Blind buy near 52W high with target exit at 52W high',
+        'near_high_threshold_pct': 3.0,
+        'min_days_since_52w_high': 20,
+        'max_holding_days': 30,
     },
 ]
 
@@ -141,6 +150,7 @@ STRATEGIES = [
         'template_name': '52W Chaser Template',
         'description': 'Ride the 52W high breakouts',
         'entry_threshold_pct': 2.0,
+        'min_breakout_pct': 0.5,
         'sl_pct': 2.0,
         'tp_pct': 3.0,
         'max_positions': 2,
@@ -173,6 +183,16 @@ STRATEGIES = [
         'sl_pct': 1.0,
         'tp_pct': 1.5,
         'max_positions': 5,
+    },
+    {
+        'name': 'Blind 52W Swing',
+        'strategy_type': 'BLIND_52W',
+        'template_name': 'Blind 52W Template',
+        'description': 'Buy near 52W high, exit at 52W high or EOD/max days',
+        'near_high_threshold_pct': 3.0,
+        'min_days_since_52w_high': 20,
+        'max_holding_days': 30,
+        'max_positions': 3,
     },
 ]
 

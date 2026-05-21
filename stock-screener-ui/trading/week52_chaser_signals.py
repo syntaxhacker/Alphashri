@@ -23,6 +23,7 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
         self.sl_pct = float(config.get("sl_pct", 2.0))
         self.tp_pct = float(config.get("tp_pct", 3.0))
         self.entry_threshold_pct = float(config.get("entry_threshold_pct", 3.0))
+        self.min_breakout_pct = float(config.get("min_breakout_pct") or 0.5)
         self.enable_trailing_stop = bool(config.get("enable_trailing_stop", False))
         self.trailing_stop_pct = float(config.get("trailing_stop_pct", 2.0))
         self.trailing_activation_pct = float(config.get("trailing_activation_pct", 3.0))
@@ -42,19 +43,25 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
         if current_price is None or high_52w is None or current_price <= 0 or high_52w <= 0:
             return None
 
-        # Chaser enters ABOVE the 52W high (breakout confirmed)
-        if current_price < high_52w:
-            return None
-
+        # Chaser enters on confirmed breakout: price must be min_breakout_pct above the 52W high
+        # (ensures SL at 52W high gives ~min_breakout_pct room) and not more than entry_threshold_pct above
         pct_above = ((current_price - high_52w) / high_52w) * 100
-        if pct_above > self.entry_threshold_pct:
+        if pct_above < self.min_breakout_pct or pct_above > self.entry_threshold_pct:
             return None
 
         if self.enable_filters and not self._check_filters(market_data, current_price):
             return None
 
-        sl = current_price * (1 - self.sl_pct / 100)
+        sl = high_52w  # SL at 52W high — breakout failed if price pulls back below
         tp = current_price * (1 + self.tp_pct / 100)
+
+        vol = market_data.get("volume", 0) or 0
+        avg_vol = market_data.get("avg_volume_20d", 0) or 0
+        vol_ratio = round(vol / avg_vol, 2) if avg_vol > 0 else 0
+        ma50 = market_data.get("ma50", 0) or 0
+        ma200 = market_data.get("ma200", 0) or 0
+        adx = float(market_data.get("adx", 0.0) or 0.0)
+        rsi = float(market_data.get("rsi", 0.0) or 0.0)
 
         return self.create_signal(
             symbol=symbol,
@@ -66,9 +73,9 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
             or_low=0.0,
             or_range=round(current_price - high_52w, 2),
             or_range_pct=round(pct_above, 2),
-            adx=float(market_data.get("adx", 0.0) or 0.0),
-            rsi=float(market_data.get("rsi", 0.0) or 0.0),
-            notes=f"Breakout above 52W high ₹{high_52w:.2f} (+{pct_above:.2f}%) | SL {self.sl_pct}% TP {self.tp_pct}% | ADX {float(market_data.get('adx', 0.0) or 0.0):.0f} RSI {float(market_data.get('rsi', 0.0) or 0.0):.0f}",
+            adx=adx,
+            rsi=rsi,
+            notes=f"Breakout above 52W high ₹{high_52w:.2f} (+{pct_above:.2f}%) | SL @ 52W high | TP {self.tp_pct}% | ADX {adx:.0f} RSI {rsi:.0f} | filters={'on' if self.enable_filters else 'off'} entry_range={self.min_breakout_pct}-{self.entry_threshold_pct}% vol_ratio={vol_ratio} ma50={ma50:.0f} ma200={ma200:.0f}",
         )
 
     def check_exit(

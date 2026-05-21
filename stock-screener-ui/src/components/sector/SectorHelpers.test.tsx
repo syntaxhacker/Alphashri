@@ -1,18 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
 import { SectorTreemap } from "./SectorHelpers";
 import type { SectorItem } from "../../types/sector";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => cleanup());
-
-function renderWithMantine(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-}
 
 function makeSector(overrides: Partial<SectorItem> = {}): SectorItem {
   return {

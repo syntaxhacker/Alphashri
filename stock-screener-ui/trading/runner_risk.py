@@ -97,6 +97,15 @@ class RunnerRiskMixin:
             window_252_highs = highs[-252:] if len(highs) >= 252 else highs
             high_52w = max(window_252_highs) if window_252_highs else 0.0
 
+            # Trading days since 52W high was last achieved (0 = today)
+            days_since_52w_high = 0
+            if high_52w > 0 and len(window_252_highs) >= 2:
+                reversed_window = list(reversed(window_252_highs))
+                try:
+                    days_since_52w_high = reversed_window.index(high_52w)
+                except ValueError:
+                    pass
+
             avg_volume_20d = 0.0
             if len(volumes) >= 20:
                 avg_volume_20d = sum(volumes[-20:]) / 20
@@ -122,6 +131,7 @@ class RunnerRiskMixin:
             return {
                 'current_price': current_price,
                 'high_52w': high_52w,
+                'days_since_52w_high': days_since_52w_high,
                 'daily_highs': highs,
                 'daily_closes': closes,
                 'volume': volumes[-1] if volumes else 0.0,

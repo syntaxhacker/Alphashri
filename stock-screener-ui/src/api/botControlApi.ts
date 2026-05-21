@@ -293,6 +293,11 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
         margin_used: p.margin_used || 0,
         strategy_id: p.strategy_id,
         strategy_name: p.strategy_name,
+        entry_reason: p.entry_reason || p.reason || "",
+        exit_reason: null,
+        peak_price: p.peak_price || 0,
+        low_price: p.low_price || 0,
+        notes: p.notes || "",
       }));
 
       setPortfolio(normalizeBotPortfolio(portfolioData.portfolio, positions, realizedToday));

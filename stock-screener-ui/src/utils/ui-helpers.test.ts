@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import {
   formatCurrency,
   formatCurrencyIN,
@@ -22,6 +22,7 @@ import {
   getScoreColor,
   getExitReasonColor,
   formatExitReason,
+  formatTimeAgo,
   getStatusColor,
   renderSortIndicator,
   getNextSortDirection,
@@ -490,5 +491,52 @@ describe("formatCurrencyIN", () => {
     expect(formatCurrencyIN(null)).toBe("0");
     expect(formatCurrencyIN(undefined)).toBe("0");
     expect(formatCurrencyIN(NaN)).toBe("0");
+  });
+});
+
+describe("formatTimeAgo", () => {
+  const now = new Date("2025-06-15T12:00:00Z");
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test('returns "just now" for a date less than 1 minute ago', () => {
+    expect(formatTimeAgo(new Date(now.getTime() - 30_000).toISOString())).toBe("just now");
+  });
+
+  test("returns minutes ago for a date within the last hour", () => {
+    expect(formatTimeAgo(new Date(now.getTime() - 5 * 60_000).toISOString())).toBe("5m ago");
+  });
+
+  test('returns "1m ago" for exactly 1 minute ago', () => {
+    expect(formatTimeAgo(new Date(now.getTime() - 60_000).toISOString())).toBe("1m ago");
+  });
+
+  test("returns hours ago for a date within the last 24 hours", () => {
+    expect(formatTimeAgo(new Date(now.getTime() - 3 * 3600_000).toISOString())).toBe("3h ago");
+  });
+
+  test("returns days ago for a date within the last 7 days", () => {
+    expect(formatTimeAgo(new Date(now.getTime() - 3 * 86400_000).toISOString())).toBe("3d ago");
+  });
+
+  test("returns a localized date string for dates older than 7 days", () => {
+    const date = new Date(now.getTime() - 10 * 86400_000).toISOString();
+    expect(formatTimeAgo(date)).toBe(new Date(date).toLocaleDateString());
+  });
+
+  test("handles invalid dates", () => {
+    expect(formatTimeAgo("not-a-date")).toBe("Invalid Date");
+    expect(formatTimeAgo("")).toBe("Invalid Date");
+  });
+
+  test("handles future dates", () => {
+    expect(formatTimeAgo(new Date(now.getTime() + 60_000).toISOString())).toBe("just now");
   });
 });

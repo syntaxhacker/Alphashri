@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { BrowserRouter } from "react-router-dom";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithMantine, renderWithRouter } from "../../test-utils/renderWithMantine";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 const mockFetchWithAuth = vi.fn();
@@ -15,10 +15,6 @@ vi.mock("../../api/fetchWithAuth", () => ({
 vi.mock("@mantine/notifications", () => ({
   notifications: { show: vi.fn() },
 }));
-
-function renderWithRouter(ui: React.ReactElement) {
-  return renderWithMantine(<BrowserRouter>{ui}</BrowserRouter>);
-}
 
 describe("AdminPage", () => {
   beforeEach(() => {

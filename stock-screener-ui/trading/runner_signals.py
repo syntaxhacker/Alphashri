@@ -292,6 +292,7 @@ class RunnerSignalsMixin:
             market_data = {
                 'current_price': daily_data['current_price'],
                 'high_52w': daily_data['high_52w'],
+                'days_since_52w_high': daily_data.get('days_since_52w_high', 0),
                 'daily_highs': daily_data['daily_highs'],
                 'volume': daily_data['volume'],
                 'avg_volume_20d': daily_data['avg_volume_20d'],
@@ -518,11 +519,18 @@ class RunnerSignalsMixin:
                 position.metadata['upstox_order_id'] = order_id
             if runner.strategy_type in SWING_STRATEGY_TYPES:
                 position.metadata['strategy_type'] = runner.strategy_type
-                if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
+                if runner.strategy_type in ("52W_CHASER", "52W_TARGET", "BLIND_52W"):
                     position.metadata['entry_52w_high'] = signal.or_high if signal.or_high > 0 else None
+                    position.metadata['entry_adx'] = signal.adx if hasattr(signal, 'adx') else None
+                    position.metadata['entry_rsi'] = signal.rsi if hasattr(signal, 'rsi') else None
                     position.metadata['max_holding_days'] = runner.config.get('max_holding_days', 30)
                     position.metadata['trailing_stop_pct'] = runner.config.get('trailing_stop_pct', 3.0)
                     position.metadata['enable_trailing_stop'] = runner.config.get('enable_trailing_stop', False)
+                    position.metadata['sl_pct'] = runner.config.get('sl_pct', 2.0)
+                    position.metadata['tp_pct'] = runner.config.get('tp_pct', 0.0)
+                    position.metadata['entry_threshold_pct'] = runner.config.get('entry_threshold_pct', 2.0)
+                    position.metadata['min_breakout_pct'] = runner.config.get('min_breakout_pct', 0.5)
+                    position.metadata['enable_filters'] = runner.config.get('enable_filters', False)
 
         return runner, validation, position
 
@@ -583,7 +591,7 @@ class RunnerSignalsMixin:
                     exit_triggered = True
                     exit_price = pos.stop_loss
                     exit_reason = "SL"
-                elif candle_high >= pos.take_profit:
+                elif pos.take_profit > 0 and candle_high >= pos.take_profit:
                     exit_triggered = True
                     exit_price = pos.take_profit
                     exit_reason = "TP"
@@ -592,7 +600,7 @@ class RunnerSignalsMixin:
                     exit_triggered = True
                     exit_price = pos.stop_loss
                     exit_reason = "SL"
-                elif candle_low <= pos.take_profit:
+                elif pos.take_profit > 0 and candle_low <= pos.take_profit:
                     exit_triggered = True
                     exit_price = pos.take_profit
                     exit_reason = "TP"

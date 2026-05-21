@@ -1,6 +1,11 @@
 import { createSubscriber } from "./createSubscriber";
 import { fetchHolidays, fetchHolidayCheck } from "../api/holidays_api";
 import type { MarketHoliday, HolidayCheck } from "../types/holidays";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const { subscribe, notify } = createSubscriber();
 
@@ -65,7 +70,7 @@ export function isTradingHoliday(dateStr: string): boolean {
 
 export function isMarketClosedToday(): boolean {
   if (typeof window !== "undefined" && (window as any).__E2E_MOCK_MARKET_OPEN__) return false;
-  const today = new Date().toISOString().split("T")[0];
+  const today = dayjs().tz("Asia/Kolkata").format("YYYY-MM-DD");
   return isTradingHoliday(today);
 }
 

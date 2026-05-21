@@ -51,7 +51,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   });
 
   // Note: This test uses the mock data from setupMultiStrategyBotMocks
-  test("@smoke should show positions with strategy tabs when multiple strategies have positions", async ({
+  test("@smoke should show positions with strategy panels when multiple strategies have positions", async ({
     page,
   }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
@@ -59,20 +59,15 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     const positionsTable = page.locator('[data-testid="positions-table-container"]');
     await expect(positionsTable).toBeVisible();
 
-    const strategyTabs = page.locator('[data-testid="strategy-tabs"]');
-    await expect(strategyTabs).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('[data-testid="strategy-tab-all"]')).toBeVisible();
-    await expect(page.locator('[data-testid="strategy-tab-orb-conservative"]')).toBeVisible();
-    await expect(page.locator('[data-testid="strategy-tab-orb-aggressive"]')).toBeVisible();
+    await expect(page.locator('[data-testid*="strategy-panel-"]').first()).toBeVisible({
+      timeout: 15000,
+    });
   });
 
-  test("should filter positions by strategy tab", async ({ page }) => {
+  test("should show positions grouped by strategy panels", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Click on "ORB Conservative" tab
-    await page.locator('[data-testid="strategy-tab-orb-conservative"]').click({ timeout: 15000 });
-
-    // Verify TCS position is visible (from ORB Conservative)
+    // Verify positions are visible in the container
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
       timeout: 5000,
     });
@@ -254,13 +249,10 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await setupPaperTradingTestMocks(page);
   });
 
-  test("should show all positions in 'All' tab", async ({ page }) => {
+  test("should show all positions in strategy panels", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Click on "All" tab
-    await page.locator('[data-testid="strategy-tab-all"]').click({ timeout: 15000 });
-
-    // Verify both positions are visible
+    // Verify both positions are visible (all positions shown by default)
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("INFY");
   });
@@ -723,7 +715,8 @@ test.describe("Paper Trading - Chart Controls", () => {
 
     const positionRow = page.locator(`[data-testid="position-row-${SYMBOL}"]`);
     await expect(positionRow).toBeVisible({ timeout: 15000 });
-    await positionRow.click({ timeout: 15000 });
+    // Click the symbol link inside the row to open chart (row click only toggles expansion)
+    await positionRow.locator(".symbol-link").click({ timeout: 15000 });
     await expect(page.locator('[data-testid="paper-chart-container"]')).toBeVisible({
       timeout: 10000,
     });

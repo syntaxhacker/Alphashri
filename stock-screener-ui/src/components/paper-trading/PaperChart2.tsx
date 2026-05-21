@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   Box,
+  Button,
   Text,
   Group,
   Select,
+  Autocomplete,
   Flex,
   useMantineColorScheme,
   Checkbox,
   Badge,
   LoadingOverlay,
+  Tooltip,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
+import { useDebouncedValue } from "@mantine/hooks";
 import dayjs from "dayjs";
 import {
   getPaperTradingState,
@@ -22,9 +26,11 @@ import {
   setShowPivotLines,
   setShow52wLines,
   setShowEmaLines,
+  setSelectedSymbol,
   subscribe,
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
+import { searchSymbols } from "../../api/symbols";
 import { CompactPanel } from "../common/compact";
 import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
 import { TradingChart } from "../chart/TradingChart";
@@ -32,7 +38,6 @@ import { normalizePaper } from "../../utils/chart/normalizePaper";
 import type { PaperPosition } from "../../types/paperTrading";
 import { TIMEFRAMES } from "../../config/constants";
 
-// Map numeric values to API format: 1 -> "1min", 60 -> "1hour", etc.
 const toApiFormat = (val: number): string => {
   if (val === 1) return "1min";
   if (val === 5) return "5min";
@@ -46,13 +51,11 @@ const toApiFormat = (val: number): string => {
   return `${val}min`;
 };
 
-// Select shows label but stores API format value
 const TIMEFRAME_OPTIONS = TIMEFRAMES.map((tf) => ({
   value: toApiFormat(tf.value),
   label: tf.label,
 }));
 
-// Format date range for display: "2026-03-24 to 2026-04-24" → "Mar 24 - Apr 24"
 const formatDateRange = (range: string): string => {
   if (!range.includes(" to ")) return range;
   const [start, end] = range.split(" to ");
@@ -87,38 +90,26 @@ function PositionInfo({ position }: { position: PaperPosition }) {
   );
 }
 
-function ChartLegend({ orbLabel, hasWeek52 }: { orbLabel?: string; hasWeek52: boolean }) {
-  const items = [
-    { color: "#00FFFF", label: "Entry", shape: "square" as const },
-    { color: "#FFFF00", label: "TP", shape: "circle" as const },
-    { color: "#FF00FF", label: "SL", shape: "circle" as const },
-  ];
-  if (orbLabel) items.push({ color: "#2196F3", label: orbLabel, shape: "square" as const });
-  if (hasWeek52) items.push({ color: "#E91E63", label: "52W High", shape: "square" as const });
+function ChartLegend({ orbLabel, hasWeek52, hasTrades }: { orbLabel?: string; hasWeek52: boolean; hasTrades: boolean }) {
+  const items: { color: string; label: string; shape: "square" | "circle" }[] = [];
+  if (hasTrades) {
+    items.push(
+      { color: "#00FFFF", label: "Entry", shape: "square" },
+      { color: "#FFFF00", label: "TP", shape: "circle" },
+      { color: "#FF00FF", label: "SL", shape: "circle" },
+    );
+  }
+  if (orbLabel) items.push({ color: "#2196F3", label: orbLabel, shape: "square" });
+  if (hasWeek52) items.push({ color: "#E91E63", label: "52W High", shape: "square" });
+
+  if (items.length === 0) return null;
 
   return (
-    <Flex
-      gap="sm"
-      justify="center"
-      align="center"
-      wrap="wrap"
-      py={8}
-      data-testid="chart-legend"
-      className="paper-chart-legend"
-      id="chart-legend"
-    >
+    <Flex gap="sm" justify="center" align="center" wrap="wrap" py={8} data-testid="chart-legend" className="paper-chart-legend" id="chart-legend">
       {items.map((item, i) => (
         <Flex key={i} align="center" gap={4}>
-          <Box
-            className={`legend-marker ${item.label.toLowerCase()}`}
-            w={12}
-            h={12}
-            bg={item.color}
-            style={{ borderRadius: item.shape === "circle" ? "50%" : 2 }}
-          />
-          <Text size="xs" c="dimmed">
-            {item.label}
-          </Text>
+          <Box className={`legend-marker ${item.label.toLowerCase()}`} w={12} h={12} bg={item.color} style={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
+          <Text size="xs" c="dimmed">{item.label}</Text>
         </Flex>
       ))}
     </Flex>
@@ -141,10 +132,7 @@ function ChartEmptyState({
       id="paper-chart"
       style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
     >
-      <Box
-        data-testid={icon ? undefined : "chart-placeholder-content"}
-        style={{ textAlign: "center" }}
-      >
+      <Box data-testid={icon ? undefined : "chart-placeholder-content"} style={{ textAlign: "center" }}>
         {icon && (
           <Text size="lg" c="dimmed" mb="sm">
             {icon}
@@ -156,40 +144,91 @@ function ChartEmptyState({
   );
 }
 
+function SymbolSearch({ onSelect }: { onSelect: (symbol: string) => void }) {
+  const [search, setSearch] = useState("");
+  const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
+  const [debounced] = useDebouncedValue(search, 300);
+
+  useEffect(() => {
+    if (debounced.trim().length < 1) { setOptions([]); return; }
+    searchSymbols(debounced, 15).then((results) => {
+      setOptions(results.map((r) => ({ value: r.symbol, label: `${r.symbol} — ${r.name}` })));
+    });
+  }, [debounced]);
+
+  return (
+    <Autocomplete
+      size="xs"
+      placeholder="Search symbol..."
+      value={search}
+      onChange={setSearch}
+      onOptionSubmit={(val) => { onSelect(val); setSearch(""); setOptions([]); }}
+      data={options}
+      limit={15}
+      styles={{ dropdown: { maxHeight: 300 } }}
+    />
+  );
+}
+
+const QUICK_RANGES = [
+  { label: "1D", days: 0 },
+  { label: "5D", days: 4 },
+  { label: "1M", days: 29 },
+  { label: "3M", days: 89 },
+  { label: "6M", days: 179 },
+  { label: "1Y", days: 364 },
+  { label: "Max", days: -1 },
+] as const;
+
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
   const [range, setRange] = useState<[Date | null, Date | null]>([null, null]);
 
   useEffect(() => {
     if (state.chartFromDate && state.chartData?.date) {
       setRange([new Date(state.chartFromDate), new Date(state.chartData.date)]);
-    } else if (
-      !state.chartFromDate &&
-      state.chartData?.date &&
-      range[0] === null &&
-      range[1] === null
-    ) {
-      // Initial load with no from_date — keep range null (no override)
+    } else if (!state.chartFromDate && state.chartData?.date && range[0] === null && range[1] === null) {
+      // keep range null
     }
   }, [state.chartFromDate, state.chartData?.date]);
+
+  const todayPresets = useMemo(() => [
+    { value: [dayjs().toDate(), dayjs().toDate()], label: "Single day" },
+    { value: [dayjs().subtract(1, "day").toDate(), dayjs().toDate()], label: "Last 2 days" },
+    { value: [dayjs().subtract(7, "day").toDate(), dayjs().toDate()], label: "Last 7 days" },
+    { value: [dayjs().subtract(30, "day").toDate(), dayjs().toDate()], label: "Last 30 days" },
+    { value: [dayjs().subtract(90, "day").toDate(), dayjs().toDate()], label: "Last 3 months" },
+    { value: [dayjs().startOf("year").toDate(), dayjs().toDate()], label: "Year to date" },
+  ], []);
 
   const chartDate = range[1] ? dayjs(range[1]).format("YYYY-MM-DD") : state.chartData?.date;
   const fromDate = range[0] ? dayjs(range[0]).format("YYYY-MM-DD") : undefined;
 
+  const handleQuickRange = useCallback((days: number) => {
+    const to = new Date();
+    let from: Date;
+    if (days === -1) {
+      from = new Date(0); // Max — all time
+    } else {
+      from = dayjs().subtract(days, "day").toDate(); // 1D = today, 5D = 4 days ago, etc.
+    }
+    setRange([from, to]);
+    setChartFromDate(null);
+    const fd = days === -1 ? undefined : dayjs(from).format("YYYY-MM-DD");
+    const cd = dayjs(to).format("YYYY-MM-DD");
+    if (state.selectedSymbol) {
+      fetchPaperChart(state.selectedSymbol, cd, state.chartTimeframe, state.selectedStrategyId, fd, true);
+    }
+  }, [state.selectedSymbol, state.chartTimeframe, state.selectedStrategyId]);
+
   const handleRangeChange = useCallback(
     (r: [Date | null, Date | null]) => {
       setRange(r);
+      if (r[0] && r[1] && r[0] > r[1]) return;
       setChartFromDate(null);
       const fd = r[0] ? dayjs(r[0]).format("YYYY-MM-DD") : undefined;
       const cd = r[1] ? dayjs(r[1]).format("YYYY-MM-DD") : state.chartData?.date;
       if (state.selectedSymbol && cd) {
-        fetchPaperChart(
-          state.selectedSymbol,
-          cd,
-          state.chartTimeframe,
-          state.selectedStrategyId,
-          fd,
-          true,
-        );
+        fetchPaperChart(state.selectedSymbol, cd, state.chartTimeframe, state.selectedStrategyId, fd, true);
       }
     },
     [state.selectedSymbol, state.chartData?.date, state.chartTimeframe, state.selectedStrategyId],
@@ -198,43 +237,35 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
   const handleTimeframeChange = useCallback(
     async (value: string | null) => {
       if (!value) return;
+      setRange([null, null]);
       setChartTimeframe(value);
       if (state.selectedSymbol && chartDate) {
-        await fetchPaperChart(
-          state.selectedSymbol,
-          chartDate,
-          value,
-          state.selectedStrategyId,
-          fromDate,
-          true,
-        );
+        await fetchPaperChart(state.selectedSymbol, chartDate, value, state.selectedStrategyId, fromDate, true);
       }
     },
     [state.selectedSymbol, chartDate, state.selectedStrategyId, fromDate],
   );
 
+  const handleSymbolSelect = useCallback((symbol: string) => {
+    setSelectedSymbol(symbol);
+    fetchPaperChart(symbol, dayjs().format("YYYY-MM-DD"), state.chartTimeframe, state.selectedStrategyId, undefined, true);
+  }, [state.chartTimeframe, state.selectedStrategyId]);
+
   return (
-    <Flex
-      data-testid="paper-chart-header"
-      className="paper-chart-header"
-      id="chart-header"
-      p="sm"
-      pb={0}
-      direction="column"
-      gap={6}
-      style={{ flex: "0 0 auto" }}
-    >
+    <Flex data-testid="paper-chart-header" className="paper-chart-header" id="chart-header" p="sm" pb={0} direction="column" gap={6} style={{ flex: "0 0 auto" }}>
       <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
         <Group gap="sm">
-          <Text fw={600} size="lg">
-            {state.chartData?.symbol} - {state.chartData?.date}
-            {state.chartData?.actual_date &&
-              state.chartData.actual_date !== state.chartData.date && (
+          <SymbolSearch onSelect={handleSymbolSelect} />
+          {state.chartData?.symbol && (
+            <Text fw={600} size="lg">
+              {state.chartData.symbol} - {state.chartData.date}
+              {state.chartData.actual_date && state.chartData.actual_date !== state.chartData.date && (
                 <Text span size="xs" c="dimmed" ml={4}>
                   ({formatDateRange(state.chartData.actual_date)})
                 </Text>
               )}
-          </Text>
+            </Text>
+          )}
           <Select
             data-testid="paper-chart-timeframe"
             size="xs"
@@ -243,85 +274,43 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             data={TIMEFRAME_OPTIONS}
             styles={{ input: { width: 72 } }}
           />
-          <DatePickerInput
-            type="range"
-            size="xs"
-            clearable
-            w={280}
-            allowSingleDateInRange
-            placeholder="Select date range"
-            valueFormat="MMM D, YYYY"
-            value={range}
-            onChange={handleRangeChange}
-            presets={[
-              { value: [dayjs().toDate(), dayjs().toDate()], label: "Single day" },
-              {
-                value: [dayjs().subtract(1, "day").toDate(), dayjs().toDate()],
-                label: "Last 2 days",
-              },
-              {
-                value: [dayjs().subtract(7, "day").toDate(), dayjs().toDate()],
-                label: "Last 7 days",
-              },
-              {
-                value: [dayjs().subtract(30, "day").toDate(), dayjs().toDate()],
-                label: "Last 30 days",
-              },
-              {
-                value: [dayjs().subtract(90, "day").toDate(), dayjs().toDate()],
-                label: "Last 3 months",
-              },
-              {
-                value: [dayjs().startOf("year").toDate(), dayjs().toDate()],
-                label: "Year to date",
-              },
-            ]}
-          />
         </Group>
       </Flex>
-      <Group gap="md">
-        <Checkbox
+      <Group gap={4} wrap="wrap">
+        {QUICK_RANGES.map((r) => (
+          <Button key={r.label} size="compact-xs" variant="subtle" onClick={() => handleQuickRange(r.days)}>
+            {r.label}
+          </Button>
+        ))}
+        <DatePickerInput
+          type="range"
           size="xs"
-          label="All trades"
-          checked={state.showAllTrades}
-          onChange={(e) => setShowAllTrades(e.currentTarget.checked)}
-          data-testid="show-all-trades-checkbox"
+          clearable
+          style={{ maxWidth: 220, flex: 1 }}
+          allowSingleDateInRange
+          maxDate={new Date()}
+          placeholder="Custom range"
+          valueFormat="MMM D"
+          value={range}
+          onChange={handleRangeChange}
+          presets={todayPresets}
         />
-        <Text span c="dimmed" size="xs">
-          |
-        </Text>
-        <Checkbox
-          size="xs"
-          label="ORB"
-          checked={state.showOrbLines}
-          onChange={(e) => setShowOrbLines(e.currentTarget.checked)}
-          color="blue"
-          data-testid="show-orb-lines"
-        />
-        <Checkbox
-          size="xs"
-          label="Pivot"
-          checked={state.showPivotLines}
-          onChange={(e) => setShowPivotLines(e.currentTarget.checked)}
-          color="violet"
-          data-testid="show-pivot-lines"
-        />
-        <Checkbox
-          size="xs"
-          label="52W"
-          checked={state.show52wLines}
-          onChange={(e) => setShow52wLines(e.currentTarget.checked)}
-          color="pink"
-          data-testid="show-52w-lines"
-        />
-        <Checkbox
-          size="xs"
-          label="EMA"
-          checked={state.showEmaLines}
-          onChange={(e) => setShowEmaLines(e.currentTarget.checked)}
-          color="teal"
-          data-testid="show-ema-lines"
-        />
+      </Group>
+      <Group gap="md" wrap="wrap">
+        {[
+          { label: "All trades", tooltip: "Show all completed trades on chart", key: "showAllTrades" as const, color: undefined as string | undefined, setter: setShowAllTrades, testId: "show-all-trades-checkbox", divider: false },
+          { label: "ORB", tooltip: "Opening Range Breakout levels", key: "showOrbLines" as const, color: "blue", setter: setShowOrbLines, testId: "show-orb-lines", divider: true },
+          { label: "Pivot", tooltip: "Fibonacci pivot levels", key: "showPivotLines" as const, color: "violet", setter: setShowPivotLines, testId: "show-pivot-lines", divider: true },
+          { label: "52W", tooltip: "52-week high/low levels", key: "show52wLines" as const, color: "pink", setter: setShow52wLines, testId: "show-52w-lines", divider: true },
+          { label: "EMA", tooltip: "Exponential Moving Averages", key: "showEmaLines" as const, color: "teal", setter: setShowEmaLines, testId: "show-ema-lines", divider: true },
+        ].map(({ label, tooltip, key, color, setter, testId, divider }) => (
+          <Fragment key={key}>
+            {divider && <Text span c="dimmed" size="xs">|</Text>}
+            <Tooltip label={tooltip}>
+              <Checkbox size="xs" label={label} color={color} checked={state[key]} onChange={(e) => setter(e.currentTarget.checked)} data-testid={testId} />
+            </Tooltip>
+          </Fragment>
+        ))}
         {state.chartData?.current_position && (
           <PositionInfo position={state.chartData.current_position} />
         )}
@@ -374,25 +363,25 @@ export function PaperChart() {
       state.showEmaLines,
     );
   }, [
-    state.chartData,
-    isDark,
-    state.selectedTradeId,
-    state.showAllTrades,
-    state.showOrbLines,
-    state.showPivotLines,
-    state.show52wLines,
-    state.showEmaLines,
+    state.chartData, isDark, state.selectedTradeId,
+    state.showAllTrades, state.showOrbLines, state.showPivotLines,
+    state.show52wLines, state.showEmaLines,
   ]);
 
   const emptyState = getEmptyState(state);
-  if (emptyState && !state.chartData) {
+  if (emptyState) {
     return (
       <ChartEmptyState className={emptyState.className} icon={emptyState.icon}>
         <Text c="dimmed">{emptyState.text}</Text>
         {emptyState.subtext && (
-          <Text size="sm" c="dimmed" mt="xs">
-            {emptyState.subtext}
-          </Text>
+          <Text size="sm" c="dimmed" mt="xs">{emptyState.subtext}</Text>
+        )}
+        {emptyState.className === "paper-chart-error" && state.selectedSymbol && (
+          <Button size="xs" variant="light" mt="sm" onClick={() =>
+            fetchPaperChart(state.selectedSymbol, state.chartData?.date || dayjs().format("YYYY-MM-DD"), state.chartTimeframe, state.selectedStrategyId, undefined, true)
+          }>
+            Retry
+          </Button>
         )}
       </ChartEmptyState>
     );
@@ -404,23 +393,11 @@ export function PaperChart() {
       className="paper-chart-container"
       id="paper-chart"
       h="100%"
-      style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
+      style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}
     >
       <ChartHeader state={state} />
-      <Box
-        style={{
-          flex: 1,
-          minHeight: 0,
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <LoadingOverlay
-          visible={state.chartLoading && !!state.chartData}
-          zIndex={10}
-          overlayProps={{ radius: "sm", blur: 1 }}
-        />
+      <Box style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+        <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
         {chartInput ? (
           <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
         ) : (
@@ -433,12 +410,9 @@ export function PaperChart() {
       </Box>
       {state.chartData && (
         <ChartLegend
-          orbLabel={
-            state.chartData?.orb_levels
-              ? `ORB (${state.chartData.orb_levels.or_minutes}m)`
-              : undefined
-          }
+          orbLabel={state.chartData?.orb_levels ? `ORB (${state.chartData.orb_levels.or_minutes}m)` : undefined}
           hasWeek52={!!state.chartData?.week52_levels}
+          hasTrades={!!state.chartData?.trades?.length}
         />
       )}
     </CompactPanel>

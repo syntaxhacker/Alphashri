@@ -170,6 +170,7 @@ export interface AvailableStrategy {
   pivot_type: string;
   breakout_buffer_pct: number;
   entry_threshold_pct: number;
+  min_breakout_pct: number;
   enable_trailing_stop: boolean;
   trailing_stop_pct: number;
   max_holding_days: number;

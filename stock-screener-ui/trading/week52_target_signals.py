@@ -27,6 +27,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         self.near_high_trail_pct: float = float(config.get("near_high_trail_pct", 0.5))
         self.max_holding_days: int = int(config.get("max_holding_days", 15))
         self.cooldown_days: int = int(config.get("cooldown_days", 7))
+        self.recent_touch_days: int = int(config.get("recent_touch_days", 5))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
 
     def check_entry(
@@ -56,13 +57,25 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         if current_price > calculated_high:
             return None
 
+        # Skip if 52W high was recently touched (target already achieved)
+        days_since = market_data.get("days_since_52w_high", 99)
+        if days_since < self.recent_touch_days:
+            return None
+
         entry_threshold = calculated_high * (1 - self.entry_threshold_pct / 100)
         if current_price < entry_threshold:
             return None
 
         stop_loss = round(current_price * (1 - self.sl_pct / 100), 2)
-        # TP is the 52W high itself
-        take_profit = round(calculated_high, 2)
+        # No TP — let the trailing stop manage exits once near/above the 52W high
+        take_profit = 0.0
+
+        vol = market_data.get("volume", 0) or 0
+        avg_vol = market_data.get("avg_volume_20d", 0) or 0
+        vol_ratio = round(vol / avg_vol, 2) if avg_vol > 0 else 0
+        ma50 = market_data.get("ma50", 0) or 0
+        ma200 = market_data.get("ma200", 0) or 0
+        rsi = float(market_data.get("rsi", 0.0) or 0.0)
 
         return self.create_signal(
             symbol=symbol,
@@ -71,7 +84,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
             stop_loss=stop_loss,
             take_profit=take_profit,
             or_high=round(calculated_high, 2),
-            notes=f"52W Target: ₹{current_price:.2f} towards 52W high ₹{calculated_high:.2f} ({(calculated_high - current_price) / current_price * 100:.1f}% upside) | SL {self.sl_pct}% trail {self.near_high_trail_pct}%/{self.trailing_stop_pct}%",
+            notes=f"52W Target: ₹{current_price:.2f} towards 52W high ₹{calculated_high:.2f} ({(calculated_high - current_price) / current_price * 100:.1f}% upside) | SL {self.sl_pct}% trail {self.near_high_trail_pct}%/{self.trailing_stop_pct}% | thresh={self.entry_threshold_pct}% vol_ratio={vol_ratio} rsi={rsi:.0f} ma50={ma50:.0f} ma200={ma200:.0f}",
         )
 
     def check_exit(

@@ -4,6 +4,11 @@ Order endpoints for Paper Trading API.
 
 from datetime import datetime
 from fastapi import HTTPException, Depends
+from pydantic import BaseModel, Field
+
+class PositionNotesUpdate(BaseModel):
+    notes: str | None = Field(None, max_length=500)
+    reason: str | None = Field(None, max_length=500)
 
 from trading.paper_trader import get_paper_trader, OrderSide, ExitReason
 from trading.risk_manager import get_risk_manager
@@ -232,3 +237,48 @@ async def close_all_positions(request: UpdatePricesRequest, user: "User" = Depen
         "message": f"Closed {len(trader.trades)} positions",
         "portfolio": trader.get_portfolio_status()
     }
+
+
+@router.patch("/positions/{position_id}")
+async def update_position_notes(
+    position_id: str,
+    request: PositionNotesUpdate,
+    user: "User" = Depends(get_current_user),
+):
+    """Update notes and/or entry_reason for an open position.
+
+    Merges updates into the existing metadata_json on the Position DB model.
+    """
+    from db.models.trade import Position
+    from db.database import SessionLocal
+    import json
+
+    db = SessionLocal()
+    try:
+        position = db.query(Position).filter(Position.uuid == position_id).first()
+        if not position:
+            raise HTTPException(status_code=404, detail="Position not found")
+
+        metadata = {}
+        if position.metadata_json:
+            try:
+                metadata = json.loads(position.metadata_json)
+            except (json.JSONDecodeError, TypeError):
+                metadata = {}
+
+        if request.notes is not None:
+            metadata["notes"] = request.notes
+        if request.reason is not None:
+            metadata["entry_reason"] = request.reason
+
+        position.metadata_json = json.dumps(metadata)
+        db.commit()
+        db.refresh(position)
+        return position.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
