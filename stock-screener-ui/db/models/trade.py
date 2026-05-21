@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, UniqueConstraint
@@ -112,6 +113,14 @@ class Position(Base):
     )
 
     def to_dict(self):
+        metadata = {}
+        if self.metadata_json:
+            try:
+                metadata = json.loads(self.metadata_json)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        entry_reason = metadata.get("entry_reason", "") if isinstance(metadata, dict) else ""
+        notes = metadata.get("notes", "") if isinstance(metadata, dict) else ""
         return {
             "id": self.uuid,
             "symbol": self.symbol,
@@ -129,4 +138,6 @@ class Position(Base):
             "strategy_type": self.strategy_type or "",
             "peak_price": self.peak_price or 0.0,
             "low_price": self.low_price or 0.0,
+            "entry_reason": entry_reason,
+            "notes": notes,
         }

@@ -49,16 +49,13 @@ def _diff(old: str, new: str) -> str:
 MUTATIONS = [
     # ── Week52Chaser ──────────────────────────────────────────────────
     {
-        "name": "Chaser: remove below-52W-high rejection",
+        "name": "Chaser: remove min_breakout_pct guard (enter at or below 52W high)",
         "file": CHASER,
         "old": (
-            "        # Chaser enters ABOVE the 52W high (breakout confirmed)\n"
-            "        if current_price < high_52w:\n"
-            "            return None\n"
+            "        if pct_above < self.min_breakout_pct or pct_above > self.entry_threshold_pct:\n"
         ),
         "new": (
-            "        # Chaser enters ABOVE the 52W high (breakout confirmed) — MUTATED\n"
-            "        pass  # removed rejection\n"
+            "        if pct_above > self.entry_threshold_pct:  # MUTATED: removed min_breakout_pct guard\n"
         ),
         "tests": [
             "TestWeek52ChaserSignalGenerator::test_check_entry_below_52w_high_rejected",
@@ -66,10 +63,10 @@ MUTATIONS = [
         "expect": "killed",
     },
     {
-        "name": "Chaser: flip entry_threshold > to <",
+        "name": "Chaser: flip entry_threshold > to < (with min_breakout_pct)",
         "file": CHASER,
-        "old": "        if pct_above > self.entry_threshold_pct:\n",
-        "new": "        if pct_above < self.entry_threshold_pct:  # MUTATED: > flipped to <\n",
+        "old": "        if pct_above < self.min_breakout_pct or pct_above > self.entry_threshold_pct:\n",
+        "new": "        if pct_above < self.min_breakout_pct or pct_above < self.entry_threshold_pct:  # MUTATED: > flipped to <\n",
         "tests": [
             "TestWeek52ChaserSignalGenerator::test_check_entry_too_far_above_52w_high",
         ],
@@ -128,12 +125,12 @@ MUTATIONS = [
         "expect": "killed",
     },
     {
-        "name": "Target: TP not set to 52W high",
+        "name": "Target: TP not set to 0 (non-zero TP set)",
         "file": TARGET,
-        "old": "        take_profit = round(calculated_high, 2)",
-        "new": "        take_profit = round(current_price * 2, 2)  # MUTATED: not 52W high",
+        "old": "        take_profit = 0.0",
+        "new": "        take_profit = 100.0  # MUTATED: non-zero TP",
         "tests": [
-            "TestWeek52TargetSignalGenerator::test_check_entry_tp_is_52w_high",
+            "TestWeek52TargetSignalGenerator::test_check_entry_no_tp",
         ],
         "expect": "killed",
     },

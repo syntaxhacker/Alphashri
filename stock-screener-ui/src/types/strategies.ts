@@ -35,6 +35,7 @@ export interface StrategyConfig {
   eod_exit_minute?: number;
   // 52W Chaser Parameters
   entry_threshold_pct: number;
+  min_breakout_pct: number;
   enable_trailing_stop: boolean;
   trailing_stop_pct: number;
   trailing_activation_pct: number;
@@ -128,6 +129,7 @@ export interface StrategyUpdate {
   cooldown_minutes?: number;
   max_distance_from_or_pct?: number;
   entry_threshold_pct?: number;
+  min_breakout_pct?: number;
   enable_trailing_stop?: boolean;
   trailing_stop_pct?: number;
   trailing_activation_pct?: number;

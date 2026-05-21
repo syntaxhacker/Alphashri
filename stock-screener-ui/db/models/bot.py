@@ -58,6 +58,7 @@ class StrategyConfig(Base):
     max_distance_from_or_pct = Column(Float, default=1.5)
 
     entry_threshold_pct = Column(Float, default=3.0)
+    min_breakout_pct = Column(Float, default=0.5)
     enable_trailing_stop = Column(Boolean, default=False)
     trailing_stop_pct = Column(Float, default=3.0)
     trailing_activation_pct = Column(Float, default=2.0)
@@ -119,6 +120,7 @@ class StrategyConfig(Base):
             "cooldown_minutes": self.cooldown_minutes,
             "max_distance_from_or_pct": self.max_distance_from_or_pct,
             "entry_threshold_pct": self.entry_threshold_pct,
+            "min_breakout_pct": self.min_breakout_pct,
             "enable_trailing_stop": self.enable_trailing_stop,
             "trailing_stop_pct": self.trailing_stop_pct,
             "trailing_activation_pct": self.trailing_activation_pct,

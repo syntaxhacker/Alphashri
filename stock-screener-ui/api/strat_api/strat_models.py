@@ -30,6 +30,7 @@ class StrategyCreate(BaseModel):
     eod_exit_minute: Optional[int] = None
     # 52W strategy parameters
     entry_threshold_pct: Optional[float] = None
+    min_breakout_pct: Optional[float] = None
     trailing_stop_pct: Optional[float] = None
     trailing_activation_pct: Optional[float] = None
     max_holding_days: Optional[int] = None
@@ -72,6 +73,7 @@ class StrategyUpdate(BaseModel):
     eod_exit_minute: Optional[int] = None
     # 52W strategy parameters
     entry_threshold_pct: Optional[float] = None
+    min_breakout_pct: Optional[float] = None
     trailing_stop_pct: Optional[float] = None
     trailing_activation_pct: Optional[float] = None
     max_holding_days: Optional[int] = None

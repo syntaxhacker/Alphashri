@@ -226,7 +226,7 @@ class TestWeek52ChaserSignalNotes:
         assert signal is not None
         assert "52W high" in signal.notes
         assert "Breakout" in signal.notes
-        assert "SL 3.0%" in signal.notes
+        assert "SL @ 52W high" in signal.notes
         assert "TP 5.0%" in signal.notes
         assert "ADX 30" in signal.notes
         assert "RSI 60" in signal.notes

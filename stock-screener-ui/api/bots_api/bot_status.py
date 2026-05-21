@@ -52,6 +52,7 @@ def _sync_list_available_strategies(db: Session) -> list:
             "pivot_type": s.pivot_type,
             "breakout_buffer_pct": s.breakout_buffer_pct,
             "entry_threshold_pct": s.entry_threshold_pct,
+            "min_breakout_pct": s.min_breakout_pct,
             "enable_trailing_stop": s.enable_trailing_stop,
             "trailing_stop_pct": s.trailing_stop_pct,
             "max_holding_days": s.max_holding_days,

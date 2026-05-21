@@ -22,7 +22,11 @@ export function normalizePaper(
 
   const trades = mapTrades(
     data.trades,
-    (t, idx) => parseInt((t as PaperChartData["trades"][number]).trade_id, 10) || idx,
+    (t, idx) => {
+      const id = (t as PaperChartData["trades"][number]).trade_id;
+      const num = parseInt(id, 10);
+      return isNaN(num) ? id : num;
+    },
   );
 
   const overlays: UnifiedOverlay[] = [];
@@ -136,7 +140,7 @@ export function normalizePaper(
     };
   }
 
-  const highlightedTradeId = selectedTradeId ? parseInt(selectedTradeId, 10) : null;
+  const highlightedTradeId = selectedTradeId ? selectedTradeId : null;
   return {
     candles,
     trades,
@@ -146,8 +150,8 @@ export function normalizePaper(
     markLines,
     markAreas,
     showVolume: true,
-    showDataZoomSlider: false,
-    showLegend: false,
+    showDataZoomSlider: true,
+    showLegend: false, // disabled in favor of custom ChartLegend in PaperChart2.tsx
     highlightedTradeId,
     showAllTrades,
     isDark,

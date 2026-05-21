@@ -150,8 +150,8 @@ class TestSignalGeneratorInitialization:
         )
         from trading.sr_breakout_signals import SRBreakoutSignalGenerator
         assert isinstance(runner.signal_generator, SRBreakoutSignalGenerator)
-        assert runner.signal_generator.sl_pct == 0.5
-        assert runner.signal_generator.tp_pct == 1.5
+        assert runner.signal_generator.sl_pct == 1.5
+        assert runner.signal_generator.tp_pct == 2.5
         assert runner.signal_generator.pivot_type == "classic"
 
     def test_52w_chaser_creates_generator(self):
@@ -198,7 +198,7 @@ class TestSignalGeneratorInitialization:
         assert runner.signal_generator.ema_slow_period == 26
         assert runner.signal_generator.cooldown_bars == 5
         # sl_pct and tp_pct come from BaseSignalGenerator __init__ via EMACrossSignalGenerator's super
-        assert runner.signal_generator.sl_pct == 0.5
+        assert runner.signal_generator.sl_pct == 1.0
         assert runner.signal_generator.tp_pct == 1.5
 
     def test_unknown_type_fallback_to_orb(self):
@@ -229,7 +229,7 @@ class TestSignalGeneratorInitialization:
         assert runner.signal_generator.ema_fast_period == 9
         assert runner.signal_generator.ema_slow_period == 21
         assert runner.signal_generator.cooldown_bars == 3
-        assert runner.signal_generator.sl_pct == 0.5
+        assert runner.signal_generator.sl_pct == 1.0
         assert runner.signal_generator.tp_pct == 1.5
         assert runner.signal_generator.enable_shorts is False
 
@@ -245,12 +245,12 @@ class TestSignalGeneratorInitialization:
         )
         from trading.week52_chaser_signals import Week52ChaserSignalGenerator
         assert isinstance(runner.signal_generator, Week52ChaserSignalGenerator)
-        assert runner.signal_generator.sl_pct == 3.0
-        assert runner.signal_generator.tp_pct == 5.0
+        assert runner.signal_generator.sl_pct == 2.0
+        assert runner.signal_generator.tp_pct == 3.0
         assert runner.signal_generator.entry_threshold_pct == 3.0
         assert runner.signal_generator.enable_trailing_stop is False
-        assert runner.signal_generator.trailing_stop_pct == 3.0
-        assert runner.signal_generator.trailing_activation_pct == 2.0
+        assert runner.signal_generator.trailing_stop_pct == 2.0
+        assert runner.signal_generator.trailing_activation_pct == 3.0
         assert runner.signal_generator.max_holding_days == 30
         assert runner.signal_generator.cooldown_days == 30
         assert runner.signal_generator.enable_filters is False
@@ -270,7 +270,7 @@ class TestSignalGeneratorInitialization:
         assert runner.signal_generator.sl_pct == 2.0
         assert runner.signal_generator.tp_pct == 0.0
         assert runner.signal_generator.entry_threshold_pct == 2.0
-        assert runner.signal_generator.trailing_stop_pct == 0.5
+        assert runner.signal_generator.trailing_stop_pct == 2.0
         assert runner.signal_generator.max_holding_days == 15
         assert runner.signal_generator.cooldown_days == 7
 

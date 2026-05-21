@@ -48,6 +48,7 @@ class StrategyConfigData:
 
     # 52W Chaser Parameters
     entry_threshold_pct: float = 3.0
+    min_breakout_pct: float = 0.5
     enable_trailing_stop: bool = False
     trailing_stop_pct: float = 3.0
     trailing_activation_pct: float = 2.0
@@ -106,6 +107,7 @@ class StrategyConfigData:
             cooldown_minutes=model.cooldown_minutes,
             max_distance_from_or_pct=model.max_distance_from_or_pct,
             entry_threshold_pct=model.entry_threshold_pct,
+            min_breakout_pct=model.min_breakout_pct,
             enable_trailing_stop=model.enable_trailing_stop,
             trailing_stop_pct=model.trailing_stop_pct,
             trailing_activation_pct=model.trailing_activation_pct,
@@ -155,6 +157,7 @@ class StrategyConfigData:
             "cooldown_minutes": self.cooldown_minutes,
             "max_distance_from_or_pct": self.max_distance_from_or_pct,
             "entry_threshold_pct": self.entry_threshold_pct,
+            "min_breakout_pct": self.min_breakout_pct,
             "enable_trailing_stop": self.enable_trailing_stop,
             "trailing_stop_pct": self.trailing_stop_pct,
             "trailing_activation_pct": self.trailing_activation_pct,

@@ -51,6 +51,12 @@ export function usePaperViewActions(activeBotId: string | null) {
       } else if (view === "settings") {
         stopLiveAutoRefresh();
         fetchStrategyConfig();
+      } else if (view === "analytics") {
+        stopLiveAutoRefresh();
+      } else if (view === "activity") {
+        stopLiveAutoRefresh();
+      } else if (view === "aggregated") {
+        stopLiveAutoRefresh();
       }
     },
     [activeBotId],
@@ -286,6 +292,15 @@ export function PaperTradingTabs({
         </Tabs.Tab>
         <Tabs.Tab value="settings" leftSection={<span>⚙️</span>} data-testid="tab-settings">
           Settings
+        </Tabs.Tab>
+        <Tabs.Tab value="analytics" leftSection={<span>📈</span>} data-testid="tab-analytics">
+          Analytics
+        </Tabs.Tab>
+        <Tabs.Tab value="activity" leftSection={<span>📡</span>} data-testid="tab-activity">
+          Activity
+        </Tabs.Tab>
+        <Tabs.Tab value="aggregated" leftSection={<span>📊</span>} data-testid="tab-aggregated">
+          Dashboard
         </Tabs.Tab>
       </Tabs.List>
     </Tabs>

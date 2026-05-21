@@ -23,6 +23,13 @@ export interface PaperPosition {
   strategy_id: number;
   strategy_name: string;
   strategy_type?: string;
+  entry_reason?: string;
+  exit_reason?: string;
+  peak_price?: number;
+  low_price?: number;
+  high_52w?: number;
+  low_52w?: number;
+  notes?: string;
 }
 
 // Completed trade from journal
@@ -200,7 +207,7 @@ export interface PaperBotSnapshot {
 }
 
 // View type for paper trading
-export type PaperTradingView = "live" | "history" | "settings";
+export type PaperTradingView = "live" | "history" | "settings" | "analytics" | "activity" | "aggregated";
 
 // State interface
 export interface PaperTradingState {
@@ -260,10 +267,23 @@ export interface PaperTradingState {
 
   // Multi-strategy bots
   availableBots: BotInfo[];
+
+  // Analytics
+  analyticsData: AnalyticsData | null;
+  analyticsLoading: boolean;
+
+  // Activity feed
+  activityEvents: ActivityEvent[];
+  activityLoading: boolean;
+
+  // Aggregated dashboard
+  aggregatedData: AggregatedDashboardData | null;
+  aggregatedLoading: boolean;
+
 }
 
 // View type for paper trading (match the state)
-export type PaperView = "live" | "history" | "settings";
+export type PaperView = "live" | "history" | "settings" | "analytics" | "activity" | "aggregated";
 
 // Bot info for multi-strategy
 export interface BotInfo {
@@ -276,6 +296,96 @@ export interface BotInfo {
   }>;
   is_active: boolean;
   live_trading: boolean;
+}
+
+export interface DailyPnLPoint {
+  date: string;
+  pnl: number;
+  net_pnl: number;
+  trades: number;
+  winners: number;
+  losers: number;
+}
+
+export interface EquityCurvePoint {
+  date: string;
+  cumulative_pnl: number;
+}
+
+export interface DrawdownPoint {
+  date: string;
+  drawdown: number;
+  drawdown_pct: number;
+}
+
+export interface MonthlyPnLPoint {
+  month: string;
+  pnl: number;
+}
+
+export interface AnalyticsData {
+  summary: {
+    total_trades: number;
+    winners: number;
+    losers: number;
+    win_rate: number;
+    total_gross_pnl: number;
+    total_net_pnl: number;
+    total_costs: number;
+    avg_win: number;
+    avg_loss: number;
+    profit_factor: number;
+    max_drawdown: number;
+    max_drawdown_pct: number;
+    final_pnl: number;
+  };
+  daily_pnl: DailyPnLPoint[];
+  equity_curve: EquityCurvePoint[];
+  drawdown: DrawdownPoint[];
+  monthly_pnl: MonthlyPnLPoint[];
+  symbol_performance: SymbolPerformance[];
+}
+
+export interface ActivityEvent {
+  type: string;
+  timestamp: string;
+  symbol?: string;
+  side?: string;
+  direction?: string;
+  quantity?: number;
+  entry_price?: number;
+  exit_price?: number;
+  pnl?: number;
+  pnl_pct?: number;
+  net_pnl?: number;
+  exit_reason?: string;
+  strategy_name?: string;
+  hold_duration_minutes?: number;
+  trade_id?: string;
+}
+
+export interface AggregatedBotData {
+  id: string;
+  name: string;
+  running: boolean;
+  pid: number | null;
+  strategies: Array<{ id: number; name: string; strategy_type: string }>;
+  position_count: number;
+  daily_pnl: number;
+  unrealized_pnl: number;
+  positions: any[];
+}
+
+export interface AggregatedDashboardData {
+  bots: AggregatedBotData[];
+  summary: {
+    total_bots: number;
+    running_bots: number;
+    total_positions: number;
+    total_daily_pnl: number;
+    total_unrealized_pnl: number;
+    total_value: number;
+  };
 }
 
 export interface BotSummaryStrategy {

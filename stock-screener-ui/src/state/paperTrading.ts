@@ -14,9 +14,12 @@ import type {
   PaperChartData,
   StrategyConfig,
   BotInfo,
+  AnalyticsData,
+  ActivityEvent,
+  AggregatedDashboardData,
 } from "../types/paperTrading";
 
-import { deleteTrade, updateTradeNotes } from "../api/paperTrading";
+import { deleteTrade, updateTradeNotes, updatePositionNotes } from "../api/paperTrading";
 import { createSubscriber } from "./createSubscriber";
 import { isMarketClosedToday } from "./holidays";
 
@@ -33,8 +36,8 @@ export const initialPaperTradingState: PaperTradingState = {
   symbolPerformance: [],
 
   filterDate: null,
-  filterFromDate: new Date().toISOString().split("T")[0],
-  filterToDate: new Date().toISOString().split("T")[0],
+  filterFromDate: null,
+  filterToDate: null,
   filterSymbol: null,
   filterStrategy: null,
   filterBot: null,
@@ -70,10 +73,22 @@ export const initialPaperTradingState: PaperTradingState = {
 
   // Multi-strategy bots
   availableBots: [],
+
+  // Analytics
+  analyticsData: null,
+  analyticsLoading: false,
+
+  // Activity feed
+  activityEvents: [],
+  activityLoading: false,
+
+  // Aggregated dashboard
+  aggregatedData: null,
+  aggregatedLoading: false,
 };
 
 // Additional type for the view state
-export type PaperViewState = "live" | "history";
+export type PaperViewState = "live" | "history" | "analytics" | "activity" | "aggregated";
 
 // Current state (mutable)
 let state: PaperTradingState = { ...initialPaperTradingState };
@@ -288,6 +303,39 @@ export function stopAutoRefresh() {
   }
 }
 
+// Analytics
+export function setAnalyticsData(data: AnalyticsData | null) {
+  state = { ...state, analyticsData: data, analyticsLoading: false };
+  notify();
+}
+
+export function setAnalyticsLoading(loading: boolean) {
+  state = { ...state, analyticsLoading: loading };
+  notify();
+}
+
+// Activity feed
+export function setActivityEvents(events: ActivityEvent[]) {
+  state = { ...state, activityEvents: events, activityLoading: false };
+  notify();
+}
+
+export function setActivityLoading(loading: boolean) {
+  state = { ...state, activityLoading: loading };
+  notify();
+}
+
+// Aggregated dashboard
+export function setAggregatedData(data: AggregatedDashboardData | null) {
+  state = { ...state, aggregatedData: data, aggregatedLoading: false };
+  notify();
+}
+
+export function setAggregatedLoading(loading: boolean) {
+  state = { ...state, aggregatedLoading: loading };
+  notify();
+}
+
 // Reset state
 export function resetPaperTradingState() {
   state = { ...initialPaperTradingState };
@@ -386,6 +434,29 @@ export async function updateTradeNotesAction(
     return true;
   } catch (error) {
     setError(error instanceof Error ? error.message : "Failed to update trade");
+    return false;
+  }
+}
+
+export async function updatePositionNotesAction(
+  positionId: string,
+  notes: string | null,
+  reason: string | null,
+): Promise<boolean> {
+  try {
+    const updated = await updatePositionNotes(positionId, notes, reason);
+    state = {
+      ...state,
+      positions: state.positions.map((p) =>
+        p.order_id === positionId
+          ? { ...p, notes: updated.notes ?? notes ?? p.notes, entry_reason: updated.entry_reason ?? reason ?? p.entry_reason }
+          : p,
+      ),
+    };
+    notify();
+    return true;
+  } catch (error) {
+    setError(error instanceof Error ? error.message : "Failed to update position");
     return false;
   }
 }
