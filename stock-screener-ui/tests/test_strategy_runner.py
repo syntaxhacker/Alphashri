@@ -299,4 +299,4 @@ class TestIntradayAndSwingTypes:
 
     def test_swing_strategy_types(self):
         """Test SWING_STRATEGY_TYPES contains expected types."""
-        assert SWING_STRATEGY_TYPES == {"52W_CHASER", "52W_TARGET"}
+        assert SWING_STRATEGY_TYPES == {"52W_CHASER", "52W_TARGET", "BLIND_52W"}

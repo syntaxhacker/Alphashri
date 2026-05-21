@@ -11,7 +11,7 @@ from rich.console import Console
 console = Console()
 
 INTRADAY_STRATEGY_TYPES = {"ORB", "SR_BREAKOUT", "EMA_CROSS"}
-SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET"}
+SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET", "BLIND_52W"}
 
 
 @dataclass
@@ -54,6 +54,9 @@ class StrategyRunner:
         elif self.strategy_type == "52W_TARGET":
             from trading.week52_target_signals import Week52TargetSignalGenerator
             self.signal_generator = Week52TargetSignalGenerator(self.config)
+        elif self.strategy_type == "BLIND_52W":
+            from trading.blind_52w_signals import Blind52WSignalGenerator
+            self.signal_generator = Blind52WSignalGenerator(self.config)
         elif self.strategy_type == "EMA_CROSS":
             from trading.ema_cross_signals import EMACrossSignalGenerator
             self.signal_generator = EMACrossSignalGenerator(self.config)

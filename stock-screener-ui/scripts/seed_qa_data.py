@@ -86,6 +86,14 @@ TEMPLATES = [
         'sl_pct': 1.0,
         'tp_pct': 1.5,
     },
+    {
+        'name': 'Blind 52W Template',
+        'strategy_type': 'BLIND_52W',
+        'description': 'Blind buy near 52W high with target exit at 52W high',
+        'near_high_threshold_pct': 3.0,
+        'min_days_since_52w_high': 20,
+        'max_holding_days': 30,
+    },
 ]
 
 # Strategy variations (is_template=False)
@@ -175,6 +183,16 @@ STRATEGIES = [
         'sl_pct': 1.0,
         'tp_pct': 1.5,
         'max_positions': 5,
+    },
+    {
+        'name': 'Blind 52W Swing',
+        'strategy_type': 'BLIND_52W',
+        'template_name': 'Blind 52W Template',
+        'description': 'Buy near 52W high, exit at 52W high or EOD/max days',
+        'near_high_threshold_pct': 3.0,
+        'min_days_since_52w_high': 20,
+        'max_holding_days': 30,
+        'max_positions': 3,
     },
 ]
 

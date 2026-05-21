@@ -42,6 +42,9 @@ export interface StrategyConfig {
   max_holding_days: number;
   cooldown_days: number;
   enable_filters: boolean;
+  // Blind 52W Parameters
+  near_high_threshold_pct: number;
+  min_days_since_52w_high: number;
   // EMA Crossover Parameters
   ema_fast_period: number;
   ema_slow_period: number;
@@ -94,6 +97,9 @@ export interface StrategyCreate {
   max_holding_days?: number;
   cooldown_days?: number;
   enable_filters?: boolean;
+  // Blind 52W parameters
+  near_high_threshold_pct?: number;
+  min_days_since_52w_high?: number;
   // EMA Crossover parameters
   ema_fast_period?: number;
   ema_slow_period?: number;
@@ -136,6 +142,8 @@ export interface StrategyUpdate {
   max_holding_days?: number;
   cooldown_days?: number;
   enable_filters?: boolean;
+  near_high_threshold_pct?: number;
+  min_days_since_52w_high?: number;
   ema_fast_period?: number;
   ema_slow_period?: number;
   pivot_type?: string;

@@ -56,6 +56,10 @@ class StrategyConfigData:
     cooldown_days: int = 30
     enable_filters: bool = False
 
+    # Blind 52W Parameters
+    near_high_threshold_pct: float = 3.0
+    min_days_since_52w_high: int = 20
+
     # EMA Crossover Parameters
     ema_fast_period: int = 9
     ema_slow_period: int = 21
@@ -114,6 +118,8 @@ class StrategyConfigData:
             max_holding_days=model.max_holding_days,
             cooldown_days=model.cooldown_days,
             enable_filters=model.enable_filters,
+            near_high_threshold_pct=model.near_high_threshold_pct,
+            min_days_since_52w_high=model.min_days_since_52w_high,
             pivot_type=model.pivot_type,
             breakout_buffer_pct=model.breakout_buffer_pct,
             enable_shorts=model.enable_shorts,
@@ -164,6 +170,8 @@ class StrategyConfigData:
             "max_holding_days": self.max_holding_days,
             "cooldown_days": self.cooldown_days,
             "enable_filters": self.enable_filters,
+            "near_high_threshold_pct": self.near_high_threshold_pct,
+            "min_days_since_52w_high": self.min_days_since_52w_high,
             "pivot_type": self.pivot_type,
             "breakout_buffer_pct": self.breakout_buffer_pct,
             "enable_shorts": self.enable_shorts,

@@ -519,7 +519,7 @@ class RunnerSignalsMixin:
                 position.metadata['upstox_order_id'] = order_id
             if runner.strategy_type in SWING_STRATEGY_TYPES:
                 position.metadata['strategy_type'] = runner.strategy_type
-                if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
+                if runner.strategy_type in ("52W_CHASER", "52W_TARGET", "BLIND_52W"):
                     position.metadata['entry_52w_high'] = signal.or_high if signal.or_high > 0 else None
                     position.metadata['entry_adx'] = signal.adx if hasattr(signal, 'adx') else None
                     position.metadata['entry_rsi'] = signal.rsi if hasattr(signal, 'rsi') else None

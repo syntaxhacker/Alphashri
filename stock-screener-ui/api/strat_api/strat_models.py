@@ -37,6 +37,9 @@ class StrategyCreate(BaseModel):
     cooldown_days: Optional[int] = None
     enable_trailing_stop: Optional[bool] = None
     enable_filters: Optional[bool] = None
+    # Blind 52W parameters
+    near_high_threshold_pct: Optional[float] = None
+    min_days_since_52w_high: Optional[int] = None
     # S/R Breakout parameters
     pivot_type: Optional[str] = None
     breakout_buffer_pct: Optional[float] = None
@@ -80,6 +83,9 @@ class StrategyUpdate(BaseModel):
     cooldown_days: Optional[int] = None
     enable_trailing_stop: Optional[bool] = None
     enable_filters: Optional[bool] = None
+    # Blind 52W parameters
+    near_high_threshold_pct: Optional[float] = None
+    min_days_since_52w_high: Optional[int] = None
     # S/R Breakout parameters
     pivot_type: Optional[str] = None
     breakout_buffer_pct: Optional[float] = None

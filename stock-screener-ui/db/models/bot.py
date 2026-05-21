@@ -66,6 +66,10 @@ class StrategyConfig(Base):
     cooldown_days = Column(Integer, default=30)
     enable_filters = Column(Boolean, default=False)
 
+    # Blind 52W parameters
+    near_high_threshold_pct = Column(Float, default=3.0)
+    min_days_since_52w_high = Column(Integer, default=20)
+
     ema_fast_period = Column(Integer, default=9)
     ema_slow_period = Column(Integer, default=21)
 
@@ -127,6 +131,8 @@ class StrategyConfig(Base):
             "max_holding_days": self.max_holding_days,
             "cooldown_days": self.cooldown_days,
             "enable_filters": self.enable_filters,
+            "near_high_threshold_pct": self.near_high_threshold_pct,
+            "min_days_since_52w_high": self.min_days_since_52w_high,
             "ema_fast_period": self.ema_fast_period,
             "ema_slow_period": self.ema_slow_period,
             "pivot_type": self.pivot_type,
