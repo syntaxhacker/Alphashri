@@ -61,7 +61,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     isRunning = false,
   } = options;
 
-  await page.route(apiRoute("bots/"), async (route) => {
+  await page.route(apiRoute("bots"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

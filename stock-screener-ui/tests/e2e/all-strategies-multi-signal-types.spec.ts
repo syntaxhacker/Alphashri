@@ -9,6 +9,7 @@ const ALL_STRATEGY_TYPES = [
   { id: 3, name: "EMA Cross", strategy_type: "EMA_CROSS", allocation: 0.2 },
   { id: 4, name: "52W Chaser", strategy_type: "52W_CHASER", allocation: 0.15 },
   { id: 5, name: "52W Target", strategy_type: "52W_TARGET", allocation: 0.1 },
+  { id: 6, name: "Blind 52W Swing", strategy_type: "BLIND_52W", allocation: 0.1 },
 ];
 
 type StrategyItem = (typeof ALL_STRATEGY_TYPES)[number];
@@ -68,18 +69,15 @@ async function navigateToBot(page: Page) {
   await page.waitForLoadState("networkidle");
 }
 
-test.describe("Multi-Strategy - All 5 Strategy Types", () => {
-  test("should display strategy tabs for all 5 strategy types", async ({ page }) => {
+test.describe("Multi-Strategy - Strategy Panels", () => {
+  test("should display strategy panels with names for all strategy types", async ({ page }) => {
     await setupMultiStrategyBot(page);
     await navigateToBot(page);
 
-    await expect(page.locator('[data-testid="strategy-tabs"]')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('[data-testid="strategy-tab-all"]')).toBeVisible();
-
     for (const s of ALL_STRATEGY_TYPES) {
-      const slug = s.name.toLowerCase().replace(/\s+/g, "-");
-      const tab = page.locator(`[data-testid="strategy-tab-${slug}"]`);
-      await expect(tab.first()).toBeVisible();
+      const panel = page.locator(`[data-testid="strategy-panel-${s.id}"]`);
+      await expect(panel).toBeVisible({ timeout: 10000 });
+      await expect(panel).toContainText(s.name);
     }
   });
 
@@ -95,63 +93,26 @@ test.describe("Multi-Strategy - All 5 Strategy Types", () => {
     }
   });
 
-  test("should filter positions by strategy tab - ORB", async ({ page }) => {
+  test("should show correct strategy name per panel", async ({ page }) => {
     await setupMultiStrategyBot(page);
     await navigateToBot(page);
 
-    await page.locator('[data-testid="strategy-tab-orb-conservative"]').click();
-    await page.waitForLoadState("networkidle");
-    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
+    await expectPositionsVisible(page);
+
+    for (const s of ALL_STRATEGY_TYPES) {
+      await expect(page.locator('[data-testid="positions-table-container"]')).toContainText(s.name);
+    }
   });
 
-  test("should filter positions by strategy tab - SR Breakout", async ({ page }) => {
+  test("should show positions grouped by strategy", async ({ page }) => {
     await setupMultiStrategyBot(page);
     await navigateToBot(page);
 
-    const slug = "sr-breakout";
-    await page.locator(`[data-testid="strategy-tab-${slug}"]`).click();
-    await page.waitForLoadState("networkidle");
-    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText(
-      "RELIANCE",
-    );
-  });
+    await expectPositionsVisible(page);
 
-  test("should filter positions by strategy tab - EMA Cross", async ({ page }) => {
-    await setupMultiStrategyBot(page);
-    await navigateToBot(page);
-
-    await page.locator('[data-testid="strategy-tab-ema-cross"]').click();
-    await page.waitForLoadState("networkidle");
-    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("INFY");
-  });
-
-  test("should filter positions by strategy tab - 52W Chaser", async ({ page }) => {
-    await setupMultiStrategyBot(page);
-    await navigateToBot(page);
-
-    await page.locator('[data-testid="strategy-tab-52w-chaser"]').click();
-    await page.waitForLoadState("networkidle");
-    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("HDFC");
-  });
-
-  test("should filter positions by strategy tab - 52W Target", async ({ page }) => {
-    await setupMultiStrategyBot(page);
-    await navigateToBot(page);
-
-    await page.locator('[data-testid="strategy-tab-52w-target"]').click();
-    await page.waitForLoadState("networkidle");
-    await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("SBIN");
-  });
-
-  test("should show all positions in All tab", async ({ page }) => {
-    await setupMultiStrategyBot(page);
-    await navigateToBot(page);
-
-    await page.locator('[data-testid="strategy-tab-all"]').click();
-    await page.waitForLoadState("networkidle");
-
-    for (const symbol of ["TCS", "RELIANCE", "INFY", "HDFC", "SBIN"]) {
-      await expect(page.locator('[data-testid="positions-table-container"]')).toContainText(symbol);
+    for (const s of ALL_STRATEGY_TYPES) {
+      const panel = page.locator(`[data-testid="strategy-panel-${s.id}"]`);
+      await expect(panel).toBeVisible({ timeout: 5000 });
     }
   });
 });
@@ -163,7 +124,9 @@ test.describe("Multi-Strategy - Scan Items per Strategy Type", () => {
 
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 15000 });
-    await expect(scanCard).toContainText("Strategy");
+    for (const s of ALL_STRATEGY_TYPES) {
+      await expect(scanCard).toContainText(s.name);
+    }
   });
 
   test("should show signal scan items", async ({ page }) => {
@@ -182,32 +145,6 @@ test.describe("Multi-Strategy - Scan Items per Strategy Type", () => {
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 15000 });
     await expect(scanCard).toContainText("Watching");
-  });
-});
-
-test.describe("Multi-Strategy - Strategy Type Display in Positions", () => {
-  test("should display strategy column in positions table", async ({ page }) => {
-    await setupMultiStrategyBot(page);
-    await navigateToBot(page);
-
-    await expectPositionsVisible(page);
-    await expect(
-      page
-        .locator('[data-testid="positions-table-container"]')
-        .locator("th", { hasText: "Strategy" })
-        .first(),
-    ).toBeVisible();
-  });
-
-  test("should show correct strategy name per position", async ({ page }) => {
-    await setupMultiStrategyBot(page);
-    await navigateToBot(page);
-
-    await expectPositionsVisible(page);
-
-    for (const s of ALL_STRATEGY_TYPES) {
-      await expect(page.locator('[data-testid="positions-table-container"]')).toContainText(s.name);
-    }
   });
 });
 
