@@ -160,15 +160,10 @@ export async function navigateToBot(page: Page, _botId?: string) {
   await page.waitForTimeout(1000);
 }
 
-export async function clickStrategyTab(page: Page, tabName: string): Promise<void> {
-  if (tabName === "All") {
-    await expect(page.getByTestId("strategy-tab-all")).toBeVisible();
-    await page.getByTestId("strategy-tab-all").click();
-  } else {
-    const partial = tabName.replace(/\s+/g, "-").toLowerCase();
-    const tab = page.locator(`[data-testid^="strategy-tab-${partial}"]`);
-    await expect(tab.first()).toBeVisible();
-    await tab.first().click();
-  }
+export async function verifyStrategyPanel(page: Page, strategyName: string): Promise<void> {
+  // In the current UI, positions are shown in strategy panels (not tabs)
+  // Verify the positions container is visible (all positions shown by default)
+  const positionsContainer = page.getByTestId("positions-table-container");
+  await expect(positionsContainer).toBeVisible();
   await page.waitForTimeout(1000);
 }

@@ -37,6 +37,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         current_price = market_data.get("current_price")
         high_52w = market_data.get("high_52w")
         daily_highs: List[float] = market_data.get("daily_highs", [])
+        today_intraday_high: float = market_data.get("today_intraday_high", 0.0)
 
         if current_price is None:
             return None
@@ -54,6 +55,10 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
 
         # Target buys BELOW the 52W high, sells at it
         if current_price > calculated_high:
+            return None
+
+        # Skip if price already broke above 52W high intraday and fell back (failed breakout)
+        if today_intraday_high > calculated_high:
             return None
 
         entry_threshold = calculated_high * (1 - self.entry_threshold_pct / 100)

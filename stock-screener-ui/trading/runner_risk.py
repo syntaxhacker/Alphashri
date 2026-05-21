@@ -109,6 +109,7 @@ class RunnerRiskMixin:
                 ma200 = sum(closes[-200:]) / 200
 
             current_price = closes[-1]
+            today_intraday_high = 0.0
             try:
                 intraday = fetcher.upstox_api.fetch_intraday_data_v3(
                     symbol=symbol, interval='1'
@@ -118,10 +119,12 @@ class RunnerRiskMixin:
 
             if intraday is not None and not intraday.empty:
                 current_price = float(intraday['close'].iloc[-1])
+                today_intraday_high = float(intraday['high'].max())
 
             return {
                 'current_price': current_price,
                 'high_52w': high_52w,
+                'today_intraday_high': today_intraday_high,
                 'daily_highs': highs,
                 'daily_closes': closes,
                 'volume': volumes[-1] if volumes else 0.0,

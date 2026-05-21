@@ -111,7 +111,8 @@ async function navigateAndClickPosition(page: Page, symbol: string = "TCS") {
 
   const positionRow = page.locator(`[data-testid="position-row-${symbol}"]`);
   await expect(positionRow).toBeVisible({ timeout: 10000 });
-  await positionRow.click();
+  // Click the symbol link inside the row, not the row itself (row click only toggles expansion)
+  await positionRow.locator(".symbol-link").click();
   await expect(page.locator('[data-testid="paper-chart-container"]')).toBeVisible({
     timeout: 10000,
   });
